@@ -180,6 +180,16 @@ fn new_zeroed(f: &mut Func, size: u32, drop: Option<Sym>, cyclic: bool) -> u32 {
     at
 }
 
+/// Cancel entry points are not dependencies until a reachable operation or
+/// exported entry can use them. The zeroed frame needs no slot otherwise.
+fn cancel_slot(f: &mut Func, m: &Module, frame: u32, cancel: Sym) {
+    if m.cancellable {
+        f.get(frame);
+        f.table_slot(cancel);
+        f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
+    }
+}
+
 fn panic(f: &mut Func, msg: &str) {
     f.helper(Helper::Panic(msg.into()));
 }
@@ -388,9 +398,7 @@ fn frame(key: Hash128, m: &Module) -> Func {
     f.get(at);
     f.table_slot(Sym::Part(key, Part::Poll));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
-    f.get(at);
-    f.table_slot(Sym::Part(key, Part::Cancel));
-    f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
+    cancel_slot(&mut f, m, at, Sym::Part(key, Part::Cancel));
     f.get(at);
     f
 }
@@ -410,6 +418,10 @@ fn poll_check(m: &Module) -> Func {
     f.op(Instruction::If(BlockType::Empty));
     panic(&mut f, INVALID);
     f.op(Instruction::End);
+    if !m.cancellable {
+        f.i32(0);
+        return f;
+    }
     flags_any(&mut f, 0, CANCELLED);
     f.op(Instruction::I32Eqz);
     f.op(Instruction::If(BlockType::Empty));
@@ -1120,9 +1132,7 @@ fn host_cold(
     f.get(fr);
     f.table_slot(poll);
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
-    f.get(fr);
-    f.table_slot(Sym::Helper(Helper::HostCancel));
-    f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
+    cancel_slot(&mut f, m, fr, Sym::Helper(Helper::HostCancel));
     f.get(fr);
     f.i32(-1);
     f.op(Instruction::I32Store(mem(HEAP, u64::from(F_SAVED), 2)));
@@ -1446,9 +1456,7 @@ fn cleanup_cold(m: &Module) -> Func {
     f.get(fr);
     f.table_slot(Sym::Helper(Helper::CleanupPoll));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
-    f.get(fr);
-    f.table_slot(Sym::Helper(Helper::CleanupCancel));
-    f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
+    cancel_slot(&mut f, m, fr, Sym::Helper(Helper::CleanupCancel));
     f.get(fr);
     f.get(0);
     f.op(Instruction::I32Store(mem(HEAP, F_CHILD, 2)));
@@ -1556,9 +1564,7 @@ fn pending_cold(m: &Module, results: &[Val]) -> Func {
         results: results.to_vec(),
     }));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
-    f.get(fr);
-    f.table_slot(Sym::Helper(Helper::PendingCancel));
-    f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
+    cancel_slot(&mut f, m, fr, Sym::Helper(Helper::PendingCancel));
     f.get(fr);
     f
 }
@@ -1615,9 +1621,7 @@ fn race_cold(m: &Module, results: &[Val], walk: Option<&Walk>) -> Func {
     f.get(fr);
     f.table_slot(Sym::Helper(h(1)));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
-    f.get(fr);
-    f.table_slot(Sym::Helper(h(2)));
-    f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
+    cancel_slot(&mut f, m, fr, Sym::Helper(h(2)));
     f.get(fr);
     f.get(0);
     f.op(Instruction::I32Store(mem(HEAP, u64::from(RACE_LIST), 2)));
@@ -1855,9 +1859,7 @@ fn open_cold(
         counts,
     }));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
-    f.get(fr);
-    f.table_slot(Sym::Helper(Helper::CleanupCancel));
-    f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
+    cancel_slot(&mut f, m, fr, Sym::Helper(Helper::CleanupCancel));
     f.get(fr);
     f.get(0);
     f.op(Instruction::I32Store(mem(HEAP, F_CHILD, 2)));
@@ -1972,6 +1974,25 @@ mod origin_tests {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn generic_and_pending_frames_link_cancel_slots_only_when_needed() {
+        let mut m = crate::module::Module::default();
+        for enabled in [false, true] {
+            m.cancellable = enabled;
+            for f in [
+                super::open_cold(&m, &[], None, false, None),
+                super::pending_cold(&m, &[]),
+            ] {
+                let linked = f.body.iter().any(|ins| {
+                    matches!(ins, crate::module::Ins::TableSlot(id)
+                        if matches!(&*f.symbols.get(*id), crate::module::Sym::Helper(
+                            crate::rt::Helper::CleanupCancel | crate::rt::Helper::PendingCancel)))
+                });
+                assert_eq!(linked, enabled, "{}", f.name);
+            }
+        }
+    }
+
     use std::io::Write as _;
     use std::process::{Command, Stdio};
 
