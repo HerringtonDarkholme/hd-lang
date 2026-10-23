@@ -560,7 +560,7 @@ pub enum Lowering {
 /// `type_id_of` to `std.inspect`, the two reference recovery keys to
 /// inherent methods in `std.inspect` and `std.error`,
 /// `ref_identity` to `std.cmp.identity_of`, which the checker lowers, and
-/// the `mem_` keys to the runtime module `std.rt.memory`, which only the
+/// the `mem_` and `ptr_` keys to the runtime module `std.rt.memory`, which only the
 /// linear backend lowers (`crates/hd_wasm_linear/DESIGN.md` §23.12).
 pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("bytes_len", Lowering::Compiler),
@@ -621,6 +621,10 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("mem_store_u64", Lowering::Compiler),
     ("mem_copy", Lowering::Compiler),
     ("mem_fill", Lowering::Compiler),
+    ("ptr_size_of", Lowering::Compiler),
+    ("ptr_read", Lowering::Compiler),
+    ("ptr_write", Lowering::Compiler),
+    ("ptr_offset", Lowering::Compiler),
     ("format_f64", Lowering::HostPrimitive("format_f64")),
     ("format_f32", Lowering::HostPrimitive("format_f32")),
     ("string_lower", Lowering::HostPrimitive("string_lower")),

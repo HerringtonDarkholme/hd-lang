@@ -76,3 +76,31 @@ pub fn copy(to: usize, from: usize, count: usize) -> void:
 ## See [module.rt.memory.fill](../../../spec/lang/10-modules.md#r-module.rt.memory.fill).
 pub fn fill(to: usize, byte: u8, count: usize) -> void:
     panic("intrinsic")
+
+## The address of a value of type `T` in the heap. A copy of a `Ptr[T]` copies the address, never the value.
+## See [module.rt.ptr.type](../../../spec/lang/10-modules.md#r-module.rt.ptr.type).
+pub struct Ptr[T]:
+    ## The address of the value's first byte.
+    pub address: usize
+
+impl[T] Ptr[T]:
+    ## Moves the value at the address out and gives it; the heap there then holds none.
+    ## See [module.rt.ptr.read](../../../spec/lang/10-modules.md#r-module.rt.ptr.read).
+    @intrinsic("ptr_read")
+    pub fn read(self) -> T: panic("intrinsic")
+
+    ## Writes a copy of `value` at the address, over whatever its bytes held.
+    ## See [module.rt.ptr.write](../../../spec/lang/10-modules.md#r-module.rt.ptr.write).
+    @intrinsic("ptr_write")
+    pub fn write(self, value: T) -> void: panic("intrinsic")
+
+    ## The address `count` values of `T` past this one.
+    ## See [module.rt.ptr.offset](../../../spec/lang/10-modules.md#r-module.rt.ptr.offset).
+    @intrinsic("ptr_offset")
+    pub fn offset(self, count: usize) -> Ptr[T]: panic("intrinsic")
+
+## The number of heap bytes one value of `T` takes.
+## See [module.rt.ptr.size-of](../../../spec/lang/10-modules.md#r-module.rt.ptr.size-of).
+@intrinsic("ptr_size_of")
+pub fn size_of[T]() -> usize:
+    panic("intrinsic")

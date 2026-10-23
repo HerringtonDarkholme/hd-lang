@@ -2160,6 +2160,9 @@ impl Em<'_, '_, '_> {
                 {
                     self.downcast(i, ct.item, args[0])
                 }
+                TargetKind::Intrinsic(key) if key.starts_with("ptr_") => {
+                    self.ptr(i, key, ct.args, &args)
+                }
                 TargetKind::Intrinsic(key) => self.intrinsic(i, key, &args),
                 TargetKind::Builtin { self_ty, .. } => {
                     let path = (self.input.path)(ct.item);
@@ -2672,6 +2675,60 @@ impl Em<'_, '_, '_> {
         }
         self.f.op(op);
         self.store(i)
+    }
+
+    /// `std.rt.memory`'s typed intrinsics on the heap (`module.rt.ptr.*`).
+    /// A `Ptr[T]` is its address, and a `T` there has the layout of a
+    /// list's element of `T`. `read` moves the value out with its count;
+    /// `write` stores a copy, which takes a count of its own as an
+    /// element's does, and releases nothing.
+    fn ptr(&mut self, i: u32, key: &str, targs: TyList, args: &[u32]) -> StageResult<()> {
+        let Some(&t) = self.pool().list_items(targs).last() else {
+            return unsupported("a typed memory intrinsic without its type argument");
+        };
+        let t = self.sub(t);
+        let m = crate::layout::mem(self.pool(), self.env(), t)?;
+        if key == "ptr_size_of" {
+            self.f.u32(m.size);
+            return self.store(i);
+        }
+        let at = self.f.local(Val::I32);
+        self.comp(args[0], 0)?;
+        self.f.set(at);
+        match key {
+            "ptr_offset" => {
+                self.f.get(at);
+                self.push(args[1])?;
+                self.f.u32(m.size);
+                self.f.op(I::I32Mul);
+                self.f.op(I::I32Add);
+                self.store(i)
+            }
+            "ptr_read" => {
+                for l in &m.leaves {
+                    self.f.get(at);
+                    self.f.op(l.load(0));
+                }
+                self.store_owned(i)
+            }
+            "ptr_write" => {
+                let s = self.slot_src(args[1], t, false)?;
+                self.retain_src(&s, t)?;
+                for (k, l) in m.leaves.iter().enumerate() {
+                    self.store_leaf(
+                        &|em: &mut Self| {
+                            em.f.get(at);
+                            Ok(())
+                        },
+                        0,
+                        *l,
+                        &mut |em: &mut Self| em.src(&s, k),
+                    )?;
+                }
+                self.store(i)
+            }
+            other => unsupported(format!("the intrinsic `{other}`")),
+        }
     }
 
     /// The result type `T` of a `Suspend[T]`.

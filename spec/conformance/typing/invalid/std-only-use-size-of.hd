@@ -1,0 +1,6 @@
+# test: a module use of std.rt.memory is an error too, so no qualified name reaches size_of
+# Spec 10 Typed Memory: module.rt.std-only.error, module.rt.ptr.size-of.
+use std.rt.memory  # diagnostic: std-only-use
+
+pub fn main() -> void:
+    _ := memory.size_of::[u8]()

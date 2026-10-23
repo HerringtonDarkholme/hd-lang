@@ -3206,6 +3206,29 @@ cases print the same bytes as at commit 3. `List`'s cursor and element
 operations, at 30 to 40 instructions, need the limit tuned again when
 they move to std.
 
+**The typed primitives' two commits**, each reporting its code lines
+against 255 Rust and 35 hd, the emitted sizes and the web compiler's gzip:
+
+1. **The pointer and its operations**: `Ptr[T]`, `size_of`, `read`, `write` and `offset` in `std.rt.memory`, specified (spec 10 "Typed Memory") and lowered in the linear backend, with counting at the call: `read` moves the value's count out and `write` takes one for its copy, by the intrinsic call's convention (arguments lent, the result owned).
+2. **The passes' view and what `List` needs first**: a place rooted at a pointer's target, with its operand words and verifier rule, so the passes move a last use into a `write`, cancel a read written back and borrow through a read; the counted buffer object kind with its capacity and length words and element drop glue; and the two string views.
+
+The plan put all counting in commit 2. It moved into commit 1 because
+the call convention already gives it in a few lines, and a commit 1
+without it would have to refuse a counted `T` with a rule commit 2
+retires, or count it wrong.
+
+**As built.** Commit 1 adds 55 Rust code lines (`Em::ptr` 48, its call
+arm 3, the four `hd_host_abi` keys 4) and 12 hd code lines, against 255
+and 35. `Ptr[T]` is a plain struct of one `usize`, so it needs no known
+type in the checker, and the existing `std-only-use` already keeps it
+in std: the 60 lines planned for `hd_check` are not needed. `offset` is
+an intrinsic rather than hd, since the inliner leaves `std.rt` callees
+alone and an element access must not be a call. A `T` in the heap has a
+list element's layout, so `size_of` is that layout's size. The 13
+programs' Wasm is byte-identical, the web compiler's gzip grows 645 B
+(1,897,145 to 1,897,790), and the std runtime tests gain
+`ptr_tests.hd` (7 cases).
+
 **Emitted size budget.** hello's Wasm does not change, and each
 bench/study program's release `.wasm` stays within +5% of its size
 before the inliner; a commit over that stops for review, like a commit

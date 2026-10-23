@@ -1664,6 +1664,43 @@ pub fn fill(to: usize, byte: u8, count: usize) -> void
 > places there, such as static data, so std code reads and writes only the
 > pages it grew.
 
+### Typed Memory
+
+`std.rt.memory` also declares a pointer type, whose intrinsics read and
+write a value of any type `T` in the heap:
+
+```text
+pub struct Ptr[T]:
+    pub address: usize
+
+impl[T] Ptr[T]:
+    pub fn read(self) -> T
+    pub fn write(self, value: T) -> void
+    pub fn offset(self, count: usize) -> Ptr[T]
+
+pub fn size_of[T]() -> usize
+```
+
+1. r[module.rt.ptr.type] `Ptr[T]` is an ordinary struct. Its `address` is the heap address of the first of `size_of[T]()` bytes that may hold a value of type `T`.
+2. r[module.rt.ptr.copy] A copy of a `Ptr[T]` copies the address. It never copies, counts, or drops the value at the address.
+3. r[module.rt.ptr.decl] `read`, `write`, `offset`, and `size_of` are ordinary hd declarations marked `@intrinsic`, as for the [memory intrinsics](#r-module.rt.memory.decl).
+4. r[module.rt.ptr.size-of] `size_of[T]()` returns the number of heap bytes one value of `T` takes. It is the same for every value of `T` in a program instance.
+5. r[module.rt.ptr.size-of.number] For `bool`, `u8`, and `i8` it is 1, for `u16` and `i16` 2, for `u32`, `i32`, `f32`, and `char` 4, and for `u64`, `i64`, and `f64` 8. For `usize` it is the target's pointer width in bytes.
+6. r[module.rt.ptr.offset] `p.offset(count)` returns the `Ptr[T]` whose address is `p.address + count * size_of[T]()`.
+7. r[module.rt.ptr.write] `p.write(value)` stores a copy of `value` at `p`, so the heap there holds a value of `T`. The copy shares and counts references as any copy of a `T` does.
+8. r[module.rt.ptr.write.over] A write replaces the bytes at `p` without dropping the value they held.
+9. r[module.rt.ptr.read] `p.read()` moves the value at `p` out and returns it, so the heap there no longer holds a value. Its bytes do not change.
+10. r[module.rt.ptr.integer] A value of an integer type is stored as its bytes, least significant first, so the [loads and stores](#r-module.rt.memory.load) of its width read and write it.
+11. r[module.rt.ptr.holds] Only the standard library reads or writes through a `Ptr[T]`, and it reads only where the heap holds a value of `T`.
+12. r[module.rt.ptr.bounds] A read or a write that reaches a byte outside the heap stops the program instance with no panic category, as for [`module.rt.memory.bounds`](#r-module.rt.memory.bounds).
+
+> **Note.** A read and a write of the same value back copy it out, and a
+> read whose result is discarded drops the value in place.
+
+> **Why.** These are Rust's `ptr::read` and `ptr::write`: one count per
+> value held, moved by a read and taken by a write, so std's collections
+> place, move, and drop their elements with no other intrinsic.
+
 ## Module Initialization
 
 This section defines which modules initialize, in what order, and what their

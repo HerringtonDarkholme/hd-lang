@@ -1,0 +1,9 @@
+# test: a program outside the standard library cannot use the typed memory of a runtime module
+# Spec 10 Typed Memory: module.rt.std-only.error, module.rt.ptr.type.
+use std.rt.memory.{Ptr, size_of}  # diagnostic: std-only-use
+
+fn last(at: Ptr[i64], count: usize) -> i64:
+    at.offset(count - 1).read()
+
+pub fn main() -> void:
+    _ := size_of::[i64]()
