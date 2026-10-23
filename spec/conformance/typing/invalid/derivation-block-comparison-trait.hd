@@ -1,4 +1,4 @@
-# test: a derivation block for a comparison trait is an error, since Eq has no template
+# test: a derivation block for a comparison trait is an error, since only @derive instantiates the Eq template
 # Spec 14 Derivation Blocks: annot.block.template; a comparison trait is derived only with @derive.
 use std.structure.Structure
 
