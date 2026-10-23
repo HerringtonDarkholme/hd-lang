@@ -33,11 +33,11 @@ The following workflows are proposals, not commands available today.
 
 | User and goal | Commands and report | Decision and completion |
 | --- | --- | --- |
-| Author adds a standalone helper | `hd api-diff` reports `minor`, with the added public path | Review behavior, then `hd release 1.5.0` checks and creates a local tag. |
-| Author adds a requirement to an existing function | `hd api-diff` shows the old/new rows and `major` | Update clients, choose `2.0.0`, then run the write command. |
-| CI reviews a proposed release | `hd api-diff --check-version 1.5.0 --format json` returns findings and version adequacy | Reject an insufficient bump; successful analysis without this flag remains informational. |
-| Workspace author releases one member | `hd api-diff -p lint --since 1.4.0`, then `hd release -p lint 1.5.0` | Inspect only that package's comparison and create `lint/v1.5.0`. |
-| Author makes the first release | Read command reports `first-release`, with no compatibility verdict | Choose an exact initial version; write command checks the package before tagging. |
+| Author adds a standalone helper | `hd release --api-diff` reports `minor`, with the added public path | Review behavior, then `hd release 1.5.0` checks and creates a local tag. |
+| Author adds a requirement to an existing function | `hd release --api-diff` shows the old/new rows and `major` | Update clients, then `hd release 2.0.0` checks and tags it. |
+| CI reviews a proposed release | `hd release 1.5.0 --dry-run --format json` returns findings and version adequacy | Reject an insufficient bump; `--api-diff` alone remains informational. |
+| Workspace author releases one member | `hd release -p lint --api-diff --since 1.4.0`, then `hd release -p lint 1.5.0` | Inspect only that package's comparison and create `lint/v1.5.0`. |
+| Author makes the first release | `hd release --api-diff` reports `first-release`, with no compatibility verdict | Run `hd release 0.1.0` (or another exact version). The report shows no minimum bump. |
 
 Today, versions are [Git tags](../../spec/lang/10-modules.md#r-module.version.tag),
 with [directory prefixes](../../spec/lang/10-modules.md#r-module.version.tag-prefix).
@@ -777,18 +777,21 @@ Incremental stress tests must compare cold and warm report bytes.
 
 ## Command and tags
 
-Recommend `hd api-diff` for reading and `hd release VERSION` for writing.
-`hd diff` would be confused with a source diff; `hd semver-check` implies a gate even when the author only wants information.
-`hd bump` suggests changing a manifest version that hd does not have.
-The writer's exact version argument visibly authorizes one local tag after checks.
+One command, `hd release`, does both the reading and the writing (owner, 2026-10-23):
 
 ```sh
-hd api-diff
-hd api-diff -p lint --since 1.4.0 --format json
-hd api-diff --check-version 2.0.0
-hd release -p lint 1.5.0 --dry-run
-hd release -p lint 1.5.0
+hd release --api-diff      # print what changed in the public API, and the smallest bump it needs
+hd release 2.0.0 --dry-run # run every check for 2.0.0, create nothing
+hd release 2.0.0           # tag this exact version, after checking it is a large enough bump
+hd release -p lint --api-diff --since 1.4.0 --format json
 ```
+
+Creating a tag always needs the exact version: a bare `hd release` is a usage error that names the smallest version the API change allows, as [Bump arithmetic](#bump-arithmetic) computes it.
+A tag is too easy to create by mistake when the tool picks the number.
+`--dry-run` runs the same checks as the versioned call, and writes nothing.
+`--api-diff` only reads: it prints the report, may run in a dirty checkout, and creates nothing.
+An explicit version that is too small for the change fails, and names the smallest one that would pass.
+The tag is local, annotated and unsigned; `hd release` never pushes or publishes.
 
 ### Selection and configuration
 
@@ -805,7 +808,7 @@ Never use lexical tag order or another package's prefix.
 No release-specific `hd.toml` keys are introduced.
 Existing package/workspace/dependency and toolchain configuration still applies to each committed tree.
 CLI selection, baseline, `--format text|json`, and `--jobs N` control only this invocation; invalid combinations are usage errors.
-`--check-version VERSION` belongs to the reader; the writer's version is positional and required.
+The version is positional; only `--api-diff` runs without one.
 
 Both commands analyze committed HEAD, never unstaged or staged changes.
 The reader may run in a dirty checkout and labels that fact; the writer and its dry-run require a clean repository.
@@ -853,7 +856,7 @@ Unknown future change kinds can be displayed as text by old clients; a new summa
 | Exit | Meaning |
 | --- | --- |
 | `0` | Report completed, even with major findings; requested version is adequate, or local tag creation succeeded. |
-| `1` | Analysis completed but `--check-version` or the writer's target is insufficient/not newer. No tag is created. |
+| `1` | Analysis completed but the given version is insufficient/not newer. No tag is created. |
 | `101` | Usage, checking, extraction, missing object/dependency, dirty writer tree, or Git transaction failure. No success summary. |
 
 An incomplete operation still emits a final summary with `assessment: "unassessed"`, `status: 101`, and no suggested version.
@@ -1015,7 +1018,7 @@ Tests here are the future implementation checks, not authorization to run full s
 | 4 | Data and visibility comparison | Struct literals, subset patterns, variants, and promoted paths. |
 | 5 | Traits, generics, derived impls and templates | Bound-inference ambiguity and downstream implementations. |
 | 6 | Committed-object source and baseline selector | Numeric/prefixed tags and missing-object failures in disposable repos. |
-| 7 | `hd api-diff` text/JSON/version validation | Exact output, statuses, first release, and cold/warm equality. |
+| 7 | `hd release --api-diff` text/JSON and version validation | Exact output, statuses, first release, and cold/warm equality. |
 | 8 | `hd release VERSION` guarded transaction | Dry-run creates nothing; valid release creates one annotated ref; races create none. |
 | 9 | Footprint and large-package validation | Native tool cost, unchanged program Wasm, web gzip, bounded worst bucket. |
 
@@ -1025,7 +1028,7 @@ The implementation issue must name exact files and conformance fixtures before w
 
 ## Recommendation
 
-Recommend **checked interface comparison**, with **`hd api-diff`** for reports and **`hd release VERSION`** for checked local tagging.
+Recommend **checked interface comparison**, with one **`hd release`** command: `--api-diff` reports, `--dry-run` checks, and `hd release VERSION` creates one checked local tag.
 It gives up automatic behavioral certification, publishing, and permissive guesses about unresolved impl relationships.
 The next-best mechanism is the smallest checked tag writer with author-selected compatibility.
 A rendered-documentation diff should not gate a release.
