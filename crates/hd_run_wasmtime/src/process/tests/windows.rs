@@ -253,7 +253,7 @@ fn child_immediate_descendant() {
         .spawn()
         .unwrap();
     fixture_watchdog();
-    std::thread::sleep(Duration::from_mins(1));
+    std::thread::sleep(Duration::from_secs(60));
     std::process::exit(99);
 }
 

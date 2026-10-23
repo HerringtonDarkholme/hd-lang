@@ -423,7 +423,6 @@ impl Tree {
 struct Tree;
 
 #[cfg(not(unix))]
-#[expect(clippy::unused_self, reason = "the same interface as the Unix tree")]
 impl Tree {
     fn of(_child: &ProcessChild) -> Tree {
         Tree
