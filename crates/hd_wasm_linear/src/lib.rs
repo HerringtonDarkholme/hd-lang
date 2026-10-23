@@ -51,6 +51,14 @@ pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     layout::walk(pool, env, ty).is_some()
 }
 
+/// Runs `f` with the layout cache in place (a link's, when `f` runs inside
+/// one): within it, [`counted_type`] and the other layout queries compute
+/// each type's layout once, so a long chain of types held by value costs
+/// its length, not its square, at every query.
+pub fn with_layout_cache<R>(f: impl FnOnce() -> R) -> R {
+    layout::cached_here(f)
+}
+
 /// Whether `ty` is a reference (`&T`, `&mut T`, a trait value
 /// reference), which a parameter borrows (`layout::Pass::Borrowed`).
 #[must_use]

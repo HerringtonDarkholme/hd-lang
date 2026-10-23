@@ -267,11 +267,6 @@ pub enum IntrinsicOp {
     /// when another owner still holds it (`crates/hd_wasm_linear/DESIGN.md`
     /// §23.20, "Collections").
     ValueCopy,
-    /// `(list, index) -> element`: an element read (`Read [%xs [%i]]`)
-    /// for a write through the element (`xs[i].push(v)`, `xs[i].x = v`):
-    /// the list's buffer is made unique first, so the write reaches only
-    /// this list.
-    ListIndexMut,
     /// `(map, key) -> value`: `MapIndex` for a write through the value
     /// (`m[k].push(v)`), with the map's buffer made unique first.
     MapIndexMut,
@@ -282,19 +277,10 @@ pub enum IntrinsicOp {
     /// `(collection, snapshot)`: the loop over `snapshot` has ended; a
     /// collection the loop did not change stops copying for it.
     SnapEnd,
-    /// `(list) -> list` or `(list, index) -> list`: the list an element
-    /// reference points into (`ref.elem.pin`), its buffer made unique and
-    /// pinned; an index is bounds-checked first. A pinned list panics
-    /// `collection-pinned` on a length change (`crates/hd_wasm_linear/DESIGN.md`
-    /// §15.2, "Element references").
-    ListPin,
-    /// `(list)`: releases one pin of `ListPin` after the reference's last
-    /// use (`ref.elem.release`).
-    ListUnpin,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 21] = [
+    pub const ALL: [IntrinsicOp; 18] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::MapLen,
@@ -310,12 +296,9 @@ impl IntrinsicOp {
         IntrinsicOp::MapSlotNext,
         IntrinsicOp::MapSlotEntry,
         IntrinsicOp::ValueCopy,
-        IntrinsicOp::ListIndexMut,
         IntrinsicOp::MapIndexMut,
         IntrinsicOp::SnapBegin,
         IntrinsicOp::SnapEnd,
-        IntrinsicOp::ListPin,
-        IntrinsicOp::ListUnpin,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {

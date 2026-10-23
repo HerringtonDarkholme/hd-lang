@@ -532,9 +532,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
 - **Every body is the passes' output.** The driver runs the passes over
   each body, the ones collection generates included (a function
   reference's call body, `hd_mono::adapter_call_body`, among them); the
-  backend runs none. A body with a `use` read, which no pass decided, is refused as
-  unsupported: a build on the checker's old ownership mode
-  (`Packages::old_ownership`, until #801 deletes it) stops there.
+  backend runs none. A body with a `use` read, which no pass decided, is
+  refused as unsupported.
 - **Reads, drops, stores.** A `Read` copies (a count of its own), moves
   (the place's count, and zeros left in what it read) or borrows (no
   count) as its mode says. A `Drop` releases a value or a local and
@@ -596,9 +595,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   its header, buffer and length in locals for the loop where no view is
   reachable, with no check of its own. The checker writes element
   references as plain `Ref`s, which the passes pin, and element reads as
-  plain `Read`s (docs/compiler/tir-v2.md, stage 2 commit 12b); a body has
-  no `ListPin`, `ListUnpin` or `ListIndexMut` (insertion refuses them,
-  and the emitter has no lowering of them). Its header copies
+  plain `Read`s (docs/compiler/tir-v2.md, stage 2 commit 12b); TIR has
+  no pin or element-write intrinsic. Its header copies
   (`ValueCopy`, lowered as below, §23.17) are insertion's (`hd_tir::own`
   rule 7, stage 2 commit 13a).
 - **Moves of parts, taking references, borrows.** A `move` read of a
@@ -1856,9 +1854,8 @@ store, and removes the scaffolding that a folded view test left.
 
 - **One field store.** A write into a field path of a list element
   (`xs[i].p.x = v`) is one `Store [%xs [%i] .p .x] v` (TIR v2 stage 1;
-  #655 first made it an intrinsic). It used to read the element
-  (`ListIndexMut`), rebuild each struct on the path and store the whole
-  element back. The emitter (`elem_store`) checks the index, after the
+  #655 first made it an intrinsic). It used to read the element out,
+  rebuild each struct on the path and store the whole element back. The emitter (`elem_store`) checks the index, after the
   passes' `IsUnique` made the buffer unique, and stores only the field's
   values at their offsets. A field with counted references releases its
   old value after the new one is counted. Reads already load only the

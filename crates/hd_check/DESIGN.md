@@ -77,7 +77,6 @@ module through it:
 | `init`, `results` | module initialization facts; M1's registry of omitted results and rows |
 | `tests`, `session` | the `tests:` block scope; REPL session nodes |
 | `fuel` | each body's fuel budget |
-| `own_passes` | which backend path the TIR feeds: on unless the driver's `Packages::old_ownership`, its one switch, selects the old path; on the ownership passes' path a finished body's places are rooted at their locals, and element references take no pins and element reads no write marks (section 1.3) |
 
 **Header projection completion.** Header lowering leaves the trait
 arguments empty on projections written `Self::Out` and on projections
@@ -95,33 +94,24 @@ body: diagnostics go to the module's `DiagBuf`, and the TIR body is
 returned with every type resolved. A body that stops on a construct the
 compiler does not carry yet returns a structured "not implemented".
 
-**Two forms of TIR, one switch.** Until the old backend path goes
-(docs/compiler/tir-v2.md, stage 2 commit 14), the checker's TIR feeds
-both paths, and `BodyCx::own_passes` says which. The checker builds a
-place one step at a time, a read of the base and a projection rooted at
-its value (`%h = Read [$0]`, `Read [%h [%i]]`): its own walkers read
-those values while it checks (the copies of `coll.rs`, the pins of
-`pins.rs`, `mark_write_path`). Off, the body stays so, the old path's
-form, byte for byte. On, `finish_with` roots every such chain at its
+**Places rooted at the local; no ownership statements.** The checker
+builds a place one step at a time, a read of the base and a projection
+rooted at its value (`%h = Read [$0]`, `Read [%h [%i]]`): its own
+walkers read those values while it checks (the writable check,
+`mark_write_path`). `finish_with` then roots every such chain at its
 local before the verifier runs (`hd_tir::ir::root_places`;
 crates/hd_tir/DESIGN.md, "Places rooted at the local"), so the ownership
-passes and the new path's backend see `Read [*$0 [%i] .x]`. On, the
-checker also leaves the ownership statements to the passes (commit 12b):
-an element reference is a `Ref` of the element place and nothing else
-(no `ListPin`, `$pinned` local, `$pin` flag, `Defer` or `ListUnpin`; a
-suite that takes element references is no cleanup scope; a `for` over
-element references holds no pin of its own), and `mark_write_path`
-leaves an element read a read (it still turns a map value's read into
-`MapIndexMut`, which a `&mut self` call on a map value holds in a local
-where no pass follows it). On, the checker also writes no collection
-copy (`ValueCopy`; commit 13a): `coll_copy`, `copy_into_local`,
-`mut_param_copies`, `value_arg`, `capture_copies` and
-`loop_binding_copy` return at once, and insertion's rule 7
-(crates/hd_tir/src/own/copies.rs) makes the header copies from the
-passes' own facts, where a header that may change in place would be held
-by two places. Off, they copy as before (`coll.rs`). The driver keys
-every cached artifact on the switch (its toolchain key), so a body
-checked for one path never serves the other.
+passes and the backend see `Read [*$0 [%i] .x]`. The checker leaves the
+ownership statements to the passes (docs/compiler/tir-v2.md, stage 2
+commits 12b and 13a): an element reference is a `Ref` of the element
+place and nothing else, and a `for` over element references holds no pin
+of its own (`elem_refs.rs`); `mark_write_path` leaves an element read a
+read and turns only a map value's read into `MapIndexMut`, which a
+`&mut self` call on a map value holds in a local where no pass follows
+it; and the checker writes no collection copy (`ValueCopy`): insertion's
+rule 7 (crates/hd_tir/src/own/copies.rs) makes the header copies from
+the passes' own facts, where a header that may change in place would be
+held by two places.
 
 `Body(m)` gathers the module's bodies, its diagnostics, its derived
 methods, the inferred results and rows (section 9), the init summary

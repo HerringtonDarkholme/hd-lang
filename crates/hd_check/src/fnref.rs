@@ -188,18 +188,14 @@ impl Ck<'_, '_> {
         }
         // `fn.ref.bound`: the base names a value. A `&self` or `&mut self`
         // method takes the address of a place now (`fn.ref.bound.address`).
-        let pins = self.call_pins.len();
         if let Some((recv, rt)) = self.auto_address(base, &name)? {
-            let bound = self.bound_ref(recv, rt, &name, method_targs, want, n);
-            self.release_call_pins(pins, n);
-            return bound;
+            return self.bound_ref(recv, rt, &name, method_targs, want, n);
         }
-        // On the ownership passes' path, a bound `push` or `remove` of a
-        // `let mut` collection takes the local's address, as a `&mut self`
-        // method's does (`fn.ref.bound.address`), so calling it changes
-        // that collection in place. The old path's TIR shares the
-        // receiver's list header instead, which the passes' header copies
-        // would give the bound reference a list of its own.
+        // A bound `push` or `remove` of a `let mut` collection takes the
+        // local's address, as a `&mut self` method's does
+        // (`fn.ref.bound.address`), so calling it changes that collection
+        // in place; a shared list header would get a list of its own from
+        // insertion's header copies.
         if let Some((recv, rt)) = self.in_place_bound_receiver(base, &name)? {
             return self.bound_ref(recv, rt, &name, method_targs, want, n);
         }
@@ -211,15 +207,15 @@ impl Ck<'_, '_> {
     }
 
     /// The address of `base` for a bound reference to a collection method
-    /// that changes its receiver in place (`push`, a map's `remove`), on
-    /// the ownership passes' path, when `base` names a `let mut` local
-    /// holding a list or a map: `&mut base`, and the collection's type.
+    /// that changes its receiver in place (`push`, a map's `remove`), when
+    /// `base` names a `let mut` local holding a list or a map: `&mut base`,
+    /// and the collection's type.
     fn in_place_bound_receiver(
         &mut self,
         base: NodeRef<'_>,
         name: &str,
     ) -> StageResult<Option<(Ref, Ty)>> {
-        if !self.cx.own_passes || base.kind() != SyntaxKind::NameExpr {
+        if base.kind() != SyntaxKind::NameExpr {
             return Ok(None);
         }
         let Some((l, _)) = self.find_local(self.sym_of(base)) else {
@@ -235,10 +231,7 @@ impl Ck<'_, '_> {
         if !changes || !self.mut_locals.contains(&l) || self.local_generics.contains_key(&l) {
             return Ok(None);
         }
-        let pins = self.call_pins.len();
-        let addressed = self.address_of_place(base, name, true, Vec::new())?;
-        self.release_call_pins(pins, base);
-        Ok(Some(addressed))
+        Ok(Some(self.address_of_place(base, name, true, Vec::new())?))
     }
 
     /// A function item as a value (`fn.type.generic.*`).

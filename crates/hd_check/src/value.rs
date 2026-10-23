@@ -184,10 +184,6 @@ impl Ck<'_, '_> {
         let fields = place.path.iter().map(|&(k, _)| Proj::Field(k));
         let (root, proj): (PlaceRoot, Vec<Proj>) = match place.root {
             Root::Deref(r, _) => {
-                let ft = place.ty;
-                // The field takes a value copy; a named collection must not
-                // share its header.
-                let v = self.coll_copy(v, ft, at);
                 self.store_ref_field(r, &place.path, v, s);
                 return;
             }

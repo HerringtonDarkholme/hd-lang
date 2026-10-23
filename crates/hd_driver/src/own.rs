@@ -1,7 +1,5 @@
 //! The ownership passes' place in the driver (`docs/compiler/tir-v2.md`,
-//! "Where and when the passes run", "What the passes read"): with
-//! [`Packages::old_ownership`](crate::Packages::old_ownership) off (the
-//! default), every body
+//! "Where and when the passes run", "What the passes read"): every body
 //! the program reaches goes through `hd_tir::own` once, after decoding
 //! (`Run::body_of`) or after collection generates it (a supplied or a
 //! `dbg` body), and checked and debug builds verify the result
@@ -316,7 +314,9 @@ impl Env<'_> {
         // Each instruction names itself until the passes renumber the
         // body: the line table's anchors stay the `check` entry's.
         body.anchors = (0..u32::try_from(body.len()).expect("insts")).collect();
-        let refused = hd_tir::own::run(&mut body, self, &mut scratch);
+        // Each type's layout once per body, not once per query of it.
+        let refused =
+            hd_wasm_linear::with_layout_cache(|| hd_tir::own::run(&mut body, self, &mut scratch));
         SCRATCH.with(|s| *s.borrow_mut() = scratch);
         let path = || self.run.names().path(body.item);
         if let Err(what) = refused {
@@ -345,13 +345,9 @@ impl Env<'_> {
     }
 
     /// A body collection generates (a supplied method's, a `dbg` body),
-    /// after the ownership passes when they are on. Its places are rooted
-    /// at their locals first, as the checker roots its bodies' on this
-    /// path (`hd_tir::ir::root_places`).
+    /// after the ownership passes. Its places are rooted at their locals
+    /// first, as the checker roots its bodies' (`hd_tir::ir::root_places`).
     pub(super) fn owned_generated(&self, mut body: Body) -> StageResult<Body> {
-        if !self.run.own_passes {
-            return Ok(body);
-        }
         let pool = &self.run.pool;
         let open = |t: Ty| pool.types().has_param(t) || pool.types().has_assoc(t);
         ROOTS.with(|r| hd_tir::ir::root_places(&mut body, &open, &mut r.borrow_mut()));

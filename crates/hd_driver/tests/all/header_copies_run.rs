@@ -1,9 +1,7 @@
 //! Insertion's header copies (`docs/compiler/tir-v2.md`, stage 2 commit
-//! 13a) on the ownership passes' path, where they differ from the old
-//! path's checker: a match binding of a map's list keeps its value when
-//! the map's list changes in place afterwards. The old path's checker
-//! copies only into `let` bindings, so there the binding sees the push; a
-//! conformance case lands with the switch (commit 13b).
+//! 13a): a match binding of a map's list keeps its value when the map's
+//! list changes in place afterwards. The checker's former copies went
+//! into `let` bindings only, so there the binding saw the push.
 
 use std::path::Path;
 use std::process::Command;

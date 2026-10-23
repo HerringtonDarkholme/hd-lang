@@ -2458,7 +2458,7 @@ impl Ck<'_, '_> {
                 if kids[1..].iter().any(|f| may_run_code(*f)) {
                     self.copy_fields_now((sr, st), &replaced, &mut vals, *a);
                 }
-                source = Some((sr, st));
+                source = Some(sr);
                 continue;
             }
             let fname = self.sym_of(*a);
@@ -2524,12 +2524,9 @@ impl Ck<'_, '_> {
             def,
             args: pool.list(&targs),
         });
-        if let Some((sr, st)) = source {
+        if let Some(sr) = source {
             let rec = self.copy_record(&vals);
             let at = spread.map_or(n, |s| s);
-            // The fields the update keeps are copied out of the source
-            // struct (`types.coll.value`).
-            let sr = self.coll_copy(sr, self.strip_mut(st), at.index());
             return Ok((self.b.emit(Tag::CopyStruct, sr.0, rec, ty, at.index()), ty));
         }
         let rec = self.b.refs_record(&vals);
@@ -2842,7 +2839,7 @@ impl Ck<'_, '_> {
         let els = self.loop_else.take();
         // `for p in &xs` and `for p in &mut xs` over a list bind element
         // references (`flow.for.ref`).
-        let refsrc = crate::pins::strip_parens(src);
+        let refsrc = crate::elem_refs::strip_parens(src);
         if refsrc.kind() == SyntaxKind::RefExpr
             && let Some(done) = self.ref_loop(pat, refsrc, els, e, body)?
         {
@@ -3363,8 +3360,7 @@ impl Ck<'_, '_> {
             arm: 0,
         }];
         let db = self.b.open_block();
-        let bound = self.loop_binding_copy(&rows[0].binds, item, item_ty, at);
-        self.decide(&rows, bound, item_ty)?;
+        self.decide(&rows, item, item_ty)?;
         let dec = self.b.close_block(db, None, Ty::NEVER, at);
         let rec = self.b.refs_record(&[dec, arm]);
         self.b.emit(Tag::Match, item.0, rec, Ty::VOID, at);
@@ -3882,7 +3878,6 @@ impl Ck<'_, '_> {
         self.suspends.push(suspends);
         let saved_loops = std::mem::take(&mut self.loops);
         let blk = self.b.open_block();
-        self.mut_param_copies(&params, n.index());
         let e = parts.body;
         let (tail, _) = if e.kind() == SyntaxKind::Block {
             self.block_value(e, Some(ret))?
@@ -3927,7 +3922,6 @@ impl Ck<'_, '_> {
             self.set_local(l, Ref(NONE), n.index());
             self.add_flags(l, local_flags::CAPTURED_ASSIGNED);
         }
-        self.capture_copies(mark, n.index());
         Ok((self.b.close_sub(mark, root, ft, n.index()), ft, own))
     }
 

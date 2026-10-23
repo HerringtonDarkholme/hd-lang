@@ -306,16 +306,6 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
             Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
                 return Err(format!("an ownership statement `{}` at %{i}", tag.name()));
             }
-            // The old path's marks and pins, which the checker writes only
-            // when its TIR feeds that path (`BodyCx::own_passes` off).
-            Tag::Intrinsic
-                if matches!(
-                    IntrinsicOp::from_u32(b.data[i][0]),
-                    Some(IntrinsicOp::ListIndexMut | IntrinsicOp::ListPin | IntrinsicOp::ListUnpin)
-                ) =>
-            {
-                return Err(format!("the old path's intrinsic at %{i}"));
-            }
             Tag::Call | Tag::Await => {
                 let r = b.record(b.data[i][1]);
                 if r.len() < 3 || r[r.len() - 3] > 2 {

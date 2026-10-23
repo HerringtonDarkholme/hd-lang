@@ -1,9 +1,9 @@
 //! Header copies, insertion's rule 7 (`docs/compiler/tir-v2.md`, stage 2
 //! commit 13a): where a list or map value needs a header of its own, a
 //! `ValueCopy` of it, so that a change made in place through one holder
-//! never reaches another (`types.coll.value`). The checker made these
-//! copies on the old path; on the passes' path insertion makes them, from
-//! the facts it already has about where a change goes.
+//! never reaches another (`types.coll.value`). Insertion makes them from
+//! the facts it already has about where a change goes; the checker places
+//! none.
 //!
 //! A list or map value is the address of a header over a buffer
 //! (`crates/hd_wasm_linear/DESIGN.md` §23.7). A change in place makes the
@@ -85,11 +85,11 @@
 //!
 //! **Not here yet.** The emitter's store glue copies a value stored into a
 //! part of a place (an element, a field, a payload, a construction's
-//! member, `slot_src`, §23.17) on both paths, so those stores need no rule
+//! member, `slot_src`, §23.17), so those stores need no rule
 //! here until commit 14 moves them. The changing and aliased facts hold for
 //! the whole body: a local that a `&mut` reference or a capturing closure
 //! reaches anywhere is aliased at every argument read, as the checker's
-//! `copy_locals` was; commit 13b narrows that if parity needs it.
+//! former copies took it; commit 13b narrows that if parity needs it.
 //!
 //! Why it is sound: a changing local holds a header no other place holds,
 //! since every value stored into it is fresh or copied (1) and so is a

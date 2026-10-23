@@ -758,10 +758,8 @@ carries to the field's type), `[*%o .k]` of a compiler-supplied data
 object, and `[%v as .V .k]` of a payload. `Body::read_step` names the
 step of such a read. A list element is `Read [%xs [%i]]`, a slot of the
 buffer of the list header `%xs` (`Body::element_read`); there is no
-element intrinsic. On the old path a read a change then goes through is
-still the `ListIndexMut` intrinsic, which the checker rewrites the read
-into when it meets the change (`mark_write_path`). On the ownership
-passes' path it stays a `Read`: insertion follows each change back
+element intrinsic. A read a change then goes through stays a `Read`
+too: insertion follows each change back
 through the reads it goes through (`own/insert.rs`, rule 5), and a
 `mut self` receiver of a collection is an in-place argument
 (`own::Pass::InPlace`, a signature fact `OwnCx::pass` gives). A `Store`
@@ -773,10 +771,9 @@ data object's field (`[*%o .k]`), a place through a reference
 **Places rooted at the local** (docs/compiler/tir-v2.md, stage 2 commit
 12a). The checker builds a place one step at a time, a read of the base
 and a projection rooted at that read's value, since its own walkers (the
-copies, the pins, `mark_write_path`) step back through those values. On
-the ownership passes' path (`BodyCx::own_passes`) it then roots every
-such chain at its local when it finishes a body (`ir::root_places`,
-`src/ir/root.rs`): `bodies[i].x` through `&mut List[Body]` is one
+writable check, `mark_write_path`) step back through those values. It
+then roots every such chain at its local when it finishes a body
+(`ir::root_places`, `src/ir/root.rs`): `bodies[i].x` through `&mut List[Body]` is one
 `Read [*$0 [%5] .x]`, `xs[i] = v` is `Store [$0 [%1]] v`, `self.x` is
 `Read [*$0 .x]`. A base read `%v = Read P` of a local's place folds into
 its uses when every use is the root of a `Read`, `Store` or `Ref` place
@@ -1210,19 +1207,17 @@ body built elsewhere, such as a generated structure method, gets
   `prog_key` reads it.
 - Types stay generic (`Param`). D2 never materializes an instance as TIR.
 - **The ownership passes** (`src/own.rs`, docs/compiler/tir-v2.md "The
-  ownership passes") run on a decoded body unless the driver takes the
-  old path (`Packages::old_ownership`), once per body, before collection reads
-  it; their output never reaches the entry. They read places the
-  checker roots at their local on this path (above). Built so far:
+  ownership passes") run on every decoded body, once per body, before
+  collection reads it; their output never reaches the entry. They read
+  places the checker roots at their local (above). Built so far:
   insertion (`own/insert.rs`): copies, drops and
   the exit set, an `IsUnique` before each change of a collection place
   (an element store, a push, a map store or removal, a write through a
   map value, an in-place argument) and before each read such a change
   goes through, of every list on that read's path, and an `IsUnique` and
   a `Pin` of each list on an element reference's path (the checker
-  writes no pin of its own on this path), and the header copies
-  (`own/copies.rs`, rule 7, commit 13a; the checker writes none on this
-  path): a `ValueCopy` of a value that may hold a list or a map
+  writes no pin of its own), and the header copies
+  (`own/copies.rs`, rule 7, commit 13a; the checker writes none): a `ValueCopy` of a value that may hold a list or a map
   (`OwnCx::header_copy`) and that no instruction just made, where a
   header that may change in place would otherwise be held by two places:
   a store into a whole local that a change reaches in place (a changing

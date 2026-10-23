@@ -602,9 +602,6 @@ impl Ck<'_, '_> {
         {
             self.mut_locals.push(l);
         }
-        if self.let_view.is_some() {
-            self.note_copy_local(l);
-        }
         binds.push((p.index(), l));
         Ok(())
     }
@@ -896,18 +893,7 @@ impl Ck<'_, '_> {
                 (r, t, own)
             }
             _ => {
-                // An element reference that initializes the binding lasts
-                // until the binding's last use (`ref.elem.release`).
-                let refx = crate::pins::strip_parens(rhs);
-                let saved = self.pin_owner;
-                if let Some(name) = name
-                    && refx.kind() == SyntaxKind::RefExpr
-                {
-                    self.pin_owner = Some((refx.index(), name));
-                }
-                let checked = self.expr(rhs, annot);
-                self.pin_owner = saved;
-                let (r, t) = checked?;
+                let (r, t) = self.expr(rhs, annot)?;
                 (r, t, None)
             }
         };
@@ -971,7 +957,6 @@ impl Ck<'_, '_> {
             if let Some(kind) = deferred {
                 self.prim_let_mut.push((l, pat.index(), kind));
             }
-            self.note_copy_local(l);
             self.set_local(l, r, at.index());
             return Ok(());
         }

@@ -1266,9 +1266,6 @@ struct Run<'a> {
     build_profile: BuildProfile,
     /// Whether allocation/count auditing is enabled.
     checked: bool,
-    /// Whether the ownership passes run and the backend emits from them:
-    /// unless the build takes the old path ([`Packages::old_ownership`]).
-    own_passes: bool,
     /// The layout facts the ownership passes ask of a type, computed once
     /// per run (`own.rs`): whether it holds a counted leaf, and whether it
     /// is a reference.
@@ -1461,15 +1458,6 @@ pub struct Packages<'a> {
     pub body_fuel: Option<u64>,
     /// Enable allocation/count auditing for compiler conformance checks.
     pub checked: bool,
-    /// Stage 2 of TIR v2's switch (`docs/compiler/tir-v2.md`, "Stage 2"),
-    /// as an opt-out: by default every body the program reaches goes
-    /// through the ownership passes (`hd_tir::own`) and the linear backend
-    /// emits counts from what they decide. On, the checker takes its old
-    /// mode instead, which copies collections and pins, and the passes do
-    /// not run; the backend, which decides no count itself any more
-    /// (#799), refuses such a body, so the build stops there until #801
-    /// deletes this. `HD_CONFORMANCE_OLD=1` turns it on.
-    pub old_ownership: bool,
 }
 
 /// What the modules a session built so far hold, for the build of its next
@@ -1648,14 +1636,10 @@ pub fn build_packages(
         Arc::clone(found)
     };
     let std_hash = embedded.map_or_else(|| sources_hash(std), |e| e.hash);
-    // The ownership passes' switch changes the checker's TIR
-    // (`hd_check::BodyCx::own_passes`) and every body's code, so every
-    // cached artifact keys on it.
-    let own = if packages.old_ownership { ";old" } else { "" };
     let toolchain = toolchain_key(
         COMPILER,
         TARGET,
-        &format!("a1=bounded;std={:032x}{own}", std_hash.0),
+        &format!("a1=bounded;std={:032x}", std_hash.0),
     );
     // Std's skims come from the toolchain's entry, unless std is the root
     // package, whose files are the user's.
@@ -1749,7 +1733,6 @@ pub fn build_packages(
         },
         body_fuel: packages.body_fuel,
         checked: packages.checked,
-        own_passes: !packages.old_ownership,
         own_types: Mutex::new(HashMap::default()),
         own_params: Mutex::new(HashMap::default()),
         fetched: std::iter::once(false)
@@ -5338,7 +5321,6 @@ impl Run<'_> {
             file_name: &self.table.files[m],
             session: &session,
             fuel: self.fuel_of(m),
-            own_passes: self.own_passes,
         };
         let mut diags = DiagBuf::default();
         hd_check::init::earlier_binding_clashes(&cx, &heads, &mut diags);
@@ -6748,7 +6730,6 @@ impl Run<'_> {
             file_name: &self.table.files[tm],
             session: &session,
             fuel: self.fuel_of(tm),
-            own_passes: self.own_passes,
         };
         Some(f(&tcx, &theads))
     }
@@ -6823,7 +6804,6 @@ impl Run<'_> {
             file_name: &self.table.files[tm],
             session: &[],
             fuel: self.fuel_of(tm),
-            own_passes: self.own_passes,
         };
         let ItemData::Impl { methods, .. } = &lookup.item(template)?.data else {
             return None;
@@ -7537,12 +7517,10 @@ impl Run<'_> {
                 .bad
                 .store(true, std::sync::atomic::Ordering::Relaxed);
         }
-        // With the switch on, every body the program reaches is the
-        // ownership passes' output (`docs/compiler/tir-v2.md`, "Where and
-        // when the passes run"): once per body, after decoding.
-        if self.own_passes
-            && let Some((raw, hash)) = out
-        {
+        // Every body the program reaches is the ownership passes' output
+        // (`docs/compiler/tir-v2.md`, "Where and when the passes run"):
+        // once per body, after decoding.
+        if let Some((raw, hash)) = out {
             out = b
                 .owned
                 .get_or_init(|| self.own_body(p, raw.clone(), *hash))

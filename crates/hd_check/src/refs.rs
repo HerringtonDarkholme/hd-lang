@@ -49,12 +49,10 @@ pub(crate) enum Root {
     /// field's type, and the data value's type.
     DataField(Ref, u32, Ty, Ty),
     /// A slot of a list's buffer (`ref.elem.place`): the list as the
-    /// source read it (for the writable check), the local holding the
-    /// pinned list and its depth, the index value, and the list's value
-    /// type. The place is `[$pinned [%i]]`; on the ownership passes' path,
-    /// where insertion pins the list (`docs/compiler/tir-v2.md`, stage 2
-    /// commit 12b), there is no pinned local and it is `[%xs [%i]]`.
-    Elem(Ref, Option<(LocalId, usize)>, Ref, Ty),
+    /// source read it, the index value, and the list's value type. The
+    /// place is `[%xs [%i]]`; insertion pins the list
+    /// (`docs/compiler/tir-v2.md`, stage 2 commit 12b).
+    Elem(Ref, Ref, Ty),
     /// A list element that a write names, `xs[i]`, which no reference
     /// pins: the list value, the index value, the list's type, and the
     /// index expression.
@@ -404,19 +402,7 @@ impl Ck<'_, '_> {
             .filter(|w| self.dyn_ref_of(*w).is_none())
             .and_then(|w| self.ref_of(w))
             .map(|(i, _)| i);
-        // An element reference that initializes a simple binding belongs
-        // to it, and lasts until its last use (`ref.elem.release`).
-        let owner = self
-            .pin_owner
-            .filter(|(node, _)| *node == n.index())
-            .map(|(_, s)| s);
-        if owner.is_some() {
-            self.pin_owner = None;
-        }
-        let saved = std::mem::replace(&mut self.pin_next_owner, owner);
-        let op = self.place_of(e, want_inner, PlaceUse::Ref);
-        self.pin_next_owner = saved;
-        let Some(op) = op? else {
+        let Some(op) = self.place_of(e, want_inner, PlaceUse::Ref)? else {
             return Ok(self.ref_poison(n));
         };
         let place = match op {
@@ -448,11 +434,6 @@ impl Ck<'_, '_> {
                     self.err(Code::MutableUpgrade, e, &msg);
                     return Ok(self.ref_poison(n));
                 }
-                let v = if coll {
-                    self.coll_copy(v, t, e.index())
-                } else {
-                    v
-                };
                 let (l, d) = self.hold(v, t, e);
                 // The closures share the new local (a cell); the `set`
                 // closure assigns it.
@@ -610,10 +591,7 @@ impl Ck<'_, '_> {
             // A list element names a slot of the list's buffer, which a
             // reference pins (`ref.elem.place`).
             SyntaxKind::IndexExpr if use_ == PlaceUse::Write => self.slot_operand(e),
-            SyntaxKind::IndexExpr => {
-                let owner = self.pin_next_owner.take();
-                self.elem_operand(e, owner)
-            }
+            SyntaxKind::IndexExpr => self.elem_operand(e),
             _ => {
                 let (r, t) = self.expr(e, want)?;
                 Ok(Some(Operand::Value(r, t)))
@@ -881,7 +859,7 @@ impl Ck<'_, '_> {
                 }
             }
             // `ref.elem.writable`: as an element store needs.
-            Root::Elem(list, _, _, lt) | Root::Slot(list, _, lt, _) => {
+            Root::Elem(list, _, lt) | Root::Slot(list, _, lt, _) => {
                 self.coll_change(list, lt, "a `&mut` element reference", at)
             }
             // A reference names no map value (`elem_operand`).
@@ -1034,13 +1012,9 @@ impl Ck<'_, '_> {
                 (self.b.element(list, index, et, n.index()), et)
             }
             Root::MapValue(v, _) => (v, self.b.ty_of(v)),
-            Root::Elem(list, pinned, i, lt) => {
+            Root::Elem(list, i, lt) => {
                 let et = self.elem_ty(lt);
-                let l = match pinned {
-                    Some((buf, bd)) => self.read_local(buf, bd, n).0,
-                    None => list,
-                };
-                (self.b.element(l, i, et, n.index()), et)
+                (self.b.element(list, i, et, n.index()), et)
             }
         }
     }
@@ -1074,12 +1048,9 @@ impl Ck<'_, '_> {
                 PlaceRoot::Value(list)
             }
             Root::MapValue(v, _) => PlaceRoot::Value(v),
-            Root::Elem(list, pinned, i, _) => {
+            Root::Elem(list, i, _) => {
                 proj.push(Proj::Elem(i));
-                match pinned {
-                    Some((buf, _)) => PlaceRoot::Local(buf),
-                    None => PlaceRoot::Value(list),
-                }
+                PlaceRoot::Value(list)
             }
         };
         proj.extend(p.path.iter().map(|(idx, _)| Proj::Field(*idx)));
@@ -1118,9 +1089,11 @@ impl Ck<'_, '_> {
                 let _ = self.global_read(s, n);
             }
             // A value root was read when it was evaluated.
-            Root::Deref(..) | Root::DataField(..) | Root::Slot(..) | Root::MapValue(..) => {}
-            Root::Elem(_, Some((buf, bd)), ..) => read(self, buf, bd),
-            Root::Elem(_, None, ..) => {}
+            Root::Deref(..)
+            | Root::DataField(..)
+            | Root::Slot(..)
+            | Root::MapValue(..)
+            | Root::Elem(..) => {}
         }
     }
 
@@ -1261,9 +1234,7 @@ impl Ck<'_, '_> {
         let v = match compound {
             None => {
                 let (vr, vt) = self.expr(rhs, Some(want))?;
-                let v = self.coerce(vr, vt, want, rhs, "assignment", ExpectPosition::General);
-                // The referenced place takes its own copy (`types.coll.value`).
-                self.coll_copy(v, inner, rhs.index())
+                self.coerce(vr, vt, want, rhs, "assignment", ExpectPosition::General)
             }
             Some(k) => {
                 let (cur, _) = self.emit_deref(r, t, lhs.index());

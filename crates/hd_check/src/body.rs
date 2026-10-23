@@ -66,14 +66,6 @@ pub struct BodyCx<'a> {
     /// The fuel of each body this context checks: `Fuel::BODY_DEFAULT`,
     /// or a smaller budget a test sets to reach `item-too-complex` fast.
     pub fuel: u64,
-    /// Which backend path the bodies' TIR feeds (`docs/compiler/tir-v2.md`,
-    /// "Stage 2"): on unless the driver's `Packages::old_ownership`, the one
-    /// switch, selects the old path. On
-    /// the ownership passes' path every place is rooted at its local
-    /// when a body is finished (`hd_tir::ir::root_places`); off, the TIR is
-    /// the old path's, unchanged. Every cached artifact keys on it through
-    /// the driver's toolchain key.
-    pub own_passes: bool,
 }
 
 /// A module's `tests:` block, when its items are checked: its extent (a
@@ -249,23 +241,6 @@ pub(crate) struct Ck<'a, 'c> {
     /// `lost-write` (`fn.param.mut.lost-write`).
     pub mut_params: Vec<LocalId>,
     pub param_writes: Vec<(LocalId, hd_base::NodeIdx)>,
-    /// The bindings whose stores copy a collection value
-    /// (`types.coll.value`): `let`, `let mut` and `:=` locals, and `mut`
-    /// pattern names.
-    pub copy_locals: Vec<LocalId>,
-    /// The writable locals whose collection something besides the local
-    /// may change while a call runs: a closure that changes it, or a `&mut`
-    /// to it (`types.coll.value`).
-    /// A value argument read from one is copied (`crate::coll`).
-    pub alias_locals: Vec<LocalId>,
-    /// The value arguments read from a writable local not yet in
-    /// `alias_locals`, in a loop or a closure, where a later change can
-    /// still put it there: each is a copy or the value as is once the
-    /// body is checked.
-    pub arg_copies: Vec<crate::coll::ArgCopy>,
-    /// The bindings that took a parameter's value, or another such
-    /// binding's, without a copy: their collection may be the caller's.
-    pub unowned: Vec<LocalId>,
     /// The locals some `&mut` refers to, and the `let mut` locals of a
     /// primitive type with their patterns, for `redundant-let-mut`
     /// (`types.bind.let-mut-primitive-unused`).
@@ -477,23 +452,6 @@ pub(crate) struct Ck<'a, 'c> {
     /// Whether the body is a `by Structure` template's, which names no
     /// top-level binding (`module.package.template-private.no-binding`).
     pub in_template: Option<DefId>,
-    /// The open suites that may take pins for element references
-    /// (`crate::pins`), innermost last.
-    pub pin_frames: Vec<crate::pins::PinFrame>,
-    /// The pins taken in those suites and not yet released.
-    pub pins: Vec<crate::pins::PinSlot>,
-    /// The element reference a simple binding is initialized with: the
-    /// reference expression and the bound name (`ref.elem.release`).
-    pub pin_owner: Option<(hd_base::NodeIdx, Symbol)>,
-    /// That binding's name while its reference's operand is checked; the
-    /// pin of the element it names takes it.
-    pub pin_next_owner: Option<Symbol>,
-    /// Whether the element place being checked is a method call's
-    /// receiver, whose pin lasts for the call (`fn.method.auto-address.element`).
-    pub pin_for_call: bool,
-    /// The pins of the receivers of the calls being checked, each the
-    /// local holding its pinned list; each call releases its own.
-    pub call_pins: Vec<LocalId>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -563,10 +521,6 @@ pub(crate) fn new_ck<'a, 'c>(
         mut_locals: Vec::new(),
         mut_params: Vec::new(),
         param_writes: Vec::new(),
-        copy_locals: Vec::new(),
-        alias_locals: Vec::new(),
-        arg_copies: Vec::new(),
-        unowned: Vec::new(),
         ref_taken: Vec::new(),
         prim_let_mut: Vec::new(),
         self_ty: None,
@@ -643,12 +597,6 @@ pub(crate) fn new_ck<'a, 'c>(
         next_gen: 0,
         generic_recheck: Vec::new(),
         in_template: None,
-        pin_frames: Vec::new(),
-        pins: Vec::new(),
-        pin_owner: None,
-        pin_next_owner: None,
-        pin_for_call: false,
-        call_pins: Vec::new(),
     };
     // No local declaration holds byte 0: every local impl starts hidden.
     ck.move_to(0);
@@ -1052,8 +1000,6 @@ fn fn_body_steps(
         ck.scopes[0].insert(name, l);
     }
     ck.mark_mut_params(node);
-    let params: Vec<LocalId> = ck.mut_params.clone();
-    ck.mut_param_copies(&params, node.index());
     let Some(body) = Src::child(node, SyntaxKind::Block) else {
         return unsupported("a function without a body");
     };
@@ -1598,9 +1544,6 @@ impl Ck<'_, '_> {
     /// local of type `T` passes through `Weaken`, so the stored value has
     /// the local's type (`crates/hd_tir/DESIGN.md` §4.13.11, invariant 4).
     pub(crate) fn set_local(&mut self, l: LocalId, v: Ref, syn: hd_base::NodeIdx) {
-        // A binding that holds collection values takes its own copy
-        // (`types.coll.value`).
-        let v = self.copy_into_local(l, v, syn);
         let pool = self.pool();
         let lt = self.b.local_ty(l);
         let weakens = v.0 != NONE
@@ -2699,18 +2642,10 @@ impl Ck<'_, '_> {
         // enclosing statement is back where it started.
         let at = self.at;
         // A suite with `defer` is a cleanup scope (`flow.defer.scopes`):
-        // a `Scope` over its statements, whose suites are its `Defer`s. So
-        // is a suite that takes pins for element references, which every
-        // exit releases (`crate::pins`); on the ownership passes' path the
-        // references' drops end the pins, so no suite holds any.
-        let pins = !self.cx.own_passes && Self::suite_takes_pins(block);
-        if pins {
-            self.open_pin_frame(block);
-        }
-        let r = if pins
-            || block
-                .children()
-                .any(|c| matches!(c.kind(), SyntaxKind::DeferStmt | SyntaxKind::UsingStmt))
+        // a `Scope` over its statements, whose suites are its `Defer`s.
+        let r = if block
+            .children()
+            .any(|c| matches!(c.kind(), SyntaxKind::DeferStmt | SyntaxKind::UsingStmt))
         {
             let sm = self.b.open_scope();
             let inner = self.b.open_block();
@@ -2725,9 +2660,6 @@ impl Ck<'_, '_> {
         } else {
             self.lines(block, want)
         };
-        if pins {
-            self.close_pin_frame();
-        }
         self.scopes.pop();
         self.move_to(at);
         r
@@ -2751,7 +2683,6 @@ impl Ck<'_, '_> {
         for (i, s) in stmts.iter().copied().enumerate() {
             let last = i + 1 == stmts.len();
             self.move_to(self.cx.src.span(s).lo);
-            self.pins_before(block, i);
             if dead {
                 self.diags.push(
                     Code::UnreachableCode,
@@ -2780,7 +2711,6 @@ impl Ck<'_, '_> {
                 // A last expression that cannot complete is a statement.
                 if self.infer.shallow(self.pool(), t) == Ty::NEVER {
                     diverged = true;
-                    self.pins_after(block, i, &stmts, true);
                     continue;
                 }
                 // `fn.body.value-less-fallthrough`: a body that ends in a
@@ -2797,29 +2727,18 @@ impl Ck<'_, '_> {
                     let msg = format!("this path ends without a {} value", self.show(w));
                     self.err(Code::MissingReturnValue, s, &msg);
                     diverged = true;
-                    self.pins_after(block, i, &stmts, true);
                     continue;
                 }
                 let r = match want {
                     Some(w) => self.coerce(r, t, w, e, "result", ExpectPosition::General),
                     None => r,
                 };
-                // A function's result is a store into its caller
-                // (`types.coll.value`).
-                let r = match want {
-                    Some(w) if self.fn_body == Some(block.index()) => {
-                        self.return_copy(r, w, e.index())
-                    }
-                    _ => r,
-                };
                 tail = Some(r);
                 ty = want.unwrap_or(t);
-                self.pins_after(block, i, &stmts, false);
                 continue;
             }
             let t = self.stmt(s, last && !value && self.fn_body == Some(block.index()))?;
             diverged |= t == Ty::NEVER;
-            self.pins_after(block, i, &stmts, t == Ty::NEVER);
             if matches!(
                 s.kind(),
                 SyntaxKind::ReturnStmt | SyntaxKind::BreakStmt | SyntaxKind::ContinueStmt
@@ -3519,8 +3438,7 @@ impl Ck<'_, '_> {
                 let ret = *self.rets.last().expect("ret");
                 let r = if let Some(e) = kids.first() {
                     let (r, t) = self.expr(*e, Some(ret))?;
-                    let r = self.coerce(r, t, ret, *e, "return", ExpectPosition::General);
-                    self.return_copy(r, ret, s.index())
+                    self.coerce(r, t, ret, *e, "return", ExpectPosition::General)
                 } else {
                     Ref(NONE)
                 };
@@ -3882,11 +3800,9 @@ impl Ck<'_, '_> {
                         self.no_index_set(pt, *lhs);
                         return Ok(());
                     }
-                    let pins = self.call_pins.len();
                     if let Some(recv) = self.store_receiver(*base, "index_set")? {
                         self.index_set(recv, (*base, *key), *rhs, compound, (*lhs, s))?;
                     }
-                    self.release_call_pins(pins, s);
                     return Ok(());
                 }
                 let (br, bt) = self.expr(*base, None)?;
@@ -4412,7 +4328,6 @@ impl Ck<'_, '_> {
         ret: Ty,
         fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
-        self.settle_arg_copies();
         self.unused_locals();
         self.redundant_primitive_let_mut();
         if self.module_init.is_none() {
@@ -4645,19 +4560,16 @@ impl Ck<'_, '_> {
         // The backend sees `&T` and `&mut T` as the one data type `Ref[T]`
         // (`refs.rs`).
         self.lower_body_refs();
-        // On the ownership passes' path, every place starts at its local
-        // (`docs/compiler/tir-v2.md`, stage 2 commit 12a). The walkers
-        // above read the base reads, so the places are rooted only now.
-        // The rebuild renumbers the body, its root block included.
-        let mut root = root;
-        if self.cx.own_passes {
-            let pool = self.pool();
-            let open = |t: Ty| pool.has_param(t) || pool.has_assoc(t);
-            let body = self.b.body_mut();
-            body.sub_root[0] = root.0;
-            ROOTS.with(|r| hd_tir::ir::root_places(body, &open, &mut r.borrow_mut()));
-            root = Ref(body.sub_root[0]);
-        }
+        // Every place starts at its local (`docs/compiler/tir-v2.md`,
+        // stage 2 commit 12a). The walkers above read the base reads, so
+        // the places are rooted only now. The rebuild renumbers the body,
+        // its root block included.
+        let pool = self.pool();
+        let open = |t: Ty| pool.has_param(t) || pool.has_assoc(t);
+        let body = self.b.body_mut();
+        body.sub_root[0] = root.0;
+        ROOTS.with(|r| hd_tir::ir::root_places(body, &open, &mut r.borrow_mut()));
+        let root = Ref(body.sub_root[0]);
         let known = VerifyFacts { cx: self.cx };
         let body = self
             .b

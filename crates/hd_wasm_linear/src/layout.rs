@@ -403,6 +403,17 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     r
 }
 
+/// [`cached`], unless a cache is in place already, which `link` then
+/// shares: the ownership passes run inside a link (a body it reaches
+/// first) or outside one (`Collect`).
+pub fn cached_here<R>(link: impl FnOnce() -> R) -> R {
+    if MEMS.with(|m| m.borrow().is_some()) {
+        link()
+    } else {
+        cached(link)
+    }
+}
+
 /// [`by_parts`] over `memo`'s map when a link has one in place, else over
 /// a map of this call's own.
 fn memoized<T: Clone + 'static>(

@@ -38,11 +38,7 @@
 //! leak, a double free or a count change on a freed block panics
 //! `count-audit`, so the case fails.
 //! Every case builds through the ownership passes of TIR v2's stage 2,
-//! whose decisions the backend emits. `HD_CONFORMANCE_OLD=1` builds every
-//! case with the checker's old mode instead (`Packages::old_ownership`),
-//! with the cases only the new path passes known (`old_path_known`); the
-//! backend no longer decides counts itself (#799), so it refuses every
-//! such body, until #801 deletes the mode.
+//! whose decisions the backend emits.
 
 //! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
 
@@ -396,7 +392,6 @@ fn build_for(
         target,
         level: level(),
         checked: fixture.checked,
-        old_ownership: old_ownership(),
         ..Packages::default()
     };
     build_packages(&host, fixture.package, &packages, goal)
@@ -1779,43 +1774,6 @@ fn checked_runtime() -> bool {
     selection_env("HD_CONFORMANCE_CHECKED").is_some_and(|value| value == "1")
 }
 
-/// The cases only the ownership passes' path passes, known failures of a
-/// run on the old path (`HD_CONFORMANCE_OLD=1`): its defects, which commit
-/// 14 deletes with it (`docs/compiler/tir-v2.md`, stage 2 commit 13c).
-fn old_path_known() -> Vec<known_failures::KnownFailure> {
-    [
-        (
-            "runtime/valid/a-match-binding-of-a-map-list-keeps-its-value.hd",
-            "#728",
-            "the old path's checker copies a list into `let` bindings only, so a match binding sees a later push to the map's list",
-        ),
-        (
-            "runtime/valid/element-reference-copy-independent.hd",
-            "#494",
-            "a list copied as an argument beside an element reference into it shares the referenced elements",
-        ),
-        (
-            "runtime/valid/element-reference-nested-copy-independent.hd",
-            "#494",
-            "a list copied as an argument beside an element reference into it shares the referenced elements",
-        ),
-    ]
-    .into_iter()
-    .map(|(path, issue, reason)| known_failures::KnownFailure {
-        path: path.to_owned(),
-        issue: issue.to_owned(),
-        engine: None,
-        reason: reason.to_owned(),
-    })
-    .collect()
-}
-
-/// Whether every case builds with the checker's old mode
-/// (`Packages::old_ownership`), when `HD_CONFORMANCE_OLD=1`.
-fn old_ownership() -> bool {
-    selection_env("HD_CONFORMANCE_OLD").is_some_and(|value| value == "1")
-}
-
 /// The std package's own hd tests of its runtime modules: only std may use
 /// a runtime module (`module.rt.std-only`), so no fixture can. Each file
 /// under `tests/std_rt/` joins std's sources at the path given here.
@@ -2292,10 +2250,7 @@ fn specification_conformance_passes_except_known_failures() {
             },
         })
         .collect();
-    let mut known = known_failures::load(&root());
-    if old_ownership() {
-        known.extend(old_path_known());
-    }
+    let known = known_failures::load(&root());
     let (summary, errors) = known_failures::judge(
         "driver",
         engine,

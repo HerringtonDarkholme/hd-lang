@@ -169,12 +169,7 @@ impl Ck<'_, '_> {
         mutable: bool,
         part: Vec<(u32, Ty)>,
     ) -> StageResult<(Ref, Ty)> {
-        // A list element pins its list for the call
-        // (`fn.method.auto-address.element`).
-        self.pin_for_call = true;
-        let op = self.place_of(base, None, crate::refs::PlaceUse::Ref);
-        self.pin_for_call = false;
-        let Some(op) = op? else {
+        let Some(op) = self.place_of(base, None, crate::refs::PlaceUse::Ref)? else {
             return Ok(self.poisoned(base));
         };
         let op = if part.is_empty() {
@@ -435,7 +430,7 @@ impl Ck<'_, '_> {
                     false
                 }
             }
-            Root::Elem(list, _, _, lt) | Root::Slot(list, _, lt, _) => {
+            Root::Elem(list, _, lt) | Root::Slot(list, _, lt, _) => {
                 self.coll_change(list, lt, "this call", at)
             }
             Root::MapValue(..) => false,

@@ -2751,6 +2751,42 @@ is worth deciding only if they are hot.
     (`ProgramEnv::own_generated`) and stores it as the adapter's instance
     body; the backend runs no pass.
 
+    **14 as built, third part: the checker's old mode (#801).** The
+    checker has one mode. `BodyCx::own_passes`, `Packages::old_ownership`,
+    `HD_CONFORMANCE_OLD`, the toolchain key's `;old` suffix and the
+    conformance runner's `old_path_known` are gone; `finish_with` always
+    roots places, and the driver always runs the passes. Gone with them:
+    - **The copies** (`coll.rs`): `coll_copy`, `return_copy`,
+      `copy_into_local`, `mut_param_copies`, `value_arg` and its early
+      reservations (`reserve_value_arg`, `value_receiver`,
+      `settle_arg_copies`, the per-call `early` slots), `capture_copies`,
+      `loop_binding_copy`, and the facts only they read (`copy_locals`,
+      `alias_locals`, `arg_copies`, `unowned`, `may_hold_coll`).
+    - **The pins** (`pins.rs`, now `elem_refs.rs`): pin frames, pin
+      slots, `$pinned` and `$pin` locals, the unpin `Defer`s, the call
+      receivers' pins and the binding owners of a pin; a suite with
+      element references is no cleanup scope. `Root::Elem` holds the list
+      itself, so an element reference is `Ref [%xs [%i]]` only.
+    - **`mark_write_path`'s list rewrite.** An element read on a change's
+      path stays a `Read`; a map value's read still becomes `MapIndexMut`.
+    - **The intrinsics `ListIndexMut`, `ListPin` and `ListUnpin`**, and
+      insertion's refusal of them. `IntrinsicOp` renumbers past them;
+      every cached artifact keys on the compiler's build id, so no old
+      entry reads under the new numbers.
+
+    `ValueCopy` stays as insertion's header copy until stage 3. The
+    checker's time over bench/study did not change measurably (cold, 5
+    rounds, the `Body` stage's median: 829 and 867 ms before, 829 and
+    853 ms after, in interleaved runs), since the new mode already
+    returned from the copies and pins before they did any work.
+
+    The passes now run with the backend's layout cache in place
+    (`hd_wasm_linear::with_layout_cache`, a link's when they run inside
+    one): `OwnCx::counted` walked each new type's layout from scratch
+    outside a link, so a chain of 1,500 types held by value cost its cube
+    (`recursive_layouts::a_large_recursion_group_and_long_chains_of_types`,
+    251 s before, 9 s after).
+
 ## The inliner
 
 Stage 3 moves lists, maps and strings into std and lowers every `for`
