@@ -59,8 +59,13 @@ An implementation may offer more than one engine to run programs on.
 `hd FILE`, `hd run`, `hd build` and `hd test` take `--engine NAME`, and
 `HD_ENGINE` gives the name when the flag is absent. Which engines exist,
 and which is the default, depends on your `hd`. A program behaves the same
-on each; only speed and memory use differ. A name your `hd` does not offer
-is a usage error that exits 101 and runs nothing:
+on each; only speed and memory use differ. One difference is security:
+the `wasmtime` engine opens files relative to each granted directory, so
+a grant holds even if another process swaps a link inside it while the
+program runs. The `node` engine checks a path and then opens it by name,
+so a local process that swaps a link between the two can reach outside the
+grant. Run untrusted programs on `wasmtime`. A name your `hd` does not
+offer is a usage error that exits 101 and runs nothing:
 
 ```sh
 $ hd run --engine no-such-name
