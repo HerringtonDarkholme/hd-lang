@@ -1471,10 +1471,7 @@ impl Ck<'_, '_> {
     }
 
     pub(crate) fn sym_of(&self, n: NodeRef<'_>) -> Symbol {
-        self.cx
-            .names
-            .syms
-            .intern(self.cx.src.text(self.cx.src.first(n)))
+        self.cx.src.symbol(self.cx.src.first(n), self.cx.names.syms)
     }
 
     /// `names.type-param.no-redeclare`: a local value must not reuse an
@@ -3290,11 +3287,7 @@ impl Ck<'_, '_> {
         let at = self.cx.src.span(callee).lo;
         match callee.kind() {
             SyntaxKind::NameExpr => {
-                let sym = self
-                    .cx
-                    .names
-                    .syms
-                    .intern(self.cx.src.text(self.cx.src.first(callee)));
+                let sym = self.sym_of(callee);
                 if self.find_local(sym).is_some() {
                     return false;
                 }

@@ -203,7 +203,7 @@ impl Ck<'_, '_> {
                 let Some(nt) = name_tok else {
                     return unsupported("a binding pattern without a name");
                 };
-                let name = self.cx.names.syms.intern(self.cx.src.text(nt));
+                let name = self.cx.src.symbol(nt, self.cx.names.syms);
                 // `flow.match.bare-variant`: a bare name of a variant of
                 // the subject's enum is not a catch-all binding.
                 if self
@@ -233,7 +233,7 @@ impl Ck<'_, '_> {
                         Some(TokenKind::Ident | TokenKind::RawIdent)
                     )
                 }) {
-                    let name = self.cx.names.syms.intern(self.cx.src.text(nt));
+                    let name = self.cx.src.symbol(nt, self.cx.names.syms);
                     self.bind_pattern_name(p, name, Ty::POISON, binds)?;
                 }
             }
@@ -319,7 +319,7 @@ impl Ck<'_, '_> {
                                 Some(TokenKind::Ident | TokenKind::RawIdent)
                             )
                         }) {
-                            let name = self.cx.names.syms.intern(self.cx.src.text(nt));
+                            let name = self.cx.src.symbol(nt, self.cx.names.syms);
                             self.bind_pattern_name(sp, name, rest_ty, binds)?;
                         }
                     }
@@ -860,7 +860,7 @@ impl Ck<'_, '_> {
                 })
             })
             .flatten()
-            .map(|nt| self.cx.names.syms.intern(self.cx.src.text(nt)));
+            .map(|nt| self.cx.src.symbol(nt, self.cx.names.syms));
         let initializer_diags = self.diags.mark();
         // `names.scope.recursive-closure`: a closure initializer's body may
         // call the name being bound, which is a local before the body.

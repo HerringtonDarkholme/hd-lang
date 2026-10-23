@@ -574,7 +574,7 @@ pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str, tests: bool) ->
             };
             let text = src.text(t);
             Head {
-                name: names.syms.intern(text),
+                name: src.symbol(t, names.syms),
                 def: names.item(module, text),
                 kind,
                 node: n,
@@ -636,7 +636,7 @@ fn local_heads<'t>(
             };
             let text = src.text(t);
             (
-                names.syms.intern(text),
+                src.symbol(t, names.syms),
                 names.member(scope, PathKind::Item, text),
             )
         };
@@ -1654,6 +1654,10 @@ impl Lower<'_, '_, '_> {
         self.names.syms.intern(text)
     }
 
+    fn sym_token(&self, token: hd_base::TokenIdx) -> Symbol {
+        self.src.symbol(token, self.names.syms)
+    }
+
     fn import_hint(&self, name: &str) -> String {
         if self.in_std() {
             return String::new();
@@ -1683,8 +1687,7 @@ impl Lower<'_, '_, '_> {
     }
 
     /// Whether a name was bound by a failed `use` (an earlier error).
-    fn is_poisoned(&self, name: &str) -> bool {
-        let sym = self.sym(name);
+    fn is_poisoned(&self, sym: Symbol) -> bool {
         local_at(self.locals, sym, self.at).is_none()
             && self
                 .scope
@@ -1698,17 +1701,18 @@ impl Lower<'_, '_, '_> {
         segs: &[(String, hd_base::TokenIdx)],
         span: Span,
     ) -> Option<(DefId, HeadKind)> {
-        let (first, _) = segs.first()?;
-        if self.is_poisoned(first) {
+        let (first, token) = segs.first()?;
+        let first_sym = self.sym_token(*token);
+        if self.is_poisoned(first_sym) {
             return None;
         }
         // A local declaration in scope here shadows the module's names.
         if segs.len() == 1
-            && let Some(l) = local_at(self.locals, self.sym(first), self.at)
+            && let Some(l) = local_at(self.locals, first_sym, self.at)
         {
             return Some((l.def, l.kind));
         }
-        let b = self.scope.lookup(self.sym(first));
+        let b = self.scope.lookup(first_sym);
         if segs.len() == 1 {
             return match b {
                 Some(Binding {
@@ -1748,13 +1752,13 @@ impl Lower<'_, '_, '_> {
             module.push('.');
             module.push_str(s);
         }
-        let (last, _) = segs.last()?;
-        match self.r.export(&module, self.sym(last)) {
+        let (last, token) = segs.last()?;
+        let last_sym = self.sym_token(*token);
+        match self.r.export(&module, last_sym) {
             Ok(x) => Some(x),
             Err(Code::ReExportLoop) => {
-                let sym = self.sym(last);
                 let r = self.r;
-                r.report_loop(&mut *self.diags, span, &module, sym);
+                r.report_loop(&mut *self.diags, span, &module, last_sym);
                 None
             }
             Err(code) => {
@@ -1780,7 +1784,7 @@ impl Lower<'_, '_, '_> {
                         let Some(t) = a.name(&self.src.parse.tokens) else {
                             continue;
                         };
-                        let name = self.sym(self.src.text(t));
+                        let name = self.sym_token(t);
                         let ty = self.ty(Src::type_child(a), gn);
                         bindings.push((name, ty));
                     }
@@ -1807,7 +1811,10 @@ impl Lower<'_, '_, '_> {
     fn trait_value(&mut self, n: NodeRef<'_>, gn: &Gen, self_ty: Option<Ty>) -> Option<Ty> {
         let segs = self.segments(n);
         let span = self.src.span(n);
-        if segs.first().is_some_and(|s| self.is_poisoned(&s.0)) {
+        if segs
+            .first()
+            .is_some_and(|s| self.is_poisoned(self.sym_token(s.1)))
+        {
             return None;
         }
         let found = self.resolve_path(&segs, span);
@@ -1917,7 +1924,10 @@ impl Lower<'_, '_, '_> {
             if segs.len() == 1 && self.type_param_in_row(c, &segs[0].0, gn) {
                 continue;
             }
-            if segs.first().is_some_and(|s| self.is_poisoned(&s.0)) {
+            if segs
+                .first()
+                .is_some_and(|s| self.is_poisoned(self.sym_token(s.1)))
+            {
                 continue;
             }
             let found = self.resolve_path(&segs, self.src.span(c));
@@ -2228,7 +2238,7 @@ impl Lower<'_, '_, '_> {
                 return Ty::prim(*p);
             }
         }
-        if self.is_poisoned(&first) {
+        if self.is_poisoned(self.sym_token(ft)) {
             return Ty::POISON;
         }
         let Some((def, kind)) = self.resolve_path(&segs, span) else {
@@ -2423,7 +2433,7 @@ impl Lower<'_, '_, '_> {
                 let Some(t) = n.name(&self.src.parse.tokens) else {
                     return Ty::POISON;
                 };
-                let name = self.sym(self.src.text(t));
+                let name = self.sym_token(t);
                 // `Self::X` inside a trait leaves the trait's arguments
                 // implicit (each use instantiates them); `T::X` names the
                 // bound's arguments, defaults filled, so `T::Out` under
@@ -2554,7 +2564,7 @@ impl Lower<'_, '_, '_> {
             let Some(t) = g.name(&self.src.parse.tokens) else {
                 continue;
             };
-            let name = self.sym(self.src.text(t));
+            let name = self.sym_token(t);
             let name_span = self.src.token_span(t);
             if self.r.frozen.is_none() {
                 self.prelude_shadow(*g, self.src.text(t));
@@ -2833,7 +2843,7 @@ impl Lower<'_, '_, '_> {
             self.vararg_final(&nodes);
             for (i, p) in nodes.into_iter().enumerate() {
                 let toks = &self.src.parse.tokens;
-                if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
+                if let Some(token) = p.direct_token(toks, TokenKind::KwSelfValue) {
                     let st = gn.self_ty.unwrap_or(Ty::POISON);
                     let pool = self.names.pool;
                     // `data.struct.mut-self`: a struct's `mut self` is its own
@@ -2850,22 +2860,21 @@ impl Lower<'_, '_, '_> {
                     } else {
                         st
                     };
-                    params.push((self.sym("self"), st));
+                    params.push((self.sym_token(token), st));
                     defaults.push(false);
                     continue;
                 }
                 if p.direct_token(toks, TokenKind::Ellipsis).is_some() {
                     variadic = true;
                 }
-                let name = p
-                    .name(toks)
-                    .map_or_else(|| i.to_string(), |t| self.src.text(t).to_owned());
+                let token = p.name(toks);
+                let name = token.map_or_else(|| i.to_string(), |t| self.src.text(t).to_owned());
+                let sym = token.map_or_else(|| self.sym(&name), |t| self.sym_token(t));
                 if self.r.frozen.is_none() {
                     self.prelude_shadow(p, &name);
                     // `names.type-param.no-redeclare`: no parameter reuses
                     // the name of a type parameter in scope, the
                     // function's own or an enclosing one's.
-                    let sym = self.sym(&name);
                     if gn.tys.iter().any(|(s, _, _)| *s == sym)
                         || gn.rows.iter().any(|(s, _)| *s == sym)
                     {
@@ -2900,7 +2909,7 @@ impl Lower<'_, '_, '_> {
                         );
                     }
                 }
-                params.push((self.sym(&name), ty));
+                params.push((sym, ty));
                 defaults.push(Src::child(p, SyntaxKind::DefaultValue).is_some());
             }
         }
@@ -2926,12 +2935,11 @@ impl Lower<'_, '_, '_> {
         for (i, f) in holder.children().enumerate() {
             match f.kind() {
                 SyntaxKind::DataField | SyntaxKind::Parameter => {
-                    let name = f
-                        .name(&self.src.parse.tokens)
-                        .map_or_else(|| i.to_string(), |t| self.src.text(t).to_owned());
+                    let token = f.name(&self.src.parse.tokens);
+                    let name = token.map_or_else(|| i.to_string(), |t| self.src.text(t).to_owned());
                     let ty = self.ty(Src::type_child(f), gn);
                     out.push(Field {
-                        name: self.sym(&name),
+                        name: token.map_or_else(|| self.sym(&name), |t| self.sym_token(t)),
                         ty,
                         public: self.src.is_pub(f),
                         has_default: Src::child(f, SyntaxKind::DefaultValue).is_some(),
@@ -2940,13 +2948,12 @@ impl Lower<'_, '_, '_> {
                 }
                 SyntaxKind::EmbeddedField => {
                     let tn = Src::type_child(f);
-                    let name = tn
+                    let token = tn
                         .map(|t| self.segments(t))
-                        .and_then(|s| s.last().map(|x| x.0.clone()))
-                        .unwrap_or_default();
+                        .and_then(|s| s.last().map(|x| x.1));
                     let ty = self.ty(tn, gn);
                     out.push(Field {
-                        name: self.sym(&name),
+                        name: token.map_or_else(|| self.sym(""), |t| self.sym_token(t)),
                         ty,
                         public: self.src.is_pub(f),
                         has_default: false,
@@ -3290,7 +3297,7 @@ impl Lower<'_, '_, '_> {
                         continue;
                     };
                     let text = self.src.text(t).to_owned();
-                    let name = self.sym(&text);
+                    let name = self.sym_token(t);
                     let def = self.names.member(owner, PathKind::Member, &text);
                     self.result_required(f, result_required || self.src.is_pub(f));
                     let sig = self.sig(f, def, gn);
@@ -3323,7 +3330,7 @@ impl Lower<'_, '_, '_> {
                             }
                         }
                     }
-                    assoc.push((self.sym(&text), def, ty, bounds));
+                    assoc.push((self.sym_token(t), def, ty, bounds));
                 }
                 _ => {}
             }
@@ -3501,7 +3508,10 @@ impl Lower<'_, '_, '_> {
             None => (DefId::NONE, TyList::EMPTY, Vec::new()),
             Some(tn) => {
                 let segs = self.segments(tn);
-                if segs.first().is_some_and(|s| self.is_poisoned(&s.0)) {
+                if segs
+                    .first()
+                    .is_some_and(|s| self.is_poisoned(self.sym_token(s.1)))
+                {
                     Self::poisoned_impl(h, self_ty, generics, out);
                     return;
                 }
@@ -3825,7 +3835,7 @@ impl Lower<'_, '_, '_> {
             }
             for a in args {
                 let sym = self.sym(&a);
-                if self.is_poisoned(&a) {
+                if self.is_poisoned(sym) {
                     continue;
                 }
                 let Some(Binding {
@@ -4247,7 +4257,7 @@ impl Lower<'_, '_, '_> {
                         self.field_variance(h.def, &generics, holder, &fields);
                     }
                     variants.push(Variant {
-                        name: self.sym(&text),
+                        name: self.sym_token(t),
                         def: self.names.member(h.def, PathKind::Variant, &text),
                         fields,
                     });
@@ -4459,10 +4469,12 @@ impl Lower<'_, '_, '_> {
             .filter(|c| c.kind() == SyntaxKind::NamedType)
         {
             let segs = self.segments(c);
-            let Some((first, _)) = segs.first() else {
+            let Some((first, token)) = segs.first() else {
                 continue;
             };
-            if (segs.len() == 1 && params.contains(&first.as_str())) || self.is_poisoned(first) {
+            if (segs.len() == 1 && params.contains(&first.as_str()))
+                || self.is_poisoned(self.sym_token(*token))
+            {
                 continue;
             }
             if let Some((d, _)) = self.resolve_path(&segs, self.src.span(c))
@@ -5649,7 +5661,7 @@ fn resolver<'a, 'b>(
                     .flat_map(|b| b.children())
                     .filter(|c| c.kind() == SyntaxKind::AssociatedTypeDecl)
                     .filter_map(|c| c.name(&m.src.parse.tokens))
-                    .map(|t| names.syms.intern(m.src.text(t)))
+                    .map(|t| m.src.symbol(t, names.syms))
                     .collect();
                 r.trait_assoc.insert(h.def, assoc);
             }

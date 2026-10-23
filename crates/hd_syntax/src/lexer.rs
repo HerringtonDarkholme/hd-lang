@@ -1,4 +1,4 @@
-use hd_base::{FileId, Span, TokenIdx};
+use hd_base::{FileId, Span, Symbol, TokenIdx};
 use hd_diag::{Code, Diagnostic, Severity};
 use unicode_ident::{is_xid_continue, is_xid_start};
 use unicode_normalization::UnicodeNormalization;
@@ -164,6 +164,9 @@ pub struct TokenBuf {
     pub kind: Vec<TokenKind>,
     pub start: Vec<u32>,
     pub end: Vec<u32>,
+    /// Identifier symbols in the owning compiler run's interner. Empty
+    /// for standalone lexing/parsing, before a run supplies its interner.
+    pub symbols: Vec<Symbol>,
     pub line_first: Vec<u32>,
     pub line_start: Vec<u32>,
     pub line_tok: Vec<TokenIdx>,
@@ -178,6 +181,42 @@ pub struct TokenBuf {
 }
 
 impl TokenBuf {
+    /// Populate identifier symbols before this file enters a compiler
+    /// run. The parser's item-index interner is deliberately independent.
+    pub fn intern_symbols(&mut self, source: &str, interner: &hd_intern::ShardedInterner) {
+        let mut symbols = Vec::with_capacity(self.len());
+        for (i, kind) in self.kind.iter().enumerate() {
+            let symbol = if matches!(
+                kind,
+                TokenKind::Ident
+                    | TokenKind::RawIdent
+                    | TokenKind::KwSelfType
+                    | TokenKind::KwSelfValue
+            ) {
+                let text = self.text(TokenIdx::from_raw(to_u32(i)), source);
+                let text = if *kind == TokenKind::RawIdent {
+                    text.trim_matches('`')
+                } else {
+                    text
+                };
+                interner.intern(text)
+            } else {
+                Symbol::NONE
+            };
+            symbols.push(symbol);
+        }
+        self.symbols = symbols;
+    }
+
+    #[must_use]
+    pub fn symbol(&self, token: TokenIdx) -> Option<Symbol> {
+        let token = token.get()?;
+        self.symbols
+            .get(token.idx())
+            .copied()
+            .filter(|s| *s != Symbol::NONE)
+    }
+
     /// The token at `index` ends unclosed brackets' scope: layout and
     /// parsing resume there at depth zero.
     #[must_use]
@@ -1340,6 +1379,56 @@ mod tests {
     use super::{CommentKind, LineFlags, TokenKind, lex};
     use hd_base::TokenIdx;
     use hd_diag::Code;
+
+    #[test]
+    fn identifier_symbols_use_the_run_interner_and_raw_spelling() {
+        let source = "name `name` Self self `type` café name + 1";
+        let mut tokens = lex(source.as_bytes()).tokens;
+        assert!(tokens.symbols.is_empty());
+        let syms = hd_intern::ShardedInterner::default();
+        syms.intern("already present");
+        tokens.intern_symbols(source, &syms);
+        assert_eq!(tokens.symbols.len(), tokens.len());
+        let names: Vec<_> = (0..tokens.len())
+            .map(|i| {
+                tokens
+                    .symbol(TokenIdx::from_raw(u32::try_from(i).unwrap()))
+                    .map(|s| syms.resolve(s))
+            })
+            .collect();
+        assert_eq!(
+            names,
+            [
+                Some("name"),
+                Some("name"),
+                Some("Self"),
+                Some("self"),
+                Some("type"),
+                Some("café"),
+                Some("name"),
+                None,
+                None,
+            ]
+        );
+        assert_eq!(tokens.symbols[0], tokens.symbols[1]);
+        assert_eq!(tokens.symbols[0], tokens.symbols[6]);
+        assert_eq!(tokens.symbol(TokenIdx::NONE), None);
+    }
+
+    #[test]
+    fn token_symbols_are_populated_for_each_owning_interner() {
+        let source = "name";
+        let mut first = lex(source.as_bytes()).tokens;
+        let mut second = first.clone();
+        let a = hd_intern::ShardedInterner::default();
+        let b = hd_intern::ShardedInterner::default();
+        b.intern("another symbol");
+        first.intern_symbols(source, &a);
+        second.intern_symbols(source, &b);
+        assert_ne!(first.symbols[0], second.symbols[0]);
+        assert_eq!(a.resolve(first.symbols[0]), source);
+        assert_eq!(b.resolve(second.symbols[0]), source);
+    }
 
     #[test]
     fn duration_units_and_radix_numbers_remain_unambiguous() {
