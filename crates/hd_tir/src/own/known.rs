@@ -24,9 +24,22 @@
 //!   is a way out that no TIR jump spells, so the backend releases those
 //!   values there, and the locals at the exit.
 //!
-//! The plan's rules 2, 4 and 5 (a store into an empty place, a move with
-//! no zeroing, a cell made before use) are not built here
-//! (`docs/compiler/tir-v2.md`, stage 2's commit 10).
+//! - **Rule 5, cells made before use.** An addressed local (a `Ref` of
+//!   its own storage, or a shared capture, puts it in a cell) gets a second
+//!   bit, set where it may hold no value: before its first store in its
+//!   sub-body, after a `Drop` of it, a `move` read of it and a `Ref` that
+//!   takes its count; a store into its own storage clears it. Each
+//!   instruction that reads the local's storage (a `Read`, `Store`, `Ref`,
+//!   `IsUnique` or `Pin` of a place rooted at it, a `Closure` that captures
+//!   it) and each `Loop` (where the backend reads stable places before the
+//!   loop) gets a row in `Body::full_cells` when the bit is clear on every
+//!   path that reaches it: there the backend reads the cell with no null
+//!   test (#678). A use inside a cleanup suite gets none, since a suite
+//!   also runs at jumps the walk does not follow there.
+//!
+//! The plan's rules 2 and 4 (a store into an empty place, a move with no
+//! zeroing) are not built here (`docs/compiler/tir-v2.md`, stage 2's
+//! commit 10).
 //!
 //! A place a cleanup suite touches is never empty to the walk (its local
 //! keeps every drop and its exit row, its value stays in every later
@@ -36,7 +49,9 @@
 //! Why it is sound: a drop, an exit row or an unwind row goes only where
 //! no path reaches it with a count in its place; any other state keeps
 //! it, and a place that is empty there holds zero, which releases as
-//! nothing.
+//! nothing. A rule 5 row stands only where every path that reaches it
+//! stored into the local after the last `Drop`, move or taking `Ref` of
+//! it, and each store leaves the backend's cell made.
 //!
 //! The walk reads the body as the earlier passes' pending edits leave it
 //! ([`splice::Pending`]): a deleted statement is gone and a new `Drop`
@@ -121,6 +136,17 @@ pub(crate) struct Tables {
     keep: Vec<bool>,
     stack: Vec<u32>,
     ops: Vec<Operand>,
+    /// Rule 5: each addressed local's bit, or `NONE`, set where the local
+    /// may hold no value, after the parts' bits from `cfirst`; the local
+    /// of each.
+    cbit: Vec<u32>,
+    cfirst: u32,
+    clocs: Vec<u32>,
+    /// How many cleanup suites the walk is inside: no rule 5 row there.
+    suites: u32,
+    /// Rule 5's visits: an instruction, an addressed local, and whether
+    /// the local certainly held its value there.
+    cells: Vec<(u32, u32, bool)>,
 }
 
 fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
@@ -133,11 +159,14 @@ fn u32_of(i: usize) -> u32 {
 }
 
 /// Runs known-null over `b` with the earlier passes' edits in `edits`,
-/// adding its deletions there, and fills `b.unwind_drops` and trims
-/// `b.exit_drops`.
+/// adding its deletions there, and fills `b.unwind_drops` and
+/// `b.full_cells` and trims `b.exit_drops`.
 pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
     let n = b.len();
     b.unwind_drops.clear();
+    b.full_cells.clear();
+    t.cells.clear();
+    t.suites = 0;
     t.pending.build(n, edits);
     if !number(b, cx, t, edits) {
         return;
@@ -166,6 +195,11 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut spli
             if t.entry[l] && t.lbit[l] != NONE {
                 t.set(st, t.lbit[l]);
             }
+        }
+        // An addressed local holds no value where its sub-body starts:
+        // the backend makes an entry's cell in the prologue itself.
+        for c in 0..u32_of(t.clocs.len()) {
+            t.set(st, t.cfirst + c);
         }
         if t.block(b, cx, edits, root, st) {
             t.tail(b, cx, root, st);
@@ -197,6 +231,20 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut spli
         k += 1;
         keep[k - 1]
     });
+    // Rule 5: the reads that found the local full on every visit.
+    t.cells.sort_unstable();
+    let mut x = 0;
+    while x < t.cells.len() {
+        let (at, l, _) = t.cells[x];
+        let mut full = true;
+        while x < t.cells.len() && t.cells[x].0 == at && t.cells[x].1 == l {
+            full &= t.cells[x].2;
+            x += 1;
+        }
+        if full {
+            b.full_cells.push((at, l));
+        }
+    }
     // The unwind set: each suspension point's values that may hold a
     // count.
     t.points.sort_unstable();
@@ -315,11 +363,34 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &splice::Tables) -> b
         }
     }
     t.nv = k - t.nl;
-    if k == 0 {
+    // Rule 5's addressed locals.
+    fill(&mut t.cbit, locals, NONE);
+    t.clocs.clear();
+    for i in 0..n {
+        if b.tags[i] == Tag::Ref
+            && !t.pending.dead[i]
+            && let Some(l) = b.local_in_place(b.data[i][0])
+        {
+            t.mark_cell(l.raw());
+        }
+    }
+    for (l, m) in b.cap_local.iter().zip(&b.cap_mode) {
+        if *m == CaptureMode::Shared {
+            t.mark_cell(l.raw());
+        }
+    }
+    let nc = u32_of(t.clocs.len());
+    if k == 0 && nc == 0 {
         return false;
     }
     let slots = number_parts(b, t, edits);
-    t.words = ((k + slots) as usize).div_ceil(64);
+    t.cfirst = k + slots;
+    for c in &mut t.cbit {
+        if *c != NONE {
+            *c += t.cfirst;
+        }
+    }
+    t.words = ((k + slots + nc) as usize).div_ceil(64);
     true
 }
 
@@ -492,6 +563,41 @@ impl Tables {
         self.arena[at + (bit / 64) as usize] & (1 << (bit % 64)) != 0
     }
 
+    /// Rule 5: local `l` is addressed, and gets a bit.
+    fn mark_cell(&mut self, l: u32) {
+        if let Some(c) = self.cbit.get_mut(l as usize)
+            && *c == NONE
+        {
+            *c = u32_of(self.clocs.len());
+            self.clocs.push(l);
+        }
+    }
+
+    /// Rule 5: a visit of instruction `x`, which reads addressed local
+    /// `l`'s storage or, as a `Loop`, runs before such reads.
+    fn cell_visit(&mut self, x: u32, l: u32, st: usize) {
+        let c = self.cbit.get(l as usize).copied().unwrap_or(NONE);
+        if c != NONE && self.suites == 0 {
+            let full = !self.get(st, c);
+            self.cells.push((x, l, full));
+        }
+    }
+
+    /// Rule 5: addressed local `l` may hold no value (`empty`), or holds
+    /// its value, from here.
+    fn cell_mark(&mut self, l: u32, st: usize, empty: bool) {
+        let c = self.cbit.get(l as usize).copied().unwrap_or(NONE);
+        if c == NONE {
+            return;
+        }
+        let w = &mut self.arena[st + (c / 64) as usize];
+        if empty {
+            *w |= 1 << (c % 64);
+        } else {
+            *w &= !(1 << (c % 64));
+        }
+    }
+
     /// The bit of the root of place `word`, and whether the place is all
     /// of it.
     fn root_bit(&self, b: &Body, word: u32) -> Option<(u32, bool)> {
@@ -508,6 +614,9 @@ impl Tables {
     /// is needed where its root may hold a count; it empties all of it, or
     /// takes a part.
     fn drop_item(&mut self, b: &Body, cx: &dyn OwnCx, item: usize, word: u32, st: usize) {
+        if let (Root::Local(l), _, _) = root_of(b, word) {
+            self.cell_mark(l, st, true);
+        }
         let Some((bit, whole)) = self.root_bit(b, word) else {
             return;
         };
@@ -824,6 +933,9 @@ impl Tables {
                 falls
             }
             Tag::Loop => {
+                for c in 0..self.clocs.len() {
+                    self.cell_visit(x, self.clocs[c], st);
+                }
                 let falls = self.repeat(b, cx, edits, x, st);
                 if falls {
                     self.defined(x, st);
@@ -883,12 +995,14 @@ impl Tables {
                 if w != NONE {
                     let inp = self.alloc(Some(st));
                     let s = self.alloc(None);
+                    self.suites += 1;
                     for &suite in b.record(w) {
                         self.copy(s, inp);
                         if self.block(b, cx, edits, suite, s) {
                             self.union(st, s);
                         }
                     }
+                    self.suites -= 1;
                     self.free(inp);
                 }
                 self.defined(x, st);
@@ -948,6 +1062,32 @@ impl Tables {
         let tag = b.tags[i];
         if tag == Tag::Drop {
             self.drop_item(b, cx, i, a, st);
+        }
+        // Rule 5: a read of an addressed local's storage, and what it
+        // leaves there.
+        if !self.clocs.is_empty() {
+            match tag {
+                Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Pin => {
+                    if let (Root::Local(l), _, _) = root_of(b, a) {
+                        self.cell_visit(x, l, st);
+                        match tag {
+                            Tag::Store if b.local_in_place(a).is_some() => {
+                                self.cell_mark(l, st, false);
+                            }
+                            Tag::Read if w == ReadMode::Move as u32 => self.cell_mark(l, st, true),
+                            Tag::Ref if w & ref_word::TAKES != 0 => self.cell_mark(l, st, true),
+                            _ => {}
+                        }
+                    }
+                }
+                Tag::Closure => {
+                    let r = b.record(w);
+                    for c in r[0]..r[0] + r[1] {
+                        self.cell_visit(x, b.cap_local[c as usize].raw(), st);
+                    }
+                }
+                _ => {}
+            }
         }
         // A `move` of all of a value consumes it.
         let moved = match tag {

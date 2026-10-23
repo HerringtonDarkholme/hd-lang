@@ -554,6 +554,18 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
             err(errs, at, format!("unwind drop row {k} is out of order"));
         }
     }
+    for (k, &(at, l)) in b.full_cells.iter().enumerate() {
+        if at as usize >= b.len() || l as usize >= b.local_ty.len() {
+            err(
+                errs,
+                NONE,
+                format!("full cell row {k} names %{at} or ${l}, which the body lacks"),
+            );
+        }
+        if k > 0 && b.full_cells[k - 1] >= (at, l) {
+            err(errs, at, format!("full cell row {k} is out of order"));
+        }
+    }
 }
 
 /// What both walks read: the body, each instruction's decoded place, and

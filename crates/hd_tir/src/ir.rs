@@ -848,6 +848,15 @@ pub struct Body {
     /// row once. A pass output: empty in the checker's TIR (invariant 22),
     /// never written to the wire.
     pub unwind_drops: Vec<(u32, u32)>,
+    /// Known-null's rule 5 (`docs/compiler/tir-v2.md`, "Known-null"): per
+    /// row, an instruction and an addressed local (one that a `Ref` of its
+    /// own storage or a shared capture puts in a cell) that certainly holds
+    /// its value where the instruction runs, so the backend reads its cell
+    /// with no null test. The instruction is a `Read`, `Store`, `Ref`,
+    /// `IsUnique` or `Pin` of a place rooted at the local, a `Closure` that
+    /// captures it, or a `Loop`. Sorted, each row once. A pass output: empty
+    /// in the checker's TIR (invariant 22), never written to the wire.
+    pub full_cells: Vec<(u32, u32)>,
     /// The hoisting pass's stable list places (`docs/compiler/tir-v2.md`,
     /// "Hoisting"): per row, a `Loop` and a place word of a list whose
     /// header and buffer nothing in the loop replaces, so the backend may
@@ -901,6 +910,7 @@ impl Body {
             fallback: vec![],
             exit_drops: vec![],
             unwind_drops: vec![],
+            full_cells: vec![],
             stable_lists: vec![],
             regions: vec![],
             anchors: vec![],
@@ -2068,6 +2078,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
     }
     if !b.exit_drops.is_empty()
         || !b.unwind_drops.is_empty()
+        || !b.full_cells.is_empty()
         || !b.stable_lists.is_empty()
         || !b.regions.is_empty()
         || !b.anchors.is_empty()
@@ -2076,9 +2087,10 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             invariant: 22,
             inst: NONE,
             what: format!(
-                "{} exit drop, {} unwind drop, {} stable list, {} region and {} anchor rows before the ownership passes",
+                "{} exit drop, {} unwind drop, {} full cell, {} stable list, {} region and {} anchor rows before the ownership passes",
                 b.exit_drops.len(),
                 b.unwind_drops.len(),
+                b.full_cells.len(),
                 b.stable_lists.len(),
                 b.regions.len(),
                 b.anchors.len()
@@ -2551,6 +2563,9 @@ pub fn print(b: &Body) -> String {
     for (inst, value) in &b.unwind_drops {
         let _ = writeln!(o, "unwinddrop {inst} {value}");
     }
+    for (inst, local) in &b.full_cells {
+        let _ = writeln!(o, "fullcell {inst} {local}");
+    }
     for (inst, word) in &b.stable_lists {
         let _ = writeln!(o, "stablelist {inst} {word}");
     }
@@ -2710,6 +2725,13 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                     return Err(e("unwinddrop needs 2 fields".into()));
                 }
                 b.unwind_drops.push((v[0], v[1]));
+            }
+            "fullcell" => {
+                let v = nums(1)?;
+                if v.len() != 2 {
+                    return Err(e("fullcell needs 2 fields".into()));
+                }
+                b.full_cells.push((v[0], v[1]));
             }
             "stablelist" => {
                 let v = nums(1)?;

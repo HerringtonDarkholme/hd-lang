@@ -39,9 +39,10 @@
 //! `count-audit`, so the case fails.
 //! Every case builds through the ownership passes of TIR v2's stage 2,
 //! whose decisions the backend emits. `HD_CONFORMANCE_OLD=1` builds every
-//! case on the old path instead (`Packages::old_ownership`), where the
-//! backend decides the counts itself, under the same rule, with the
-//! cases only the new path passes known (`old_path_known`).
+//! case with the checker's old mode instead (`Packages::old_ownership`),
+//! with the cases only the new path passes known (`old_path_known`); the
+//! backend no longer decides counts itself (#799), so it refuses every
+//! such body, until #801 deletes the mode.
 
 //! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
 
@@ -1809,8 +1810,8 @@ fn old_path_known() -> Vec<known_failures::KnownFailure> {
     .collect()
 }
 
-/// Whether every case builds on the old path, whose backend decides every
-/// count itself (`Packages::old_ownership`), when `HD_CONFORMANCE_OLD=1`.
+/// Whether every case builds with the checker's old mode
+/// (`Packages::old_ownership`), when `HD_CONFORMANCE_OLD=1`.
 fn old_ownership() -> bool {
     selection_env("HD_CONFORMANCE_OLD").is_some_and(|value| value == "1")
 }

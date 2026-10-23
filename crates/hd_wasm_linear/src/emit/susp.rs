@@ -234,17 +234,16 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// Statements `items` (each with its position) of block `blk`, which
-    /// holds a state: one `br_table` on `pc` enters the segment that holds
-    /// the resumed state; fresh code falls through every segment.
-    pub(super) fn resume_list(&mut self, blk: u32, items: &[(usize, u32)]) -> StageResult<()> {
+    /// Statements `items` of a block that holds a state: one `br_table` on
+    /// `pc` enters the segment that holds the resumed state; fresh code
+    /// falls through every segment.
+    pub(super) fn resume_list(&mut self, items: &[u32]) -> StageResult<()> {
         let points: Vec<usize> = (0..items.len())
-            .filter(|&j| self.range(items[j].1).is_some())
+            .filter(|&j| self.range(items[j]).is_some())
             .collect();
-        let run = |em: &mut Self, its: &[(usize, u32)]| -> StageResult<()> {
-            for &(p, i) in its {
+        let run = |em: &mut Self, its: &[u32]| -> StageResult<()> {
+            for &i in its {
                 em.inst(i)?;
-                em.drop_dead(blk, p)?;
             }
             Ok(())
         };
@@ -259,7 +258,7 @@ impl Em<'_, '_, '_> {
         }
         let ranges: Vec<(u32, u32)> = points
             .iter()
-            .filter_map(|&j| self.range(items[j].1))
+            .filter_map(|&j| self.range(items[j]))
             .collect();
         let (lo, hi) = (ranges[0].0, ranges[ranges.len() - 1].1);
         for _ in 0..=points.len() {
@@ -1157,7 +1156,7 @@ pub(super) fn finish(
         let mut vals: Vec<(u32, Vec<u32>)> = em.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
         vals.sort_unstable();
         for (i, ls) in vals {
-            if !em.moves.loans.contains(&i) {
+            if !em.loans.contains(&i) {
                 places.push((Some(i), None, ls));
             }
         }
@@ -1165,7 +1164,7 @@ pub(super) fn finish(
             em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
         locals.sort_unstable();
         for (l, ls) in locals {
-            if !em.moves.loan_locals.contains_key(&l) {
+            if !em.loan_locals.contains_key(&l) {
                 places.push((None, Some(l), ls));
             }
         }

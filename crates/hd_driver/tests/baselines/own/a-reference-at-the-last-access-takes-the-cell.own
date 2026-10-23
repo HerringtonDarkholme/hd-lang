@@ -26,3 +26,4 @@ fn fresh() -> void:
 >   %2 = Ref take mut [$0] : Ref[mut Counter]
 >   %3 = Call app/main/bump[] (%2) : ()
 >   %4 = Drop [%2] : ()
+>   %2 finds [$0] full

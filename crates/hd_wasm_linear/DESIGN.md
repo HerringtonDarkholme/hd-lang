@@ -153,7 +153,7 @@ what the spec names as intrinsic or what only it can build.
 | lists | `emit/list.rs` for the list kernels, and `rt.rs` for the header, the buffer, its release glue and the change that makes a buffer a list's own (§23.17) |
 | maps | `emit/map.rs` for the map kernels, and `map.rs` for the table: its probe, put, growth, release glue and the change that makes a table a map's own (§23.18) |
 | closures and `dyn` | `emit/closure.rs` for environments, cells and calls of function values, `emit/dyn_value.rs` for trait values and their vtables, `emit/iter.rs` for collection iterators (§23.19) |
-| references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, `emit/live.rs` for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) |
+| references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, the ownership passes' `Drop`s for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) |
 | host codecs | `boundary.rs`: each boundary type's encoder and decoder over the exchange buffer, and the host method slots that call them (§23.23) |
 | checked mode | `std.rt.checked`, the counts and the allocator with their checks, and `rt.rs`'s audit at an entry's end, with checked allocation/count auditing enabled (§23.24) |
 | iterative release | `rt.rs::release_ref`: nested releases enqueue through `ReleaseHead`, and the outer release drains the queue |
@@ -509,8 +509,9 @@ String operations are emitted by `emit/text.rs` and runtime helpers
 
 ### 23.16 Counted Values And Cleanup
 
-`emit/count.rs` inserts ownership operations, with release glue in
-`rt.rs`. Count elision and loans are described in §23.25 and §23.31.
+The ownership passes (`hd_tir::own`, docs/compiler/tir-v2.md, "Stage 2")
+decide every count of a body; `emit/count.rs` lowers their decisions to
+count glue, with release glue in `rt.rs`, and decides none itself.
 
 - **Runtime roots.** The driver collects the runtime functions and runs
   their initializers before allocation. Linking retains only reachable
@@ -528,100 +529,102 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   addresses through inline structs, tuples and enum payloads. Glue
   retains or releases those fields. Closure environments, owning trait
   values and suspension frames follow the same ownership model.
-- **Places.** Copying into owned storage keeps the stored value alive;
-  overwriting releases its previous value. Call and parameter ownership
-  follow the ABI and loans (§23.25, §23.31), rather than retaining every
-  parameter or every instruction value unconditionally.
+- **Every body is the passes' output.** The driver runs the passes over
+  each body, the ones collection generates included; the backend runs
+  them over the one body it builds itself, a function reference's call
+  (`call_func`), through `Input::own_cx`, the facts the passes read. A
+  body with a `use` read, which no pass decided, is refused as
+  unsupported: a build on the checker's old ownership mode
+  (`Packages::old_ownership`, until #801 deletes it) stops there.
+- **Reads, drops, stores.** A `Read` copies (a count of its own), moves
+  (the place's count, and zeros left in what it read) or borrows (no
+  count) as its mode says. A `Drop` releases a value or a local and
+  zeroes it, so a later drop of it releases nothing. A value moves into
+  the one use that consumes it (`hd_tir::own::consumers`, `Em::take`,
+  `Em::take_from`), which zeroes it once read (`Em::settle`). A `Store`
+  takes its new value (moved in, or counted) before it releases the old
+  one.
 - **One exit.** A function that holds a counted value runs its body in a
   block: a return stores its result, with a count for the caller, and
-  branches out; after the block, every place it owns is released. A
-  place never stored holds zeros, which release as nothing.
-- **Bounded memory.** `crates/hd_driver/tests/std_rt/count_tests.hd`
-  repeatedly builds strings, chains of nodes and enum payloads, checking
-  that the heap stays bounded.
-- **Owned bodies** (docs/compiler/tir-v2.md, "Stage 2"; `Input::owned`,
-  `Em::owned`, `count.rs`). This is the default path (stage 2 commit
-  13c); the old one, whose decisions the bullets above and §23.20,
-  §23.25 and §23.31 describe, stays selectable by the driver's
-  `Packages::old_ownership` until commit 14 deletes it. Every body is
-  the ownership passes' output and emission decides no count: a `Read`
-  copies, moves or borrows as its mode says, a `Drop` releases a value
-  or a local and zeroes it, a value moves into the one use that consumes
-  it (`hd_tir::own::consumers`, read through `Input::own_cx`), and the
-  exit releases the sub-body's exit set. None of `live.rs`'s plan, the
-  loans, the moves, the in-loop release of a store's previous value or
-  a jump's releases runs. The glue is the old glue. What emission still
-  adds is glue for what the generic body cannot see: a consumer whose
-  lowering cannot move a count in takes one and the value is released
-  after it (`release_untaken`), unless the consumer never completes (a
-  `Return`, a `Break`, a call that panics), after which no code runs; a
-  list push and a map store move their value in, as a `Store` does (the
-  passes count them as consumers); an `@intrinsic` call is lowered in
-  place and lends every argument, so the passes pass them lent
-  (`OwnCx::pass`); a lent argument a callee instance owns
-  takes a count (`push_args`, as before); a parameter its caller lends
-  takes one on entry when the body owns it (its sub-body's exit set
-  lists it), while one the borrow pass left unowned takes none, and an
-  instance that receives it owned (a type parameter's) releases it at
-  the exit (`Em::unowned_params`); and a
-  cancelled suspension point, an edge the TIR does not have, releases
-  the values the known-null pass lists for it (`Body::unwind_drops`;
-  from a cleanup scope's ladder, those of every point inside the scope)
-  and then leaves through the exit, whose exit set holds every local
-  that may hold a value at a suspension point (`release_unwound`). `IsUnique` lowers to
-  `rt:list_unique` or `rt:map_unique`, and `Pin` to `ListPin`'s owner
-  word without its count, of the header at their place: a local's or a
-  value's, then struct fields, elements, bounds-checked, and
-  dereferences, a view's included (`Em::place_header`, which walks the
-  place as a rooted one, below). Since the passes put an `IsUnique` before every
-  change of a collection place, an owned body's intrinsics and its thunks'
-  (`Em::unique_explicit`) check no uniqueness themselves: an element
-  store, `MapSet`, `MapRemove` and `MapIndexMut` skip it, and
-  `ListPush` only moves a full buffer (`rt:list_grow`). One check stays:
-  std's `list_truncate` (`pop`, `insert`, ...) changes the list behind
-  its reference, where no pass sees the change. A hoisted `IsUnique`
-  (`docs/compiler/tir-v2.md`, "Hoisting") waits for the loop that
-  follows it (`Em::hoisted`) and runs once before it under the loop's
-  entry test: the statements before the test, which the pass found pure,
-  run once more, then the test (`Em::hoisted_uniques`); in a suspending
-  body, or where a default argument's specialization folded the test
-  away, it runs unguarded, which costs only a copy an empty loop did not
-  need. One behind a dereference reads the reference as its referent's
-  address (`Em::deref_physical`, `place_header`) and runs only where no
-  reference view is reachable (`RefViewsAbsent`); there the `COVERED`
-  ones in the loop are skipped, in the shape the link folds away, and
-  elsewhere they run. The loop caches on this path (`Em::own_list_caches`)
-  are the hoisting pass's stable list places (`Body::stable_lists`): a
-  local's list or the list a reference local refers to, with no counted
-  leaf in its elements, keeps its header, buffer and length in locals for
-  the loop where no view is reachable, with no check of its own and none
-  of #710's analysis (`list_loop_safe`, candidates, definite writes). An
-  owned body has no `ListPin`, `ListUnpin` or `ListIndexMut`: on this
-  path the checker writes element references as plain `Ref`s, which the
-  passes pin, and element reads as plain `Read`s (docs/compiler/tir-v2.md,
-  stage 2 commit 12b); those intrinsics are the old path's. Its header
-  copies (`ValueCopy`, lowered as below, §23.17) are insertion's
-  (`hd_tir::own` rule 7, stage 2 commit 13a), not the checker's. A `move` read takes the
-  place's count and zeroes what it read: a local's or a whole value's
-  locals, or the part of a local or a value laid out in its locals
-  (`Em::part_slots`: struct, tuple and newtype fields and enum payload
-  fields), whose locals a `Drop` of that part releases and zeroes too
-  (`Em::own_drop_part`). A part at no such place at this instance, a
-  boxed enum's payload or an open value's part, is read as a copy; the
-  move pass then keeps the root's whole `Drop`, which releases it. A
-  `Ref` that takes its local's count (move's rule 4) is the cell's
-  address with that count, and zeroes the local; where the reference is
-  no cell's address (a trait value's, an open cell's view) it counts as
-  any reference and the local is released after it. A `borrow` read of
-  any place takes no count (`Em::prepare_own_loans`: it joins
-  `Moves::loans`) and lowers as a copy's read would; one an erased
-  body's thunk makes is that thunk's owned value, which the read's kept
-  `Drop` releases, and one through a thin reference has a flag
-  (`Em::view_loans`) that a view's getter sets for the fresh value it
-  makes and that the read's kept `Drop` tests. A local a borrow is
-  stored into (a binding local) holds no count (`Moves::loan_locals`):
-  its stores count and release nothing.
-- **What an owned body's instance decides** (docs/compiler/tir-v2.md,
+  branches out; after the block, the function releases its sub-body's
+  exit set (`Body::exit_drops`), the locals that may still hold a value
+  there. A place never stored, or already dropped, holds zeros, which
+  release as nothing.
+- **Glue for what the generic body cannot see.** Emission still adds
+  counts where the lowering or the instance differs from what the passes
+  saw: a consumer whose lowering cannot move a count in takes one and the
+  value is released after it (`release_untaken`), unless the consumer
+  never completes (a `Return`, a `Break`, a call that panics), after which
+  no code runs; a list push and a map store move their value in, as a
+  `Store` does (the passes count them as consumers); an `@intrinsic` call
+  is lowered in place and lends every argument, so the passes pass them
+  lent (`OwnCx::pass`); a lent argument a callee instance owns takes a
+  count (`push_args`); a parameter its caller lends takes one on entry
+  when the body owns it (its sub-body's exit set lists it), while one the
+  borrow pass left unowned takes none, and an instance that receives it
+  owned (a type parameter's) releases it at the exit
+  (`Em::unowned_params`); and a cancelled suspension point, an edge the
+  TIR does not have, releases the values the known-null pass lists for it
+  (`Body::unwind_drops`; from a cleanup scope's ladder, those of every
+  point inside the scope) and then leaves through the exit, whose exit
+  set holds every local that may hold a value at a suspension point
+  (`release_unwound`).
+- **Uniqueness and pins.** `IsUnique` lowers to `rt:list_unique` or
+  `rt:map_unique`, and `Pin` to `ListPin`'s owner word without its count,
+  of the header at their place: a local's or a value's, then struct
+  fields, elements, bounds-checked, and dereferences, a view's included
+  (`Em::place_header`, which walks the place as a rooted one, below).
+  Since the passes put an `IsUnique` before every change of a collection
+  place, a body's intrinsics and its thunks' (`Em::unique_explicit`)
+  check no uniqueness themselves: an element store, `MapSet`,
+  `MapRemove` and `MapIndexMut` skip it, and `ListPush` only moves a full
+  buffer (`rt:list_grow`). One check stays: std's `list_truncate` (`pop`,
+  `insert`, ...) changes the list behind its reference, where no pass
+  sees the change. A hoisted `IsUnique` (docs/compiler/tir-v2.md,
+  "Hoisting") waits for the loop that follows it (`Em::hoisted`) and runs
+  once before it under the loop's entry test: the statements before the
+  test, which the pass found pure, run once more, then the test
+  (`Em::hoisted_uniques`); in a suspending body, or where a default
+  argument's specialization folded the test away, it runs unguarded,
+  which costs only a copy an empty loop did not need. One behind a
+  dereference reads the reference as its referent's address
+  (`Em::deref_physical`, `place_header`) and runs only where no reference
+  view is reachable (`RefViewsAbsent`); there the `COVERED` ones in the
+  loop are skipped, in the shape the link folds away, and elsewhere they
+  run. The loop caches (`Em::own_list_caches`) are the hoisting pass's
+  stable list places (`Body::stable_lists`): a local's list or the list a
+  reference local refers to, with no counted leaf in its elements, keeps
+  its header, buffer and length in locals for the loop where no view is
+  reachable, with no check of its own. The checker writes element
+  references as plain `Ref`s, which the passes pin, and element reads as
+  plain `Read`s (docs/compiler/tir-v2.md, stage 2 commit 12b); a body has
+  no `ListPin`, `ListUnpin` or `ListIndexMut`. Its header copies
+  (`ValueCopy`, lowered as below, §23.17) are insertion's (`hd_tir::own`
+  rule 7, stage 2 commit 13a).
+- **Moves of parts, taking references, borrows.** A `move` read of a
+  part takes the part laid out in its root's locals (`Em::part_slots`:
+  struct, tuple and newtype fields and enum payload fields), whose locals
+  a `Drop` of that part releases and zeroes too (`Em::own_drop_part`). A
+  part at no such place at this instance, a boxed enum's payload or an
+  open value's part, is read as a copy; the move pass then keeps the
+  root's whole `Drop`, which releases it. A `Ref` that takes its local's
+  count (move's rule 4) is the cell's address with that count, and zeroes
+  the local; where the reference is no cell's address (a trait value's,
+  an open cell's view) it counts as any reference and the local is
+  released after it. A `borrow` read of any place takes no count
+  (`Em::prepare_own_loans`: it joins `Em::loans`) and lowers as a copy's
+  read would; one an erased body's thunk makes is that thunk's owned
+  value, which the read's kept `Drop` releases, and one through a thin
+  reference has a flag (`Em::view_loans`) that a view's getter sets for
+  the fresh value it makes and that the read's kept `Drop` tests. A local
+  a borrow is stored into (a binding local) holds no count
+  (`Em::loan_locals`): its stores count and release nothing.
+- **Thunks.** An erased body's thunk (§23.27) runs one instruction of an
+  owned body outside the passes' view, as glue of its own (`Em::owned`
+  is false there): each operand and capture arrives with a count, the
+  instruction's reads copy, its result leaves with a count, and its exit
+  releases every place it holds (`Em::release_all`).
+- **What an instance decides** (docs/compiler/tir-v2.md,
   stage 2 commit 13b). The passes decide per generic body; three choices
   are left to the instance, where the layout is known.
   - *A type parameter's value parameter* is owned by the passes
@@ -634,7 +637,7 @@ String operations are emitted by `emit/text.rs` and runtime helpers
     or is an argument a direct callee borrows at this instance too, takes
     no count on entry and none at those reads (`hash_of(a)` for `a: &T`,
     or `notify(c)` forwarding `c: C` at `C = &Channel`); the reads join
-    `Moves::loans` and the exit set skips the parameter.
+    `Em::loans` and the exit set skips the parameter.
   - *A whole `Drop` after part moves* (`Em::own_drop_rest`): the move pass
     keeps a base's drop whole when its type names a type parameter, or
     when more than one counted field stays beside the moved part. Where
@@ -644,15 +647,15 @@ String operations are emitted by `emit/text.rs` and runtime helpers
     it is one call of the whole value's glue, the taken parts being zero.
     An open value's parts were read as copies, so its whole release runs.
   - *A lent reference* (`ref_word::LENT`, `[*$p .f]` into what a lent
-    parameter refers to) joins `Moves::loans` with a view flag
+    parameter refers to) joins `Em::loans` with a view flag
     (`Em::view_loans`), as §23.31's projection loans: it takes no count
     where the referent is physical, and a view's projection makes one that
     its kept `Drop` releases under the flag.
 - **Places rooted at the local** (docs/compiler/tir-v2.md, stage 2 commit
-  12a). On this path the checker names a place from its local through
-  every step (`Read [*$0 [%5] .x]`, `Store [$0 [%1]] v`,
-  `Read [*$0 .grid [%1] [%2]]`), where the old path reads each base into
-  a value first. A place rooted at a local with an element or a variant
+  12a). The checker names a place from its local through every step
+  (`Read [*$0 [%5] .x]`, `Store [$0 [%1]] v`, `Read [*$0 .grid [%1] [%2]]`),
+  not each base read into a value first. A place rooted at a local with
+  an element or a variant
   among its steps, or a dereference after its first step
   (`Em::rooted_at`), goes through one walk (`Em::walk_place`,
   `emit/refs.rs`) from the local's value: a field picks its part (in
@@ -681,6 +684,9 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   addresses the referent as `[*%r .x]` does (`Em::read_part`,
   `deref_field_write_at`), views included. So `bodies[i].x` loads one
   field (§23.31's "Read the selected field" is the meaning of the place).
+- **Bounded memory.** `crates/hd_driver/tests/std_rt/count_tests.hd`
+  repeatedly builds strings, chains of nodes and enum payloads, checking
+  that the heap stays bounded.
 
 ### 23.17 List Operations
 
@@ -922,39 +928,37 @@ references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
 - **Cells made before use** (issue #678). A use of a cell reads its local
   directly when the cell certainly exists there (`Em::cell_made`): the
   prologue made or received it (a parameter moved into its cell, a
-  closure's or a thunk's shared capture), or the store that declares the
-  local dominates the use in the structured TIR, being a statement of a
-  block around the use before the statement that holds it
-  (`live::Tree::dominates`). A block is entered only at its start, so
-  reaching the use ran the declaration, and every run of it makes a cell.
-  The release at last use cannot zero the local in between: it follows
-  the last statement of the innermost block holding every access, the
-  declaration included, and a `defer` suite's uses stand under its
-  `Scope`. Any other use tests the local and makes a cell of zeros when it
-  is 0: a use the TIR does not place after the declaration (a match arm's
-  pattern binding, bound in the decision block), and every use in a
+  closure's or a thunk's shared capture), or known-null found the local
+  holding its value there (`Body::full_cells`, rule 5 of
+  docs/compiler/tir-v2.md, "Known-null"). The pass gives each local a
+  `Ref` of its own storage or a shared capture puts in a cell a bit that
+  is set where it may hold no value: before its first store, after a
+  `Drop` of it, a `move` read of it and a `Ref` that takes its count;
+  states join by union at the ends of branches and arms and at a loop's
+  head. A `Read`, `Store`, `Ref`, `IsUnique` or `Pin` of a place rooted
+  at the local, a `Closure` that captures it, and a `Loop` (whose stable
+  places and hoisted checks are read before it) get a row where the bit
+  is clear on every path. Every store makes the cell (its declaration,
+  or `Em::cell_of` for any other), and only a `Drop`, a move or a taking
+  `Ref` zeroes the local, so the local holds the cell's address there.
+  Any other use tests the local and makes a cell of zeros when it is 0: a
+  use some path reaches before a store, one inside a cleanup suite (which
+  also runs at jumps the walk does not follow there), and every use in a
   suspending body, whose resume reloads the locals from the frame and
   enters blocks in the middle (§23.21).
 - **A reference at its local's last access** (issue #701). `&x`, the
   address of cell local `x`'s cell with no field path, takes the local's
-  count of the cell where it is `x`'s last access (`live::Moves::last_access`,
-  `Em::take_cell`), as a plain local read (`Read [$l]`) there takes the local's count of its
-  value (§23.25). The reference is stored as owned, the local is zeroed,
-  and the release planned after that statement goes. This is sound
-  because the local owns one count of its cell, from the declaration that
-  made it or the parameter moved into it, and the reference counts the
-  same object. The last access is the last statement, in the innermost
-  block holding every access to `x` and the declaration, and the reference
-  must be that statement. Nothing in the body then reaches `x` until its
-  declaration runs again and makes a new cell. The planned release is the
-  only other point that drops the local's count. So `x` read after `&x`,
-  or `&x` in a loop that does not run `x`'s declaration, keeps the count.
-  Also kept: a cell a closure shares, every cell of a suspending body
-  (its frame saves the local, and a resume enters blocks in the middle),
-  a parameter the caller lends, a reference that borrows, and `&x.field`,
-  whose address `rt:ref_project` makes with a count of its own.
-  `&Node { ... }`, which the checker binds to a hidden local, now makes its
-  node with no count change (`allocation/new-reference`);
+  count of the cell where move's rule 4 marks it (`Ref take`,
+  `ref_word::TAKES`, docs/compiler/tir-v2.md, "Move"): the reference is
+  stored as owned and the local is zeroed, and the pass deleted the
+  local's `Drop`. Where the reference is no cell's address at this
+  instance (a trait value's, an open cell's view), it takes a count of
+  its own and the local is released after it. The pass keeps the count
+  for a cell a closure shares, every cell of a suspending sub-body (its
+  frame saves the local, and a resume enters blocks in the middle), and
+  `&x.field`, whose address `rt:ref_project` makes with a count of its
+  own. `&Node { ... }`, which the checker binds to a hidden local, makes
+  its node with no count change (`allocation/new-reference`);
   `hd_driver/tests/cases/counts/reference-*` hold the boundaries.
 - **Cleanup scopes.** A `Scope` with `defer` suites uses an
   exit ladder (`emit/scope.rs`, crates/hd_mono/DESIGN.md
@@ -965,59 +969,47 @@ references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
   the next scope out. A suite that suspends (`using`'s `dispose!`) uses the
   cleanup state machine (§23.21).
 - **Releases at last use.** A reference is released after its last use,
-  not at the end of its block (§6.3 rule 5), so a counted value can no
-  longer wait for the function's exit (§23.16). `emit/live.rs` finds,
-  within one body and at statement granularity, the statement of a
-  value's own block that holds its last use, and for a TIR local the
-  innermost block holding all its uses and its last statement there; a
-  parameter and a closure's capture live in the root block. After that
-  statement the place is released and zeroed, so the exit, which still
-  releases every place, releases it as nothing. A `break` or `continue`
-  releases what the blocks it leaves hold, up to the innermost cleanup
-  scope it crosses, whose suites may still read the scope's locals. A
-  value used where no statement of its block holds the use (a block's
-  result, a match decision's value read in an arm) keeps its count to the
-  exit. Uses are TIR's `value_operands`, with a call's provider pairs;
-  any other instruction's value words are over-approximated, which only
-  delays a release.
+  not at the end of its block (§6.3 rule 5), so a counted value never
+  waits for the function's exit (§23.16). Insertion places the `Drop`s
+  (docs/compiler/tir-v2.md, "Insertion" rules 2 to 4): a value's after the
+  statement of its home block that holds its last use, a local's after
+  the statement of the innermost block holding all its accesses that
+  holds the last one, and before each jump the drops of what it leaves
+  that may still hold a count, up to the innermost cleanup scope it
+  crosses, whose suites may still read the scope's locals. The emitter
+  lowers each `Drop` where it stands.
 - **Element references own their pin.** An element reference is the
   element's address in its list's buffer, and its count is a count of
-  the buffer. `ListPin` makes the buffer the list's own, as before, and
-  gives the header its owner word (§23.7): the function-table slot of
-  the list's clone glue plus one. A buffer whose header has an owner
-  word has that header as its one owner, so every count past the first
-  is a reference's or a `ListPin`'s: the list is pinned while the
+  the buffer. Insertion puts an `IsUnique` and a `Pin` of each list on
+  the reference's path before it, outermost first (docs/compiler/tir-v2.md,
+  "Insertion" rule 6). `IsUnique` makes the buffer the list's own, and
+  `Pin` gives the header its owner word (§23.7), with no count: the
+  function-table slot of the list's clone glue plus one. A buffer whose
+  header has an owner word has that header as its one owner, so every
+  count past the first is a reference's: the list is pinned while the
   buffer's count is over 1 (`rt:list_pinned`), and a `push` or a
   truncation then panics `collection-pinned` (`ref.elem.release.copies`).
-  A change through the list writes the buffer in place, which every
-  element reference sees. A copy of a pinned list copies its buffer at
-  once through the owner word's clone glue (`rt:list_copy`), and a copy
-  of an unpinned one clears the word, since the buffer is shared again.
-  When the element layout contains collection values, `ListPin` also sets
-  bit 31 of the owner word. This exposure survives the direct pin: an
+  The reference's own count of the innermost buffer is the pin, so it
+  ends with the reference's `Drop`; an ancestor list is exposed and never
+  pinned. A change through the list writes the buffer in place, which
+  every element reference sees. A copy of a pinned list copies its buffer
+  at once through the owner word's clone glue (`rt:list_copy`), and a
+  copy of an unpinned one clears the word, since the buffer is shared
+  again. When the element layout contains collection values, `Pin` also
+  sets bit 31 of the owner word. This exposure survives the pin: an
   escaped reference can still reach a descendant after that pin ends.
   `ListCopy` clones exposed buffers regardless of the direct pin count,
   masking off bit 31 before calling the clone glue. Recursive collection
   copies isolate pinned descendants; the new header starts unexposed.
-  Before pinning through nested indexing, the checker changes ancestor
-  reads to `ListIndexMut` to detach shared buffers before loading their
-  children. Existing `ListPin`/`ListUnpin` pairs then expose those
-  ancestors, outside in, without preventing ancestor growth. Each index
-  is evaluated once. No TIR instruction shape changes. Fresh containment
-  uses the same collection-copy glue, so it cannot hide an exposed child
-  behind a shared outer buffer. Lists of scalar or reference elements
-  gain no exposure bit: their ordinary pin/count fast path is unchanged.
-  `ListPin`'s own count lasts until the checker's `ListUnpin`. On the
-  ownership passes' path (§23.16, "Owned bodies") the passes write this:
-  an `IsUnique` and a `Pin` of each list on the reference's path,
-  outermost first, where `Pin` sets the owner word (its exposure bit
-  included) with no count, so an ancestor is exposed and never pinned,
-  and the reference's own count of the innermost buffer is the pin. Each
-  copy of an element reference holds its own count, so a reference stored in
-  a field, returned, or captured by a closure called later keeps the
-  list pinned until that copy's last use. Two references to one slot
-  share its address (`ref.elem.identity`). A trait value of a value
-  that is one counted address is that address, never a copy.
+  Fresh containment uses the same collection-copy glue, so it cannot hide
+  an exposed child behind a shared outer buffer. Lists of scalar or
+  reference elements gain no exposure bit: their ordinary pin/count fast
+  path is unchanged. Each copy of an element reference holds its own
+  count, so a reference stored in a field, returned, or captured by a
+  closure called later keeps the list pinned until that copy's last use.
+  Two references to one slot share its address (`ref.elem.identity`). A
+  trait value of a value that is one counted address is that address,
+  never a copy.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
   through references to locals and elements, checks that a pin ends with
   its reference's last use, and takes references to locals and elements
@@ -1330,8 +1322,12 @@ is unchanged.
 
 ### 23.25 Count Elision
 
-Count elision uses ownership and last-use facts in `emit/count.rs` and
-`emit/live.rs`; the source behavior stays the same.
+These rules were the emitter's until #799 deleted `emit/live.rs` and the
+decisions in `emit/count.rs`; the ownership passes keep each one now
+(docs/compiler/tir-v2.md, "What each emitter rule becomes", maps every
+rule to its pass), and the emitter decides no count (§23.16). Only the
+parameter convention stays the backend's (`layout::Pass`), which
+`OwnCx::pass` reads.
 
 - **Parameters by their type** (`layout::Pass`). A plain function, one
   that does not suspend, takes a value parameter `T` as its own copy:
@@ -1359,25 +1355,24 @@ Count elision uses ownership and last-use facts in `emit/count.rs` and
   `host_provider` count a copy of each argument the target owns
   (`rt::own_arg`). So a dynamic call lends its arguments, as host stubs
   expect.
-- **Moves at last use** (`live::Moves`). An instruction value whose only
-  use is a later statement of its own block moves its count into that
-  statement when the statement consumes it: an owned argument, a local's
-  or a global's or a cell's store, a field write, a write through a
-  reference, a list or map store, a return, a `break` value
+- **Moves at last use** (move rules 1 and 2). An instruction value whose
+  only use is a later statement of its own block moves its count into
+  that statement when the statement consumes it: an owned argument, a
+  local's or a global's or a cell's store, a field write, a write through
+  a reference, a list or map store, a return, a `break` value
   (`Em::take`). A block's tail used only as the block's value moves into
-  it (`Em::take_tail`). A plain local read (`Read [$l]`) that is its local's last access, the
-  read after which the local was to be released, takes the local's count
-  instead of one of its own (`Em::take_local`). A borrowed parameter has
-  no count to give, and a cell is shared, so neither moves.
+  it. A plain local read (`Read [$l]`) that is its local's last access
+  takes the local's count instead of one of its own. A borrowed parameter
+  has no count to give, and a cell is shared, so neither moves.
 - **Construction consumes.** A struct, a tuple, a data object, a variant,
   a newtype, a copy-update and a list literal count each part they take
   (`Em::count_parts`) rather than the whole new value: a part at its only
   use moves its count in, any other takes one.
 - **Why it is sound.** A moved place is zeroed once its consumer has read
-  it, so the function's one exit, which still releases every place,
-  releases it as nothing. The release planned after the consuming
-  statement is skipped there, and only there: a jump out of the block
-  before the move still releases the place (`Em::drop_exited`). A value
+  it, so the function's one exit, which releases its exit set, releases
+  it as nothing. The drop after the consuming statement goes there, and
+  only there: a jump out of the block before the move still drops the
+  place. A value
   with one use in its own block runs that use at most once per value
   computed, and nothing reads it afterwards. A value that only `with`
   lends, or that two operands of one call read, has more than one use and
@@ -1882,10 +1877,10 @@ header, so they do not invalidate a borrowed header read.
   The existing no-view link fact enables these projections without a
   runtime change flag. View modules retain their ordinary reads and writes,
   and bounds checks still use the cached length. No callee summary is used.
-  On the ownership passes' path (§23.16, "Owned bodies") the hoisting
-  pass proves what these projections need and lists the places in
-  `Body::stable_lists`; the backend's own proof and its uniqueness check
-  before the loop run on the old path only.
+  The hoisting pass now proves what these projections need and lists the
+  places in `Body::stable_lists` (§23.16, "Uniqueness and pins"); the
+  backend's own proof and its uniqueness check before the loop no longer
+  run, until #800 deletes them.
 - **Conservative boundaries.** Deferred scopes, mutable reference bindings,
   shared cells and effectful read intervals keep their ownership. Copies
   that escape a loan still take their own counts. The fixtures cover
@@ -2039,7 +2034,8 @@ Issue #676 borrows a local's read for the span in which its value is
 used, where earlier rounds needed the local's whole lifetime to contain
 every use (§23.25 round two) or a parameter the caller keeps (§23.31).
 The read takes no count and its last use releases nothing; the local's
-own count keeps the value alive (`live::span_loans`).
+own count keeps the value alive. The borrow pass keeps the rule now
+(docs/compiler/tir-v2.md, "Borrow", rules 1 to 4; §23.25).
 
 - **The span.** A plain read `Read [$l]` of local `l` stands at statement `s` of
   block `k`. Its span is the statements of `k` after `s` up to the last
@@ -2077,19 +2073,18 @@ own count keeps the value alive (`live::span_loans`).
   header valid, since it changes the buffer, not the header.
 - **Refused at emission.** A cell local, an open value whose thunk may
   build a fresh box, and a local that itself borrows from another
-  (`Moves::loan_locals`, whose lifetime ends at its own last access).
+  (a binding local, whose lifetime ends at its own last access).
 - **Call-free matches (#717).** A sole field projection of a borrowed
   reference read may also borrow across a match and its pattern bindings.
-  `live::field_spans` follows pure projections and single-assignment,
+  The plan follows pure projections and single-assignment,
   uncaptured bindings to their last uses in the match. Every nested arm
   and guard in the interval is checked: any call, reference/global/field
   store, suspension, closure or replacement of a borrowed root refuses
   the loan. Binding uses outside the match also refuse it, preserving
   the lifetime of a view getter's owned fallback. An owned consumer or
   returned payload still takes a count. Collections, open representations
-  and cells retain ownership. The typed `FieldSpan` plan is separate from
-  `Moves::span`, whose entries remain local reads; emission validates the
-  physical projection and keeps the existing field-view ownership flag.
+  and cells retain ownership. Emission keeps the field-view ownership
+  flag (`Em::view_loans`).
 - **Not covered.** Other reference sources and calls that might be proved
   harmless only with callee facts, including a recursive tree walk or a
   closure stored in a field. Those keep their counts.

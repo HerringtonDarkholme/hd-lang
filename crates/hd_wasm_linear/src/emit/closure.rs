@@ -54,7 +54,7 @@ pub(super) fn cell_locals(b: &Body, roots: &[usize]) -> HashMap<usize, u32> {
         }
     }
     for (i, &sub) in subs.iter().enumerate() {
-        let Some((l, _)) = super::live::local_store(b, i) else {
+        let Some((l, _)) = super::shape::local_store(b, i) else {
             continue;
         };
         if b.local_flags.get(l).copied().unwrap_or(0) & local_flags::PARAM == 0
@@ -109,7 +109,7 @@ pub(super) fn self_local(b: &Body, ci: usize) -> Option<usize> {
         let l = l.idx();
         (b.local_flags[l] & local_flags::SHORT != 0
             && b.local_syn[l] == b.syn[ci]
-            && !(0..b.len()).any(|i| super::live::ref_local(b, i) == Some(l)))
+            && !(0..b.len()).any(|i| super::shape::ref_local(b, i) == Some(l)))
         .then_some(l)
     })
 }
@@ -211,41 +211,26 @@ impl Em<'_, '_, '_> {
     /// - the prologue made or received it ([`Em::entry_cells`]): a
     ///   parameter moved into its cell, or a shared capture, whose holder
     ///   made the cell before passing it; or
-    /// - the store that declares `l` (`cell_locals`) dominates the
-    ///   instruction in the structured TIR ([`super::live::Tree::dominates`]):
-    ///   it is a statement of a block around the instruction, before the
-    ///   statement holding it, and every execution of that store makes a
-    ///   cell.
+    /// - known-null found the local holding its value there on every path
+    ///   (`Body::full_cells`, rule 5 of `docs/compiler/tir-v2.md`,
+    ///   "Known-null"): a store into it ran since its last `Drop`, move or
+    ///   taking `Ref`, and every store makes the cell (its declaration, or
+    ///   [`Em::cell_of`] for any other).
     ///
-    /// Either way nothing zeroes the local before this use: the release
-    /// at last use (`live.rs`) runs after the last statement of the
-    /// innermost block holding every access to `l`, the declaration
-    /// included, so any later access re-enters that block from its start
-    /// and runs the declaration again. A `defer` suite stands under its
-    /// `Scope`, so its uses count as after the whole scope.
-    ///
-    /// Anything else keeps the test: a use the TIR does not place after
-    /// the declaration (a match arm's pattern binding, which the decision
-    /// block binds), and every use in a suspending body, whose resume
-    /// reloads its locals from the frame and enters blocks in the middle
-    /// (`susp.rs`).
-    fn cell_made(&mut self, l: usize) -> bool {
+    /// Anything else keeps the test, and so does every use in a suspending
+    /// body, whose resume reloads its locals from the frame and enters
+    /// blocks in the middle (`susp.rs`).
+    fn cell_made(&self, l: usize) -> bool {
         if self.susp.is_some() {
             return false;
         }
         if self.entry_cells.contains(&l) {
             return true;
         }
-        let (Some(&d), Some(&j)) = (self.cells.get(&l), self.emitting.last()) else {
+        let (Some(&j), Ok(l)) = (self.emitting.last(), u32::try_from(l)) else {
             return false;
         };
-        if d == u32::MAX {
-            return false;
-        }
-        let b = self.b;
-        self.tree
-            .get_or_insert_with(|| super::live::Tree::new(b))
-            .dominates(b, d, j)
+        self.b.full_cells.binary_search(&(j, l)).is_ok()
     }
 
     /// A new cell for local `l` holding `src`, already in the cell's

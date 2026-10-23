@@ -259,16 +259,14 @@ pub struct Input<'a> {
     /// inline (`opt::inline_counts`): the wasmtime pipeline's choice.
     pub inline_counts: bool,
     pub host_refs: &'a [(Ty, Hash128)],
-    /// Whether every body went through the ownership passes
-    /// (`hd_tir::own`), so emission lowers their read modes, `Drop`s and
-    /// exit sets and decides no count itself
-    /// (`docs/compiler/tir-v2.md`, "Stage 2"). Off: the backend's own
-    /// decisions (§23.16, §23.20, §23.25, §23.31, §23.36).
-    pub owned: bool,
-    /// With [`Input::owned`], the facts the ownership passes read
-    /// (`hd_tir::own::OwnCx`), from which emission learns which use
-    /// consumes each value (`hd_tir::own::consumers`).
-    pub own_cx: Option<&'a dyn hd_tir::own::OwnCx>,
+    /// The facts the ownership passes read (`hd_tir::own::OwnCx`). Every
+    /// body went through the passes (`hd_tir::own`), so emission lowers
+    /// their read modes, `Drop`s and exit sets and decides no count itself
+    /// (`docs/compiler/tir-v2.md`, "Stage 2"); from these facts it learns
+    /// which use consumes each value (`hd_tir::own::consumers`), and it
+    /// runs the passes over the one body it builds itself (a function
+    /// reference's call).
+    pub own_cx: &'a dyn hd_tir::own::OwnCx,
 }
 
 /// The std module whose functions emitted code calls by key, and their

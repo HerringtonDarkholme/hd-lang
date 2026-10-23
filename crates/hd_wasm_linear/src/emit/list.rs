@@ -14,8 +14,8 @@ use hd_types::{Ty, TyData};
 use wasm_encoder::{BlockType, Instruction as I};
 
 use super::Em;
-use super::live::Through;
 use super::refs::{Head, Start};
+use super::shape::Through;
 use super::value::Src;
 use crate::layout::{coll_leaves, mem as mem_of, strip};
 use crate::module::{HEAP, Ins, Sym, Val, mem};
@@ -71,7 +71,7 @@ impl Em<'_, '_, '_> {
                 indirect: false,
             }),
             Tag::Read => match self.read_through(i)? {
-                (Through::Value(r), true) if let Some(l) = super::live::read_local(self.b, r) => {
+                (Through::Value(r), true) if let Some(l) = super::shape::read_local(self.b, r) => {
                     Some(ListRoot {
                         local: u32::try_from(l).expect("locals"),
                         indirect: true,
@@ -100,10 +100,10 @@ impl Em<'_, '_, '_> {
             let mut changed = false;
             for i in 0..self.b.len() {
                 let [a, _] = self.b.data[i];
-                let aliases = super::live::uses(self.b, i)
+                let aliases = super::shape::uses(self.b, i)
                     .iter()
                     .any(|r| values[*r as usize]);
-                if let Some((l, v)) = super::live::local_part_store(self.b, i)
+                if let Some((l, v)) = super::shape::local_part_store(self.b, i)
                     && values.get(v as usize) == Some(&true)
                     && !locals[l]
                 {
@@ -183,7 +183,7 @@ impl Em<'_, '_, '_> {
             Tag::Read
                 if matches!(
                     self.projection(i as usize),
-                    Some((_, super::live::Projected::Field))
+                    Some((_, super::shape::Projected::Field))
                 ) =>
             {
                 true
@@ -245,13 +245,13 @@ impl Em<'_, '_, '_> {
 
     /// Follow immutable scalar aliases and fields of a just-built range.
     /// A changed or addressable binding never supplies a range fact.
-    fn range_source(&self, mut r: u32, sets: &[Vec<(u32, u32)>], tree: &super::live::Tree) -> u32 {
+    fn range_source(&self, mut r: u32, sets: &[Vec<(u32, u32)>], tree: &super::shape::Tree) -> u32 {
         for _ in 0..32 {
             let Some(i) = Ref(r).as_inst() else { break };
             let [a, w] = self.b.data[i.0 as usize];
             match self.b.tags[i.0 as usize] {
                 Tag::Read
-                    if let Some(l) = super::live::read_local(self.b, r)
+                    if let Some(l) = super::shape::read_local(self.b, r)
                         && !self.is_cell(l)
                         && self.b.local_flags[l]
                             & (hd_tir::ir::local_flags::CAPTURED
@@ -270,7 +270,7 @@ impl Em<'_, '_, '_> {
                     r = a;
                 }
                 Tag::Read
-                    if let Some((from, super::live::Projected::Field)) =
+                    if let Some((from, super::shape::Projected::Field)) =
                         self.projection(i.0 as usize)
                         && let Some((_, Step::Field(k) | Step::DerefField(k))) =
                             self.b.read_step(i.0 as usize) =>
@@ -298,7 +298,7 @@ impl Em<'_, '_, '_> {
         &self,
         loop_inst: u32,
         test: u32,
-        tree: &super::live::Tree,
+        tree: &super::shape::Tree,
         body: &[u32],
     ) -> Vec<u32> {
         // Every store into a local or a field of it, with the value of a
@@ -320,8 +320,8 @@ impl Em<'_, '_, '_> {
         let args = self.b.record(self.b.data[cond as usize][1]);
         let [cur, end] = args else { return Vec::new() };
         let (Some(current), Some(bound)) = (
-            super::live::read_local(self.b, *cur),
-            super::live::read_local(self.b, *end),
+            super::shape::read_local(self.b, *cur),
+            super::shape::read_local(self.b, *end),
         ) else {
             return Vec::new();
         };
@@ -360,7 +360,7 @@ impl Em<'_, '_, '_> {
         let [before, one] = add else {
             return Vec::new();
         };
-        if super::live::read_local(self.b, *before) != Some(current)
+        if super::shape::read_local(self.b, *before) != Some(current)
             || self.const_u32(*one) != Some(1)
         {
             return Vec::new();
@@ -431,7 +431,7 @@ impl Em<'_, '_, '_> {
                     return false;
                 }
                 let index = self.range_source(index, &sets, tree);
-                super::live::read_local(self.b, index) == Some(current)
+                super::shape::read_local(self.b, index) == Some(current)
                     && tree.dominates(self.b, cond, index)
                     && tree.dominates(self.b, index, step.0)
                     && tree.dominates(self.b, index, x)
@@ -462,7 +462,7 @@ impl Em<'_, '_, '_> {
             // A place rooted at a local that holds the list reaches it as
             // a read of that local would.
             let rooted = self.rooted_elem(i);
-            let reaches = super::live::uses(self.b, i)
+            let reaches = super::shape::uses(self.b, i)
                 .iter()
                 .any(|r| aliases[*r as usize])
                 || rooted.is_some_and(|(list, _)| aliases[n + list.local as usize]);
@@ -494,7 +494,7 @@ impl Em<'_, '_, '_> {
                 }
                 continue;
             }
-            let store = super::live::local_store(self.b, i);
+            let store = super::shape::local_store(self.b, i);
             match self.b.tags[i] {
                 Tag::Store
                     if store.is_some_and(|(l, v)| {
@@ -515,7 +515,7 @@ impl Em<'_, '_, '_> {
                 // An element store writes through its list, as the
                 // intrinsics that change one in place do.
                 Tag::Store
-                    if super::live::elem_store_list(self.b, i).is_some() || rooted.is_some() =>
+                    if super::shape::elem_store_list(self.b, i).is_some() || rooted.is_some() =>
                 {
                     if external && !reaches {
                         return false;
@@ -570,7 +570,7 @@ impl Em<'_, '_, '_> {
                     if reaches
                         && self
                             .projection(i)
-                            .is_some_and(|(_, p)| p != super::live::Projected::Field) =>
+                            .is_some_and(|(_, p)| p != super::shape::Projected::Field) =>
                 {
                     return false;
                 }
@@ -729,7 +729,7 @@ impl Em<'_, '_, '_> {
         if self.susp.is_some() {
             return Ok(Vec::new());
         }
-        let tree = super::live::Tree::new(self.b);
+        let tree = super::shape::Tree::new(self.b);
         let body: Vec<u32> = (0..self.b.len())
             .map(|i| u32::try_from(i).expect("insts"))
             .filter(|x| tree.in_loop(self.b, *x, loop_inst))
@@ -745,26 +745,26 @@ impl Em<'_, '_, '_> {
         let mut candidates: Vec<(ListRoot, Elem, bool, bool)> = Vec::new();
         for &x in &body {
             // An element store writes the list its place starts from.
-            let (list, write) = if let Some(list) = super::live::elem_store_list(self.b, x as usize)
-            {
-                (list, true)
-            } else if let Some((list, _)) = self.b.element_read(x as usize) {
-                (list, false)
-            } else {
-                if self.b.tags[x as usize] != Tag::Intrinsic {
-                    continue;
-                }
-                let [op, record] = self.b.data[x as usize];
-                let write = match IntrinsicOp::from_u32(op) {
-                    Some(IntrinsicOp::ListLen) => false,
-                    Some(IntrinsicOp::ListIndexMut) => true,
-                    _ => continue,
+            let (list, write) =
+                if let Some(list) = super::shape::elem_store_list(self.b, x as usize) {
+                    (list, true)
+                } else if let Some((list, _)) = self.b.element_read(x as usize) {
+                    (list, false)
+                } else {
+                    if self.b.tags[x as usize] != Tag::Intrinsic {
+                        continue;
+                    }
+                    let [op, record] = self.b.data[x as usize];
+                    let write = match IntrinsicOp::from_u32(op) {
+                        Some(IntrinsicOp::ListLen) => false,
+                        Some(IntrinsicOp::ListIndexMut) => true,
+                        _ => continue,
+                    };
+                    let Some(list) = self.b.record(record).first().copied() else {
+                        continue;
+                    };
+                    (list, write)
                 };
-                let Some(list) = self.b.record(record).first().copied() else {
-                    continue;
-                };
-                (list, write)
-            };
             let Some(root) = self.list_root(list) else {
                 continue;
             };
@@ -1215,15 +1215,6 @@ impl Em<'_, '_, '_> {
             b = self.buffer(h);
         }
         let at = self.slot_at(b, ix, e.size);
-        if !write && let Some((field, part)) = self.projected_field(i)? {
-            for leaf in &e.leaves[part.first..part.first + part.count] {
-                self.f.get(at);
-                self.f.op(leaf.load(LIST_ELEMS));
-            }
-            self.store(field)?;
-            self.precomputed_fields.insert(field);
-            return Ok(());
-        }
         for l in &e.leaves {
             self.f.get(at);
             self.f.op(l.load(LIST_ELEMS));
@@ -1295,7 +1286,7 @@ impl Em<'_, '_, '_> {
                 | Tag::Scope
                 | Tag::Defer
                 | Tag::Closure => return false,
-                Tag::Store if let Some(list) = super::live::elem_store_list(self.b, i) => {
+                Tag::Store if let Some(list) = super::shape::elem_store_list(self.b, i) => {
                     if !self
                         .elem(self.ty_of(list))
                         .is_ok_and(|(_, e)| e.walk.is_none())
@@ -1306,8 +1297,8 @@ impl Em<'_, '_, '_> {
                 // Any store but one into a whole local; a field store into
                 // a local of a counted type too.
                 Tag::Store
-                    if super::live::local_store(self.b, i).is_none()
-                        && super::live::local_part_store(self.b, i).is_none_or(|(l, _)| {
+                    if super::shape::local_store(self.b, i).is_none()
+                        && super::shape::local_part_store(self.b, i).is_none_or(|(l, _)| {
                             self.counted(self.sub(self.b.local_ty[l])).is_some()
                         }) =>
                 {
@@ -1387,7 +1378,7 @@ impl Em<'_, '_, '_> {
                     return None;
                 }
                 let mut l = match self.read_through(list as usize)? {
-                    (Through::Value(r), true) => super::live::read_local(self.b, r)?,
+                    (Through::Value(r), true) => super::shape::read_local(self.b, r)?,
                     (Through::Local(l), true) => l,
                     _ => return None,
                 };
@@ -1395,8 +1386,8 @@ impl Em<'_, '_, '_> {
                     if self.borrowed.contains(&l) {
                         return Some(l);
                     }
-                    let &source = self.moves.loan_locals.get(&l)?;
-                    l = super::live::read_local(self.b, source)?;
+                    let &source = self.loan_locals.get(&l)?;
+                    l = super::shape::read_local(self.b, source)?;
                 }
                 None
             })

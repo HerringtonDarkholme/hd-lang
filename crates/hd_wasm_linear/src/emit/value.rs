@@ -369,9 +369,6 @@ impl Em<'_, '_, '_> {
     /// A field read: field `idx` of `a`, picked from a struct's values or loaded
     /// from a data value's object.
     pub(super) fn field(&mut self, i: u32, a: u32, idx: u32) -> StageResult<()> {
-        if self.precomputed_fields.contains(&i) {
-            return Ok(());
-        }
         let t = self.ty_of(a);
         if self.newtype(t) {
             self.push(a)?;
@@ -515,13 +512,6 @@ impl Em<'_, '_, '_> {
             return unsupported("a payload field the enum does not have");
         };
         let boxed = matches!(self.kind(t), Kind::Boxed);
-        let transfer = self.counting
-            && matches!(self.kind(t), Kind::Value)
-            && !hd_mono::is_open(self.pool(), t)
-            && !self.moves.loans.contains(&a)
-            && !self.moves.loans.contains(&i)
-            && self.counted(t).is_some()
-            && self.moves.payloads.contains_key(&i);
         for &p in &at {
             if boxed {
                 self.load(&|em: &mut Self| em.comp(a, 0), 0, m.leaves[p])?;
@@ -529,28 +519,7 @@ impl Em<'_, '_, '_> {
                 self.comp(a, p)?;
             }
         }
-        if !transfer {
-            return self.store(i);
-        }
-        self.store_owned(i)?;
-        let plan = &self.moves.payloads[&i];
-        let whole = plan.last
-            && positions[variant as usize].len() == plan.fields.len()
-            && plan.fields.iter().all(|(p, _)| {
-                !self.moves.loans.contains(p)
-                    && !matches!(self.calls.get(p), Some(hd_mono::Target::Open(_)))
-            });
-        let ls = self.slot(a)?;
-        if whole {
-            for l in ls {
-                self.f.zero(l);
-            }
-        } else {
-            for p in at {
-                self.f.zero(ls[p]);
-            }
-        }
-        Ok(())
+        self.store(i)
     }
 
     /// A new value of variant `variant` of `i`'s enum type with the payload

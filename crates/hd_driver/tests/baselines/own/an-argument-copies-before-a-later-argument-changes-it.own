@@ -9,4 +9,6 @@ app/main/first
   %9 = Drop [%7] : ()
   %10 = Call app/main/before[] (%5, %8) : usize
   %11 = Block %10 : usize
+  %4 finds [$0] full
+  %7 finds [$0] full
   exit sub 0 drops [$0]

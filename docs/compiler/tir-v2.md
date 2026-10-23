@@ -2711,6 +2711,31 @@ is worth deciding only if they are hot.
     stage 3 makes a list's value its buffer; update
     `hd_wasm_linear/DESIGN.md` §23.16, §23.20, §23.25, §23.31, §23.36.
 
+    **14 as built, first part: `live.rs` and `count.rs`'s decisions
+    (#799).** The emitter's moves, drops, loans of its own and their
+    skips are gone; `count.rs` keeps the glue and the lowering of the
+    passes' reads, drops and exit sets, and `Em::loans` and
+    `Em::loan_locals` hold the borrows the passes write. The structural
+    helpers `live.rs` also held (the block tree for the range proofs, the
+    place shapes) moved to `emit/shape.rs`. Three things came with it:
+    - **Known-null's rule 5 is built** (`own/known.rs`): an addressed
+      local (a `Ref` of its own storage or a shared capture) gets a bit
+      set where it may hold no value, cleared by a store into its own
+      storage and set by a `Drop`, a `move` read and a taking `Ref`. A
+      `Read`, `Store`, `Ref`, `IsUnique` or `Pin` rooted at the local, a
+      `Closure` capturing it and a `Loop` get a row in `Body::full_cells`
+      where the bit is clear on every path, and none inside a cleanup
+      suite. `Em::cell_made` reads the rows instead of `live::Tree`'s
+      dominance; the wat baselines that hold #678 are unchanged.
+    - **A function reference's call body** (`call_func`), the one body
+      the backend builds, runs through the passes in the backend
+      (`Input::own_cx`), as the driver runs them over generated bodies;
+      it was the last body `live::plan` planned.
+    - **The old path stops at the backend.** `Input::owned` is gone: a
+      body with an undecided `use` read is refused, so
+      `Packages::old_ownership` (`HD_CONFORMANCE_OLD=1`) no longer builds
+      a runnable program; #801 deletes it with the checker's old mode.
+
 ## The inliner
 
 Stage 3 moves lists, maps and strings into std and lowers every `for`

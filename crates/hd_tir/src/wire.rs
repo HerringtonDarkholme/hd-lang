@@ -261,6 +261,7 @@ pub fn write_body(
     // runs after decoding; lifetime regions are tier 2's.
     if !b.exit_drops.is_empty()
         || !b.unwind_drops.is_empty()
+        || !b.full_cells.is_empty()
         || !b.stable_lists.is_empty()
         || !b.regions.is_empty()
         || !b.anchors.is_empty()

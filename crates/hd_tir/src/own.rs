@@ -727,6 +727,9 @@ mod tests {
         for (at, v) in &b.unwind_drops {
             let _ = writeln!(out, "unwind %{at} %{v}");
         }
+        for (at, l) in &b.full_cells {
+            let _ = writeln!(out, "full %{at} ${l}");
+        }
         for (at, word) in &b.stable_lists {
             if let Some(p) = b.decode_place(*word) {
                 let _ = writeln!(out, "stable %{at} {p}");
@@ -1308,6 +1311,41 @@ mod tests {
             errs.iter().any(|e| e.what.contains("takes a cell's count")),
             "{errs:?}"
         );
+    }
+
+    /// Known-null's rule 5: a celled local is full once a store ran on
+    /// every path. A store on one branch leaves it unknown, so neither
+    /// that store nor the next one gets a row; the reference after both
+    /// does.
+    #[test]
+    fn a_cell_is_full_after_a_store_on_every_path() {
+        let n = NodeIdx::from_raw(1);
+        let text = passes(
+            |b| {
+                let x = local(b, 0);
+                let c = call(b, 6, &[], Ty::BOOL);
+                let then = b.open_block();
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(x, s, n);
+                let then = b.close_block(then, None, Ty::VOID, n);
+                let arms = b.refs_record(&[then]);
+                b.emit(Tag::If, c.0, arms, Ty::VOID, n);
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(x, s, n);
+                let word = b.place(&format!("[${}]", x.raw()).parse().expect("place"));
+                let r = b.emit(Tag::Ref, word, 0, Ty::STRING, n);
+                call(b, 8, &[r], Ty::VOID);
+                None
+            },
+            Ty::VOID,
+        );
+        let rows: Vec<&str> = text.lines().filter(|l| l.starts_with("full ")).collect();
+        let at = text
+            .lines()
+            .find(|l| l.contains(" Ref "))
+            .and_then(|l| l.split(' ').next())
+            .expect("the reference");
+        assert_eq!(rows, [format!("full {at} $0")], "{text}");
     }
 
     /// A loop whose iteration block changes a list (`ListPush` over a

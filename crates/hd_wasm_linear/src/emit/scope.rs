@@ -186,13 +186,6 @@ impl Em<'_, '_, '_> {
             .iter()
             .rposition(|c| matches!(c, Ctl::Scope(_)))
             .filter(|p| floor.is_none_or(|f| *p > f));
-        // The blocks this jump leaves before it reaches the target or a
-        // scope's suites, which may still read what holds the scope.
-        if !matches!(e, Exit::Ret | Exit::Cancel)
-            && let Some(f) = scope.or(floor)
-        {
-            self.drop_exited(f)?;
-        }
         if let Some(p) = scope {
             let Ctl::Scope(s) = self.ctl[p] else {
                 return unsupported("a cleanup scope marker");

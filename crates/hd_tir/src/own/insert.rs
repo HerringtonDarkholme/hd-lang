@@ -16,7 +16,7 @@
 //!    a match decision makes and an arm reads, the block of the `Match`.
 //! 3. **Locals.** An owned local gets a `Drop` after the statement of the
 //!    innermost block holding all its accesses that holds the last one
-//!    (`live::plan`'s rule). Parameters and captures live in their
+//!    (the emitter's old rule, §23.20). Parameters and captures live in their
 //!    sub-body's root block. Every owned local is in its sub-body's exit
 //!    set.
 //! 4. **Jumps.** A `Break`, `Continue` or `ToArm` gets a `Drop` before it

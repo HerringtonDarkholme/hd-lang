@@ -1464,10 +1464,11 @@ pub struct Packages<'a> {
     /// Stage 2 of TIR v2's switch (`docs/compiler/tir-v2.md`, "Stage 2"),
     /// as an opt-out: by default every body the program reaches goes
     /// through the ownership passes (`hd_tir::own`) and the linear backend
-    /// emits counts from what they decide. On, the build takes the old
-    /// path instead, where the checker copies collections and pins and the
-    /// backend decides every count itself (`live.rs`), for comparing the
-    /// two until commit 14 deletes it; `HD_CONFORMANCE_OLD=1` turns it on.
+    /// emits counts from what they decide. On, the checker takes its old
+    /// mode instead, which copies collections and pins, and the passes do
+    /// not run; the backend, which decides no count itself any more
+    /// (#799), refuses such a body, so the build stops there until #801
+    /// deletes this. `HD_CONFORMANCE_OLD=1` turns it on.
     pub old_ownership: bool,
 }
 
@@ -8829,8 +8830,7 @@ impl Run<'_> {
             runtime,
             inline_counts: self.inline_counts,
             host_refs: &c.host_refs,
-            owned: self.own_passes,
-            own_cx: if self.own_passes { Some(&env) } else { None },
+            own_cx: &env,
         };
         let built = if self.map_instructions {
             hd_wasm_linear::build_with_origins(&input).map(|mapped| {

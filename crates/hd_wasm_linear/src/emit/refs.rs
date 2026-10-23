@@ -86,30 +86,6 @@ pub(super) struct Fresh {
 }
 
 impl Em<'_, '_, '_> {
-    /// Read just a sole field consumer at the original read's position.
-    /// In particular, do not defer a view read until after its source drops.
-    pub(super) fn projected_field(&self, read: u32) -> StageResult<Option<(u32, Part)>> {
-        let Some(&(field, _)) = self.moves.sole.get(&read) else {
-            return Ok(None);
-        };
-        let parent = self.ty(read);
-        let Some((base, hd_tir::ir::Step::Field(k))) = self.b.read_step(field as usize) else {
-            return Ok(None);
-        };
-        if base != read
-            || self.projection(field as usize).map(|p| p.1) != Some(super::live::Projected::Field)
-            || self.calls.contains_key(&field)
-            || hd_mono::is_open(self.pool(), parent)
-            || hd_mono::is_open(self.pool(), self.ty(field))
-            || !matches!(self.kind(parent), Kind::Value)
-            || self.newtype(parent)
-        {
-            return Ok(None);
-        }
-        let (_, parts) = struct_mem(self.pool(), self.env(), parent)?;
-        Ok(parts.get(k as usize).copied().map(|part| (field, part)))
-    }
-
     pub(super) fn ref_layout(&self, ty: Ty) -> StageResult<RefLayout> {
         let m = mem_of(self.pool(), self.env(), ty)?;
         let walk = self.counted(ty);
@@ -560,7 +536,7 @@ impl Em<'_, '_, '_> {
                 return Ok(());
             }
             self.counted_ref(i)?;
-            return self.release_drops(&[super::live::Drop::Local(x as usize)]);
+            return self.release_local(x as usize);
         }
         self.counted_ref(i)
     }
@@ -645,19 +621,13 @@ impl Em<'_, '_, '_> {
                 (Base::At(at), et)
             }
         };
-        let whole = match (s.start, s.head) {
-            (Start::Local(x), Head::Direct) => Some(x),
-            _ => None,
-        };
-        self.ref_from(i, base, ty, &path, owned_base, fat, whole)
+        self.ref_from(i, base, ty, &path, owned_base, fat)
     }
 
     /// The rest of `Ref` `i` from where its place's head lies (`base`, of
     /// type `ty`): the address of the struct field `path` reaches there,
     /// with a count of its own. `owned_base` is a view the head made,
-    /// released after; `whole` is the local a `Ref` of all of a local
-    /// names.
-    #[allow(clippy::too_many_arguments)]
+    /// released after.
     fn ref_from(
         &mut self,
         i: u32,
@@ -666,7 +636,6 @@ impl Em<'_, '_, '_> {
         path: &[u32],
         owned_base: Option<u32>,
         fat: bool,
-        whole: Option<u32>,
     ) -> StageResult<()> {
         let parent_ty = ty;
         let has_path = !path.is_empty();
@@ -782,17 +751,6 @@ impl Em<'_, '_, '_> {
         if owned_base.is_some() {
             return self.store_owned(i);
         }
-        // `&x` at the last access of cell local `x` takes the local's count
-        // of its cell ([`Em::take_cell`]).
-        if let Some(x) = whole
-            && !has_path
-            && self.take_cell(i, x as usize)
-        {
-            self.store_owned(i)?;
-            let c = self.local(x)?[0];
-            self.f.zero(c);
-            return Ok(());
-        }
         self.store(i)
     }
 
@@ -829,9 +787,6 @@ impl Em<'_, '_, '_> {
             if !s.path.is_empty() {
                 return unsupported("a field read through a trait value reference");
             }
-            if self.moves.unused_reads.contains(&i) {
-                return Ok(());
-            }
             self.push_start(s.start, None)?;
             return self.store(i);
         }
@@ -839,27 +794,9 @@ impl Em<'_, '_, '_> {
         let at = self.f.local(Val::I32);
         self.push_start(s.start, Some(0))?;
         self.f.set(at);
-        if self.moves.unused_reads.contains(&i) {
-            // The source has already been evaluated. A discarded load of
-            // a physical place need not copy/count its contents. A view
-            // must keep its getter and the release of that owned result,
-            // at this original read position, including in loops.
-            self.f.get(at);
-            self.f.helper(Helper::RefIsView);
-            self.f.op(I::If(wasm_encoder::BlockType::Empty));
-            let ls = rt::ref_load(&mut self.f, at, &value);
-            self.release_locals(&ls, target)?;
-            self.f.op(I::End);
-            return Ok(());
-        }
         if !s.path.is_empty() {
             let (_, part) = self.fold_path(target, &s.path)?;
             return self.read_part(i, at, &value, target, part);
-        }
-        if let Some((field, part)) = self.projected_field(i)? {
-            self.read_part(field, at, &value, target, part)?;
-            self.precomputed_fields.insert(field);
-            return Ok(());
         }
         if let Some(flag) = self.begin_view_loan(i)? {
             for l in rt::ref_load_borrowed(&mut self.f, at, &value, flag) {
@@ -1320,9 +1257,9 @@ impl Em<'_, '_, '_> {
 }
 
 /// Places rooted at a local (`docs/compiler/tir-v2.md`, stage 2 commit
-/// 12a): on the ownership passes' path the checker names a place from
-/// its local through every step, `[*$0 [%5] .x]`, where the old path read
-/// each base into a value first. One walk resolves such a place step by
+/// 12a): the checker names a place from its local through every step,
+/// `[*$0 [%5] .x]`, not each base read into a value first. One walk
+/// resolves such a place step by
 /// step from the root's value, and each instruction reads, stores or
 /// addresses what it finds: only the leaves the place names are loaded.
 impl Em<'_, '_, '_> {
@@ -1925,7 +1862,7 @@ impl Em<'_, '_, '_> {
         let Some(path) = path else {
             return unsupported("a reference to a payload field");
         };
-        self.ref_from(i, base, head_ty, &path, None, fat, None)?;
+        self.ref_from(i, base, head_ty, &path, None, fat)?;
         self.release_fresh(&fresh)
     }
 }

@@ -33,10 +33,10 @@ mod dyn_value;
 mod erased;
 mod iter;
 mod list;
-mod live;
 mod map;
 mod refs;
 mod scope;
+mod shape;
 mod susp;
 mod text;
 mod value;
@@ -68,7 +68,6 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
         key: t.key[id.idx()],
         erased,
         cold: None,
-        owned: input.owned,
     };
     body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b)
 }
@@ -76,9 +75,7 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
 /// What [`body_func`] emits: item `item`'s instance at `args`, its sub-body
 /// `sub` and key, and for an erased body its family. `cold` is the result
 /// type of a plain function of a suspending item, which only makes the
-/// item's cold call ([`call_func`]); it never suspends. `owned`: the body
-/// is the ownership passes' output, whose counts emission follows
-/// ([`Input::owned`]); a body the backend builds itself is not.
+/// item's cold call ([`call_func`]); it never suspends.
 struct Own {
     item: DefId,
     args: TyList,
@@ -86,7 +83,6 @@ struct Own {
     key: Hash128,
     erased: Option<Hash128>,
     cold: Option<Ty>,
-    owned: bool,
 }
 
 /// The function of body `b`'s sub-body `sub`, the instance `own`, whose
@@ -114,19 +110,19 @@ fn body_func<'a>(
     let cells = closure::cell_locals(b, &ref_roots(input, b, item, args, suspending));
     let mut em = Em::new(input, m, b, (item, args), targets, cells);
     em.origin_root = b.sub_root[sub as usize];
-    if own.owned {
-        if b.tags
-            .iter()
-            .zip(&b.data)
-            .any(|(t, d)| *t == Tag::Read && d[1] == hd_tir::ir::ReadMode::Use as u32)
-        {
-            return unsupported("a body the ownership passes did not run on");
-        }
-        em.owned = true;
-        em.unique_explicit = true;
-        em.sub_id = sub;
-        em.own_consumers()?;
+    // Every body is the ownership passes' output, whose counts emission
+    // follows (`docs/compiler/tir-v2.md`, "Stage 2").
+    if b.tags
+        .iter()
+        .zip(&b.data)
+        .any(|(t, d)| *t == Tag::Read && d[1] == hd_tir::ir::ReadMode::Use as u32)
+    {
+        return unsupported("a body the ownership passes did not run on");
     }
+    em.owned = true;
+    em.unique_explicit = true;
+    em.sub_id = sub;
+    em.own_consumers();
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).
     if suspending {
@@ -166,17 +162,6 @@ fn body_func<'a>(
                 em.cells.remove(&l);
             }
         }
-    }
-    let mut entry = plocals.clone();
-    if let Some(ci) = closure {
-        entry.extend(closure::captures(b, ci).into_iter().map(|(l, _)| l));
-        entry.extend(closure::self_local(b, ci));
-    }
-    // The ownership passes decided every count of an owned body; the
-    // backend's own plan is for the others (§23.20, §23.25).
-    if !em.owned {
-        (em.drops, em.moves) = live::plan(b, u32::from(sub), &entry, &em.projs);
-        em.prepare_loans();
     }
     // A plain function takes its parameters by the conventions of
     // `layout::Pass` (§23.25); a suspending one's cold constructor counts
@@ -346,7 +331,7 @@ fn body_func<'a>(
     // The parameters this instance receives borrowed whose value the body
     // only lends or passes on to callees that borrow it here too
     // (`Em::instance_loans`).
-    let lent_here = if em.owned && em.counting && by_type && sub == 0 {
+    let lent_here = if em.counting && by_type && sub == 0 {
         em.instance_loans(&plocals)
     } else {
         hd_base::HashSet::default()
@@ -360,8 +345,7 @@ fn body_func<'a>(
                 // A lent parameter the passes leave unowned is outside the
                 // exit set: the body takes no count of it, and releases at
                 // its exit the count an instance that owns it receives.
-                let unowned = em.owned
-                    && by_type
+                let unowned = by_type
                     && !b
                         .exit_drops
                         .iter()
@@ -378,13 +362,8 @@ fn body_func<'a>(
                         }
                         // Its count arrives with it.
                         Pass::Uncounted | Pass::Owned(_) => continue,
-                        // A borrowed read the body never writes and no
-                        // cell holds is never counted. An owned body owns
-                        // every parameter: the passes drop each one.
-                        Pass::Borrowed if !em.owned && !em.is_cell(*l) && !written(b, *l) => {
-                            em.borrowed.insert(*l);
-                            continue;
-                        }
+                        // The body owns every other parameter: the passes
+                        // drop each one.
                         Pass::Borrowed => {}
                     }
                 }
@@ -421,11 +400,7 @@ fn body_func<'a>(
     if em.counting {
         em.open(Ctl::Exit);
     }
-    if em.owned {
-        em.prepare_own_loans();
-    } else {
-        em.prepare_parameter_loans();
-    }
+    em.prepare_own_loans();
     let root = b.sub_root[sub as usize];
     em.block_into(root, None)?;
     let tail = b.data[root as usize][1];
@@ -433,11 +408,7 @@ fn body_func<'a>(
         if tail == NONE || em.diverges(tail) {
             em.f.op(Instruction::Unreachable);
         } else if em.counting {
-            let moved = if em.owned {
-                em.take_from(tail, root)
-            } else {
-                em.take_tail(tail)
-            };
+            let moved = em.take_from(tail, root);
             if !moved {
                 em.retain_ref(tail)?;
             }
@@ -668,7 +639,7 @@ fn handle_once_cell_runs_its_body_once() {
 }
 
 /// The locals that some reference of body `b` refers to as its own place
-/// (`live::ref_local`) and that must live in memory: those of a reference
+/// (`shape::ref_local`) and that must live in memory: those of a reference
 /// that is an address, not a trait value (`refs.rs`), but a suspending
 /// body's parameters.
 fn ref_roots(
@@ -681,7 +652,7 @@ fn ref_roots(
     let (pool, env) = (input.pool, input.env);
     (0..b.len())
         .filter_map(|i| {
-            let l = live::ref_local(b, i)?;
+            let l = shape::ref_local(b, i)?;
             let t = subst(pool, env, item, args, b.ty[i]);
             let addr = matches!(
                 crate::layout::kind(pool, env, t),
@@ -799,13 +770,32 @@ fn call_func(
     let operands: Vec<_> = params.iter().map(|&(l, t)| tb.get(l, t, none)).collect();
     let call = tb.call(&callee, &operands, Providers::None, call_ty, none);
     let root = tb.close_block(blk, Some(call), call_ty, none);
-    let b = tb.finish(root, &[]).map_err(|_| {
+    let mut b = tb.finish(root, &[]).map_err(|_| {
         hd_base::NotImplemented::bug(hd_base::Stage::Link, "a function reference's call body")
     })?;
-    let calls = HashMap::from_iter([(call.0, target)]);
+    // The backend builds this body, so it runs the ownership passes over
+    // it, as the driver does over the bodies collection generates; they
+    // renumber it, and its one `Call` is the target's.
+    let open = |t: Ty| pool.types().has_param(t) || pool.types().has_assoc(t);
+    hd_tir::ir::root_places(&mut b, &open, &mut hd_tir::ir::RootTables::default());
+    b.anchors = (0..u32::try_from(b.len()).expect("insts")).collect();
+    hd_tir::own::run(
+        &mut b,
+        input.own_cx,
+        &mut hd_tir::own::OwnScratch::default(),
+    )
+    .map_err(|what| {
+        hd_base::NotImplemented::bug(
+            hd_base::Stage::Link,
+            format!("the ownership passes refused a function reference's call body: {what}"),
+        )
+    })?;
+    let Some(call) = b.tags.iter().position(|&t| t == Tag::Call) else {
+        return unsupported("a function reference's call body without its call");
+    };
+    let calls = HashMap::from_iter([(u32::try_from(call).expect("insts"), target)]);
     let mut k = hd_base::StableHasher::new("linear-adapter-call");
     k.hash(key);
-    // The adapter's call is the backend's own body, which no pass saw.
     let own = Own {
         item,
         args,
@@ -813,7 +803,6 @@ fn call_func(
         key: k.finish(),
         erased: None,
         cold,
-        owned: false,
     };
     // The input again, at the lifetime of this body, which only it holds.
     let body = |i: InstId| (input.body)(i);
@@ -829,7 +818,6 @@ fn call_func(
         runtime: input.runtime,
         inline_counts: input.inline_counts,
         host_refs: input.host_refs,
-        owned: input.owned,
         own_cx: input.own_cx,
     };
     let f = body_func(&here, m, &own, 0, &calls, &b)?;
@@ -919,12 +907,6 @@ pub(crate) fn callee_params(
         .collect()
 }
 
-/// Whether some `Store` of body `b` into local `l` or a field of it
-/// writes it.
-fn written(b: &Body, l: usize) -> bool {
-    (0..b.len()).any(|i| live::local_part_store(b, i).is_some_and(|(x, _)| x == l))
-}
-
 /// The parameter locals of the body's own function, in order: those
 /// flagged as parameters that belong to no closure.
 fn param_locals(b: &Body) -> Vec<usize> {
@@ -996,20 +978,21 @@ struct Em<'i, 'a, 'm> {
     scopes: HashMap<u32, scope::ScopeInfo>,
     /// Each `defer` suite's "registered" flag local.
     defer_flags: HashMap<u32, u32>,
-    /// The values and locals to release after each statement (`live.rs`).
-    drops: live::Drops,
-    /// Where counts may move instead of being copied (`live.rs`).
-    moves: live::Moves,
+    /// The reads that take no count (`borrow` reads, lent parameters'
+    /// reads and references, [`Em::prepare_own_loans`],
+    /// [`Em::instance_loans`]): their places are no place's to release.
+    loans: hd_base::HashSet<u32>,
+    /// The locals the passes store a borrow into, with the stored value
+    /// ([`Em::prepare_own_loans`]): they hold no count.
+    loan_locals: HashMap<usize, u32>,
     /// What each projection read reads, by its base value's type
-    /// ([`Em::projected`]), for the analyses of `live.rs`.
-    projs: Vec<live::Projected>,
+    /// ([`Em::projected`]).
+    projs: Vec<shape::Projected>,
     /// A loan owns a temporary only when its source is an erased view.
     view_loans: HashMap<u32, u32>,
     /// In an owned body: the lent parameters the passes left unowned that
     /// this instance takes owned (`count.rs`): its exit releases them.
     unowned_params: Vec<usize>,
-    /// A sole field consumer computed directly by its memory read.
-    precomputed_fields: hd_base::HashSet<u32>,
     /// Lazy uniqueness checks for invariant parameter headers in a body
     /// that cannot create another buffer owner.
     unique_once: HashMap<usize, u32>,
@@ -1020,11 +1003,6 @@ struct Em<'i, 'a, 'm> {
     cached_buffers: Vec<(u32, u32)>,
     /// Exact range-index reads proven in bounds in this body's loops.
     proven_list_indices: Vec<u32>,
-    /// The releases planned after a statement that a move at that
-    /// statement made empty ([`Em::take`], [`Em::take_local`]); a jump
-    /// out of the block still releases the place, which may hold a value
-    /// when the move did not run.
-    skip: hd_base::HashSet<((u32, usize), live::Drop)>,
     /// The parameters borrowed from the caller, which the body never
     /// counts ([`crate::layout::Pass::Borrowed`]).
     borrowed: hd_base::HashSet<usize>,
@@ -1034,9 +1012,6 @@ struct Em<'i, 'a, 'm> {
     /// with that instruction: their locals are zeroed once it has read
     /// them ([`Em::take`]).
     moving: Vec<(u32, u32)>,
-    /// The blocks being emitted, outermost first, each with the length of
-    /// `ctl` when it was entered (`live.rs`, [`Em::drop_exited`]).
-    blocks: Vec<(u32, usize)>,
     /// The state machine of a suspending body (`susp.rs`).
     susp: Option<susp::Susp>,
     /// How many `using` dispose suites that wait the instruction being
@@ -1056,9 +1031,6 @@ struct Em<'i, 'a, 'm> {
     /// parameter moved into its cell, a closure's or a thunk's shared
     /// capture (`closure.rs`, [`Em::cell_made`]).
     entry_cells: hd_base::HashSet<usize>,
-    /// The body's block structure, built at the first use of a cell
-    /// ([`Em::cell_made`]).
-    tree: Option<live::Tree>,
     /// In an erased body, the local holding the address of its thunks'
     /// table, read from the witness (`erased.rs`).
     ops: Option<u32>,
@@ -1144,30 +1116,26 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             results: Vec::new(),
             scopes: HashMap::default(),
             defer_flags: HashMap::default(),
-            drops: live::Drops::default(),
-            moves: live::Moves::default(),
+            loans: hd_base::HashSet::default(),
+            loan_locals: HashMap::default(),
             projs: Vec::new(),
             view_loans: HashMap::default(),
             unowned_params: Vec::new(),
-            precomputed_fields: hd_base::HashSet::default(),
             unique_once: HashMap::default(),
             unique_body: None,
             list_caches: Vec::new(),
             cached_headers: Vec::new(),
             cached_buffers: Vec::new(),
             proven_list_indices: Vec::new(),
-            skip: hd_base::HashSet::default(),
             borrowed: hd_base::HashSet::default(),
             emitting: Vec::new(),
             moving: Vec::new(),
-            blocks: Vec::new(),
             susp: None,
             shield: 0,
             cancel_from: NONE,
             temps: Vec::new(),
             cells: shared,
             entry_cells: hd_base::HashSet::default(),
-            tree: None,
             ops: None,
             owned: false,
             sub_id: 0,
@@ -1214,24 +1182,24 @@ impl Em<'_, '_, '_> {
     }
 
     /// The type of value `r`, substituted; `NONE` is the unit value.
-    /// What projection read `i` reads ([`live::Projected`]): by the type
+    /// What projection read `i` reads ([`shape::Projected`]): by the type
     /// of the value it projects from, a struct's, newtype's or data
     /// object's field, a tuple's element, or a payload field. A read
     /// through a reference, `[*%r .k]`, is none.
-    fn projected(&self, i: usize) -> live::Projected {
+    fn projected(&self, i: usize) -> shape::Projected {
         use hd_tir::ir::Step;
         let Some((base, step)) = self.b.read_step(i) else {
-            return live::Projected::None;
+            return shape::Projected::None;
         };
         let bt = self.ty_of(base);
         match step {
-            Step::Field(_) if self.tuple(bt) => live::Projected::Element,
-            Step::Field(_) => live::Projected::Field,
+            Step::Field(_) if self.tuple(bt) => shape::Projected::Element,
+            Step::Field(_) => shape::Projected::Field,
             Step::DerefField(_) if matches!(self.kind(bt), crate::layout::Kind::Data(_)) => {
-                live::Projected::Field
+                shape::Projected::Field
             }
-            Step::DerefField(_) => live::Projected::None,
-            Step::Variant(..) => live::Projected::Payload,
+            Step::DerefField(_) => shape::Projected::None,
+            Step::Variant(..) => shape::Projected::Payload,
         }
     }
 
@@ -1245,13 +1213,13 @@ impl Em<'_, '_, '_> {
     }
 
     /// The value projection read `i` reads from, and what it reads.
-    fn projection(&self, i: usize) -> Option<(u32, live::Projected)> {
-        live::projection(self.b, i, &self.projs)
+    fn projection(&self, i: usize) -> Option<(u32, shape::Projected)> {
+        shape::projection(self.b, i, &self.projs)
     }
 
-    /// [`live::read_through`] of instruction `i`.
-    fn read_through(&self, i: usize) -> Option<(live::Through, bool)> {
-        live::read_through(self.b, i, &self.projs)
+    /// [`shape::read_through`] of instruction `i`.
+    fn read_through(&self, i: usize) -> Option<(shape::Through, bool)> {
+        shape::read_through(self.b, i, &self.projs)
     }
 
     fn ty_of(&self, r: u32) -> Ty {
@@ -1450,25 +1418,21 @@ impl Em<'_, '_, '_> {
         if labelled {
             self.open(Ctl::Brk(blk));
         }
-        self.blocks.push((blk, self.ctl.len()));
-        let items: Vec<(usize, u32)> = self
+        let items: Vec<u32> = self
             .rec(list)
             .into_iter()
-            .enumerate()
-            .filter(|(_, i)| self.b.tags[*i as usize] != Tag::Block)
+            .filter(|i| self.b.tags[*i as usize] != Tag::Block)
             .collect();
         if self.range(blk).is_some() {
-            self.resume_list(blk, &items)?;
+            self.resume_list(&items)?;
         } else {
-            for (p, i) in items {
+            for i in items {
                 self.inst(i)?;
-                self.drop_dead(blk, p)?;
             }
         }
         if !self.hoisted.is_empty() {
             self.hoisted_uniques(None)?;
         }
-        self.blocks.pop();
         if tail != NONE
             && let Some(d) = dest
         {
@@ -1519,11 +1483,7 @@ impl Em<'_, '_, '_> {
         // A break's value moves at its only use; a block's tail, used
         // only as the block's value, moves into it. In an owned body, the
         // passes said which.
-        let moved = if self.owned {
-            self.take_from(r, user)
-        } else {
-            self.take(r) || self.take_tail(r)
-        };
+        let moved = self.owned && self.take_from(r, user);
         self.push(r)?;
         if moved {
             self.store_owned(dest)?;
@@ -1972,7 +1932,7 @@ impl Em<'_, '_, '_> {
     /// A `Store` into a whole local: TIR local `l` takes
     /// value `v` (`NONE` for an empty initialization). A cell takes it in
     /// memory; any other local takes a count of the new value and drops
-    /// the old one's, except a binding that borrows ([`live::Moves::loan_locals`]).
+    /// the old one's, except a binding that borrows ([`Em::loan_locals`]).
     fn local_set(&mut self, i: u32, l: u32, v: u32) -> StageResult<()> {
         if self.is_cell(l as usize) {
             if v != NONE && self.diverges(v) {
@@ -1982,7 +1942,7 @@ impl Em<'_, '_, '_> {
             return self.cell_set(i, l as usize, v);
         }
         let ls = self.local(l)?;
-        if self.moves.loan_locals.contains_key(&(l as usize)) {
+        if self.loan_locals.contains_key(&(l as usize)) {
             self.push(v)?;
             for x in ls.iter().rev() {
                 self.f.set(*x);
@@ -2046,8 +2006,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// `Read [$l]` `i`: local `l`'s values, from its cell or its Wasm
-    /// locals. At the local's last read its count moves to the value; a
-    /// read whose sole use is one field of it loads only that field.
+    /// locals, as the read's mode says ([`Em::own_local_read`]); a thunk's
+    /// read is a copy with its own count.
     fn local_read(&mut self, i: u32, l: usize) -> StageResult<()> {
         if self.owned {
             return self.own_local_read(i, l);
@@ -2055,47 +2015,30 @@ impl Em<'_, '_, '_> {
         if self.is_cell(l) {
             return self.cell_get(i, l);
         }
-        let ls = self.local(u32::try_from(l).expect("locals"))?;
-        if let Some((field, part)) = self.projected_field(i)? {
-            for l in &ls[part.first..part.first + part.count] {
-                self.f.get(*l);
-            }
-            self.store(field)?;
-            self.precomputed_fields.insert(field);
-            return Ok(());
+        for x in self.local(u32::try_from(l).expect("locals"))? {
+            self.f.get(x);
         }
-        for l in &ls {
-            self.f.get(*l);
-        }
-        if self.take_local(i, l) {
-            self.store_owned(i)?;
-            for l in ls {
-                self.f.zero(l);
-            }
-            Ok(())
-        } else {
-            self.store(i)
-        }
+        self.store(i)
     }
 
-    /// Projection read `i` of `base` ([`live::Projected`]): a struct's,
+    /// Projection read `i` of `base` ([`shape::Projected`]): a struct's,
     /// newtype's or data object's field, a tuple's element, or a field of
     /// a payload.
-    fn projection_read(&mut self, i: u32, base: u32, p: live::Projected) -> StageResult<()> {
+    fn projection_read(&mut self, i: u32, base: u32, p: shape::Projected) -> StageResult<()> {
         use hd_tir::ir::Step;
         let Some((_, step)) = self.b.read_step(i as usize) else {
             return unsupported("a projection read without its step");
         };
         let data = matches!(self.kind(self.ty_of(base)), crate::layout::Kind::Data(_));
         match (p, step) {
-            (live::Projected::Field, Step::Field(_)) if data => {
+            (shape::Projected::Field, Step::Field(_)) if data => {
                 unsupported("a data object's field read without its dereference")
             }
-            (live::Projected::Field, Step::Field(k) | Step::DerefField(k)) => {
+            (shape::Projected::Field, Step::Field(k) | Step::DerefField(k)) => {
                 self.field(i, base, k)
             }
-            (live::Projected::Element, Step::Field(k)) => self.tuple_get(i, base, k),
-            (live::Projected::Payload, Step::Variant(v, k)) => self.payload(i, base, v, k),
+            (shape::Projected::Element, Step::Field(k)) => self.tuple_get(i, base, k),
+            (shape::Projected::Payload, Step::Variant(v, k)) => self.payload(i, base, v, k),
             _ => unsupported("a projection read of the wrong kind of value"),
         }
     }
