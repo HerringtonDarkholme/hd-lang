@@ -1,0 +1,20 @@
+# test: a kept generic dynamic suspension driven synchronously needs no cancellation path
+# expect-stdout: 3
+# Spec lang/11 Driving A Stored Suspension: req.drive.block-on.completed.
+use std.task.block_on
+
+trait Source:
+    fn fetch![T](self, x: T) -> T
+
+struct Fast: pass
+
+impl Source for Fast:
+    fn fetch![T](self, x: T) -> T: x
+
+pub fn main() -> void $ Console:
+    let source: &dyn Source = &Fast {}
+    let job: mut Suspend[i32] = source.fetch(+3)
+    match block_on(job):
+        .Completed(value) => println("$value")
+        .Cancelled => println("cancelled")
+        .Abandoned => println("abandoned")

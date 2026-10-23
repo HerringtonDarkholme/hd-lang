@@ -756,6 +756,9 @@ pub struct Module {
     pub fixed_allocations: bool,
     /// Reachable all! nodes use generation-checked weak waker targets.
     pub wakers: bool,
+    /// Reachable program operations or exported entry hooks can cancel.
+    /// Selected from the conservative reachable graph before specialization.
+    pub cancellable: bool,
     /// With origins: what each static data address holds, for
     /// development tools ([`crate::StaticData`]).
     pub static_labels: BTreeMap<u32, crate::StaticData>,
@@ -989,6 +992,10 @@ impl Module {
     }
 
     pub fn finish_with_origins(mut self) -> StageResult<crate::MappedModule> {
+        // Discover cancellation roots without following the cancel slots of
+        // every cold frame. Once a root exists, expand those slots before
+        // choosing physical layouts and cycle-collection support.
+        self.cancellable = false;
         let original_runtime = self.runtime;
         for f in self.funcs.iter_mut().flatten() {
             f.origins_before_opt = f
@@ -998,6 +1005,22 @@ impl Module {
                 .unwrap_or_default();
         }
         let mut seen = self.reached();
+        self.cancellable = seen.iter().any(|s| {
+            matches!(
+                &*self.symbols.get(s),
+                Sym::Helper(
+                    crate::rt::Helper::CancellationRoot
+                        | crate::rt::Helper::EntryCancel { .. }
+                        | crate::rt::Helper::CleanupCold
+                        | crate::rt::Helper::Race { part: 0, .. }
+                        | crate::rt::Helper::WakerNew
+                )
+            )
+        });
+        if self.cancellable {
+            self.keep(|_, s| !matches!(s, Sym::Helper(_)));
+            seen = self.reached();
+        }
         if !seen.iter().any(|s| {
             matches!(
                 &*self.symbols.get(s),
@@ -1072,6 +1095,8 @@ impl Module {
                     Ins::Call(id) => match &*self.symbols.get(id) {
                         Sym::Helper(crate::rt::Helper::RefIsView) => 1,
                         Sym::Helper(crate::rt::Helper::RefViewsAbsent) => 2,
+                        Sym::Helper(crate::rt::Helper::CanCancel) => 3,
+                        Sym::Helper(crate::rt::Helper::CancellationRoot) => 4,
                         _ => 0,
                     },
                     _ => 0,
@@ -1082,6 +1107,8 @@ impl Module {
                         f.i32(0);
                     }
                     2 => f.i32(i32::from(physical)),
+                    3 => f.i32(i32::from(self.cancellable)),
+                    4 => {}
                     _ => f.push(ins),
                 }
             }
@@ -1883,6 +1910,42 @@ mod dense_symbol_tests {
             reached.iter().map(|id| id.0).collect::<Vec<_>>(),
             [0, 63, 64, 130]
         );
+    }
+
+    #[test]
+    fn cancellation_fact_is_specialized_and_markers_are_not_linked() {
+        for explicit in [false, true] {
+            let mut m = Module::default();
+            let root = Sym::Inst(Hash128(42));
+            let mut f = m.func("probe", vec![], vec![Val::I32]);
+            if explicit {
+                f.helper(crate::rt::Helper::CancellationRoot);
+            }
+            f.helper(crate::rt::Helper::CanCancel);
+            m.define(root.clone(), f);
+            m.export("probe", root);
+            let wasm = m.finish().expect("module encodes");
+            wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
+                .validate_all(&wasm)
+                .expect("valid Wasm");
+            let bodies: Vec<_> = wasmparser::Parser::new(0)
+                .parse_all(&wasm)
+                .filter_map(|p| match p.expect("payload") {
+                    wasmparser::Payload::CodeSectionEntry(body) => Some(body),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(bodies.len(), 1, "link-time helpers disappear");
+            let ops: Vec<_> = bodies[0]
+                .get_operators_reader()
+                .expect("operators")
+                .into_iter()
+                .collect::<Result<_, _>>()
+                .expect("valid operators");
+            assert!(
+                matches!(ops.as_slice(), [wasmparser::Operator::I32Const { value }, wasmparser::Operator::End] if *value == i32::from(explicit))
+            );
+        }
     }
 
     #[test]

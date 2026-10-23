@@ -2517,6 +2517,7 @@ impl Em<'_, '_, '_> {
             // that did something may have ended a cleanup that parties
             // wait on with no wake: the driver polls again.
             "task_abandon" => {
+                self.f.helper(Helper::CancellationRoot);
                 let (s, before) = (self.f.local(Val::I32), self.f.local(Val::I32));
                 self.comp(args[0], 0)?;
                 self.f.set(s);
@@ -2721,6 +2722,8 @@ impl Em<'_, '_, '_> {
         self.f.set(ready);
         self.f.get(ready);
         self.f.op(Instruction::BrIf(1));
+        self.f.helper(Helper::CanCancel);
+        self.f.op(Instruction::If(BlockType::Empty));
         self.f.get(frame);
         self.f
             .op(Instruction::I32Load(mem(HEAP, crate::task::F_FLAGS, 2)));
@@ -2730,14 +2733,15 @@ impl Em<'_, '_, '_> {
         self.f.op(Instruction::I32And);
         self.f.i32(crate::task::CANCELLED);
         self.f.op(Instruction::I32Eq);
-        self.f.op(Instruction::BrIf(1));
+        self.f.op(Instruction::BrIf(2));
         self.f.global_get(Global::Rewake);
         self.f.op(Instruction::If(BlockType::Empty));
         self.f.i32(0);
         self.f.global_set(Global::Rewake);
         self.f.i32(1);
         self.f.set(seen);
-        self.f.op(Instruction::Br(1));
+        self.f.op(Instruction::Br(2));
+        self.f.op(Instruction::End);
         self.f.op(Instruction::End);
         self.f.call(Sym::Import(crate::module::Import::new(
             "hd:rt",
@@ -2749,14 +2753,20 @@ impl Em<'_, '_, '_> {
         self.f.op(Instruction::Br(0));
         self.f.op(Instruction::End);
         self.f.op(Instruction::End);
+        self.f.helper(Helper::CanCancel);
+        self.f.op(Instruction::If(BlockType::Empty));
         self.f.get(seen);
         self.f.global_get(Global::Rewake);
         self.f.op(Instruction::I32Or);
         self.f.global_set(Global::Rewake);
+        self.f.op(Instruction::End);
         // `.Completed(value)`, which counts its own copy of the poll's
         // result; or how the cleanup ended: `.Abandoned` when the frame
         // carries `ABANDONED`, else `.Cancelled`.
         self.slot(i)?;
+        self.f.helper(Helper::CanCancel);
+        self.f.op(Instruction::If(BlockType::Empty));
+        self.ctl.push(Ctl::Plain);
         self.f.get(ready);
         self.f.op(Instruction::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
@@ -2772,6 +2782,10 @@ impl Em<'_, '_, '_> {
         self.f.op(Instruction::Else);
         self.new_variant(i, 1, &[])?;
         self.close();
+        self.close();
+        self.f.op(Instruction::Else);
+        self.new_variant(i, 0, &[value::Src::Locals(tmp.clone())])?;
+        self.release_locals(&tmp, inner)?;
         self.close();
         Ok(())
     }

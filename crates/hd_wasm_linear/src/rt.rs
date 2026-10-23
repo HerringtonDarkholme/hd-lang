@@ -112,6 +112,10 @@ pub enum Helper {
     RefIsView,
     /// A link-time proof: no reachable representation-view constructor.
     RefViewsAbsent,
+    /// A link-time fact: some reachable operation can cancel a task.
+    CanCancel,
+    /// Marks an explicit cancellation operation; erased before optimization.
+    CancellationRoot,
     /// A view's descriptor releases its original reference.
     RefViewDrop,
     /// The canonical identity serial, following views and field projections.
@@ -1168,6 +1172,12 @@ fn write_str(f: &mut Func, s: u32) {
 pub fn helper(h: &Helper, m: &mut Module) -> Func {
     #[cfg_attr(not(feature = "checked-report"), allow(unused_mut))]
     let mut f = match h {
+        Helper::CanCancel => {
+            let mut f = m.func("rt:can_cancel", vec![], vec![Val::I32]);
+            f.i32(i32::from(m.cancellable));
+            f
+        }
+        Helper::CancellationRoot => m.func("rt:cancellation_root", vec![], vec![]),
         Helper::RefViewsAbsent => {
             let mut f = m.func("rt:ref_views_absent", vec![], vec![Val::I32]);
             f.i32(0);
