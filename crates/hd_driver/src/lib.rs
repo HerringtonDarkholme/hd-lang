@@ -460,6 +460,9 @@ pub struct Output {
     /// Per file, its module's `check` entry, which [`Output::positions`]
     /// reads.
     checks: Vec<Option<Arc<[u8]>>>,
+    /// Parses and source columns already read by this build. Missing data
+    /// stays lazy in `Positions`, including modules skipped by a warm link.
+    position_inputs: Vec<Arc<positions::ModuleInput>>,
     /// Per file, its module's path as a panic frame names it
     /// (`cli.test.report.frame`), which [`Output::positions`] reads.
     printed: Vec<String>,
@@ -566,15 +569,7 @@ impl Output {
     /// with those of the command's other programs.
     #[must_use]
     pub fn positions(&self, pool: &mut PositionPool) -> Positions {
-        Positions::new(
-            pool,
-            &self.modules,
-            &self.files,
-            &self.texts,
-            &self.checks,
-            &self.printed,
-            &self.test_bodies,
-        )
+        Positions::new(pool, self)
     }
 
     fn file_name(&self, s: Span) -> String {
@@ -1933,7 +1928,60 @@ pub fn build_packages(
             })
         })
         .collect();
-    Output {
+    let mut position_inputs: Vec<_> = (0..run.table.modules.len())
+        .map(|_| positions::ModuleInput::default())
+        .collect();
+    // Keep only source columns, not the whole checked TIR. A cold build
+    // already has them in BodyOut; a relink has its decoded raw bodies.
+    // Never ask the lazy body table to decode solely for positions.
+    for (m, slot) in run.body.iter().enumerate() {
+        let Some(Some((bodies, ..))) = slot.get() else {
+            continue;
+        };
+        if run.check[m]
+            .get()
+            .and_then(Option::as_ref)
+            .is_none_or(|c| c.has_errors)
+        {
+            continue;
+        }
+        for body in bodies {
+            let path = PathId::from_raw(body.item.raw());
+            position_inputs[m].insert(
+                run.paths.hash(path),
+                run.paths.display(path).to_string(),
+                body,
+                &run.syms,
+            );
+        }
+    }
+    if let Some(program) = run.program.get() {
+        for (&hash, lazy) in &program.bodies.all {
+            let (Some((m, entry, _)), Some(Some((body, _)))) = (&lazy.wire, lazy.body.get()) else {
+                continue;
+            };
+            // BodyOut already supplied cold modules. Fetched bodies may
+            // have had dbg suppressed during decoding; use their wire form.
+            if run.body[*m].get().is_some()
+                || run.fetched[usize::from(run.table.modules[*m].package)]
+                || !run.check[*m]
+                    .get()
+                    .and_then(Option::as_ref)
+                    .is_some_and(|c| Arc::ptr_eq(&c.entry, entry))
+            {
+                continue;
+            }
+            position_inputs[*m].insert(
+                hash,
+                run.paths
+                    .display(PathId::from_raw(body.item.raw()))
+                    .to_string(),
+                body,
+                &run.syms,
+            );
+        }
+    }
+    let mut output = Output {
         tests: cases,
         wasm,
         instruction_origins: run.instruction_origins.get().cloned().unwrap_or_default(),
@@ -1951,6 +1999,7 @@ pub fn build_packages(
                     .map(|c| Arc::clone(&c.entry))
             })
             .collect(),
+        position_inputs: Vec::new(),
         printed: run
             .table
             .modules
@@ -1975,7 +2024,13 @@ pub fn build_packages(
         checked: packages.checked,
         toolchain: run.toolchain,
         pipeline: run.pipeline,
+    };
+    // The run is finished. Move its parses instead of cloning their trees.
+    for (input, parse) in position_inputs.iter_mut().zip(run.parse) {
+        input.parse = parse.into_inner().map(Arc::new);
     }
+    output.position_inputs = position_inputs.into_iter().map(Arc::new).collect();
+    output
 }
 
 /// Folder-cycle recovery (`crates/hd_resolve/DESIGN.md` §4.8 rule 5): the

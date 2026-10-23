@@ -18,7 +18,7 @@ use hd_base::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use hd_base::wire::{Reader, Writer};
-use hd_base::{DefId, FileId, NodeIdx, PathId};
+use hd_base::{DefId, FileId, Hash128, NodeIdx, PathId};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 use hd_resolve::{Generic, Names, Src, show_ty};
 use hd_syntax::{Parse, parse};
@@ -47,23 +47,73 @@ struct ModuleSource {
     file: String,
     text: Arc<str>,
     check: Option<Arc<[u8]>>,
+    input: Arc<ModuleInput>,
     read: OnceLock<Option<Module>>,
+}
+
+/// Source data the build already read. Missing parses and bodies remain lazy:
+/// a warm link need not decode TIR or parse modules solely to retain them.
+#[derive(Default)]
+pub(super) struct ModuleInput {
+    pub(super) parse: Option<Arc<Parse>>,
+    bodies: HashMap<Hash128, (String, Body)>,
+}
+
+impl ModuleInput {
+    pub(super) fn insert(
+        &mut self,
+        hash: Hash128,
+        path: String,
+        body: &hd_tir::Body,
+        syms: &ShardedInterner,
+    ) {
+        self.bodies.insert(hash, (path, Body::from_tir(body, syms)));
+    }
 }
 
 /// One module, read: its bodies, by item path, and the parse of its text.
 struct Module {
     bodies: HashMap<String, Body>,
-    parse: Parse,
+    parse: Arc<Parse>,
+    /// LF line starts, shared by every anchor lookup in this module.
+    /// The lexer also records bare CR lines; positions have always counted LF.
+    line_starts: Vec<u32>,
 }
 
 /// A body of a module: its syntax node per instruction, and its name in
 /// the module (`List.remove_at`), from the module's frame-name record.
+#[derive(Clone)]
 struct Body {
-    syn: Vec<NodeIdx>,
+    syn: Arc<[NodeIdx]>,
     name: String,
     /// Its operations whose `usize` type is a literal's default, by
     /// instruction, each with the name of the local it reads.
-    fallback: Vec<(u32, Option<String>)>,
+    fallback: Arc<[(u32, Option<String>)]>,
+}
+
+impl Body {
+    fn from_tir(body: &hd_tir::Body, syms: &ShardedInterner) -> Self {
+        Self {
+            // A derived instance's nodes belong to its template source (#311).
+            syn: if body.kind == hd_tir::ir::BodyKind::DeriveInstance {
+                Arc::from([])
+            } else {
+                Arc::from(body.syn.as_slice())
+            },
+            name: String::new(),
+            fallback: body
+                .fallback
+                .iter()
+                .map(|[inst, local]| {
+                    let name = local
+                        .checked_sub(1)
+                        .and_then(|l| body.local_name.get(l as usize))
+                        .map(|s| syms.resolve(*s).to_owned());
+                    (*inst, name)
+                })
+                .collect(),
+        }
+    }
 }
 
 impl PositionPool {
@@ -75,6 +125,7 @@ impl PositionPool {
         file: &str,
         text: &Arc<str>,
         check: Option<&Arc<[u8]>>,
+        input: &Arc<ModuleInput>,
     ) -> Arc<ModuleSource> {
         let same = self.by_path.entry(path.to_owned()).or_default();
         if let Some(m) = same.iter().find(|m| {
@@ -86,6 +137,7 @@ impl PositionPool {
             file: file.to_owned(),
             text: Arc::clone(text),
             check: check.cloned(),
+            input: Arc::clone(input),
             read: OnceLock::new(),
         });
         same.push(Arc::clone(&m));
@@ -94,31 +146,25 @@ impl PositionPool {
 }
 
 impl Positions {
-    pub(crate) fn new(
-        pool: &mut PositionPool,
-        modules: &[String],
-        files: &[String],
-        texts: &[Arc<str>],
-        checks: &[Option<Arc<[u8]>>],
-        printed: &[String],
-        cases: &[(String, String)],
-    ) -> Self {
-        let modules = modules
+    pub(crate) fn new(pool: &mut PositionPool, output: &crate::Output) -> Self {
+        let modules = output
+            .modules
             .iter()
             .enumerate()
             .filter_map(|(m, path)| {
                 let source = pool.module(
                     path,
-                    files.get(m)?,
-                    texts.get(m)?,
-                    checks.get(m).and_then(Option::as_ref),
+                    output.files.get(m)?,
+                    output.texts.get(m)?,
+                    output.checks.get(m).and_then(Option::as_ref),
+                    output.position_inputs.get(m)?,
                 );
-                Some((path.clone(), printed.get(m)?.clone(), source))
+                Some((path.clone(), output.printed.get(m)?.clone(), source))
             })
             .collect();
         Self {
             modules,
-            tests: cases.iter().cloned().collect(),
+            tests: output.test_bodies.iter().cloned().collect(),
         }
     }
 
@@ -140,7 +186,12 @@ impl Positions {
         };
         let lo = src.span(module.parse.tree.node(node)).lo as usize;
         let before = source.text.get(..lo.min(source.text.len()))?;
-        let line = u32::try_from(before.matches('\n').count() + 1).ok()?;
+        let line = u32::try_from(
+            module
+                .line_starts
+                .partition_point(|&start| start as usize <= before.len()),
+        )
+        .ok()?;
         Some((source.file.as_str(), line))
     }
 
@@ -244,43 +295,39 @@ impl ModuleSource {
         let mut r = Reader::new(sections.get(3)?);
         for _ in 0..r.count() {
             // The item's path hash, then the body.
-            r.hash();
-            let b = hd_tir::wire::read_body(r.blob(), &pool, &paths, &syms)?;
-            let path = path_of(&paths, b.item);
-            let name = names.remove(&path)?;
-            let fallback = b
-                .fallback
-                .iter()
-                .map(|[inst, local]| {
-                    let name = local
-                        .checked_sub(1)
-                        .and_then(|l| b.local_name.get(l as usize))
-                        .map(|s| syms.resolve(*s).to_owned());
-                    (*inst, name)
-                })
-                .collect();
-            // A derived instance's body is the template's, checked at the
-            // target: its syntax nodes are the template source's, not this
-            // module's, so it maps to no line here (#311).
-            let syn = if b.kind == hd_tir::ir::BodyKind::DeriveInstance {
-                Vec::new()
+            let hash = r.hash();
+            let bytes = r.blob();
+            let (path, mut body) = if let Some((path, body)) = self.input.bodies.get(&hash) {
+                (path.clone(), body.clone())
             } else {
-                b.syn
+                let b = hd_tir::wire::read_body(bytes, &pool, &paths, &syms)?;
+                (path_of(&paths, b.item), Body::from_tir(&b, &syms))
             };
-            bodies.insert(
-                path,
-                Body {
-                    syn,
-                    name,
-                    fallback,
-                },
-            );
+            body.name = names.remove(&path)?;
+            bodies.insert(path, body);
         }
+        let parse = self
+            .input
+            .parse
+            .clone()
+            .unwrap_or_else(|| Arc::new(parse(self.text.as_bytes())));
+        let line_starts = lf_line_starts(&parse, &self.text);
         Some(Module {
             bodies,
-            parse: parse(self.text.as_bytes()),
+            parse,
+            line_starts,
         })
     }
+}
+
+fn lf_line_starts(parse: &Parse, text: &str) -> Vec<u32> {
+    parse
+        .tokens
+        .line_start
+        .iter()
+        .copied()
+        .filter(|&start| start == 0 || text.as_bytes().get(start as usize - 1) == Some(&b'\n'))
+        .collect()
 }
 
 fn path_of(paths: &PathTable, d: DefId) -> String {
@@ -382,11 +429,160 @@ fn quoted(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use hd_base::wire::Writer;
-    use hd_base::{DefId, PathId};
-    use hd_intern::{PathKind, PathTable};
+    use std::sync::{Arc, OnceLock};
 
-    use super::{quoted, read_frame_names, write_frame_names};
+    use hd_base::wire::Writer;
+    use hd_base::{DefId, FileId, HashMap, NodeIdx, PathId};
+    use hd_intern::{PathKind, PathTable};
+    use hd_resolve::Src;
+    use hd_syntax::parse;
+
+    use super::{
+        Body, Module, ModuleInput, ModuleSource, Positions, lf_line_starts, quoted,
+        read_frame_names, write_frame_names,
+    };
+
+    #[test]
+    fn anchor_lines_preserve_lf_positions_for_all_syntax_nodes() {
+        for text in [
+            "",
+            "\n\n",
+            "fn f() -> i32:\n    +1",
+            "# λ\r\n\r\nfn f() -> string:\r\n    \"é\"\r\n",
+            "# first\r# second\r\nfn f() -> i32:\r    +1\n",
+            "# before\n\nfn f() -> string:\n    \"first\\nsecond\"\n",
+        ] {
+            let parse = parse(text.as_bytes());
+            let syn: Vec<_> = (0..parse.tree.len())
+                .map(|n| NodeIdx::from_raw(u32::try_from(n).unwrap()))
+                .chain([NodeIdx::NONE, NodeIdx::from_raw(u32::MAX - 1)])
+                .collect();
+            let src = Src {
+                parse: &parse,
+                text,
+                file: FileId::from_raw(0),
+            };
+            let expected: Vec<_> = syn
+                .iter()
+                .map(|&node| {
+                    if node == NodeIdx::NONE || node.idx() >= parse.tree.len() {
+                        return None;
+                    }
+                    let lo = src.span(parse.tree.node(node)).lo as usize;
+                    Some((
+                        "source.hd",
+                        u32::try_from(text[..lo].matches('\n').count()).unwrap() + 1,
+                    ))
+                })
+                .collect();
+            let line_starts = lf_line_starts(&parse, text);
+            let positions = Positions {
+                modules: vec![(
+                    "pkg".into(),
+                    "pkg".into(),
+                    Arc::new(ModuleSource {
+                        file: "source.hd".into(),
+                        text: text.into(),
+                        check: None,
+                        input: Arc::new(ModuleInput::default()),
+                        read: OnceLock::from(Some(Module {
+                            bodies: [(
+                                "pkg/f".into(),
+                                Body {
+                                    syn: syn.into(),
+                                    name: "f".into(),
+                                    fallback: Arc::from([]),
+                                },
+                            )]
+                            .into_iter()
+                            .collect(),
+                            parse: Arc::new(parse),
+                            line_starts,
+                        })),
+                    }),
+                )],
+                tests: HashMap::default(),
+            };
+            for (inst, expected) in expected.into_iter().enumerate() {
+                assert_eq!(
+                    positions.line("pkg/f", u32::try_from(inst).unwrap()),
+                    expected,
+                    "{text:?}"
+                );
+            }
+            assert_eq!(positions.line("pkg/f", u32::MAX), None);
+            assert_eq!(positions.line("pkg/missing", 0), None);
+        }
+    }
+
+    #[test]
+    fn retained_sources_match_wire_positions_on_cold_warm_and_comment_edits() {
+        use crate::{Executor, Goal, Host, NoClock, PositionPool, build};
+        use hd_cache::MemoryStore;
+        use hd_project::MemorySources;
+        use hd_sched::SerialOrder;
+
+        let original = "fn f() -> usize:\n    let size = 0\n    size - 1\n\npub fn main() -> void $ Console:\n    println(f())\n";
+        let edited = format!("# λ: current source lines\n\n{original}");
+        let store = MemoryStore::default();
+        let mut pool = PositionPool::default();
+        for (round, text) in [original, original, edited.as_str()]
+            .into_iter()
+            .enumerate()
+        {
+            let mut sources = MemorySources::default();
+            sources.insert("main.hd", text);
+            let host = Host {
+                render_tir: &[],
+                sources: &sources,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let mut output = build(
+                &host,
+                "app",
+                &Goal::Program {
+                    entry: "main".into(),
+                },
+            );
+            assert!(!output.diags.has_errors(), "{}", output.render());
+            let reused = output.positions(&mut pool);
+            let missing: Vec<_> = (0..output.modules.len())
+                .map(|_| Arc::new(ModuleInput::default()))
+                .collect();
+            let retained = std::mem::replace(&mut output.position_inputs, missing);
+            let wire = output.positions(&mut PositionPool::default());
+            output.position_inputs = retained;
+            let table = hd_run::frames::LineTable::parse(output.wasm.as_ref().expect("Wasm"))
+                .expect("line table");
+            let mut anchors = 0;
+            for (_, item, insts) in table.functions() {
+                assert_eq!(reused.name(&item), wire.name(&item));
+                for inst in insts {
+                    assert_eq!(reused.line(&item, inst), wire.line(&item, inst));
+                    assert_eq!(reused.span(&item, inst), wire.span(&item, inst));
+                    assert_eq!(reused.fallback(&item, inst), wire.fallback(&item, inst));
+                    anchors += 1;
+                }
+            }
+            assert!(anchors > 10);
+            if round == 0 {
+                assert!(output.position_inputs.iter().any(|i| !i.bodies.is_empty()));
+            }
+            for (m, input) in output.position_inputs.iter().enumerate() {
+                if let Some(parse) = &input.parse
+                    && let Some((_, _, source)) = reused
+                        .modules
+                        .iter()
+                        .find(|(p, _, _)| p == &output.modules[m])
+                    && let Some(Some(read)) = source.read.get()
+                {
+                    assert!(Arc::ptr_eq(parse, &read.parse));
+                }
+            }
+        }
+    }
 
     /// A body's frame name comes from the item the impl segment names, not
     /// from how the segment spells its head: these segments are not impl
