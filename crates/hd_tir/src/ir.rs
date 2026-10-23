@@ -19,6 +19,9 @@ pub use owned::verify_owned;
 pub use root::{RootTables, root_places};
 
 pub const NONE: u32 = u32::MAX;
+/// The bit of an anchor that names an inlined copy's instruction
+/// ([`Body::inlined`]), in the TIR and in a function's `hd.lines` rows.
+pub const INLINED: u32 = 1 << 31;
 
 /// An instruction index in its body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -870,6 +873,12 @@ pub struct Body {
     /// fills it before the passes and every rebuild carries it; never
     /// written to the wire.
     pub anchors: Vec<u32>,
+    /// The inliner's copies, each `[first, len, callee, call]`, sorted:
+    /// an anchor `INLINED | a` with `first <= a < first + len` names
+    /// instruction `a - first` of the callee's checker body, which the
+    /// copy's call at anchor `call` ran ([`Body::inlined_frame`]). Never
+    /// written to the wire.
+    pub inlined: Vec<[u32; 4]>,
 }
 
 impl Body {
@@ -905,6 +914,7 @@ impl Body {
             stable_lists: vec![],
             regions: vec![],
             anchors: vec![],
+            inlined: vec![],
         }
     }
 
@@ -917,6 +927,19 @@ impl Body {
         } else {
             self.anchors.get(i as usize).copied().unwrap_or(NONE)
         }
+    }
+
+    /// The callee, its instruction and the call's anchor that an inlined
+    /// copy's anchor `a` names ([`Body::inlined`]); `None` for any other.
+    #[must_use]
+    pub fn inlined_frame(&self, a: u32) -> Option<(DefId, u32, u32)> {
+        if a == NONE || a & INLINED == 0 {
+            return None;
+        }
+        let a = a & !INLINED;
+        let k = self.inlined.partition_point(|e| e[0] <= a).checked_sub(1)?;
+        let [first, _, callee, call] = self.inlined[k];
+        Some((DefId::from_raw(callee), a - first, call))
     }
 
     /// A record in `extra`: its words after the length word.

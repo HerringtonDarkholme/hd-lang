@@ -1,7 +1,6 @@
 # test: builders keep raw statuses; free get and Response.ok retain 400–599 responses in errors
 # Rules: std-http.response.ok.retained-error, std-http.error.status-response-value, std-http.error.status.safe-response-text, std-http.error.transient-kinds, std-http.error.transient-status-codes, std-http.response.omitted-lists, std-http.helper.get.checked-response.
 use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
-use std.json.JsonError
 use std.serde.Deserialize
 
 @derive(Deserialize)
@@ -49,7 +48,7 @@ tests:
             assert_equal(HttpError.Status(Response { status: status }).is_transient(), expected, reason="documented retryable status")
         assert(HttpError.Timeout.is_transient(), reason="timeout may recover")
         assert(HttpError.Connect("closed").is_transient(), reason="connection may recover")
-        let permanent: List[HttpError] = [HttpError.NotGranted("host"), HttpError.InvalidUrl("url"), HttpError.Dns("host"), HttpError.Tls("bad certificate"), HttpError.TooManyRedirects("url"), HttpError.Other("other"), HttpError.Json(JsonError.MissingField("$.name"))]
+        let permanent: List[HttpError] = [HttpError.NotGranted("host"), HttpError.InvalidUrl("url"), HttpError.Dns("host"), HttpError.Tls("bad certificate"), HttpError.TooManyRedirects("url"), HttpError.Other("other")]
         for error in permanent:
             assert(!error.is_transient(), reason="other error kinds are permanent")
 

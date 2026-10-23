@@ -527,6 +527,7 @@ fn compile_standalone(
     let mut wasm = built.wasm;
     if let Some((frames, sources)) = &built.frames {
         let section = frames.positions_section(&wasm, sources);
+        hd_run::frames::cut_inlined(&mut wasm);
         wasm.extend(section);
     }
     Ok(wasm)

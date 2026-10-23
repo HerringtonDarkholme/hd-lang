@@ -42,6 +42,8 @@ struct Todo:
 #     Effect.timeout("1 second"),
 #     Effect.retry(Schedule.exponential("100 millis").pipe(Schedule.intersect(Schedule.recurs(3)))),
 #     Effect.catchTag("ResponseError", () => Effect.succeed(fallbackTodo)))
+# Written before Response.json returned JsonError (2026-10-23): today the
+# closure needs an error type covering HttpError and JsonError.
 fn get_todo(id: u32) -> (fn!() -> Result[Todo, HttpError] $ Http + Clock):
     (fn!() -> Result[Todo, HttpError] $ Http: get!("http://api/todos/$id")?.json::[Todo]())
         |> timed(ms(1000), _)

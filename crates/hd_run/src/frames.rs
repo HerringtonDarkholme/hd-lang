@@ -20,6 +20,13 @@ use crate::imports::{Bytes, all_sections, import_kinds};
 /// A frame of an engine's backtrace: function index, module byte offset.
 pub type RawFrame = (u32, u32);
 
+/// A resolved frame: file, printed name and line.
+pub type Frame = (String, String, u32);
+
+/// A written module's inlined frames of one row: (function index, row),
+/// then each frame before the row's own, innermost first.
+pub type Inlined = ((u32, u32), Vec<Frame>);
+
 /// A frame that lands on an anchored call.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Anchored {
@@ -46,7 +53,19 @@ pub struct LineTable {
     /// printed name, and per row of its `hd.lines` (in that order) the
     /// line, 0 for a row the build could not resolve.
     resolved: HashMap<u32, (String, String, Vec<u32>)>,
+    /// Per function, the inlined frames an anchor `INLINED | k` names:
+    /// entry `k` is the callee's stable path, its instruction and the
+    /// anchor of the call, which may be another entry's.
+    inlined: HashMap<u32, Vec<(String, u32, u32)>>,
+    /// A written module's resolved inlined frames: per function and row,
+    /// the frames before the row's own, innermost first, as file, printed
+    /// name and line.
+    resolved_inlined: HashMap<(u32, u32), Vec<Frame>>,
 }
+
+/// The bit of an `hd.lines` anchor that names an inlined frame
+/// (`hd_tir::ir::INLINED`).
+const INLINED: u32 = 1 << 31;
 
 impl LineTable {
     /// Reads the table of a module; a module without `hd.lines` has no rows.
@@ -93,6 +112,22 @@ impl LineTable {
                                 t.rows.insert(f, rows);
                             }
                         }
+                        "hd.inlined" => {
+                            let mut paths = Vec::new();
+                            for _ in 0..r.len()? {
+                                paths.push(r.name()?);
+                            }
+                            for _ in 0..r.len()? {
+                                let f = num(&mut r)?;
+                                let mut frames = Vec::new();
+                                for _ in 0..r.len()? {
+                                    let path =
+                                        paths.get(num(&mut r)? as usize).ok_or("a path index")?;
+                                    frames.push((path.clone(), num(&mut r)?, num(&mut r)?));
+                                }
+                                t.inlined.insert(f, frames);
+                            }
+                        }
                         "hd.positions" => {
                             let mut strings = Vec::new();
                             for _ in 0..r.len()? {
@@ -116,6 +151,16 @@ impl LineTable {
                                 }
                                 t.resolved.insert(f, (file, name, lines));
                             }
+                            for _ in 0..if r.at < r.b.len() { r.len()? } else { 0 } {
+                                let key = (num(&mut r)?, num(&mut r)?);
+                                let mut frames = Vec::new();
+                                for _ in 0..r.len()? {
+                                    let (file, name) =
+                                        (string(num(&mut r)?)?, string(num(&mut r)?)?);
+                                    frames.push((file, name, num(&mut r)?));
+                                }
+                                t.resolved_inlined.insert(key, frames);
+                            }
                         }
                         _ => {}
                     }
@@ -127,10 +172,11 @@ impl LineTable {
     }
 
     /// Each function with rows, in index order: its index, the stable
-    /// path of its item, and its rows' anchors in `hd.lines` order, which
-    /// `hd build` resolves into `hd.positions`.
+    /// path of its item, and per row in `hd.lines` order the frames it
+    /// stands for ([`LineTable::frames`]), which `hd build` resolves into
+    /// `hd.positions`.
     #[must_use]
-    pub fn functions(&self) -> Vec<(u32, String, Vec<u32>)> {
+    pub fn functions(&self) -> Vec<(u32, String, Vec<Vec<Anchored>>)> {
         let mut fs: Vec<&u32> = self.rows.keys().collect();
         fs.sort_unstable();
         fs.into_iter()
@@ -139,10 +185,34 @@ impl LineTable {
                 let item = name
                     .rsplit_once('#')
                     .map_or(name.as_str(), |(item, _)| item);
-                let insts = self.rows[f].iter().map(|&(_, inst)| inst).collect();
-                Some((*f, item.to_owned(), insts))
+                let rows = self.rows[f].iter().map(|&(_, a)| self.frames(*f, a, item));
+                Some((*f, item.to_owned(), rows.collect()))
             })
             .collect()
+    }
+
+    /// The frames a row of function `f` with anchor `a` stands for,
+    /// innermost first: an inlined copy's callees, then the function's own
+    /// item at the call, as if the calls had not been inlined.
+    fn frames(&self, f: u32, mut a: u32, item: &str) -> Vec<Anchored> {
+        let mut out = Vec::new();
+        while a & INLINED != 0
+            && let Some((path, inst, call)) = self
+                .inlined
+                .get(&f)
+                .and_then(|t| t.get((a & !INLINED) as usize))
+        {
+            out.push(Anchored {
+                item: path.clone(),
+                inst: *inst,
+            });
+            a = *call;
+        }
+        out.push(Anchored {
+            item: item.to_owned(),
+            inst: a,
+        });
+        out
     }
 
     /// The row index of each frame that lands on a row, as `anchor` finds
@@ -166,11 +236,19 @@ impl LineTable {
     pub fn resolved_lines(&self, frames: &[RawFrame]) -> Vec<String> {
         self.rows_of(frames)
             .into_iter()
-            .filter_map(|(f, k)| {
-                let (file, name, lines) = self.resolved.get(&f)?;
-                let line = *lines.get(k).filter(|l| **l != 0)?;
-                Some(format!("{file}:{line} {name}"))
+            .flat_map(|(f, k)| {
+                let row = u32::try_from(k).unwrap_or(u32::MAX);
+                let own = self.resolved.get(&f).and_then(|(file, name, lines)| {
+                    Some((file.clone(), name.clone(), *lines.get(k)?))
+                });
+                let inlined = self.resolved_inlined.get(&(f, row)).cloned();
+                inlined
+                    .into_iter()
+                    .flatten()
+                    .chain(own)
+                    .filter(|x| x.2 != 0)
             })
+            .map(|(file, name, line)| format!("{file}:{line} {name}"))
             .collect()
     }
 
@@ -209,12 +287,31 @@ impl LineTable {
                 let item = name
                     .rsplit_once('#')
                     .map_or(name.as_str(), |(item, _)| item);
-                Some(Anchored {
-                    item: item.to_owned(),
-                    inst: rows[k].1,
-                })
+                Some(self.frames(f, rows[k].1, item))
             })
+            .flatten()
             .collect()
+    }
+}
+
+/// A module without its `hd.inlined` section, which `hd build` drops once
+/// `hd.positions` holds the frames it names.
+pub fn cut_inlined(wasm: &mut Vec<u8>) {
+    let Ok(sections) = all_sections(wasm) else {
+        return;
+    };
+    let mut start = 8;
+    for (id, at, body) in sections {
+        let end = at + body.len();
+        if id == 0
+            && (Bytes { b: body, at: 0 })
+                .name()
+                .is_ok_and(|n| n == "hd.inlined")
+        {
+            wasm.drain(start..end);
+            return;
+        }
+        start = end;
     }
 }
 
@@ -233,9 +330,14 @@ fn zigzag(v: u32) -> i64 {
 /// (its index, file and name as table indices), the line of each of its
 /// `hd.lines` rows in order, as zigzag deltas from the row before (0 is a
 /// row the build could not resolve). Each entry is (function index, file,
-/// printed name, lines).
+/// printed name, lines). Then, when a row stands for inlined frames, per
+/// such row (function index, row) the frames before its own, innermost
+/// first, as file, name and line (each a [`Inlined`] entry).
 #[must_use]
-pub fn positions_section(funcs: &[(u32, String, String, Vec<u32>)]) -> Vec<u8> {
+pub fn positions_section(
+    funcs: &[(u32, String, String, Vec<u32>)],
+    inlined: &[Inlined],
+) -> Vec<u8> {
     fn leb(out: &mut Vec<u8>, mut v: usize) {
         loop {
             let b = u8::try_from(v & 0x7f).unwrap_or(0);
@@ -263,6 +365,14 @@ pub fn positions_section(funcs: &[(u32, String, String, Vec<u32>)]) -> Vec<u8> {
         let (fi, ni) = (index(file, &mut strings), index(fname, &mut strings));
         rows.push((*f, fi, ni, lines));
     }
+    let mut frames = Vec::new();
+    for ((f, k), list) in inlined {
+        let list: Vec<_> = list
+            .iter()
+            .map(|(file, name, line)| (index(file, &mut strings), index(name, &mut strings), *line))
+            .collect();
+        frames.push((*f, *k, list));
+    }
     let mut body = Vec::new();
     name(&mut body, "hd.positions");
     leb(&mut body, strings.len());
@@ -281,6 +391,19 @@ pub fn positions_section(funcs: &[(u32, String, String, Vec<u32>)]) -> Vec<u8> {
             last = i64::from(line);
             let z = if d >= 0 { d << 1 } else { ((-d) << 1) - 1 };
             leb(&mut body, usize::try_from(z).unwrap_or(0));
+        }
+    }
+    if !frames.is_empty() {
+        leb(&mut body, frames.len());
+    }
+    for (f, k, list) in frames {
+        leb(&mut body, f as usize);
+        leb(&mut body, k as usize);
+        leb(&mut body, list.len());
+        for (fi, ni, line) in list {
+            leb(&mut body, fi);
+            leb(&mut body, ni);
+            leb(&mut body, line as usize);
         }
     }
     let mut out = vec![0];
@@ -322,6 +445,10 @@ mod tests {
     /// One imported function (index 0) and two bodies (1 and 2) of ten
     /// bytes each; function 2 has rows at offsets 3 and 7.
     fn module(names: &str) -> Vec<u8> {
+        module_lines(names, &[1, 2, 2, 3, 5, 4, 9])
+    }
+
+    fn module_lines(names: &str, lines: &[u8]) -> Vec<u8> {
         let mut m = b"\0asm\x01\0\0\0".to_vec();
         section(&mut m, 2, &[1, 1, b'm', 1, b'f', 0, 0]);
         let mut code = vec![2];
@@ -330,7 +457,7 @@ mod tests {
             code.extend([0; 10]);
         }
         section(&mut m, 10, &code);
-        custom(&mut m, "hd.lines", &[1, 2, 2, 3, 5, 4, 9]);
+        custom(&mut m, "hd.lines", lines);
         let mut entries = vec![2, 1, 1, b'g', 2];
         entries.push(u8::try_from("app/main/f#0".len()).expect("len"));
         entries.extend(b"app/main/f#0");
@@ -376,19 +503,67 @@ mod tests {
     fn a_written_module_prints_its_resolved_frames() {
         let mut m = module("name");
         let t = LineTable::parse(&m).expect("parses");
-        assert_eq!(t.functions(), [(2, "app/main/f".to_owned(), vec![5, 9])]);
+        let f = |inst| Anchored {
+            item: "app/main/f".into(),
+            inst,
+        };
+        assert_eq!(
+            t.functions(),
+            [(2, "app/main/f".to_owned(), vec![vec![f(5)], vec![f(9)]])]
+        );
         let start = t.starts[1];
         assert!(t.resolved_lines(&[(2, start + 3)]).is_empty());
-        m.extend(super::positions_section(&[(
-            2,
-            "src/main.hd".into(),
-            "app.main.f".into(),
-            vec![4, 7],
-        )]));
+        m.extend(super::positions_section(
+            &[(2, "src/main.hd".into(), "app.main.f".into(), vec![4, 7])],
+            &[],
+        ));
         let t = LineTable::parse(&m).expect("parses with positions");
         assert_eq!(
             t.resolved_lines(&[(2, start + 8), (2, start + 3)]),
             ["src/main.hd:7 app.main.f", "src/main.hd:4 app.main.f"]
+        );
+    }
+
+    /// A row in an inlined copy stands for the callee's frame, then the
+    /// call's, both in the line table and in a written module.
+    #[test]
+    fn an_inlined_row_reports_the_callee_then_the_call() {
+        let mut lines = vec![1, 2, 2, 3, 5, 4];
+        leb(&mut lines, 1 << 31);
+        let mut m = module_lines("name", &lines);
+        let mut frames = vec![1, 7];
+        frames.extend(b"std/t/g");
+        frames.extend([1, 2, 1, 0, 6, 5]);
+        custom(&mut m, "hd.inlined", &frames);
+        let t = LineTable::parse(&m).expect("parses");
+        let (f, g) = (
+            |inst| Anchored {
+                item: "app/main/f".into(),
+                inst,
+            },
+            Anchored {
+                item: "std/t/g".into(),
+                inst: 6,
+            },
+        );
+        let start = t.starts[1];
+        assert_eq!(t.anchor(&[(2, start + 8)]), [g.clone(), f(5)]);
+        assert_eq!(
+            t.functions(),
+            [(2, "app/main/f".to_owned(), vec![vec![f(5)], vec![g, f(5)]])]
+        );
+        let frames = vec![("<std>/t.hd".to_owned(), "std.t.g".to_owned(), 12)];
+        let n = m.len();
+        super::cut_inlined(&mut m);
+        assert_eq!(m.len(), n - 28);
+        m.extend(super::positions_section(
+            &[(2, "src/main.hd".into(), "app.main.f".into(), vec![4, 4])],
+            &[((2, 1), frames)],
+        ));
+        let t = LineTable::parse(&m).expect("parses with positions");
+        assert_eq!(
+            t.resolved_lines(&[(2, start + 8)]),
+            ["<std>/t.hd:12 std.t.g", "src/main.hd:4 app.main.f"]
         );
     }
 

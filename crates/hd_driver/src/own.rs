@@ -12,9 +12,12 @@ use std::cell::RefCell;
 use hd_base::{DefId, Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use hd_mono::ProgramEnv;
 use hd_mono::layout::LayoutEnv;
-use hd_tir::ir::{Body, Callee, ChoiceKind};
+use hd_tir::ir::{Body, Callee, ChoiceKind, local_flags};
 use hd_tir::own::{HeaderCopy, OwnCx, OwnScratch, Pass, Tri};
-use hd_types::{Ty, TyData};
+use hd_types::solver::{
+    BodyMemo, ConcreteTraitRef, ParamEnv, Selection, SolveCx, Solver, TableSolver, TraitRef,
+};
+use hd_types::{Ty, TyData, TyList};
 
 use super::{Env, ProgramTables, Run, lock};
 
@@ -361,7 +364,12 @@ impl Env<'_> {
         k.hash(hash);
         let mut copied = false;
         for c in (0..body.len()).rev() {
-            let Some((def, targs)) = hd_tir::inline::item_call(body, c) else {
+            let Some((def, targs)) =
+                hd_tir::inline::plain_call(body, c).and_then(|callee| match callee {
+                    Callee::Item { def, targs } => Some((def, targs)),
+                    Callee::TraitMethod { .. } => self.impl_target(&callee),
+                })
+            else {
                 continue;
             };
             let Some((mut copy, callee_hash)) = self.inline_callee(def, body.item) else {
@@ -380,20 +388,110 @@ impl Env<'_> {
             hd_tir::ir::map_body_types(&mut copy, &ty, &list);
             // A projection left open names a type the caller's bounds may
             // fix, which the call's type already shows; such a copy waits.
+            // So does a copy with a parameter that may hold a list or a map:
+            // a call lends it, but a `Store` would copy its header, and an
+            // iterator or a reference made from the copy would lose the
+            // argument it names.
+            let param = |l: usize| copy.local_flags[l] & local_flags::PARAM != 0;
             if copy
                 .ty
                 .iter()
                 .chain(&copy.local_ty)
                 .any(|&t| pool.has_assoc(t))
+                || (0..copy.local_ty.len())
+                    .any(|l| param(l) && self.holds_coll(copy.local_ty[l], 0))
             {
                 continue;
             }
+            hd_tir::inline::rechoose(&mut copy, &|t, s, a| self.select_impl(t, s, a));
             if hd_tir::inline::inline_call(body, c, copy).is_ok() {
                 k.hash(callee_hash);
                 copied = true;
             }
         }
         if copied { k.finish() } else { hash }
+    }
+
+    /// The item and type arguments a trait call chosen as an impl runs:
+    /// the impl's method at the impl's arguments, matched from the receiver
+    /// and the trait's arguments as collection selects, then the method's
+    /// own; or the trait's default body at the receiver and the call's.
+    fn impl_target(&self, callee: &Callee) -> Option<(DefId, TyList)> {
+        let &Callee::TraitMethod {
+            trait_,
+            method,
+            self_ty,
+            targs,
+            choice: (ChoiceKind::Impl, d),
+        } = callee
+        else {
+            return None;
+        };
+        let (pool, impl_) = (&self.run.pool, DefId::from_raw(d));
+        // A trait value receiver dispatches through its table, and a
+        // derived newtype impl forwards to its base's, whatever the choice.
+        let value = match pool.get(self_ty) {
+            TyData::Adt { def, args } if def == self.run.known.ref_cell => pool.list_items(args)[0],
+            _ => self_ty,
+        };
+        if hd_mono::is_trait_value(pool, value)
+            || self.intrinsic(method).is_some()
+            || self.is_derived_newtype_impl(impl_)
+        {
+            return None;
+        }
+        let items = pool.list_items(targs);
+        let Some(m) = self.impl_method(impl_, method) else {
+            return Some((method, pool.list(&[&[self_ty], items].concat())));
+        };
+        let (trait_args, own) = items.split_at(self.trait_arity(trait_).min(items.len()));
+        let (head, heads, n) = self.impl_head(impl_)?;
+        let mut out = vec![None; n];
+        hd_mono::unify(pool, impl_, head, self_ty, &mut out);
+        for (&x, &y) in pool.list_items(heads).iter().zip(trait_args) {
+            hd_mono::unify(pool, impl_, x, y, &mut out);
+        }
+        let mut all = out.into_iter().collect::<Option<Vec<_>>>()?;
+        all.extend_from_slice(own);
+        Some((m, pool.list(&all)))
+    }
+
+    /// The impl of `trait_` at a concrete receiver and trait arguments, as
+    /// collection selects it; `None` for an open type or a compiler-supplied
+    /// implementation.
+    fn select_impl(&self, trait_: DefId, self_ty: Ty, targs: TyList) -> Option<DefId> {
+        let types = self.run.pool.types();
+        let items = types.list_items(targs);
+        let args = &items[..self.trait_arity(trait_).min(items.len())];
+        if std::iter::once(&self_ty)
+            .chain(args)
+            .any(|&t| types.has_param(t) || types.has_assoc(t))
+        {
+            return None;
+        }
+        let cell = self.run.known.ref_cell;
+        let raised: Vec<Ty> = args.iter().map(|&a| types.raise_refs(cell, a)).collect();
+        let tref = TraitRef {
+            trait_,
+            self_ty: types.raise_refs(cell, self_ty),
+            args: types.list(&raised),
+        };
+        let (universe, global) = self.solving();
+        let mut cx = SolveCx {
+            pool: types,
+            env: &ParamEnv::default(),
+            universe,
+            impls: self.impls,
+            decls: self,
+            body_memo: &mut BodyMemo::default(),
+            global,
+        };
+        match TableSolver.select(&mut cx, ConcreteTraitRef(tref)).ok()? {
+            Selection::Impl { impl_row, .. } => {
+                Some(self.impls.table(impl_row.module)?.def[impl_row.row as usize])
+            }
+            Selection::Builtin(_) => None,
+        }
     }
 
     /// A fresh decoding of the checker's body of `def`, for the caller to

@@ -557,9 +557,9 @@ mod tests {
             let table = hd_run::frames::LineTable::parse(output.wasm.as_ref().expect("Wasm"))
                 .expect("line table");
             let mut anchors = 0;
-            for (_, item, insts) in table.functions() {
-                assert_eq!(reused.name(&item), wire.name(&item));
-                for inst in insts {
+            for (_, _, rows) in table.functions() {
+                for hd_run::frames::Anchored { item, inst } in rows.into_iter().flatten() {
+                    assert_eq!(reused.name(&item), wire.name(&item));
                     assert_eq!(reused.line(&item, inst), wire.line(&item, inst));
                     assert_eq!(reused.span(&item, inst), wire.span(&item, inst));
                     assert_eq!(reused.fallback(&item, inst), wire.fallback(&item, inst));

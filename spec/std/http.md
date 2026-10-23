@@ -186,7 +186,6 @@ pub enum HttpError:
     TooManyRedirects(url: string)
     Other(message: string)
     Status(response: Response)
-    Json(error: JsonError)
 ```
 
 1. r[std-http.error.decl-retained-response] `std.http` declares `HttpError` as above. Code imports it, as in `use std.http.HttpError`.
@@ -203,16 +202,13 @@ pub enum HttpError:
 | r[std-http.error.redirect-limit] Redirects | `TooManyRedirects(url)` | the response exceeded a positive `Request.redirects` limit; `url` is the last target |
 | r[std-http.error.other] Other | `Other(message)` | any other failure, with the provider's message |
 | r[std-http.error.status-response-value] Status | `Status(response)` | `Response.ok` found a status from 400 to 599, retaining the whole response |
-| r[std-http.error.json] JSON | `Json(error)` | `Response.json` could not decode the body; `error` is the `std.json.JsonError` |
 
 3. r[std-http.error.not-granted.plain] The `Display` text of `NotGranted(host)` is `http access to HOST is not granted`, with the host for `HOST`.
 4. r[std-http.error.status.safe-response-text] `Status(response)` displays `HTTP status STATUS for URL`, with the response status and its URL before any query or fragment.
 5. r[std-http.error.status.no-response-secrets] The status error's `Display` text contains no response body or header values.
-6. r[std-http.error.json.text] The `Display` text of `Json(error)` is `invalid JSON in the response: ERROR`, with the `Display` text of `error`.
-
-7. r[std-http.error.transient-kinds] `HttpError.is_transient(self) -> bool` returns true for `Timeout` and `Connect` errors.
-8. r[std-http.error.transient-status-codes] A `Status` error is transient for 408, 429, 500, 502, 503, and 504.
-9. r[std-http.error.permanent-kinds] `is_transient` returns false for every other error.
+6. r[std-http.error.transient-kinds] `HttpError.is_transient(self) -> bool` returns true for `Timeout` and `Connect` errors.
+7. r[std-http.error.transient-status-codes] A `Status` error is transient for 408, 429, 500, 502, 503, and 504.
+8. r[std-http.error.permanent-kinds] `is_transient` returns false for every other error.
 
 ## Sending
 
@@ -252,6 +248,7 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
 error; the free `get!` calls it automatically:
 
 ```text
+use std.error.Error
 use std.http.{Http, HttpError, Request, get}
 use std.serde.{Deserialize, Serialize}
 
@@ -266,13 +263,14 @@ struct Created:
 fn notes!() -> Result[string, HttpError] $ Http:
     .Ok(get!("https://example.com/notes.txt")?.text())   # a 404 is .Err(HttpError.Status(response))
 
-fn create!(name: string) -> Result[Created, HttpError] $ Http:
+fn create!(name: string) -> Result[Created, &dyn Error] $ Http:
     request := Request::post("https://example.com/users").json(NewUser { name: name })
-    request.send!()?.ok()?.json::[Created]()                    # a bad body is .Err(HttpError.Json(error))
+    .Ok(request.send!()?.ok()?.json::[Created]()?)              # a bad body is a JsonError
 ```
 
 1. r[std-http.response.ok.retained-error] `Response.ok(self) -> Result[Response, HttpError]` returns `.Err(HttpError.Status(self))` for status 400–599 and `.Ok(self)` otherwise.
-2. r[std-http.response.json] `Response` has the method `json::[T < Deserialize](self) -> Result[T, HttpError]`. It decodes `self.text()` with `std.json.decode::[T]`, and returns `.Err(HttpError.Json(error))` for the `JsonError` it fails with. It does not look at `status`.
+2. r[std-http.response.json-decode] `Response` has the method `json::[T < Deserialize](self) -> Result[T, JsonError]`. It decodes `self.text()` with `std.json.decode::[T]` and returns its result: a body that is not valid JSON for `T` is the decoder's `JsonError`, not an `HttpError`. It does not look at `status`.
+3. r[std-http.response.json-propagate] A function that sends and decodes propagates both errors with `?` into an error type covering both, such as `&dyn Error` ([`expr.try.convert`](../lang/05-expressions.md#r-expr.try.convert)).
 
 > **Why.** Builder and provider `send!` calls keep every status available
 > ([`std-http.send.status`](#r-std-http.send.status)). `Response.ok()` checks

@@ -426,6 +426,10 @@ pub struct Func {
     pub at: Option<u32>,
     /// The anchor the last [`Ins::Anchor`] wrote.
     anchored: Option<u32>,
+    /// The inlined frames an anchor `INLINED | k` names: entry `k` is the
+    /// callee's stable path, its instruction and the call's anchor
+    /// (`hd_tir::ir::Body::inlined`).
+    pub inlined: Vec<(String, u32, u32)>,
 }
 
 impl Func {
@@ -1148,6 +1152,9 @@ impl Module {
             }
         }
         let stack = crate::wide::lower(&mut self.funcs, &self.exports, &self.symbols)?;
+        // Wide lowering rebuilds each body's callees from its final code.
+        // Calls removed by local/count optimization no longer keep helpers.
+        self.reach();
         // Every import and global a body names; imports come first.
         let mut import_ids = Reached::default();
         let mut globals: BTreeSet<Global> = BTreeSet::new();
@@ -1269,6 +1276,7 @@ impl Module {
         let mut code = CodeSection::new();
         let mut names = NameMap::new();
         let mut lines: Vec<(u32, Vec<(u32, u32)>)> = Vec::new();
+        let (mut frames, mut paths) = (Vec::new(), Vec::new());
         for im in &imports {
             names.append(
                 index[&self.symbols.intern(Sym::Import(im.clone()))],
@@ -1314,6 +1322,7 @@ impl Module {
             let mut count_sites = BTreeSet::new();
             let mut at = None;
             let mut rows: Vec<(u32, u32)> = Vec::new();
+            let (mut map, mut kept) = (vec![None; f.inlined.len()], Vec::new());
             for (position, i) in f.body.iter().enumerate() {
                 if self.track_origins && !matches!(i, Ins::Anchor(_)) {
                     mapped_instructions.push(crate::InstructionOrigin {
@@ -1366,10 +1375,11 @@ impl Module {
                 }
                 // A call at a new anchor starts a row: its offset in the
                 // body, locals included, and the anchor.
-                if let (Ins::Call(_) | Ins::CallIndirect(..), Some(a)) = (i, at)
-                    && rows.last().is_none_or(|&(_, last)| last != a)
-                {
-                    rows.push((u32::try_from(body.byte_len()).expect("offset"), a));
+                if let (Ins::Call(_) | Ins::CallIndirect(..), Some(a)) = (i, at) {
+                    let a = reach(a, &f.inlined, &mut map, &mut kept, &mut paths);
+                    if rows.last().is_none_or(|&(_, last)| last != a) {
+                        rows.push((u32::try_from(body.byte_len()).expect("offset"), a));
+                    }
                 }
                 match i {
                     Ins::Anchor(a) => {
@@ -1487,6 +1497,9 @@ impl Module {
             code.function(&body);
             if !rows.is_empty() {
                 lines.push((index[s], rows));
+            }
+            if !kept.is_empty() {
+                frames.push((index[s], kept));
             }
         }
         let mut tables = TableSection::new();
@@ -1642,6 +1655,11 @@ impl Module {
                 data: data.into(),
             });
         }
+        // Last, so that `hd build`, which resolves the frames into
+        // `hd.positions`, can cut it off.
+        if !paths.is_empty() {
+            module.section(&inlined_frames(&frames, &paths));
+        }
         Ok(crate::MappedModule {
             wasm: module.finish(),
             functions: mapped_functions,
@@ -1694,6 +1712,69 @@ fn line_table(functions: &[(u32, Vec<(u32, u32)>)]) -> wasm_encoder::CustomSecti
         name: "hd.lines".into(),
         data: data.into(),
     }
+}
+
+/// The `hd.inlined` section: the callees' paths, then per function by
+/// index the inlined frames its `hd.lines` rows reach, each as a path's
+/// index, the callee's instruction and the anchor of its call
+/// ([`Func::inlined`]).
+fn inlined_frames(
+    frames: &[(u32, Vec<[u32; 3]>)],
+    paths: &[String],
+) -> wasm_encoder::CustomSection<'static> {
+    use wasm_encoder::Encode;
+    let mut data = Vec::new();
+    u32::try_from(paths.len()).expect("paths").encode(&mut data);
+    for p in paths {
+        p.as_str().encode(&mut data);
+    }
+    u32::try_from(frames.len())
+        .expect("frames")
+        .encode(&mut data);
+    let mut sorted: Vec<_> = frames.iter().collect();
+    sorted.sort_unstable_by_key(|(f, _)| *f);
+    for (f, entries) in sorted {
+        f.encode(&mut data);
+        u32::try_from(entries.len())
+            .expect("frames")
+            .encode(&mut data);
+        for w in entries.iter().flatten() {
+            w.encode(&mut data);
+        }
+    }
+    wasm_encoder::CustomSection {
+        name: "hd.inlined".into(),
+        data: data.into(),
+    }
+}
+
+/// Inlined anchor `a` of a function whose frames are `all`, renumbered
+/// into `kept`, the frames its rows reach with their parents, as
+/// (path index in `paths`, instruction, parent); `map` holds each frame's
+/// new number. Any other anchor is itself.
+fn reach(
+    a: u32,
+    all: &[(String, u32, u32)],
+    map: &mut [Option<u32>],
+    kept: &mut Vec<[u32; 3]>,
+    paths: &mut Vec<String>,
+) -> u32 {
+    let k = (a & !hd_tir::ir::INLINED) as usize;
+    if a & hd_tir::ir::INLINED == 0 {
+        return a;
+    } else if let Some(n) = map[k] {
+        return hd_tir::ir::INLINED | n;
+    }
+    let (path, inst, parent) = &all[k];
+    let parent = reach(*parent, all, map, kept, paths);
+    let p = paths.iter().position(|x| x == path).unwrap_or_else(|| {
+        paths.push(path.clone());
+        paths.len() - 1
+    });
+    kept.push([u32::try_from(p).expect("paths"), *inst, parent]);
+    let n = u32::try_from(kept.len() - 1).expect("frames");
+    map[k] = Some(n);
+    hd_tir::ir::INLINED | n
 }
 
 /// The `hd.names` section of a release build (`crates/hd_wasm_linear/DESIGN.md`
@@ -1865,5 +1946,30 @@ mod dense_symbol_tests {
                 matches!(ops.as_slice(), [wasmparser::Operator::I32Const { value }, wasmparser::Operator::End] if *value == i32::from(explicit))
             );
         }
+    }
+
+    #[test]
+    fn final_reachability_removes_a_call_folded_out_of_the_body() {
+        let mut m = Module::default();
+        let dead = Sym::Inst(Hash128(1));
+        let root = Sym::Inst(Hash128(2));
+        let f = m.func("dead_after_fold", vec![], vec![]);
+        m.define(dead.clone(), f);
+        let mut f = m.func("root", vec![], vec![]);
+        f.i32(0);
+        f.op(Instruction::If(wasm_encoder::BlockType::Empty));
+        f.call(dead);
+        f.op(Instruction::End);
+        m.define(root.clone(), f);
+        m.export("root", root);
+        let wasm = m.finish().expect("module encodes");
+        wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
+            .validate_all(&wasm)
+            .expect("valid Wasm");
+        let functions = wasmparser::Parser::new(0)
+            .parse_all(&wasm)
+            .filter(|p| matches!(p, Ok(wasmparser::Payload::CodeSectionEntry(_))))
+            .count();
+        assert_eq!(functions, 1, "only the exported root is still linked");
     }
 }
