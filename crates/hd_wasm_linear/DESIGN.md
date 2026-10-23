@@ -587,8 +587,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   (`Em::place_header`, which walks the place as a rooted one, below).
   Since the passes put an `IsUnique` before every change of a collection
   place, a body's intrinsics and its thunks'
-  check no uniqueness themselves: an element store, `MapSet`,
-  `MapRemove` and `MapIndexMut` skip it, and `ListPush` only moves a full
+  check no uniqueness themselves: an element store, `MapSet` and
+  `MapRemove` skip it, and `ListPush` only moves a full
   buffer (`rt:list_grow`). One check stays: std's `list_truncate` (`pop`,
   `insert`, ...) changes the list behind its reference, where no pass
   sees the change. A hoisted `IsUnique` (docs/compiler/tir-v2.md,
@@ -784,8 +784,8 @@ Each operation implements collection value semantics (§15.2;
   table releases the entry's key and value.
 - **Copies and changes.** `ValueCopy`, `SnapBegin` and `SnapEnd` are the
   list ones (§23.17), since the header is the same. `m[k] = v`,
-  `remove` and `MapIndexMut` first make the table the map's own
-  (`rt:map_unique`): a shared table is copied whole, each live entry
+  `remove` and a change through a value place first make the table the
+  map's own (`rt:map_unique`): a shared table is copied whole, each live entry
   takes its own counts, and the collections among the values become
   copies, so a write through `m[k].push(v)` reaches only this map.
 - **Iteration.** A counted `for` iterates the snapshot through

@@ -741,7 +741,7 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 t.write_links(x, true);
             }
             Tag::Intrinsic => match IntrinsicOp::from_u32(a) {
-                Some(IntrinsicOp::MapSet | IntrinsicOp::MapRemove | IntrinsicOp::MapIndexMut) => {
+                Some(IntrinsicOp::MapSet | IntrinsicOp::MapRemove) => {
                     if let Some(&c) = b.record(w).first()
                         && Ref(c).as_inst().is_some()
                         && (c as usize) < n

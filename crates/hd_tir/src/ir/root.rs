@@ -15,7 +15,9 @@
 //! 1. every use of `%v` is the root of a place of a `Read`, `Store` or
 //!    `Ref` (`[%v .x]`, `[*%v]`, `[%v [%i]]`), so nothing but those places
 //!    needs its value: each becomes `P` followed by its own steps, and the
-//!    read goes;
+//!    read goes. A `MapEntry` of the map `%v` may use it too, and keeps
+//!    the read: `m[k]` reads `[$m [%e]]`, at the entry `%e` that
+//!    `MapEntry [%v k]` found;
 //! 2. the uses are statements of `%v`'s own block, and every statement
 //!    between `%v` and its last use is inert: it writes no place and calls
 //!    nothing (a read, a primitive, a construction, a coercion, a length),
@@ -120,7 +122,6 @@ fn inert(b: &Body, i: usize) -> bool {
                 IntrinsicOp::ListLen
                     | IntrinsicOp::MapLen
                     | IntrinsicOp::MapGet
-                    | IntrinsicOp::MapIndex
                     | IntrinsicOp::MapEntry
                     | IntrinsicOp::StrIndex
                     | IntrinsicOp::StrConcat
@@ -219,8 +220,12 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
         }
         let blk = t.blk[v];
         let mut last = t.pos[v];
-        let mut ok = true;
+        let (mut ok, mut kept) = (true, false);
         for &(u, root) in &t.uses[lo..hi] {
+            let entry = !root
+                && b.tags[u as usize] == Tag::Intrinsic
+                && IntrinsicOp::from_u32(b.data[u as usize][0]) == Some(IntrinsicOp::MapEntry);
+            kept |= entry;
             // A `Store` or a `Ref` rooted at a value writes or addresses
             // memory the value names (a referent, a buffer): one that names
             // the value's own parts would change or address a copy, which
@@ -230,10 +235,10 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
                 let n = b.extra[w as usize];
                 has_mem(b, w + 3, w + 1 + n)
             };
-            if !root
+            if !(root || entry)
                 || t.blk[u as usize] != blk
                 || t.pos[u as usize] <= t.pos[v]
-                || (b.tags[u as usize] != Tag::Read && !through(b))
+                || (root && b.tags[u as usize] != Tag::Read && !through(b))
             {
                 ok = false;
                 break;
@@ -259,7 +264,7 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
             continue;
         }
         // Each use's place: `P` followed by the use's own steps.
-        for k in lo..hi {
+        for k in (lo..hi).filter(|&k| t.uses[k].1) {
             let u = t.uses[k].0 as usize;
             let word = b.data[u][0];
             let len = b.extra[word as usize];
@@ -274,8 +279,10 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
             b.extra.extend_from_slice(&t.words);
             b.data[u][0] = at;
         }
-        t.gone[v] = true;
-        t.edits.remove(blk, u32_of(v));
+        if !kept {
+            t.gone[v] = true;
+            t.edits.remove(blk, u32_of(v));
+        }
     }
     if t.gone.iter().any(|g| *g) {
         // A folded read has no use left, so the rebuild only drops it.

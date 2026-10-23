@@ -97,8 +97,8 @@ compiler does not carry yet returns a structured "not implemented".
 **Places rooted at the local; no ownership statements.** The checker
 builds a place one step at a time, a read of the base and a projection
 rooted at its value (`%h = Read [$0]`, `Read [%h [%i]]`): its own
-walkers read those values while it checks (the writable check,
-`mark_write_path`). `finish_with` then roots every such chain at its
+walkers read those values while it checks (the writable check, the
+conflicting-access paths). `finish_with` then roots every such chain at its
 local before the verifier runs (`hd_tir::ir::root_places`;
 crates/hd_tir/DESIGN.md, "Places rooted at the local"), so the ownership
 passes and the backend see `Read [*$0 [%i] .x]`. The checker leaves the
@@ -106,10 +106,9 @@ ownership statements to the passes (docs/compiler/tir-v2.md, stage 2
 commits 12b and 13a): an element reference is a `Ref` of the element
 place and nothing else, and a `for` over element references holds no pin
 of its own (`elem_refs.rs`); a map value is a place too, `[%m [%e]]` at
-the entry `MapEntry` finds just before each use (`Ck::elem_index`);
-`mark_write_path` leaves an element read a read and turns only a map
-value's read into `MapIndexMut`, since a read `m[k]` stays an intrinsic
-that insertion does not follow back to the map; and the checker writes
+the entry `MapEntry` finds just before each read, store or reference
+(`Ck::elem_index`), so a change through `m[k]` reaches the map as one
+through `xs[i]` reaches the list; and the checker writes
 no collection copy (`ValueCopy`): insertion's
 rule 7 (crates/hd_tir/src/own/copies.rs) makes the header copies from
 the passes' own facts, where a header that may change in place would be

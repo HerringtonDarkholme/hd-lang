@@ -473,9 +473,10 @@ A map value is a place too (decision E, #494; `ref.elem.map`,
 `types.coll.map-value.place`), with the key's entry in place of the
 index: `m[k].x = v` is `%e = Intrinsic MapEntry [%m %k]` and
 `Store [%m [%e] .x] v`, and `&mut m[k]` is `Ref mut [%m [%e]]`. A plain
-`m[k]` read stays `MapIndex`, `m[k] = v` stays `MapSet` (a new key adds
-an entry), and `m[k].push(v)` keeps `MapIndexMut`, until stage 3 moves
-maps to std ([stage 2's map value places](#map-value-places)).
+`m[k]` read is `Read [%m [%e]]` too, and so is the receiver of
+`m[k].push(v)` (`List`'s commit 2, below); `m[k] = v` stays `MapSet` (a
+new key adds an entry) until stage 3 moves maps to std ([stage 2's map
+value places](#map-value-places)).
 
 ### `&` and `&mut`
 
@@ -2819,9 +2820,10 @@ are.
 - **The passes are unchanged.** Insertion's rules 5 and 6 find the
   element projection whatever the collection: an `IsUnique` of the map
   before a store through its value, and an `IsUnique` and a `Pin` before
-  a reference. `MapEntry` is inert for place folding and hoisting, like
-  `MapIndex`; its use of the map keeps the map's read from folding, so a
-  map value place stays rooted at the map's value, `[%m [%e]]`.
+  a reference. `MapEntry` is inert for place folding and hoisting. Since
+  `List`'s commit 2 a map value place folds to the local the map's read
+  reads, `[$m [%e]]`, past that read's use by `MapEntry`, which keeps
+  the read.
 - **The backend.** A map's header is a list's kind, owner word included.
   `Em::map_value_at` addresses an entry's value; the element read, store
   and reference, and the rooted walk, take it for a map. `Pin` gives the
@@ -2834,17 +2836,11 @@ are.
   keeps the entry and is allowed. Entry numbers survive `rt:map_unique`,
   which copies the table as it is, and only growth, which a pin forbids,
   renumbers entries.
-- **`mark_write_path` keeps `MapIndexMut`.** A `&mut self` call on a
-  map value no longer holds the value in a local (the reason #801 gave),
-  but a plain read `m[k]` is still `MapIndex`, which insertion's walk
-  back through a change's reads does not follow. Without the mark,
-  `m[k].push(x)` pushes to a list that a copy of the map shares:
-  `runtime/valid/map-of-lists-nested-push`,
-  `runtime/valid/a-match-binding-of-a-map-list-keeps-its-value` and
-  `tests/std_rt/map_tests.hd` ("the inner lists are apart") fail.
-  Reading map values as places, `Read [%m [%e]]`, would retire
-  `MapIndex`, `MapIndexMut` and the mark together; that is a job of its
-  own.
+- **`MapIndexMut` and the checker's mark are gone** (`List`'s commit 2).
+  A plain read `m[k]` was `MapIndex`, which insertion's walk back through
+  a change's reads did not follow, so the checker marked a read that a
+  change went through `MapIndexMut`. Every read of a map value is now
+  `Read [%m [%e]]`, so the walk follows it as it follows an element read.
 
 ## The inliner
 
@@ -3408,6 +3404,44 @@ json 0.291 s to 0.292 s, nbody 0.250 s to 0.248 s. Study run times on
 V8, medians of three interleaved rounds of 7 runs: sieve 234 to 239 ms
 and fannkuch_redux 98 to 96 ms, whose Wasm is byte-identical, so the
 noise is about ±2.5%; map_count 173 to 177 ms and json 120 to 122 ms.
+
+Commit 2 makes every read of a map value a place. The checker's `m[k]`
+is `MapEntry` and `Read [%m [%e]]`, as a store or a reference through it
+already was, so `MapIndex` goes with `MapIndexMut`: insertion's walk
+follows a map value's read as it follows an element read, and the
+checker's `mark_write_path` with its three callers, the map arms of the
+writable check and of the conflicting-access paths, `copies.rs`'s
+`Src::Handle` and the verifier's exception for it go. Reading plain
+values as places too was the simpler route: one form for every use of a
+map value, and the intrinsic's emitter arm and pass entries go with it,
+where keeping `MapIndex` would have needed the checker to rewrite a read
+it had already emitted once it saw a change follow. Place folding then
+roots a map value place at the local the map's read reads, past that
+read's use by `MapEntry`, which keeps the read: `m["a"].push(4)` is
+`%e = MapEntry [%m "a"]`, `IsUnique [$m]`, `IsUnique [$m [%e]]`,
+`Read borrow [$m [%e]]` and the push, and the local's `Drop` follows the
+push, which is commit 1's rule unchanged. A change whose arguments may
+write keeps the check on the value its receiver read: an argument that
+writes the map (`m["a"].push(grow(&mut m))`) may grow it, growth
+renumbers entries, and a read of `[$m [%e]]` after it reached another
+key's value when tried. Commit 3 must look the entry up again there
+before a new buffer address can be stored back.
+
+Commit 2 adds 46 Rust code lines and deletes 126, against 40, under the
+stop line of 60. Two `own` baselines change from `MapIndexMut` to the
+named place, and `a-map-value-is-a-place` roots its reference and store
+at the local, its map read a `borrow` with no `Drop`; the new fixture
+`a-change-through-a-map-value-names-its-place` shows both forms. The 13
+release `.wasm` files are byte-identical to commit 1's (a program that
+reads and pushes through `m[k]` in a loop goes from 11,610 to 11,603 B),
+so the study run times move only by noise: map_count 178 to 178 ms and
+json 120 to 122 ms, medians of three interleaved rounds of 7. Cold build
+CPU, medians of 11 interleaved release builds: json 0.28 s to 0.28 s,
+nbody 0.24 s to 0.24 s. The web compiler's gzip shrinks 239 B
+(1,904,287 to 1,904,048, both built here). The header model's hole that
+the settling above found has its runtime case,
+`runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy`, a known
+failure (#667) until commit 3.
 
 **Emitted size budget.** hello's Wasm does not change, and each
 bench/study program's release `.wasm` stays within +5% of its size

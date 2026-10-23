@@ -1789,9 +1789,7 @@ impl Em<'_, '_, '_> {
                     }
                     Some(IntrinsicOp::MapLen) => self.map_len(i, args[0])?,
                     Some(
-                        op @ (IntrinsicOp::MapIndex
-                        | IntrinsicOp::MapIndexMut
-                        | IntrinsicOp::MapGet
+                        op @ (IntrinsicOp::MapGet
                         | IntrinsicOp::MapSet
                         | IntrinsicOp::MapRemove
                         | IntrinsicOp::MapEntry),

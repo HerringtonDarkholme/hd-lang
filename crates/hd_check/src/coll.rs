@@ -7,13 +7,11 @@
 //! Changing a collection needs a writable place, as changing a struct's
 //! field does.
 //!
-//! A change written through a path (`m[k].push(x)`) marks each map value
-//! read on the path `MapIndexMut`, so the change is made in place and
-//! never by reading the value out and storing it back. A reference to a
-//! map value, a field write through one and a `&self` or `&mut self` call
-//! on one name the value as a place instead (`types.coll.map-value.place`).
-//! A list element read on the path stays a read: insertion makes each list
-//! on a change's path unique from the reads the change goes through.
+//! A map value is a place, as a list element is
+//! (`types.coll.map-value.place`): a change written through a path
+//! (`m[k].push(x)`) reaches the value in the map, since insertion makes
+//! each collection on a change's path unique from the reads the change
+//! goes through.
 
 use hd_base::LocalId;
 use hd_syntax::NodeRef;
@@ -69,54 +67,6 @@ impl Ck<'_, '_> {
             || init.earlier.values().any(|g| g.def == def && g.mutable)
     }
 
-    /// The change about to be written through `r` (a receiver, an index
-    /// base) reaches only the collections on its path: each map value read
-    /// on it becomes `MapIndexMut`, which makes the map's buffer its own
-    /// first (`types.coll.nested`). A map value read is an intrinsic, not
-    /// a place, so insertion's walk back through a change's reads stops
-    /// at it: without the mark, `m[k].push(x)` would reach a copy of the
-    /// map that shares its table. An element read stays a read: insertion
-    /// makes each list on a change's path unique from the reads the change
-    /// goes through (`docs/compiler/tir-v2.md`, stage 2 commit 12b). A
-    /// reference to a map value or a write through one is a place, which
-    /// insertion follows itself ([`Ck::elem_index`]).
-    pub(crate) fn mark_write_path(&mut self, r: Ref) {
-        let mut cur = r;
-        for _ in 0..64 {
-            let Some(i) = cur.as_inst() else {
-                return;
-            };
-            let (tag, data) = {
-                let body = self.b.body_mut();
-                (body.tags[i.0 as usize], body.data[i.0 as usize])
-            };
-            if let Some(Projection::Field(base)) = self.projection(cur) {
-                cur = base;
-                continue;
-            }
-            if let Some((list, _)) = self.element_of(cur) {
-                cur = list;
-                continue;
-            }
-            match tag {
-                Tag::Coerce => cur = Ref(data[0]),
-                Tag::Intrinsic
-                    if matches!(
-                        IntrinsicOp::from_u32(data[0]),
-                        Some(IntrinsicOp::MapIndex | IntrinsicOp::MapIndexMut)
-                    ) =>
-                {
-                    self.b.body_mut().data[i.0 as usize][0] = IntrinsicOp::MapIndexMut as u32;
-                    let Some(&base) = self.b.body_mut().record(data[1]).first() else {
-                        return;
-                    };
-                    cur = Ref(base);
-                }
-                _ => return,
-            }
-        }
-    }
-
     /// Whether the value `br` reads a place a change may write through
     /// (`types.coll.writable`), judged without reporting: a `let mut`
     /// local or `mut` parameter, a writable top-level binding, a value
@@ -163,19 +113,6 @@ impl Ck<'_, '_> {
                 }
                 Tag::Read => {
                     return self.read_through(cur).is_some_and(|(_, m, _)| m);
-                }
-                Tag::Intrinsic => {
-                    if !matches!(
-                        IntrinsicOp::from_u32(data[0]),
-                        Some(IntrinsicOp::MapIndex | IntrinsicOp::MapIndexMut)
-                    ) {
-                        return false;
-                    }
-                    let args = self.b.body_mut().record(data[1]).to_vec();
-                    let Some(&c) = args.first() else {
-                        return false;
-                    };
-                    cur = Ref(c);
                 }
                 _ => return false,
             }
@@ -244,8 +181,8 @@ impl Ck<'_, '_> {
 
     /// A change to the collection `recv` of type `rt` (a `mut self`
     /// method such as `push`, an element store, a field write through an
-    /// element): whether it may write, marking the path it writes through
-    /// (`types.coll.writable`, `types.coll.nested`). Reports when it may
+    /// element): whether it may write (`types.coll.writable`,
+    /// `types.coll.nested`). Reports when it may
     /// not, `not-writable`, with the fix-it that makes the binding
     /// writable. `what` names the change.
     pub(crate) fn coll_change(&mut self, recv: Ref, rt: Ty, what: &str, at: NodeRef<'_>) -> bool {
@@ -254,7 +191,6 @@ impl Ck<'_, '_> {
             return true;
         }
         if self.place_writable_quiet(recv) || self.is_fresh(recv) {
-            self.mark_write_path(recv);
             return true;
         }
         let shown = self.show(rt);

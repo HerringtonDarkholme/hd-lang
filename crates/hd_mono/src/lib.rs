@@ -3082,9 +3082,7 @@ impl Cx<'_> {
                         Some(
                             IntrinsicOp::MapGet
                                 | IntrinsicOp::MapSet
-                                | IntrinsicOp::MapIndex
                                 | IntrinsicOp::MapRemove
-                                | IntrinsicOp::MapIndexMut
                                 | IntrinsicOp::MapEntry
                         )
                     ) =>
@@ -3255,9 +3253,7 @@ fn makes_call(body: &Body) -> bool {
             Some(
                 IntrinsicOp::MapGet
                     | IntrinsicOp::MapSet
-                    | IntrinsicOp::MapIndex
                     | IntrinsicOp::MapRemove
-                    | IntrinsicOp::MapIndexMut
                     | IntrinsicOp::MapEntry
             )
         ),

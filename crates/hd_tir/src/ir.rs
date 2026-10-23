@@ -246,7 +246,6 @@ pub enum IntrinsicOp {
     MapLen,
     MapGet,
     MapRemove,
-    MapIndex,
     MapSet,
     StrIndex,
     /// `a + b` on two strings.
@@ -270,9 +269,6 @@ pub enum IntrinsicOp {
     /// when another owner still holds it (`crates/hd_wasm_linear/DESIGN.md`
     /// §23.20, "Collections").
     ValueCopy,
-    /// `(map, key) -> value`: `MapIndex` for a write through the value
-    /// (`m[k].push(v)`), with the map's buffer made unique first.
-    MapIndexMut,
     /// `(collection) -> collection`: the snapshot a counted `for` over a
     /// list or a map iterates (`flow.for.snapshot`): it shares the
     /// collection's buffer, which a change during the loop copies first.
@@ -285,18 +281,18 @@ pub enum IntrinsicOp {
     /// is a place, `[%m [%e]]` at that number (`ref.elem.map`,
     /// `types.coll.map-value.place`): the checker looks the entry up just
     /// before each read, store or reference of the place, as a list's
-    /// place checks its index there.
+    /// place checks its index there. Entry numbers survive the copy that
+    /// makes a map's table unique; only growth renumbers them.
     MapEntry,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 19] = [
+    pub const ALL: [IntrinsicOp; 17] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::MapLen,
         IntrinsicOp::MapGet,
         IntrinsicOp::MapRemove,
-        IntrinsicOp::MapIndex,
         IntrinsicOp::MapSet,
         IntrinsicOp::StrIndex,
         IntrinsicOp::StrConcat,
@@ -306,7 +302,6 @@ impl IntrinsicOp {
         IntrinsicOp::MapSlotNext,
         IntrinsicOp::MapSlotEntry,
         IntrinsicOp::ValueCopy,
-        IntrinsicOp::MapIndexMut,
         IntrinsicOp::SnapBegin,
         IntrinsicOp::SnapEnd,
         IntrinsicOp::MapEntry,

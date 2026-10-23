@@ -153,19 +153,6 @@ impl Ck<'_, '_> {
             }
             match tag {
                 Tag::Coerce => cur = Ref(data[0]),
-                Tag::Intrinsic
-                    if matches!(
-                        IntrinsicOp::from_u32(data[0]),
-                        Some(IntrinsicOp::MapIndex | IntrinsicOp::MapIndexMut)
-                    ) =>
-                {
-                    let rec = self.b.body_mut().record(data[1]).to_vec();
-                    let [m, k, ..] = rec[..] else {
-                        return None;
-                    };
-                    steps.push(PathStep::Slot(self.path_key(Ref(k))));
-                    cur = Ref(m);
-                }
                 _ => return None,
             }
         }
@@ -221,10 +208,14 @@ impl Ck<'_, '_> {
                 let body = self.b.body_mut();
                 (body.tags[i], body.data[i])
             };
-            if tag != Tag::Coerce {
-                return Key::Unknown;
-            }
-            r = Ref(data[0]);
+            // A map value's entry number stands for its key.
+            r = match (tag, IntrinsicOp::from_u32(data[0])) {
+                (Tag::Coerce, _) => Ref(data[0]),
+                (Tag::Intrinsic, Some(IntrinsicOp::MapEntry)) => {
+                    Ref(self.b.body_mut().record(data[1])[1])
+                }
+                _ => return Key::Unknown,
+            };
         }
         Key::Unknown
     }
@@ -345,9 +336,7 @@ impl Ck<'_, '_> {
         }
         let kr = self.index_key((kr, ktt), *key, kt);
         let ct = self.strip_mut(self.infer.resolve(self.pool(), bt));
-        // Insertion pins the collection before the reference; a map value
-        // on the path is still marked.
-        self.mark_write_path(br);
+        // Insertion pins the collection before the reference.
         Ok(Some(crate::refs::Operand::Place(Place {
             root: Root::Elem(br, kr, ct),
             path: vec![],
@@ -478,7 +467,6 @@ impl Ck<'_, '_> {
         // Each step's reference pins the list (insertion's rule 6), from
         // the step's start to its end, where the reference's binding is
         // dropped: the loop holds no pin of its own.
-        self.mark_write_path(lr);
         let len_l = self
             .b
             .local(us, self.cx.names.syms.intern("$len"), ASSIGNED, at);

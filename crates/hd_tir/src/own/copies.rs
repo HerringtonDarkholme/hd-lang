@@ -30,9 +30,7 @@
 //!
 //! 1. **A store into a whole local** that is changing, or of a value whose
 //!    source is not fixed (a changing local, a global, a dereference, a
-//!    block's or a decision's value). A map value read for a change
-//!    (`MapIndexMut`), held in a local for a `&mut self` call, is the value
-//!    the change must reach, and is never copied. Into a local that is not
+//!    block's or a decision's value). Into a local that is not
 //!    changing, two more cases need no copy: **a header that moves**, a
 //!    read of a local of the body's own at its last access, outside any
 //!    loop, when that local holds a header no other place holds (no
@@ -73,10 +71,9 @@
 //!
 //! **Sources.** A read's source is the local its place is rooted at
 //! (through the values it reads parts of), a global, a dereference, or a
-//! part of a fresh value. A map's `MapIndex`, `MapGet` and `MapSlotEntry`
-//! read what the map's table holds, so their source is the map's own; a
-//! `MapIndexMut` is the map's value that the change must reach
-//! (`Src::Handle`).
+//! part of a fresh value. A map's `MapGet` and `MapSlotEntry` read what
+//! the map's table holds, so their source is the map's own, as a map
+//! value place's is.
 //!
 //! **Placement.** A copy stands right before its use, after every other
 //! edit at that position (`splice::Tables::insert_late`), as the checker's
@@ -138,9 +135,6 @@ pub(crate) enum Src {
     Global,
     /// A read through a dereference: a place this body does not own.
     Deref,
-    /// A map value read for a change (`MapIndexMut`), which the change
-    /// must reach.
-    Handle,
     /// Any other value: a block's or a decision's, a suspension's.
     Other,
 }
@@ -245,7 +239,7 @@ pub(crate) fn is_fresh(b: &Body, i: usize) -> bool {
 }
 
 /// Fills `src` for every instruction of `b`, in order.
-pub(crate) fn sources(b: &Body, src: &mut Vec<Src>) {
+fn sources(b: &Body, src: &mut Vec<Src>) {
     let n = b.len();
     fill(src, n, Src::Other);
     let of = |src: &[Src], v: u32| match Ref(v).as_inst() {
@@ -257,9 +251,8 @@ pub(crate) fn sources(b: &Body, src: &mut Vec<Src>) {
             _ if is_fresh(b, i) => Src::Fresh,
             Tag::Coerce => of(src, b.data[i][0]),
             Tag::Intrinsic => match IntrinsicOp::from_u32(b.data[i][0]) {
-                Some(IntrinsicOp::MapIndexMut) => Src::Handle,
                 // What the map's table holds: a value, or a slot's entry.
-                Some(IntrinsicOp::MapIndex | IntrinsicOp::MapGet | IntrinsicOp::MapSlotEntry) => {
+                Some(IntrinsicOp::MapGet | IntrinsicOp::MapSlotEntry) => {
                     match b.record(b.data[i][1]).first() {
                         Some(&m) => of(src, m),
                         None => Src::Other,
@@ -478,12 +471,7 @@ fn changes(b: &Body, cx: &dyn OwnCx, t: &mut Tables, sub: &[u32]) {
             Tag::Intrinsic
                 if matches!(
                     IntrinsicOp::from_u32(a),
-                    Some(
-                        IntrinsicOp::ListPush
-                            | IntrinsicOp::MapSet
-                            | IntrinsicOp::MapRemove
-                            | IntrinsicOp::MapIndexMut
-                    )
+                    Some(IntrinsicOp::ListPush | IntrinsicOp::MapSet | IntrinsicOp::MapRemove)
                 ) =>
             {
                 if let Some(&coll) = b.record(w).first()
@@ -542,12 +530,7 @@ fn may_change(b: &Body, i: usize) -> bool {
         | Tag::AwaitRace => true,
         Tag::Intrinsic => matches!(
             IntrinsicOp::from_u32(a),
-            Some(
-                IntrinsicOp::ListPush
-                    | IntrinsicOp::MapSet
-                    | IntrinsicOp::MapRemove
-                    | IntrinsicOp::MapIndexMut
-            )
+            Some(IntrinsicOp::ListPush | IntrinsicOp::MapSet | IntrinsicOp::MapRemove)
         ),
         Tag::Ref if w & ref_word::MUT != 0 => true,
         Tag::Store | Tag::Ref => {
@@ -631,9 +614,7 @@ pub(crate) fn decide(
         {
             let src = resolved(t, t.src[v]);
             let lu = l as usize;
-            if src == Src::Handle {
-                t.owns[lu] = false;
-            } else if t.changing[lu] {
+            if t.changing[lu] {
                 mark(ins, v, i, Loc::Data(1), h.ty);
             } else if let Some(receiver) = b.binding(i) {
                 // An inlined parameter takes its argument as the call did

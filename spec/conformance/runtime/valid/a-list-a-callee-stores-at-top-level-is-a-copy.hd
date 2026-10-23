@@ -1,0 +1,23 @@
+# test: a list a callee stores into a top-level binding is a copy of its own, so a later push to the caller's list leaves it unchanged
+# Spec 04 Collection Values: types.coll.value.
+let mut saved: List[usize] = []
+
+fn save(xs: List[usize]) -> usize:
+    saved = xs
+    xs.len()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a push after the call leaves the saved list unchanged"):
+        let mut xs: List[usize] = [7]
+        n := save(xs)
+        xs.push(n)
+        assert_equal(xs, [+7, 1], reason="the caller's list has the push")
+        assert_equal(saved, [+7], reason="the saved copy does not")
+
+    it("a push of the call's result leaves the saved list unchanged"):
+        let mut xs: List[usize] = [7, 8]
+        xs.push(save(xs))
+        assert_equal(xs, [+7, 8, 2], reason="the caller's list has the push")
+        assert_equal(saved, [+7, 8], reason="the saved copy does not")

@@ -5,11 +5,11 @@ app/main/kept
   %3 = Read borrow [$0] : Map[string, List[i64]]
   %4 = Intrinsic MapGet [%3 "a"] : List[i64]?
   %5 = Read borrow [$0] : Map[string, List[i64]]
-  %6 = IsUnique [%5] : ()
-  %7 = Intrinsic MapIndexMut [%5 "a"] : List[i64]
-  %8 = IsUnique [%7] : ()
-  %9 = Intrinsic ListPush [%7 3:i64] : ()
-  %10 = Drop [%7] : ()
+  %6 = Intrinsic MapEntry [%5 "a"] : usize
+  %7 = IsUnique [$0] : ()
+  %8 = IsUnique [$0 [%6]] : ()
+  %9 = Read borrow [$0 [%6]] : List[i64]
+  %10 = Intrinsic ListPush [%9 3:i64] : ()
   %11 = Read borrow [$1] : List[i64]
   %12 = Intrinsic ListLen [%11] : usize
   %13 = Block %12 : usize

@@ -191,7 +191,7 @@ fn copies(b: &Body, errs: &mut Vec<VerifyError>) {
 /// collection, is first read in its sub-body to be copied and stored
 /// back.
 fn header_copies(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
-    use crate::own::copies::{Src, changed_local, is_fresh, place_root, sources, through_deref};
+    use crate::own::copies::{changed_local, is_fresh, place_root, through_deref};
     let n = b.len();
     let mut changing = vec![false; b.local_ty.len()];
     let mut mark = |l: Option<u32>| {
@@ -219,8 +219,6 @@ fn header_copies(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
             _ => {}
         }
     }
-    let mut src = Vec::new();
-    sources(b, &mut src);
     for i in 0..n {
         let Some((l, true)) = b.stored_local(i) else {
             continue;
@@ -231,7 +229,7 @@ fn header_copies(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         if v >= n || is_fresh(b, v) || cx.header_copy(b.ty[v]).is_none() {
             continue;
         }
-        if changing[l.idx()] && src[v] != Src::Handle {
+        if changing[l.idx()] {
             err(
                 errs,
                 u32_of(i),

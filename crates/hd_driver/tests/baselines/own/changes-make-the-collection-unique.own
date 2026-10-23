@@ -49,11 +49,11 @@ fn change(mut rows: List[List[i32]], mut bags: List[Bag], mut m: Map[string, Lis
 >   %26 = IsUnique [%24] : ()
 >   %27 = Intrinsic MapSet [%24 "a" %25] : ()
     m["a"].push(4)
->   %28 = Read move [$2] : Map[string, List[i32]]
->   %29 = IsUnique [%28] : ()
->   %30 = Intrinsic MapIndexMut [%28 "a"] : List[i32]
->   %31 = Drop [%28] : ()
->   %32 = IsUnique [%30] : ()
->   %33 = Intrinsic ListPush [%30 4:i32] : ()
->   %34 = Drop [%30] : ()
+>   %28 = Read borrow [$2] : Map[string, List[i32]]
+>   %29 = Intrinsic MapEntry [%28 "a"] : usize
+>   %30 = IsUnique [$2] : ()
+>   %31 = IsUnique [$2 [%29]] : ()
+>   %32 = Read borrow [$2 [%29]] : List[i32]
+>   %33 = Intrinsic ListPush [%32 4:i32] : ()
+>   %34 = Drop [$2] : ()
 >   exit sub 0 drops [$0 $1 $2]

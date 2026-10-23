@@ -1234,8 +1234,7 @@ body built elsewhere, such as a generated structure method, gets
   source; a value argument whose source may change while the callee runs (an
   aliased local, a dereference, a global, a local a later argument
   changes), copied right after it; a changing parameter on entry; a
-  local a closure captures by value that may share its header. A map
-  value read for a change (`MapIndexMut`) is never copied, and a `mut
+  local a closure captures by value that may share its header. A `mut
   self` view of a collection (`OwnCx::in_place_view`) or a list or map
   receiver (`OwnCx::receiver`) is passed as is;
   then borrow (`own/borrow.rs`): a `copy` read whose value only lends,

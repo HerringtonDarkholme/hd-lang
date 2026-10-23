@@ -33,8 +33,8 @@ enum PowerBase {
 pub(crate) enum Indexed {
     /// A list's element: a place of the list's buffer, `[%xs [%i]]`.
     List,
-    /// A map's value: read with `MapIndex`, a place `[%m [%e]]` for a
-    /// reference or a write (`MapEntry`).
+    /// A map's value: a place of its entry, `[%m [%e]]` at the number
+    /// `MapEntry` finds.
     Map,
     /// A string's byte: `StrIndex`.
     Str,
@@ -1868,8 +1868,8 @@ impl Ck<'_, '_> {
 
     /// The built-in index of a receiver type, its key type and its value
     /// type. A list element is read and written as a place; a map value
-    /// is read with `MapIndex`, replaced with `MapSet`, and referred to or
-    /// written through as a place at its entry (`Ck::elem_index`).
+    /// is replaced with `MapSet`, and read, referred to or written through
+    /// as a place at its entry (`Ck::elem_index`).
     pub(crate) fn index_kind(&mut self, t: Ty) -> Option<(Indexed, Ty, Ty)> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
@@ -1894,8 +1894,8 @@ impl Ck<'_, '_> {
 
     /// The read of built-in index `get` of `base` at the key `key`, of
     /// value type `vt`: a list's element place, `Read [%base [%key]]`
-    /// (`docs/compiler/tir-v2.md`, "Element reads and writes"), or the
-    /// `MapIndex` or `StrIndex` intrinsic.
+    /// (`docs/compiler/tir-v2.md`, "Element reads and writes"), a map's
+    /// value place at the key's entry, or the `StrIndex` intrinsic.
     pub(crate) fn index_read(
         &mut self,
         get: Indexed,
@@ -1904,8 +1904,10 @@ impl Ck<'_, '_> {
         at: hd_base::NodeIdx,
     ) -> Ref {
         let op = match get {
-            Indexed::List => return self.b.element(base, key, vt, at),
-            Indexed::Map => IntrinsicOp::MapIndex,
+            Indexed::List | Indexed::Map => {
+                let index = self.elem_index(base, key, self.b.ty_of(base), at);
+                return self.b.element(base, index, vt, at);
+            }
             Indexed::Str => IntrinsicOp::StrIndex,
         };
         let rec = self.b.refs_record(&[base, key]);

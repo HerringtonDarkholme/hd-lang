@@ -31,7 +31,7 @@
 //! 5. **Uniqueness.** Every in-place change of a collection place gets an
 //!    `IsUnique` of that place just before it: a `Store` through an element
 //!    projection (each list on its path, outermost first), and `ListPush`,
-//!    `MapSet`, `MapRemove`, `MapIndexMut` and an in-place argument
+//!    `MapSet`, `MapRemove` and an in-place argument
 //!    ([`super::Pass::InPlace`], a `mut self` receiver of a collection), of
 //!    their collection operand. A change goes through the reads its place
 //!    or operand was made from (`xs[i].push(v)` pushes to the element that
@@ -967,7 +967,7 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
             Tag::Intrinsic
                 if matches!(
                     IntrinsicOp::from_u32(a),
-                    Some(IntrinsicOp::MapSet | IntrinsicOp::MapRemove | IntrinsicOp::MapIndexMut)
+                    Some(IntrinsicOp::MapSet | IntrinsicOp::MapRemove)
                 ) =>
             {
                 let Some(&coll) = b.record(w).first() else {
@@ -1020,8 +1020,11 @@ fn changes(b: &Body, cx: &dyn OwnCx, t: &mut Tables, i: usize) {
         let root = (b.tags[r] == Tag::Read && t.blk[r] != NONE)
             .then(|| root_local(b, b.data[r][0]))
             .flatten();
-        let rooted = root.is_some() && t.start[r + 1] - t.start[r] == 1;
         let still = t.blk[r] == t.blk[i] && (r + 1..i).all(|x| quiet(b, x));
+        // A write between may renumber a map's entries.
+        let rooted = root.is_some()
+            && t.start[r + 1] - t.start[r] == 1
+            && (still || !map_step(b, t, b.data[r][0]));
         t.tracked[r] &= still || !rooted;
         let kind = rooted.then_some(still);
         t.changes.push((u32_of(i), w + 1 + u32_of(k), v, kind));
@@ -1068,6 +1071,19 @@ fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change
     }
 }
 
+/// Whether the place at `word` has a map value step: an element step at a
+/// `MapEntry`'s number.
+fn map_step(b: &Body, t: &mut Tables, word: u32) -> bool {
+    path_lists(b, t, word);
+    t.elems.iter().any(|&x| {
+        Ref(b.extra[x as usize + 1]).as_inst().is_some_and(|e| {
+            let e = e.0 as usize;
+            b.tags[e] == Tag::Intrinsic
+                && IntrinsicOp::from_u32(b.data[e][0]) == Some(IntrinsicOp::MapEntry)
+        })
+    })
+}
+
 /// Whether instruction `x` can neither write a place nor call: a read, an
 /// arithmetic step, a coercion or a construction.
 fn quiet(b: &Body, x: usize) -> bool {
@@ -1093,9 +1109,7 @@ fn value_root(b: &Body, word: u32) -> Option<u32> {
 /// a read of a local, a global, a dereference or no read at all: for each,
 /// an `IsUnique` (and a `Pin`, for a reference) of every list on its path,
 /// outermost first, before the read. A coercion passes its value on, and
-/// a read of a field of a value goes on to that value. A `MapIndexMut` on
-/// the way is a change of its own, which rule 5 makes unique where it
-/// stands.
+/// a read of a field of a value goes on to that value.
 fn through(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, v: u32, pin: bool) {
     let mut cur = v;
     for _ in 0..64 {

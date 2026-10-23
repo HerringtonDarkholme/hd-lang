@@ -287,8 +287,8 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `m[k]`, `m.get(k)`, `m[k] = v`, `m.remove(k)` and a map value
-    /// place's entry (`MapEntry`): the key is hashed, then its entry probed
+    /// `m.get(k)`, `m[k] = v`, `m.remove(k)` and a map value place's
+    /// entry (`MapEntry`): the key is hashed, then its entry probed
     /// for. The passes' `IsUnique` made the table the map's own before a
     /// change.
     pub(super) fn map_op(&mut self, i: u32, op: IntrinsicOp, args: &[u32]) -> StageResult<()> {
@@ -329,10 +329,7 @@ impl Em<'_, '_, '_> {
             (at, ls)
         };
         let n = e.leaves.len();
-        if matches!(
-            op,
-            IntrinsicOp::MapIndex | IntrinsicOp::MapIndexMut | IntrinsicOp::MapEntry
-        ) {
+        if op == IntrinsicOp::MapEntry {
             // expr.index.map.read-value, types.coll.map-value.missing,
             // ref.elem.map.key
             self.f.get(ent);
@@ -343,14 +340,7 @@ impl Em<'_, '_, '_> {
                 "index-out-of-bounds: map key not found".into(),
             ));
             self.f.op(I::End);
-            if op == IntrinsicOp::MapEntry {
-                self.f.get(ent);
-                return self.store(i);
-            }
-            let (_, vl) = read(self, e.keys, n);
-            for l in vl {
-                self.f.get(l);
-            }
+            self.f.get(ent);
             return self.store(i);
         }
         // `get` and `remove` answer `V?`.
