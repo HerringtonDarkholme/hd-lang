@@ -9,9 +9,11 @@
 //!
 //! A change written through a path (`m[k].push(x)`) marks each map value
 //! read on the path `MapIndexMut`, so the change is made in place and
-//! never by reading the value out and storing it back. A list element read
-//! on the path stays a read: insertion makes each list on a change's path
-//! unique from the reads the change goes through.
+//! never by reading the value out and storing it back. A reference to a
+//! map value, a field write through one and a `&self` or `&mut self` call
+//! on one name the value as a place instead (`types.coll.map-value.place`).
+//! A list element read on the path stays a read: insertion makes each list
+//! on a change's path unique from the reads the change goes through.
 
 use hd_base::LocalId;
 use hd_syntax::NodeRef;
@@ -70,11 +72,14 @@ impl Ck<'_, '_> {
     /// The change about to be written through `r` (a receiver, an index
     /// base) reaches only the collections on its path: each map value read
     /// on it becomes `MapIndexMut`, which makes the map's buffer its own
-    /// first (`types.coll.nested`), since a `&mut self` call on one holds
-    /// it in a local first, where no pass follows it. An element read
-    /// stays a read: insertion makes each list on a change's path unique
-    /// from the reads the change goes through (`docs/compiler/tir-v2.md`,
-    /// stage 2 commit 12b).
+    /// first (`types.coll.nested`). A map value read is an intrinsic, not
+    /// a place, so insertion's walk back through a change's reads stops
+    /// at it: without the mark, `m[k].push(x)` would reach a copy of the
+    /// map that shares its table. An element read stays a read: insertion
+    /// makes each list on a change's path unique from the reads the change
+    /// goes through (`docs/compiler/tir-v2.md`, stage 2 commit 12b). A
+    /// reference to a map value or a write through one is a place, which
+    /// insertion follows itself ([`Ck::elem_index`]).
     pub(crate) fn mark_write_path(&mut self, r: Ref) {
         let mut cur = r;
         for _ in 0..64 {
@@ -311,37 +316,5 @@ impl Ck<'_, '_> {
             self.writable_binding_fix(&binding, short, param, syn);
         }
         false
-    }
-
-    /// The fix-it of `&m[k]` (`types.coll.map-value`): the statement is
-    /// preceded by `let mut entry = m[k]` and refers to `entry` instead.
-    pub(crate) fn map_value_ref_fix(&mut self, e: NodeRef<'_>) {
-        let Some(stmt) = self.cur_stmt else {
-            return;
-        };
-        let src = self.cx.src;
-        let sp = src.span(src.parse.tree.node(stmt));
-        let ep = src.span(e);
-        let text: &str = src.text;
-        let (lo, elo, ehi) = (sp.lo as usize, ep.lo as usize, ep.hi as usize);
-        if elo < lo || ehi > text.len() {
-            return;
-        }
-        let line = text[..lo].rfind('\n').map_or(0, |p| p + 1);
-        let indent = &text[line..lo];
-        if !indent.chars().all(|c| c == ' ') {
-            return;
-        }
-        let at = |lo: u32, hi: u32| hd_base::Span {
-            file: sp.file,
-            lo,
-            hi,
-        };
-        let first = format!("let mut entry = {}\n{indent}", &text[elo..ehi]);
-        self.diags.add_fix(
-            "copy the value into a `let mut` and refer to it",
-            hd_diag::FixSafety::Suggestion,
-            &[(at(sp.lo, sp.lo), first.as_str()), (ep, "entry")],
-        );
     }
 }

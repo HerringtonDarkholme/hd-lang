@@ -469,9 +469,13 @@ stage 2 it is an explicit `IsUnique [*$0]` that the hoisting pass can
 move out of a loop. A whole-element store `xs[i] = v` is
 `Store [$0 [%1]] v`, replacing `ListSet`.
 
-Map values are no places (`m[k].x = v` is an error today and stays one).
-`m[k]` reads stay `MapIndex`, `m[k] = v` stays `MapSet`, and
-`m[k].push(v)` keeps `MapIndexMut`, until stage 3 moves maps to std.
+A map value is a place too (decision E, #494; `ref.elem.map`,
+`types.coll.map-value.place`), with the key's entry in place of the
+index: `m[k].x = v` is `%e = Intrinsic MapEntry [%m %k]` and
+`Store [%m [%e] .x] v`, and `&mut m[k]` is `Ref mut [%m [%e]]`. A plain
+`m[k]` read stays `MapIndex`, `m[k] = v` stays `MapSet` (a new key adds
+an entry), and `m[k].push(v)` keeps `MapIndexMut`, until stage 3 moves
+maps to std ([stage 2's map value places](#map-value-places)).
 
 ### `&` and `&mut`
 
@@ -2792,6 +2796,55 @@ is worth deciding only if they are hot.
     outside a link, so a chain of 1,500 types held by value cost its cube
     (`recursive_layouts::a_large_recursion_group_and_long_chains_of_types`,
     251 s before, 9 s after).
+
+### Map value places
+
+Decision E's second job (#494): map values are places, as list elements
+are.
+
+- **The place.** `Proj::Elem` on a map is the value of an entry, at the
+  entry's number, which `IntrinsicOp::MapEntry` (`(map, key) -> usize`)
+  finds or panics `index-out-of-bounds` for. The checker's `Root::Elem`
+  and `Root::Slot` hold the key, and `Ck::elem_index` emits the lookup
+  just before each `Read`, `Store` or `Ref` of the place, after the
+  stored value is evaluated, so nothing between can move the entry.
+  `m[k].x += 1` looks the key up twice, as `xs[i].x += 1` checks its
+  index twice. `Root::MapValue`, the fix-its that read a map value out
+  and stored it back, and `map-value-not-addressable` on `m[k].x = v` and
+  `&m[k]` are gone; a `for` over `&m` keeps that error
+  (`flow.for.ref.map`).
+- **Receivers.** `peek_place_ty` sees a map value, so a `&self` or
+  `&mut self` call on `m[k]` refers to the value in the map, as on
+  `xs[i]` (`fn.method.auto-address.collection-element`).
+- **The passes are unchanged.** Insertion's rules 5 and 6 find the
+  element projection whatever the collection: an `IsUnique` of the map
+  before a store through its value, and an `IsUnique` and a `Pin` before
+  a reference. `MapEntry` is inert for place folding and hoisting, like
+  `MapIndex`; its use of the map keeps the map's read from folding, so a
+  map value place stays rooted at the map's value, `[%m [%e]]`.
+- **The backend.** A map's header is a list's kind, owner word included.
+  `Em::map_value_at` addresses an entry's value; the element read, store
+  and reference, and the rooted walk, take it for a map. `Pin` gives the
+  header the slot of `rt:map_clone` (a new header over a whole copy of
+  the table), so `ListCopy` of a pinned map copies its table, as for a
+  list. `rt:map_unique` treats a header with an owner word as its
+  table's one owner. A pinned map (`rt:list_pinned`, which reads the
+  same two words) panics `collection-pinned` in `rt:map_put` on a new
+  key and in `MapRemove` on a key it holds; replacing a held key's value
+  keeps the entry and is allowed. Entry numbers survive `rt:map_unique`,
+  which copies the table as it is, and only growth, which a pin forbids,
+  renumbers entries.
+- **`mark_write_path` keeps `MapIndexMut`.** A `&mut self` call on a
+  map value no longer holds the value in a local (the reason #801 gave),
+  but a plain read `m[k]` is still `MapIndex`, which insertion's walk
+  back through a change's reads does not follow. Without the mark,
+  `m[k].push(x)` pushes to a list that a copy of the map shares:
+  `runtime/valid/map-of-lists-nested-push`,
+  `runtime/valid/a-match-binding-of-a-map-list-keeps-its-value` and
+  `tests/std_rt/map_tests.hd` ("the inner lists are apart") fail.
+  Reading map values as places, `Read [%m [%e]]`, would retire
+  `MapIndex`, `MapIndexMut` and the mark together; that is a job of its
+  own.
 
 ## The inliner
 

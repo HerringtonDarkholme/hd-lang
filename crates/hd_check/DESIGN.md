@@ -105,10 +105,12 @@ passes and the backend see `Read [*$0 [%i] .x]`. The checker leaves the
 ownership statements to the passes (docs/compiler/tir-v2.md, stage 2
 commits 12b and 13a): an element reference is a `Ref` of the element
 place and nothing else, and a `for` over element references holds no pin
-of its own (`elem_refs.rs`); `mark_write_path` leaves an element read a
-read and turns only a map value's read into `MapIndexMut`, which a
-`&mut self` call on a map value holds in a local where no pass follows
-it; and the checker writes no collection copy (`ValueCopy`): insertion's
+of its own (`elem_refs.rs`); a map value is a place too, `[%m [%e]]` at
+the entry `MapEntry` finds just before each use (`Ck::elem_index`);
+`mark_write_path` leaves an element read a read and turns only a map
+value's read into `MapIndexMut`, since a read `m[k]` stays an intrinsic
+that insertion does not follow back to the map; and the checker writes
+no collection copy (`ValueCopy`): insertion's
 rule 7 (crates/hd_tir/src/own/copies.rs) makes the header copies from
 the passes' own facts, where a header that may change in place would be
 held by two places.
@@ -1192,8 +1194,8 @@ keeps its `mut`. The binding forms then apply
 A write needs a writable place
 ([Writable Places](../../spec/lang/04-type-system.md#writable-places)): a
 `let mut` binding, a `mut` parameter, `mut self`, a value reached through
-a `&mut` reference, and a struct field or list element of one. The
-checker finds the place of the written expression (`value.rs`,
+a `&mut` reference, and a struct field, list element or map value of
+one. The checker finds the place of the written expression (`value.rs`,
 `refs.rs`) and checks its root at the write:
 
 | Mutation | Error when the place is not writable |
@@ -1201,7 +1203,6 @@ checker finds the place of the written expression (`value.rs`,
 | field write through a `:=` or `using` binding | `non-reassignable-binding` |
 | field write through a parameter or `self` that is not `mut` | `non-reassignable-parameter-binding` |
 | field write through a plain `let`, a call result, a pattern binding or a `&T` | `not-writable` |
-| field write through a map value | `map-value-not-addressable` |
 | `&mut self` method call, element store, changing collection method; a `mut self` method or driving a suspension on a readonly `Suspend[T]` | `not-writable` |
 | argument to a `mut Suspend[T]` parameter | `readonly-argument-to-mutable-parameter` |
 | reassigning a `:=` binding | `non-reassignable-binding` |

@@ -48,19 +48,17 @@ pub(crate) enum Root {
     /// A field of the data value `o`, `[*%o .k]`: the field's index, the
     /// field's type, and the data value's type.
     DataField(Ref, u32, Ty, Ty),
-    /// A slot of a list's buffer (`ref.elem.place`): the list as the
-    /// source read it, the index value, and the list's value type. The
-    /// place is `[%xs [%i]]`; insertion pins the list
+    /// A slot of a list's buffer (`ref.elem.place`) or the value of a
+    /// map's key (`ref.elem.map`): the collection as the source read it,
+    /// the index or key value, and the collection's value type. The place
+    /// is `[%xs [%i]]`, or `[%m [%e]]` at the number `%e` of the key's
+    /// entry ([`Ck::elem_index`]); insertion pins the collection
     /// (`docs/compiler/tir-v2.md`, stage 2 commit 12b).
     Elem(Ref, Ref, Ty),
-    /// A list element that a write names, `xs[i]`, which no reference
-    /// pins: the list value, the index value, the list's type, and the
-    /// index expression.
+    /// A list element or a map value that a write names, `xs[i]` or
+    /// `m[k]`, which no reference pins: the collection value, the index or
+    /// key value, the collection's type, and the index expression.
     Slot(Ref, Ref, Ty, NodeIdx),
-    /// A value of a map, which is no place (`types.coll.map-value`): the
-    /// value read, and the index expression. Only a read reaches it; a
-    /// write through it is reported.
-    MapValue(Ref, NodeIdx),
 }
 
 /// What a place is built for ([`Ck::place_of`]): a reference to it (`&`,
@@ -768,8 +766,9 @@ impl Ck<'_, '_> {
     }
 
     /// The element `e`, `xs[k]`, that a write names: a slot of the list
-    /// `xs` evaluates to, at the evaluated key; a value of a map, which is
-    /// no place; else the value of the index expression.
+    /// `xs` evaluates to, or the value of a map's key
+    /// (`types.coll.map-value.place`), at the evaluated key; else the value
+    /// of the index expression.
     fn slot_operand(&mut self, e: NodeRef<'_>) -> StageResult<Option<Operand>> {
         let kids: Vec<NodeRef<'_>> = e.children().collect();
         let [base, key] = kids.as_slice() else {
@@ -787,14 +786,8 @@ impl Ck<'_, '_> {
                 if get == Indexed::Map || !self.is_range_ty(kt) =>
             {
                 let kr = self.index_key((kr, kt), *key, bkt);
-                let root = if get == Indexed::Map {
-                    let v = self.index_read(get, (br, kr), vt, e.index());
-                    Root::MapValue(v, e.index())
-                } else {
-                    Root::Slot(br, kr, bt, e.index())
-                };
                 Ok(Some(Operand::Place(Place {
-                    root,
+                    root: Root::Slot(br, kr, bt, e.index()),
                     path: vec![],
                     ty: vt,
                 })))
@@ -867,8 +860,6 @@ impl Ck<'_, '_> {
             Root::Elem(list, _, lt) | Root::Slot(list, _, lt, _) => {
                 self.coll_change(list, lt, "a `&mut` element reference", at)
             }
-            // A reference names no map value (`elem_operand`).
-            Root::MapValue(..) => false,
             Root::DataField(_, _, _, dt) => {
                 if self.has_mut_access(dt) {
                     true
@@ -1012,21 +1003,37 @@ impl Ck<'_, '_> {
                 .unwrap_or_else(|| (self.b.read_global(def, ty, n.index()), ty)),
             Root::Deref(r, rt) => self.emit_deref(r, rt, n.index()),
             Root::DataField(o, idx, ft, _) => (self.b.data_field(o, idx, ft, n.index()), ft),
-            Root::Slot(list, index, lt, _) => {
+            Root::Slot(list, key, lt, _) | Root::Elem(list, key, lt) => {
                 let et = self.elem_ty(lt);
+                let index = self.elem_index(list, key, lt, n.index());
                 (self.b.element(list, index, et, n.index()), et)
-            }
-            Root::MapValue(v, _) => (v, self.b.ty_of(v)),
-            Root::Elem(list, i, lt) => {
-                let et = self.elem_ty(lt);
-                (self.b.element(list, i, et, n.index()), et)
             }
         }
     }
 
-    /// The element type of the list type `lt`.
+    /// The element type of the list or map type `lt`.
     fn elem_ty(&mut self, lt: Ty) -> Ty {
         self.index_kind(lt).map_or(Ty::POISON, |(.., vt)| vt)
+    }
+
+    /// The index of the element projection of the collection `coll`, of
+    /// type `ct`, at the index or key `key`: a list's index itself; for a
+    /// map, the number of the key's entry, `MapEntry`, looked up here, just
+    /// before the place's read, store or reference, so nothing between can
+    /// move the entry. A missing key panics there
+    /// (`types.coll.map-value.missing`, `ref.elem.map.key`).
+    pub(crate) fn elem_index(&mut self, coll: Ref, key: Ref, ct: Ty, at: NodeIdx) -> Ref {
+        if !matches!(self.index_kind(ct), Some((Indexed::Map, ..))) {
+            return key;
+        }
+        let rec = self.b.refs_record(&[coll, key]);
+        self.b.emit(
+            Tag::Intrinsic,
+            hd_tir::ir::IntrinsicOp::MapEntry as u32,
+            rec,
+            Ty::prim(hd_types::Prim::Usize),
+            at,
+        )
     }
 
     /// The reference to the place `p`: a `Ref` of the place
@@ -1047,14 +1054,9 @@ impl Ck<'_, '_> {
                 proj.extend([Proj::Deref, Proj::Field(idx)]);
                 PlaceRoot::Value(o)
             }
-            // A write's places; no reference takes them.
-            Root::Slot(list, index, ..) => {
+            Root::Slot(list, key, lt, _) | Root::Elem(list, key, lt) => {
+                let index = self.elem_index(list, key, lt, n.index());
                 proj.push(Proj::Elem(index));
-                PlaceRoot::Value(list)
-            }
-            Root::MapValue(v, _) => PlaceRoot::Value(v),
-            Root::Elem(list, i, _) => {
-                proj.push(Proj::Elem(i));
                 PlaceRoot::Value(list)
             }
         };
@@ -1094,11 +1096,7 @@ impl Ck<'_, '_> {
                 let _ = self.global_read(s, n);
             }
             // A value root was read when it was evaluated.
-            Root::Deref(..)
-            | Root::DataField(..)
-            | Root::Slot(..)
-            | Root::MapValue(..)
-            | Root::Elem(..) => {}
+            Root::Deref(..) | Root::DataField(..) | Root::Slot(..) | Root::Elem(..) => {}
         }
     }
 

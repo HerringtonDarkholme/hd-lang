@@ -1,10 +1,7 @@
 //! The errors of collection values (spec/lang/04-type-system.md,
 //! "Collection Values") each carry a fix-it: a change to a list that is
 //! no writable place makes its binding writable (`types.coll.writable.call`,
-//! `types.coll.writable.store`), a field write through a map value reads,
-//! changes and stores the value (`types.coll.map-value.field`), and a
-//! reference to a map value refers to a copy (`types.coll.map-value.ref`).
-//! Each fixed program checks clean.
+//! `types.coll.writable.store`). Each fixed program checks clean.
 
 use hd_diag::{Code, DiagBuf};
 use hd_driver::{Executor, Goal, Host, NoClock, build};
@@ -82,16 +79,6 @@ fn each_fix_makes_the_program_check_clean() {
             "fn f(xs: List[i32]) -> usize:\n    xs.push(2)\n    xs.len()\n",
             Code::NotWritable,
             "fn f(mut xs: List[i32])",
-        ),
-        (
-            "fn f() -> i32:\n    let mut m: Map[string, Point] = {}\n    m[\"a\"] = Point { x: 1, y: 2 }\n    m[\"a\"].x = 5\n    m[\"a\"].x\n",
-            Code::MapValueNotAddressable,
-            "    let mut entry = m[\"a\"]\n    entry.x = 5\n    m[\"a\"] = entry\n",
-        ),
-        (
-            "fn f() -> i32:\n    let mut m: Map[string, Point] = {}\n    m[\"a\"] = Point { x: 1, y: 2 }\n    r := &m[\"a\"]\n    r.x\n",
-            Code::MapValueNotAddressable,
-            "    let mut entry = m[\"a\"]\n    r := &entry\n",
         ),
     ];
     for (body, code, fixed) in cases {

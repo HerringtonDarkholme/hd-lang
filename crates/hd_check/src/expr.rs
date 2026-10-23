@@ -33,7 +33,8 @@ enum PowerBase {
 pub(crate) enum Indexed {
     /// A list's element: a place of the list's buffer, `[%xs [%i]]`.
     List,
-    /// A map's value, which is no place: `MapIndex`.
+    /// A map's value: read with `MapIndex`, a place `[%m [%e]]` for a
+    /// reference or a write (`MapEntry`).
     Map,
     /// A string's byte: `StrIndex`.
     Str,
@@ -1866,8 +1867,9 @@ impl Ck<'_, '_> {
     }
 
     /// The built-in index of a receiver type, its key type and its value
-    /// type. A list element is read and written as a place, a map value
-    /// is read with `MapIndex` and written with `MapSet`.
+    /// type. A list element is read and written as a place; a map value
+    /// is read with `MapIndex`, replaced with `MapSet`, and referred to or
+    /// written through as a place at its entry (`Ck::elem_index`).
     pub(crate) fn index_kind(&mut self, t: Ty) -> Option<(Indexed, Ty, Ty)> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
@@ -2137,6 +2139,16 @@ impl Ck<'_, '_> {
         let list = self.cx.names.known.list;
         match pool.get(self.strip_mut(list_ty)) {
             TyData::Adt { def, args } if def == list => pool.list_items(args).first().copied(),
+            _ => None,
+        }
+    }
+
+    /// The value type of the map type `map_ty`, `mut` or not.
+    pub(crate) fn map_value_item(&self, map_ty: Ty) -> Option<Ty> {
+        let pool = self.pool();
+        let map = self.cx.names.known.map;
+        match pool.get(self.strip_mut(map_ty)) {
+            TyData::Adt { def, args } if def == map => pool.list_items(args).get(1).copied(),
             _ => None,
         }
     }

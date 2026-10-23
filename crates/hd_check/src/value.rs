@@ -2,8 +2,8 @@
 //! A struct value has no identity, so a field write changes only the
 //! writable place it names: a `let mut` local or top-level binding, a
 //! field of a data value with mutable access, what a `&mut` refers to, a
-//! list element, or a struct field of one of these
-//! (`types.value.writable-forms`).
+//! list element, a map value (`types.coll.map-value.place`), or a struct
+//! field of one of these (`types.value.writable-forms`).
 //!
 //! The written place comes from the syntax ([`Ck::place_of`]), not from
 //! the instructions a read of it emitted: `a.b.x = v` is one
@@ -11,7 +11,9 @@
 //! the other fields keep their values and no struct on the path is
 //! rebuilt. A field through a reference is `Store [*%r .b .x] v`, a field
 //! of a data value `Store [*%o .b .x] v`, a top-level binding's
-//! `Store [@g .b .x] v`, a list element's `Store [%xs [%i] .b .x] v`.
+//! `Store [@g .b .x] v`, a list element's `Store [%xs [%i] .b .x] v`, a
+//! map value's `Store [%m [%e] .b .x] v` at the number `%e` of the key's
+//! entry (`MapEntry`).
 
 use hd_base::{DefId, LocalId, StageResult};
 use hd_diag::Code;
@@ -40,7 +42,7 @@ impl Ck<'_, '_> {
             return Ok(());
         };
         self.check_field_visible(bt, name, lhs);
-        if !self.place_writable_for_field(&place, (base, lhs, s)) {
+        if !self.place_writable_for_field(&place, (base, lhs)) {
             return Ok(());
         }
         place.path.push((idx, ft));
@@ -60,13 +62,13 @@ impl Ck<'_, '_> {
     }
 
     /// Whether a struct field of the place `p`, which `base` names, may be
-    /// written by the statement `stmt` whose target is `at`; reports why
-    /// not otherwise. A local root is read here, as a read of `base`
+    /// written by a statement whose target is `at`; reports why not
+    /// otherwise. A local root is read here, as a read of `base`
     /// would.
     fn place_writable_for_field(
         &mut self,
         p: &Place,
-        (base, at, stmt): (NodeRef<'_>, NodeRef<'_>, NodeRef<'_>),
+        (base, at): (NodeRef<'_>, NodeRef<'_>),
     ) -> bool {
         match p.root {
             Root::Local(l, d) => {
@@ -120,12 +122,6 @@ impl Ck<'_, '_> {
             }
             // A write names no pinned element (`PlaceUse::Write`).
             Root::Elem(..) => true,
-            // A map value is no place (`types.coll.map-value`).
-            Root::MapValue(_, e) => {
-                let value = self.cx.src.parse.tree.node(e);
-                self.map_value_write(at, stmt, value);
-                false
-            }
         }
     }
 
@@ -187,11 +183,16 @@ impl Ck<'_, '_> {
                 self.store_ref_field(r, &place.path, v, s);
                 return;
             }
-            // `[%xs [%i] .p .x]`: the field of the list's slot.
-            Root::Slot(list, index, ..) => (
-                PlaceRoot::Value(list),
-                std::iter::once(Proj::Elem(index)).chain(fields).collect(),
-            ),
+            // `[%xs [%i] .p .x]`: the field of the list's slot; `[%m [%e]
+            // .p .x]`, of the map's value at the key's entry, looked up
+            // after the stored value is evaluated.
+            Root::Slot(list, key, lt, _) => {
+                let index = self.elem_index(list, key, lt, at);
+                (
+                    PlaceRoot::Value(list),
+                    std::iter::once(Proj::Elem(index)).chain(fields).collect(),
+                )
+            }
             Root::Local(l, d) => {
                 self.note_write(l, d);
                 if self.mut_params.contains(&l) {
@@ -208,48 +209,10 @@ impl Ck<'_, '_> {
                     .collect(),
             ),
             // Reported by `place_writable_for_field`.
-            Root::MapValue(..) | Root::Elem(..) => return,
+            Root::Elem(..) => return,
         };
         let word = self.b.place(&TirPlace { root, proj });
         self.b.emit(Tag::Store, word, v.0, Ty::VOID, at);
-    }
-
-    /// `types.coll.map-value`: a write into a map value's field. A map
-    /// value moves when the map rehashes, so it is no place; the fix-it
-    /// reads the value, changes it and stores it back.
-    fn map_value_write(&mut self, at: NodeRef<'_>, stmt: NodeRef<'_>, value: NodeRef<'_>) {
-        self.err(
-            Code::MapValueNotAddressable,
-            at,
-            "a map value is no place, so its fields cannot change in the map; read it, change it and store it back, or keep `&mut` values in the map",
-        );
-        // `m[k].x = v` becomes `let mut entry = m[k]`, `entry.x = v`,
-        // `m[k] = entry`, each on its own line at the statement's indent.
-        let src = self.cx.src;
-        let (sp, vp) = (src.span(stmt), src.span(value));
-        let text: &str = src.text;
-        let (lo, hi, vlo, vhi) = (
-            sp.lo as usize,
-            sp.hi as usize,
-            vp.lo as usize,
-            vp.hi as usize,
-        );
-        if vlo != lo || vhi > hi || hi > text.len() {
-            return;
-        }
-        let line = text[..lo].rfind('\n').map_or(0, |p| p + 1);
-        let indent = &text[line..lo];
-        if !indent.chars().all(|c| c == ' ') {
-            return;
-        }
-        let place = &text[vlo..vhi];
-        let rest = &text[vhi..hi];
-        let new = format!("let mut entry = {place}\n{indent}entry{rest}\n{indent}{place} = entry");
-        self.diags.add_fix(
-            "read the value, change it and store it back",
-            hd_diag::FixSafety::Suggestion,
-            &[(sp, new.as_str())],
-        );
     }
 }
 

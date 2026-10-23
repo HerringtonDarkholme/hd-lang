@@ -1,0 +1,15 @@
+# @dump: own
+# A map value is a place (`ref.elem.map`, `types.coll.map-value.place`):
+# `MapEntry` looks the key's entry up just before each reference or store
+# of the value. Insertion makes the map unique and pins it before the
+# reference, and makes it unique before the store, as for a list element.
+struct Stock:
+    count: i32
+
+fn add(stock: &mut Stock, n: i32) -> void:
+    stock.count += n
+
+fn restock(mut shelves: Map[string, Stock], name: string) -> Map[string, Stock]:
+    add(&mut shelves[name], 1)
+    shelves[name].count = 5
+    shelves

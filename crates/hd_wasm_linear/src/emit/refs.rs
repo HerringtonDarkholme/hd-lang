@@ -599,6 +599,12 @@ impl Em<'_, '_, '_> {
                 let o = self.start_values(st)?[0];
                 (Base::At(self.offset_local(o, off)), ft)
             }
+            // A map's value at entry `ix` (`ref.elem.map`).
+            (st, Head::Elem(ix)) if self.is_map(self.start_ty(st)) => {
+                let h = self.start_values(st)?[0];
+                let (vt, at) = self.map_value_at(h, self.start_ty(st), ix)?;
+                (Base::At(at), vt)
+            }
             (st, Head::Elem(ix)) => {
                 let (et, e) = self.elem(self.start_ty(st))?;
                 let h = self.start_values(st)?[0];
@@ -1483,6 +1489,15 @@ impl Em<'_, '_, '_> {
                 k = next;
                 continue;
             };
+            // A map's value at entry `ix` (`ref.elem.map`).
+            if self.is_map(ty) {
+                let h = self.at_i32(&at)?;
+                let (vt, a) = self.map_value_at(h, ty, ix.0)?;
+                at = At::Mem(a, 0);
+                ty = vt;
+                k += 1;
+                continue;
+            }
             let (et, e) = self.elem(ty)?;
             let h = self.at_i32(&at)?;
             let b = self.buffer(h);
@@ -1528,6 +1543,7 @@ impl Em<'_, '_, '_> {
         while k < steps.len() {
             match steps[k] {
                 Proj::Field(f) => ty = self.path_step(ty, f)?.0,
+                Proj::Elem(_) if self.is_map(ty) => ty = self.entry(ty)?.1,
                 Proj::Elem(_) => ty = self.elem(ty)?.0,
                 Proj::Deref => match self.kind(ty) {
                     Kind::Ref { target, .. } => ty = target,
