@@ -20,7 +20,17 @@ use std::task::Poll;
 
 use hd_run::Grants;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
-use tokio::process::{Child, ChildStdin, Command};
+#[cfg(not(windows))]
+use tokio::process::Child;
+use tokio::process::{ChildStdin, Command};
+
+#[cfg(windows)]
+use process_wrap::tokio::{ChildWrapper, CommandWrap, JobObject};
+
+#[cfg(windows)]
+type ProcessChild = Box<dyn ChildWrapper>;
+#[cfg(not(windows))]
+type ProcessChild = Child;
 
 use crate::abi::{Command as Call, ProcessError, ProcessOutput};
 use crate::codec::{Dec, Enc, Wire, encode};
@@ -204,7 +214,20 @@ async fn run_child(request: &Request) -> io::Result<Output> {
     // The program's environment, then the pairs in order: a later pair for a
     // name wins.
     command.envs(request.env.iter().map(|(name, value)| (name, value)));
+    // JobObject suspends the child until it belongs to the Job, so even
+    // its first descendant inherits membership. Do not add KillOnDrop:
+    // Group explicitly kills on abort, but normal exit leaves descendants.
+    #[cfg(windows)]
+    let mut child = CommandWrap::from(command).wrap(JobObject).spawn()?;
+    #[cfg(not(windows))]
     let mut child = command.spawn()?;
+    #[cfg(windows)]
+    let (stdin, stdout, stderr) = (
+        child.stdin().take(),
+        child.stdout().take(),
+        child.stderr().take(),
+    );
+    #[cfg(not(windows))]
     let (stdin, stdout, stderr) = (child.stdin.take(), child.stdout.take(), child.stderr.take());
     let mut group = Group::new(child);
     let piped = pipes(feed(stdin, &request.input), drain(stdout), drain(stderr)).await;
@@ -295,12 +318,12 @@ async fn pipes(
 /// reaped. Dropping it before then, as an abort drops the task, kills the
 /// tree and leaves the child to a task that reaps it.
 struct Group {
-    child: Option<Child>,
+    child: Option<ProcessChild>,
     tree: Tree,
 }
 
 impl Group {
-    fn new(child: Child) -> Group {
+    fn new(child: ProcessChild) -> Group {
         let tree = Tree::of(&child);
         Group {
             child: Some(child),
@@ -322,11 +345,20 @@ impl Group {
         let Some(child) = &mut self.child else {
             return Err(io::Error::other("the child was already reaped"));
         };
-        let status = child.wait().await?;
+        let status = wait_child(child).await?;
         self.child = None;
         self.tree.release();
         Ok(status_value(status))
     }
+}
+
+/// Wait only for the direct child. The Windows Job wrapper's own wait
+/// also waits for detached descendants, which normal exit leaves alive.
+async fn wait_child(child: &mut ProcessChild) -> io::Result<ExitStatus> {
+    #[cfg(windows)]
+    return child.inner_mut().wait().await;
+    #[cfg(not(windows))]
+    child.wait().await
 }
 
 /// The status a program sees: the exit code, or on Unix 128 plus the number
@@ -349,7 +381,7 @@ impl Drop for Group {
         // The runtime started before this child did.
         if let Ok(runtime) = crate::runtime::io::handle() {
             runtime.spawn(async move {
-                let _ = child.wait().await;
+                let _ = wait_child(&mut child).await;
             });
         }
     }
@@ -385,52 +417,18 @@ impl Tree {
     }
 }
 
-/// On Windows the child is assigned to a Job object that kills every
-/// process in it when it closes. A child the job cannot take is killed
-/// alone. Processes the child starts before it is assigned are not in
-/// the job.
-#[cfg(windows)]
-struct Tree(Option<win32job::Job>);
-
-#[cfg(windows)]
-impl Tree {
-    fn of(child: &Child) -> Tree {
-        Tree(child.raw_handle().and_then(|handle| {
-            let mut limits = win32job::ExtendedLimitInfo::new();
-            limits.limit_kill_on_job_close();
-            let job = win32job::Job::create_with_limit_info(&limits).ok()?;
-            job.assign_process(handle as isize).ok()?;
-            Some(job)
-        }))
-    }
-
-    /// Closing the job kills the child and its descendants.
-    fn kill(&mut self, child: &mut Child) {
-        if self.0.take().is_none() {
-            let _ = child.start_kill();
-        }
-    }
-
-    /// The child ended on its own: descendants it left keep running, as
-    /// on Unix, so the job closes without killing them.
-    fn release(&mut self) {
-        if let Some(job) = self.0.take() {
-            let _ = job.set_extended_limit_info(&win32job::ExtendedLimitInfo::new());
-        }
-    }
-}
-
-/// Elsewhere only the direct child is killed.
-#[cfg(not(any(unix, windows)))]
+/// The Windows wrapper already owns the Job before the child is resumed;
+/// its `start_kill` kills the Job. Elsewhere it kills only the direct child.
+#[cfg(not(unix))]
 struct Tree;
 
-#[cfg(not(any(unix, windows)))]
+#[cfg(not(unix))]
 impl Tree {
-    fn of(_child: &Child) -> Tree {
+    fn of(_child: &ProcessChild) -> Tree {
         Tree
     }
 
-    fn kill(&mut self, child: &mut Child) {
+    fn kill(&mut self, child: &mut ProcessChild) {
         let _ = child.start_kill();
     }
 
