@@ -7,11 +7,12 @@
 //!
 //! A handle's timeout bounds its `read`, `accept` and `receive` with a
 //! tokio timer of host time (`std-net.timeout.host-time`). When the timer
-//! ends first, the wait is dropped, so it took nothing, and one
-//! non-blocking tracked socket operation returns buffered input or
-//! `Timeout` (`std-net.timeout.error`). These probes keep Tokio/Mio's
-//! readiness bookkeeping: bypassing it with raw socket reads can leave a
-//! Windows socket unable to report its next arrival.
+//! ends first, the wait is dropped, so it took nothing, and a nonblocking
+//! probe returns queued input or `Timeout` (`std-net.timeout.error`). UDP
+//! probes the actual kernel queue before waiting and at the deadline:
+//! cached readiness alone cannot prove that queue empty. A negative UDP
+//! probe still follows the managed Tokio/Mio path, whose actual
+//! `WouldBlock` results re-arm Windows readiness before further waiting.
 
 use std::io;
 use std::net::{Ipv6Addr, Shutdown, SocketAddr};
@@ -445,9 +446,36 @@ async fn send_to(socket: &Udp, host: &str, port: u16, bytes: &[u8]) -> Result<Go
     }
 }
 
-/// The next whole datagram and its sender. As `read`, the buffer is made
-/// only once a datagram is there.
+/// Probe the nonblocking kernel socket, without treating Tokio's cached
+/// readiness as evidence that its receive queue is empty. The temporary
+/// duplicate shares the queue and nonblocking mode, but registers no new
+/// reactor interest. It lets safe std receive bytes and their sender
+/// together, without unsafe conversions of socket2's uninitialized buffer.
+fn receive_queued(socket: &Udp) -> Result<Option<(Vec<u8>, SocketAddr)>, NetError> {
+    let probe: std::net::UdpSocket = socket2::SockRef::from(&socket.socket)
+        .try_clone()
+        .map_err(|error| socket_error(&error, "recvmsg", None, "", 0))?
+        .into();
+    let mut bytes = vec![0; CHUNK];
+    loop {
+        match probe.recv_from(&mut bytes) {
+            Ok((n, peer)) => {
+                bytes.truncate(n);
+                return Ok(Some((bytes, peer)));
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(None),
+            Err(error) => return Err(socket_error(&error, "recvmsg", None, "", 0)),
+        }
+    }
+}
+
+/// The next whole datagram and its sender. Already queued input is read
+/// before waiting for a readiness notification.
 async fn receive(socket: &Udp) -> Result<(Vec<u8>, SocketAddr), NetError> {
+    if let Some(queued) = receive_queued(socket)? {
+        return Ok(queued);
+    }
     let mut bytes = Vec::new();
     loop {
         if let Err(error) = socket.socket.readable().await {
@@ -469,11 +497,14 @@ async fn receive(socket: &Udp) -> Result<(Vec<u8>, SocketAddr), NetError> {
     }
 }
 
-/// A bounded receive whose bound ended: observe queued input, then take a
-/// datagram or return `Timeout`. Keep the operation inside Tokio/Mio:
-/// Windows must re-arm readiness after `WouldBlock`, including after a
-/// previous receive timed out. Raw socket reads bypass that bookkeeping.
+/// A bounded receive whose bound ended: inspect the actual queue before
+/// deciding `Timeout`. A negative kernel probe still follows the tracked
+/// path: Windows must re-arm Mio after an actual `WouldBlock` whenever
+/// cached readiness indicated that the socket was readable.
 async fn receive_now(socket: &Udp) -> Result<(Vec<u8>, SocketAddr), NetError> {
+    if let Some(queued) = receive_queued(socket)? {
+        return Ok(queued);
+    }
     observe_readiness(socket.socket.ready(tokio::io::Interest::READABLE))
         .await
         .map_err(|error| socket_error(&error, "recvmsg", None, "", 0))?;
@@ -493,6 +524,84 @@ mod tests {
     use super::{NetError, connect_candidates};
     use crate::net::test_support::{reserved_refused_port, runtime};
     use std::net::TcpListener;
+
+    fn queued_udp_after_timeout() -> (
+        tokio::runtime::Runtime,
+        std::sync::Arc<super::Udp>,
+        std::net::UdpSocket,
+    ) {
+        use std::sync::Arc;
+        use std::time::{Duration, Instant};
+
+        let runtime = runtime();
+        let socket = runtime.block_on(async {
+            let socket = super::Udp {
+                socket: tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap(),
+                ipv6: false,
+                unread: std::sync::Mutex::default(),
+            };
+            let socket = Arc::new(socket);
+            let expired = super::Job::Receive {
+                socket: Arc::clone(&socket),
+                handle: 1,
+                max: 8,
+                bound: Some(Duration::from_millis(50)),
+            }
+            .run()
+            .await;
+            assert!(matches!(expired.result, Err(NetError::Timeout)));
+            socket
+        });
+        let peer = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+        let address = socket.socket.local_addr().unwrap();
+        peer.send_to(b"queued", address).unwrap();
+        let until = Instant::now() + Duration::from_secs(10);
+        let mut probe = [std::mem::MaybeUninit::<u8>::uninit(); 6];
+        loop {
+            match socket2::SockRef::from(&socket.socket).peek_from(&mut probe) {
+                Ok((n, from)) => {
+                    assert_eq!(n, 6);
+                    assert_eq!(from.as_socket(), Some(peer.local_addr().unwrap()));
+                    break;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(Instant::now() < until, "the datagram reaches the kernel");
+                    std::thread::yield_now();
+                }
+                Err(error) => panic!("peeking at the queued datagram: {error}"),
+            }
+        }
+        (runtime, socket, peer)
+    }
+
+    #[test]
+    fn expired_udp_receive_probes_kernel_queue_without_cached_readiness() {
+        let (runtime, socket, peer) = queued_udp_after_timeout();
+        // Handle::block_on does not drive this current-thread runtime's
+        // I/O. The non-waiting deadline probe must inspect the kernel even
+        // when Tokio has not observed the newly queued datagram yet.
+        let received = runtime.handle().block_on(super::receive_now(&socket));
+        let (bytes, from) = received.expect("a queued datagram is not a timeout");
+        assert_eq!(bytes, b"queued");
+        assert_eq!(from, peer.local_addr().unwrap());
+    }
+
+    #[test]
+    fn udp_receive_entry_reads_kernel_queue_without_cached_readiness() {
+        use std::task::{Context, Poll, Waker};
+
+        let (runtime, socket, peer) = queued_udp_after_timeout();
+        let _entered = runtime.enter();
+        let mut receive = std::pin::pin!(super::receive(&socket));
+        let mut context = Context::from_waker(Waker::noop());
+        let Poll::Ready(received) = receive.as_mut().poll(&mut context) else {
+            panic!("queued input must be probed before waiting for readiness");
+        };
+        let (bytes, from) = received.expect("the queued receive completes");
+        assert_eq!(bytes, b"queued");
+        assert_eq!(from, peer.local_addr().unwrap());
+    }
 
     #[test]
     fn connection_candidates_advance_on_local_refusal_and_keep_the_first_error() {
