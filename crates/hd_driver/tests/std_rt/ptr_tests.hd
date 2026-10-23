@@ -3,7 +3,7 @@
 # module, so the conformance runner adds this file to std as
 # `std.rt.ptr_tests` and runs its cases on the linear backend
 # (crates/hd_driver/tests/conformance.rs, `STD_RT_TESTS`).
-use std.rt.memory.{Ptr, grow, load_u8, load_u32, pages, size_of, store_u32}
+use std.rt.memory.{Buffer, Ptr, grow, load_u8, load_u32, new_string, pages, size_of, store_u32, string_bytes}
 use std.rt.checked.released
 
 struct Body:
@@ -18,6 +18,22 @@ fn fresh_page() -> usize:
 
 fn label(n: i32) -> string:
     "n$n"
+
+fn peek(p: Ptr[string]) -> string:
+    text := p.read()
+    p.write(text)
+    text
+
+fn listed(p: Ptr[List[string]]) -> List[string]:
+    xs := p.read()
+    p.write(xs)
+    xs
+
+fn count(p: Ptr[List[string]]) -> usize:
+    xs := p.read()
+    n := xs.len()
+    p.write(xs)
+    n
 
 tests:
     use std.testing.{assert, it}
@@ -103,3 +119,77 @@ tests:
         # The checked runtime never reuses a block (crates/hd_wasm_linear/DESIGN.md §23.24).
         if released() == 0:
             assert(pages() <= start + 1, "each value read back is released")
+
+    it("a read written back leaves the value in the heap"):
+        at := fresh_page()
+        let p: Ptr[string] = Ptr { address: at }
+        p.write(label(+5))
+        assert(peek(p) == "n5", "the copy reads the value")
+        assert(peek(p) == "n5", "the heap still holds it")
+        let q: Ptr[List[string]] = Ptr { address: at + 16 }
+        q.write([label(+1), label(+2)])
+        assert(count(q) == 2, "the borrow reads the list")
+        let mut ys = listed(q)
+        ys.push(label(+3))
+        assert(ys.len() == 3 && count(q) == 2, "a change of the copy misses the heap")
+        assert(q.read().len() == 2, "the heap still holds it")
+        assert(p.read() == "n5", "the string is still there too")
+
+    it("reads written back run in bounded memory"):
+        at := fresh_page()
+        let p: Ptr[string] = Ptr { address: at }
+        p.write(label(+7))
+        let q: Ptr[List[string]] = Ptr { address: at + 16 }
+        q.write([label(+1)])
+        _ := peek(p)
+        _ := count(q)
+        start := pages()
+        let n = +0
+        while n < 200000:
+            assert(peek(p).len() == 2, "each copy reads back")
+            assert(count(q) == 1, "each borrow reads back")
+            n = n + 1
+        if released() == 0:
+            assert(pages() <= start + 1, "each copy is released")
+        _ := p.read()
+        _ := q.read()
+
+    it("a buffer holds values at its places and drops them with its last count"):
+        let b: Buffer[string] = Buffer::new(3)
+        assert(b.capacity() == 3 && b.len() == 0, "room for three, holding none")
+        b.at(0).write(label(+1))
+        b.at(1).write(label(+2))
+        b.set_len(2)
+        copy := b
+        assert(copy.len() == 2, "a copy is the same buffer")
+        assert(peek(copy.at(1)) == "n2", "the second value")
+        last := b.at(1).read()
+        b.set_len(1)
+        assert(last == "n2" && b.len() == 1, "a value moved out")
+
+    it("buffers run in bounded memory"):
+        _ := Buffer::[List[i32]].new(1)
+        start := pages()
+        let n = +0
+        while n < 100000:
+            let b: Buffer[List[i32]] = Buffer::new(2)
+            b.at(0).write([n, n])
+            b.set_len(1)
+            assert(b.at(0).read().len() == 2, "the value reads back")
+            b.set_len(0)
+            n = n + 1
+        if released() == 0:
+            assert(pages() <= start + 1, "each buffer is freed")
+
+    it("a string's bytes are its text, and a new string holds what is written"):
+        text := label(+42)
+        bytes := string_bytes(text)
+        assert(bytes.read() == 0x6e && bytes.offset(2).read() == 0x32, "n42")
+        assert(text.len() == 3, "the bytes are read while the text lives")
+        fresh := new_string(3)
+        at := string_bytes(fresh)
+        at.write(0x61)
+        at.offset(1).write(0x62)
+        at.offset(2).write(0x63)
+        assert(fresh == "abc" && fresh.len() == 3, "the written bytes")
+        assert(new_string(0) == "", "no bytes is the empty string")

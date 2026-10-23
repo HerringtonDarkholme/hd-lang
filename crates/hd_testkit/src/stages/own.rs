@@ -27,7 +27,7 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
             };
             if let Some(&node) = own.syn.get(k)
                 && let Some((file, lo, hi)) = positions.node_span(item, node)
-                && file == "main.hd"
+                && file == if at.std { STD_CASE } else { "main.hd" }
                 && p.inside(lo as usize, hi as usize)
             {
                 lines.push((lo as usize, line.trim()));
@@ -97,21 +97,31 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
     out.finish()
 }
 
+/// Where a `std` build puts the case: a module beside the runtime modules.
+const STD_CASE: &str = "rt/stage_case.hd";
+
 /// The case module's functions, built as a fixture through the ownership
 /// passes (the default path), with their bodies rendered after them.
 fn build(p: &super::Program, at: super::Build) -> Output {
-    let sources = p.sources();
+    let mut sources = p.sources();
+    let (package, items) = if at.std {
+        sources = hd_driver::std_sources();
+        sources.insert(STD_CASE, &p.text);
+        ("std", "std/rt.stage_case/*")
+    } else {
+        ("app", "app/*")
+    };
     let store = hd_cache::MemoryStore::default();
     let host = Host {
         sources: &sources,
         store: &store,
-        render_tir: &["app/*"],
+        render_tir: &[items],
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
     build_packages(
         &host,
-        "app",
+        package,
         &Packages {
             target: at.target,
             level: if at.release {
@@ -127,7 +137,7 @@ fn build(p: &super::Program, at: super::Build) -> Output {
             ..Packages::default()
         },
         &Goal::Fixture {
-            module: "main".to_owned(),
+            module: if at.std { "rt.stage_case" } else { "main" }.to_owned(),
         },
     )
 }

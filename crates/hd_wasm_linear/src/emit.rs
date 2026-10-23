@@ -1497,6 +1497,9 @@ impl Em<'_, '_, '_> {
             return self.open_inst(i, k);
         }
         match self.b.tags[i as usize] {
+            Tag::Read | Tag::Store if let Some(p) = self.b.ptr_target(i as usize) => {
+                self.ptr_place(i, p)?;
+            }
             // A plain local read, `Read [$l]`.
             Tag::Read if let Some(l) = self.b.local_read(i as usize) => {
                 self.local_read(i, l.idx())?;
@@ -2640,9 +2643,36 @@ impl Em<'_, '_, '_> {
     /// `std.rt.memory`'s intrinsics on the heap, memory 1
     /// (`module.rt.memory.*`): each is one instruction. A load or a store
     /// is little-endian and takes any address; `grow` reads Wasm's `-1` as
-    /// `.None`; `copy` is `memory.copy`, which allows overlap.
+    /// `.None`; `copy` is `memory.copy`, which allows overlap. A new
+    /// buffer is a list's buffer, whose glue drops the values it holds
+    /// (`module.rt.buffer.*`); a string's bytes are its address, and a new
+    /// string of no bytes the static empty one (`module.rt.string.*`).
     fn memory(&mut self, i: u32, key: &str, args: &[u32]) -> StageResult<()> {
         let op = match key {
+            "mem_buffer" => {
+                let (_, elem) = self.elem(self.ty(i))?;
+                self.push(args[0])?;
+                self.f.helper(Helper::ListBuf { elem });
+                return self.store_owned(i);
+            }
+            "mem_string_bytes" => {
+                self.comp(args[0], 0)?;
+                return self.store(i);
+            }
+            "mem_new_string" => {
+                let s = self.f.local(Val::I32);
+                self.f.u32(crate::module::EMPTY);
+                self.f.set(s);
+                self.push(args[0])?;
+                self.f.op(I::If(BlockType::Empty));
+                self.push(args[0])?;
+                self.f.helper(Helper::Str);
+                self.f.set(s);
+                self.f.op(I::End);
+                self.f.get(s);
+                self.push(args[0])?;
+                return self.store_owned(i);
+            }
             "mem_pages" => I::MemorySize(HEAP),
             "mem_grow" => {
                 self.push(args[0])?;
@@ -2679,56 +2709,55 @@ impl Em<'_, '_, '_> {
 
     /// `std.rt.memory`'s typed intrinsics on the heap (`module.rt.ptr.*`).
     /// A `Ptr[T]` is its address, and a `T` there has the layout of a
-    /// list's element of `T`. `read` moves the value out with its count;
-    /// `write` stores a copy, which takes a count of its own as an
-    /// element's does, and releases nothing.
+    /// list's element of `T`, so `size_of` is that size and `offset` one
+    /// multiply and add.
     fn ptr(&mut self, i: u32, key: &str, targs: TyList, args: &[u32]) -> StageResult<()> {
         let Some(&t) = self.pool().list_items(targs).last() else {
             return unsupported("a typed memory intrinsic without its type argument");
         };
-        let t = self.sub(t);
-        let m = crate::layout::mem(self.pool(), self.env(), t)?;
-        if key == "ptr_size_of" {
+        let m = crate::layout::mem(self.pool(), self.env(), self.sub(t))?;
+        if key == "ptr_offset" {
+            self.push(args[0])?;
+            self.push(args[1])?;
             self.f.u32(m.size);
-            return self.store(i);
+            self.f.op(I::I32Mul);
+            self.f.op(I::I32Add);
+        } else {
+            self.f.u32(m.size);
         }
+        self.store(i)
+    }
+
+    /// A `Read` or a `Store` of the place `[ptr %p]`, the `T` at the
+    /// address of pointer `p`, laid out as above. A read loads its leaves:
+    /// a `move` takes the heap's count, a `copy` one more, a `borrow`
+    /// none. A store writes its value as an element store does and drops
+    /// nothing there (`module.rt.ptr.write.over`).
+    fn ptr_place(&mut self, i: u32, p: u32) -> StageResult<()> {
+        let w = self.b.data[i as usize][1];
+        let store = self.b.tags[i as usize] == Tag::Store;
+        let t = if store { self.ty_of(w) } else { self.ty(i) };
+        let m = crate::layout::mem(self.pool(), self.env(), t)?;
         let at = self.f.local(Val::I32);
-        self.comp(args[0], 0)?;
+        self.comp(p, 0)?;
         self.f.set(at);
-        match key {
-            "ptr_offset" => {
+        if !store {
+            for l in &m.leaves {
                 self.f.get(at);
-                self.push(args[1])?;
-                self.f.u32(m.size);
-                self.f.op(I::I32Mul);
-                self.f.op(I::I32Add);
-                self.store(i)
+                self.f.op(l.load(0));
             }
-            "ptr_read" => {
-                for l in &m.leaves {
-                    self.f.get(at);
-                    self.f.op(l.load(0));
-                }
-                self.store_owned(i)
-            }
-            "ptr_write" => {
-                let s = self.slot_src(args[1], t, false)?;
-                self.retain_src(&s, t)?;
-                for (k, l) in m.leaves.iter().enumerate() {
-                    self.store_leaf(
-                        &|em: &mut Self| {
-                            em.f.get(at);
-                            Ok(())
-                        },
-                        0,
-                        *l,
-                        &mut |em: &mut Self| em.src(&s, k),
-                    )?;
-                }
-                self.store(i)
-            }
-            other => unsupported(format!("the intrinsic `{other}`")),
+            return self.store_as(i, w == hd_tir::ir::ReadMode::Move as u32);
         }
+        let s = self.slot_src(w, t, false)?;
+        self.retain_src(&s, t)?;
+        for (k, l) in m.leaves.iter().enumerate() {
+            let address = |em: &mut Self| {
+                em.f.get(at);
+                Ok(())
+            };
+            self.store_leaf(&address, 0, *l, &mut |em: &mut Self| em.src(&s, k))?;
+        }
+        Ok(())
     }
 
     /// The result type `T` of a `Suspend[T]`.

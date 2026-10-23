@@ -1,0 +1,13 @@
+# @dump: own
+# @build: std
+# A write through a pointer stores its value (spec 10,
+# module.rt.ptr.write), so it is the value's consumer: `text` is read
+# there for the last time, the read moves into the store, and no count is
+# taken or given back.
+use std.rt.memory.Ptr
+
+fn keep(p: Ptr[string], n: i32) -> void:
+    text := "n$n"
+    # subject
+    p.write(text)
+

@@ -384,7 +384,7 @@ pub fn open_insts(
         // value and returns its new value ([`outlined_store_local`]). A
         // `Read` rooted elsewhere has no producer.
         let outlined = match b.decode_place(a).map(|p| p.root) {
-            Some(PlaceRoot::Value(_)) => true,
+            Some(PlaceRoot::Value(_) | PlaceRoot::Ptr(_)) => true,
             Some(PlaceRoot::Global(..)) => tag == Tag::Store || b.global_read(i).is_some(),
             _ => outlined_store_local(b, u32::try_from(i).expect("insts")).is_some(),
         };

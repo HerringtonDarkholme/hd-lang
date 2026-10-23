@@ -53,7 +53,12 @@ pub fn holding(pool: &InternPool, env: &dyn ProgramEnv, parts: &[Ty]) -> bool {
 /// The types an object of type `t` holds.
 fn contents(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
     match pool.get(t) {
-        TyData::Adt { def, args } if matches!(env.std_kind(def), StdKind::List | StdKind::Map) => {
+        TyData::Adt { def, args }
+            if matches!(
+                env.std_kind(def),
+                StdKind::List | StdKind::Map | StdKind::Buffer
+            ) =>
+        {
             pool.list_items(args).to_vec()
         }
         TyData::Adt { .. } => match kind(pool, env, t) {
@@ -88,7 +93,7 @@ fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
             TyData::Tuple { .. } => work.extend(tuple_members(pool, t)),
             TyData::Option(inner) => work.push(inner),
             TyData::Adt { def, args } => match env.std_kind(def) {
-                StdKind::List | StdKind::Map => {
+                StdKind::List | StdKind::Map | StdKind::Buffer => {
                     work.extend(pool.list_items(args).iter().copied());
                 }
                 StdKind::Suspend => return true,

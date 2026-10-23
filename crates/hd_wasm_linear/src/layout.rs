@@ -468,7 +468,7 @@ fn mem_one(
         TyData::Option(inner) => enum_mem_by(&[vec![], vec![inner]], part)?.0,
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
-            StdKind::List | StdKind::Map => Mem::address(),
+            StdKind::List | StdKind::Map | StdKind::Buffer => Mem::address(),
             StdKind::Other => match kind(pool, env, t) {
                 Kind::Data(_) | Kind::Boxed | Kind::Ref { fat: false, .. } => Mem::address(),
                 Kind::Ref { fat: true, .. } => record(&[Mem::address(), Mem::address()]).0,
@@ -572,14 +572,7 @@ fn walk_one(
         TyData::Fn { .. } => Some(Walk::Ref(1)),
         TyData::TraitValue { .. } | TyData::Context(_) => Some(Walk::Ref(0)),
         TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
-        TyData::Adt { def, .. }
-            if matches!(
-                env.std_kind(def),
-                StdKind::List | StdKind::Map | StdKind::Suspend
-            ) =>
-        {
-            Some(Walk::Ref(0))
-        }
+        TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Ref(0)),
         TyData::Option(inner) => switch_walk_by(pool, env, &[vec![], vec![inner]], part),
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
@@ -606,14 +599,7 @@ pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     }
     match pool.get(t) {
         TyData::Fn { .. } | TyData::Context(_) => true,
-        TyData::Adt { def, .. }
-            if matches!(
-                env.std_kind(def),
-                StdKind::List | StdKind::Map | StdKind::Suspend
-            ) =>
-        {
-            true
-        }
+        TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => true,
         _ => matches!(kind(pool, env, t), Kind::Data(_) | Kind::Boxed),
     }
 }

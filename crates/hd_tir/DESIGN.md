@@ -563,13 +563,15 @@ in `src/ir.rs`, so every encoding goes through it.
   patched.
 - **Places** (`ir::place`, `Place`; [docs/compiler/tir-v2.md](../../docs/compiler/tir-v2.md#places)).
   A place is a root (a local, a top-level binding and its type, a value,
-  or a tier-2 frame slot) and projections (dereference, field by
+  a tier-2 frame slot, or a pointer's target) and projections (dereference, field by
   declaration index, list element at an index value, enum variant). A
   place word with bit 31 set is a bare local `$n` (bits 0 to 30) with no
   record. Otherwise it is the offset of a place record
   `[len, root kind, root word, (root word 2), projection word ...]`: root
   kinds 0 local (`LocalId`), 1 global (`DefId`, `Ty`), 2 value (`Ref`), 3
-  frame (reserved); a projection word's top two bits are its kind, 00
+  frame (reserved), 4 pointer (`Ref` to a `std.rt.memory.Ptr[T]`: the `T`
+  at its address, written `[ptr %n]`, which the checker makes of `read`
+  and `write`); a projection word's top two bits are its kind, 00
   field (bits 0 to 29 the index), 01 dereference, 10 element (the next
   word is the index `Ref`), 11 variant (bits 0 to 29 the index). A record
   is immutable, so instructions may share one; the wire form remaps a
@@ -1067,11 +1069,12 @@ The verifier checks each of these:
 19. (Unused.)
 20. Every place operand is well formed: it decodes, a local root names a
     local of the body, a value root and each element index precede the
-    user and are visible there, and a frame root occurs only in tier 2.
-21. A `Store` or a mutable `Ref` reaches a writable place: a local or
-    global root, or a dereference or an element among its projections
-    (an element is a slot of the buffer a list header names). A value
-    root is never written in place.
+    user and are visible there, a frame root occurs only in tier 2, and a
+    pointer root is the whole place of a `Read` or a `Store`.
+21. A `Store` or a mutable `Ref` reaches a writable place: a local,
+    global or pointer root, or a dereference or an element among its
+    projections (an element is a slot of the buffer a list header names).
+    A value root is never written in place.
 22. **The checker's TIR has no ownership**: every `Read` has mode `use`,
     no `Ref` takes a count, and there is no `Drop`, `IsUnique`, `Pin`,
     `FlagSet` or `FlagClear`, no `exit_drops`, `unwind_drops`,

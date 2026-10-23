@@ -2983,7 +2983,10 @@ sizes are code lines measured the same way, from Go 1.24.1, Rust 1.97
   `hd_tir` (120); reads and writes through a pointer in the ownership
   passes (120); lowering in `hd_wasm_linear` over the existing element
   slot code (150), and the buffer object kind with its element glue
-  (60).
+  (60). **Done** in two commits: 337 Rust code lines added and 77
+  deleted (260 net) against the 510, and 27 std hd lines against the 70.
+  The checker's 60 were not needed, and the write-back rule took 126 of
+  the passes' 120.
 - **`List` as a buffer address.** Replaces the header and push code of
   `emit/list.rs` (350 of its 1,155), the list kernels of `rt.rs`
   (`list_copy` to `list_buf`, `list_truncate` to `list_grow`: 333 of
@@ -3228,6 +3231,59 @@ list element's layout, so `size_of` is that layout's size. The 13
 programs' Wasm is byte-identical, the web compiler's gzip grows 645 B
 (1,897,145 to 1,897,790), and the std runtime tests gain
 `ptr_tests.hd` (7 cases).
+
+Commit 2 gives the passes a place for a pointer's target: root kind 4,
+whose root word is the `Ptr[T]` value, written `[ptr %p]`. The checker
+makes `p.read()` a `Read [ptr %p]` and `p.write(v)` a `Store [ptr %p]
+%v` (`Ck::emit_call`), so neither is a call any more; `offset` and
+`size_of` stay intrinsic calls. Invariant 20 lets a pointer root be only
+the whole place of a `Read` or a `Store`, and 21 counts it writable. In
+the ownership verifier a pointer's target is behind an address, so it
+overlaps every place a reference can reach, and a read through it
+empties nothing the verifier tracks: std's holding rule
+(`module.rt.ptr.holds`) is what keeps a second read away. Insertion
+reads through a pointer with `move`, which takes the heap's count, and
+a `Store` consumes its value, so move's local rule 1 already moves a
+last use into a write. The emitter (`Em::ptr_place`) loads the leaves
+and counts by the read's mode, and stores with no release of the old
+value. What the plan called cancelling a read written back and
+borrowing through a read is one rule, `pairs::write_backs`, run between
+move and pair cancellation: `x := p.read()` and a later `p.write(x)`
+through a read of the same pointer local, in one block, with only
+reads of other places, stores into unaddressed locals, `Prim`s,
+constructions, drops of other values, the length and string intrinsics
+and calls that may not write between them. The write and its read of
+`x` go. The heap read copies when `x` is read again after the write and
+holds no list or map header (`get`), and borrows when the write was `x`'s last access and every
+other read of it borrows (`len`); `x` is then a binding local as the
+borrow pass makes them: it holds a borrow and leaves the exit set.
+
+The counted buffer is `std.rt.memory.Buffer[T]`, a struct of one private
+address that the backend knows as `StdKind::Buffer` and lays out as one
+counted address: the list buffer of `crates/hd_wasm_linear/DESIGN.md`
+§23.7, made by `ListBuf` with the element glue `DropElems`, counted as
+any counted address is, and traced by the collector as a list's buffer
+is. So the 60 planned lines are plumbing: the kind, its known path, and
+its rows in `layout.rs` and `cycle.rs`. `new` is an intrinsic
+(`mem_buffer`); `capacity`, `len`, `set_len` and `at` are hd over the
+untyped loads and stores and `Ptr`. A copy of a buffer is a retain.
+`List` keeps its header until its own commits. The two string views are
+`string_bytes(text) -> Ptr[u8]` (`mem_string_bytes`: the view's address)
+and `new_string(n) -> string` (`mem_new_string`: a `Str` block, or the
+static empty string for none).
+
+Commit 2 adds 282 Rust code lines and deletes 77, against 455: the
+pointer place, its text form and invariants 59 (`ir.rs` 41,
+`ir/owned.rs` 10, `own.rs` 8), the passes 128 (`write_backs` 126,
+insertion 2), the checker's lowering 12, the emitter 72 (`ptr_place`,
+the buffer and string intrinsics, `layout.rs` and `cycle.rs`), and the
+kind's plumbing 11 (`hd_mono`, `hd_resolve`, `hd_driver`, the three
+`hd_host_abi` keys). The emitter's `read` and `write` arms go, and two
+`layout.rs` matches shrink to one line each. std hd adds 15 code lines. The 13
+programs' Wasm is byte-identical to commit 1's, and the web compiler's
+gzip grows 2,925 B (1,897,790 to 1,900,715). Fixtures: three `own`
+cases built inside std (the stage harness's new `std` build), and
+`ptr_tests.hd` grows to 12 cases.
 
 **Emitted size budget.** hello's Wasm does not change, and each
 bench/study program's release `.wasm` stays within +5% of its size

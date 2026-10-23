@@ -2,7 +2,8 @@
 //! ownership of `crates/hd_wasm_linear/DESIGN.md` §23.16 with releases at
 //! last use (§23.20), made explicit.
 //!
-//! 1. **Modes.** Every `use` read becomes `copy`.
+//! 1. **Modes.** Every `use` read becomes `copy`, but a read through a
+//!    pointer (`[ptr %p]`) is a `move`: it takes the heap's count.
 //! 2. **Temporaries.** An owned value whose one use consumes it, as a
 //!    statement of the value's own block (or as that block's tail, which
 //!    the block's owner takes), is consumed there and gets no `Drop`. Any
@@ -336,7 +337,10 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     uniqueness(b, cx, t, edits);
     for i in 0..n {
         if b.tags[i] == Tag::Read && b.data[i][1] == ReadMode::Use as u32 {
-            b.data[i][1] = ReadMode::Copy as u32;
+            // A read through a pointer moves the value out
+            // (`module.rt.ptr.read`).
+            let ptr = b.ptr_target(i).is_some();
+            b.data[i][1] = if ptr { ReadMode::Move } else { ReadMode::Copy } as u32;
         }
     }
     t.exits.sort_unstable_by_key(|(s, l)| (s.raw(), l.raw()));

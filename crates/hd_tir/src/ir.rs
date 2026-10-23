@@ -483,6 +483,9 @@ pub mod place {
     pub const ROOT_VALUE: u32 = 2;
     /// Root word: a frame slot (tier 2, reserved; the verifier rejects it).
     pub const ROOT_FRAME: u32 = 3;
+    /// Root word: a `Ref` to a `std.rt.memory.Ptr[T]` value; the place is
+    /// the value of `T` at its address.
+    pub const ROOT_PTR: u32 = 4;
     /// A projection word's kind, its top two bits.
     pub const PROJ_KIND: u32 = 3 << 30;
     /// A projection word's payload, bits 0 to 29.
@@ -509,6 +512,10 @@ pub enum PlaceRoot {
     Value(Ref),
     /// A slot of the function's frame (tier 2, reserved): `^n`.
     Frame(u32),
+    /// The value a pointer value addresses (`std.rt.memory.Ptr[T]`):
+    /// `ptr %n`. A `Read` of it moves the value out, and a `Store` into it
+    /// drops nothing (`module.rt.ptr.read`, `module.rt.ptr.write.over`).
+    Ptr(Ref),
 }
 
 /// One step of a place, read left to right.
@@ -552,7 +559,7 @@ impl Place {
     pub fn words(&self) -> Option<Vec<u32>> {
         use place::{
             PROJ_DEREF, PROJ_ELEM, PROJ_FIELD, PROJ_INDEX, PROJ_VARIANT, ROOT_FRAME, ROOT_GLOBAL,
-            ROOT_LOCAL, ROOT_VALUE,
+            ROOT_LOCAL, ROOT_PTR, ROOT_VALUE,
         };
         let mut w = match self.root {
             PlaceRoot::Local(_) if self.proj.is_empty() => return None,
@@ -560,6 +567,7 @@ impl Place {
             PlaceRoot::Global(d, t) => vec![ROOT_GLOBAL, d.raw(), t.0],
             PlaceRoot::Value(r) => vec![ROOT_VALUE, r.0],
             PlaceRoot::Frame(s) => vec![ROOT_FRAME, s],
+            PlaceRoot::Ptr(r) => vec![ROOT_PTR, r.0],
         };
         for p in &self.proj {
             match *p {
@@ -577,7 +585,7 @@ impl Place {
     #[must_use]
     pub fn values(&self) -> Vec<u32> {
         let root = match self.root {
-            PlaceRoot::Value(r) => Some(r.0),
+            PlaceRoot::Value(r) | PlaceRoot::Ptr(r) => Some(r.0),
             _ => None,
         };
         root.into_iter()
@@ -591,15 +599,17 @@ impl Place {
     /// Whether a `Store` or a mutable `Ref` may reach the place: a local
     /// or global root, or a dereference or an element among the
     /// projections. An element is a slot of the buffer a list header
-    /// names, as a dereference is what a reference names. A value root
-    /// is never written in place.
+    /// names, as a dereference is what a reference names, and a pointer's
+    /// target is in the heap. A value root is never written in place.
     #[must_use]
     pub fn writable(&self) -> bool {
-        matches!(self.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
-            || self
-                .proj
-                .iter()
-                .any(|p| matches!(p, Proj::Deref | Proj::Elem(_)))
+        matches!(
+            self.root,
+            PlaceRoot::Local(_) | PlaceRoot::Global(..) | PlaceRoot::Ptr(_)
+        ) || self
+            .proj
+            .iter()
+            .any(|p| matches!(p, Proj::Deref | Proj::Elem(_)))
     }
 }
 
@@ -621,6 +631,7 @@ impl std::fmt::Display for Place {
             PlaceRoot::Global(d, t) => write!(f, "@{}:{}", d.raw(), t.0)?,
             PlaceRoot::Value(r) => f.write_str(&value(r))?,
             PlaceRoot::Frame(s) => write!(f, "^{s}")?,
+            PlaceRoot::Ptr(r) => write!(f, "ptr {}", value(r))?,
         }
         for p in &self.proj[lead..] {
             match *p {
@@ -650,7 +661,11 @@ impl std::str::FromStr for Place {
             None => t.strip_prefix('%').ok_or_else(bad).and_then(num).map(Ref),
         };
         let mut toks = inner.split_whitespace();
-        let first = toks.next().ok_or_else(bad)?;
+        let mut first = toks.next().ok_or_else(bad)?;
+        let ptr = first == "ptr";
+        if ptr {
+            first = toks.next().ok_or_else(bad)?;
+        }
         let root_text = first.trim_start_matches('*');
         let lead = first.len() - root_text.len();
         let root = match root_text.as_bytes().first() {
@@ -659,10 +674,14 @@ impl std::str::FromStr for Place {
                 let (d, t) = root_text[1..].split_once(':').ok_or_else(bad)?;
                 PlaceRoot::Global(DefId::from_raw(num(d)?), Ty(num(t)?))
             }
+            Some(b'%') if ptr => PlaceRoot::Ptr(value(root_text)?),
             Some(b'%') => PlaceRoot::Value(value(root_text)?),
             Some(b'^') => PlaceRoot::Frame(num(&root_text[1..])?),
             _ => return Err(bad()),
         };
+        if ptr && !matches!(root, PlaceRoot::Ptr(_)) {
+            return Err(bad());
+        }
         let mut proj = vec![Proj::Deref; lead];
         while let Some(t) = toks.next() {
             proj.push(if t == "*" {
@@ -1068,7 +1087,7 @@ impl Body {
     pub fn decode_place(&self, word: u32) -> Option<Place> {
         use place::{
             BARE_LOCAL, PROJ_DEREF, PROJ_ELEM, PROJ_FIELD, PROJ_INDEX, PROJ_KIND, PROJ_VARIANT,
-            ROOT_FRAME, ROOT_GLOBAL, ROOT_LOCAL, ROOT_VALUE,
+            ROOT_FRAME, ROOT_GLOBAL, ROOT_LOCAL, ROOT_PTR, ROOT_VALUE,
         };
         if word & BARE_LOCAL != 0 {
             return Some(Place::local(LocalId::from_raw(word & !BARE_LOCAL)));
@@ -1083,6 +1102,7 @@ impl Body {
             }
             [ROOT_VALUE, v, rest @ ..] => (PlaceRoot::Value(Ref(*v)), rest),
             [ROOT_FRAME, s, rest @ ..] => (PlaceRoot::Frame(*s), rest),
+            [ROOT_PTR, v, rest @ ..] => (PlaceRoot::Ptr(Ref(*v)), rest),
             _ => return None,
         };
         let mut proj = Vec::with_capacity(rest.len());
@@ -1226,6 +1246,20 @@ impl Body {
         }
         match *self.extra.get(word as usize..word as usize + 3)? {
             [2, place::ROOT_VALUE, v] => Some(v),
+            _ => None,
+        }
+    }
+
+    /// The pointer value whose target `Read` or `Store` `i` reads or
+    /// writes, `[ptr %p]`. `None` for any other instruction or place.
+    #[must_use]
+    pub fn ptr_target(&self, i: usize) -> Option<u32> {
+        let word = self.data[i][0];
+        if !matches!(self.tags[i], Tag::Read | Tag::Store) || word & place::BARE_LOCAL != 0 {
+            return None;
+        }
+        match *self.extra.get(word as usize..word as usize + 3)? {
+            [2, place::ROOT_PTR, p] => Some(p),
             _ => None,
         }
     }
@@ -2318,7 +2352,8 @@ pub fn poison_sites(b: &Body) -> Vec<u32> {
 /// Invariant 20: place word `word` of instruction `user` is well formed.
 /// It decodes; a local root names a local of the body; a value root and
 /// each element index precede their user (of invariant 1, def-before-use
-/// only); a frame root occurs only in tier 2, so never yet.
+/// only); a frame root occurs only in tier 2, so never yet; a pointer
+/// root is the whole place of a `Read` or a `Store`.
 fn place_errors(b: &Body, user: u32, word: u32) -> Vec<VerifyError> {
     let err = |what: String| VerifyError {
         invariant: 20,
@@ -2334,6 +2369,12 @@ fn place_errors(b: &Body, user: u32, word: u32) -> Vec<VerifyError> {
             out.push(err(format!("place {p} names no local")));
         }
         PlaceRoot::Frame(_) => out.push(err(format!("place {p} has a frame root (tier 2)"))),
+        PlaceRoot::Ptr(_)
+            if !p.proj.is_empty()
+                || !matches!(b.tags.get(user as usize), Some(Tag::Read | Tag::Store)) =>
+        {
+            out.push(err(format!("place {p} is no whole read or store")));
+        }
         _ => {}
     }
     for v in p.values() {
@@ -3186,7 +3227,17 @@ mod tests {
         assert_eq!(p.proj[..3], [Proj::Deref, Proj::Deref, Proj::Field(0)]);
         assert_eq!(p.to_string(), "[**$2 .0 * [%c0]]");
         assert_eq!(p.values(), [super::Ref::konst(0).0]);
-        for bad in ["$0", "[]", "[$x]", "[$0 .]", "[$0 as]", "[$0 [5]]", "[#1]"] {
+        // A pointer's target: `[2, 4, %3]`.
+        let p: Place = "[ptr %3]".parse().expect("place");
+        let word = b.place(&p);
+        assert_eq!(b.body_mut().extra[word as usize..], [2, 4, 3]);
+        assert_eq!(
+            (p.to_string(), p.values(), p.writable()),
+            ("[ptr %3]".into(), vec![3], true)
+        );
+        for bad in [
+            "$0", "[]", "[$x]", "[$0 .]", "[$0 as]", "[$0 [5]]", "[#1]", "[ptr $0]",
+        ] {
             assert!(bad.parse::<Place>().is_err(), "{bad}");
         }
     }
@@ -3196,7 +3247,7 @@ mod tests {
         use super::place::{PROJ_DEREF, PROJ_ELEM};
         let mut body = super::Body::new(DefId::from_raw(1), BodyKind::Fn);
         for (k, rec) in [
-            vec![2, 4, 0],                 // root kind 4
+            vec![2, 5, 0],                 // root kind 5
             vec![3, 0, 0, PROJ_DEREF | 1], // a dereference with a payload
             vec![3, 0, 0, PROJ_ELEM],      // an element with no index
             vec![1, 0],                    // a global root missing its type
@@ -3267,6 +3318,18 @@ mod tests {
             "index not yet defined"
         );
         assert_eq!(place_errors(&b, 4, "[^0]"), [20], "frame roots are tier 2");
+        assert_eq!(b.tags[0], Tag::Read);
+        assert!(place_errors(&b, 0, "[ptr %c0]").is_empty());
+        assert_eq!(
+            place_errors(&b, 0, "[ptr %c0 .0]"),
+            [20],
+            "a pointer's whole target"
+        );
+        assert_eq!(
+            place_errors(&b, 2, "[ptr %c0]"),
+            [20],
+            "only a read or a store"
+        );
         assert_eq!(
             super::place_errors(&b, 4, 9999)
                 .iter()

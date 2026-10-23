@@ -2339,6 +2339,19 @@ impl Ck<'_, '_> {
         // (`names.init.transitive`, `names.exec.methods`).
         if let Callee::Item { def, .. } = c {
             self.note_call(*def);
+            // `Ptr[T]`'s `read` and `write` (lib/std/rt/memory.hd) are a
+            // read and a store of the place at the pointer's target.
+            let key = self.cx.lookup.item(*def).and_then(|it| it.intrinsic);
+            let key = key.map(|k| self.cx.names.text(k));
+            if let (Some(k @ ("ptr_read" | "ptr_write")), [p, rest @ ..]) = (key, refs) {
+                let root = hd_tir::ir::PlaceRoot::Ptr(*p);
+                let word = self.b.place(&hd_tir::ir::Place { root, proj: vec![] });
+                let (tag, w, ty) = match rest {
+                    [v] if k == "ptr_write" => (Tag::Store, v.0, Ty::VOID),
+                    _ => (Tag::Read, hd_tir::ir::ReadMode::Use as u32, ret),
+                };
+                return (self.b.emit(tag, word, w, ty, n.index()), ty);
+            }
         }
         let ret = self.open_projections(ret, n);
         if bang {

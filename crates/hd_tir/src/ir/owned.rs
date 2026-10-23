@@ -674,16 +674,17 @@ impl Cx<'_> {
             });
         }
         let behind = |p: &Place| {
-            p.proj
-                .iter()
-                .any(|s| matches!(s, Proj::Deref | Proj::Elem(_)))
+            matches!(p.root, PlaceRoot::Ptr(_))
+                || p.proj
+                    .iter()
+                    .any(|s| matches!(s, Proj::Deref | Proj::Elem(_)))
         };
         let reachable = |p: &Place| {
             behind(p)
                 || match p.root {
                     PlaceRoot::Global(..) | PlaceRoot::Frame(_) => true,
                     PlaceRoot::Local(l) => self.addressed.get(l.idx()).copied().unwrap_or(true),
-                    PlaceRoot::Value(_) => false,
+                    PlaceRoot::Value(_) | PlaceRoot::Ptr(_) => false,
                 }
         };
         (behind(p) || behind(q)) && reachable(p) && reachable(q)
@@ -758,8 +759,14 @@ impl<'a> Empties<'a> {
         let mut id = vec![NONE; b.len()];
         let mut at = Vec::new();
         for (i, slot) in id.iter_mut().enumerate() {
+            // A read through a pointer moves the value out of the heap,
+            // whose holding std's code keeps (`module.rt.ptr.holds`).
+            let ptr = matches!(
+                cx.places[i].as_ref().map(|p| p.root),
+                Some(PlaceRoot::Ptr(_))
+            );
             let empties = match b.tags[i] {
-                Tag::Read => b.data[i][1] == ReadMode::Move as u32,
+                Tag::Read => b.data[i][1] == ReadMode::Move as u32 && !ptr,
                 Tag::Ref => b.data[i][1] & super::ref_word::TAKES != 0,
                 Tag::Drop => true,
                 _ => false,

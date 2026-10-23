@@ -562,7 +562,7 @@ fn holds_coll_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, depth: u32) -> 
                         holds_coll_at(pool, env, subst(pool, env, def, args, *f), depth + 1)
                     })
             }
-            StdKind::Suspend => false,
+            StdKind::Suspend | StdKind::Buffer => false,
         },
         _ => false,
     }
@@ -3293,7 +3293,7 @@ fn pinned(
             // `List`, `Map` and enum payloads store references erased.
             let erased = matches!(
                 env.std_kind(d),
-                layout::StdKind::List | layout::StdKind::Map
+                layout::StdKind::List | layout::StdKind::Map | layout::StdKind::Buffer
             ) || env.enum_variants(d, args).is_some();
             for a in pool.list_items(args).iter().copied() {
                 pinned(pool, env, def, a, inside || !erased, out);

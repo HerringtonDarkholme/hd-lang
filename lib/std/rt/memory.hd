@@ -104,3 +104,39 @@ impl[T] Ptr[T]:
 @intrinsic("ptr_size_of")
 pub fn size_of[T]() -> usize:
     panic("intrinsic")
+
+## A counted heap object: a capacity word, a length word, then room for `capacity()` values of `T`, of which it holds the first `len()`. A copy of a `Buffer[T]` counts the same object once more; the release of its last count drops the values it holds and frees it.
+## See [module.rt.buffer.type](../../../spec/lang/10-modules.md#r-module.rt.buffer.type).
+pub struct Buffer[T]:
+    address: usize
+
+impl[T] Buffer[T]:
+    ## A new buffer with room for `capacity` values of `T`, holding none.
+    ## See [module.rt.buffer.new](../../../spec/lang/10-modules.md#r-module.rt.buffer.new).
+    @intrinsic("mem_buffer")
+    pub fn new(capacity: usize) -> Buffer[T]: panic("intrinsic")
+
+    ## How many values of `T` the buffer has room for.
+    pub fn capacity(self) -> usize: usize(load_u32(self.address))
+
+    ## How many values the buffer holds, at the start of its room.
+    pub fn len(self) -> usize: usize(load_u32(self.address + 4))
+
+    ## Sets how many values the buffer holds; the code that changes it writes or reads those values.
+    ## See [module.rt.buffer.len](../../../spec/lang/10-modules.md#r-module.rt.buffer.len).
+    pub fn set_len(self, len: usize) -> void: store_u32(self.address + 4, u32(len))
+
+    ## The place of value `index` of the buffer's room.
+    pub fn at(self, index: usize) -> Ptr[T]: Ptr::[T] { address: self.address + 8 }.offset(index)
+
+## The address of the first of the bytes of `text`, which stay where they are while `text` or a copy of it lives.
+## See [module.rt.string.bytes](../../../spec/lang/10-modules.md#r-module.rt.string.bytes).
+@intrinsic("mem_string_bytes")
+pub fn string_bytes(text: string) -> Ptr[u8]:
+    panic("intrinsic")
+
+## A new string of `len` bytes, which the caller writes through `string_bytes` before anything reads it.
+## See [module.rt.string.new](../../../spec/lang/10-modules.md#r-module.rt.string.new).
+@intrinsic("mem_new_string")
+pub fn new_string(len: usize) -> string:
+    panic("intrinsic")

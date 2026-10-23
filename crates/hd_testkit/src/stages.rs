@@ -449,11 +449,14 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
 /// The build a view shows: its engine target (`v8`, the default,
 /// `wasmtime` or `browser`) and its level (`dev`, the default, or
 /// `release`: the optimized pipeline and the release profile, as
-/// `--release` builds).
+/// `--release` builds). `std` builds the case as module `std.rt.stage_case`
+/// of the standard library, which may use the runtime modules
+/// (`module.rt.std-only`); only the `own` view reads it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Build {
     pub target: hd_driver::EngineTarget,
     pub release: bool,
+    pub std: bool,
 }
 
 impl Build {
@@ -469,6 +472,7 @@ impl Build {
                 "browser" => build.target = hd_driver::EngineTarget::Browser,
                 "dev" => build.release = false,
                 "release" => build.release = true,
+                "std" => build.std = true,
                 _ => return None,
             }
         }

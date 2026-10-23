@@ -419,12 +419,18 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   `memory.grow` with its `-1` read as `.None`, `memory.copy`, which
   allows overlap, and `memory.fill`. Only std can reach one.
 - **Typed memory.** spec/lang/10-modules.md "Typed Memory": `Ptr[T]` is
-  a plain struct of one address, and its `ptr_` intrinsics (`Em::ptr`)
-  lay a `T` out at it as a list element of `T` is laid out
-  (`layout::mem`). `size_of` is that layout's size and `offset` one
-  multiply and add. `read` loads the leaves and keeps the count they
-  held, so the value moves out; `write` stores a copy as an element
-  store does (`slot_src`, `retain_src`) and releases nothing.
+  a plain struct of one address, and a `T` at it is laid out as a list
+  element of `T` is (`layout::mem`). `size_of` is that layout's size and
+  `offset` one multiply and add (`Em::ptr`). `read` and `write` reach the
+  emitter as a `Read` and a `Store` of the place `[ptr %p]`
+  (`Em::ptr_place`): a read loads the leaves, and a `move` keeps the
+  count they held; a store writes its value as an element store does
+  (`slot_src`, `retain_src`) and releases nothing. A `Buffer[T]`
+  (`StdKind::Buffer`) is the address of a list's buffer, §23.7's
+  capacity and length words and the elements, made by `ListBuf` with
+  its element glue, counted and dropped as any counted address is; a
+  string's bytes are its address, and a new string is a `Str` block, or
+  the static empty string for no bytes.
 - **Runtime modules are std's.** `hd_project::UseRoots` refuses a use of
   `std.rt` or a module under it from any package but std, as
   `std-only-use` (`module.rt.std-only.error`).

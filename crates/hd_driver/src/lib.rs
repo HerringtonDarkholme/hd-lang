@@ -9770,6 +9770,8 @@ impl LayoutEnv for Env<'_> {
             StdKind::Map
         } else if def == k.suspend {
             StdKind::Suspend
+        } else if def == k.buffer {
+            StdKind::Buffer
         } else {
             StdKind::Other
         }

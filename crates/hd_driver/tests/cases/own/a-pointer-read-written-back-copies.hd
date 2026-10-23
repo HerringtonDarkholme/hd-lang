@@ -1,0 +1,12 @@
+# @dump: own
+# @build: std
+# A read through a pointer and a write of the same value back through the
+# same pointer, with nothing in between that reaches the heap, cancel:
+# the read copies, so the heap keeps its value, and the write goes. The
+# copy is the one count the result needs (spec 10, module.rt.ptr.read).
+use std.rt.memory.Ptr
+
+fn get(p: Ptr[string]) -> string:
+    text := p.read()
+    p.write(text)
+    text

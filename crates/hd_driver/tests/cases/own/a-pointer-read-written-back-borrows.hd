@@ -1,0 +1,12 @@
+# @dump: own
+# @build: std
+# A read through a pointer whose value is only lent and then written back
+# borrows: the heap keeps the value and its count, and the write goes.
+# `xs` holds the borrowed list, so it owns nothing and leaves the exit set.
+use std.rt.memory.Ptr
+
+fn size(p: Ptr[List[i32]]) -> usize:
+    xs := p.read()
+    n := xs.len()
+    p.write(xs)
+    n

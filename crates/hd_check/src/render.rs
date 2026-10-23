@@ -135,6 +135,7 @@ fn place(names: &Names<'_>, b: &Body, word: u32, fields: &FieldNames<'_>) -> Str
         PlaceRoot::Global(d, t) => (format!("@{}", names.path(d)), Some(t)),
         PlaceRoot::Value(r) => (value(names, b, r.0), type_of(b, r.0)),
         PlaceRoot::Frame(s) => (format!("^{s}"), None),
+        PlaceRoot::Ptr(r) => (format!("ptr {}", value(names, b, r.0)), None),
     };
     let lead = p.proj.iter().take_while(|x| **x == Proj::Deref).count();
     let mut out = format!("[{}{root}", "*".repeat(lead));

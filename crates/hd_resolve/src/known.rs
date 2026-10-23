@@ -101,6 +101,8 @@ pub struct KnownItems {
     pub disposable: DefId,
     // std.task
     pub suspend: DefId,
+    /// `std.rt.memory.Buffer`, a counted buffer object (`module.rt.buffer.type`).
+    pub buffer: DefId,
     pub block_on: DefId,
     /// `std.task.race`, whose call needs a task (`req.combinator.race-empty`).
     pub race: DefId,
@@ -179,6 +181,7 @@ impl KnownItems {
             result: item("std.core", "Result"),
             list: item("std.core", "List"),
             map: item("std.core", "Map"),
+            buffer: item("std.rt.memory", "Buffer"),
             ref_cell: item("std.core", "Ref"),
             function_module: module("std.function"),
             tuple,

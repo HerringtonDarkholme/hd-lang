@@ -1667,7 +1667,8 @@ pub fn fill(to: usize, byte: u8, count: usize) -> void
 ### Typed Memory
 
 `std.rt.memory` also declares a pointer type, whose intrinsics read and
-write a value of any type `T` in the heap:
+write a value of any type `T` in the heap, a counted buffer of such values,
+and two views of a string's bytes:
 
 ```text
 pub struct Ptr[T]:
@@ -1679,6 +1680,18 @@ impl[T] Ptr[T]:
     pub fn offset(self, count: usize) -> Ptr[T]
 
 pub fn size_of[T]() -> usize
+
+pub struct Buffer[T]
+
+impl[T] Buffer[T]:
+    pub fn new(capacity: usize) -> Buffer[T]
+    pub fn capacity(self) -> usize
+    pub fn len(self) -> usize
+    pub fn set_len(self, len: usize) -> void
+    pub fn at(self, index: usize) -> Ptr[T]
+
+pub fn string_bytes(text: string) -> Ptr[u8]
+pub fn new_string(len: usize) -> string
 ```
 
 1. r[module.rt.ptr.type] `Ptr[T]` is an ordinary struct. Its `address` is the heap address of the first of `size_of[T]()` bytes that may hold a value of type `T`.
@@ -1693,13 +1706,25 @@ pub fn size_of[T]() -> usize
 10. r[module.rt.ptr.integer] A value of an integer type is stored as its bytes, least significant first, so the [loads and stores](#r-module.rt.memory.load) of its width read and write it.
 11. r[module.rt.ptr.holds] Only the standard library reads or writes through a `Ptr[T]`, and it reads only where the heap holds a value of `T`.
 12. r[module.rt.ptr.bounds] A read or a write that reaches a byte outside the heap stops the program instance with no panic category, as for [`module.rt.memory.bounds`](#r-module.rt.memory.bounds).
+13. r[module.rt.buffer.type] A `Buffer[T]` is a counted heap object with room for `capacity()` values of `T`, of which it holds the first `len()`. Its fields are private.
+14. r[module.rt.buffer.copy] A copy of a `Buffer[T]` is the same object with one count more. It never copies the values the buffer holds.
+15. r[module.rt.buffer.new] `Buffer::new(capacity)` returns a new buffer whose capacity is `capacity` and whose length is 0. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
+16. r[module.rt.buffer.at] `b.at(index)` returns the `Ptr[T]` of value `index` of the buffer's room: `b.at(0).offset(index)`. It checks no bound; reads and writes through it follow [`module.rt.ptr.holds`](#r-module.rt.ptr.holds).
+17. r[module.rt.buffer.len] `b.set_len(len)` sets the length that `b.len()` returns and changes no value. Before it raises the length, std writes each new value through `at`; before it lowers the length, std reads each value past the new length out through `at`.
+18. r[module.rt.buffer.drop] When the last count of a buffer is released, the buffer drops each of its first `len()` values, then its storage is freed.
+19. r[module.rt.string.bytes] `string_bytes(text)` returns the `Ptr[u8]` of the first of the `text.len()` bytes of `text`'s UTF-8 encoding. The bytes stay at that address while `text` or a copy of it lives.
+20. r[module.rt.string.new] `new_string(len)` returns a new string of `len` bytes, whose values are unspecified until written. `new_string(0)` returns the empty string.
+21. r[module.rt.string.write] Only the bytes of a string that `new_string` returned are written through `string_bytes`, and std writes all of them, as valid UTF-8, before the string is used in any other way.
 
 > **Note.** A read and a write of the same value back copy it out, and a
 > read whose result is discarded drops the value in place.
 
 > **Why.** These are Rust's `ptr::read` and `ptr::write`: one count per
 > value held, moved by a read and taken by a write, so std's collections
-> place, move, and drop their elements with no other intrinsic.
+> place, move, and drop their elements with no other intrinsic. A buffer
+> is the one counted object they need, as Go's slice backing array is.
+> The two string views are Go's `rawstring` and `unsafe.StringData`, so
+> concatenation, comparison, and slicing are std code over bytes.
 
 ## Module Initialization
 

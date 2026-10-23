@@ -75,6 +75,10 @@ pub enum StdKind {
     List,
     Map,
     Suspend,
+    /// `std.rt.memory.Buffer[T]`: the address of a counted object holding
+    /// a capacity word, a length word, then the values, as a list's
+    /// buffer is laid out (`module.rt.buffer.type`).
+    Buffer,
     Other,
 }
 

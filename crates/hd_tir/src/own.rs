@@ -346,8 +346,8 @@ fn values(b: &Body, at: u32, f: &mut dyn FnMut(u32, Loc)) {
     }
 }
 
-/// The value words of the place record at `at`: a value root, then each
-/// element index, with their positions.
+/// The value words of the place record at `at`: a value or pointer root,
+/// then each element index, with their positions.
 pub(crate) fn place_words(b: &Body, at: u32, mut f: impl FnMut(u32, Loc)) {
     let Some(&n) = b.extra.get(at as usize) else {
         return;
@@ -356,7 +356,7 @@ pub(crate) fn place_words(b: &Body, at: u32, mut f: impl FnMut(u32, Loc)) {
     let end = rec + n;
     let word = |x: u32| b.extra.get(x as usize).copied().unwrap_or(0);
     let mut x = match word(rec) {
-        place::ROOT_VALUE => {
+        place::ROOT_VALUE | place::ROOT_PTR => {
             f(word(rec + 1), Loc::Extra(rec + 1));
             rec + 2
         }
@@ -578,6 +578,13 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     insert::run(b, cx, scratch)?;
     borrow::run(b, cx, &mut scratch.borrow, &mut scratch.splice);
     moves::run(b, cx, &mut scratch.moves, &mut scratch.splice);
+    pairs::write_backs(
+        b,
+        cx,
+        &scratch.moves,
+        &mut scratch.pairs,
+        &mut scratch.splice,
+    );
     pairs::run(
         b,
         cx,

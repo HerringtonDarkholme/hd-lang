@@ -498,3 +498,146 @@ fn pair(
         }
     }
 }
+
+/// A read through a pointer written back (`module.rt.ptr.read`): `x :=
+/// p.read()`, then `p.write(x)` through the same pointer local, both
+/// statements of one block with nothing between them that reaches the
+/// heap (only reads of other places, stores into unaddressed locals,
+/// `Prim`s, constructions, drops of other values, the intrinsics that
+/// change nothing, and calls that may not write). The heap keeps its
+/// value and the write goes: the read copies when `x` is read on after
+/// the write and holds no list or map header, and borrows when the write was `x`'s last access and every
+/// other read of it lends; `x` then holds a borrow, owns nothing and
+/// leaves the exit set, as the borrow pass's binding locals do.
+pub(super) fn write_backs(
+    b: &mut Body,
+    cx: &dyn OwnCx,
+    mt: &moves::Tables,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) {
+    use crate::ir::{Callee, IntrinsicOp as Op, local_flags};
+    let n = b.len();
+    let read_of = |b: &Body, r: u32| -> Option<u32> {
+        let r = r as usize;
+        (r < n && b.tags[r] == Tag::Read && b.data[r][0] & place::BARE_LOCAL != 0)
+            .then(|| b.data[r][0] & !place::BARE_LOCAL)
+    };
+    t.pending.build(n, edits);
+    for i in 0..n {
+        let (Some(pb), w) = (b.ptr_target(i), b.data[i][1]) else {
+            continue;
+        };
+        let (Some(v), blk) = (read_of(b, w), mt.blk[i]) else {
+            continue;
+        };
+        let vi = v as usize;
+        let moved = b.data[w as usize][1] == ReadMode::Move as u32;
+        if blk == NONE
+            || mt.blk[w as usize] != blk
+            || b.local_flags[vi] & local_flags::PARAM != 0
+            || mt.addr[vi]
+            || b.cap_local.iter().any(|c| c.raw() == v)
+        {
+            continue;
+        }
+        // Back from the write to `$v`'s one store, of a move read through
+        // the same pointer local.
+        let stmts = b.record(b.data[blk as usize][0]).to_vec();
+        let p = read_of(b, pb);
+        let mut found = None;
+        for &x in stmts[..mt.pos[i] as usize].iter().rev() {
+            let xi = x as usize;
+            if t.pending.dead[xi] || x == w || x == pb {
+                continue;
+            }
+            let [a, d] = b.data[xi];
+            let tag = b.tags[xi];
+            let root = matches!(tag, Tag::Store | Tag::Drop).then(|| root_of(b, a));
+            let local = match root {
+                Some((Root::Local(l), f, z)) if in_place(b, f, z) => Some(l),
+                _ => None,
+            };
+            if tag == Tag::Store && local == Some(v) {
+                found = Some((x, d));
+                break;
+            }
+            let ok = match tag {
+                Tag::Read => b.ptr_target(xi).is_none(),
+                Tag::Store => local.is_some_and(|l| l != v && Some(l) != p && !mt.addr[l as usize]),
+                Tag::Drop => root.is_some_and(|r| r.0 != Root::Local(v)),
+                Tag::Prim | Tag::Coerce | Tag::NewStruct | Tag::NewVariant | Tag::NewTuple => true,
+                Tag::Intrinsic => matches!(
+                    Op::from_u32(a),
+                    Some(Op::ListLen | Op::MapLen | Op::StrIndex | Op::StrEq)
+                ),
+                Tag::Call => Callee::from_words(b.record(a)).is_some_and(|c| !cx.may_write(&c)),
+                _ => false,
+            };
+            if !ok {
+                break;
+            }
+        }
+        let Some((store, r)) = found else {
+            continue;
+        };
+        let same = |b: &Body, x: u32| x == pb || (p.is_some() && read_of(b, x) == p);
+        // A copy would share a list or map header that a later change of
+        // `x` reaches in place, where the write stored a copy of its own.
+        if b.ptr_target(r as usize).is_none_or(|pa| !same(b, pa))
+            || b.data[r as usize][1] != ReadMode::Move as u32
+            || mt.blk[r as usize] != blk
+            || (!moved && cx.header_copy(b.ty[r as usize]).is_some())
+        {
+            continue;
+        }
+        // `$v` is stored once; when the write moves it, every other read
+        // of it lends and no drop of it stands.
+        let mut ops = Vec::new();
+        let mut fits = true;
+        for x in 0..n {
+            let [a, d] = b.data[x];
+            let at_v = matches!(b.tags[x], Tag::Read | Tag::Store | Tag::Drop)
+                && root_of(b, a).0 == Root::Local(v);
+            if !at_v || t.pending.dead[x] || x == w as usize || x == store as usize {
+                continue;
+            }
+            fits &= match b.tags[x] {
+                Tag::Read => !moved || d == ReadMode::Borrow as u32,
+                Tag::Drop => !moved,
+                _ => false,
+            };
+        }
+        for e in 0..u32_of(edits.len()) {
+            let (_, _, tag, [a, _], _) = edits.get(e);
+            fits &=
+                edits.is_cancelled(e) || tag != Tag::Drop || a != (v | place::BARE_LOCAL) || !moved;
+        }
+        if !fits {
+            continue;
+        }
+        b.data[r as usize][1] = if moved {
+            ReadMode::Borrow
+        } else {
+            ReadMode::Copy
+        } as u32;
+        edits.remove(blk, u32_of(i));
+        edits.remove(blk, w);
+        t.pending.dead[i] = true;
+        t.pending.dead[w as usize] = true;
+        if p.is_some() && mt.blk[pb as usize] == blk {
+            let mut uses = 0;
+            for x in 0..n {
+                super::operands(b, x, &mut ops);
+                uses += ops.iter().filter(|o| o.value == pb).count();
+            }
+            if uses == 1 {
+                edits.remove(blk, pb);
+                t.pending.dead[pb as usize] = true;
+            }
+        }
+        if moved {
+            b.exit_drops.retain(|&(_, l)| l.raw() != v);
+        }
+    }
+}

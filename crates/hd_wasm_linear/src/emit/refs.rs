@@ -200,7 +200,9 @@ impl Em<'_, '_, '_> {
             PlaceRoot::Local(l) => Start::Local(l.raw()),
             PlaceRoot::Global(d, t) => Start::Global(d, t),
             PlaceRoot::Value(r) => Start::Value(r.0),
-            PlaceRoot::Frame(_) => return unsupported("a frame slot, which only tier 2 has"),
+            PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => {
+                return unsupported("a frame slot or a pointer's target as a general place");
+            }
         };
         let data = matches!(self.kind(self.start_ty(start)), Kind::Data(_));
         let (head, rest) = match p.proj.as_slice() {
@@ -1533,7 +1535,7 @@ impl Em<'_, '_, '_> {
             PlaceRoot::Local(l) => (true, self.start_ty(Start::Local(l.raw()))),
             PlaceRoot::Value(r) => (false, self.ty_of(r.0)),
             PlaceRoot::Global(_, t) => (false, self.sub(t)),
-            PlaceRoot::Frame(_) => (false, Ty::VOID),
+            PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => (false, Ty::VOID),
         }
     }
 
