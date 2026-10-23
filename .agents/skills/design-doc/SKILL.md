@@ -26,6 +26,15 @@ options on the use cases. Write this design doc only after the owner has
 picked a direction. A single recommended design is hard to review without
 the map of the alternatives.
 
+## The Issue Comes First
+
+The issue's Deliverable, constraints and Done check are the
+specification of the document. Map each item to a section with the same
+name, in the form the issue asks for. A shape the issue defines must
+appear in that form; a workaround that changes it is reported as a gap,
+with a minimal repro, not presented as the shape. Then apply the bar
+and the domain checklist below.
+
 ## The Bar
 
 A design doc is not done until it has each of these. Leave a part out only
@@ -93,6 +102,104 @@ when it truly has nothing to say, and then say why in one line.
 11. **Recommendation.** One option, what it gives up, and the next best.
     Then name exactly what needs the owner's approval.
 
+## Domain Checklists
+
+The bar above applies to every design. Each domain adds its own concerns.
+Name the domain (or domains) in the status line, and give every item of
+its checklist a section or a one-line reason why it does not apply.
+
+### Language feature (spec/lang, the checker)
+
+- **Grammar:** the exact syntax, its parse in every position, ambiguities
+  with existing forms, and the formatter's output.
+- **Static semantics:** typing rules, inference (use sites only, never a
+  declaration's signature), generics and bounds, traits and coherence,
+  requirement rows, suspension and bang calls.
+- **Dynamic semantics:** evaluation order, panics and their order, and
+  value or reference behaviour under copies, moves and element access
+  (decision E).
+- **An interaction matrix** with every existing feature: patterns and
+  exhaustiveness, derives and `Structure`, closures and captures, modules
+  and visibility, serialization, the ownership passes, and the inliner.
+  Give a program for each interaction that could go wrong.
+- **Soundness:** an argument that the rules cannot be broken, and what an
+  accepted program must never do.
+- **Diagnostics:** the error codes, messages and fix-its a misuse gets.
+- **Agent writing and human reading:** how a coding agent gets it right
+  first time, and how a reader understands it with no context.
+- **Spec and tests:** the rules it adds or retires, by tier, and the
+  conformance cases.
+- **The no-feature alternative:** a library-only or existing-mechanism
+  option, compared honestly.
+
+### Standard library API (spec/std, lib/std)
+
+- **Layer:** hd code or intrinsic, and why. Intrinsics need a spec-named
+  reason.
+- **The stdlib design bar** (#350): batteries included, the 80% ergonomic
+  path plus the 20% atoms, strongly typed by default, no naive algorithms,
+  builders with one terminal, and no one-combination shortcuts.
+- **Complete signatures,** with error types, requirement rows
+  (capabilities), bang suspension, receivers (`&`, `&mut`, value) and
+  generic bounds.
+- **Naming and shape** consistent with the rest of std.
+- **Performance:** algorithmic complexity, allocations per call, and the
+  cost on a hot path.
+- **Security:** capability leaks, forged values, types created from data.
+- **Tests:** unit and property tests, plus a stress test that translates
+  real library code (Rust, Go, Effect) into the API.
+- **Prior art:** each library's API design and its known problems.
+
+### CLI and tooling (spec/cli, hd_cli)
+
+- **Workflows end to end:** what the user types, sees and decides, for
+  local use and for CI.
+- **Command and flag naming:** a read command is not named like a write
+  command, and flags stay consistent with the other commands (selection,
+  `--format`, `--jobs`).
+- **Output:** the text form, the JSON schema, exit statuses, and how
+  errors read.
+- **Configuration:** `hd.toml` keys, precedence over CLI flags, and
+  validation.
+- **Scope:** files, packages and workspaces.
+- **Incremental behaviour and speed** on a large package.
+- **Platforms:** macOS, Linux, Windows; Node and wasmtime.
+- **Security:** grants, network, and writes outside the package.
+- **Tests:** CLI conformance cases.
+
+### Compiler internals (crates/hd_*)
+
+- **Pipeline position:** inputs and outputs (TIR, checker facts), and the
+  invariants it relies on and must keep.
+- **Data structures** with their memory layout (the repo's data-oriented
+  rules), and the algorithm with its worst-case complexity. Name any
+  superlinear step.
+- **Invariants and the verifier:** what is checked in checked and debug
+  builds.
+- **Caching and incremental keys,** determinism (byte-identical output)
+  and parallelism.
+- **Budgets:** compile time per stage, peak memory, emitted Wasm size per
+  program, web compiler gzip (2 MB hard cap), and Rust lines bottom-up
+  against the code replaced.
+- **Interaction with other passes,** such as the ownership passes and the
+  inliner.
+- **Tests:** stage snapshots, conformance, checked mode, plus a switch and
+  rollback plan when it replaces an existing path.
+
+### Runtime and host (hd_wasm_linear runtime, hosts, std.rt)
+
+- **Memory model:** object layout, reference counting and cycle collection
+  effects, allocations per operation.
+- **Host ABI and wire format,** with parity between Node and wasmtime.
+- **Concurrency:** suspension, cancellation, deadlines, and wake-ups.
+- **Failure:** panics, traps, and resource cleanup.
+- **Platforms:** Windows, macOS, Linux; browser versus CLI hosts.
+- **Footprint:** hello's size and what every program pays.
+- **Performance:** runtime benchmarks against a saved baseline, run
+  interleaved.
+- **Security:** the sandbox, grants, and what a guest can reach.
+- **Debugging and observability:** traces, line tables, logs.
+
 ## Style
 
 - Write a readable proposal in prose, following the repo's design-doc
@@ -108,7 +215,8 @@ when it truly has nothing to say, and then say why in one line.
 File: `docs/future-work/<TOPIC>.md`, linked from
 `docs/future-work/README.md`. Sections, in order:
 
-1. Title and a status line: "design proposal, YYYY-MM-DD; not accepted".
+1. Title and a status line: "design proposal, YYYY-MM-DD; domain: …; not
+   accepted".
 2. Contents.
 3. Problem, users, use cases and today.
 4. State of the art.
@@ -124,7 +232,11 @@ File: `docs/future-work/<TOPIC>.md`, linked from
 
 ## Review Before Handing In
 
+- Does every Deliverable item of the issue have its own section, in the
+  form the issue asks for?
 - Could an implementer start tomorrow without asking a design question?
+- Does every item of the domain checklist have a section, or a reason why
+  it does not apply?
 - Does every rule the design depends on have a spec link?
 - Is every number measured or derived bottom-up, with its method stated?
 - Did the stress test find something? If not, it was not adversarial
