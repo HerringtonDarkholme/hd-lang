@@ -64,8 +64,8 @@ encoding, the wire format and its per-body hash, suspension lowering,
 erased generic methods, layouts, the cycle collector and Wasm-level
 peepholes. The migration has three stages, each with every suite green:
 places (stage 1, about 10 one-hour commits), ownership passes (stage 2,
-about 14), and maps and strings in std with lists as one counted buffer
-(stage 3). The inliner is deferred (owner, 2026-10-23).
+about 14), and collections in std over typed memory after an inliner
+exists (stage 3).
 
 ## Starting points
 
@@ -2848,36 +2848,62 @@ are.
 
 ## The inliner
 
-**Deferred** (owner, 2026-10-23). Stage 3 no longer needs one: lists
-stay compiler-lowered, and maps and strings become ordinary std calls,
-as in Go. This section keeps the design for when a benchmark shows that
-calls into small std helpers dominate a program.
+Stage 3 moves lists, maps and strings into std and lowers every `for`
+through `Iterable`. Without inlining, each element access becomes a call
+and each loop step a call of `next`, so lists in loops get slower. The
+inliner removes that cost.
 
-**What it would do.** At decode, before the ownership passes, replace a
+**What it must do.** At decode, before the ownership passes, replace a
 `Call` whose callee is a small std body by a copy of that body: its
 locals renumbered into the caller's, its labels and sub-bodies offset,
 its parameters bound with `Store`s of the arguments, each `Return` a
 `Break` to a `Block` around the copy, its type parameters substituted
-by the call's type arguments. A trait-method call inlines only when its
-choice is an impl (`ChoiceKind::Impl`). The first version would refuse
-callees that suspend, register `defer` suites, create closures or read
-providers, and callees over about 40 instructions. The ownership passes
-then run on the combined body, which is the inliner's real gain: a
-counted value passed to a small helper needs no retain and release
-around the call.
+by the call's type arguments, which may themselves be the caller's
+parameters, so a generic caller stays generic. A trait-method call
+inlines only when its choice is an impl (`ChoiceKind::Impl`); a bound
+or a trait value is resolved per instance and stays a call. The first
+version refuses callees that suspend, register `defer` suites, create
+closures or read providers, and callees over a size limit (about 40
+instructions). The ownership passes then run on the combined body, so a
+`ListIter.next` inlined into a loop borrows its list like a hand-written
+index loop.
 
-**What it would cost.** About 1,000 lines in `hd_tir` and 50 in the
-driver. The passes measured 0.48 to 0.50 µs per instruction over the
-12 bench/study programs (#802), so json's estimated 4,500 inlined
-instructions add about 2 ms of passes, plus 10% to 20% more emission.
-A caller's emitted code would depend on its callees' TIR hashes, the
-dependency list hd_tir/DESIGN.md §4.13.11 plans.
+**What it costs.**
+
+- **Code.** About 1,000 lines in `hd_tir` (substitution, renumbering,
+  the size test) and 50 in the driver.
+- **Compile time.** Only reached calls of small std bodies inline.
+  Intrinsics are 2.3% of all checked instructions; at that rate json's
+  reached bodies make about 300 `List`, `Map` and `string` operations.
+  At about 15 copied instructions each, that adds 4,500 instructions to
+  the 13,305 json emits today, about +35% to resolve and emit, partly
+  offset by deleting the intrinsics' emitter arms.
+- **Caching.** The inlined body is part of the caller's code, so a
+  caller's emitted function depends on its callees' TIR hashes. That is
+  the "dependency list" the TIR entry already plans (hd_tir/DESIGN.md
+  §4.13.11, "Planned, not built"), and it matters only once a
+  per-instance code cache exists.
+- **Rule.** Inlining reads another body. It is a transformation, not an
+  analysis whose facts a caller relies on, but it is cross-function
+  work; [the last section](#where-i-would-revise-an-owner-decision) says how it
+  relates to the owner's rule.
 
 ## Stage 3
 
-Stage 3 follows Go's model. Go's compiler lowers slice indexing, `len`
-and `append` itself, while map access (`mapaccess`, `mapassign`) and
-string concatenation are ordinary runtime calls. hd does the same:
+Stage 3 shrinks the intrinsics to memory primitives. It starts only
+after the inliner lands. The owner approved the inliner on 2026-10-23,
+after stage 2 measured the passes at 0.48 to 0.50 µs per instruction
+over the 12 bench/study programs (#802): json's estimated 4,500 inlined
+instructions add about 2 ms of passes. With the inliner, `List`, its
+cursor, `Map` and the string operations are all hd in std; the compiler
+keeps the typed memory primitives and the inliner.
+
+**Size budget first.** Stage 2's size table was a top-down guess: it
+planned a net deletion of about 730 lines and landed about +12,600
+(#49). Before the first stage 3 commit, the table below is redone
+bottom-up per component, checked against the code each part replaces
+and against one reference implementation, and every stage 3 commit
+reports its lines against its share.
 
 - **Typed memory primitives** in a privileged std module: a pointer type
   over `T` with `size_of[T]`, `read`, `write` and `offset`, counted like
@@ -2885,35 +2911,39 @@ string concatenation are ordinary runtime calls. hd does the same:
   a language-tier intrinsic family, approved by the owner on 2026-10-21;
   its signatures are plain hd declarations, and only their bodies are
   the compiler's.
-- **A list is one counted buffer.** A `List[T]` value is the address of
-  a buffer holding capacity, length and the elements; the header object
-  goes, saving an allocation per list and a load per access. The
-  compiler keeps lowering lists: `len` is a place read of the buffer's
-  length, an index is a bounds check and an element place, `push` starts
-  with `IsUnique` and a capacity test, and a copy of a list value is a
-  retain of its buffer. The buffer address is an ordinary value that
-  hoisting can keep in a Wasm local. The list loop keeps its snapshot
-  lowering, now a retain of the buffer.
-- **Maps in std.** The table code of `map.rs` and `emit/map.rs` becomes
-  hd over the typed primitives. `m[k]`, `m[k] = v`, `get` and `remove`
-  are calls into it, and a map value place (`[%m [%e]]`) reads the
-  entry std returns. A map loop goes through `Map`'s std cursor, a call
-  per step, and `MapSlots`, `MapSlotNext` and `MapSlotEntry` go.
-- **Strings in std.** `StrConcat`, `StrEq` and `StrIndex` become std
-  functions over bytes.
+- **Lists in std.** A `List[T]` is the address of a counted buffer
+  holding capacity, length and the elements; the header object goes,
+  saving an allocation per list and a load per access. `len` is a field
+  read, an index is a bounds check and an element place, `push` and the
+  other changes are std code that begins with `IsUnique`, and copy of a
+  list value is a retain of its buffer. An element place then needs one
+  load less, and the buffer address is an ordinary value that hoisting
+  can keep in a Wasm local.
+- **Maps and strings in std.** The table code of `map.rs` and
+  `emit/map.rs` becomes hd over the same primitives; `StrConcat`,
+  `StrEq` and `StrIndex` become std functions over bytes.
+- **One `for` lowering.** Every `for` is `iter`, then a `Loop` around
+  `next` and a `Match` on its option. The snapshot semantics come from
+  the cursor: `ListIter` holds a copy of the list, which is a retain of
+  its buffer, so a change to the original copies the buffer first, and
+  the cursor's drop at the loop's end gives it back. That is exactly
+  `SnapBegin` and `SnapEnd`, as ordinary values. `for p in &mut xs` is
+  an iterator of element references, each pinning the list.
+  `SnapBegin`, `SnapEnd`, `MapSlots`, `MapSlotNext` and `MapSlotEntry`
+  go, with the checker's `collection_loop`, `range_loop` and most of
+  `ref_loop`.
 
 | Crate | Removed | Added |
 | --- | --- | --- |
-| `hd_wasm_linear` | about 2,200: `emit/map.rs`, `map.rs`, the map and string glue of `rt.rs`, the list header code | 300: memory primitives |
-| `hd_check` | 150: the map loop lowering, intrinsic plumbing | 30 |
-| `lib/std` (hd) | 100 | 1,200: `Map`, string operations |
+| `hd_wasm_linear` | 3,300: `emit/list.rs`, `emit/map.rs`, `map.rs`, `emit/iter.rs`, the list and map glue of `rt.rs` | 300: memory primitives |
+| `hd_check` | 500: three loop lowerings, intrinsic plumbing | 50 |
+| `hd_tir` | 50 | 1,050: the inliner |
+| `lib/std` (hd) | 200 | 1,800: `List`, `Map`, string operations |
 
-Commit plan, at plan level: the typed primitives (two), the list buffer
-value (three, each benchmarked), `Map` (three), strings (two), deleting
-the replaced intrinsics (one). Each collection keeps its intrinsic
-implementation until its std or buffer version measures at least as
-fast on bench/study, and its intrinsic is then deleted in its own
-commit.
+Commit plan, at plan level: the inliner (four commits), the typed
+primitives (two), `List` with the buffer-address value (four, each
+benchmarked), the `for` lowering (two), `Map` (three), strings (two),
+deleting the intrinsics (one).
 
 ## Cost
 
@@ -3039,27 +3069,27 @@ The 18 cases of `crates/hd_check/tests/cases/known-bad-tir/` and the
 | Case | Fixed in | New output |
 | --- | --- | --- |
 | a list element reference pins its buffer | stage 1 (closure form), stage 2 (pin) | `IsUnique [*$0]`, `Pin [*$0]`, `%2 = Ref [*$0 [%1]]`, `Store [$2] %2`; the reference's drop at its last use ends the pin |
-| a list loop uses a snapshot and index desugaring | stage 3 | the snapshot lowering stays, as a retain of the list's buffer (the one `Iterable` lowering waits for the deferred inliner) |
+| a list loop uses a snapshot and index desugaring | stage 3 | `iter` inlined: the cursor holds a copy (a retain) of the list; each step `%p = Read [$c .at]`, `Read borrow [$c .items [%p]]`, `Store [$c .at]`; the cursor's drop at the loop's end |
 | a local struct field write rebuilds its value | stage 1 | `Store [$1 .x] 1.0` |
 | a map loop uses slot intrinsics | stage 3 | the same `Iterable` lowering over `Map`'s std cursor |
 | a mutable generic reference reads through a getter | stage 1, stage 2 | `Read copy [*$0]`; for a scalar instance the copy costs nothing |
-| a mutable list reference reads through a getter | stage 1, stage 2, stage 3 | stage 2 `Read borrow [*$0]`, `ListLen`; stage 3 `Read [**$0 .len]` (the reference, then the buffer), lowered by the compiler |
+| a mutable list reference reads through a getter | stage 1, stage 2, stage 3 | stage 2 `Read borrow [*$0]`, `ListLen`; stage 3 `Read [**$0 .len]` (the reference, then the buffer) after inlining `List.len` |
 | a nested field write rebuilds each enclosing value | stage 1 | `Store [$1 .body .x] 1.0` |
-| a range loop uses the cursor protocol | deferred with the inliner | the one lowering through `RangeIter` needs inlining; #711 handles its bounds checks |
+| a range loop uses the cursor protocol | stage 3 | the one lowering through `RangeIter`, inlined; the bound test once (#711 handles its bounds checks) |
 | a referenced struct field write rebuilds its value | stage 1 | `Store [*$0 .x] 1.0` |
 | a user iterable loop uses the cursor protocol | stage 1 (closure form) | `Ref mut [$1]` for the cursor; already the one lowering |
 | an element method call unpins after the call | stage 1, stage 2 | `IsUnique`, `Pin`, `Ref [*$0 [%1]]`, the call; the reference temporary's drop after the call |
 | copying a struct containing a list uses `ValueCopy` | stage 2 | `Read move [$0]` at the parameter's last use: no count |
 | list indexing is an opaque intrinsic | stage 2 | `Read [$0 [%1]]`: bounds check, address, load |
-| list length is an opaque intrinsic | stage 3 | `Read [*$0 .len]`, a place read of the buffer |
-| list push is an opaque intrinsic | stage 3 | compiler-lowered: `IsUnique`, a capacity test, a `Store` through an element place |
+| list length is an opaque intrinsic | stage 3 | `Read [*$0 .len]` after inlining |
+| list push is an opaque intrinsic | stage 3 | an inlined std `List.push`: `IsUnique`, a capacity test, a `Store` through an element place |
 | map lookup is an opaque intrinsic | stage 3 | a std call over the table |
 | string concatenation is an opaque intrinsic | stage 3 | a std call: allocate, two byte copies |
 | string equality is an opaque intrinsic | stage 3 | a std call: length compare, byte compare |
 | #656 pattern 3c: non-escaping `&mut` locals in a heap cell (#702) | not in tier 1 | the frame-slot root exists; deciding that a reference does not escape a call needs tier 2's signature lifetimes |
 | #656 pattern 7: `list_unique` per element write in a loop | stage 2 | hoisting covers every loop it proves, not only #710's shapes |
 | #656 pattern 10: a dropped chaining `&mut` result (#681) | not in tier 1 | stays a retain in the callee and a release in the caller; tier 2's `-> &{self} T` would give the callee the fact from its signature |
-| #656 patterns 11 and 16: map update probes twice, `unwrap_or` is a call (#683) | deferred with the inliner | `unwrap_or` needs inlining; one probe needs a std entry API, not an IR change |
+| #656 patterns 11 and 16: map update probes twice, `unwrap_or` is a call (#683) | stage 3 | `unwrap_or` inlines; one probe needs a std entry API, not an IR change |
 | #656 pattern 12: range `for` tests its bound twice (#711) | stage 3 | the one lowering tests once; bounds-check elimination stays #711 |
 | #656 pattern 13: list base and bounds per access | stage 2, stage 3 | hoisting's stable lists in stage 2; in stage 3 the buffer address is an ordinary hoisted read |
 
@@ -3118,11 +3148,10 @@ reasons or their scope, not their direction:
   relies on (the passes still read only signatures), but it is
   cross-function work, and it makes a caller's code depend on its
   callees' bodies. Stage 3 needs it: with lists in std, every element
-  access and loop step is a call otherwise. Rust and Swift
-  inline library collections across functions; Go does not need to,
-  because its compiler lowers slices and calls its runtime for maps.
-  Owner, 2026-10-23: the inliner is deferred, so stage 3 follows Go's
-  model ([Stage 3](#stage-3)). Alternative: keep the
+  access and loop step is a call otherwise. Rust and Swift inline
+  library collections across functions; Go lowers slices in its
+  compiler and calls its runtime for maps. Owner, 2026-10-23: the
+  inliner is approved, so hd follows Rust and Swift. Alternative: keep the
   list and string intrinsics, and stop after stage 2. Cost: stage 3's
   3,300 emitter lines and the list header stay, and so does the
   separate `for` lowering for lists.
