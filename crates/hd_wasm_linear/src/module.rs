@@ -1121,6 +1121,9 @@ impl Module {
             }
         }
         let stack = crate::wide::lower(&mut self.funcs, &self.exports, &self.symbols)?;
+        // Wide lowering rebuilds each body's callees from its final code.
+        // Calls removed by local/count optimization no longer keep helpers.
+        self.reach();
         // Every import and global a body names; imports come first.
         let mut import_ids = Reached::default();
         let mut globals: BTreeSet<Global> = BTreeSet::new();
@@ -1802,5 +1805,30 @@ mod dense_symbol_tests {
             reached.iter().map(|id| id.0).collect::<Vec<_>>(),
             [0, 63, 64, 130]
         );
+    }
+
+    #[test]
+    fn final_reachability_removes_a_call_folded_out_of_the_body() {
+        let mut m = Module::default();
+        let dead = Sym::Inst(Hash128(1));
+        let root = Sym::Inst(Hash128(2));
+        let f = m.func("dead_after_fold", vec![], vec![]);
+        m.define(dead.clone(), f);
+        let mut f = m.func("root", vec![], vec![]);
+        f.i32(0);
+        f.op(Instruction::If(wasm_encoder::BlockType::Empty));
+        f.call(dead);
+        f.op(Instruction::End);
+        m.define(root.clone(), f);
+        m.export("root", root);
+        let wasm = m.finish().expect("module encodes");
+        wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
+            .validate_all(&wasm)
+            .expect("valid Wasm");
+        let functions = wasmparser::Parser::new(0)
+            .parse_all(&wasm)
+            .filter(|p| matches!(p, Ok(wasmparser::Payload::CodeSectionEntry(_))))
+            .count();
+        assert_eq!(functions, 1, "only the exported root is still linked");
     }
 }
