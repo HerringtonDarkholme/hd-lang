@@ -115,6 +115,29 @@ rule 7 (crates/hd_tir/src/own/copies.rs) makes the header copies from
 the passes' own facts, where a header that may change in place would be
 held by two places.
 
+**Conflicting access, as built (#494).** The static half of
+`ref.elem.conflict` lives in `elem_refs.rs`, on the places the checker
+already builds; there is no extra pass. Each call (`Ck::call_args`) and
+each element reference loop's body is one frame of an exclusivity stack
+(`Ck::excl`). An element reference that is an argument or a receiver
+pushes an access to its collection, and a loop pushes one for its list;
+a `&mut` argument or receiver pushes a held entry for its frame. A
+collection's path is a local holding no reference plus the struct
+fields, list slots and map values read from it (`CollPath`); two slots
+match only when both keys are one constant or one read of a binding
+nothing reassigns. A `&mut` of a place, or a `push` or a map `remove` on
+a collection value, conflicts when its path is a prefix of an open
+access's path; a later access conflicts with an earlier held entry of
+its own call. A change in an argument evaluated before the reference is
+taken is no conflict: the access has not begun. Conflicts wait for
+`finish_with`, which drops those whose root binding any closure in the
+body captures (every closure counts as escaping) and reports the rest
+as `conflicting-access`. Everything else is left to the pin. A loop body
+may still read the list and take element references into it; only
+length changes conflict. A reference built through a loop binding, as
+`&p.x` or `&*p`, is an element reference and may stand only as an
+argument or a receiver.
+
 `Body(m)` gathers the module's bodies, its diagnostics, its derived
 methods, the inferred results and rows (section 9), the init summary
 (section 8.4) and debug references. `ModuleFinish(m)` writes them into

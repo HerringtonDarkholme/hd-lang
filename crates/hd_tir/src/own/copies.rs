@@ -47,8 +47,9 @@
 //!    change). A read of such a binding then stands for its source
 //!    (`link`). `SnapEnd`'s first operand reads nothing, so the source a
 //!    `for` loop keeps for it shares the list.
-//! 2. **The function's result** (a `Return`, the function's root tail),
-//!    unless it is a read of a local of its own: no parameter, captured by
+//! 2. **The function's result** (a `Return`, the function's root tail, a
+//!    closure's root tail), unless it is a read of a local of its own: no
+//!    parameter or capture, captured by
 //!    nothing (the checker's flags), with every value stored into it
 //!    fresh, copied or moved in, so no other place holds its header.
 //! 3. **A store through a dereference** into a field or the referent, and
@@ -736,6 +737,14 @@ pub(crate) fn decide(
             Loc::Data(1),
             b.data[root as usize][1],
         );
+    }
+    // 2: each closure's result, its root block's tail, as a `Return` in
+    // it is: a read of a capture keeps the header beyond the call.
+    for s in 1..b.sub_root.len() {
+        let root = b.sub_root[s] as usize;
+        if root < n && b.tags[root] == Tag::Block {
+            result(b, cx, ins, t, root, Loc::Data(1), b.data[root][1]);
+        }
     }
 }
 

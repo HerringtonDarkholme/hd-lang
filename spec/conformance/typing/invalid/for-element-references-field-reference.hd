@@ -1,0 +1,12 @@
+# test: a reference to a field read through an element reference loop's binding is an element reference, so binding it to a name is an error
+# Spec 06 Element Reference Loops: flow.for.ref.binding; Spec 13 Element References: ref.elem.place.
+struct Point:
+    x: i32
+
+fn demo() -> i32:
+    let mut points = [Point { x: 1 }, Point { x: 2 }]
+    let total = +0
+    for point in &mut points:
+        x := &point.x  # diagnostic: element-reference-outlives-call
+        total += *x
+    total

@@ -12,7 +12,7 @@
 //! pinned list panics `collection-pinned` on a length change, a pinned map
 //! on a store of a new key or a removal of a held one).
 
-use hd_base::{NodeIdx, StageResult};
+use hd_base::{HashSet, LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag, TirSink};
@@ -21,6 +21,7 @@ use hd_types::{Prim, Ty, TyData};
 use crate::body::Ck;
 use crate::expr::Indexed;
 use crate::refs::{Place, Root};
+use hd_tir::ir::{Step as ReadStep, local_flags};
 
 /// `e` without its parentheses.
 pub(crate) fn strip_parens(mut e: NodeRef<'_>) -> NodeRef<'_> {
@@ -46,7 +47,275 @@ pub(crate) enum ElemUse {
     Through,
 }
 
+/// A collection place the checker sees whole (`ref.elem.unaliased`): a
+/// local holding no reference, and the struct fields, list slots and map
+/// values read from it in order.
+#[derive(Clone)]
+pub(crate) struct CollPath {
+    root: LocalId,
+    steps: Vec<PathStep>,
+}
+
+#[derive(Clone, Copy)]
+enum PathStep {
+    Field(u32),
+    Slot(Key),
+}
+
+/// An index or a key on a collection path. Two keys name one slot only
+/// when both are one constant or one read of a binding nothing reassigns;
+/// any other key may differ, and leaves the check to the pin.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Key {
+    Const(Ty, u64),
+    Text(Symbol),
+    Local(LocalId),
+    Unknown,
+}
+
+impl Key {
+    fn same(self, other: Key) -> bool {
+        self != Key::Unknown && self == other
+    }
+}
+
+impl CollPath {
+    /// Whether `self` is `c` or a place that holds it: a change of
+    /// `self`'s length or of `self` may change `c`'s length.
+    fn holds(&self, c: &CollPath) -> bool {
+        self.root == c.root
+            && self.steps.len() <= c.steps.len()
+            && self.steps.iter().zip(&c.steps).all(|(a, b)| match (a, b) {
+                (PathStep::Field(x), PathStep::Field(y)) => x == y,
+                (PathStep::Slot(x), PathStep::Slot(y)) => x.same(*y),
+                _ => false,
+            })
+    }
+}
+
+/// An entry of the open calls' exclusivity stack (`ref.elem.conflict`).
+pub(crate) enum Excl {
+    /// An access to a collection: an element reference that is an
+    /// argument or a receiver of an open call, or an element reference
+    /// loop whose body is being checked (`ref.elem.access`,
+    /// `flow.for.ref.access`).
+    Access(CollPath),
+    /// A `&mut` argument or receiver of the innermost open call, which
+    /// the callee holds while any access of the same call lasts.
+    Held(CollPath, NodeIdx),
+}
+
 impl Ck<'_, '_> {
+    /// Opens the exclusivity frame of a call or an element reference
+    /// loop; [`Self::close_access_frame`] ends its accesses.
+    pub(crate) fn open_access_frame(&mut self) {
+        self.excl_frames.push(self.excl.len());
+    }
+
+    pub(crate) fn close_access_frame(&mut self) {
+        if let Some(m) = self.excl_frames.pop() {
+            self.excl.truncate(m);
+        }
+    }
+
+    /// The collection path of the value `r`: a read of a local that holds
+    /// no reference, through struct fields, list elements and map values.
+    /// `None` for anything a reference or a global may reach.
+    fn value_path(&mut self, r: Ref) -> Option<CollPath> {
+        let mut steps = Vec::new();
+        let mut cur = r;
+        for _ in 0..64 {
+            let i = cur.as_inst()?.0 as usize;
+            let (tag, data) = {
+                let body = self.b.body_mut();
+                (body.tags[i], body.data[i])
+            };
+            if let Some(l) = self.b.body_mut().local_read(i) {
+                let lt = self.b.local_ty(l);
+                if self.ref_of(lt).is_some() {
+                    return None;
+                }
+                steps.reverse();
+                return Some(CollPath { root: l, steps });
+            }
+            if let Some((base, step)) = self.b.body_mut().read_step(i) {
+                let ReadStep::Field(k) = step else {
+                    return None;
+                };
+                steps.push(PathStep::Field(k));
+                cur = Ref(base);
+                continue;
+            }
+            if let Some((list, index)) = self.element_of(cur) {
+                steps.push(PathStep::Slot(self.path_key(index)));
+                cur = list;
+                continue;
+            }
+            match tag {
+                Tag::Coerce => cur = Ref(data[0]),
+                Tag::Intrinsic
+                    if matches!(
+                        IntrinsicOp::from_u32(data[0]),
+                        Some(IntrinsicOp::MapIndex | IntrinsicOp::MapIndexMut)
+                    ) =>
+                {
+                    let rec = self.b.body_mut().record(data[1]).to_vec();
+                    let [m, k, ..] = rec[..] else {
+                        return None;
+                    };
+                    steps.push(PathStep::Slot(self.path_key(Ref(k))));
+                    cur = Ref(m);
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    /// The collection path of the place `p`, or `None` when a reference
+    /// or a global may reach it.
+    fn place_path(&mut self, p: &Place) -> Option<CollPath> {
+        let mut path = match p.root {
+            Root::Local(l, _) => CollPath {
+                root: l,
+                steps: Vec::new(),
+            },
+            Root::Elem(coll, key, _) => {
+                let mut c = self.value_path(coll)?;
+                let k = self.path_key(key);
+                c.steps.push(PathStep::Slot(k));
+                c
+            }
+            _ => return None,
+        };
+        path.steps
+            .extend(p.path.iter().map(|&(k, _)| PathStep::Field(k)));
+        Some(path)
+    }
+
+    fn path_key(&mut self, mut r: Ref) -> Key {
+        for _ in 0..8 {
+            let Some(i) = r.as_inst() else {
+                let body = self.b.body_mut();
+                let Some(&(t, bits)) = body.consts.get((r.0 & !Ref::CONST_BIT) as usize) else {
+                    return Key::Unknown;
+                };
+                if t == Ty::STRING {
+                    let Some(text) = usize::try_from(bits).ok().and_then(|s| body.strings.get(s))
+                    else {
+                        return Key::Unknown;
+                    };
+                    let text = text.to_string();
+                    return Key::Text(self.cx.names.syms.intern(&text));
+                }
+                return Key::Const(t, bits);
+            };
+            let i = i.0 as usize;
+            if let Some(l) = self.b.body_mut().local_read(i) {
+                let f = self.b.body_mut().local_flags[l.idx()];
+                let fixed = f & local_flags::SHORT != 0
+                    || (f & local_flags::PARAM != 0 && !self.mut_params.contains(&l));
+                return if fixed { Key::Local(l) } else { Key::Unknown };
+            }
+            let (tag, data) = {
+                let body = self.b.body_mut();
+                (body.tags[i], body.data[i])
+            };
+            if tag != Tag::Coerce {
+                return Key::Unknown;
+            }
+            r = Ref(data[0]);
+        }
+        Key::Unknown
+    }
+
+    /// An access to the collection of the element place `p` begins at
+    /// `at`, an argument or a receiver of the innermost open call, or an
+    /// element reference loop. A `&mut` argument or receiver of the same
+    /// call that holds the collection conflicts with it
+    /// (`ref.elem.conflict.reference`).
+    pub(crate) fn begin_access(&mut self, coll: Ref) {
+        let Some(&frame) = self.excl_frames.last() else {
+            return;
+        };
+        let Some(c) = self.value_path(coll) else {
+            return;
+        };
+        let held: Vec<NodeIdx> = self.excl[frame..]
+            .iter()
+            .filter_map(|e| match e {
+                Excl::Held(p, at) if p.holds(&c) => Some(*at),
+                _ => None,
+            })
+            .collect();
+        for at in held {
+            self.conflicts.push((c.root, at));
+        }
+        self.excl.push(Excl::Access(c));
+    }
+
+    /// `&mut` of the place `p` is taken at `at`; `held` when it is an
+    /// argument or a receiver of the innermost open call, which holds it
+    /// until it returns. During an access to a collection that `p` holds,
+    /// it may change the collection's length (`ref.elem.conflict`).
+    pub(crate) fn mut_place_taken(&mut self, p: &Place, at: NodeIdx, held: bool) {
+        if self.excl_frames.is_empty() {
+            return;
+        }
+        let Some(path) = self.place_path(p) else {
+            return;
+        };
+        self.length_change(&path, at);
+        if held {
+            self.excl.push(Excl::Held(path, at));
+        }
+    }
+
+    /// A built-in method that changes its receiver's length, `push` or a
+    /// map's `remove`, is called at `at` on the collection value `recv`
+    /// (`ref.elem.conflict.method`).
+    pub(crate) fn length_changed(&mut self, recv: Ref, at: NodeIdx) {
+        if self.excl.is_empty() {
+            return;
+        }
+        if let Some(path) = self.value_path(recv) {
+            self.length_change(&path, at);
+        }
+    }
+
+    fn length_change(&mut self, path: &CollPath, at: NodeIdx) {
+        let hit = self
+            .excl
+            .iter()
+            .any(|e| matches!(e, Excl::Access(c) if path.holds(c)));
+        if hit {
+            self.conflicts.push((path.root, at));
+        }
+    }
+
+    /// Reports the conflicts found in the body on collections that stay
+    /// unaliased: a closure that captures the collection's binding may
+    /// change it where the checker cannot see, and the pin catches that
+    /// (`ref.elem.unaliased`, `ref.elem.access.pin`). Any closure counts
+    /// as escaping here, which only leaves more to the pin.
+    pub(crate) fn report_conflicts(&mut self) {
+        let mut found = std::mem::take(&mut self.conflicts);
+        if found.is_empty() {
+            return;
+        }
+        let captured: HashSet<LocalId> = self.b.body_mut().cap_local.iter().copied().collect();
+        let mut seen = HashSet::default();
+        found.retain(|&(l, at)| !captured.contains(&l) && seen.insert(at));
+        for (_, at) in found {
+            let node = self.cx.src.parse.tree.node(at);
+            self.err(
+                Code::ConflictingAccess,
+                node,
+                "this may change the length of a collection while an element reference into it is in use; make the change before or after that use",
+            );
+        }
+    }
+
     /// The place `&e[k]` names when `e` is a list (`ref.elem.place`), the
     /// slot `k` of the list's buffer, or a map (`ref.elem.map`), the value
     /// of the key `k`. `None` after an error; any other index is no place
@@ -266,7 +535,12 @@ impl Ck<'_, '_> {
             self.irrefutable_loop_pattern(pat, rt);
         }
         let ab = self.b.open_block();
-        body(self)?;
+        // The loop is one access to the list (`flow.for.ref.access`).
+        self.open_access_frame();
+        self.begin_access(lr);
+        let checked = body(self);
+        self.close_access_frame();
+        checked?;
         let arm = self.b.close_block(ab, None, Ty::VOID, at);
         let rows = vec![crate::pat::Row {
             pat: Some(pat),

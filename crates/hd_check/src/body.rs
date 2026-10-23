@@ -355,6 +355,13 @@ pub(crate) struct Ck<'a, 'c> {
     pub elem_ok: HashMap<hd_base::NodeIdx, crate::elem_refs::ElemUse>,
     pub elem_args: HashSet<hd_base::NodeIdx>,
     pub elem_locals: HashSet<LocalId>,
+    /// The exclusivity stack of the open calls and element reference
+    /// loops, with each frame's start, and the conflicting accesses found
+    /// so far by the collection's binding (`ref.elem.conflict`,
+    /// `elem_refs.rs`), reported at the body's end.
+    pub excl: Vec<crate::elem_refs::Excl>,
+    pub excl_frames: Vec<usize>,
+    pub conflicts: Vec<(LocalId, hd_base::NodeIdx)>,
     /// The checkpoints taken and not yet rolled back or committed.
     pub open_trials: u32,
     /// A pipe's value while its step is checked (`_`).
@@ -575,6 +582,9 @@ pub(crate) fn new_ck<'a, 'c>(
         elem_ok: HashMap::default(),
         elem_args: HashSet::default(),
         elem_locals: HashSet::default(),
+        excl: Vec::new(),
+        excl_frames: Vec::new(),
+        conflicts: Vec::new(),
         open_trials: 0,
         placeholder: None,
         pipe_arg: None,
@@ -4341,6 +4351,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
         self.unused_locals();
         self.redundant_primitive_let_mut();
+        self.report_conflicts();
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;
             let facts = std::mem::take(&mut self.facts);

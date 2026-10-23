@@ -1,7 +1,1 @@
 path	issue	engine	reason
-runtime/valid/element-reference-aliasing.hd	#494		a list copied as an argument beside an element reference into it shares the referenced elements
-typing/invalid/element-access-conflict-map.hd	#494		conflicting-access is not checked
-typing/invalid/element-access-conflict-method.hd	#494		conflicting-access is not checked
-typing/invalid/element-access-conflict-receiver.hd	#494		conflicting-access is not checked
-typing/invalid/element-access-conflict-reference.hd	#494		conflicting-access is not checked
-typing/invalid/for-element-references-push-conflict.hd	#494		conflicting-access is not checked; the push panics collection-pinned at run time
