@@ -575,13 +575,11 @@ impl Response:
         else:
             .Ok(self)
 
-    # The body's text decoded as JSON into `T` (r-std-http.response.json).
-    ## Decodes the body text as JSON into `T`; a failure is `.Err(HttpError.Json(error))`.
-    ## See [std-http.response.json](../../spec/std/http.md#r-std-http.response.json).
-    pub fn json[T < Deserialize](self) -> Result[T, HttpError]:
-        match decode::[T](self.text()):
-            .Ok(value) => .Ok(value)
-            .Err(error) => .Err(.Json(error))
+    # The body's text decoded as JSON into `T` (r-std-http.response.json-decode).
+    ## Decodes the body text as JSON into `T`; a bad body is the decoder's `JsonError`.
+    ## See [std-http.response.json-decode](../../spec/std/http.md#r-std-http.response.json-decode).
+    pub fn json[T < Deserialize](self) -> Result[T, JsonError]:
+        decode::[T](self.text())
 
 ## Why a request failed: invalid URL, DNS, connect, TLS, timeout, too many redirects, not granted, or another reason.
 ## See [std-http.error.decl-retained-response](../../spec/std/http.md#r-std-http.error.decl-retained-response).
@@ -606,8 +604,6 @@ pub enum HttpError:
     Other(message: string)
     @error("HTTP status ${response.status} for ${status_url(response.url)}")
     Status(response: Response)
-    @error("invalid JSON in the response: ${error}")
-    Json(error: JsonError)
 
 # A composed deadline has the same error as the operation it bounds.
 impl From[TimedOut] for HttpError:

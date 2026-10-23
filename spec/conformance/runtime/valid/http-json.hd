@@ -1,7 +1,8 @@
-# test: Response.json decodes the body into a type, a Post request sends a JSON body with its header, and a bad body is a Json error
-# Spec std/http Status And JSON: std-http.response.json, std-http.error.json, std-http.error.json.text.
+# test: Response.json decodes the body into a type, a Post request sends a JSON body with its header, and a bad body is the decoder's JsonError
+# Spec std/http Status And JSON: std-http.response.json-decode, std-http.response.json-propagate.
 # Also covers std-http.error.decl-retained-response, std-http.error.traits, std-http.scripted.received-ref.
 # expect: test
+use std.convert.From
 use std.http.{Http, HttpError, Method, Request, Response, ScriptedHttp}
 use std.json.{JsonError, encode}
 use std.serde.{Deserialize, Serialize}
@@ -15,10 +16,25 @@ struct Created:
     id: i64
     name: string
 
-fn create!(name: string) -> Result[Created, HttpError] $ Http:
+# The caller's own error covers both failures; `?` converts each by From.
+@error
+@derive(Debug, Eq)
+enum CreateError:
+    @error("$error")
+    Http(error: HttpError)
+    @error("invalid JSON in the response: $error")
+    Json(error: JsonError)
+
+impl From[HttpError] for CreateError:
+    fn from(error: HttpError) -> CreateError: .Http(error)
+
+impl From[JsonError] for CreateError:
+    fn from(error: JsonError) -> CreateError: .Json(error)
+
+fn create!(name: string) -> Result[Created, CreateError] $ Http:
     body := encode(NewUser { name: name }).to_utf8()
     response := Request { method: Method.Post, url: "https://example.com/users", headers: [("Content-Type", "application/json")], body: body }.send!()?
-    response.ok()?.json::[Created]()
+    .Ok(response.ok()?.json::[Created]()?)
 
 tests:
     use std.testing.assert_equal
@@ -54,7 +70,7 @@ tests:
         $.with(Http=http):
             assert_equal(create!("Ada").is_err(), true, reason="500 is an error")
             match create!("Ada"):
-                .Err(.Status(response)) => assert_equal((response.status, response.url), (500, "https://example.com/users"), reason="the status")
+                .Err(.Http(.Status(response))) => assert_equal((response.status, response.url), (500, "https://example.com/users"), reason="the status")
                 _ => assert_equal(true, false, reason="a Status error")
 
     it("json alone ignores the status"):
@@ -63,5 +79,6 @@ tests:
             .Ok(created) => assert_equal(created.id, 1, reason="decoded")
             .Err(_) => assert_equal(true, false, reason="json does not read the status")
 
-    it("the Json text carries the decode error"):
-        assert_equal(HttpError.Json(JsonError.MissingField("$.id")).to_string(), "invalid JSON in the response: missing field at $.id", reason="one form")
+    it("json's error is the decoder's JsonError"):
+        response := Response { status: 200, headers: [], body: "oops".to_utf8() }
+        assert_equal(response.json::[Created]().err(), .Some(JsonError.UnexpectedCharacter(0)), reason="no HttpError wrapper")
