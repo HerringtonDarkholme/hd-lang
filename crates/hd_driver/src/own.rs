@@ -135,7 +135,16 @@ impl OwnCx for Env<'_> {
         if sig.suspends || sig.params.len() != n {
             return Pass::Owned;
         }
-        self.value_parameter(self.low(sig.params[k].1))
+        // A `mut self` receiver that is, or that an instance may make, a
+        // collection's: the body copies out its final value.
+        let declared = self.low(sig.params[k].1);
+        let pool = &self.run.pool;
+        if self.in_place(item, k, n, None)
+            || matches!(pool.get(declared), TyData::Mut(t) if matches!(pool.get(t), TyData::Param(_)))
+        {
+            return Pass::InPlace;
+        }
+        self.value_parameter(declared)
     }
 
     fn suspending(&self, item: DefId) -> bool {

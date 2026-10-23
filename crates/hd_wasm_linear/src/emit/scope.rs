@@ -224,6 +224,7 @@ impl Em<'_, '_, '_> {
                 for l in self.ret.clone() {
                     self.f.get(l);
                 }
+                self.push_copy_out()?;
                 self.ready_frame();
                 self.f.op(I::Return);
             }
@@ -241,6 +242,7 @@ impl Em<'_, '_, '_> {
             if a != NONE {
                 self.push(a)?;
             }
+            self.push_copy_out()?;
             self.ready_frame();
             self.f.op(I::Return);
             return Ok(());

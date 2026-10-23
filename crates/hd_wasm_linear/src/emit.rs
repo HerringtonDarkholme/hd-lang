@@ -208,9 +208,17 @@ fn body_func<'a>(
         em.open_ctx = ctx;
     }
     em.open_base = em.providers.len();
+    if sub == 0 && own.cold.is_none() {
+        let tys: Vec<Ty> = plocals.iter().map(|&l| em.sub(b.local_ty[l])).collect();
+        em.copy_out = copies_out(input, item, &tys).then(|| plocals[0]);
+    }
     let results = em.vals(ret)?;
     em.results.clone_from(&results);
     let mut fres = results.clone();
+    // A list or a map is one address.
+    if em.copy_out.is_some() {
+        fres.push(Val::I32);
+    }
     if suspending {
         fres.push(Val::I32);
     }
@@ -426,10 +434,13 @@ fn body_func<'a>(
     }
     if em.counting {
         em.close();
+        let out = em.copy_out_value()?;
         em.release_all()?;
-        for l in em.ret.clone() {
+        for l in em.ret.clone().into_iter().chain(out) {
             em.f.get(l);
         }
+    } else {
+        em.push_copy_out()?;
     }
     if let Some(cell) = &once {
         cell.leave(&mut em, ret)?;
@@ -772,8 +783,10 @@ fn forward(
 ) -> StageResult<Func> {
     let (pool, env) = (input.pool, input.env);
     let mut params = vec![Val::I32];
+    let mut tys = Vec::new();
     for p in env.params(callee).unwrap_or_default() {
-        params.extend(vals(pool, env, subst(pool, env, callee, cargs, p))?);
+        tys.push(subst(pool, env, callee, cargs, p));
+        params.extend(vals(pool, env, tys[tys.len() - 1])?);
     }
     // The context of the value's caller, which holds the value's row.
     let c = u32::try_from(params.len()).expect("params");
@@ -807,6 +820,16 @@ fn forward(
         f.get(c);
     }
     f.call(sym);
+    // A function value has no place for a receiver's final value.
+    if copies_out(input, callee, &tys) {
+        match crate::layout::pass(pool, env, input.runtime.is_some(), tys[0]) {
+            Pass::Owned(walk) => f.helper(Helper::Release {
+                vals: vec![Val::I32],
+                walk,
+            }),
+            _ => f.op(Instruction::Drop),
+        }
+    }
     Ok(f)
 }
 
@@ -838,6 +861,23 @@ pub(crate) fn callee_params(
         .into_iter()
         .map(|p| subst(pool, env, item, args, p))
         .collect()
+}
+
+/// Whether an instance of `item` whose parameters have types `params`
+/// copies out its receiver (`docs/compiler/tir-v2.md`, commit 3b): a
+/// function that does not suspend, whose `mut self` receiver is in place
+/// (`OwnCx::received`) and a list or a map here, returns the receiver's
+/// final value after its results, with a count of its own, and its caller
+/// stores it into the place the argument read.
+pub(crate) fn copies_out(input: &Input<'_>, item: DefId, params: &[Ty]) -> bool {
+    use hd_mono::layout::StdKind;
+    let pool = input.pool;
+    params.first().is_some_and(|&t| {
+        matches!(pool.get(t), TyData::Mut(_))
+            && matches!(pool.get(crate::layout::strip(pool, input.env, t)),
+                TyData::Adt { def, .. } if matches!(input.env.std_kind(def), StdKind::List | StdKind::Map))
+    }) && !input.env.suspends(item)
+        && input.own_cx.received(item, 0, params.len()) == hd_tir::own::Pass::InPlace
 }
 
 /// The parameter locals of the body's own function, in order: those
@@ -988,6 +1028,9 @@ struct Em<'i, 'a, 'm> {
     /// While a hoisted `IsUnique` runs: a dereference on its place reads
     /// the reference's address, in a module no reference view reaches.
     deref_physical: bool,
+    /// The receiver local whose final value the function returns after its
+    /// results ([`copies_out`]).
+    copy_out: Option<usize>,
 }
 
 impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
@@ -1071,6 +1114,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             own_ops: Vec::new(),
             hoisted: Vec::new(),
             deref_physical: false,
+            copy_out: None,
         };
         em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
         em
@@ -2135,6 +2179,71 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
+    /// After a call of `item` whose parameters are `params`: the receiver's
+    /// final value it copied out ([`copies_out`]), in a fresh local, with
+    /// its type.
+    fn take_copy_out(&mut self, item: DefId, params: Option<&[Ty]>) -> Option<(u32, Ty)> {
+        let ps = params.filter(|ps| copies_out(self.input, item, ps))?;
+        let x = self.f.local(Val::I32);
+        self.f.set(x);
+        Some((x, ps[0]))
+    }
+
+    /// Stores `out`, the final value a callee copied out of its receiver
+    /// `args[0]`, into the place of a local or a top-level binding that the
+    /// argument read, as a `Store` of it stores (taking a count of its
+    /// own), then releases its count. Any other argument keeps nothing.
+    fn copy_back(&mut self, i: u32, args: &[u32], out: Option<(u32, Ty)>) -> StageResult<()> {
+        let (Some((x, t)), Some(&r)) = (out, args.first()) else {
+            return Ok(());
+        };
+        let read = Ref(r).as_inst().is_some() && self.b.tags[r as usize] == Tag::Read;
+        let w = self.b.data.get(r as usize).map_or(NONE, |d| d[0]);
+        let rooted = read
+            && self.b.decode_place(w).is_some_and(|p| match p.root {
+                hd_tir::ir::PlaceRoot::Local(l) => self.locals.contains_key(&l.idx()),
+                hd_tir::ir::PlaceRoot::Global(..) => true,
+                _ => false,
+            });
+        if rooted {
+            let held = self.vals.insert(r, vec![x]);
+            // `r` consumes nothing, so the store takes no count over.
+            self.emitting.push(r);
+            let stored = self.store_into(i, w, r);
+            self.emitting.pop();
+            if let Some(h) = held {
+                self.vals.insert(r, h);
+            }
+            stored?;
+        }
+        self.release_locals(&[x], t)
+    }
+
+    /// The final value of the receiver the function copies out
+    /// ([`copies_out`]), in a fresh local, with a count of its own when
+    /// the function counts; nothing for any other function.
+    pub(super) fn copy_out_value(&mut self) -> StageResult<Option<u32>> {
+        let Some(l) = self.copy_out else {
+            return Ok(None);
+        };
+        let x = self.f.local(Val::I32);
+        let v = self.local_value(u32::try_from(l).expect("locals"))?;
+        self.f.get(v[0]);
+        self.f.set(x);
+        if self.counting {
+            self.retain_locals(&[x], self.sub(self.b.local_ty[l]))?;
+        }
+        Ok(Some(x))
+    }
+
+    /// Pushes [`Em::copy_out_value`] at a return.
+    pub(super) fn push_copy_out(&mut self) -> StageResult<()> {
+        if let Some(x) = self.copy_out_value()? {
+            self.f.get(x);
+        }
+        Ok(())
+    }
+
     fn call(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
         let mut args = self.rec(bw);
         args.truncate(args.len().saturating_sub(3));
@@ -2145,6 +2254,7 @@ impl Em<'_, '_, '_> {
                     self.push_args(&args, params.as_deref())?;
                     let c = self.push_call_providers(ct.item, ct.args)?;
                     self.f.call(Sym::Inst(ct.key));
+                    let out = self.take_copy_out(ct.item, params.as_deref());
                     // A suspending callee called cold returns its frame.
                     let ret = if self.env().suspends(ct.item) {
                         self.ty(i)
@@ -2152,6 +2262,7 @@ impl Em<'_, '_, '_> {
                         ct.ret
                     };
                     self.call_results(i, ret)?;
+                    self.copy_back(i, &args, out)?;
                     self.release_ctx(c);
                     Ok(())
                 }
@@ -2352,7 +2463,9 @@ impl Em<'_, '_, '_> {
                 if bracket {
                     self.forbid_by(-1);
                 }
+                let out = self.take_copy_out(call.item, params.as_deref());
                 self.call_results(i, call.ret)?;
+                self.copy_back(i, &args, out)?;
                 self.release_ctx(c);
                 Ok(())
             }

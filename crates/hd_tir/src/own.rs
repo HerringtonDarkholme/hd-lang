@@ -122,6 +122,10 @@ pub trait OwnCx {
     /// function's. The borrow pass leaves a lent parameter the body never
     /// stores unowned, and an owned one too when no read of it keeps its
     /// value and the body does not suspend ([`OwnCx::suspending`]).
+    /// `InPlace` for a `mut self` receiver of a function that does not
+    /// suspend, when it is a list's or a map's or an instance may make it
+    /// one (`mut Self`): the body copies its final value out, so insertion
+    /// leaves it undropped and outside the exit set.
     fn received(&self, item: hd_base::DefId, k: usize, n: usize) -> Pass;
     /// Whether the body of `item` suspends, so that its frame holds a
     /// count of every parameter. The default answers yes, which leaves

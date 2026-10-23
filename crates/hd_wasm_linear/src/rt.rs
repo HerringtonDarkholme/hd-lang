@@ -373,6 +373,8 @@ pub enum Helper {
     /// The dynamic call lends its arguments; `own` has the walk of each of
     /// `target`'s parameters, the receiver first, that it owns
     /// (`layout::Pass`), and the slot counts a copy of each of those.
+    /// With `out`, `target` copies out its receiver (`emit::copies_out`),
+    /// whose final value the slot has no place for and releases.
     DynSlot {
         target: Hash128,
         leaves: Option<Vec<Leaf>>,
@@ -380,10 +382,13 @@ pub enum Helper {
         results: Vec<Val>,
         own: Vec<(u32, Option<Walk>)>,
         ctx: Option<SlotCtx>,
+        out: bool,
     },
     /// `(ref, params..) -> results`: a vtable slot whose payload is a
     /// reference and whose target takes the value: reads it through the
     /// reference's `get`, calls `target`, then releases the value read.
+    /// With `out`, `target` copies out its receiver (`emit::copies_out`),
+    /// whose final value the slot stores back through the reference.
     DynRead {
         target: Hash128,
         read: RefRead,
@@ -391,6 +396,7 @@ pub enum Helper {
         results: Vec<Val>,
         own: Vec<(u32, Option<Walk>)>,
         ctx: Option<SlotCtx>,
+        out: bool,
     },
     /// `(env, at, ctx) -> (usize, (K, V))?`: the step closure code of
     /// std's `map_steps` (`map.rs`).
@@ -1126,10 +1132,10 @@ fn rt_import(name: &str, params: &[Val], results: &[Val]) -> Sym {
 fn dyn_read(
     target: Hash128,
     read: &RefRead,
-    params: &[Val],
-    results: &[Val],
+    (params, results): (&[Val], &[Val]),
     own: &[(u32, Option<Walk>)],
     ctx: Option<&SlotCtx>,
+    out: bool,
     m: &Module,
 ) -> Func {
     let mut all = vec![Val::I32];
@@ -1151,6 +1157,13 @@ fn dyn_read(
     recv(&mut f);
     push_slot_params(&mut f, params.len() - usize::from(ctx.is_some()), ctx);
     f.call(Sym::Inst(target));
+    // The receiver's final value, one address, back through the reference.
+    if out {
+        let x = f.local(Val::I32);
+        f.set(x);
+        ref_store(&mut f, 0, &[x], &read.value);
+        ref_count(&mut f, &[x], &read.value, false);
+    }
     if !recv_owned {
         ref_count(&mut f, &held, &read.value, false);
     }
@@ -1537,6 +1550,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             results,
             own,
             ctx,
+            out,
         } => {
             let mut all = vec![Val::I32];
             all.extend(params.iter().copied());
@@ -1561,6 +1575,12 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 ctx.as_ref(),
             );
             f.call(Sym::Inst(*target));
+            if *out {
+                match own[0].1.clone().filter(|_| m.runtime.is_some()) {
+                    Some(walk) => f.helper(Helper::Release { vals: rvals, walk }),
+                    None => f.op(Instruction::Drop),
+                }
+            }
             f
         }
         Helper::DynRead {
@@ -1570,7 +1590,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             results,
             own,
             ctx,
-        } => dyn_read(*target, read, params, results, own, ctx.as_ref(), m),
+            out,
+        } => dyn_read(*target, read, (params, results), own, ctx.as_ref(), *out, m),
         Helper::ListTruncate { elem } => list_truncate(m, elem),
         Helper::TypeIdOf(parts) => type_id(parts, vec![], m),
         Helper::RuntimeType(parts) => type_id(parts, vec![Val::I32], m),
