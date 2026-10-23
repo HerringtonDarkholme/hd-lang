@@ -1,0 +1,11 @@
+# test: the body of for p in &mut xs may read xs and write its elements; only a length change conflicts
+# Spec 06 Element Reference Loops: flow.for.ref.conflict.
+tests:
+    use std.testing.assert_equal
+
+    it("reads and element writes beside the loop binding"):
+        let mut scores = [+1, 2, 3]
+        for score in &mut scores:
+            *score += scores[0]
+            scores[2] = 9
+        assert_equal(scores, [+2, 4, 9], reason="each step read slot 0, and the last write to slot 2 wins")

@@ -4613,6 +4613,7 @@ typing/invalid/for-element-references-store.hd	type	reject:element-reference-out
 typing/invalid/for-element-references-capture.hd	type	reject:element-reference-outlives-call	lang/06-control-flow.md#r-flow.for.ref.binding
 typing/invalid/for-element-references-field-reference.hd	type	reject:element-reference-outlives-call	lang/06-control-flow.md#r-flow.for.ref.binding
 typing/invalid/for-element-references-push-conflict.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
+runtime/valid/for-element-references-body-reads-list.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.conflict
 runtime/panic/map-element-reference-insert-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned.map
 runtime/valid/value-argument-sibling-change.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/provider-ref-mut-changes-caller.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values

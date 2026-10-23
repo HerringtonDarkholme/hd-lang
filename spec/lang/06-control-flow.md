@@ -367,7 +367,7 @@ fn raised(prices: List[i32]) -> List[i32]:
 1. r[flow.for.ref] `for p in &mut xs`, where `xs` is a list, binds the pattern to a `&mut T` [element reference](13-values-and-references.md#element-references) to each slot of `xs` in order, and `for p in &xs` to a `&T` one.
 2. r[flow.for.ref.slots] `xs` is evaluated once. The loop visits the slots from 0 up to the list's length when the loop began.
 3. r[flow.for.ref.access] The loop is one access to `xs`, as an element reference's call is ([`ref.elem.access`](13-values-and-references.md#r-ref.elem.access)). It begins when the loop begins and ends when the loop ends or is left.
-4. r[flow.for.ref.conflict] When `xs` is [unaliased](13-values-and-references.md#r-ref.elem.unaliased), the body may name `xs`, or a place that holds it, only through the loop binding. Naming it any other way is an error. Error: `conflicting-access`.
+4. r[flow.for.ref.conflict] When `xs` is [unaliased](13-values-and-references.md#r-ref.elem.unaliased), the body may read `xs` and write its elements, but an expression in it that may change the length of `xs`, as the table under [`ref.elem.conflict`](13-values-and-references.md#r-ref.elem.conflict) lists, is an error. Error: `conflicting-access`.
 5. r[flow.for.ref.pinned] The loop pins `xs` while it runs, as an access does, so any other change of the list's length, through a reference or a call, panics. Panic: `collection-pinned`.
 6. r[flow.for.ref.binding] The loop binding refers to its slot for one step. The body may read and write through it and pass it as an argument for a reference parameter ([`ref.elem.callee-copy.declared`](13-values-and-references.md#r-ref.elem.callee-copy.declared)). Binding it to another name, storing it, capturing it in a closure, or returning it is an error. Error: `element-reference-outlives-call`.
 7. r[flow.for.ref.writable] `for p in &mut xs` needs `xs` in a writable place, as `&mut xs[i]` does. Error: `not-writable`.
@@ -383,6 +383,7 @@ fn invalid(prices: Map[string, i32]) -> void:
         pass
     let mut scores = [+1, 2]
     for score in &mut scores:
+        *score += scores[0]  # reads and element writes are allowed
         scores.push(*score)  # error: conflicting-access
     let mut kept: List[&i32] = []
     for score in &scores:
