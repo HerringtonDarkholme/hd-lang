@@ -14,6 +14,7 @@ action at a distance.
 
 ## What Remains
 
+- [Module Hot Reload](MODULE_HOT_RELOAD.md): proposed compatible body updates, retained active code, explicit restart boundaries, and unchanged REPL reload (#182).
 - [Host Embedding](HOST_EMBEDDING.md): proposed explicit library registration, generated core-Wasm adapters, application providers, and structured panic outcomes (#51).
 - [hd lint](HD_LINT.md): proposed command, shared diagnostics, package allow/deny policy, and a first lint for lost temporary-receiver writes (#651).
 - [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes (#28).
