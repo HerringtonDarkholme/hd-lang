@@ -511,9 +511,8 @@ impl UdpFixture {
     fn new() -> Self {
         let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
         let address = socket.local_addr().unwrap();
-        socket
-            .set_read_timeout(Some(Duration::from_millis(100)))
-            .unwrap();
+        // Drop wakes this blocking receive with a datagram. Repeated
+        // SO_RCVTIMEO expiry can leave a Windows socket indeterminate.
         let stopped = Arc::new(AtomicBool::new(false));
         let stop = stopped.clone();
         let seen = Arc::new(Mutex::new(Vec::new()));
@@ -528,16 +527,6 @@ impl UdpFixture {
                         }
                         records.lock().unwrap().push(bytes[..n].to_vec());
                         socket.send_to(&bytes[..n], from).unwrap();
-                    }
-                    Err(err)
-                        if matches!(
-                            err.kind(),
-                            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
-                        ) =>
-                    {
-                        if stop.load(Ordering::Relaxed) {
-                            break;
-                        }
                     }
                     Err(err) => panic!("local datagram fixture: {err}"),
                 }
