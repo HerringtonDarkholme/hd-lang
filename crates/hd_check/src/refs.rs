@@ -445,6 +445,9 @@ impl Ck<'_, '_> {
                 }
             }
         };
+        if matches!(place.root, Root::Elem(..)) {
+            self.elem_ref_value(n, false);
+        }
         let inner = self.strip_mut(self.infer.resolve(pool, place.ty));
         let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
         let r = self.make_ref(&place, mutable, rt, n);
@@ -568,6 +571,7 @@ impl Ck<'_, '_> {
                 {
                     return Ok(Some(Operand::Value(v.0, v.1)));
                 }
+                self.elem_may_stand(base, crate::elem_refs::ElemUse::Through);
                 let Some(b) = self.place_of(base, None, use_)? else {
                     return Ok(None);
                 };
@@ -577,6 +581,7 @@ impl Ck<'_, '_> {
                 let Some(inner) = kids.first().copied() else {
                     return unsupported("a dereference without an operand");
                 };
+                self.elem_may_stand(inner, crate::elem_refs::ElemUse::Through);
                 let (r, t) = self.expr(inner, None)?;
                 let Some((it, m)) = self.ref_of(t) else {
                     self.not_a_reference(t, inner);
@@ -1175,6 +1180,7 @@ impl Ck<'_, '_> {
         let Some(e) = n.children().next() else {
             return unsupported("a dereference without an operand");
         };
+        self.elem_may_stand(e, crate::elem_refs::ElemUse::Through);
         let (r, t) = self.expr(e, None)?;
         if self.dyn_ref_of(t).is_some() {
             self.err(
@@ -1204,6 +1210,7 @@ impl Ck<'_, '_> {
         let Some(e) = lhs.children().next() else {
             return unsupported("a dereference without an operand");
         };
+        self.elem_may_stand(e, crate::elem_refs::ElemUse::Through);
         let (r, t) = self.expr(e, None)?;
         let Some((inner, mutable)) = self.ref_of(t) else {
             self.not_a_reference(t, e);

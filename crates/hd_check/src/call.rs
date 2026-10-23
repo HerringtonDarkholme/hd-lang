@@ -159,6 +159,25 @@ pub(crate) struct Formals<'a> {
     /// index, so the inference join checks arguments that share one
     /// (`types.generic.infer.join.other-conflict`).
     pub inferred: &'a [Vec<usize>],
+    /// Per parameter: whether its declared type is a reference, which an
+    /// element reference argument may be passed for
+    /// (`ref.elem.callee-copy`); a `T` instantiated with one is a value
+    /// the callee stores.
+    pub ref_params: &'a [bool],
+}
+
+/// Whether each declared parameter type is a reference.
+fn ref_formals(pool: hd_types::Types<'_>, params: &[(Symbol, Ty)]) -> Vec<bool> {
+    params
+        .iter()
+        .map(|p| {
+            let t = match pool.get(p.1) {
+                TyData::Mut(inner) => inner,
+                _ => p.1,
+            };
+            matches!(pool.get(t), TyData::Ref { .. })
+        })
+        .collect()
 }
 
 /// Whether a pre-instantiation formal type is a bare occurrence of type
@@ -277,7 +296,7 @@ impl Args<'_> {
 }
 
 impl Ck<'_, '_> {
-    pub(crate) fn args_of<'t>(&self, al: Option<NodeRef<'t>>) -> Args<'t> {
+    pub(crate) fn args_of<'t>(&mut self, al: Option<NodeRef<'t>>) -> Args<'t> {
         let mut a = Args::empty();
         for c in al.iter().flat_map(|l| l.children()) {
             match c.kind() {
@@ -305,6 +324,17 @@ impl Ck<'_, '_> {
                 }
                 _ => {}
             }
+        }
+        // An element reference may be an argument (`ref.elem.call`).
+        let all: Vec<NodeRef<'t>> = a
+            .positional
+            .iter()
+            .chain(&a.after_spread)
+            .chain(a.named.iter().map(|(_, e)| e))
+            .copied()
+            .collect();
+        for e in all {
+            self.elem_may_stand(e, crate::elem_refs::ElemUse::Arg);
         }
         a
     }
@@ -372,6 +402,9 @@ impl Ck<'_, '_> {
     pub(crate) fn name_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let s = self.sym_of(n);
         if let Some((l, d)) = self.find_local(s) {
+            if self.elem_locals.contains(&l) {
+                self.elem_ref_value(n, true);
+            }
             return Ok(self.read_local(l, d, n));
         }
         if let Some(v) = self.global_get(s, n) {
@@ -984,11 +1017,13 @@ impl Ck<'_, '_> {
             // Reached only through explicit type arguments: every formal is
             // fixed, and the join check stays off.
             let inferred: Vec<Vec<usize>> = vec![Vec::new(); formals.len()];
+            let refs = ref_formals(pool, &formals);
             let formals = Formals {
                 params: &formals,
                 defaults: &defaults,
                 variadic: false,
                 inferred: &inferred,
+                ref_params: &refs,
             };
             self.local_defaults = Some(crate::local::LocalDefaults {
                 defaults: form.defaults.clone(),
@@ -1013,11 +1048,13 @@ impl Ck<'_, '_> {
             // Function values keep today's behavior: without a declaration
             // there is no explicit/inferred split to read.
             let inferred: Vec<Vec<usize>> = vec![Vec::new(); formals.len()];
+            let refs = ref_formals(pool, &formals);
             let formals = Formals {
                 params: &formals,
                 defaults: &defaults,
                 variadic: true,
                 inferred: &inferred,
+                ref_params: &refs,
             };
             self.check_args(&formals, 0, args, n, "the function value")?
         } else if args.spread.is_some() {
@@ -1255,6 +1292,8 @@ impl Ck<'_, '_> {
                 }
                 let w = item_wants[i - nfixed];
                 let (r, t) = self.arg_value(*e, w)?;
+                let declared = formals.ref_params.get(skip + nfixed).copied();
+                self.elem_ref_arg(*e, declared.unwrap_or(false));
                 let r = match w {
                     Some(w) => self.coerce(r, t, w, *e, "argument", ExpectPosition::General),
                     None => r,
@@ -1287,6 +1326,10 @@ impl Ck<'_, '_> {
                 _ => w,
             };
             let (r, t) = self.arg_value(*e, expect)?;
+            self.elem_ref_arg(
+                *e,
+                formals.ref_params.get(skip + i).copied().unwrap_or(false),
+            );
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
                 && self.infer.resolve(pool, t) == Ty::NEVER
@@ -1388,6 +1431,10 @@ impl Ck<'_, '_> {
                 w
             };
             let (r, t) = self.arg_value(*e, Some(expect))?;
+            self.elem_ref_arg(
+                *e,
+                formals.ref_params.get(skip + i).copied().unwrap_or(false),
+            );
             if open[i] && self.infer.resolve(pool, t) == Ty::NEVER && !self.diags.has_errors() {
                 self.never_args.push(rest[i].1);
             }
@@ -1876,6 +1923,7 @@ impl Ck<'_, '_> {
                     defaults: &sig.defaults,
                     variadic: sig.variadic,
                     inferred: &inferred,
+                    ref_params: &ref_formals(pool, &sig.params),
                 };
                 let refs = self.check_args(&formals, 0, args, n, &name)?;
                 // A rejected argument makes the call an error value, so
@@ -2705,6 +2753,7 @@ impl Ck<'_, '_> {
         let Some(base) = callee.children().next() else {
             return unsupported("a member call without a base");
         };
+        self.elem_may_stand(base, crate::elem_refs::ElemUse::Receiver);
         let name = self.cx.src.text(self.cx.src.last(callee)).to_owned();
         // Static forms: a type, a type parameter, a trait or a module,
         // each also through a module (`text.StringBuilder::new()`).
@@ -2842,6 +2891,7 @@ impl Ck<'_, '_> {
                 defaults: &sig.defaults,
                 variadic: sig.variadic,
                 inferred: &inferred,
+                ref_params: &ref_formals(pool, &sig.params),
             };
             let refs = self.check_args(&formals, 0, args, n, name)?;
             self.fill_method_defaults(&sig, &vars, &inst, want)?;
@@ -3834,6 +3884,7 @@ impl Ck<'_, '_> {
                     defaults: &sig.defaults,
                     variadic: sig.variadic,
                     inferred: &inferred,
+                    ref_params: &ref_formals(pool, &sig.params),
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 self.fill_method_defaults(&sig, &vars, &inst, want)?;
@@ -3883,11 +3934,14 @@ impl Ck<'_, '_> {
                 full.extend(ps);
                 // Builtin signatures are fixed: the join check stays off.
                 let inferred: Vec<Vec<usize>> = vec![Vec::new(); full.len()];
+                // A builtin's parameters are the collection's type
+                // arguments, never references.
                 let formals = Formals {
                     params: &full,
                     defaults: &[],
                     variadic: false,
                     inferred: &inferred,
+                    ref_params: &[],
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 Ok(self.emit_builtin(op, &refs, ret, n))
@@ -4094,6 +4148,7 @@ impl Ck<'_, '_> {
             defaults: &sig.defaults,
             variadic: sig.variadic,
             inferred: &inferred,
+            ref_params: &ref_formals(pool, &sig.params),
         };
         let method_name = self
             .cx

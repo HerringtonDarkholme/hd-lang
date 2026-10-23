@@ -2,6 +2,8 @@
 # Insertion's pins: before a reference to an element, an `IsUnique` and a
 # `Pin` of the list it points into. The checker writes only the `Ref`, and
 # the reference's drop ends the pin; nothing else releases it.
-fn bump(mut xs: List[i32], i: usize) -> void:
-    r := &mut xs[i]
+fn add_one(r: &mut i32) -> void:
     *r = *r + 1
+
+fn bump(mut xs: List[i32], i: usize) -> void:
+    add_one(&mut xs[i])

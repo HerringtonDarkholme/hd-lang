@@ -348,6 +348,13 @@ pub(crate) struct Ck<'a, 'c> {
     /// flags, init facts, the possibly-uninitialized set and the row
     /// frames (rule TC-5). Written only while a checkpoint is open.
     pub undo: Vec<crate::trial::BodyUndo>,
+    /// Element references (`ref.elem.call`, `elem_refs.rs`): the
+    /// expressions where one may stand, by what uses it there; the
+    /// arguments that are one; and the loop bindings that are one
+    /// (`flow.for.ref.binding`).
+    pub elem_ok: HashMap<hd_base::NodeIdx, crate::elem_refs::ElemUse>,
+    pub elem_args: HashSet<hd_base::NodeIdx>,
+    pub elem_locals: HashSet<LocalId>,
     /// The checkpoints taken and not yet rolled back or committed.
     pub open_trials: u32,
     /// A pipe's value while its step is checked (`_`).
@@ -565,6 +572,9 @@ pub(crate) fn new_ck<'a, 'c>(
         shown: None,
         facts: crate::init::InitFacts::default(),
         undo: Vec::new(),
+        elem_ok: HashMap::default(),
+        elem_args: HashSet::default(),
+        elem_locals: HashSet::default(),
         open_trials: 0,
         placeholder: None,
         pipe_arg: None,
@@ -3301,7 +3311,7 @@ impl Ck<'_, '_> {
     }
 
     /// Rename only a plain call whose replacement still resolves to prelude `dbg`.
-    fn discarded_debug_fix(&self, call: NodeRef<'_>) -> Option<Span> {
+    fn discarded_debug_fix(&mut self, call: NodeRef<'_>) -> Option<Span> {
         if call.kind() != SyntaxKind::CallExpr {
             return None;
         }
@@ -3685,6 +3695,7 @@ impl Ck<'_, '_> {
                     return unsupported("a field without a base");
                 };
                 let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
+                self.elem_may_stand(base, crate::elem_refs::ElemUse::Through);
                 // The place the base names, which nothing reads yet
                 // (`docs/compiler/tir-v2.md`, "Field writes").
                 let Some(op) = self.place_of(base, None, crate::refs::PlaceUse::Write)? else {

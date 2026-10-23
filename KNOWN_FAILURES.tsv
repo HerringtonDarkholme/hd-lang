@@ -8,11 +8,5 @@ typing/invalid/element-access-conflict-map.hd	#494		map values are not places ye
 typing/invalid/element-access-conflict-method.hd	#494		conflicting-access is not checked
 typing/invalid/element-access-conflict-receiver.hd	#494		conflicting-access is not checked
 typing/invalid/element-access-conflict-reference.hd	#494		conflicting-access is not checked
-typing/invalid/element-reference-binding.hd	#494		element references bound to names are accepted
-typing/invalid/element-reference-field-store.hd	#494		element references stored in fields are accepted
-typing/invalid/element-reference-let-binding.hd	#494		element references bound to names are accepted
-typing/invalid/element-reference-return.hd	#494		returned element references are accepted
-typing/invalid/for-element-references-capture.hd	#494		closures capturing an element reference loop binding are accepted
 typing/invalid/for-element-references-push-conflict.hd	#494		conflicting-access is not checked; the push panics collection-pinned at run time
-typing/invalid/for-element-references-store.hd	#494		element reference loop bindings stored in a list are accepted
 typing/invalid/map-value-reference.hd	#494		map values are not places yet: &m[k] is map-value-not-addressable

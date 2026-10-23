@@ -3,10 +3,10 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $write_nested (param $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $p i32) (local $t4 i32) (local $t5 i32)
+  (func $write_nested (param $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     block
       ;; ...
-    ;; 5 |     p := &mut xs[0][0]
+    ;; 8 |     set(&mut xs[0][0], 9)
       local.get $xs
       drop
       block
@@ -43,25 +43,28 @@
       local.tee $t3
       call $retain
       local.get $t3
-      local.set $p
-      i32.const 0
-      local.set $t3
-    ;; 6 |     *p = 9
-      local.get $p
-      local.set $t4
       i32.const 9
-      local.set $t5
-      local.get $t4
+      call $set
+      ;; ...
+    end
+  )
+  (func $set (param $p i32) (param $v i32) (local $t0 i32) (local $t1 i32)
+    ;; 5 |     *p = v
+    block
+      local.get $p
+      local.set $t0
+      local.get $v
+      local.set $t1
+      local.get $t0
       drop
       block
-        local.get $t4
+        local.get $t0
         i32.load $heap
         drop
-        local.get $t4
-        local.get $t5
+        local.get $t0
+        local.get $t1
         i32.store $heap
       end
-      ;; ...
     end
   )
 )

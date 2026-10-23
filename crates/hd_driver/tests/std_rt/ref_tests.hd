@@ -1,6 +1,6 @@
 # The hd tests of references on the linear backend (crates/hd_wasm_linear/DESIGN.md
 # §23.20): a reference to a local shares the local's cell, an element
-# reference owns its list's pin until its last copy dies, and each is
+# reference a callee keeps owns its list's pin until its last copy dies, and each is
 # released after its last use, so taking references in a loop runs in
 # bounded memory. A reference is an address, so writing through one to a
 # local allocates nothing. Only std may read the heap's size, so the
@@ -17,6 +17,12 @@ fn label(n: i32) -> string:
 
 fn bump(x: &mut i32) -> void:
     *x = *x + 1
+
+fn keep(x: &mut i32) -> &mut i32:
+    x
+
+fn keep_string(x: &mut string) -> &mut string:
+    x
 
 fn grow(xs: &mut List[string], n: i32) -> void:
     xs.push(label(n))
@@ -45,11 +51,11 @@ tests:
 
     it("an element reference pins its list until its last use"):
         let mut xs = [+1, 2, 3]
-        r := &mut xs[1]
+        r := keep(&mut xs[1])
         *r = 20
         xs.push(4)
         assert(xs.len() == 4 && xs[1] == 20, "the push ran after the reference's last use")
-        saved := Holder { slot: &mut xs[0] }
+        saved := Holder { slot: keep(&mut xs[0]) }
         *saved.slot = 10
         xs.push(5)
         assert(xs[0] == 10 && xs.len() == 5, "the field copy died before the push")
@@ -66,7 +72,7 @@ tests:
             let mut xs = [label(round), label(n)]
             for s in &mut xs:
                 *s = *s + "!"
-            r := &mut xs[0]
+            r := keep_string(&mut xs[0])
             if *r == label(round) + "!" && xs[1] == label(round + 1) + "!":
                 right = right + 1
             grow(&mut xs, round)

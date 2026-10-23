@@ -243,6 +243,7 @@ impl Ck<'_, '_> {
         self.local_generics.retain(|l, _| l.idx() < locals);
         self.local_forms.retain(|l, _| l.idx() < locals);
         self.generic_recheck.retain(|l| l.idx() < locals);
+        self.elem_locals.retain(|l| l.idx() < locals);
         // A check that stopped with "not implemented" may leave frames
         // open; the body is abandoned then, so only shrink.
         self.rows.truncate(c.depths[5]);

@@ -20,7 +20,9 @@ impl Iterable[i32] for Bag:
     type IntoIter = ListIter[i32]
     fn iter(self) -> ListIter[i32]: self.items.iter()
 # expected: Compute the element address and expose pin lifetime through explicit count operations.
+fn x_of(body: &Body) -> f64:
+    body.x
+
 fn borrow(items: &mut List[Body], index: usize) -> f64:
     # subject
-    element := &items[index]
-    element.x
+    x_of(&items[index])

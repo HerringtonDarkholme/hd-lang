@@ -30,6 +30,19 @@ pub(crate) fn strip_parens(mut e: NodeRef<'_>) -> NodeRef<'_> {
     e
 }
 
+/// What uses an expression where an element reference may stand.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ElemUse {
+    /// A call argument (`ref.elem.call`).
+    Arg,
+    /// A method call's receiver (`ref.elem.call`).
+    Receiver,
+    /// A dereference's operand or a field's base, which reads or writes
+    /// through it at once: a loop binding's use (`flow.for.ref.binding`),
+    /// never `&xs[i]` itself, whose place is written `xs[i]`.
+    Through,
+}
+
 impl Ck<'_, '_> {
     /// The place `&e[k]` names when `e` is a list (`ref.elem.place`): the
     /// slot `k` of the list's buffer. `None` after an error; a map value or
@@ -82,6 +95,66 @@ impl Ck<'_, '_> {
                 Ok(None)
             }
         }
+    }
+
+    /// `e` is used as `how`, where an element reference may stand.
+    pub(crate) fn elem_may_stand(&mut self, e: NodeRef<'_>, how: ElemUse) {
+        self.elem_ok.insert(strip_parens(e).index(), how);
+    }
+
+    /// `n` evaluates to an element reference: `&xs[i]`, or a name of an
+    /// element reference loop's binding (`binding`). `&xs[i]` may stand
+    /// only as an argument or a receiver (`ref.elem.call`); the binding
+    /// also as a dereference's operand or a field's base
+    /// (`flow.for.ref.binding`). Anywhere else it outlives its call
+    /// (`ref.elem.kept`).
+    pub(crate) fn elem_ref_value(&mut self, n: NodeRef<'_>, binding: bool) {
+        match self.elem_ok.get(&n.index()) {
+            Some(ElemUse::Arg) => {
+                self.elem_args.insert(n.index());
+            }
+            Some(ElemUse::Receiver) => {}
+            Some(ElemUse::Through) if binding => {}
+            _ => self.elem_ref_kept(n),
+        }
+    }
+
+    /// The argument `e`, when it is an element reference, passed for a
+    /// parameter whose declared type is no reference: the callee stores
+    /// a value, which is keeping it (`ref.elem.kept`). A reference
+    /// parameter may keep a copy (`ref.elem.callee-copy`).
+    pub(crate) fn elem_ref_arg(&mut self, e: NodeRef<'_>, ref_param: bool) {
+        if !ref_param && self.elem_args.contains(&strip_parens(e).index()) {
+            self.elem_ref_kept(e);
+        }
+    }
+
+    /// A closure that captures an element reference loop's binding keeps
+    /// it (`flow.for.ref.binding`). Reported once, by the outermost
+    /// closure that captures it.
+    pub(crate) fn elem_ref_captures(&mut self, mark: hd_tir::ir::SubMark, n: NodeRef<'_>) {
+        for l in self.b.open_captures(mark) {
+            if !self.elem_locals.contains(&l) {
+                continue;
+            }
+            let depth = self
+                .scopes
+                .iter()
+                .position(|m| m.values().any(|x| *x == l))
+                .unwrap_or(0);
+            if self.subs.iter().any(|s| s.depth > depth) {
+                continue;
+            }
+            self.elem_ref_kept(n);
+        }
+    }
+
+    fn elem_ref_kept(&mut self, n: NodeRef<'_>) {
+        self.err(
+            Code::ElementReferenceOutlivesCall,
+            n,
+            "an element reference lives for one call, so nothing may keep it; keep the index and name the element as `xs[i]` at each use",
+        );
     }
 
     /// `ref.check.not-yet-non-list-elements`: a reference to an index result that is
@@ -194,6 +267,12 @@ impl Ck<'_, '_> {
         let mut binds = Vec::new();
         let before = self.diags.len();
         self.declare_pattern(pat, rt, &mut binds)?;
+        let named: Vec<_> = binds
+            .iter()
+            .map(|b| b.1)
+            .filter(|&l| self.b.local_ty(l) == rt)
+            .collect();
+        self.elem_locals.extend(named);
         if self.diags.len() == before {
             self.irrefutable_loop_pattern(pat, rt);
         }
