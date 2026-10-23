@@ -419,6 +419,7 @@ impl Tree {
 
 /// The Windows wrapper already owns the Job before the child is resumed;
 /// its `start_kill` kills the Job. Elsewhere it kills only the direct child.
+/// `&mut self` is unused here but keeps the Unix `Tree` interface.
 #[cfg(not(unix))]
 struct Tree;
 
@@ -428,9 +429,11 @@ impl Tree {
         Tree
     }
 
+    #[allow(clippy::unused_self)]
     fn kill(&mut self, child: &mut ProcessChild) {
         let _ = child.start_kill();
     }
 
+    #[allow(clippy::unused_self)]
     fn release(&mut self) {}
 }
