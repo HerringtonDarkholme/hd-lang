@@ -19,13 +19,15 @@ use hd_types::{Inputs, ParamRef, Prim, Ty, TyData, TyList, VarKind, with_assoc_a
 use crate::body::{Ck, ExpectPosition, unsupported};
 use crate::ty::Named;
 
-/// The methods of the items a body sees, by name (built once per module).
+/// Own methods followed by the shared methods of the ordered visible interfaces.
 #[derive(Default)]
 pub struct MethodIndex {
     /// Inherent methods: (impl, method).
     pub inherent: HashMap<Symbol, Vec<(DefId, DefId)>>,
     /// Trait methods: (trait, method).
     pub traits: HashMap<Symbol, Vec<(DefId, DefId)>>,
+    seen: HashSet<DefId>,
+    shared: Option<std::sync::Arc<Self>>,
 }
 
 fn name_distance(left: &str, right: &str) -> usize {
@@ -48,42 +50,98 @@ fn name_distance(left: &str, right: &str) -> usize {
 impl MethodIndex {
     #[must_use]
     pub fn build(lookup: &hd_resolve::Lookup<'_>) -> Self {
-        let mut ix = MethodIndex::default();
-        // A module's folder interface holds the module's own public items
-        // again, after those of the folder's earlier modules: each
-        // declaration adds its methods once, so one trait is never two
-        // candidates of a call (#346).
-        let mut seen: HashSet<DefId> = HashSet::default();
-        let mut add = |it: &hd_resolve::Item| {
-            if !seen.insert(it.def) {
-                return;
+        let mut ix = Self::default();
+        ix.extend(lookup.own.iter());
+        ix.extend(
+            lookup
+                .ifaces
+                .iter()
+                .flat_map(|f| f.items.impls().chain(f.items.traits())),
+        );
+        ix
+    }
+
+    /// An interface closure has one index, independent of each module's private items.
+    #[must_use]
+    pub fn interfaces(lookup: &hd_resolve::Lookup<'_>) -> Self {
+        let mut ix = Self::default();
+        ix.extend(
+            lookup
+                .ifaces
+                .iter()
+                .flat_map(|f| f.items.impls().chain(f.items.traits())),
+        );
+        ix
+    }
+
+    /// Own declarations win, including declarations also held by an interface (#346).
+    #[must_use]
+    pub fn with_own(lookup: &hd_resolve::Lookup<'_>, shared: std::sync::Arc<Self>) -> Self {
+        let mut ix = Self::default();
+        ix.extend(lookup.own.iter());
+        ix.shared = Some(shared);
+        ix
+    }
+
+    fn extend<'a>(&mut self, items: impl Iterator<Item = &'a hd_resolve::Item>) {
+        for it in items {
+            if !self.seen.insert(it.def) {
+                continue;
             }
             match &it.data {
                 ItemData::Impl {
                     trait_, methods, ..
                 } if *trait_ == DefId::NONE => {
                     for (n, m) in methods {
-                        ix.inherent.entry(*n).or_default().push((it.def, *m));
+                        self.inherent.entry(*n).or_default().push((it.def, *m));
                     }
                 }
                 ItemData::Trait(t) => {
                     for (n, m) in &t.methods {
-                        ix.traits.entry(*n).or_default().push((it.def, *m));
+                        self.traits.entry(*n).or_default().push((it.def, *m));
                     }
                 }
                 _ => {}
             }
-        };
-        for it in lookup.own {
-            add(it);
         }
-        // Only impls and traits name methods (#213).
-        for f in &lookup.ifaces {
-            for it in f.items.impls().chain(f.items.traits()) {
-                add(it);
-            }
+    }
+
+    fn map(&self, inherent: bool) -> &HashMap<Symbol, Vec<(DefId, DefId)>> {
+        if inherent {
+            &self.inherent
+        } else {
+            &self.traits
         }
-        ix
+    }
+
+    fn candidates(&self, sym: Symbol, inherent: bool) -> Option<Vec<(DefId, DefId)>> {
+        let mut out = self.map(inherent).get(&sym).cloned().unwrap_or_default();
+        if let Some(shared) = &self.shared {
+            out.extend(
+                shared
+                    .map(inherent)
+                    .get(&sym)
+                    .into_iter()
+                    .flatten()
+                    .filter(|(def, _)| !self.seen.contains(def))
+                    .copied(),
+            );
+        }
+        (!out.is_empty()).then_some(out)
+    }
+
+    fn names(&self) -> impl Iterator<Item = Symbol> + '_ {
+        self.inherent
+            .keys()
+            .chain(self.traits.keys())
+            .copied()
+            .chain(
+                self.shared
+                    .iter()
+                    .flat_map(|ix| ix.inherent.iter().chain(&ix.traits))
+                    .filter(|(_, methods)| methods.iter().any(|(def, _)| !self.seen.contains(def)))
+                    .map(|(name, _)| *name),
+            )
     }
 }
 
@@ -349,9 +407,7 @@ impl Ck<'_, '_> {
     /// program: what the per-folder method index maps the name to.
     fn traits_declaring(&self, sym: Symbol) -> Vec<(DefId, DefId)> {
         self.method_index()
-            .traits
-            .get(&sym)
-            .cloned()
+            .candidates(sym, false)
             .unwrap_or_default()
     }
 
@@ -3315,10 +3371,8 @@ impl Ck<'_, '_> {
         }
         let index = self.method_index();
         let mut names: Vec<String> = index
-            .inherent
-            .keys()
-            .chain(index.traits.keys())
-            .map(|s| self.cx.names.text(*s).to_owned())
+            .names()
+            .map(|s| self.cx.names.text(s).to_owned())
             .chain(["len", "push", "get", "remove"].map(str::to_owned))
             .collect();
         names.sort();
@@ -3420,7 +3474,7 @@ impl Ck<'_, '_> {
     fn unmet_inherent_bound(&mut self, t: Ty, name: &str) -> Option<String> {
         let pool = self.pool();
         let sym = self.cx.names.syms.intern(name);
-        let cands = self.method_index().inherent.get(&sym).cloned()?;
+        let cands = self.method_index().candidates(sym, true)?;
         let t = match pool.get(self.infer.shallow(pool, t)) {
             TyData::Mut(i) => i,
             _ => t,
@@ -3468,7 +3522,7 @@ impl Ck<'_, '_> {
     ) -> Option<(DefId, DefId, Vec<Ty>)> {
         let pool = self.pool();
         let sym = self.cx.names.syms.intern(name);
-        let cands = self.method_index().inherent.get(&sym).cloned()?;
+        let cands = self.method_index().candidates(sym, true)?;
         let t = match pool.get(self.infer.shallow(pool, t)) {
             TyData::Mut(i) => i,
             _ => t,

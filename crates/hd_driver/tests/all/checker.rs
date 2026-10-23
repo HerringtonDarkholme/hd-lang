@@ -511,3 +511,41 @@ fn println_in_non_entry_module_init_reports_both_errors() {
         out.render()
     );
 }
+
+/// Sibling bodies share interface methods, but retain their own private traits.
+/// The public trait occurs both in its declaring body's own items and its interface.
+#[test]
+fn shared_method_index_keeps_private_traits_and_deduplicates_own_items() {
+    let out = program_of(&[
+        (
+            "main.hd",
+            "use pkg.left.one\nuse pkg.right.two\n\npub fn main() -> void:\n    _ := one(1) + two(2)\n",
+        ),
+        (
+            "left.hd",
+            r"trait Private:
+    fn stamp(self) -> i32
+impl Private for i32:
+    fn stamp(self) -> i32: self
+pub trait Shared:
+    fn shared(self) -> i32
+impl Shared for i32:
+    fn shared(self) -> i32: self
+pub fn one(n: i32) -> i32:
+    n.stamp() + n.shared()
+",
+        ),
+        (
+            "right.hd",
+            r"use pkg.left.Shared
+trait Private:
+    fn stamp(self) -> i32
+impl Private for i32:
+    fn stamp(self) -> i32: self
+pub fn two(n: i32) -> i32:
+    n.stamp() + n.shared()
+",
+        ),
+    ]);
+    assert!(!out.diags.has_errors(), "{}", out.render());
+}
