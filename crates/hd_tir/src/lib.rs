@@ -3,6 +3,7 @@
 //! one typed IR per body in columns (`ir`), and its wire form with
 //! entry-local tables and the TIR hash (`wire`).
 
+pub mod inline;
 pub mod ir;
 pub mod own;
 pub mod wire;

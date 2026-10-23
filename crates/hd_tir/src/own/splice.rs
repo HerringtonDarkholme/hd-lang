@@ -60,6 +60,9 @@ pub(crate) struct Tables {
     per_block: Vec<(u32, u32, u32)>,
     words: Vec<u32>,
     places: Vec<u32>,
+    /// Added to every constant word: 0 for a pass, the caller's constant
+    /// count for the inliner's copy of a callee.
+    konst: u32,
 }
 
 impl Tables {
@@ -345,14 +348,20 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     for (new, &old) in t.order.iter().enumerate() {
         t.new_of[old as usize] = u32_of(new);
     }
-    permute(&mut b.tags, &t.order);
-    permute(&mut b.data, &t.order);
-    permute(&mut b.ty, &t.order);
-    permute(&mut b.syn, &t.order);
-    if !b.anchors.is_empty() {
-        permute(&mut b.anchors, &t.order);
-    }
+    permute_columns(b, &t.order);
     renumber(b, t)
+}
+
+/// Puts the instruction columns in `order`: row `k` becomes old row
+/// `order[k]`.
+pub(crate) fn permute_columns(b: &mut Body, order: &[u32]) {
+    permute(&mut b.tags, order);
+    permute(&mut b.data, order);
+    permute(&mut b.ty, order);
+    permute(&mut b.syn, order);
+    if !b.anchors.is_empty() {
+        permute(&mut b.anchors, order);
+    }
 }
 
 fn permute<T: Copy>(v: &mut Vec<T>, order: &[u32]) {
@@ -392,12 +401,26 @@ pub(crate) fn for_blocks(b: &Body, i: usize, mut f: impl FnMut(u32)) {
     }
 }
 
+/// Renumbers every instruction word of `b` through `new_of`, and moves
+/// every constant word `konst` rows on: the inliner's caller and copy.
+pub(crate) fn renumber_through(b: &mut Body, new_of: Vec<u32>, konst: u32) -> Result<(), String> {
+    let mut t = Tables {
+        new_of,
+        konst,
+        ..Tables::default()
+    };
+    renumber(b, &mut t)
+}
+
 /// Renumbers every word of `b` that names an instruction, by the operand
 /// schema; a record several instructions share is renumbered once.
 fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     let map = |t: &Tables, w: u32| -> u32 {
-        if w == NONE || w & Ref::CONST_BIT != 0 {
+        if w == NONE {
             return w;
+        }
+        if w & Ref::CONST_BIT != 0 {
+            return w + t.konst;
         }
         t.new_of.get(w as usize).copied().unwrap_or(w)
     };
