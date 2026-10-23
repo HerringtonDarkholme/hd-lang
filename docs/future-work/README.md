@@ -32,6 +32,7 @@ action at a distance.
 - [Streaming Design](STREAMING_DESIGN.md): one reader and writer shape for HTTP bodies, process pipes, files and `TcpStream`, on plain `Disposable` handles bound with `using` (#350).
 - [Live Execution](live-execution.md): the REPL session model, replay and
   resume (#17, #18).
+- [REPL Journal Checkpoints](REPL_CHECKPOINTS.md): measured checkpoint options, a shared base module, resource limits and the historical evidence needed by reload (#646).
 - [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the
   owner did not make explicitly, kept for the stdlib audit.
 - [SIMD Byte-Scan Primitives](SIMD_PRIMITIVES.md): proposed std
