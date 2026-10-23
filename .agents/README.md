@@ -10,6 +10,7 @@ and `description` frontmatter.
 | [`stress-test`](skills/stress-test/SKILL.md) | try a recorded decision set against real library code, and rank what breaks |
 | [`complexity-reducer`](skills/complexity-reducer/SKILL.md) | find cuts and merges in a design or spec area, with soundness and rule accounting |
 | [`brainstorm`](skills/brainstorm/SKILL.md) | survey other languages and compare three to five options for an open question |
+| [`design-doc`](skills/design-doc/SKILL.md) | write a design document an owner can approve and an implementer can build from: semantics, architecture with pseudo-code, extension points, bottom-up cost, stress test |
 | [`spec-update`](skills/spec-update/SKILL.md) | apply a decided owner decision end to end: spec, fixtures, compiler, docs, checks, and push |
 | [`write-issue`](skills/write-issue/SKILL.md) | write a GitHub issue a fresh agent can act on: one item, rule, today, where, done check, no history |
 | [`write-hd`](skills/write-hd/SKILL.md) | write hd code: syntax by example, the prelude and std imports, and the common mistakes with their fixes |
@@ -32,6 +33,7 @@ AGENTS.md                      repo instructions; points here
     stress-test/SKILL.md
     complexity-reducer/SKILL.md
     brainstorm/SKILL.md
+    design-doc/SKILL.md
     spec-update/SKILL.md
     write-issue/SKILL.md
     write-hd/SKILL.md
