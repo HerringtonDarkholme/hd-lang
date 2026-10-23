@@ -966,7 +966,15 @@ impl Ck<'_, '_> {
         };
         let form = form.filter(|_| inputs == Inputs::Fixed);
         if !args.named.is_empty() && form.is_none() {
-            return unsupported("named arguments to a function value");
+            // A function value has no parameter names (`fn.ref.value`), so
+            // every named argument names no parameter (`fn.arg.unknown-name`).
+            for (pname, e) in &args.named {
+                let msg = format!(
+                    "a function value has no parameter names, so `{pname}=` names none; pass it by position"
+                );
+                self.err(Code::UnknownNamedArgument, *e, &msg);
+            }
+            return Ok((Ref(NONE), Ty::NEVER));
         }
         let ps = pool.list_items(params);
         let refs = if let Some((form, vars)) = form {

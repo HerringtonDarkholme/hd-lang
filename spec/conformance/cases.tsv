@@ -4916,3 +4916,4 @@ runtime/valid/console-raw-writes.hd	runtime	accept	std/console.md#printing-witho
 runtime/valid/print-provider-cancels-write.hd	runtime	accept	std/console.md#r-std-console.print.cancelled
 runtime/panic/print-console-other-error.hd	runtime	panic:explicit-panic	std/console.md#r-std-console.print.error
 runtime/valid/debug-string-runs.hd	runtime	accept	std/format.md#r-std-format.debug.source
+typing/invalid/function-value-named-argument.hd	type	reject:unknown-named-argument	lang/07-functions.md#r-fn.type.positional.named

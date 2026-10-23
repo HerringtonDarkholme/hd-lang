@@ -372,7 +372,8 @@ fn!(UserId) -> Result[User, DbError] $ Database
 2. r[fn.type.form] A plain function type lists parameter types and a result.
 3. r[fn.type.no-names] Parameter names and default values are not part of a function value type.
 4. r[fn.type.positional] Calling through a function value therefore uses positional arguments only and does not inherit declaration defaults.
-5. r[fn.type.parts] Suspension and requirement rows are part of the type.
+5. r[fn.type.positional.named] A named argument in a call through a function value names no parameter, so it is an error. Error: `unknown-named-argument`.
+6. r[fn.type.parts] Suspension and requirement rows are part of the type.
 
 ### Function Type Constructors
 
