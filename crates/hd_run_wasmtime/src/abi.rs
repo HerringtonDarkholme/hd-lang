@@ -326,7 +326,6 @@ pub enum HttpError {
     TooManyRedirects { url: String },
     Other { message: String },
     Status { response: Response },
-    Json { error: JsonError },
 }
 
 impl Wire for HttpError {
@@ -367,14 +366,10 @@ impl Wire for HttpError {
                 e.leb(8);
                 response.enc(e);
             }
-            Self::Json { error } => {
-                e.leb(9);
-                error.enc(e);
-            }
         }
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(match d.tag(10)? {
+        Ok(match d.tag(9)? {
             0 => Self::NotGranted {
                 host: Wire::dec(d)?,
             },
@@ -393,111 +388,8 @@ impl Wire for HttpError {
             7 => Self::Other {
                 message: Wire::dec(d)?,
             },
-            8 => Self::Status {
+            _ => Self::Status {
                 response: Wire::dec(d)?,
-            },
-            _ => Self::Json {
-                error: Wire::dec(d)?,
-            },
-        })
-    }
-}
-
-/// `JsonError` of `lib/std/json.hd`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum JsonError {
-    UnexpectedEnd { position: usize },
-    UnexpectedCharacter { position: usize },
-    InvalidEscape { position: usize },
-    LoneSurrogate { position: usize },
-    ControlCharacter { position: usize },
-    NumberOutOfRange { position: usize },
-    NestingTooDeep { position: usize },
-    WrongType { path: String, expected: String },
-    MissingField { path: String },
-    UnknownVariant { path: String, name: String },
-}
-
-impl Wire for JsonError {
-    fn enc(&self, e: &mut Enc) {
-        match self {
-            Self::UnexpectedEnd { position } => {
-                e.leb(0);
-                position.enc(e);
-            }
-            Self::UnexpectedCharacter { position } => {
-                e.leb(1);
-                position.enc(e);
-            }
-            Self::InvalidEscape { position } => {
-                e.leb(2);
-                position.enc(e);
-            }
-            Self::LoneSurrogate { position } => {
-                e.leb(3);
-                position.enc(e);
-            }
-            Self::ControlCharacter { position } => {
-                e.leb(4);
-                position.enc(e);
-            }
-            Self::NumberOutOfRange { position } => {
-                e.leb(5);
-                position.enc(e);
-            }
-            Self::NestingTooDeep { position } => {
-                e.leb(6);
-                position.enc(e);
-            }
-            Self::WrongType { path, expected } => {
-                e.leb(7);
-                path.enc(e);
-                expected.enc(e);
-            }
-            Self::MissingField { path } => {
-                e.leb(8);
-                path.enc(e);
-            }
-            Self::UnknownVariant { path, name } => {
-                e.leb(9);
-                path.enc(e);
-                name.enc(e);
-            }
-        }
-    }
-    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(match d.tag(10)? {
-            0 => Self::UnexpectedEnd {
-                position: Wire::dec(d)?,
-            },
-            1 => Self::UnexpectedCharacter {
-                position: Wire::dec(d)?,
-            },
-            2 => Self::InvalidEscape {
-                position: Wire::dec(d)?,
-            },
-            3 => Self::LoneSurrogate {
-                position: Wire::dec(d)?,
-            },
-            4 => Self::ControlCharacter {
-                position: Wire::dec(d)?,
-            },
-            5 => Self::NumberOutOfRange {
-                position: Wire::dec(d)?,
-            },
-            6 => Self::NestingTooDeep {
-                position: Wire::dec(d)?,
-            },
-            7 => Self::WrongType {
-                path: Wire::dec(d)?,
-                expected: Wire::dec(d)?,
-            },
-            8 => Self::MissingField {
-                path: Wire::dec(d)?,
-            },
-            _ => Self::UnknownVariant {
-                path: Wire::dec(d)?,
-                name: Wire::dec(d)?,
             },
         })
     }

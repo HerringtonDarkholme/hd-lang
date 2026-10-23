@@ -79,18 +79,6 @@ export const Response = data({
   body: bytes,
   url: str,
 });
-export const JsonError = variants({
-  UnexpectedEnd: { position: unsigned },
-  UnexpectedCharacter: { position: unsigned },
-  InvalidEscape: { position: unsigned },
-  LoneSurrogate: { position: unsigned },
-  ControlCharacter: { position: unsigned },
-  NumberOutOfRange: { position: unsigned },
-  NestingTooDeep: { position: unsigned },
-  WrongType: { path: str, expected: str },
-  MissingField: { path: str },
-  UnknownVariant: { path: str, name: str },
-});
 export const HttpError = variants({
   NotGranted: { host: str },
   InvalidUrl: { url: str },
@@ -101,7 +89,6 @@ export const HttpError = variants({
   TooManyRedirects: { url: str },
   Other: { message: str },
   Status: { response: Response },
-  Json: { error: JsonError },
 });
 export const Method = variants({
   Get: {},
