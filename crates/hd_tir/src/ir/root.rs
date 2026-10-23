@@ -121,6 +121,7 @@ fn inert(b: &Body, i: usize) -> bool {
                     | IntrinsicOp::MapLen
                     | IntrinsicOp::MapGet
                     | IntrinsicOp::MapIndex
+                    | IntrinsicOp::MapEntry
                     | IntrinsicOp::StrIndex
                     | IntrinsicOp::StrConcat
                     | IntrinsicOp::StrEq

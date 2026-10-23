@@ -349,8 +349,15 @@ pub enum Helper {
         entry: map::Entry,
     },
     /// `(map)`: makes the map's table its own before a change: a table it
-    /// shares is copied, its entries taking their own counts.
+    /// shares is copied, its entries taking their own counts. A header
+    /// with an owner word is its table's one owner (a pinned map).
     MapUnique {
+        entry: map::Entry,
+    },
+    /// `(map) -> map`: a new map over a copy of the map's table: how
+    /// [`Helper::ListCopy`] copies a pinned map, through the owner word's
+    /// slot, as [`Helper::ListClone`] copies a pinned list.
+    MapClone {
         entry: map::Entry,
     },
     /// `(map, pos, end) -> slot`: the first live entry in `pos..end`, or
@@ -1504,6 +1511,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::MapPut { entry, ops } => map::put(m, entry, ops),
         Helper::MapGrow { entry } => map::grow(entry, m),
         Helper::MapUnique { entry } => map::unique(entry, m),
+        Helper::MapClone { entry } => map::clone(m, entry),
         Helper::MapSlotNext => map::slot_next(m),
         Helper::DynSlot {
             target,

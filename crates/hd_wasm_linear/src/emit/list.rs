@@ -1094,9 +1094,20 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// An element read, `Read [%xs [%i]]`, of the list `list` at `index`.
+    /// An element read, `Read [%xs [%i]]`, of the list `list` at `index`,
+    /// or a map value's, `Read [%m [%e]]` at the number `%e` of its entry.
     pub(super) fn list_index(&mut self, i: u32, list: u32, index: u32) -> StageResult<()> {
-        let (_, e) = self.elem(self.ty_of(list))?;
+        let t = self.ty_of(list);
+        if self.is_map(t) {
+            let h = self.header(list)?;
+            let (vt, at) = self.map_value_at(h, t, index)?;
+            for l in mem_of(self.pool(), self.env(), vt)?.leaves {
+                self.f.get(at);
+                self.f.op(l.load(0));
+            }
+            return self.store(i);
+        }
+        let (_, e) = self.elem(t)?;
         let h = self.header(list)?;
         let b = self.buffer(h);
         let ix = if self.proven_list_indices.contains(&i) {
@@ -1125,8 +1136,20 @@ impl Em<'_, '_, '_> {
 
     /// The element type of list type `t` and a local holding the address
     /// of its slot `ix` in the buffer of the header in local `h`, the index
-    /// checked against the length.
+    /// checked against the length; for a map type, of the value of entry
+    /// `ix`, a `MapEntry`'s number. Either address is `LIST_ELEMS` before
+    /// the value.
     pub(super) fn elem_slot(&mut self, h: u32, t: Ty, ix: u32) -> StageResult<(Ty, u32)> {
+        if self.is_map(t) {
+            // `LIST_ELEMS` before the value, as a list's slot is.
+            let (vt, at) = self.map_value_at(h, t, ix)?;
+            let x = self.f.local(Val::I32);
+            self.f.get(at);
+            self.f.u32(LIST_ELEMS);
+            self.f.op(I::I32Sub);
+            self.f.set(x);
+            return Ok((vt, x));
+        }
         let (et, e) = self.elem(t)?;
         let b = self.buffer(h);
         let ix = self.index(b, ix)?;
@@ -1135,10 +1158,11 @@ impl Em<'_, '_, '_> {
 
     /// A `Store` into element `ix` of the list value `list`, or into the
     /// struct field `path` reaches in it (`[%xs [%i] .p .x]`), whose
-    /// buffer the passes' `IsUnique` made the list's own: after the bounds
-    /// check, the place's old value is released after the new one is
-    /// counted, and no other field is read or written (#655). A pin does
-    /// not stop it: the length stays.
+    /// buffer the passes' `IsUnique` made the list's own; or into a map
+    /// value's, `[%m [%e] .p .x]` at entry `%e`. After the bounds check,
+    /// the place's old value is released after the new one is counted,
+    /// and no other field is read or written (#655). A pin does not stop
+    /// it: the length stays.
     pub(super) fn elem_store(
         &mut self,
         list: u32,
@@ -1146,9 +1170,22 @@ impl Em<'_, '_, '_> {
         path: &[u32],
         v: u32,
     ) -> StageResult<()> {
-        let (et, e) = self.elem(self.ty_of(list))?;
+        let t = self.ty_of(list);
+        let h = self.header(list)?;
+        // The element's address, `off` bytes before it, and its leaves: a
+        // list's slot after the bounds check, or a map's value at its
+        // entry (`types.coll.map-value.place`).
+        let (et, all, at, off) = if self.is_map(t) {
+            let (vt, at) = self.map_value_at(h, t, ix)?;
+            (vt, mem_of(self.pool(), self.env(), vt)?.leaves, at, 0)
+        } else {
+            let (et, e) = self.elem(t)?;
+            let b = self.buffer(h);
+            let ix = self.index(b, ix)?;
+            (et, e.leaves, self.slot_at(b, ix, e.size), LIST_ELEMS)
+        };
         // The place's values among the element's, and its type.
-        let (mut first, mut count, mut ft) = (0, e.leaves.len(), et);
+        let (mut first, mut count, mut ft) = (0, all.len(), et);
         for &k in path {
             let (_, parts) = crate::layout::struct_mem(self.pool(), self.env(), ft)?;
             let Some(part) = parts.get(k as usize) else {
@@ -1158,23 +1195,14 @@ impl Em<'_, '_, '_> {
             count = part.count;
             ft = self.struct_fields(ft)[k as usize];
         }
-        let h = self.header(list)?;
-        let b = self.buffer(h);
-        let ix = self.index(b, ix)?;
-        let at = self.slot_at(b, ix, e.size);
         let s = self.slot_src(v, ft, false)?;
         self.retain_src(&s, ft)?;
-        let leaves = e.leaves[first..first + count].to_vec();
-        let counted = if path.is_empty() {
-            e.walk.is_some()
-        } else {
-            self.counted(ft).is_some()
-        };
-        if counted {
+        let leaves = all[first..first + count].to_vec();
+        if self.counted(ft).is_some() {
             let old: Vec<u32> = leaves.iter().map(|l| self.f.local(l.val)).collect();
             for (l, o) in leaves.iter().zip(&old) {
                 self.f.get(at);
-                self.f.op(l.load(LIST_ELEMS));
+                self.f.op(l.load(off));
                 self.f.set(*o);
             }
             self.release_locals(&old, ft)?;
@@ -1185,7 +1213,7 @@ impl Em<'_, '_, '_> {
                     em.f.get(at);
                     Ok(())
                 },
-                LIST_ELEMS,
+                off,
                 *l,
                 &mut |em: &mut Self| em.src(&s, k),
             )?;
@@ -1282,11 +1310,19 @@ impl Em<'_, '_, '_> {
     /// function-table slot of the list's clone glue plus one, with bit 31
     /// when its elements hold collections (§23.20).
     pub(super) fn pin_owner(&mut self, h: u32, t: Ty) -> StageResult<()> {
-        let (_, e) = self.elem(t)?;
-        let exposed = !e.colls.is_empty();
+        // A map's header is a list's kind (`ref.elem.map`): its clone glue
+        // copies the table.
+        let (clone, exposed) = if self.is_map(t) {
+            let (_, _, entry) = self.entry(t)?;
+            let exposed = !entry.colls.is_empty();
+            (Helper::MapClone { entry }, exposed)
+        } else {
+            let (_, e) = self.elem(t)?;
+            let exposed = !e.colls.is_empty();
+            (Helper::ListClone { elem: e }, exposed)
+        };
         self.f.get(h);
-        self.f
-            .table_slot(Sym::Helper(Helper::ListClone { elem: e }));
+        self.f.table_slot(Sym::Helper(clone));
         self.f.i32(1);
         self.f.op(I::I32Add);
         if exposed {

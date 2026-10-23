@@ -1769,7 +1769,8 @@ impl Em<'_, '_, '_> {
                         | IntrinsicOp::MapIndexMut
                         | IntrinsicOp::MapGet
                         | IntrinsicOp::MapSet
-                        | IntrinsicOp::MapRemove),
+                        | IntrinsicOp::MapRemove
+                        | IntrinsicOp::MapEntry),
                     ) => self.map_op(i, op, &args)?,
                     Some(IntrinsicOp::MapSlots) => self.map_slots(i, args[0])?,
                     Some(IntrinsicOp::MapSlotNext) => self.map_slot_next(i, &args)?,

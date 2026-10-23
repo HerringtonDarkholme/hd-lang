@@ -277,10 +277,17 @@ pub enum IntrinsicOp {
     /// `(collection, snapshot)`: the loop over `snapshot` has ended; a
     /// collection the loop did not change stops copying for it.
     SnapEnd,
+    /// `(map, key) -> usize`: the number of the key's entry, a panic
+    /// `index-out-of-bounds` when the map holds no equal key. A map value
+    /// is a place, `[%m [%e]]` at that number (`ref.elem.map`,
+    /// `types.coll.map-value.place`): the checker looks the entry up just
+    /// before each read, store or reference of the place, as a list's
+    /// place checks its index there.
+    MapEntry,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 18] = [
+    pub const ALL: [IntrinsicOp; 19] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::MapLen,
@@ -299,6 +306,7 @@ impl IntrinsicOp {
         IntrinsicOp::MapIndexMut,
         IntrinsicOp::SnapBegin,
         IntrinsicOp::SnapEnd,
+        IntrinsicOp::MapEntry,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {

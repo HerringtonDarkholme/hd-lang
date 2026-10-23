@@ -16,12 +16,40 @@ use wasm_encoder::BlockType;
 use super::value::Src;
 use super::{Ctl, Em};
 use crate::layout::{coll_leaves, payload_mem, strip};
-use crate::map::{Entry, KeyOps, LIVE, USED, entry_address, hash_address};
+use crate::map::{Entry, KeyOps, LIVE, MAP_PINNED, USED, entry_address, hash_address};
 use crate::module::{Global, HEAP, Import, Sym, Val, mem};
 use crate::rt::{Helper, empty_buffer};
 use crate::unsupported;
 
 impl Em<'_, '_, '_> {
+    /// The value type of map type `t` and a local holding the address of
+    /// the value of entry `e`, a `MapEntry`'s number, in the table of the
+    /// map header in local `h`: the place `[%m [%e]]` (`ref.elem.map`),
+    /// laid out as the value type is.
+    pub(super) fn map_value_at(&mut self, h: u32, t: Ty, e: u32) -> StageResult<(Ty, u32)> {
+        let (kt, vt, entry) = self.entry(t)?;
+        let (_, parts) = payload_mem(self.pool(), self.env(), &[kt, vt])?;
+        let Some(value) = parts.get(1) else {
+            return unsupported("a map entry without its value");
+        };
+        let (ix, at) = (self.f.local(Val::I32), self.f.local(Val::I32));
+        self.comp(e, 0)?;
+        self.f.set(ix);
+        entry_address(&mut self.f, h, ix, entry.size);
+        self.f.u32(value.offset);
+        self.f.op(I::I32Add);
+        self.f.set(at);
+        Ok((vt, at))
+    }
+
+    /// Whether `t` is a map type.
+    pub(super) fn is_map(&self, t: Ty) -> bool {
+        matches!(
+            self.pool().get(strip(self.pool(), self.env(), t)),
+            TyData::Adt { def, .. } if self.env().std_kind(def) == hd_mono::layout::StdKind::Map
+        )
+    }
+
     /// The key and value types of map type `t`, and its entry as the glue
     /// sees it.
     pub(super) fn entry(&self, t: Ty) -> StageResult<(Ty, Ty, Entry)> {
@@ -259,9 +287,10 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `m[k]`, `m.get(k)`, `m[k] = v` and `m.remove(k)`: the key is
-    /// hashed, then its entry probed for. The passes' `IsUnique` made the
-    /// table the map's own before a change.
+    /// `m[k]`, `m.get(k)`, `m[k] = v`, `m.remove(k)` and a map value
+    /// place's entry (`MapEntry`): the key is hashed, then its entry probed
+    /// for. The passes' `IsUnique` made the table the map's own before a
+    /// change.
     pub(super) fn map_op(&mut self, i: u32, op: IntrinsicOp, args: &[u32]) -> StageResult<()> {
         let (kt, vt, e) = self.entry(self.ty_of(args[0]))?;
         let ops = self.key_ops(i, kt, &e.key_vals())?;
@@ -300,8 +329,12 @@ impl Em<'_, '_, '_> {
             (at, ls)
         };
         let n = e.leaves.len();
-        if matches!(op, IntrinsicOp::MapIndex | IntrinsicOp::MapIndexMut) {
-            // expr.index.map.read-value
+        if matches!(
+            op,
+            IntrinsicOp::MapIndex | IntrinsicOp::MapIndexMut | IntrinsicOp::MapEntry
+        ) {
+            // expr.index.map.read-value, types.coll.map-value.missing,
+            // ref.elem.map.key
             self.f.get(ent);
             self.f.i32(0);
             self.f.op(I::I32LtS);
@@ -310,6 +343,10 @@ impl Em<'_, '_, '_> {
                 "index-out-of-bounds: map key not found".into(),
             ));
             self.f.op(I::End);
+            if op == IntrinsicOp::MapEntry {
+                self.f.get(ent);
+                return self.store(i);
+            }
             let (_, vl) = read(self, e.keys, n);
             for l in vl {
                 self.f.get(l);
@@ -325,6 +362,12 @@ impl Em<'_, '_, '_> {
         let (at, vl) = read(self, e.keys, n);
         self.new_variant(i, 1, &[Src::Locals(vl.clone())])?;
         if op == IntrinsicOp::MapRemove {
+            // A held key of a pinned map stays (`ref.elem.pinned.map`).
+            self.f.get(m);
+            self.f.helper(Helper::ListPinned);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.helper(Helper::Panic(MAP_PINNED.into()));
+            self.f.op(I::End);
             // The entry stays in place, marked removed: probes pass it and
             // iteration skips it, so the survivors keep their order. The
             // table's counts of it go: the value's after the result took

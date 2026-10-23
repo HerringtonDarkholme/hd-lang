@@ -11,7 +11,7 @@ use wasm_encoder::BlockType;
 
 use crate::layout::{Leaf, Walk};
 use crate::module::{Func, HEADER, HEAP, Module, Sym, Val, mem};
-use crate::rt::{Helper, OptVal, own_arg, retain_call, walk_code};
+use crate::rt::{Helper, LIST_OWN, OptVal, own_arg, retain_call, walk_code};
 
 /// A table's payload: the live entry count, the written entry count
 /// (removed ones included), how many times growth rebuilt the entries,
@@ -22,6 +22,9 @@ pub const USED: u64 = 4;
 pub const GROWN: u64 = 8;
 pub const CAP: u64 = 12;
 pub const INDEX: u32 = 16;
+
+/// The panic of a change of a pinned map's length (`ref.elem.pinned.map`).
+pub const MAP_PINNED: &str = "collection-pinned: map length changed while pinned";
 
 /// How a map hashes and compares its key (`crates/hd_mono/DESIGN.md`
 /// §13.12): an inline key through the keyed bucket hash collection chose
@@ -473,8 +476,9 @@ fn index_insert(f: &mut Func, t: u32, cap: u32, h: u32, slot: u32) {
 /// count of the key and of the value. An equal key's entry keeps its
 /// place and takes the value (`types.map.replace.in-place`,
 /// `expr.map.duplicate.last`), and the key given is released; a new key
-/// appends an entry, after growth when the entries are full. The map's
-/// table is its own already.
+/// appends an entry, after growth when the entries are full, and panics
+/// `collection-pinned` while an element reference pins the map
+/// (`ref.elem.pinned.map`). The map's table is its own already.
 pub fn put(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     let nk = entry.keys;
     let n = entry.leaves.len();
@@ -528,6 +532,12 @@ pub fn put(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
         });
     }
     f.op(I::Return);
+    f.op(I::End);
+    // A new key changes a pinned map's length (`ref.elem.pinned.map`).
+    f.get(0);
+    f.helper(Helper::ListPinned);
+    f.op(I::If(BlockType::Empty));
+    f.helper(Helper::Panic(MAP_PINNED.into()));
     f.op(I::End);
     load_u32(&mut f, t, USED);
     f.get(cap);
@@ -676,6 +686,12 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
     f.op(I::I32Load(mem(HEAP, 0, 2)));
     f.i32(1);
     f.op(I::I32Ne);
+    // A header with an owner word is its table's one owner; the other
+    // counts are element references, which see the change in place.
+    f.get(0);
+    f.op(I::I32Load(mem(HEAP, LIST_OWN, 2)));
+    f.op(I::I32Eqz);
+    f.op(I::I32And);
     f.op(I::If(BlockType::Empty));
     load_u32(&mut f, t, CAP);
     f.set(cap);
@@ -715,6 +731,29 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
     f.helper(Helper::ReleaseKnown);
     store_u32(&mut f, 0, 0, &|f| f.get(nt));
     f.op(I::End);
+    f
+}
+
+/// [`Helper::MapClone`]: `(map) -> map`: a new header over the map's
+/// table, which takes one more count, then made unique, so the table is
+/// copied whole and the original keeps its own (`ref.elem.copy`).
+pub fn clone(m: &Module, entry: &Entry) -> Func {
+    let mut f = m.func("rt:map_clone", vec![Val::I32], vec![Val::I32]);
+    let (t, h) = (f.local(Val::I32), f.local(Val::I32));
+    load_u32(&mut f, 0, 0);
+    f.set(t);
+    f.get(t);
+    f.helper(Helper::RetainKnown);
+    f.get(t);
+    f.helper(Helper::ListHeader {
+        cyclic: entry.cyclic,
+    });
+    f.set(h);
+    f.get(h);
+    f.helper(Helper::MapUnique {
+        entry: entry.clone(),
+    });
+    f.get(h);
     f
 }
 

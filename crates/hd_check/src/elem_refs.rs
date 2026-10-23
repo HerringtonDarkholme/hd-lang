@@ -2,12 +2,15 @@
 //! References"; `OBJECT_MODEL_TIER1.md` §6.3 and §6.4).
 //!
 //! `&xs[i]` and `&mut xs[i]` name a slot of the list's buffer, as Go's
-//! `&s[i]` does. `for p in &xs` and `for p in &mut xs` bind an element
+//! `&s[i]` does, and `&m[k]` and `&mut m[k]` the value of a map's entry
+//! (`ref.elem.map`), whose number `MapEntry` looks up just before the
+//! reference. `for p in &xs` and `for p in &mut xs` bind an element
 //! reference per step. An element reference is a `Ref` of the element
-//! place and nothing else: the ownership passes make the list unique and
-//! pin it before the reference, and the reference's drop at its last use
-//! ends the pin (`docs/compiler/tir-v2.md`, stage 2 commit 12b; a pinned
-//! list panics `collection-pinned` on a length change).
+//! place and nothing else: the ownership passes make the collection unique
+//! and pin it before the reference, and the reference's drop at its last
+//! use ends the pin (`docs/compiler/tir-v2.md`, stage 2 commit 12b; a
+//! pinned list panics `collection-pinned` on a length change, a pinned map
+//! on a store of a new key or a removal of a held one).
 
 use hd_base::{NodeIdx, StageResult};
 use hd_diag::Code;
@@ -44,9 +47,10 @@ pub(crate) enum ElemUse {
 }
 
 impl Ck<'_, '_> {
-    /// The place `&e[k]` names when `e` is a list (`ref.elem.place`): the
-    /// slot `k` of the list's buffer. `None` after an error; a map value or
-    /// any other index is no place to refer to.
+    /// The place `&e[k]` names when `e` is a list (`ref.elem.place`), the
+    /// slot `k` of the list's buffer, or a map (`ref.elem.map`), the value
+    /// of the key `k`. `None` after an error; any other index is no place
+    /// to refer to.
     pub(crate) fn elem_operand(
         &mut self,
         e: NodeRef<'_>,
@@ -61,40 +65,25 @@ impl Ck<'_, '_> {
         }
         let (br, bt) = self.deref_index_base(br, bt, base.index());
         let builtin = self.index_kind(bt);
-        match builtin {
-            // `types.coll.map-value.ref`: a map value moves when the map
-            // rehashes, so it is no place to refer to.
-            Some((Indexed::Map, ..)) => {
-                self.err(
-                    Code::MapValueNotAddressable,
-                    e,
-                    "a map value is no place, so no reference refers to it; copy it into a `let mut` and refer to that, or keep `&mut` values in the map",
-                );
-                self.map_value_ref_fix(e);
-                Ok(None)
-            }
-            Some((Indexed::List, kt, vt)) => {
-                let (kr, ktt) = self.index_key_value(*key, builtin)?;
-                if self.is_range_ty(ktt) {
-                    self.not_yet_index(e);
-                    return Ok(None);
-                }
-                let kr = self.index_key((kr, ktt), *key, kt);
-                let lt = self.strip_mut(self.infer.resolve(self.pool(), bt));
-                // Insertion pins the list before the reference; a map value
-                // on the path is still marked.
-                self.mark_write_path(br);
-                Ok(Some(crate::refs::Operand::Place(Place {
-                    root: Root::Elem(br, kr, lt),
-                    path: vec![],
-                    ty: vt,
-                })))
-            }
-            _ => {
-                self.not_yet_index(e);
-                Ok(None)
-            }
+        let Some((get @ (Indexed::List | Indexed::Map), kt, vt)) = builtin else {
+            self.not_yet_index(e);
+            return Ok(None);
+        };
+        let (kr, ktt) = self.index_key_value(*key, builtin)?;
+        if get == Indexed::List && self.is_range_ty(ktt) {
+            self.not_yet_index(e);
+            return Ok(None);
         }
+        let kr = self.index_key((kr, ktt), *key, kt);
+        let ct = self.strip_mut(self.infer.resolve(self.pool(), bt));
+        // Insertion pins the collection before the reference; a map value
+        // on the path is still marked.
+        self.mark_write_path(br);
+        Ok(Some(crate::refs::Operand::Place(Place {
+            root: Root::Elem(br, kr, ct),
+            path: vec![],
+            ty: vt,
+        })))
     }
 
     /// `e` is used as `how`, where an element reference may stand.

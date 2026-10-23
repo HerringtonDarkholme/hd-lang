@@ -68,8 +68,8 @@ impl Ck<'_, '_> {
                 let (inner, m) = self.ref_of(self.peek_place_ty(*kids.first()?)?)?;
                 Some(self.deref_ty(inner, m))
             }
-            // A list element, of a list or of a reference to one; a slice
-            // is no place.
+            // A list element or a map value, of a collection or of a
+            // reference to one; a slice is no place.
             SyntaxKind::IndexExpr => {
                 let [base, key] = kids.as_slice() else {
                     return None;
@@ -82,7 +82,8 @@ impl Ck<'_, '_> {
                     Some((inner, m)) => self.deref_ty(inner, m),
                     None => base,
                 };
-                self.list_item(self.infer.resolve(self.pool(), base))
+                let base = self.infer.resolve(self.pool(), base);
+                self.list_item(base).or_else(|| self.map_value_item(base))
             }
             _ => None,
         }
@@ -433,7 +434,6 @@ impl Ck<'_, '_> {
             Root::Elem(list, _, lt) | Root::Slot(list, _, lt, _) => {
                 self.coll_change(list, lt, "this call", at)
             }
-            Root::MapValue(..) => false,
             Root::DataField(_, _, _, dt) => {
                 if self.has_mut_access(dt) {
                     true
