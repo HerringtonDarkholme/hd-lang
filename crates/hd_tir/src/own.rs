@@ -591,7 +591,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     use std::fmt::Write as _;
 
     use super::{OwnScratch, Pass, Tri, run};
@@ -609,7 +609,7 @@ pub(crate) mod tests {
     /// `string` and `LIST` are counted; callee 9 takes its argument as a value
     /// parameter, callee 8 by reference, callee 5 in place (a `mut self`
     /// receiver of a collection).
-    pub(crate) struct Cx;
+    struct Cx;
 
     impl super::OwnCx for Cx {
         fn counted(&self, ty: Ty) -> Tri {
@@ -673,7 +673,7 @@ pub(crate) mod tests {
 
     /// Each instruction's tag and its place or value operands, in index
     /// order, then the exit set.
-    pub(crate) fn show(b: &Body) -> String {
+    fn show(b: &Body) -> String {
         let mut out = String::new();
         let mut ops = Vec::new();
         for i in 0..b.len() {

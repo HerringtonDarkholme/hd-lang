@@ -25,11 +25,6 @@ thread_local! {
     static ROOTS: RefCell<hd_tir::ir::RootTables> = RefCell::new(hd_tir::ir::RootTables::default());
 }
 
-/// The most instructions a callee's body may have for a call of it to
-/// inline (`docs/compiler/tir-v2.md`, "The inliner"); 0 turns the inliner
-/// off.
-const INLINE_LIMIT: usize = 12;
-
 impl OwnCx for Env<'_> {
     fn counted(&self, ty: Ty) -> Tri {
         let types = self.run.pool.types();
@@ -317,11 +312,8 @@ impl Env<'_> {
         // anyway, so a nested run would only start from empty ones.
         let mut scratch = SCRATCH.with(RefCell::take);
         // Each instruction names itself until the passes renumber the
-        // body, the inliner's copies their call: the line table's anchors
-        // stay the `check` entry's.
-        if body.anchors.is_empty() {
-            body.anchors = (0..u32::try_from(body.len()).expect("insts")).collect();
-        }
+        // body: the line table's anchors stay the `check` entry's.
+        body.anchors = (0..u32::try_from(body.len()).expect("insts")).collect();
         // Each type's layout once per body, not once per query of it.
         let refused =
             hd_wasm_linear::with_layout_cache(|| hd_tir::own::run(&mut body, self, &mut scratch));
@@ -350,89 +342,6 @@ impl Env<'_> {
             }
         }
         Ok(body)
-    }
-
-    /// Copies into `body` each call of a small std function outside
-    /// `std.rt` (`docs/compiler/tir-v2.md`, "The inliner"), before the
-    /// passes, and returns its hash with each copied callee's TIR hash.
-    fn inline_calls(&self, body: &mut Body, hash: Hash128) -> Hash128 {
-        let pool = &self.run.pool;
-        let mut k = StableHasher::new("inline");
-        k.hash(hash);
-        let mut copied = false;
-        for c in (0..body.len()).rev() {
-            let Some((def, targs)) = hd_tir::inline::item_call(body, c) else {
-                continue;
-            };
-            let Some((mut copy, callee_hash)) = self.inline_callee(def, body.item) else {
-                continue;
-            };
-            let ty = |t: Ty| hd_mono::subst(pool, self, def, targs, t);
-            let list = |l| {
-                pool.list(
-                    &pool
-                        .list_items(l)
-                        .iter()
-                        .map(|&t| ty(t))
-                        .collect::<Vec<_>>(),
-                )
-            };
-            hd_tir::ir::map_body_types(&mut copy, &ty, &list);
-            // A projection left open names a type the caller's bounds may
-            // fix, which the call's type already shows; such a copy waits.
-            if copy
-                .ty
-                .iter()
-                .chain(&copy.local_ty)
-                .any(|&t| pool.has_assoc(t))
-            {
-                continue;
-            }
-            if hd_tir::inline::inline_call(body, c, copy).is_ok() {
-                k.hash(callee_hash);
-                copied = true;
-            }
-        }
-        if copied { k.finish() } else { hash }
-    }
-
-    /// A fresh decoding of the checker's body of `def`, for the caller to
-    /// change, and its hash, when a call of it inlines: a std function
-    /// outside `std.rt`, not the caller, with a body of its own, that
-    /// neither suspends nor takes a `mut` parameter, and that
-    /// [`hd_tir::inline::inlinable`] allows at [`INLINE_LIMIT`].
-    fn inline_callee(&self, def: DefId, caller: DefId) -> Option<(Body, Hash128)> {
-        let module = self.run.item_module_text(def);
-        let rt = module == "std.rt" || module.starts_with("std.rt.");
-        if INLINE_LIMIT == 0
-            || def == caller
-            || !module.starts_with("std.")
-            || rt
-            || self.intrinsic(def).is_some()
-        {
-            return None;
-        }
-        let sig = self.sig(def)?;
-        let pool = &self.run.pool;
-        if sig.suspends
-            || sig
-                .params
-                .iter()
-                .any(|p| matches!(pool.get(self.low(p.1)), TyData::Mut(_)))
-        {
-            return None;
-        }
-        let path = self.run.paths.hash(hd_base::PathId::from_raw(def.raw()));
-        let lazy = self.p.bodies.all.get(&path)?;
-        let (body, hash) = self.run.decode(lazy)?;
-        if !hd_tir::inline::inlinable(body, INLINE_LIMIT) {
-            return None;
-        }
-        let (_, entry, at) = lazy.wire.as_ref()?;
-        let run = self.run;
-        let fresh =
-            hd_tir::wire::read_body(entry.get(at.clone())?, &run.pool, &run.paths, &run.syms)?;
-        Some((fresh, *hash))
     }
 
     /// A body collection generates (a supplied method's, a `dbg` body),
@@ -467,8 +376,6 @@ impl Run<'_> {
             impls: hd_types::solver::Impls::Owned(&view),
             sealed: self.known.sealed(),
         };
-        let mut body = body;
-        let hash = env.inline_calls(&mut body, hash);
         match env.own_passes(body) {
             Ok(body) => {
                 let mut k = StableHasher::new("own-passes");

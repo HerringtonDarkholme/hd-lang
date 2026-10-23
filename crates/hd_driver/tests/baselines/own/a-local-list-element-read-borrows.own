@@ -3,16 +3,10 @@ app/main/total
   local $1 xs: List[string] [read assigned]
   local $6 sum: usize [read assigned mutated]
   local $10 i: usize [read assigned]
-  local $11 self: string [read]
   %44 = Read copy [$6] : usize
   %45 = Read copy [$10] : usize
-  %46 = Read borrow [$1 [%45]] : string
-  %47 = Store [$11] %46 : ()
-  %48 = Read borrow [$11] : string
-  %49 = Call std/text/bytes_len[] (%48) : usize
-  %50 = Break L2 %49 : never
-  %51 = Block - : usize
-  %52 = Scope %51 [] : usize
-  %53 = Prim Add [%44 %52] : usize
-  %54 = Store [$6] %53 : ()
+  %46 = Read copy [$1 [%45]] : string
+  %47 = Call std/text/impl string.len[] (%46) : usize
+  %48 = Prim Add [%44 %47] : usize
+  %49 = Store [$6] %48 : ()
 warning: main.hd:227..228: unused-local-binding: `i` is never read; name it `_i` to keep it
