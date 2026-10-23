@@ -67,10 +67,11 @@ hd_project = { path = "../hd_project" }
 hd_sched = { path = "../hd_sched" }
 
 [target.'cfg(windows)'.dependencies]
-# `Process.run!` puts each child in a Job object that kills the child and
-# its descendants when it closes (`std-process.cancel`), as a process
+# `Process.run!` puts each child in a Job object whose termination kills
+# the child and its descendants (`std-process.cancel`), as a process
 # group kill does on Unix (owner decision, #160).
-win32job = "=2.0.3"
+# JobObject suspends the child until assignment, closing the descendant race (#407).
+process-wrap = { version = "=10.0.1", default-features = false, features = ["tokio1", "job-object"] }
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 # No safe std call reads the host name on Windows.
 hostname = "0.4"
