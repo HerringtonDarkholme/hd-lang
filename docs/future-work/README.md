@@ -14,6 +14,7 @@ action at a distance.
 
 ## What Remains
 
+- [TLS Streams](TLS_STREAMS.md): client TLS boundary options, host-stream transfer, aliases and buffered bytes, trust roots, and Net grants (#265).
 - [Policy Composition](POLICY_COMPOSITION.md): two complete proposed shapes, runnable block/combinator ports, static error alternatives, and the policy-value row-inference gap (#783); supersedes Composing Work.
 - [hd bench](HD_BENCH.md): proposed ordinary suite registration, batched real-clock measurement, explicit optimization resistance and baseline reports (#184).
 - [Durable Resume](DURABLE_RESUME.md): proposed durable host-call replay, strict identity, interrupted-effect retries, resource restrictions and journal growth policy (#18).
