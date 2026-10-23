@@ -169,7 +169,7 @@ fn registration_kind(cx: &BodyCx<'_>, callee: NodeRef<'_>) -> Option<&'static st
     let scope = cx.scope_at(at);
     let def = match callee.kind() {
         SyntaxKind::NameExpr => {
-            let sym = cx.names.syms.intern(src.text(src.first(callee)));
+            let sym = src.symbol(src.first(callee), cx.names.syms);
             if hd_resolve::local_at(cx.locals, sym, at).is_some() {
                 return None;
             }
@@ -186,7 +186,7 @@ fn registration_kind(cx: &BodyCx<'_>, callee: NodeRef<'_>) -> Option<&'static st
             if base.kind() != SyntaxKind::NameExpr {
                 return None;
             }
-            let sym = cx.names.syms.intern(src.text(src.first(base)));
+            let sym = src.symbol(src.first(base), cx.names.syms);
             if hd_resolve::local_at(cx.locals, sym, at).is_some() {
                 return None;
             }
@@ -195,7 +195,7 @@ fn registration_kind(cx: &BodyCx<'_>, callee: NodeRef<'_>) -> Option<&'static st
                 return None;
             }
             let module = scope.modules.get(b.value as usize)?;
-            let name = cx.names.syms.intern(src.text(src.last(callee)));
+            let name = src.symbol(src.last(callee), cx.names.syms);
             cx.lookup
                 .ifaces
                 .iter()

@@ -2669,7 +2669,8 @@ impl Run<'_> {
     /// diagnostics are the user's.
     fn parse_of(&self, m: usize) -> &Parse {
         self.parse[m].get_or_init(|| {
-            let p = parse(self.texts[m].as_bytes());
+            let mut p = parse(self.texts[m].as_bytes());
+            p.tokens.intern_symbols(&self.texts[m], &self.syms);
             {
                 let mut c = lock(&self.counters);
                 c.parsed.push(self.table.modules[m].path.clone());

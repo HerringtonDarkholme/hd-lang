@@ -162,7 +162,7 @@ impl Ck<'_, '_> {
         let Some(t) = n.name(toks).or_else(|| src.name_after(n, TokenKind::KwFn)) else {
             return unsupported("a local function without a name");
         };
-        let name = self.cx.names.syms.intern(src.text(t));
+        let name = src.symbol(t, self.cx.names.syms);
         let generics = Src::child(n, SyntaxKind::GenericParameterList);
         if let Some(gl) = generics {
             // `names.type-param.no-redeclare.body`: `fn convert[T]` inside
@@ -170,7 +170,7 @@ impl Ck<'_, '_> {
             let mut reused = false;
             for g in gl.children() {
                 if let Some(gt) = g.name(toks) {
-                    let gs = self.cx.names.syms.intern(src.text(gt));
+                    let gs = src.symbol(gt, self.cx.names.syms);
                     if self.gens.iter().any(|(x, _)| *x == gs) {
                         let msg = format!("`{}` is a type parameter in scope", src.text(gt));
                         self.err(Code::DuplicateBinding, g, &msg);
@@ -274,7 +274,7 @@ impl Ck<'_, '_> {
             if g.direct_token(toks, TokenKind::Dollar).is_some() {
                 return self.gap(g, "a row parameter of a local function");
             }
-            let sym = self.cx.names.syms.intern(src.text(gt));
+            let sym = src.symbol(gt, self.cx.names.syms);
             self.check_prelude_shadow(sym, g);
             // `names.type-param.no-redeclare`: an earlier one of the list.
             if self.gens[in_scope..].iter().any(|(x, _)| *x == sym) {

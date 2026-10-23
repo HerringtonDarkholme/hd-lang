@@ -431,7 +431,7 @@ fn pattern_names(cx: &BodyCx<'_>, pat: NodeRef<'_>) -> Vec<Symbol> {
                     Some(TokenKind::Ident | TokenKind::RawIdent)
                 )
             })
-            .map(|t| cx.names.syms.intern(cx.src.text(t)))
+            .map(|t| cx.src.symbol(t, cx.names.syms))
     };
     let mut out = Vec::new();
     let mut todo = vec![pat];

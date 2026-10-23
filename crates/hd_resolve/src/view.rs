@@ -1,7 +1,7 @@
 //! A typed view of one parsed file (`crates/hd_syntax/DESIGN.md` §4.4 "typed views"): tokens,
 //! text and spans of the full parser's green tree.
 
-use hd_base::{FileId, Span, TokenIdx};
+use hd_base::{FileId, Span, Symbol, TokenIdx};
 use hd_syntax::{NodeRef, Parse, SyntaxKind, TokenKind};
 
 #[derive(Clone, Copy)]
@@ -39,6 +39,15 @@ impl<'a> Src<'a> {
             return text.trim_matches('`');
         }
         text
+    }
+    /// A token's symbol in this compiler run. Standalone parses have no
+    /// run interner and retain the text-based path used by their callers.
+    #[must_use]
+    pub fn symbol(&self, t: TokenIdx, syms: &hd_intern::ShardedInterner) -> Symbol {
+        self.parse
+            .tokens
+            .symbol(t)
+            .unwrap_or_else(|| syms.intern(self.text(t)))
     }
     /// The tokens of a node, in order.
     pub fn tokens(&self, n: NodeRef<'_>) -> impl Iterator<Item = TokenIdx> + use<'a> {
@@ -117,5 +126,45 @@ impl<'a> Src<'a> {
             lo,
             hi,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Src;
+    use hd_base::{FileId, TokenIdx};
+    use hd_intern::ShardedInterner;
+    use hd_syntax::{TokenKind, parse};
+
+    #[test]
+    fn standalone_and_run_parses_use_the_same_identifier_spelling() {
+        let text = "fn `type`() -> i32: +1\n";
+        let mut parsed = parse(text.as_bytes());
+        assert!(parsed.is_ok());
+        let syms = ShardedInterner::default();
+        syms.intern("not the parser's first symbol");
+        let t = parsed
+            .tokens
+            .kind
+            .iter()
+            .position(|k| *k == TokenKind::RawIdent)
+            .map(|i| TokenIdx::from_raw(u32::try_from(i).unwrap()))
+            .unwrap();
+        let expected = syms.intern("type");
+        let standalone = Src {
+            parse: &parsed,
+            text,
+            file: FileId::from_raw(0),
+        };
+        assert_eq!(standalone.symbol(t, &syms), expected);
+        assert_eq!(syms.resolve(standalone.symbol(TokenIdx::NONE, &syms)), "");
+        parsed.tokens.intern_symbols(text, &syms);
+        let in_run = Src {
+            parse: &parsed,
+            text,
+            file: FileId::from_raw(0),
+        };
+        assert_eq!(in_run.symbol(t, &syms), expected);
+        assert_eq!(syms.resolve(in_run.symbol(t, &syms)), "type");
     }
 }
