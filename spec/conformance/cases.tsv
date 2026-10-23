@@ -4609,6 +4609,9 @@ typing/invalid/element-access-conflict-reference.hd	type	reject:conflicting-acce
 typing/invalid/element-access-conflict-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.method
 typing/invalid/element-access-conflict-receiver.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict
 typing/invalid/element-access-conflict-map.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.map
+typing/invalid/element-receiver-push-argument-takes-list.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.reference
+typing/invalid/element-receiver-push-argument-takes-map.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.reference
+typing/valid/element-receiver-push-argument-reads-list.hd	type	accept	lang/13-values-and-references.md#r-ref.elem.conflict.reference
 typing/invalid/element-reference-binding.hd	type	reject:element-reference-outlives-call	lang/13-values-and-references.md#r-ref.elem.kept
 typing/invalid/element-reference-let-binding.hd	type	reject:element-reference-outlives-call	lang/13-values-and-references.md#r-ref.elem.kept
 typing/invalid/element-reference-field-store.hd	type	reject:element-reference-outlives-call	lang/13-values-and-references.md#r-ref.elem.kept

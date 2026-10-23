@@ -4000,6 +4000,12 @@ impl Ck<'_, '_> {
                 if matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove) {
                     let st = pool.intern_ty(&TyData::Mut(self.strip_mut(rt)));
                     self.check_receiver(st, recv, rt, n);
+                    // An element receiver's access begins before the
+                    // arguments run (`fn.method.eval-order`,
+                    // `ref.elem.access`).
+                    if let Some((coll, _)) = self.element_of(recv) {
+                        self.begin_access(coll);
+                    }
                 }
                 // The spec's declared parameter name, so a named argument
                 // matches (`module.method.normative`).

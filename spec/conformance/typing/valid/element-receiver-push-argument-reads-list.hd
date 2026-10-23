@@ -1,0 +1,25 @@
+# test: a push on a list element may take arguments that read the list, change another list, or follow a change of the list
+# Spec 13 Call-Scoped Access: ref.elem.conflict.reference; Spec 07 Method Calls: fn.method.eval-order.
+fn total(rounds: &List[List[usize]]) -> usize:
+    let sum = 0
+    for round in rounds:
+        sum += round.len()
+    return sum
+
+fn open_round(rounds: &mut List[List[usize]]) -> usize:
+    rounds.push([])
+    return rounds.len()
+
+fn mark(round: &mut List[usize]) -> usize:
+    round.push(0)
+    return round.len()
+
+fn demo() -> void:
+    let mut rounds = [[1, 2]]
+    let mut archive = [[3]]
+    rounds[0].push(rounds.len())
+    rounds[0].push(total(&rounds))
+    rounds[0].push(open_round(&mut archive))
+    open_round(&mut rounds)
+    rounds[0].push(4)
+    rounds.push([mark(&mut rounds[0])])

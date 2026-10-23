@@ -1,0 +1,9 @@
+# test: an argument of a push on a map value that takes &mut of the map is a conflicting access, since the receiver's access begins first
+# Spec 13 Call-Scoped Access: ref.elem.conflict.reference; Spec 07 Method Calls: fn.method.eval-order.
+fn add_shelf(shelves: &mut Map[string, List[i32]]) -> i32:
+    shelves["pear"] = []
+    return 1
+
+fn demo() -> void:
+    let mut shelves: Map[string, List[i32]] = {"apple": [+4]}
+    shelves["apple"].push(add_shelf(&mut shelves))  # diagnostic: conflicting-access
