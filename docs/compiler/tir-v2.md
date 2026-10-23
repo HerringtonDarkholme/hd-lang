@@ -2651,6 +2651,13 @@ is worth deciding only if they are hot.
     a pending statement has no index. Giving them one is the rebuild. The
     rebuild costs about 0.015 µs per instruction, against the pipeline's
     0.5.
+    #802 measured it again (release, bench/study, 42,188 instructions):
+    the pipeline 0.48 to 0.50 µs per instruction, insertion's rebuild
+    0.031, the last rebuild 0.018, and the three `splice::Pending`
+    views (pair cancellation, known-null, hoisting; not rebuilds) 0.007
+    together. The fold stays undone for the reason above: borrow and
+    move address insertion's statements by column index in program
+    order.
     Retain and release sites above the old path over conformance (summed
     over the programs above it), as the fixes landed: 1,249 and 1,475 on
     main; 66 and 600 with the type parameter's argument and the drop
@@ -2727,10 +2734,9 @@ is worth deciding only if they are hot.
       where the bit is clear on every path, and none inside a cleanup
       suite. `Em::cell_made` reads the rows instead of `live::Tree`'s
       dominance; the wat baselines that hold #678 are unchanged.
-    - **A function reference's call body** (`call_func`), the one body
-      the backend builds, runs through the passes in the backend
-      (`Input::own_cx`), as the driver runs them over generated bodies;
-      it was the last body `live::plan` planned.
+    - **A function reference's call body** (`call_func`) was the last
+      body `live::plan` planned; it now runs through the passes like
+      every other body (built by collection since #800, below).
     - **The old path stops at the backend.** `Input::owned` is gone: a
       body with an undecided `use` read is refused, so
       `Packages::old_ownership` (`HD_CONFORMANCE_OLD=1`) no longer builds
