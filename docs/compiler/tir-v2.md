@@ -962,7 +962,7 @@ count operations from them, and stage 2 ends with none above today's.
 | count decisions: `Moves`, `Drops`, loans, `prepare_loans`, `skip`, `moving`, `borrowed` (`count.rs`, `live.rs`) | kept, matching the new tags | deleted | — |
 | references: `ref_place`, `deref_read`, `deref_write` (`emit/refs.rs`) | merged into the place resolver; erased views kept | kept | kept |
 | cells (`closure.rs`) | kept; roots come from `Ref`s of locals | `cell_made` reads known-null's facts | kept (a frame slot in tier 2) |
-| lists: header, literals, push, copy, snapshots, pins (`emit/list.rs`) | `list_field_set` and `ListSet` merged into the element store | pins become `Pin`; uniqueness becomes `IsUnique`; loop caches read hoisting's table | deleted: std code |
+| lists: header, literals, push, copy, snapshots, pins (`emit/list.rs`) | `list_field_set` and `ListSet` merged into the element store | pins become `Pin`; uniqueness becomes `IsUnique`; loop caches read hoisting's table | the header and its copy go; element places, `push` and `len` stay lowered over the buffer address (option B); growth, the unique copy and truncation are std code |
 | maps (`emit/map.rs`, `map.rs`) | kept | kept | deleted: std code |
 | suspension (`susp.rs`, `task.rs`) | kept | kept | kept |
 | erased generic methods (`erased.rs`) | open places outlined like open instructions | kept | kept |
@@ -2907,14 +2907,26 @@ against its share.
   a language-tier intrinsic family, approved by the owner on 2026-10-21;
   its signatures are plain hd declarations, and only their bodies are
   the compiler's.
-- **Lists in std.** A `List[T]` is the address of a counted buffer
-  holding capacity, length and the elements; the header object goes,
-  saving an allocation per list and a load per access. `len` is a field
-  read, an index is a bounds check and an element place, `push` and the
-  other changes are std code that begins with `IsUnique`, and copy of a
-  list value is a retain of its buffer. An element place then needs one
-  load less, and the buffer address is an ordinary value that hoisting
-  can keep in a Wasm local.
+- **Lists and maps as buffers, together.** A `List[T]` is the address
+  of a counted buffer holding capacity, length, the owner word and the
+  elements, and a `Map[K, V]` the address of its counted table, with the
+  owner word at the same offset; the header object goes, saving an
+  allocation per collection and a load per access. A copy of either is
+  a retain of its buffer, or a clone when the owner word says the
+  collection is pinned. An element place then needs one load less, and
+  the buffer address is an ordinary value that hoisting can keep in a
+  Wasm local. The owner decided on 2026-10-23 that lists and maps change
+  together, so the compiler never carries two copy, pin or clone paths,
+  nor a list-or-map choice per collection leaf
+  ([List and Map buffers](#list-and-map-buffers)).
+- **Option B for the list fast paths** (owner, 2026-10-23). `push`,
+  `len` and indexing stay compiler-lowered over the buffer address; only
+  the slow paths (growth, the copy that makes a shared buffer unique, and
+  truncation) become std hd. If B proves insufficient, the first option
+  to consider is a declaration-level `@inline` on a function or method,
+  before widening the automatic inliner (inlining into copies, or
+  reaching into `std.rt`). The other forty `List` methods are hd in
+  `collections.hd` already.
 - **Maps and strings in std.** The table code of `map.rs` and
   `emit/map.rs` becomes hd over the same primitives; `StrConcat`,
   `StrEq` and `StrIndex` become std functions over bytes.
@@ -2931,25 +2943,29 @@ against its share.
 
 ### Size budget
 
-Measured at 328bfa853. A "code" line is a Rust line that is not blank,
-not a `//` comment and not inside a `#[cfg(test)]` module; an hd line is
-one that is not blank and not a `#` comment, which is what the browser
-build embeds. Tests are counted apart and never reach the web compiler.
+Measured at 328bfa853; the `List` and `Map` row, the `for` row and the
+intrinsics row measured again at ad3edc0f2, after `List`'s commit 2. A
+"code" line is a Rust line that is not blank, not a `//` comment and not
+inside a `#[cfg(test)]` module; an hd line is one that is not blank and
+not a `#` comment, which is what the browser build embeds. Tests are
+counted apart and never reach the web compiler.
 
 | Component | Replaced (Rust code) | Added: Rust code / tests | Added: std hd | Reference point | Confidence |
 | --- | ---: | --- | ---: | --- | --- |
 | Inliner | 0 | 1,300 / 400 | 0 | Cranelift `inline.rs` 1,117; Go `inl.go` 848 + `interleaved.go` 291 + the inline-call part of `noder/reader.go` 157 | medium |
 | Typed memory primitives | 0 | 510 / 200 | 70 | hd's own untyped `std.rt.memory` (19060a9b3): +250 / −58 Rust, 78 hd, 170 test lines | low |
-| `List` as a buffer address | 866 | 220 / 100 | 110 | Go `runtime/slice.go` 232; Rust `vec/mod.rs` 1,330 + `raw_vec/mod.rs` 505 | medium |
-| One `for` lowering | 890 | 180 / 120 | 20 | Go `walk/range.go` 346 | low |
-| `Map` in std | 2,234 | 70 / 60 | 170 | Go `internal/runtime/maps` 1,374; hashbrown `raw/mod.rs` 1,726 | medium, low (the 894 of `copies.rs`) |
+| `List` and `Map` buffers, commits 3a to 3k | 2,690 | 885 (678 counted) / 450 | 235 | Go `runtime/slice.go` 232; Rust `vec/mod.rs` 1,330 + `raw_vec/mod.rs` 505; Go `internal/runtime/maps` 1,374; hashbrown `raw/mod.rs` 1,726 | medium for 3a to 3f, low for 3g (`copies.rs`) and the map commits |
+| One `for` lowering | 960 | 180 / 120 | 20 | Go `walk/range.go` 346 | low |
 | Strings in std | 320 | 30 / 40 | 80 | Go `runtime/string.go` 455 | medium |
-| Deleting the intrinsics | 250 | 0 / 0 | −30 | none needed: pure deletion | high |
-| **Total** | **4,560** | **2,310 / 920** | **420** | | |
+| Deleting the intrinsics | 100 | 0 / 0 | −15 | none needed: pure deletion | high |
+| **Total, as planned** | **4,070** | **2,905 / 1,210** | **390** | | |
 
-Net: about −2,250 lines of Rust code and +420 of std hd. The reference
-sizes are code lines measured the same way, from Go 1.24.1, Rust 1.97
-`library/alloc`, cranelift-codegen 0.136.2 and hashbrown 0.15.5.
+The rows are plans; [stage 3's net](#stage-3s-net) puts the commits
+already landed at their measured sizes and applies the calibration to
+the rest: about −1,820 lines of Rust code and +350 of std hd. The
+reference sizes are code lines measured the same way, from Go 1.24.1,
+Rust 1.97 `library/alloc`, cranelift-codegen 0.136.2 and hashbrown
+0.15.5.
 
 **What each row replaces, and what stays.**
 
@@ -2983,49 +2999,25 @@ sizes are code lines measured the same way, from Go 1.24.1, Rust 1.97
   deleted (260 net) against the 510, and 27 std hd lines against the 70.
   The checker's 60 were not needed, and the write-back rule took 126 of
   the passes' 120.
-- **`List` as a buffer address.** Replaces the header and push code of
-  `emit/list.rs` (350 of its 1,155), the list kernels of `rt.rs`
-  (`list_copy` to `list_buf`, `list_truncate` to `list_grow`: 333 of
-  413) and its header constants (15), the stable-list part of hoisting
-  (about 100) and the checker's built-in `len` and `push` (about 70).
-  The header-copy rule `own/copies.rs` (894) stays until maps lose their
-  header too, so it is in the `Map` row ([settling the biggest
-  risk](#size-budget), below). Stays: element places with their bounds
-  check, insertion's `IsUnique` and `Pin` rules 5 and 6, `NewList`,
-  the buffer's drop and cycle glue, and context buffers. Adds in hd: the
-  type over its buffer (15), `len` and `capacity` (6), `push` (15),
-  `reserve` and growth (20), the copy that makes a shared buffer unique
-  (15), `truncate` (12), a literal's construction (10), `ListIter` over
-  the buffer (15); of these, growth, the unique copy and truncation (47)
-  land in this component, the type, `len`, `push` and a literal (46)
-  wait for an inliner that can copy `push`'s fast path, and `ListIter`
-  is the `for` row's. Adds in Rust: element places over the buffer (60),
-  `NewList` as a buffer allocation (40), and the header's removal from
-  `boundary.rs`, `dyn_value.rs` and `erased.rs` (120). The other forty
-  `List` methods are hd in `collections.hd` already and do not change.
+- **`List` and `Map` buffers.** One component since the owner's decision
+  of 2026-10-23; [its own section](#list-and-map-buffers) counts it piece
+  by piece and splits it into commits. It replaces what the separate
+  `List` row (866) and `Map` row (2,234) planned to, less what option B
+  keeps: the checker's built-in `len` and `push` and the lowered element
+  places stay, and so do hoisting's stable lists, whose facts the buffer
+  address still needs.
 - **One `for` lowering.** Replaces the checker's `collection_loop`
   (122), `range_loop` (92), their dispatch (17) and most of `ref_loop`
-  (about 100 of 129), and the loop half of `emit/list.rs`
-  (`begin_list_loop` to `own_list_caches`, 517) with `snap_begin` and
-  `snap_end` (40). Stays: `iterate`'s general `Iterable` path, which is
-  the one lowering, and the element-reference conflict checks. Adds
-  `for p in &mut xs` as a call (30), a `ListIterMut` (20 hd), and a fold
-  of a `Match` on a variant the inlined `next` just built, so a range
-  loop does not build an option per step (150).
-- **`Map` in std.** Replaces `map.rs` (798), `emit/map.rs` (360),
-  `emit/iter.rs` (101), the map dispatch in `rt.rs` (15), the
-  checker's map built-ins and indexing (about 70), and the header-copy
-  rule `own/copies.rs` (894), which the map's header keeps until then.
-  Stays: map value
-  places, now an entry number from std, and the entries' drop glue. Adds
-  in hd the table over two buffers, entries in insertion order and a
-  `u32` index (15); hashing with the seed (8); probing (25); insert
-  (30); growth (25); remove (15); `get`, `set`, `len`, `contains` and
-  indexing (20); a value place's entry number (10); `MapEntries` (15);
-  copy on write through the buffers (5). Rust: `NewMap` and map value
-  places as calls (70). hd's table is a dense insertion-ordered one like
-  today's, so it is much smaller than Go's Swiss table (groups, control
-  words, a directory that splits) or hashbrown.
+  (about 100 of 128), the loop half of `emit/list.rs`
+  (`begin_list_loop` to `own_list_caches` less hoisting's two entries,
+  548) with `snap_begin` and `snap_end` (19), and the map loop glue the
+  `Map` commits leave to it (`MapSlots`, `MapSlotNext` and
+  `MapSlotEntry` with `rt:map_slot_next`, about 65): 960. Stays:
+  `iterate`'s general `Iterable` path, which is the one lowering, and
+  the element-reference conflict checks. Adds `for p in &mut xs` as a
+  call (30), a `ListIterMut` (20 hd), and a fold of a `Match` on a
+  variant the inlined `next` just built, so a range loop does not build
+  an option per step (150).
 - **Strings in std.** Replaces `str_eq`, `str_cmp`, `str_from_bytes`
   and `concat_all` in `rt.rs` (186), `str_at`, `str_slice`,
   `char_from_scalar` and `str_ordering` in `emit/text.rs` (90 of 226),
@@ -3034,13 +3026,15 @@ sizes are code lines measured the same way, from Go 1.24.1, Rust 1.97
   and the `Interp` kernel `concat` with its fixed-length fast path, so
   interpolation and `println` pull in no std `List` code. Adds 80 hd and
   30 Rust.
-- **Deleting the intrinsics.** `IntrinsicOp` and its table in `ir.rs`
-  (45), its uses in `ir/root.rs` and `own.rs` (20), the keys in
-  `hd_host_abi` (8), the `Intrinsic` dispatch and the `list_truncate`
-  and `map_steps` arms in `emit.rs` (53), the list, map and string
-  `Helper` variants and dispatch in `rt.rs` (85), and the checker's
-  `Hit::Builtin` plumbing (40). The std stubs that name the deleted keys
-  go too (30 hd).
+- **Deleting the intrinsics.** Under option B, `ListLen`, `ListPush`,
+  `Item` and the checker's `Hit::Builtin` for a list stay, and the list
+  and map `Helper` variants go with the `List` and `Map` commits. What is
+  left: the string, snapshot and map-loop variants of `IntrinsicOp` and
+  their table entries in `ir.rs` (about 25), their uses in `ir/root.rs`
+  and `own.rs` (12), the keys in `hd_host_abi` (8), their dispatch arms
+  in `emit.rs` (about 35) and the string `Helper` variants in `rt.rs`
+  (about 20): about 100. The std stubs that name the deleted keys go too
+  (15 hd).
 
 **Calibration.** Stage 2's six passes average 860 code lines each
 (`own/borrow.rs` 861, `insert.rs` 889, `moves.rs` 1,020, `pairs.rs` 394,
@@ -3052,29 +3046,26 @@ together before selection, binding and substitution, so the budget is
 1,300. For std hd, the one Rust-to-hd pair in the tree is the
 allocator: `rt.rs`'s `alloc_class` and `free_class` (157 code lines
 that write Wasm) do what 52 lines of `std.rt.alloc` do, about 3 to 1.
-The `rt.rs` list kernels (413) divided by 3 give the `List` row's 110
-hd lines; `map.rs` (798) by 3 is about 270, and the hd row is lower
-because the key operations `emit/map.rs` generates per key type come
-from `Hash` and `Eq` in hd.
+The list slow paths (`rt.rs`'s `list_grow`, `list_unique` and
+`list_truncate`, 168 code lines) divided by 3 give about 55 hd lines, and
+the `Map` commits' 170 hd lines are below `map.rs`'s 798 by 3 because
+the key operations `emit/map.rs` generates per key type come from
+`Hash` and `Eq` in hd.
 
-**Stop rule.** Each component's added code is its share, split evenly
-over its commits: the inliner 1,300 over four, the primitives 510 over
-two, `List` 220 Rust and 110 hd over four (by the shares its commit
-list gives), the `for` lowering 180 over
-two, `Map` 70 and 170 hd over three, strings 30 and 80 hd over two. A
-commit that adds more than 1.5 times its share stops for review before
-it lands, and so does a component's last commit when the lines it has
-deleted are under two thirds of its replaced column.
+**Stop rule.** Each commit's added code is its share: the inliner 1,300
+over four, the primitives 510 over two, the `List` and `Map` buffer
+commits as [their split](#list-and-map-buffers) gives them, the `for`
+lowering 180 over two, strings 30 and 80 hd over two. A commit that adds
+more than 1.5 times its share stops for review before it lands, and so
+does a component's last commit when the lines it has deleted are under
+two thirds of its replaced column.
 
-**Biggest risk to the numbers.** A third of the deletion, `copies.rs`'s
-894 lines, rests on one claim: once a list is its buffer's address, a
-copy is a retain and no holder ever needs a header of its own. That
-holds for a change through a local. A change through a reference may
-replace the buffer (growth, or the copy `IsUnique` makes), and the new
-address must reach the place the reference names; if that write-back
-needs a pass rule instead of being an ordinary `Store` in std's `push`,
-part of `copies.rs` stays and the net drops from about −2,250 to about
-−1,500. The second risk is in the `for` row: the 150-line fold is the
+**Biggest risk to the numbers.** It is now the `List` and `Map` buffers'
+commit 3g: `copies.rs` and its verifier, 1,000 of the component's 2,690
+deleted lines, go only if every count a copy of a collection takes runs
+the copy glue ([its biggest remaining risk](#list-and-map-buffers)). The write-back that this paragraph
+used to name as the risk is settled below: it is an ordinary store into
+a named place. The second risk is in the `for` row: the 150-line fold is the
 only thing between `RangeIter.next` and an option built per step in
 nbody's six inner range loops, and `for p in &mut xs` as an iterator
 of element references needs references returned from `next`, which the
@@ -3108,42 +3099,54 @@ new address must reach the place the list was read from.
   the receiver and checks an element's index (`fn.method.eval-order`).
   That is `List`'s commit 1, about 80 lines; nothing of `copies.rs` is
   needed for it.
-- **A call that stays a call needs copy-out.** An in-place `mut self`
-  callee too big to inline changes its own copy of the address: it
-  returns its final `self`, and the caller stores that into the
-  argument's place with no count change, an emitter convention of about
-  40 lines, and the passes count the call as a write of that place. The
-  same would hold for std's `push`, and with today's inliner `push` would
-  stay a call: its fast path is about 20 instructions over `Buffer`'s
-  accessors, which are calls into `std.rt`, which the inliner leaves
-  alone, and which would stay calls inside the copy, since nothing
-  inlines into a copy; the limit is 8. So `push`, `len` and indexing
-  stay compiler-lowered over the buffer address in this component, and
+- **A call that stays a call copies out** (owner, 2026-10-23). A
+  non-inlined `mut self` change of a collection takes the collection's
+  value and returns its final value, and the caller stores that into the
+  argument's place with no count change; the passes count the call as a
+  write of that place. A read of that collection through another path
+  while the change is in progress, in practice through a top-level
+  binding, panics `conflicting-access` at run time. The check stays on in
+  dev and in release; there is no unchecked default. Its known cost: every
+  list read through a top-level binding or a dereference tests the
+  place's marker, measured on json and string_build when the check
+  lands. Copy-out reaches only `Pass::InPlace` parameters: a `mut self`
+  trait method whose `Self` is a list or a map, and a `mut List` or `mut
+  Map` parameter. std's `List` methods take `&mut self` and write back
+  through the reference, and std has no in-place parameter today.
+- **Option B: `push`, `len` and indexing stay lowered** (owner,
+  2026-10-23). The same copy-out would hold for std's `push`, and with
+  today's inliner `push` would stay a call: its fast path is about 20
+  instructions over `Buffer`'s accessors, which are calls into `std.rt`,
+  which the inliner leaves alone, and which would stay calls inside the
+  copy, since nothing inlines into a copy; the limit is 8. So `push`,
+  `len` and indexing stay compiler-lowered over the buffer address, and
   only the slow paths (growth, the unique copy, truncation) become std
-  hd. Moving the fast paths needs an inliner that copies into its copies
-  or reaches `std.rt.memory`: an owner question.
-- **What of `copies.rs` stays: all of it, until maps lose their header.**
+  hd. If that proves insufficient, the first option to consider is a
+  declaration-level `@inline` on a function or method, before widening
+  the automatic inliner to copy into its copies or to reach
+  `std.rt.memory`.
+- **`copies.rs` goes once lists and maps are both buffer addresses.**
   Its rules hold for every type `OwnCx::header_copy` names: lists, maps,
-  and the structs and type parameters that may hold either. Maps keep
-  their header until their own component, so `List`'s commit 3 only
-  stops `header_copy` answering for a list (and a struct holding lists
-  only). A list's copy is then a retain: every holder counts the buffer,
-  a change's `IsUnique` copies a buffer two holders count, and a pinned
-  list's copy is made at once (`ref.elem.copy`) by the list's copy glue,
-  which reads the owner word from the buffer, where it moves. Once maps
-  are buffer addresses too, `copies.rs` goes but for about 10 lines
-  elsewhere: a parameter changed in place is owned, not lent
+  and the structs and type parameters that may hold either. The owner
+  decided on 2026-10-23 that both change together, so no commit stops
+  `header_copy` for lists alone and keeps it for maps. A collection's copy
+  is then a retain: every holder counts the buffer, a change's `IsUnique`
+  copies a buffer two holders count, and a pinned collection's copy is
+  made at once (`ref.elem.copy`) by the one copy glue, which reads the
+  owner word from the buffer. `copies.rs` then goes but for about 10
+  lines elsewhere: a parameter changed in place is owned, not lent
   (`borrow::lent_params` counts its `IsUnique` as the store that rule 5's
   entry copy is today), and the borrow pass already refuses a borrow
-  across an `IsUnique` of its source's root.
-- **The numbers.** `copies.rs`'s 894 lines move from `List`'s replaced
-  column to `Map`'s, which is now 2,234, and `List`'s is 866; the total
-  and the net of about −2,250 stand, with the `Map` commits now carrying
-  the risk. The header model also has a hole that the buffer address
-  closes: a list that a callee stores into a top-level binding keeps its
-  caller's header, since no rule copies a store into a top-level
-  binding, so after `n := save(xs)` and `xs.push(n)`, `saved` has the
-  pushed element too (`types.coll.value`). With retains it cannot.
+  across an `IsUnique` of its source's root. What that costs is the copy
+  glue at every count a copy of a collection takes ([commit
+  3g](#list-and-map-buffers)).
+- **The header model's hole.** A list that a callee stores into a
+  top-level binding keeps its caller's header, since no rule copies a
+  store into a top-level binding, so after `n := save(xs)` and
+  `xs.push(n)`, `saved` has the pushed element too (`types.coll.value`).
+  With retains it cannot. Its runtime case,
+  `runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy`, passes
+  from commit 3f.
 
 **The inliner's four commits**, each green on its own and reporting its
 code lines against 325, the emitted sizes and the build time:
@@ -3352,15 +3355,16 @@ gzip grows 2,925 B (1,897,790 to 1,900,715). Fixtures: three `own`
 cases built inside std (the stage harness's new `std` build), and
 `ptr_tests.hd` grows to 12 cases.
 
-**`List`'s four commits**, each green on its own, benchmarked (the
+**`List`'s first two commits**, each green on its own, benchmarked (the
 study runtimes of sieve, fannkuch_redux, map_count and json) and
 reporting its lines against its share, as [settling the biggest
-risk](#size-budget) orders them:
+risk](#size-budget) orders them. They were planned as two of four; the
+owner's decision to change lists and maps together replaced the last
+two with [the `List` and `Map` buffer commits](#list-and-map-buffers),
+3a to 3k.
 
-1. **Changes name their place** (55 Rust): insertion's rule 5 makes the place a push's list or an in-place argument reads unique, not the value, and when anything between that read and the change may write or call, the change takes a new `borrow` read of the place right after its `IsUnique`s; headers unchanged. An operand rooted at a top-level binding, a map value (`MapIndexMut`) or another value keeps the check on the value until commits 2 and 3.
+1. **Changes name their place** (55 Rust): insertion's rule 5 makes the place a push's list or an in-place argument reads unique, not the value, and when anything between that read and the change may write or call, the change takes a new `borrow` read of the place right after its `IsUnique`s; headers unchanged. An operand rooted at a top-level binding, a map value (`MapIndexMut`) or another value keeps the check on the value until commits 2 and 3a.
 2. **Map values as places for a change** (40 Rust): `m[k].push(x)` and an in-place call on `m[k]` read `[%m [%e]]` at `MapEntry`'s number, so a list in a map can take a new address; `MapIndexMut` and the map arm of the checker's `mark_write_path` go, the job [map value places](#map-value-places) left open. Headers unchanged.
-3. **The buffer address** (110 Rust): a list value is its buffer's address and the owner word moves into the buffer; `IsUnique`, the lowered push and its growth store the new address into the named place, a top-level binding's included; an in-place call that stays a call copies out; `header_copy` stops answering for a list, and a parameter changed in place is owned; an `IsUnique` and the read of its place right after it lower as one walk; the verifier checks that a list change's operand is a `Read` of a place right after that place's `IsUnique`, with nothing between that may write. Deletes the header kernels and constants of `rt.rs`, the header half of `emit/list.rs`, hoisting's header cache, and the header in `boundary.rs`, `dyn_value.rs` and `erased.rs`.
-4. **The slow paths in std hd** (15 Rust, 50 hd): growth, the unique copy and truncation in `std.rt` over `Buffer[T]`, called by the lowered push, `IsUnique` and `list_truncate`, replacing `rt.rs`'s `list_grow`, `list_unique` and `list_truncate` once measured at least as fast; until then the kernels stay. Emitted code calls std functions only by name today (`RUNTIME_FNS`, rooted by the driver); growth moves bytes and needs no element type, but the unique copy and truncation count elements, so they need the element glue passed in or an instance per element type, which is this commit's risk.
 
 **As built.** Commit 1 is `insert::changes` and `insert::own_place`.
 Before the other insertion rules, `changes` finds each list change's
@@ -3377,7 +3381,7 @@ receiver's read becomes a `borrow` that owns nothing and nothing uses,
 and the change reads the place again right after the `IsUnique`s, which
 stand just before it: `bags[i].items.push(twice(n))` checks `i` once
 before the call and once at the push. Top-level bindings stay by value
-because the emitter's place walk has none as a root yet; commit 3 adds
+because the emitter's place walk has none as a root yet; commit 3a adds
 it.
 
 Commit 1 adds 81 Rust code lines and deletes 23 (all in `insert.rs`),
@@ -3396,7 +3400,7 @@ sieve, binary_trees and dyn_iter byte-identical; json 170,180 to 170,981
 model checked the value it had loaded: `self.parts.push(text)` in
 `StringBuilder.push`, copied into string_build's and map_count's loops,
 and json's `TextWriter`, whose `parts` is a `&mut List[string]` behind
-`&mut self`. Commit 3 lowers an `IsUnique` and the read of the same
+`&mut self`. Commit 3d lowers an `IsUnique` and the read of the same
 place right after it as one walk, which it needs anyway to store the new
 address. The web compiler's gzip grows 1,028 B (1,900,715 to
 1,901,743). Cold build CPU, medians of 11 interleaved release builds:
@@ -3424,7 +3428,7 @@ push, which is commit 1's rule unchanged. A change whose arguments may
 write keeps the check on the value its receiver read: an argument that
 writes the map (`m["a"].push(grow(&mut m))`) may grow it, growth
 renumbers entries, and a read of `[$m [%e]]` after it reached another
-key's value when tried. Commit 3 must look the entry up again there
+key's value when tried. Commit 3d must look the entry up again there
 before a new buffer address can be stored back.
 
 Commit 2 adds 46 Rust code lines and deletes 126, against 40, under the
@@ -3441,7 +3445,7 @@ nbody 0.24 s to 0.24 s. The web compiler's gzip shrinks 239 B
 (1,904,287 to 1,904,048, both built here). The header model's hole that
 the settling above found has its runtime case,
 `runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy`, a known
-failure (#667) until commit 3.
+failure (#667) until commit 3f.
 
 **Emitted size budget.** hello's Wasm does not change, and each
 bench/study program's release `.wasm` stays within +5% of its size
@@ -3457,10 +3461,281 @@ programs: at 12, json's Wasm is 1.8% smaller and nothing grows over 1%
 (map_count +0.8%, string_build +0.9%); at 16 json grows 3.8%, at 40
 5.8%.
 
-Commit plan: the inliner (four commits), the typed primitives (two),
-`List` with the buffer-address value (four, each benchmarked), the `for`
-lowering (two), `Map` (three), strings (two), deleting the intrinsics
-(one).
+Commit plan: the inliner (four commits, done), the typed primitives
+(two, done), `List`'s first two (done), the `List` and `Map` buffers
+(eleven, 3a to 3k, each benchmarked), the `for` lowering (two), strings
+(two), deleting the intrinsics (one).
+
+### List and Map buffers
+
+Lists and maps change from a header to their buffer's address in one
+series of commits (owner, 2026-10-23, replacing the order "`List`'s
+buffer now, `Map` later"). Done in that order, the code would carry two
+copy, pin and clone paths until `Map` landed, and every place that
+copies each collection leaf of a value (`copy_elems`, `copy_src`,
+`rt:map_unique`, `value_copy`, all of which call one `ListCopy` today,
+since a map's header is a list's kind) would pick the list or the map
+form per leaf. Together, both kinds keep the owner word at the same
+offset of their buffer, so one copy glue reads it the same way for
+either and, for a pinned collection, calls the clone glue the word
+names, which is `rt:list_clone` or `rt:map_clone`. That is data, not a
+per-leaf choice in the compiler.
+
+Measured at ad3edc0f2, after `List`'s commit 2; lines are code lines as
+[the size budget](#size-budget) counts them. "Counted" is the sum of the
+pieces; a commit's share is that sum times 1.3, for the reason under
+calibration below.
+
+| Commit | Piece | Replaced | Added (counted) |
+| --- | --- | ---: | ---: |
+| 3a | insertion names a change's place rooted at a top-level binding (`root_local` takes a global root, with no local access to record) | | 12 |
+| 3a | verifier: a global root for a change's operand | | 5 |
+| 3a | emitter: `at_root` of a `PlaceRoot::Global` reads the binding's static slot or Wasm globals, and a store into the whole place writes them back; the two refusals go | 5 | 35 |
+| 3a | `IsUnique` and `Pin` of a global place | | 8 |
+| 3b | callee: each in-place parameter is one more result, pushed with no count by every `Return` and the root tail | | 40 |
+| 3b | caller: the extra result is stored into the argument's place with no count change, by 3a's place store | | 20 |
+| 3b | passes: the call is a write of that place for borrow, known-null and hoisting (insertion names it already) | | 15 |
+| 3b | a trait-value slot for a `mut self` collection receiver, and a suspending callee's frame, carry the extra result | | 30 |
+| 3c | the caller stores the marker 0 into the argument's place for the call when the place is reachable another way (a top-level binding, a cell, a dereference); the copied-out value replaces it | | 20 |
+| 3c | a list or map read whose place starts at a top-level binding or passes a dereference tests for the marker and panics `conflicting-access` (one helper) | | 20 |
+| 3c | the link folds the test away in a program that stores no marker, as it folds `RefViewsAbsent` | | 12 |
+| 3d | map changes (`m[k] = v`, `m.remove(k)`) name their place in `insert::changes`, as a push does | 10 | 15 |
+| 3d | a change through `[%m [%e]]` whose arguments may write looks the entry up again after its `IsUnique`s | | 20 |
+| 3d | an `IsUnique` and the read of its place right after it lower as one walk | | 40 |
+| 3d | verifier: a change's operand is a `Read` of its place right after that place's `IsUnique`s, with nothing between that may write | | 35 |
+| 3e | layout: the owner word at payload offset 8 of a list buffer and of a map table; list elements from 16 (`LIST_ELEMS`), the map's `GROWN` at 16 and `INDEX` at 24, the static empty buffer 32 bytes, `CTX_DATA` and `CTX_VTABLE` after `LIST_ELEMS` | 15 | 10 |
+| 3e | `rt:list_buf` and `rt:map_table` zero the owner word | | 4 |
+| 3e | `list_copy`, `list_pinned`, `list_unique`, `map_unique`, `list_truncate` and `pin_owner` read and write it in the buffer | | 12 |
+| 3e | growth and the unique copy carry it to the new buffer, since an exposed collection stays unshared after its direct pin ends | | 10 |
+| 3f | header kernels: `rt:list_header`, `rt:list_header_as`, `ListHeaderDrop`, their variants, dispatch and checked kind | 49 | |
+| 3f | `Em::header` and `Em::buffer` become one `Em::buffer`: the value, or a loop's cached buffer | 48 | 15 |
+| 3f | `rt:list_copy` becomes the one copy glue `rt:coll_copy`: a retain, or a clone through the owner word's slot when pinned or exposed, the word given up otherwise; `ValueCopy` lowers to it | 47 | 30 |
+| 3f | header loads and stores in `map.rs`, `emit/map.rs`, `emit/iter.rs`, `emit/refs.rs`, `boundary.rs`, `task.rs`, and the header calls of `NewList` and `NewMap` | 35 | |
+| 3f | `rt:map_clone` over a table | 19 | 10 |
+| 3f | `IsUnique` stores the buffer `rt:list_unique` or `rt:map_unique` returns into its place | | 20 |
+| 3f | push's growth stores the new buffer into the operand's place; `list_truncate` writes through its reference | | 25 |
+| 3f | `rt:map_put`, `rt:map_grow` and `rt:map_unique` take and return the table, and the caller stores it | | 25 |
+| 3g | `own/copies.rs` | 887 | |
+| 3g | the verifier's `header_copies` (invariant 23) | 112 | |
+| 3g | `OwnCx::header_copy`, `in_place_view` and `HeaderCopy`, the test context's, and the driver's with `holds_coll` | 62 | |
+| 3g | insertion's call and `ValueCopy` site, the `ValueCopy` cases in pairs, hoisting and borrow | 21 | |
+| 3g | the emitter's `value_copy` and the slot copy of `copy_src`, `slot_src` and `fresh` | 61 | |
+| 3g | count glue: a retain of a value's collection leaves runs the copy glue and replaces the leaf (`count_locals`, the `Retain` glue) | | 30 |
+| 3g | heap copies: `RetainFields`, and a value stored into an element, field or payload slot | | 25 |
+| 3g | task frames and boundary arguments that take counts (`own_arg`) | | 10 |
+| 3g | a parameter changed in place is owned (`borrow::lent_params`) | | 10 |
+| 3g | verifier and fixture plumbing | | 15 |
+| 3h | `rt:list_grow`, `rt:list_unique`, `rt:list_truncate`, their variants and dispatch | 176 | |
+| 3h | the lowered push, `IsUnique` and `list_truncate` call std's slow paths by name with the element's glue; the driver roots them | | 30 |
+| 3j | `map.rs`'s probe, put, growth, index and hash glue with their address helpers | 482 | |
+| 3j | `emit/map.rs`'s `map_op`, `map_put`, `map_len`, `table_field` and the per-key operations (`key_ops`, `key_own`, `key_params`, `map_key`) | 212 | |
+| 3j | the checker's map built-ins, `hd_mono`'s map key choice and the driver's key items, the map `Helper` variants and dispatch | 125 | |
+| 3j | the checker resolves `get`, `set`, `remove`, `len` and `m[k] = v` as std calls; `MapEntry` is a call of std's entry number; emitter rest | | 40 |
+| 3k | `rt:map_unique`, `rt:map_clone`, `rt:map_step`, `rt:map_table`, `Em::new_map` and `emit/iter.rs` | 320 | |
+| 3k | `NewMap` as calls of std's construction; a map's `IsUnique` and its owner word's clone slot name std functions | | 30 |
+| | **Total** | **2,686** | **678** |
+
+std hd adds 235 lines: in 3e one changed line (`Buffer[T].at` at offset
+16); in 3h growth (20), the unique copy (15) and truncation (12), about
+50; in 3i the table type over its buffer (15), hashing with the seed (8),
+probing (25), insert (30), growth (25) and remove (15), about 120; in 3j
+`get`, `set`, `len`, `contains`, indexing (20) and a value place's entry
+number (10); in 3k `MapEntries` (15), the literal's construction (10),
+and copy on write and clone (10). Tests add about 450 lines: `own`
+fixtures per commit, 3c's conformance cases, and std tests for 3h, 3i
+and 3j.
+
+**What stays.** Element places with their bounds check, insertion's
+`IsUnique` and `Pin` rules 5 and 6, `NewList`, `ListPush` and `ListLen`
+(option B), the checker's built-in `len` and `push`, hoisting's stable
+lists (the facts hold for a buffer address), `rt:list_buf`,
+`rt:list_clone`, `rt:copy_elems` and the buffer's drop and cycle glue,
+context buffers, the entries' drop glue, `map_value_at` with the entry
+layout a map value place needs, the hash seed intrinsic, and the three
+map-loop intrinsics with `rt:map_slot_next`, which are the `for` row's.
+3i keeps today's table layout (counts, owner word, index, hashes and
+entries in one block), so the Rust glue and the hd code agree while
+both exist.
+
+**Reference points.** A list buffer that holds its own capacity and
+length behind one counted address, made unique before a change, is
+Swift's `Array` (`ContiguousArrayBuffer` with `isUniquelyReferenced`);
+Go and Rust keep length and capacity in the value instead. The growth,
+unique copy and truncation that move to hd do what Go's
+`runtime/slice.go` (232) and Rust's `raw_vec/mod.rs` (505) do, and hd's
+50 lines over `Buffer[T]` are smaller because there is one growth policy
+and no allocator parameter. The map table in hd does what Go's
+`internal/runtime/maps` (1,374) and hashbrown's `raw/mod.rs` (1,726) do,
+with a dense insertion-ordered table instead of a Swiss table. The
+`conflicting-access` check is a dynamic exclusivity check in the sense
+of Swift's SE-0176 (dynamic enforcement for class properties, globals
+and escaping closures); hd's is narrower, since it covers only a
+collection that a non-inlined call changes in place. No Swift sources
+were measured here.
+
+**Calibration.** Stage 2's top-down table planned −730 and landed about
++12,600. Stage 3's bottom-up shares so far, measured with this budget's
+counter per commit: the inliner added 1,002 against 1,300 (its
+bottom-up 1,020), 844 net; the typed primitives 337 against 510 (the
+checker's 60 were not needed); `List`'s commit 1 added 81 against 55
+(1.47 times), commit 2 46 against 40 (1.15 times). New code in a module
+of its own met or beat its count; changes threaded through existing
+passes and emitter code ran 1.15 to 1.5 times it, and the old commit 3's
+share of 110, set top-down, was a fifth of its 500 to 650 (c8ea10160).
+Every piece above is threaded code, so each commit's share is its count
+times 1.3, and its stop line is 1.5 times the share.
+
+| Commit | Rust share (stop) | std hd (stop) | Deletes | Emitted size against 6792b1bfa | Web gzip | Judged by |
+| --- | ---: | ---: | ---: | --- | --- | --- |
+| 3a places at top-level bindings | 80 (120) | 0 | 5 | the 13 programs byte-identical: none changes a list through a top-level binding | +0.9 KB | sieve and fannkuch_redux as noise, json, map_count |
+| 3b copy-out | 135 (205) | 0 | 0 | byte-identical: std and the 12 programs have no in-place parameter | +1.7 KB | as 3a |
+| 3c the `conflicting-access` check | 70 (105) | 0 | 0 | byte-identical as shipped; json and string_build also built with the fold off, to report the check's size and time | +0.9 KB | json and string_build, fold on and off |
+| 3d every change names its place, read in one walk | 145 (220) | 0 | 10 | string_build back to about +3.5% from +4.3%, json at most −0.8%, map_count at most +2.0%, the rest byte-identical | +1.7 KB | string_build, map_count, json |
+| 3e the owner word in the buffer | 45 (70) | 1 | 15 | within ±0.3% of 3d: one more load in the pin and owner tests of the runtime glue | +0.4 KB | sieve, fannkuch_redux, json, map_count |
+| 3f the buffer address | 165 (250) | 0 | 198 | smaller: a load less per element access, length and push, no header allocation; json, string_build, map_count, sieve, fannkuch_redux and nbody about −0.5% to −2%; hello unchanged (it makes no list) | −0.4 KB | sieve, fannkuch_redux, nbody, spectral_norm, json, map_count, string_build; json and nbody build CPU |
+| 3g no header copies | 115 (175) | 0 | 1,143 | within ±1%: json's 22 `ValueCopy` calls go, and each count of a collection leaf calls the copy glue and stores its result | −12.9 KB | json, closures, dyn_iter, map_count |
+| 3h list slow paths in std hd | 40 (60) | 50 (75) | 176 | string_build sets the limit: about 2% to 3.5% of room (230 to 410 B) after 3d and 3f, and std's instances for `List[string]` may take 200 to 600 B | −1.3 KB | string_build, sieve, fannkuch_redux, json |
+| 3i the map table in std hd, not yet called | 0 | 120 (180) | 0 | byte-identical: no program instantiates it | +1.0 KB | std tests only |
+| 3j map operations as std calls | 50 (75) | 30 (45) | 819 | map_count sets the limit: +2.0% today, about +1% after 3f, and std's probe and insert instances against `rt:map_find` and `rt:map_put`: 0 to +3% | −9.4 KB | map_count, json |
+| 3k map literal, copy and iteration in std hd | 40 (60) | 35 (55) | 320 | within ±1% of 3j | −3.2 KB | map_count, json |
+| **Total** | **885** | **235** | **2,686** | hello unchanged throughout | **−20.6 KB** | |
+
+hello's Wasm does not change in any of them, and each of the 12
+bench/study programs stays within +5% of its size at 6792b1bfa; a commit
+over that stops, like one over its stop line. The gzip column uses 12.5
+B per Rust code line (the measured 11 to 14) and 8.2 B per hd line, from
+the web compiler's 1,904,048 B after `List`'s commit 2: the largest
+point is about 1,910 KB after 3e, the end about 1,883 KB, far under the 2
+MB cap. Study times are medians of three interleaved rounds of 7 runs,
+whose noise was about ±2.5% at `List`'s commit 1.
+
+**The commits**, each green on its own and about an hour of agent work:
+
+- **3a. Places at top-level bindings.** A change's operand read from a
+  place rooted at a top-level binding names that place, as a local's
+  does since commit 1, and the emitter walks and stores a global root.
+  Headers unchanged. It depends on nothing about maps, so it may land
+  first.
+- **3b. Copy-out.** A non-inlined in-place call returns each in-place
+  parameter's final value, and the caller stores it into the argument's
+  place. Under headers the returned value is the same header, so nothing
+  observable changes yet; the commit exists so that 3f's buffer address,
+  which growth or a unique copy may replace inside the callee, always
+  reaches the caller's place.
+- **3c. The `conflicting-access` check.** The marker, the read test and
+  its fold, the spec rule next to `ref.elem.access.pin`, `types.coll.nested`
+  reconciled, and conformance cases: a user trait's `mut self` method on
+  a list whose callback reads the list through a top-level binding. The
+  marker is 0, which no list or map value is, since an empty one is the
+  static empty buffer. The check stays on in dev and in release, as the
+  owner decided; the fold only removes it from a program in which no
+  call stores a marker, where no read can see one, so json and
+  string_build pay nothing as shipped and the commit reports what they
+  would pay with the fold off.
+- **3d. Every change names its place, read in one walk.** Map changes
+  name their place, a change through a map value whose arguments may
+  write looks its entry up again (growth renumbers entries), an
+  `IsUnique` and its place's read lower as one walk, and the verifier
+  checks the form. All of it holds under headers, it is what 3f's
+  write-back needs, and the one walk wins back what commit 1 cost
+  string_build.
+- **3e. The owner word in the buffer.** For lists and maps at once.
+  Headers stay and still hold only the buffer's address; the one copy
+  path is still `ListCopy`. A buffer whose owner word is set still has
+  one header holding it, since a copy gives the word up or clones, so
+  the invariant is today's. This isolates the layout change (contexts,
+  `Buffer[T]`, the boundary, the collector) from the value change.
+- **3f. The buffer address.** For lists and maps at once: the value is
+  the buffer's address, every change that may replace it stores the new
+  address into the place it names, and `ValueCopy` is the one copy glue.
+  `header_copy` still answers, which is sound with retains: `copies.rs`
+  lets two holders share only where nothing changes or pins the
+  collection while both live. The known failure
+  `runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy` passes,
+  and its `KNOWN_FAILURES.tsv` row goes.
+- **3g. No header copies.** `header_copy` goes for both kinds, and with
+  it `copies.rs` and its verifier. Every count a copy of a collection
+  takes runs the copy glue, so a pinned collection's copy is a clone
+  (`ref.elem.copy`), and a parameter changed in place is owned.
+- **3h. The list slow paths in std hd.** Growth, the unique copy and
+  truncation in `std.rt` over `Buffer[T]`, replacing `rt.rs`'s kernels
+  once measured at least as fast; until then the kernels stay. Emitted
+  code calls std functions only by name (`RUNTIME_FNS`); growth moves
+  bytes and needs no element type, but the unique copy and truncation
+  count elements, so they take the element's glue or need an instance
+  per element type, which is this commit's risk.
+- **3i. The map table in std hd.** Lookup, insert, growth and remove
+  over today's layout, with std tests, called by nothing yet.
+- **3j. Map operations as std calls.** The checker lowers `get`, `set`,
+  `remove`, `len` and `m[k] = v` as calls of 3i's methods, so the
+  monomorphizer collects their instances, and the Rust probe and insert
+  glue, the per-key operations and `hd_mono`'s map key choice go; kept
+  only if `map_count` is at least as fast.
+- **3k. Map literal, copy and iteration in std hd.** `NewMap`, the
+  unique copy and clone a map's `IsUnique` and owner word name, and
+  `MapEntries`' step; `emit/iter.rs` goes.
+
+No commit carries two copy paths: through 3e both kinds copy by
+`ListCopy` (a new header over the same buffer), 3f moves both to the
+buffer copy glue at once, and 3g removes the header copies of both.
+Copy-out (3b, 3c) lands before the buffer address: under headers it
+changes nothing observable, and once it is in, a callee that grows a
+buffer cannot lose its change.
+
+**Stop for the owner** when a commit's added lines pass its stop line;
+when 3g deletes under two thirds of its 1,143 lines, or the component's
+last commit has deleted under two thirds of its 2,686; when a bench
+program passes +5% of its size at 6792b1bfa (string_build has 84 B of
+room today, so 3h is the likeliest); when a judged study time is slower
+than the noise; when 3h's or 3j's std code is slower than the kernel it
+replaces, which then stays; or when the web gzip comes within 50 KB of
+the 2 MB cap, which these numbers do not reach.
+
+**The biggest remaining risk** is 3g's claim that every count a copy of
+a collection takes can run the copy glue. Today's count glue retains in
+place: `count_locals` retains the leaves in a value's locals, and the
+`Retain` and `RetainFields` glue take values and return nothing. A
+pinned collection's copy must be a clone, so every such site must store
+the glue's result where the copy lives. If some site cannot, such as a
+count taken inside erased generic glue or a task frame where the value
+is in no writable local or slot, `header_copy` must keep answering for
+the types that reach it, and part of `copies.rs` stays: the component
+deletes 400 to 900 lines fewer, and stage 3's net falls from about
+−1,820 to about −920 to −1,420. The next risks are map_count's size and
+time with the map table in hd (3j), and the element glue of the
+generic slow paths (3h).
+
+### Stage 3's net
+
+The landed commits at their measured sizes, the `List` and `Map`
+buffers at their shares, and the remaining components at their planned
+additions times the same 1.3, since each changes existing code.
+
+| Component | Status | Rust added | Rust deleted | std hd |
+| --- | --- | ---: | ---: | ---: |
+| Inliner | done, four commits | 1,002 | 158 | 0 |
+| Typed memory primitives | done, two commits | 337 | 77 | 27 |
+| `List`'s commits 1 and 2 | done | 127 | 149 | 0 |
+| `List` and `Map` buffers, 3a to 3k | planned | 885 | 2,686 | 235 |
+| One `for` lowering | planned | 235 | 960 | 20 |
+| Strings in std | planned | 40 | 320 | 80 |
+| Deleting the intrinsics | planned | 0 | 100 | −15 |
+| **Stage 3** | | **2,626** | **4,450** | **347** |
+
+Stage 3 still deletes code: about 1,820 Rust code lines net and +350 of
+std hd, against the −2,250 and +420 planned at 6792b1bfa. The landed
+commits are +1,082 so far; the rest must delete about 2,900. Against
+the old plan, the landed commits came in about 700 lines under their
+shares; the `List` and `Map` buffers net about 990 lines less than the
+two rows they replace, since they add 885 against 290 (copy-out and its
+check, places at top-level bindings, the write-backs and the copy glue
+the old rows did not price, and the calibration) and delete 2,690
+against 3,100 (option B keeps the checker's `len` and `push`, and
+hoisting's stable lists stay); and deleting the intrinsics is 150
+smaller under option B. Without the calibration (+270 on what is left)
+the net is about −2,100. If 3g keeps part of `copies.rs`, it is about −920 to
+−1,420; if maps keep their Rust glue because std's is slower (3j, 3k),
+about −780, still a deletion.
 
 ### Compile time and code size
 
@@ -3491,6 +3766,12 @@ emission rate is the 28 ms json spent on 13,305 instructions in
 hd adds about 3 ms to a cold build (6 µs per line, from 80 ms of Body
 over std's 12,936 lines).
 
+Option B changes the json column: `push` and `len` stay lowered, so its
+112 `ListPush` and 42 `ListLen` sites are not copied, about 3,040
+instructions fewer. json's net is then about +1,860 instructions
+(+17%), about 0.9 ms of passes and 3.9 ms of emission; nbody's six range
+loops are the `for` row's and do not change.
+
 `std.rt` is the exception. The allocator and the collector make 103
 small calls in every program, which would copy 1,214 instructions and
 drop 399, +815 net: +36% on hello's 2,246, about 2.5 KB on its 6,880 B
@@ -3512,9 +3793,12 @@ lines and 1,024 std hd lines for +166,409 B, and 2bdc507c3 to
 62b833aa5 removed 2,446 Rust lines for −33,265 B. The embedded std text
 compresses to 8.2 B per hd line (its gzip grew 8,377 B in the first
 window), which leaves 12.0 and 13.6 B per Rust code line; the whole
-stage 2 window gives 10.9. At 11 to 14 B, stage 3's −2,250 Rust lines
-are −25 to −32 KB of gzip and its +420 hd lines +3.4 KB: about −24 KB
-in all, from 1,884,286 B to about 1,860,000 B.
+stage 2 window gives 10.9. Stage 3 so far took the gzip from 1,884,286 B
+to 1,904,048 B (after `List`'s commit 2), mostly the inliner. At 11 to
+14 B, what is left, about −2,900 Rust lines and +320 hd lines
+([stage 3's net](#stage-3s-net)), is −32 to −41 KB and +2.6 KB: the
+end of stage 3 at about 1,866,000 to 1,875,000 B, about 10 to 19 KB
+under where it started.
 
 ## Cost
 
@@ -3584,11 +3868,11 @@ What the numbers say:
 
 | | Stage 1 | Stage 2 | Stage 3 |
 | --- | --- | --- | --- |
-| TIR instructions | -15% to -18%: closure forms, hidden `$ref`/`$serial` locals and their stores, rebuild chains | another -8% to -12%: `LocalGet` + `Field` chains become one `Read`; `extra` grows about 5% for place records | counted: json +46%, nbody +11%, hello 0 in reached bodies after inlining; checked bodies about the same |
+| TIR instructions | -15% to -18%: closure forms, hidden `$ref`/`$serial` locals and their stores, rebuild chains | another -8% to -12%: `LocalGet` + `Field` chains become one `Read`; `extra` grows about 5% for place records | counted: json +17% with option B (+46% before it), nbody +11%, hello 0 in reached bodies after inlining; checked bodies about the same |
 | TIR wire bytes | -15% (fewer instructions and fewer closure types in the per-body tables) | -5% | std grows by its new hd code |
-| check (Body) | -1 to -3 ms of 80: building closure forms is a small part of checking | -1 ms (no copy insertion, no pin bookkeeping) | about +3 ms cold: about 420 more lines of std to check |
+| check (Body) | -1 to -3 ms of 80: building closure forms is a small part of checking | -1 ms (no copy insertion, no pin bookkeeping) | about +2 ms cold: about 350 more lines of std to check |
 | ModuleFinish | -3 ms (wire writing) | -1 ms | +2 ms |
-| emission | unchanged | about unchanged: `live::plan` and the loans (4.5 ms on json) go, the passes (estimated 4 to 6 ms on 231 bodies) run at decode instead | json about +10 ms, nbody +0.6 ms: inlined code |
+| emission | unchanged | about unchanged: `live::plan` and the loans (4.5 ms on json) go, the passes (estimated 4 to 6 ms on 231 bodies) run at decode instead | json about +4 ms with option B, nbody +0.6 ms: inlined code |
 | module finish (Wasm) | unchanged | unchanged | +5% to +10%, following code size |
 | peak memory | -0.4 MB | about unchanged | +1 to +3 MB |
 
@@ -3604,22 +3888,23 @@ and load per list, and loops whose base a pass can hoist.
 
 | Crate | Stage 1 | Stage 2 | Stage 3 |
 | --- | --- | --- | --- |
-| `hd_tir` | +100 | +1,550 | +560: the inliner, pointer places and the fold, less `copies.rs` |
-| `hd_check` | -650 | -550 | -280 |
-| `hd_wasm_linear` | -200 | -1,850 | -2,590 |
-| `hd_mono`, `hd_driver`, `hd_structure`, `hd_host_abi` | -20 | +120 | +60 |
-| Rust, net | -770 | -730 | -2,250 code lines, plus 920 of tests |
-| `lib/std` (hd), net | 0 | 0 | +420 |
+| `hd_tir` | +100 | +1,550 | −10: the inliner, pointer places and the fold, less `copies.rs` |
+| `hd_check` | -650 | -550 | −370 |
+| `hd_wasm_linear` | -200 | -1,850 | −1,630 |
+| `hd_mono`, `hd_driver`, `hd_structure`, `hd_host_abi` | -20 | +120 | +190, with `hd_run`'s inlined frames |
+| Rust, net | -770 | -730 | −1,820 code lines, tests apart |
+| `lib/std` (hd), net | 0 | 0 | +350 |
 
 The web compiler is 5.21 MB raw against its 5.25 MB gate. Its crates
 hold about 135,000 lines of Rust, and it embeds std's 700 KB of hd
 source, so a Rust line costs about 33 bytes and an hd line about 40.
 That gives about -25 KB after stage 1 and -24 KB after stage 2; stage
-2 in fact added about 137 KB of gzip (#49). The stage 3 column is the
-[size budget](#size-budget)'s, by crate, and its gzip cost uses the
-measured 11 to 14 B per Rust code line and 8.2 B per std hd line of
-[compile time and code size](#compile-time-and-code-size): about −24 KB
-of gzip.
+2 in fact added about 137 KB of gzip (#49). The stage 3 column is
+[stage 3's net](#stage-3s-net) by crate: the landed commits measured per
+commit, the rest at their shares. Its gzip cost uses the measured 11 to
+14 B per Rust code line and 8.2 B per std hd line of [compile time and
+code size](#compile-time-and-code-size): about 10 to 19 KB under where
+stage 3 started, after about +20 KB so far.
 
 ### Cognitive load
 
@@ -3647,7 +3932,7 @@ The 18 cases of `crates/hd_check/tests/cases/known-bad-tir/` and the
 | a local struct field write rebuilds its value | stage 1 | `Store [$1 .x] 1.0` |
 | a map loop uses slot intrinsics | stage 3 | the same `Iterable` lowering over `Map`'s std cursor |
 | a mutable generic reference reads through a getter | stage 1, stage 2 | `Read copy [*$0]`; for a scalar instance the copy costs nothing |
-| a mutable list reference reads through a getter | stage 1, stage 2, stage 3 | stage 2 `Read borrow [*$0]`, `ListLen`; stage 3 `Read [**$0 .len]` (the reference, then the buffer) after inlining `List.len` |
+| a mutable list reference reads through a getter | stage 1, stage 2, stage 3 | stage 2 `Read borrow [*$0]`, `ListLen`; stage 3 `Read borrow [*$0]` and `ListLen` over the buffer address, one load less (option B) |
 | a nested field write rebuilds each enclosing value | stage 1 | `Store [$1 .body .x] 1.0` |
 | a range loop uses the cursor protocol | stage 3 | the one lowering through `RangeIter`, inlined; the bound test once (#711 handles its bounds checks) |
 | a referenced struct field write rebuilds its value | stage 1 | `Store [*$0 .x] 1.0` |
@@ -3655,8 +3940,8 @@ The 18 cases of `crates/hd_check/tests/cases/known-bad-tir/` and the
 | an element method call unpins after the call | stage 1, stage 2 | `IsUnique`, `Pin`, `Ref [*$0 [%1]]`, the call; the reference temporary's drop after the call |
 | copying a struct containing a list uses `ValueCopy` | stage 2 | `Read move [$0]` at the parameter's last use: no count |
 | list indexing is an opaque intrinsic | stage 2 | `Read [$0 [%1]]`: bounds check, address, load |
-| list length is an opaque intrinsic | stage 3 | `Read [*$0 .len]` after inlining |
-| list push is an opaque intrinsic | stage 3 | an inlined std `List.push`: `IsUnique`, a capacity test, a `Store` through an element place |
+| list length is an opaque intrinsic | stays, by option B | `ListLen` loads the buffer's length word; a declaration-level `@inline` is the first option if that falls short |
+| list push is an opaque intrinsic | stays, by option B | `IsUnique` of the place, the lowered push over the buffer address, and a call of std's growth only when the buffer is full |
 | map lookup is an opaque intrinsic | stage 3 | a std call over the table |
 | string concatenation is an opaque intrinsic | stage 3 | a std call: allocate, two byte copies |
 | string equality is an opaque intrinsic | stage 3 | a std call: length compare, byte compare |
@@ -3703,7 +3988,8 @@ The 18 cases of `crates/hd_check/tests/cases/known-bad-tir/` and the
 
 - *Risk:* lists and loops get slower before the inliner and the passes
   handle std code well. *Guard:* stage 3 starts only after the inliner,
-  and each collection moves alone with bench/study before and after.
+  and lists and maps change to buffers together, commit by commit,
+  with bench/study before and after each.
 - *Risk:* compile time and std size grow (more instances, inlined code).
   *Guard:* the size of hello and the json build time are reported per
   commit.
@@ -3727,7 +4013,7 @@ reasons or their scope, not their direction:
   compiler and calls its runtime for maps. Owner, 2026-10-23: the
   inliner is approved, so hd follows Rust and Swift. Alternative: keep the
   list and string intrinsics, and stop after stage 2. Cost: the
-  4,560 lines stage 3 deletes (2,960 of them in the emitter) and the
+  about 4,450 lines stage 3 deletes (about 2,500 of them in the emitter) and the
   list header stay, and so does the
   separate `for` lowering for lists.
 - **Ownership passes once per generic body.** The measured programs have
