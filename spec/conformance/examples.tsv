@@ -698,7 +698,8 @@ lang/14-annotations.md	48	accept	typing/valid/error-generated-bounds.hd|typing/v
 std/format.md	1	accept	runtime/valid/debug-source-text.hd
 std/format.md	2	accept	typing/valid/debug-writer-builders.hd
 std/format.md	3	accept	typing/valid/std-types-debug.hd
-std/format.md	4	accept	runtime/valid/reference-derived-debug.hd|runtime/valid/reference-display.hd
+std/format.md	4	accept	runtime/valid/display-write-std.hd
+std/format.md	5	accept	runtime/valid/reference-derived-debug.hd|runtime/valid/reference-display.hd
 std/iter.md	1	accept	runtime/valid/iterable-cursor-types.hd
 std/iter.md	2	accept	typing/valid/iterator-adapters.hd
 std/iter.md	3	mixed	typing/invalid/iterator-filter-callback-row.hd|typing/valid/iterator-owned-drain.hd|typing/invalid/adapter-callback-scope-key.hd

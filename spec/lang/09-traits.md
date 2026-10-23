@@ -596,6 +596,29 @@ See also: [Propagation](05-expressions.md#propagation),
 [Wasm Boundary](10-modules.md#wasm-boundary),
 [Runtime Type Identity](#runtime-type-identity).
 
+### Display Trait
+
+`Display` is the trait of a value's user-facing text, which string
+interpolation writes. [String Interpolation](05-expressions.md#string-interpolation)
+shows its declaration.
+
+1. r[trait.display.to-string] `Display` declares the required method `fn to_string(self) -> string`, which returns the value's text.
+2. r[trait.display.write] `Display` declares `fn write(self, out: &mut StringBuilder) -> void`, which pushes the value's text to `out`.
+3. r[trait.display.write.default] The default body of `write` pushes `self.to_string()` to `out`. So an implementation that writes only `to_string` is complete.
+4. r[trait.display.write.override] An implementation may override `write` to push its text to `out` in parts, as in `_ := out.push(self.first).push(" ").push(self.last)`. Then no string is made for the value itself.
+5. r[trait.display.builder] `StringBuilder` is `std.text.StringBuilder` ([Joining And Building](../std/text.md#joining-and-building)). It is not a prelude name, so an implementation that overrides `write` imports it, as in `use std.text.StringBuilder`.
+
+> **Note.** Interpolation calls `write`, and `value.to_string()` calls
+> `to_string`. An override that pushes other text than `to_string`
+> returns makes the two differ.
+
+> **Why.** When every level of a nested `Display` returns a new string,
+> each part's text is copied once per level. Writing into the one builder
+> of the whole string removes that copy, as Rust's `Formatter` does.
+
+See also: [String Interpolation](05-expressions.md#string-interpolation),
+[Display For Standard Types](../std/format.md#display-for-standard-types).
+
 ### Debug Trait
 
 The standard library declares `Debug` in `std.format`, beside `Display`, to

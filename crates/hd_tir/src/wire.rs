@@ -143,7 +143,6 @@ fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         | Tag::NewList
         | Tag::NewMap
         | Tag::Closure
-        | Tag::Interp
         | Tag::Coerce
         | Tag::And
         | Tag::Or

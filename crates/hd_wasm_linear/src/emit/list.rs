@@ -531,7 +531,6 @@ impl Em<'_, '_, '_> {
                 | Tag::NewVariant
                 | Tag::NewList
                 | Tag::NewMap
-                | Tag::Interp
                     if external && self.counted(self.ty(x)).is_some() =>
                 {
                     return false;
@@ -932,7 +931,6 @@ impl Em<'_, '_, '_> {
             | Tag::NewVariant
             | Tag::NewTuple
             | Tag::Closure
-            | Tag::Interp
             | Tag::Prim => true,
             Tag::Call | Tag::CallDyn | Tag::DefaultCall => !legacy,
             Tag::Intrinsic => {

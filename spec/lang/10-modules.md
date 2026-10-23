@@ -1213,7 +1213,7 @@ The following built-in methods are normative:
 | `List[T]`, changing | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?`; `insert(&mut self, index: usize, value: T) -> void`; `remove_at(&mut self, index: usize) -> T`; `clear(&mut self) -> void` |
 | `Map[K, V]` | `len(self) -> usize`; `get(self, key: K) -> V?`; `iter(self) -> MapEntries[K, V]` |
 | `Map[K, V]`, changing | `remove(&mut self, key: K) -> V?` |
-| `Display` | `to_string(self) -> string` |
+| `Display` | `to_string(self) -> string`; `write(self, out: &mut StringBuilder) -> void`, whose default pushes `to_string()` |
 
 1. r[module.method.normative] The built-in methods in the table are normative.
 2. r[module.method.changing-ref] The methods of the changing rows take `&mut self` and change the collection. Calling one needs the list or map in a writable place, or a list element or a map value of one, as [Collection Values](04-type-system.md#collection-values) states. Error: `not-writable`.

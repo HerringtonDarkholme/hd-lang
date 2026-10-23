@@ -835,18 +835,20 @@ it reads, which the code key lists (crates/hd_mono/DESIGN.md §13.8).
 ### String Interpolation And Concatenation
 
 ```wat
-;; "id=$id name=$name": each Display part writes into one builder through its resolved callee
-(call $sb_new (i32.const 16))                   ;; capacity: the literal parts' total bytes
-(call $sb_push_lit (... (call $lit_k)))         ;; literal parts: array.copy from the pooled literal
-(call $i32_display (local.get $sb) (local.get $id))
-(call $str_display (local.get $sb) (local.get $name_b) (local.get $name_span))  ;; copies the viewed bytes
-(call $sb_finish (local.get $sb))               ;; one exact-size $bytes, viewed from start 0
-;; a + b on strings: array.new of the summed length, two array.copy from the two views
+;; "id=$id name=$name": std's StringBuilder, written by each value's Display.write
+(call $"impl StringBuilder.new")                ;; one builder for the whole string
+(call $"impl StringBuilder.push" (local.get $sb) (i32.const &"id=") (i32.const 3))
+(call $"impl Display for i32.write" (local.get $id) (local.get $sb))
+(call $"impl StringBuilder.push" (local.get $sb) (i32.const &" name=") (i32.const 6))
+(call $"impl Display for string.write" (local.get $name) (local.get $sb))
+(call $"impl StringBuilder.build" (local.get $sb))  ;; one copy of every part
+;; sb.push("item-$i;"), every value a name or a field path: written to sb itself
+;; a + b on strings: one allocation of the summed length, two copies
 ```
 
-- **Speed:** one builder, one final string; each `Display` part a direct
-  call that writes in place rather than returning a string.
-- **Size:** about 8 bytes per part plus the literal's getter call.
+- **Speed:** one builder, one final string; each value's `write` pushes
+  its parts instead of returning a string, so nesting copies no text.
+- **Size:** a call per text piece and per value.
 - **Engines:** no difference.
 - **Boundary:** `println("...")` of a literal alone takes the host fast
   path (no array built).

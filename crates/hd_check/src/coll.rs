@@ -49,7 +49,7 @@ impl Ck<'_, '_> {
         };
         match tag {
             Tag::NewList | Tag::NewMap | Tag::NewStruct | Tag::CopyStruct | Tag::NewVariant => true,
-            Tag::NewTuple | Tag::Closure | Tag::Interp | Tag::Prim => true,
+            Tag::NewTuple | Tag::Closure | Tag::Prim => true,
             Tag::Call | Tag::CallDyn | Tag::DefaultCall => true,
             Tag::CallValue | Tag::Ref | Tag::RefDyn | Tag::RefIdentity => true,
             Tag::Intrinsic => matches!(

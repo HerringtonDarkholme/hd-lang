@@ -2664,6 +2664,10 @@ typing/valid/tuple-trait-rest.hd	type	accept	lang/07-functions.md#r-fn.type.ctor
 runtime/valid/function-value-vararg-call.hd	runtime	accept	lang/07-functions.md#r-fn.type.rest-call
 runtime/valid/trait-delegation-vararg.hd	runtime	accept	lang/09-traits.md#r-trait.by.generated
 typing/invalid/vararg-function-value-list.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.vararg-rest
+runtime/valid/display-write-nested.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.write
+typing/invalid/display-write-readonly-builder.hd	type	reject:trait-method-signature	lang/09-traits.md#r-trait.display.write
+runtime/valid/display-write-std.hd	runtime	accept	std/format.md#r-std-format.display.write.std
+runtime/valid/display-write-reference.hd	runtime	accept	std/format.md#r-std-format.display.reference.write
 runtime/valid/display-tuples.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.std.tuple.template
 typing/invalid/display-tuple-element-without-display.hd	type	reject:unsatisfied-trait-bound	lang/05-expressions.md#r-expr.interp.std.tuple.template
 runtime/valid/tuple-vararg-spread-tail.hd	runtime	accept	lang/07-functions.md#r-fn.vararg.collect.tuple-expr

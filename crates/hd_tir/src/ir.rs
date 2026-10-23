@@ -108,7 +108,6 @@ tags! {
     CallHost: Meta, Values;
     Intrinsic: Meta, Record;
     DefaultCall: Record, Values;
-    Interp: None, Record;
     Coerce: Value, Record;
     // suspension and hooks
     Await: Record, Values;
@@ -1001,7 +1000,7 @@ impl Body {
                 r[..r.len().saturating_sub(3)].to_vec()
             }
             Tag::CallValue => [one(a), self.record(w).to_vec()].concat(),
-            Tag::Intrinsic | Tag::Interp => self.record(w).to_vec(),
+            Tag::Intrinsic => self.record(w).to_vec(),
             Tag::Is => [one(a), one(w)].concat(),
             Tag::Coerce => one(a),
             Tag::CopyStruct => {

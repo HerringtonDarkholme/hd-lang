@@ -8,7 +8,8 @@ ordinary hd over the language tier:
 - the text that the prelude function `debug` returns;
 - the `DebugWriter` builders and their layout;
 - the builder calls that `@derive(Debug)` generates;
-- which public `std` types implement `Debug`.
+- which public `std` types implement `Debug`;
+- which standard `Display` implementations override `write`.
 
 The language tier keeps what the compiler knows by name
 ([Debug Trait](../lang/09-traits.md#debug-trait)):
@@ -137,6 +138,25 @@ fn shown(timeout: Duration) -> string:
 > [`trait.own.rule`](../lang/09-traits.md#r-trait.own.rule) keeps a caller
 > from adding the implementation.
 
+## Display For Standard Types
+
+The standard `Display` implementations of the numbers, `string`, and
+`char` push their text to the builder themselves, instead of the default
+`write` that pushes `to_string()`:
+
+```text
+use std.text.StringBuilder
+
+# The text that `value`'s `write` pushes to a new builder.
+fn written[T < Display](value: T) -> string:
+    out := StringBuilder::new()
+    value.write(out)   # -12 pushes "-12"; 'é' pushes its bytes with push_char
+    out.build()
+```
+
+1. r[std-format.display.write.std] The `Display` implementations of the integer types, `f32`, `f64`, `string`, and `char` override `write`. Each override pushes the text that its `to_string` returns.
+2. r[std-format.display.write.string] `string`'s `write` pushes the string itself, and `char`'s pushes its scalar with `push_char`, so neither makes a new string.
+
 ## References
 
 A reference writes and displays as the value it refers to, as Rust's
@@ -154,8 +174,9 @@ fn shown(e: Expr, name: &string) -> string:
 
 1. r[std-format.debug.reference] `std.format` implements `Debug` for `&T` and for `&mut T` when `T < Debug`. A reference writes exactly what the value it refers to writes, with no trace of the reference or its identity.
 2. r[std-format.display.reference] `std.format` implements `Display` for `&T` and for `&mut T` when `T < Display`. A reference's text is the text of the value it refers to, so `"$r"` interpolates `*r`.
-3. r[std-format.debug.reference-derived] So a derived `Debug` writes a reference field as the value it refers to, and a tree linked by references prints whole.
-4. r[std-format.debug.reference-cycle] A derived `Debug` keeps no record of the values it has written. On a structure whose references really form a cycle, it runs until the stack is exhausted, as a derived `Eq` does.
+3. r[std-format.display.reference.write] Their `write` calls the `write` of the value they refer to, so `"$r"` runs that value's own `write`.
+4. r[std-format.debug.reference-derived] So a derived `Debug` writes a reference field as the value it refers to, and a tree linked by references prints whole.
+5. r[std-format.debug.reference-cycle] A derived `Debug` keeps no record of the values it has written. On a structure whose references really form a cycle, it runs until the stack is exhausted, as a derived `Eq` does.
 
 > **Why.** Every tree type should print, and its links are part of its
 > shape, not part of its value. `is` and `Id[T]` keep identity for code

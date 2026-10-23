@@ -224,7 +224,6 @@ pub(crate) fn is_fresh(b: &Body, i: usize) -> bool {
         | Tag::NewVariant
         | Tag::NewTuple
         | Tag::Closure
-        | Tag::Interp
         | Tag::Prim
         | Tag::Call
         | Tag::CallDyn

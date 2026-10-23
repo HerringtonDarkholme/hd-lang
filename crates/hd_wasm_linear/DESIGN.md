@@ -489,10 +489,11 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   string's bytes are a string buffer, `rt:str`: an 8-byte header, which
   reference counting uses, then the bytes; the view's address is the
   payload's. Every empty string is the one static empty value, address
-  `EMPTY` (the first static address) and length 0: an interpolation or a
-  concatenation with no bytes, an empty slice and an empty host result all
+  `EMPTY` (the first static address) and length 0: a concatenation
+  with no bytes, an empty slice and an empty host result all
   give it, so no empty buffer is ever allocated.
-- **Kernels.** An interpolation or a concatenation sums its parts'
+- **Kernels.** A concatenation (`+`, and `rt:concat_all`, with which
+  a `StringBuilder`, and so an interpolation, builds) sums its parts'
   lengths, allocates once and copies each part with `memory.copy`; one
   part is itself. `s[i]` and `bytes_at` check the index and load a byte.
   `bytes_slice` checks `start <= end <= len` and makes a view of the same

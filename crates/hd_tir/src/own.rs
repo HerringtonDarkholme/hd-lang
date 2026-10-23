@@ -305,11 +305,10 @@ pub fn operands(b: &Body, i: usize, out: &mut Vec<Operand>) {
                     Op::Values if word != NONE => {
                         values(b, word, &mut |v, at| push(out, v, Role::Lend, at));
                     }
-                    Op::Record if word != NONE && matches!(tag, Tag::Intrinsic | Tag::Interp) => {
+                    Op::Record if word != NONE && tag == Tag::Intrinsic => {
                         // The value a list push or a map store puts in
                         // the collection, which keeps it: a store.
                         let stored = match IntrinsicOp::from_u32(a) {
-                            _ if tag != Tag::Intrinsic => NONE,
                             Some(IntrinsicOp::ListPush) => 1,
                             Some(IntrinsicOp::MapSet) => 2,
                             _ => NONE,

@@ -1,0 +1,14 @@
+# test: an override of Display.write must take the builder as &mut StringBuilder
+# Spec 09 Display Trait: trait.display.write with trait.impl.signature (owner decision 2026-10-17, #436).
+use std.text.StringBuilder
+
+struct Point:
+    x: i32
+    y: i32
+
+impl Display for Point:
+    fn to_string(self) -> string:
+        "(${self.x}, ${self.y})"
+
+    fn write(self, out: &StringBuilder) -> void: # diagnostic: trait-method-signature
+        pass

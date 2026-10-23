@@ -4159,9 +4159,10 @@ impl Ck<'_, '_> {
 
     /// A call's choice once inference is done: a `Builtin` choice made
     /// while the self type was still a literal's variable (`Box { value:
-    /// 1 } == ...`, or `(1, "b") < (2, "a")`, whose tuple template waits
-    /// on its elements) becomes the impl the solver finds at the defaulted
-    /// type. A choice the solver does not answer with an impl stays.
+    /// 1 } == ...`, `(1, "b") < (2, "a")`, whose tuple template waits
+    /// on its elements, or `"${1.5}"`, whose `Display.write` is std's)
+    /// becomes the impl the solver finds at the defaulted type. A choice
+    /// the solver does not answer with an impl stays.
     fn settle_choice(
         &mut self,
         trait_: DefId,
@@ -4173,7 +4174,10 @@ impl Ck<'_, '_> {
         let waited = choice == crate::call::PENDING_CHOICE;
         if !waited
             && (choice.0 != hd_tir::ir::ChoiceKind::Builtin
-                || !matches!(pool.get(self_ty), TyData::Adt { .. } | TyData::Tuple { .. }))
+                || !matches!(
+                    pool.get(self_ty),
+                    TyData::Adt { .. } | TyData::Tuple { .. } | TyData::Prim(_)
+                ))
         {
             return Ok(choice);
         }

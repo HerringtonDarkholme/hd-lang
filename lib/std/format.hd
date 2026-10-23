@@ -7,6 +7,7 @@
 use std.function.Tuple
 use std.num.Integer
 use std.structure.{Structure, Walker, Variant, Field}
+use std.text.StringBuilder
 
 # A value's text in string interpolation
 # (spec/lang/05-expressions.md#string-interpolation).
@@ -14,6 +15,16 @@ use std.structure.{Structure, Walker, Variant, Field}
 ## See [expr.interp.display](../../spec/lang/05-expressions.md#r-expr.interp.display).
 pub trait Display:
     fn to_string(self) -> string
+
+    # Interpolation writes a value through `write`
+    # (spec/lang/05-expressions.md#r-expr.interp.write), so a type whose
+    # text is made of parts can push them into the one builder of the
+    # whole string instead of returning a new string per level
+    # (spec/lang/09-traits.md#r-trait.display.write.default).
+    ## Writes the value's text to `out`; the default pushes `to_string()`.
+    ## See [trait.display.write](../../spec/lang/09-traits.md#r-trait.display.write).
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(self.to_string())
 
 ## The debug-text trait: `debug(value)` and `dbg` write a value through it, field by field.
 ## See [trait.debug.module](../../spec/lang/09-traits.md#r-trait.debug.module).
@@ -346,23 +357,36 @@ impl Debug for DebugWriter:
 # primitives (spec/lang/05-expressions.md#r-expr.interp.std): an integer's
 # decimal digits, with `-` when negative; `true` or `false`; a `char`'s
 # one-scalar string; a float's canonical text, which the host writes
-# (spec/lang/04-type-system.md#numeric-display).
+# (spec/lang/04-type-system.md#numeric-display). Each but `bool` overrides
+# `write` to push that text itself; `string` pushes itself and `char` its
+# scalar's bytes, so neither makes a string
+# (spec/std/format.md#r-std-format.display.write.std).
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for string:
     fn to_string(self) -> string:
         self
 
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(self)
+
 # A reference displays as the value it refers to
-# (r-std-format.display.reference), as Rust's `&T` does.
+# (r-std-format.display.reference), as Rust's `&T` does, and its `write`
+# runs the referent's (r-std-format.display.reference.write).
 # Keep handwritten Display: delegate through the reference; structural derivation is for its referent.
 impl[T < Display] Display for &T:
     fn to_string(self) -> string:
         (*self).to_string()
 
+    fn write(self, out: &mut StringBuilder) -> void:
+        (*self).write(out)
+
 # Keep handwritten Display: delegate through the reference; structural derivation is for its referent.
 impl[T < Display] Display for &mut T:
     fn to_string(self) -> string:
         (*self).to_string()
+
+    fn write(self, out: &mut StringBuilder) -> void:
+        (*self).write(out)
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for bool:
@@ -374,60 +398,96 @@ impl Display for char:
     fn to_string(self) -> string:
         scalar_text(i32(char_scalar(self)))
 
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push_char(self)
+
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for i8:
     fn to_string(self) -> string:
         format_int(self)
+
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(format_int(self))
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for i16:
     fn to_string(self) -> string:
         format_int(self)
 
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(format_int(self))
+
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for i32:
     fn to_string(self) -> string:
         format_int(self)
+
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(format_int(self))
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for i64:
     fn to_string(self) -> string:
         format_int(self)
 
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(format_int(self))
+
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for u8:
     fn to_string(self) -> string:
         format_int(self)
+
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(format_int(self))
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for u16:
     fn to_string(self) -> string:
         format_int(self)
 
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(format_int(self))
+
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for u32:
     fn to_string(self) -> string:
         format_int(self)
+
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(format_int(self))
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for usize:
     fn to_string(self) -> string:
         format_int(self)
 
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(format_int(self))
+
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for u64:
     fn to_string(self) -> string:
         format_int(self)
+
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(format_int(self))
 
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for f32:
     fn to_string(self) -> string:
         f32_text(self)
 
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(f32_text(self))
+
 # Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for f64:
     fn to_string(self) -> string:
         f64_text(self)
+
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(f64_text(self))
 
 # The one-scalar string of the Unicode scalar value `point`: its UTF-8
 # encoding in one to four bytes.

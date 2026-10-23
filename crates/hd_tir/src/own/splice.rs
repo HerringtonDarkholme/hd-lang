@@ -454,7 +454,7 @@ fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
                     let n = b.extra[word as usize];
                     let words = word + 1..word + 1 + n;
                     match tag {
-                        Tag::Block | Tag::Intrinsic | Tag::Interp => {
+                        Tag::Block | Tag::Intrinsic => {
                             for p in words {
                                 remap_extra(b, t, p, &map);
                             }

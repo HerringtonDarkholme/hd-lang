@@ -122,7 +122,7 @@ crates/hd_tir/DESIGN.md §4.13.11:
   its states in tree order (`susp::plan`).
 - **Calls, closures, suspension, providers and coercions.** `Call`,
   `CallValue`, `CallDyn`, `CallHost`, `Intrinsic`, `DefaultCall`,
-  `Interp`, `Closure` with its capture columns, `Await`, `AwaitValue`,
+  `Closure` with its capture columns, `Await`, `AwaitValue`,
   `AwaitAll`, `AwaitRace`, `Hook`, `With`, `ProviderGet`, `ContextNew`,
   `ContextFor`, and `Coerce` with its thirteen kinds.
 - **Constructions and the rest.** `NewStruct` (named `NewData` before
@@ -193,7 +193,7 @@ For a type with no counted leaf every mode costs nothing, and the
 emitter emits the same loads for all four.
 
 **Where values are owned.** A call's result, a construction, a `copy` or
-`move` read, a `Ref` of a celled local, `Interp` and a `Closure` produce
+`move` read, a `Ref` of a celled local and a `Closure` produce
 owned values. A use of a value either **consumes** it (a `Store`, an
 owned argument, a construction part, a `Return` or `Break` value, a
 capture) or **lends** it (a borrowed argument, an operand of `Prim`, an
@@ -624,10 +624,10 @@ lends its providers.
 
 ### String interpolation
 
-Unchanged: `"hi $name #$n"` is `Interp ["hi " %0 " #" %2]`, where `%2`
-is the `Display.to_string` call of `n`. In stage 2 `%0` is
-`Read [$0]`, which the borrow pass makes a borrow, since `Interp` lends
-its parts.
+`"hi $name #$n"` is ordinary calls (#436): `StringBuilder.new`, then
+`push` of each text piece and `Display.write` of each value, in source
+order, then `build`. `write` takes its value as an owned argument, since
+the builder keeps a string it pushes. There is no `Interp` instruction.
 
 ## The ownership passes
 

@@ -11,5 +11,5 @@ enum Shape:
 fn label(shape: Shape) -> string:
     # subject
     match shape:
-        .Square(n, k) => "${n} by ${k}"
-        .Circle(r) => "radius ${r}"
+        .Square(n, k) => n + " by " + k
+        .Circle(r) => "radius " + r
