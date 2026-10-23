@@ -1642,6 +1642,44 @@ impl[S] Source[S] for Strict:  # variant, next, and member elided
 > could bypass that check. The bound on `missing` stays fixed, so a generic
 > `missing` call is always checked against the trait's own signature.
 
+#### Implementation Facts
+
+A fact on a source implementation tells generated `build` which members
+the source never receives:
+
+```hd
+use std.structure.{Source, Variant, Field, Members, Key, fills_defaults}
+
+trait Zero:
+    fn zero() -> Self
+
+struct Zeroes[S]:
+    pub at: usize
+
+@fills_defaults()
+impl[S] Source[S] for Zeroes[S]:  # variant, next, and missing elided
+    type Error = never
+
+    fn member[F < Zero](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        .Ok(F::zero())
+```
+
+A template that passes `Zeroes` to `build` gives a member written
+`label: Name = Name { text: "none" }` its declared default, so `Name` need
+not implement `Zero`.
+
+1. r[annot.impl-fact.fills-defaults.decl] `std.structure` declares the fact type `FillsDefaults`, limited to implementations by `@annotate(.Impl)`, and `fills_defaults() -> FillsDefaults`. The compiler recognizes `std.structure.fills_defaults` by its qualified name.
+2. r[annot.impl-fact.fills-defaults] When a template's `build` call passes a source whose implementation carries `fills_defaults()`, generated `build` fills each member that declares a default from that default. It never offers such a member to the source.
+3. r[annot.impl-fact.fills-defaults.exempt] Such a member's type need not satisfy that source's bounds.
+4. r[annot.impl-fact.fills-defaults.scope] The fact changes only that derivation. Every other derivation of the type still walks, describes, and builds the member.
+5. r[annot.impl-fact.fills-defaults.other] On any other implementation, `fills_defaults()` changes nothing.
+
+> **Why.** The source knows that it would answer a defaulted member with
+> its default anyway. Saying so on the source keeps that knowledge in the
+> library, instead of a compiler rule about one trait.
+
+See also: [Omitted Members](#omitted-members).
+
 ### Derived Bounds
 
 1. r[annot.bound.params] A derived implementation for a generic type gets `T < Trait` for each type parameter `T` that appears in a walked, described, or built member.

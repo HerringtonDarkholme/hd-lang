@@ -144,6 +144,16 @@ impl Lower<'_, '_, '_> {
         self.annotate_line(n).map(|(mask, _)| mask)
     }
 
+    /// Whether the implementation `n` carries `std.structure`'s
+    /// `fills_defaults()` (`annot.impl-fact.fills-defaults.decl`): only
+    /// std's own function counts, including through an alias or a
+    /// qualified path.
+    pub(super) fn fills_defaults(&self, n: NodeRef<'_>) -> bool {
+        n.children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+            .any(|d| self.decorator_def(d) == Some(self.names.known.fills_defaults))
+    }
+
     /// The pattern of the `@annotate::[pattern](...)` line that makes the
     /// declaration `n` a typed fact type, lowered among its parameters
     /// `gn` (`annot.typed-fact.declare`, `annot.typed-fact.pattern.scope`).

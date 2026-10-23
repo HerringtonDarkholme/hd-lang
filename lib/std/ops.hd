@@ -14,7 +14,7 @@ use std.annotation.annotate
 use std.hash.Hash
 use std.num.{Num, Integer, Float}
 use std.function.Tuple
-use std.structure.{Structure, Source, Variant, Field, Members, Key}
+use std.structure.{Structure, Source, Variant, Field, Members, Key, fills_defaults}
 
 # Both markers are typed fact types (r-annot.typed-fact.declare), so a
 # marker on `fn ms(n: i64) -> Millis` checks like
@@ -698,13 +698,17 @@ pub struct DefaultVariant: pass
 pub fn default() -> DefaultVariant:
     DefaultVariant {}
 
-# Names each member in order and gives it its declared default, or its
-# type's default when it declares none. The field is
-# public because the prototype checks the instantiated source in the
-# program that uses it.
+# Names each member in order and gives it its type's default. Its
+# `fills_defaults()` fact makes `build` fill a member that declares a
+# default from that default without offering it here, so that member's
+# type needs no `Default` (r-std-ops.default.derive.data.declared,
+# r-std-ops.default.derive.member-bound.declared). The field is public
+# because the prototype checks the instantiated source in the program
+# that uses it.
 struct DefaultSource[S]:
     pub at: usize
 
+@fills_defaults()
 impl[S] Source[S] for DefaultSource[S]:
     type Error = never
 
@@ -725,9 +729,7 @@ impl[S] Source[S] for DefaultSource[S]:
         .Ok(members.at(info.position))
 
     fn member[F < Default](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
-        match h.default():
-            .Some(value) => .Ok(value)
-            .None => .Ok(F::default())
+        .Ok(F::default())
 
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
         panic("the default source names every member")

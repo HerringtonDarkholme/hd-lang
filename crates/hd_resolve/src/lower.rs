@@ -3680,6 +3680,7 @@ impl Lower<'_, '_, '_> {
             },
         );
         it.generics = generics;
+        it.fills_defaults = self.fills_defaults(h.node);
         out.push(it);
     }
 

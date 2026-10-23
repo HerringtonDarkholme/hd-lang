@@ -31,6 +31,9 @@ pub struct KnownItems {
     pub walker: DefId,
     pub describer: DefId,
     pub source: DefId,
+    /// `fills_defaults`, whose fact on a source implementation fills
+    /// declared member defaults (`annot.impl-fact.fills-defaults.decl`).
+    pub fills_defaults: DefId,
     // std.inspect
     pub inspectable: DefId,
     // std.num
@@ -180,6 +183,7 @@ impl KnownItems {
             walker: item("std.structure", "Walker"),
             describer: item("std.structure", "Describer"),
             source: item("std.structure", "Source"),
+            fills_defaults: item("std.structure", "fills_defaults"),
             inspectable,
             num,
             integer,

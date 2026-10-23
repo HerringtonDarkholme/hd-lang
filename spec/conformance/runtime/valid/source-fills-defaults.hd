@@ -1,0 +1,80 @@
+# test: a source that carries fills_defaults() is offered no member that declares a default, and other derivations still see the member
+# Spec 14 Implementation Facts: annot.impl-fact.fills-defaults, annot.impl-fact.fills-defaults.exempt, annot.impl-fact.fills-defaults.scope.
+use std.structure.{Structure, Source, Walker, Variant, Field, Members, Key, fills_defaults}
+
+trait Zero:
+    fn zero() -> Self
+
+impl Zero for i32:
+    fn zero() -> i32: 0
+
+impl[T] Zero for T by Structure:
+    fn zero() -> T:
+        let mut s = Zeroes::[T] { at: 0 }
+        match T::build(&mut s):
+            .Ok(value) => value
+            .Err(_) => panic("zeroes never fail")
+
+struct Zeroes[S]:
+    pub at: usize
+
+@fills_defaults()
+impl[S] Source[S] for Zeroes[S]:
+    type Error = never
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        .Ok(choices[0])
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, never]:
+        if self.at >= members.infos.len():
+            return .Ok(.None)
+        info := members.infos[self.at]
+        self.at = self.at + 1
+        .Ok(members.at(info.position))
+
+    fn member[F < Zero](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        .Ok(F::zero())
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
+        panic("zeroes name every member")
+
+trait Names:
+    fn names(self) -> string
+
+impl[T] Names for T by Structure:
+    fn names(self) -> string:
+        let mut w = Namer { out: "" }
+        _ := Structure::walk(self, &mut w)
+        w.out
+
+struct Namer:
+    pub out: string
+
+impl[S] Walker[S] for Namer:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + h.info.name + ";"
+        .Ok(())
+
+struct Label:
+    text: string
+
+@derive(Zero, Names)
+struct Counter:
+    count: i32
+    label: Label = Label { text: "none" }
+
+tests:
+    use std.testing.assert_equal
+
+    it("the source fills the declared default and zeroes the rest"):
+        c := Counter::zero()
+        assert_equal(c.count, +0, reason="count comes from the source")
+        assert_equal(c.label.text, "none", reason="label comes from its declared default")
+
+    it("another derivation of the type still walks the defaulted member"):
+        assert_equal(Counter { count: 1 }.names(), "count;label;", reason="the walker sees both members")

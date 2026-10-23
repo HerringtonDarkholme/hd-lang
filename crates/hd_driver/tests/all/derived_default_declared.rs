@@ -1,7 +1,8 @@
 //! A derived `Default` owes `Default` only to the members that declare no
 //! default (`std-ops.default.derive.member-bound.declared`, #284): its
-//! `build` fills a declared member from its default as an omitted member
-//! is (`annot.omit.default`), so that member's type needs no `Default`. The
+//! source carries `fills_defaults()`, so `build` fills a declared member
+//! from its default (`annot.impl-fact.fills-defaults`), and that member's
+//! type needs no `Default`. The
 //! run test builds through the driver and runs on V8 (`host/run.mjs`);
 //! the others check the opt-in.
 

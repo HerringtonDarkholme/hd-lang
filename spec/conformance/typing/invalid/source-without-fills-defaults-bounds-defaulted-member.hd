@@ -1,0 +1,46 @@
+# test: without fills_defaults(), a member that declares a default still owes the source's member bound
+# Spec 14 Implementation Facts: annot.impl-fact.fills-defaults.exempt; annot.walker.obligation.error.
+use std.structure.{Structure, Source, Variant, Field, Members, Key}
+
+trait Zero:
+    fn zero() -> Self
+
+impl Zero for i32:
+    fn zero() -> i32: 0
+
+impl[T] Zero for T by Structure:
+    fn zero() -> T:
+        let mut s = Zeroes::[T] { at: 0 }
+        match T::build(&mut s):
+            .Ok(value) => value
+            .Err(_) => panic("zeroes never fail")
+
+struct Zeroes[S]:
+    pub at: usize
+
+impl[S] Source[S] for Zeroes[S]:
+    type Error = never
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        .Ok(choices[0])
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, never]:
+        if self.at >= members.infos.len():
+            return .Ok(.None)
+        info := members.infos[self.at]
+        self.at = self.at + 1
+        .Ok(members.at(info.position))
+
+    fn member[F < Zero](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        .Ok(F::zero())
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
+        panic("zeroes name every member")
+
+struct Label:
+    text: string
+
+@derive(Zero)  # diagnostic: member-not-derivable
+struct Counter:
+    count: i32
+    label: Label = Label { text: "none" }

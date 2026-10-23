@@ -24,7 +24,7 @@
 //! the instance check is dropped: the template's module reports the
 //! template's own mistakes.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use hd_base::{DefId, StageResult};
 use hd_diag::{Code, DiagBuf};
@@ -65,11 +65,13 @@ pub struct OptIn {
     /// The members its member lines omit (`name = pass`).
     pub omitted: Vec<String>,
     /// Whether its `build` fills a member that declares a default from
-    /// that default, as an omitted member is
-    /// (`std-ops.default.derive.member-bound.declared`): the `Default`
-    /// template does. Such a member is not offered to the source, so its
-    /// type owes the source's bounds nothing (`annot.omit.exempt`).
-    pub fills_declared: bool,
+    /// that default, as an omitted member is: a `build` call of its
+    /// template passes a source whose implementation carries
+    /// `fills_defaults()` (`annot.impl-fact.fills-defaults`). Such a
+    /// member is not offered to the source, so its type owes the source's
+    /// bounds nothing (`annot.impl-fact.fills-defaults.exempt`). The
+    /// instance check sets it, as only that check knows the source.
+    fills_declared: Cell<bool>,
     /// Whether its block carries a member line, which gives it a
     /// `Structure` of its own (`annot.structure.per-derivation`).
     pub lines: bool,
@@ -80,11 +82,25 @@ pub struct OptIn {
 impl OptIn {
     /// The owner of the `Structure` this derivation sees
     /// (`annot.structure.per-derivation`): the derivation itself when its
-    /// member lines edit it, else the data type or enum, whose declaration
-    /// `Structure` every such derivation shares.
+    /// member lines edit it or its source fills declared defaults
+    /// (`annot.impl-fact.fills-defaults.scope`), else the data type or
+    /// enum, whose declaration `Structure` every such derivation shares.
+    /// Known once the instance is checked.
     #[must_use]
     pub fn structure_owner(&self) -> DefId {
-        if self.lines { self.impl_ } else { self.data }
+        if self.lines || self.fills_declared() {
+            self.impl_
+        } else {
+            self.data
+        }
+    }
+
+    /// Whether its `build` fills a member that declares a default from
+    /// that default, and some member declares one. Known once the
+    /// instance is checked.
+    #[must_use]
+    pub fn fills_declared(&self) -> bool {
+        self.fills_declared.get() && self.members.iter().any(|m| m.has_default)
     }
 
     /// The opt-in of `it`, a derived implementation or a derivation block,
@@ -110,7 +126,6 @@ impl OptIn {
         let TyData::Adt { def, args } = pool.get(*self_ty) else {
             return None;
         };
-        let fills_declared = *trait_ == names.known.default;
         let args = pool.list_items(args);
         let ty = |t: Ty| {
             pool.subst(t, &|p: ParamRef| {
@@ -134,7 +149,7 @@ impl OptIn {
             ItemData::Data(fields) => {
                 for (i, f) in fields.iter().enumerate() {
                     let l = label(f);
-                    if omitted.contains(&l) || (fills_declared && f.has_default) {
+                    if omitted.contains(&l) {
                         continue;
                     }
                     members.push(OptInMember {
@@ -172,7 +187,7 @@ impl OptIn {
             target: *self_ty,
             members,
             omitted: omitted.to_vec(),
-            fills_declared,
+            fills_declared: Cell::new(false),
             lines: false,
             failed: RefCell::new(Vec::new()),
         })
@@ -454,10 +469,13 @@ pub fn instance(
 /// What a template's `walk`, `describe` or `build` call asks of each
 /// member: the bounds of the chosen implementation's
 /// `member` and `rest` (for a walker that implements `rest`), each with
-/// the method whose own parameter stands for the member.
+/// the method whose own parameter stands for the member; and whether the
+/// call is `build` with a source whose implementation carries
+/// `fills_defaults()` (`annot.impl-fact.fills-defaults`).
 struct WalkerBounds {
     member: Vec<(DefId, Ty)>,
     rest: Option<Vec<(DefId, Ty)>>,
+    fills_defaults: bool,
 }
 
 impl<'c> Ck<'_, 'c> {
@@ -570,14 +588,22 @@ impl<'c> Ck<'_, 'c> {
         } else {
             None
         };
-        Ok(Some(WalkerBounds { member, rest }))
+        let fills_defaults =
+            protocol == k.source && self.cx.lookup.item(def).is_some_and(|it| it.fills_defaults);
+        Ok(Some(WalkerBounds {
+            member,
+            rest,
+            fills_defaults,
+        }))
     }
 
     /// The member obligations of the instance's `walk`, `describe` and
     /// `build` calls (`annot.walker.obligation`): each member's type
     /// against the bounds of the `member` of the walker, describer or
     /// source implementation the call chose. Only a goal the solver
-    /// answers `Fails` is a failing member.
+    /// answers `Fails` is a failing member. A source that fills declared
+    /// defaults is offered no member that declares one, which so owes it
+    /// nothing (`annot.impl-fact.fills-defaults.exempt`).
     pub(crate) fn opt_in_obligations(&mut self) -> StageResult<()> {
         let Some(opt) = self.opt_in else {
             return Ok(());
@@ -588,7 +614,13 @@ impl<'c> Ck<'_, 'c> {
             let Some(wb) = self.walker_bounds(opt.template, call)? else {
                 continue;
             };
+            if wb.fills_defaults {
+                opt.fills_declared.set(true);
+            }
             for (i, mem) in opt.members.iter().enumerate() {
+                if wb.fills_defaults && mem.has_default {
+                    continue;
+                }
                 for &(m, b) in &wb.member {
                     let b = pool.subst(b, &|p: ParamRef| {
                         if p.owner == m && p.index == 0 {

@@ -2855,6 +2855,7 @@ typing/invalid/hd-run-requires-process.hd	type	reject:missing-requirement	std/te
 runtime/valid/unit-pattern-void-success.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.unit.irrefutable
 typing/invalid/unit-pattern-non-void.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.unit.type
 runtime/valid/derived-default-declared-no-bound.hd	runtime	accept	std/ops.md#r-std-ops.default.derive.member-bound.declared
+runtime/valid/derive-default-beside-serialize.hd	runtime	accept	std/ops.md#r-std-ops.default.derive.source-fact
 runtime/valid/list-view-to-list-mut.hd	runtime	accept	std/collections.md#r-std-collections.view.to-list-value
 typing/valid/handle-fact-pattern.hd	type	accept	lang/14-annotations.md#r-annot.handle.fact.pattern
 typing/invalid/handle-fact-pattern-mismatch.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.handle.fact.pattern.mismatch
@@ -4695,6 +4696,8 @@ runtime/valid/a-suspending-method-and-a-row-forward-as-declared.hd	runtime	accep
 runtime/valid/a-user-template-derives-for-an-enum.hd	runtime	accept	lang/14-annotations.md#typed-derivation
 runtime/valid/a-generic-type-derives-under-its-parameter-bound.hd	runtime	accept	std/cmp.md#derived-equality
 runtime/valid/derive-keeps-declared-parameter-bounds.hd	runtime	accept	lang/14-annotations.md#r-annot.bound.declared
+runtime/valid/source-fills-defaults.hd	runtime	accept	lang/14-annotations.md#r-annot.impl-fact.fills-defaults
+typing/invalid/source-without-fills-defaults-bounds-defaulted-member.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.impl-fact.fills-defaults.exempt
 runtime/valid/build-reads-each-member-from-a-source.hd	runtime	accept	lang/14-annotations.md#typed-derivation
 runtime/valid/downcast-ref-unboxes-a-scalar.hd	runtime	accept	lang/09-traits.md#runtime-type-identity
 runtime/valid/downcast-mut-and-bound-receivers.hd	runtime	accept	lang/09-traits.md#runtime-type-identity

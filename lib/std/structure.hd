@@ -13,6 +13,7 @@
 # The handle declarations name their parameters `HdS` and `HdF`: the
 # prototype cannot infer an inherent method's parameters from a receiver
 # whose type arguments are the caller's parameters of the same names.
+use std.annotation.annotate
 use std.inspect.Inspectable
 
 # A member's or variant's facts. The prototype holds `Inspectable` values
@@ -219,3 +220,18 @@ pub trait Source[S]:
     fn next(&mut self, members: Members[S]) -> Result[Key[S]?, Self::Error]
     fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, Self::Error]
+
+# A fact on a source implementation: generated `build` fills each member
+# that declares a default from it and never offers that member to the
+# source, so its type owes the source's `member` bound nothing
+# (r-annot.impl-fact.fills-defaults). The compiler recognizes
+# `fills_defaults` by its qualified name.
+## A source implementation's fact: `build` fills each member that declares a default from that default.
+## See [annot.impl-fact.fills-defaults](../../spec/lang/14-annotations.md#r-annot.impl-fact.fills-defaults).
+@annotate(.Impl)
+pub struct FillsDefaults: pass
+
+## Marks a source implementation whose `build` fills each member that declares a default from it.
+## See [annot.impl-fact.fills-defaults.decl](../../spec/lang/14-annotations.md#r-annot.impl-fact.fills-defaults.decl).
+pub fn fills_defaults() -> FillsDefaults:
+    FillsDefaults {}

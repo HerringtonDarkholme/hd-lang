@@ -461,6 +461,10 @@ pub struct Item {
     /// (`annot.typed-fact.declare`, `annot.typed-fact.pattern`); `None`
     /// for an untyped fact type or any other item.
     pub fact_pattern: Option<Ty>,
+    /// An implementation that carries `std.structure`'s `fills_defaults()`
+    /// (`annot.impl-fact.fills-defaults`): as a derivation's source, its
+    /// `build` fills each member that declares a default from it.
+    pub fills_defaults: bool,
     /// A `struct` declaration: `ItemData::Data` fields, a value type
     /// without identity (`data.struct.value`).
     pub is_struct: bool,
@@ -488,6 +492,7 @@ impl Item {
             literal_fn: 0,
             has_facts: false,
             fact_pattern: None,
+            fills_defaults: false,
             is_struct: false,
             docs: Vec::new(),
             data,
@@ -1160,6 +1165,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u8(it.literal_fn);
     w.u8(u8::from(it.has_facts));
     w.u32(opt_ty(t, it.fact_pattern)?);
+    w.u8(u8::from(it.fills_defaults));
     w.u8(u8::from(it.is_struct));
     match &it.data {
         ItemData::Fn(s) => {
@@ -1258,6 +1264,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
     let literal_fn = r.u8();
     let has_facts = r.u8() != 0;
     let fact_pattern = get_opt_ty(r, t).ok()?;
+    let fills_defaults = r.u8() != 0;
     let is_struct = r.u8() != 0;
     let data = match r.u8() {
         0 => ItemData::Fn(get_sig(r, t)?),
@@ -1341,6 +1348,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         literal_fn,
         has_facts,
         fact_pattern,
+        fills_defaults,
         is_struct,
         docs: Vec::new(),
         data,

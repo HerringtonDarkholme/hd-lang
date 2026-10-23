@@ -1,0 +1,27 @@
+# test: a derived Default fills a declared default without hiding the member from another derivation
+# Spec std/ops Derived Default: std-ops.default.derive.source-fact, std-ops.default.derive.data.declared.
+use std.json.encode
+use std.ops.Default
+use std.serde.{Serialize, Serializer}
+
+struct Secret:
+    value: i32
+
+impl Serialize for Secret:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+        self.value.serialize(out)
+
+@derive(Default, Serialize)
+struct Safe:
+    retries: i32 = 3
+    secret: Secret = Secret { value: 7 }
+    count: i32
+
+tests:
+    use std.testing.assert_equal
+
+    it("Default fills declared defaults and Serialize still writes every member"):
+        safe := Safe::default()
+        assert_equal(safe.retries, +3, reason="declared default")
+        assert_equal(safe.count, +0, reason="type default")
+        assert_equal(encode(safe), "{\"retries\":3,\"secret\":7,\"count\":0}", reason="every member is written")
