@@ -1,5 +1,5 @@
 # test: storing the binding of an element reference loop in a list is an error
-# Spec 06 Element Reference Loops: flow.for.ref.binding.
+# Spec 06 Element Reference Loops: flow.for.ref.binding; Spec 13: ref.elem.callee-copy.declared.
 fn demo() -> usize:
     scores := [+1, 2]
     let mut kept: List[&i32] = []

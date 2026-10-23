@@ -480,6 +480,7 @@ fn demo() -> void:
 12. r[ref.elem.pinned.allowed] Replacing an element keeps the length, so it is allowed while the list is pinned: an element store, a write through an element reference, and a sort or a swap written with element stores.
 13. r[ref.elem.pinned.end] A collection that several accesses pin stays pinned until each has ended.
 14. r[ref.elem.callee-copy] A callee may keep a copy of a reference parameter after it returns, as any reference may outlive its block ([`ref.place.lifetime`](#r-ref.place.lifetime)). A kept copy of an element reference pins its collection while the copy lives.
+15. r[ref.elem.callee-copy.declared] A reference parameter is one whose declared type is a reference, `&T` or `&mut T`. A parameter declared as a type parameter `T` is not one, even when `T` is a reference type: an element reference passed for it is a value the callee may store, so passing it is keeping it ([`ref.elem.kept`](#r-ref.elem.kept)). Error: `element-reference-outlives-call`.
 
 An argument may change the collection's length when it does one of the
 following to the collection, or to a place that holds it:
