@@ -32,7 +32,10 @@ when it truly has nothing to say, and then say why in one line.
    calibration, statistics (confidence or credible intervals, outliers),
    noise control, baselines and comparison of an old and a new
    implementation. Every item on that list is either covered by the design
-   or excluded with a reason. A table of tools with one line each is not
+   or excluded with a reason. For each important tool, give its design
+   (how it works inside), its interface (what the user writes and sees),
+   its coverage (what it handles) and its limitations (what it refuses or
+   gets wrong, and why). A table of tools with one line each is not
    enough.
 3. **Semantics it touches.** Go below the surface. For every hd concept the
    feature reads or changes, state the exact rule it relies on, with a spec
