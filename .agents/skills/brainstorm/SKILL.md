@@ -33,32 +33,36 @@ recommendation is advice, labeled as such.
 
 ## Method
 
-1. **State the problem.** Restate the question, what hd has today (with
+1. **Teach the domain first** when the owner may not know it: what the
+   problem is in plain words, the vocabulary, the hard parts, and why naive
+   answers fail. Do this before any option, with a worked example. Assume
+   the reader is a strong engineer new to this field.
+2. **State the problem.** Restate the question, what hd has today (with
    spec links to either tier, the numbered chapters or `spec/std/`), and the use cases an answer must serve. Pick three to six
    concrete use cases and keep them fixed for every option.
-2. **Check it is core.** If the question depends on an unsettled core
+3. **Check it is core.** If the question depends on an unsettled core
    decision, say so and ask that question first instead.
-3. **Survey.** Show how 6-12 languages or tools solve it: pick those with a
+4. **Survey.** Show how 6-12 languages or tools solve it: pick those with a
    real position, such as Rust, Go, Swift, Kotlin, Haskell, Scala 3, Zig,
    Koka, Unison, MoonBit, TypeScript, OCaml, or Java. Use one table row
    each, cite a source per claim, and end with two or three takeaways.
-4. **Generate options.** Propose three to five options that differ in
+5. **Generate options.** Propose three to five options that differ in
    mechanism, not in spelling. Include at least one radical simplification:
    the smallest design that could work, even if it drops a use case. Name
    each option by its idea, not a letter alone.
-5. **Show each option.** Give a short hd example of the same use case for
+6. **Show each option.** Give a short hd example of the same use case for
    every option, parsed with the compiler. State the rules the
    option adds or removes and the tier of each, by the tier test in
    AGENTS.md "Spec Scope For The Standard Library", its soundness conditions, and its interaction
    with existing features (traits, requirement rows, suspension, derivation,
    RC representation).
-6. **Compare.** Build one table: options as columns, and as rows the use
+7. **Compare.** Build one table: options as columns, and as rows the use
    cases, the rules added or removed, soundness, agent-writability,
    human readability, implementation cost, and evolution.
-7. **Recommend.** Under a heading **Recommendation**, pick one option or
+8. **Recommend.** Under a heading **Recommendation**, pick one option or
    an ordering and say why in a short list. Say what the recommendation
    gives up, and name the next best option.
-8. **Ask.** End with numbered questions for the owner, one idea each. Each
+9. **Ask.** End with numbered questions for the owner, one idea each. Each
    question lists its options, the recommended one, and a short example.
 
 ## Output
@@ -70,13 +74,14 @@ the deleted FN_TYPE record), linked from
 1. Title and a status line ("design exploration, YYYY-MM-DD; nothing here
    is decided or in the specification").
 2. Contents.
-3. Problem, and What hd Has Today.
-4. Survey, with takeaways.
-5. One section per option.
-6. Comparison table.
-7. Recommendation.
-8. Questions For The Owner.
-9. Sources, and a Parse Log.
+3. The Domain, for a reader new to it.
+4. Problem, and What hd Has Today.
+5. Survey, with takeaways.
+6. One section per option.
+7. Comparison table.
+8. Recommendation.
+9. Questions For The Owner.
+10. Sources, and a Parse Log.
 
 When the owner later answers, a separate task records the answers in an
 **Owner Decisions** section at the top. This skill does not write that

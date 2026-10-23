@@ -16,6 +16,16 @@ what it costs, and where it breaks, with enough detail that an implementer
 needs no further design decisions. A survey of other tools plus a command
 line and a config block is not a design: it is the first section of one.
 
+## First: Exploration Or Design?
+
+When the domain is new to the owner (for example host embedding, durable
+execution, or REPL checkpoints), do not start with a design. First write a
+solution exploration with the `brainstorm` skill. It explains the domain
+from scratch, surveys how existing systems solve it, and compares the
+options on the use cases. Write this design doc only after the owner has
+picked a direction. A single recommended design is hard to review without
+the map of the alternatives.
+
 ## The Bar
 
 A design doc is not done until it has each of these. Leave a part out only
