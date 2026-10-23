@@ -1,0 +1,210 @@
+use std.convert.From
+use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
+use std.task.{Backoff, TimedOut, race, retry, with_timeout}
+use std.time.{Clock, Duration, ms, sleep}
+
+# Shape 1: a policy is a value implementing Layer for each supported work type.
+trait Layer[W]:
+    type Wrapped
+    fn wrap(self, work: W) -> Self::Wrapped
+
+struct Stack[I, O]:
+    inner: I
+    outer: O
+
+impl[W, I < Layer[W], O < Layer[I::Wrapped]] Layer[W] for Stack[I, O]:
+    type Wrapped = O::Wrapped
+    fn wrap(self, work: W) -> O::Wrapped:
+        self.outer.wrap(self.inner.wrap(work))
+
+fn apply![T, E, $R, $S, P < Layer[fn!() -> Result[T, E] $ R, Wrapped = fn!() -> Result[T, E] $ S]](policy: P, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ S:
+    wrapped := policy.wrap(work)
+    wrapped!()
+
+struct TimeLimit:
+    limit: Duration
+
+impl[T, E < From[TimedOut], $R] Layer[fn!() -> Result[T, E] $ R] for TimeLimit:
+    type Wrapped = fn!() -> Result[T, E] $ R + Clock
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
+        fn!() -> Result[T, E] $ R + Clock:
+            with_timeout!(self.limit, work=work)
+
+struct Retries[E]:
+    backoff: Backoff
+    when: fn(E) -> bool
+
+impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for Retries[E]:
+    type Wrapped = fn!() -> Result[T, E] $ R + Clock
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
+        fn!() -> Result[T, E] $ R + Clock:
+            retry!(self.backoff, when=self.when, attempt=work)
+
+struct Fallback[F]:
+    other: F
+
+impl[T, E, $R, $S] Layer[fn!() -> Result[T, E] $ R] for Fallback[fn!() -> Result[T, E] $ S]:
+    type Wrapped = fn!() -> Result[T, E] $ R + S
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + S):
+        fn!() -> Result[T, E] $ R + S:
+            match work!():
+                .Ok(value) => .Ok(value)
+                .Err(_) => (self.other)!()
+
+struct CircuitOpen: pass
+
+struct Breaker:
+    failures: usize
+    limit: usize
+    calls: usize
+
+struct Guard:
+    state: &mut Breaker
+
+impl[T, E < From[CircuitOpen], $R] Layer[fn!() -> Result[T, E] $ R] for Guard:
+    type Wrapped = fn!() -> Result[T, E] $ R
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R):
+        fn!() -> Result[T, E] $ R:
+            if self.state.failures >= self.state.limit:
+                return .Err(E::from(CircuitOpen {}))
+            self.state.calls += 1
+            result := work!()
+            self.state.failures = if result.is_ok(): 0 else: self.state.failures + 1
+            result
+
+struct Hedge:
+    delay: Duration
+
+impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for Hedge:
+    type Wrapped = fn!() -> Result[T, E] $ R + Clock
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
+        fn!() -> Result[T, E] $ R + Clock:
+            race!(work(), late_copy(work, self.delay))
+
+fn late_copy![T, E, $R](work: fn!() -> Result[T, E] $ R, delay: Duration) -> Result[T, E] $ R + Clock:
+    sleep!(delay)
+    work!()
+
+# User-defined policy, not a case in a closed Policy enum or struct.
+struct Trace:
+    label: string
+
+impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for Trace:
+    type Wrapped = fn!() -> Result[T, E] $ R + Console
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Console):
+        fn!() -> Result[T, E] $ R + Console:
+            println("trace ${self.label}")
+            work!()
+
+@derive(Debug)
+enum Failure:
+    Http(HttpError)
+    Timeout
+    Open
+
+impl From[HttpError] for Failure:
+    fn from(error: HttpError) -> Failure: .Http(error)
+
+impl From[TimedOut] for Failure:
+    fn from(error: TimedOut) -> Failure: .Timeout
+
+impl From[CircuitOpen] for Failure:
+    fn from(error: CircuitOpen) -> Failure: .Open
+
+fn transient(error: Failure) -> bool:
+    match error:
+        .Http(inner) => inner.is_transient()
+        .Timeout => true
+        .Open => false
+
+# A fake HTTP provider records the request before holding primary replies.
+# The caller's timeout cancels that pending reply, without changing Http's row.
+struct DelayedHttp:
+    inner: &mut ScriptedHttp
+    clock: &mut dyn Clock
+    finished_primary: usize
+
+impl Http for DelayedHttp:
+    fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
+        slow := request.url == "http://primary/item"
+        result := self.inner.send!(request)
+        if slow:
+            self.clock.sleep!(ms(500))
+            self.finished_primary += 1
+        result
+
+fn fetch!(url: string) -> Result[string, Failure] $ Http:
+    response := get!(url)?
+    .Ok("${response.status}")
+
+fn delayed!() -> Result[string, Failure] $ Clock:
+    sleep!(ms(500))
+    .Ok("late")
+
+struct Replicas:
+    started: usize
+    finished: usize
+    closed: usize
+
+fn replica!(state: &mut Replicas) -> Result[string, Failure] $ Http + Clock:
+    state.started += 1
+    number := state.started
+    defer: state.closed += 1
+    sleep!(if number == 1: ms(500) else: ms(10))
+    _ := get!("http://replica/$number")?
+    state.finished += 1
+    .Ok("replica $number")
+
+# This function has no Clock requirement, despite using apply! and Trace.
+fn pure_port!() -> Result[usize, string] $ Console:
+    work := fn!() -> Result[usize, string]: .Ok(9)
+    apply!(Trace { label: "pure" }, work=work)
+
+pub fn main!() -> void $ Console + Clock:
+    println("pure ${debug(pure_port!())}")
+    limit := TimeLimit { limit: ms(10) }
+    timed := apply!(limit):
+        delayed!()
+    println("timeout ${debug(timed)}")
+    match timed:
+        .Err(.Timeout) => pass
+        _ => panic("timeout did not expire")
+
+    http := ScriptedHttp::new()
+    http.reply("http://primary/item", .Err(.Connect("first")))
+    http.reply("http://primary/item", .Err(.Connect("second")))
+    http.reply("http://backup/item", .Ok(Response { status: 200 }))
+    http.reply("http://down/item", .Err(.Connect("down")))
+    http.reply("http://replica/2", .Ok(Response { status: 200 }))
+    let mut delayed_http = DelayedHttp { inner: http, clock: $.use(Clock), finished_primary: 0 }
+    $.with(Http=&mut delayed_http):
+        backup := fn!() -> Result[string, Failure] $ Http: fetch!("http://backup/item")
+        policy := Stack {
+            inner: Stack {
+                inner: TimeLimit { limit: ms(50) },
+                outer: Retries { backoff: Backoff { attempts: 2, initial: ms(1) }, when: transient },
+            },
+            outer: Fallback { other: backup },
+        }
+        response := apply!(policy):
+            fetch!("http://primary/item")
+        println("http ${debug(response)} requests=${http.received().len()}")
+        if http.received().len() != 3 || delayed_http.finished_primary != 0:
+            panic("expected two cancelled primary replies and one fallback request")
+
+        let mut breaker = Breaker { failures: 0, limit: 2, calls: 0 }
+        guard := Guard { state: &mut breaker }
+        for i in 0..4:
+            outcome := apply!(guard):
+                fetch!("http://down/item")
+            println("breaker $i ${debug(outcome)}")
+        println("breaker calls=${breaker.calls} failures=${breaker.failures}")
+        if breaker.calls != 2 || breaker.failures != 2:
+            panic("the breaker did not stop repeated calls")
+
+        let mut state = Replicas { started: 0, finished: 0, closed: 0 }
+        result := apply!(Hedge { delay: ms(10) }):
+            replica!(&mut state)
+        println("hedge ${debug(result)} started=${state.started} finished=${state.finished} closed=${state.closed}")
+        if state.started != 2 || state.finished != 1 || state.closed != 2:
+            panic("the hedge did not complete one request and close both scopes")

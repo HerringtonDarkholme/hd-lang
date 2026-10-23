@@ -1,0 +1,53 @@
+use std.task.{TimedOut, timeout}
+use std.time.{Clock, Duration, ms, sleep}
+
+@derive(Debug)
+enum Either[A, B]:
+    Left(A)
+    Right(B)
+
+@derive(Debug)
+enum FetchError:
+    Offline
+
+@derive(Debug)
+struct CircuitOpen: pass
+
+# No From[TimedOut] bound or implementation for FetchError.
+fn within_either![T, E, $R](limit: Duration, work: fn!() -> Result[T, E] $ R) -> Result[T, Either[E, TimedOut]] $ R + Clock:
+    match timeout!(limit, work=work):
+        .Ok(.Ok(value)) => .Ok(value)
+        .Ok(.Err(error)) => .Err(.Left(error))
+        .Err(expired) => .Err(.Right(expired))
+
+# This policy adds one distinct error without adding Clock.
+fn guarded_either![T, E, $R](open: bool, work: fn!() -> Result[T, E] $ R) -> Result[T, Either[E, CircuitOpen]] $ R:
+    if open:
+        .Err(.Right(CircuitOpen {}))
+    else:
+        match work!():
+            .Ok(value) => .Ok(value)
+            .Err(error) => .Err(.Left(error))
+
+fn offline!() -> Result[usize, FetchError]: .Err(.Offline)
+
+fn slow!() -> Result[usize, FetchError] $ Clock:
+    sleep!(ms(500))
+    .Ok(7)
+
+fn pure_port!() -> Result[usize, Either[FetchError, CircuitOpen]]:
+    guarded_either!(true, work=offline)
+
+pub fn main!() -> void $ Console + Clock:
+    first := within_either!(ms(50), work=offline)
+    match first:
+        .Err(.Left(.Offline)) => println("base error: Left(Offline)")
+        _ => panic("expected the original error")
+    nested := guarded_either!(false):
+        within_either!(ms(10), work=slow)
+    match nested:
+        .Err(.Left(.Right(_))) => println("timeout: Left(Right(TimedOut))")
+        _ => panic("expected the nested timeout")
+    match pure_port!():
+        .Err(.Right(_)) => println("circuit: Right(CircuitOpen), no Clock")
+        _ => panic("expected the circuit error")

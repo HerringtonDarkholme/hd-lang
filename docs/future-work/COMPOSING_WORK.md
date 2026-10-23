@@ -1,7 +1,9 @@
 # Composing Work: Timeouts, Retries and Policies
 
-Status: proposal (2026-10-22), not decided. Every program below was
-checked and run with `hd` on main after #755.
+Status: historical proposal (2026-10-22), not accepted; superseded by
+[Composing policies around repeatable work](POLICY_COMPOSITION.md).
+The old examples record their original experiments after #755; they are
+not current compiler/std validation evidence for the replacement proposal.
 
 ## The problem
 
