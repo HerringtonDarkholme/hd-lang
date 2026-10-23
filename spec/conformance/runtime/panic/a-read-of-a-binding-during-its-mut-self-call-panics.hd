@@ -1,0 +1,18 @@
+# test: a mut self call on a list in a top-level binding holds the binding until it returns, so a read of the binding from inside the call panics
+# Spec 13 Mut Self Calls On Collections: ref.elem.self-call.conflict, ref.elem.self-call.paths, ref.elem.self-call.release.
+trait Visit:
+    fn visit(mut self, f: fn() -> usize) -> usize
+
+impl Visit for List[i64]:
+    fn visit(mut self, f: fn() -> usize) -> usize:
+        self.push(1)
+        f()
+
+let mut seen: List[i64] = [1]
+
+fn count() -> usize:
+    seen.len()  # panic: conflicting-access
+
+tests:
+    it("the callback reads the binding the call is changing"):
+        seen.visit(count)

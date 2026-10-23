@@ -655,6 +655,17 @@ impl Func {
         }
     }
 
+    /// Tests the value in local `x` with [`Helper::MarkerTest`]. The
+    /// anchor the call writes, if any, does not count as written, so the
+    /// code after it is what it would be without the test; where no code
+    /// stores the marker, the link erases the test whole.
+    pub fn marker_test(&mut self, x: u32) {
+        let anchored = self.anchored;
+        self.get(x);
+        self.helper(Helper::MarkerTest);
+        self.anchored = anchored;
+    }
+
     pub fn helper(&mut self, h: Helper) {
         // A panic helper never returns: say so at the call site, so the
         // engine need not treat the call as returning and keep state live
@@ -952,6 +963,24 @@ impl Module {
         }
     }
 
+    /// Where no code stores the marker ([`Helper::Marker`]), no read can
+    /// see it: each test ([`Func::marker_test`]) goes whole, with the
+    /// anchor it wrote, before any helper is built.
+    fn erase_marker_tests(&mut self) {
+        let is =
+            |i: &Ins, h| matches!(i, Ins::Call(id) if *self.symbols.get(*id) == Sym::Helper(h));
+        let stores = |f: &Func| f.body.iter().any(|i| is(i, Helper::Marker));
+        if self.funcs.iter().flatten().any(stores) {
+            return;
+        }
+        for f in self.funcs.iter_mut().flatten() {
+            while let Some(k) = f.body.iter().position(|i| is(i, Helper::MarkerTest)) {
+                f.drain(k - 1 - usize::from(matches!(f.body[k - 1], Ins::Anchor(_)))..k + 1);
+            }
+            f.rebuild_callees();
+        }
+    }
+
     /// What the exports reach, building the helpers among it.
     fn reached(&mut self) -> Reached {
         let mut seen = Reached::default();
@@ -1004,6 +1033,7 @@ impl Module {
                 .map(|os| os.iter().map(|o| f.source_origin(*o)).collect())
                 .unwrap_or_default();
         }
+        self.erase_marker_tests();
         let mut seen = self.reached();
         self.cancellable = seen.iter().any(|s| {
             matches!(
@@ -1096,7 +1126,7 @@ impl Module {
                         Sym::Helper(crate::rt::Helper::RefIsView) => 1,
                         Sym::Helper(crate::rt::Helper::RefViewsAbsent) => 2,
                         Sym::Helper(crate::rt::Helper::CanCancel) => 3,
-                        Sym::Helper(crate::rt::Helper::CancellationRoot) => 4,
+                        Sym::Helper(crate::rt::Helper::CancellationRoot | Helper::Marker) => 4,
                         _ => 0,
                     },
                     _ => 0,

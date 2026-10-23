@@ -920,7 +920,7 @@ impl Em<'_, '_, '_> {
     /// place holds: a literal, a constructor, a call's result whose type
     /// is no legacy `mut` view, or a copy.
     fn fresh(&self, r: u32) -> bool {
-        let Some(at) = Ref(r).as_inst() else {
+        let Some(at) = Ref(r).as_inst().filter(|_| !self.marking) else {
             return true;
         };
         let i = at.0 as usize;

@@ -1,0 +1,22 @@
+# test: a mut self call on a list in a top-level binding completes when nothing reads the binding during it, and the binding then holds the method's final self
+# Spec 13 Mut Self Calls On Collections: ref.elem.self-call, ref.elem.self-call.store, ref.elem.self-call.conflict.
+trait Visit:
+    fn visit(mut self, f: fn() -> usize) -> usize
+
+impl Visit for List[i64]:
+    fn visit(mut self, f: fn() -> usize) -> usize:
+        self.push(1)
+        f()
+
+let mut seen: List[i64] = [1]
+
+fn five() -> usize: 5
+
+tests:
+    use std.testing.assert_equal
+
+    it("the call returns and the binding has its push"):
+        assert_equal(seen.visit(five), 5, reason="the callback's result")
+        assert_equal(seen, [1, 1], reason="the push reached the binding")
+        assert_equal(seen.visit(fn() -> usize: 0), 0, reason="a second call")
+        assert_equal(seen.len(), 3, reason="after the call, the binding reads normally")
