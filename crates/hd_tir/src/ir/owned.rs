@@ -50,8 +50,8 @@
 //! maps.
 
 use super::{
-    Body, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Tag, VerifyError, is_suspension,
-    owned_blocks, place, verify_structure,
+    Body, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Tag, VerifyError,
+    is_suspension, local_flags, owned_blocks, place, verify_structure,
 };
 use crate::own::{OwnCx, Role, consumes, operands, tracked};
 
@@ -99,7 +99,86 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     binding_locals(&cx, own, &mut errs);
     Balance::new(b, own).walk(&mut errs);
     header_copies(b, own, &mut errs);
+    copies(b, &mut errs);
     errs
+}
+
+/// What the inliner's copies promise (`crate::inline`). Each anchor with
+/// the `INLINED` bit falls in a `Body::inlined` row; the rows are sorted
+/// and disjoint, and each call's anchor is the caller's own. A
+/// `Body::bound` row, sorted and once each, names a local that is no
+/// parameter and that one whole `Store`, its binding, writes. A place in a
+/// copy is rooted at a local the body defines: a parameter or a local some
+/// whole `Store` writes, so no in-place parameter's local is left in it.
+fn copies(b: &Body, errs: &mut Vec<VerifyError>) {
+    if !b.anchors.is_empty() && b.anchors.len() != b.len() {
+        err(
+            errs,
+            NONE,
+            format!("{} anchors for {} instructions", b.anchors.len(), b.len()),
+        );
+    }
+    let mut end = 0;
+    for &[first, len, _, call] in &b.inlined {
+        if first < end || call & INLINED != 0 {
+            err(
+                errs,
+                NONE,
+                format!("inlined row at {first} out of order, or called in a copy"),
+            );
+        }
+        end = first + len;
+    }
+    let mut stores = vec![0u32; b.local_ty.len()];
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Store) {
+        let w = b.data[i][0];
+        if let Some(n) = stores.get_mut((w & !place::BARE_LOCAL) as usize)
+            && w & place::BARE_LOCAL != 0
+        {
+            *n += 1;
+        }
+    }
+    let param = |l: usize| {
+        b.local_flags
+            .get(l)
+            .is_some_and(|f| f & local_flags::PARAM != 0)
+    };
+    for (k, &(l, _)) in b.bound.iter().enumerate() {
+        let sorted = k == 0 || b.bound[k - 1].0 < l;
+        if !sorted || param(l as usize) || stores.get(l as usize) != Some(&1) {
+            err(
+                errs,
+                NONE,
+                format!("bound local ${l}: not sorted, a parameter, or not stored once"),
+            );
+        }
+    }
+    for (i, &a) in b
+        .anchors
+        .iter()
+        .enumerate()
+        .filter(|e| *e.1 & INLINED != 0 && *e.1 != NONE)
+    {
+        let x = a & !INLINED;
+        let k = b.inlined.partition_point(|e| e[0] <= x);
+        if k == 0 || x >= b.inlined[k - 1][0] + b.inlined[k - 1][1] {
+            err(errs, u32_of(i), format!("anchor {x} is in no inlined copy"));
+        }
+        let (oa, ob) = b.tags.get(i).map_or((Op::None, Op::None), |t| t.operands());
+        for (w, op) in b.data.get(i).into_iter().flatten().zip([oa, ob]) {
+            if op == Op::Place
+                && let Some(l) = b.local_in_place(*w).map(hd_base::LocalId::idx)
+                && !param(l)
+                && stores.get(l).is_some_and(|&n| n == 0)
+            {
+                err(
+                    errs,
+                    u32_of(i),
+                    format!("a copy's place is rooted at ${l}, which nothing stores"),
+                );
+            }
+        }
+    }
 }
 
 /// Insertion's rule 7 (`crate::own::copies`): a header that may change in

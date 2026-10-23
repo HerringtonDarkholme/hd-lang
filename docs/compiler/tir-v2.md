@@ -2970,7 +2970,10 @@ sizes are code lines measured the same way, from Go 1.24.1, Rust 1.97
   dependency list (40). That is 1,020; the 1,300 budget adds the
   stage 2 lesson below. It reuses `own::operands`, `splice`'s
   renumbering and `wire.rs`'s id words, so no per-tag remapper is
-  written twice.
+  written twice. **Done** in four commits: 1,002 code lines added and
+  158 deleted (844 net) against the 1,300, of which about 250 are the
+  inlined panic frames in the emitter and `hd_run`, and the verifier's
+  copy checks are 70 rather than 40.
 - **Typed memory primitives.** Replaces nothing; `std.rt.memory` stays.
   A `Ptr[T]`, `size_of`, `read`, `write`, `offset`, a counted buffer
   with capacity and length words, and two string views (its bytes, a new
@@ -3144,13 +3147,72 @@ Panic traces are unchanged; a stack-exhausting recursion through
 `EqualWalker.member` now repeats 437 times instead of 481, since that
 frame now holds the copied `Field.get` and `Variant.holds`.
 
+Commit 4 puts all of a body's copies in with one rebuild
+(`inline::inline_calls`). Each site is checked against the unchanged
+caller; every caller instruction is renumbered once, past each copy at
+or before it, so a call's number becomes its `Scope`'s; each copy is
+renumbered straight to where it will stand and appended, in descending
+call order as before; and one permutation puts the rows in place. A
+rebuild per call was quadratic in a body's copies. The output is the
+same: the 13 programs' Wasm is byte-identical to commit 3's, and a unit
+test compares the two on bodies with two copies, where only the block
+records a rebuild replaced keep different stale words. On json at
+limit 12 the splices took 0.54 ms of the inliner's 2.25 ms and take
+0.33 ms of 2.03 ms (medians of 20 cold builds); the rest is choosing,
+decoding and substituting the callees.
+
+`verify_owned` checks what a copy promises: each anchor with the
+`INLINED` bit falls in a `Body::inlined` row, the rows are sorted and
+disjoint and each call's anchor is the caller's own; a `Body::bound`
+local is sorted, once, no parameter, and stored whole once, by its
+binding; and a place in a copy is rooted at a local the body defines (a
+parameter, or one a whole `Store` writes), so an in-place parameter's
+local is never left in its copy. Checked-mode conformance passes with
+them.
+
+The cache dependency list is the owned body's hash, which folds in each
+copied callee's TIR hash (commit 1). No cache entry below a program's
+link reads it yet; the link key names every module's content, std's
+through the toolchain key, so an edit to an inlined callee rebuilds its
+callers. `inlined_callee_edit` builds std as the root package, edits a
+copied callee's body and checks that the warm build emits what a cold
+build of the edited sources does. A per-instance code cache must key an
+instance by that hash, not by its own TIR's.
+
+The limit, measured again with trait calls and binding by pass mode in,
+as release `.wasm` bytes against 6792b1bfa, before the inliner:
+
+| | before | 8 | 12 | 16 | 20 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| hello | 7,426 | 7,426 | 7,426 | 7,426 | 7,426 |
+| json | 172,416 | 170,180 (−1.3%) | 171,956 (−0.3%) | 184,198 (+6.8%) | 185,955 (+7.9%) |
+| map_count | 18,662 | 18,934 (+1.5%) | 19,000 (+1.8%) | 19,000 | 19,003 |
+| string_build | 11,750 | 12,153 (+3.4%) | 12,174 (+3.6%) | 12,174 | 12,174 |
+| binary_trees | 14,046 | 14,175 (+0.9%) | 14,175 | 14,175 | 14,175 |
+| dyn_iter | 28,938 | 26,702 (−7.7%) | 26,702 | 26,702 | 26,702 |
+| closures | 16,078 | 15,959 (−0.7%) | 15,959 | 15,959 | 15,959 |
+
+The other six do not change between limits. 16 and 20 put json past
+the +5% budget. 8 is the smallest everywhere and leaves hello alone, so
+the limit is now 8. What 12 copies and 8 does not is mostly cold or
+once-run code: `Parser.unexpected`, an error path, at 15 sites,
+`TextReader.top` and `leave`, `JsonWriter.open`, `levels_of`,
+`hex_symbol`, `Number.from_f64`, `StringBuilder.flush` and `build`. Run
+times of json, dyn_iter, map_count and string_build stay within noise.
+At 8, json copies 92 call sites (124 at 12), dyn_iter 68 (88),
+map_count 8 (10), string_build 6 (8); binary_trees 7, closures 3,
+fannkuch_redux 2 and nbody 2 do not change. The 192 runtime/panic
+cases print the same bytes as at commit 3. `List`'s cursor and element
+operations, at 30 to 40 instructions, need the limit tuned again when
+they move to std.
+
 **Emitted size budget.** hello's Wasm does not change, and each
 bench/study program's release `.wasm` stays within +5% of its size
 before the inliner; a commit over that stops for review, like a commit
 over its line share. Size is bounded by construction: the limit counts
 a callee's instructions after substitution, only small callees inline
-(12 instructions in commit 1, well under the estimate's 40, tuned by
-measuring), and nothing inlines into a copy within the same body. So
+(12 instructions in commit 1, 8 since commit 4, well under the
+estimate's 40, tuned by measuring), and nothing inlines into a copy within the same body. So
 std's collection methods must keep their slow paths (growth, rehashing,
 panic text) in separate functions too large to inline, and only the
 fast path is copied. Commit 1 measured limits 8 to 40 on the 12

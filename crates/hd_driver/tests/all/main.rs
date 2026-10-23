@@ -51,6 +51,7 @@ mod impl_universe;
 mod inferred_results_run;
 mod inferred_rows_run;
 mod init_cycle_run;
+mod inlined_callee_edit;
 mod inspectable_types;
 mod instantiation_depth;
 mod instruction_origins;

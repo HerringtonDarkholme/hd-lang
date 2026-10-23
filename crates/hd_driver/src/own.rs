@@ -12,7 +12,7 @@ use std::cell::RefCell;
 use hd_base::{DefId, Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use hd_mono::ProgramEnv;
 use hd_mono::layout::LayoutEnv;
-use hd_tir::inline::Bind;
+use hd_tir::inline::{Bind, Site};
 use hd_tir::ir::{Body, Callee, ChoiceKind};
 use hd_tir::own::{HeaderCopy, OwnCx, OwnScratch, Pass, Tri};
 use hd_types::solver::{
@@ -30,9 +30,10 @@ thread_local! {
 }
 
 /// The most instructions a callee's body may have for a call of it to
-/// inline (`docs/compiler/tir-v2.md`, "The inliner"); 0 turns the inliner
+/// inline (`docs/compiler/tir-v2.md`, "The inliner", tuned at 8 in
+/// commit 4: the smallest code of 8, 12, 16 and 20); 0 turns the inliner
 /// off.
-const INLINE_LIMIT: usize = 12;
+const INLINE_LIMIT: usize = 8;
 
 impl OwnCx for Env<'_> {
     fn counted(&self, ty: Ty) -> Tri {
@@ -364,8 +365,7 @@ impl Env<'_> {
         let pool = &self.run.pool;
         let mut k = StableHasher::new("inline");
         k.hash(hash);
-        let mut copied = false;
-        let mut binds = Vec::new();
+        let (mut sites, mut hashes) = (Vec::new(), Vec::new());
         for c in (0..body.len()).rev() {
             let Some((callee, (def, targs))) =
                 hd_tir::inline::plain_call(body, c).and_then(|callee| match callee {
@@ -404,19 +404,31 @@ impl Env<'_> {
             }
             // Each parameter as the call passes it.
             let n = body.record(body.data[c][1]).len().saturating_sub(3);
-            binds.clear();
-            binds.extend((0..n).map(|j| match self.pass(&callee, j, n) {
-                Pass::InPlace => Bind::Place,
-                _ if self.receiver(&callee, j, n) => Bind::Receiver,
-                _ => Bind::Store,
-            }));
+            let binds = (0..n)
+                .map(|j| match self.pass(&callee, j, n) {
+                    Pass::InPlace => Bind::Place,
+                    _ if self.receiver(&callee, j, n) => Bind::Receiver,
+                    _ => Bind::Store,
+                })
+                .collect();
             hd_tir::inline::rechoose(&mut copy, &|t, s, a| self.select_impl(t, s, a));
-            if hd_tir::inline::inline_call(body, c, copy, &binds).is_ok() {
-                k.hash(callee_hash);
-                copied = true;
-            }
+            sites.push(Site {
+                call: c,
+                copy,
+                binds,
+            });
+            hashes.push(callee_hash);
         }
-        if copied { k.finish() } else { hash }
+        // All of the body's copies in one rebuild.
+        let copied = hd_tir::inline::inline_calls(body, sites).unwrap_or_default();
+        for (_, &h) in copied.iter().zip(&hashes).filter(|(c, _)| **c) {
+            k.hash(h);
+        }
+        if copied.contains(&true) {
+            k.finish()
+        } else {
+            hash
+        }
     }
 
     /// The item and type arguments a trait call chosen as an impl runs:

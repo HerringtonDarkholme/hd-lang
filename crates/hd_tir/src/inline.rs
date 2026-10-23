@@ -119,59 +119,165 @@ fn u32_of(n: usize) -> u32 {
     u32::try_from(n).expect("TIR column")
 }
 
-/// Replaces `Call` `c` of `b` by `k`, a copy of the callee whose types
-/// are already the call's, binding parameter `j` by `binds[j]`.
-/// Instructions keep evaluation order: the copy stands where the call
-/// stood, the `Scope` that holds it last.
+/// A call to copy ([`inline_calls`]): the caller's `Call` `call`, the
+/// callee's copy `copy` with the call's types, and how each parameter
+/// binds.
+pub struct Site {
+    pub call: usize,
+    pub copy: Body,
+    pub binds: Vec<Bind>,
+}
+
+/// A site that passed its checks: its parameters a `Store` binds (local,
+/// argument, and for a bound one whether it is a receiver), those an
+/// argument's place stands for (local, place word), the call's block,
+/// and where the copy will start.
+struct Ready {
+    c: usize,
+    k: Body,
+    params: Vec<(u32, usize, Option<bool>)>,
+    at: Vec<(u32, u32)>,
+    outer: usize,
+    base: u32,
+}
+
+/// Replaces each site's `Call` of `b` by its copy, all in one rebuild:
+/// the caller is renumbered once and its columns permuted once, however
+/// many calls are copied. `sites` come in descending call order, which is
+/// the order the copies' locals, constants, labels and records are
+/// appended in; the result says which sites were copied. The copy stands
+/// where its call stood, keeping evaluation order, the `Scope` that holds
+/// it last.
+///
+/// A site is skipped, the rest still copied, when its callee's parameters
+/// do not match the call's arguments or binds, a [`Bind::Place`] argument
+/// is no `Read`, or the call is in no block. A caller the renumbering
+/// refuses (a `CallDyn`, a call's providers of an unknown kind) copies
+/// none and is unchanged.
 ///
 /// # Errors
-/// A callee whose parameters do not match the call's arguments or binds,
-/// a [`Bind::Place`] argument that is no `Read`, a call in no block, or a
-/// caller the renumbering refuses (a `CallDyn`, a call's providers of an
-/// unknown kind); `b` is then unchanged.
-pub fn inline_call(b: &mut Body, c: usize, mut k: Body, binds: &[Bind]) -> Result<(), String> {
+/// Only if the renumbering refuses what that check let through.
+pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String> {
+    let mut copied = vec![false; sites.len()];
+    let refused = |i: usize| {
+        let kind = || b.record(b.data[i][1]).iter().rev().nth(2).copied();
+        b.tags[i] == Tag::CallDyn
+            || (matches!(b.tags[i], Tag::Call | Tag::Await) && kind().is_some_and(|p| p > 2))
+    };
+    if sites.is_empty() || (0..b.len()).any(refused) {
+        return Ok(copied);
+    }
+    // Each instruction's block, the first that lists it.
+    let mut outer = vec![NONE; b.len()];
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Block) {
+        for &x in b.record(b.data[i][0]) {
+            if let Some(o) = outer.get_mut(x as usize).filter(|o| **o == NONE) {
+                *o = u32_of(i);
+            }
+        }
+    }
+    let mut ready = Vec::new();
+    for (s, site) in sites.into_iter().enumerate() {
+        if let Some(r) = prepare(b, site, &outer) {
+            copied[s] = true;
+            ready.push(r);
+        }
+    }
+    // Each caller instruction moves past every copy at or before it, so a
+    // call's number becomes its `Scope`'s; each copy starts where its call
+    // moves to, less its own rows.
+    let n = b.len();
+    let (mut fin, mut shift, mut s) = (Vec::with_capacity(n), 0, ready.len());
+    for i in 0..n {
+        while s > 0 && ready[s - 1].c == i {
+            s -= 1;
+            ready[s].base = u32_of(i + shift);
+            shift += ready[s].params.len() + ready[s].k.len() + 1;
+        }
+        fin.push(u32_of(i + shift));
+    }
+    renumber_through(b, fin, 0)?;
+    if b.anchors.is_empty() {
+        b.anchors = (0..u32_of(n)).collect();
+    }
+    // The copies' rows go at the columns' end, then into place by one
+    // permutation, as a pass's rebuild does.
+    let mut spans = Vec::with_capacity(ready.len());
+    let rows = b.fallback.len();
+    for r in ready {
+        let (c, start) = (r.c, b.len());
+        copy_in(b, r)?;
+        spans.push((c, start..b.len()));
+    }
+    let mut order = Vec::with_capacity(b.len());
+    for i in 0..n {
+        match spans.last() {
+            Some((c, span)) if *c == i => {
+                order.extend(span.clone().map(u32_of));
+                spans.pop();
+            }
+            _ => order.push(u32_of(i)),
+        }
+    }
+    permute_columns(b, &order);
+    if b.fallback.len() > rows {
+        b.fallback.sort_by_key(|r| r[0]);
+    }
+    Ok(copied)
+}
+
+/// Checks `site` against the caller, unchanged yet, and sorts its
+/// parameters by how they bind; `None` skips it.
+fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
+    let Site {
+        call: c,
+        copy: k,
+        binds,
+    } = site;
     let r = b.record(b.data[c][1]);
-    let args = r[..r.len().saturating_sub(3)].to_vec();
-    // The parameters a `Store` binds, and those an argument's place stands
-    // for, with that place's word.
+    let args = &r[..r.len().saturating_sub(3)];
     let (mut params, mut at) = (Vec::new(), Vec::new());
     for l in 0..k.local_flags.len() {
         if k.local_flags[l] & local_flags::PARAM == 0 {
             continue;
         }
         let j = params.len() + at.len();
-        let (Some(&bind), Some(&a)) = (binds.get(j), args.get(j)) else {
-            return Err("a parameter with no argument".into());
-        };
+        let (&bind, &a) = (binds.get(j)?, args.get(j)?);
         // A parameter the callee stores whole binds as any local does.
         let word = u32_of(l) | place::BARE_LOCAL;
-        let stored = (0..k.len()).any(|j| k.tags[j] == Tag::Store && k.data[j][0] == word);
+        let stored = (0..k.len()).any(|i| k.tags[i] == Tag::Store && k.data[i][0] == word);
         if bind != Bind::Place {
-            params.push((u32_of(l), a, (!stored).then_some(bind == Bind::Receiver)));
+            params.push((u32_of(l), j, (!stored).then_some(bind == Bind::Receiver)));
         } else if b.tags.get(a as usize) == Some(&Tag::Read) {
             at.push((u32_of(l), b.data[a as usize][0]));
         } else {
-            return Err("an in-place argument that is no place".into());
+            return None;
         }
     }
-    let outer = (0..b.len())
-        .find(|&i| b.tags[i] == Tag::Block && b.record(b.data[i][0]).contains(&u32_of(c)));
-    let refused = |i: usize| {
-        let kind = || b.record(b.data[i][1]).iter().rev().nth(2).copied();
-        b.tags[i] == Tag::CallDyn
-            || (matches!(b.tags[i], Tag::Call | Tag::Await) && kind().is_some_and(|p| p > 2))
-    };
-    let (Some(outer), false, false) = (
+    let outer = *outer.get(c).filter(|&&o| o != NONE)?;
+    (args.len() == params.len() + at.len() && !k.is_empty()).then_some(Ready {
+        c,
+        k,
+        params,
+        at,
+        outer: outer as usize,
+        base: 0,
+    })
+}
+
+/// Appends site `r`'s rows to the renumbered caller, numbered as they will
+/// stand once permuted: the `Store`s, the callee's instructions but its
+/// root, the final `Break`, the root, the `Scope`.
+fn copy_in(out: &mut Body, r: Ready) -> Result<(), String> {
+    let Ready {
+        c,
+        mut k,
+        params,
+        at,
         outer,
-        args.len() != params.len() + at.len() || k.is_empty(),
-        (0..b.len()).any(refused),
-    ) else {
-        return Err("a call this copy cannot replace".into());
-    };
+        base,
+    } = r;
     let (m, np) = (k.len(), params.len());
-    let base = u32_of(c);
-    // The copy, numbered as it will stand: the `Store`s, the callee's
-    // instructions but its root, the final `Break`, the root, the `Scope`.
     let root_at = base + u32_of(np + m);
     let mut new_of = Vec::with_capacity(m);
     for j in 0..m {
@@ -181,14 +287,7 @@ pub fn inline_call(b: &mut Body, c: usize, mut k: Body, binds: &[Bind]) -> Resul
             base + u32_of(np + j)
         });
     }
-    renumber_through(&mut k, new_of, u32_of(b.consts.len()))?;
-    let shift = u32_of(np + m + 1);
-    let mut moved = Vec::with_capacity(b.len());
-    for i in 0..b.len() {
-        moved.push(u32_of(i) + if i >= c { shift } else { 0 });
-    }
-    let out = b;
-    renumber_through(out, moved, 0)?;
+    renumber_through(&mut k, new_of, u32_of(out.consts.len()))?;
     let (xbase, lbase) = (u32_of(out.extra.len()), u32_of(out.local_ty.len()));
     let label = u32_of(out.label_inst.len() + k.label_inst.len());
     relocate(&mut k, xbase, lbase, u32_of(out.label_inst.len()), label);
@@ -224,18 +323,15 @@ pub fn inline_call(b: &mut Body, c: usize, mut k: Body, binds: &[Bind]) -> Resul
     list.push(root_at - 1);
     let rec = push_record(out, &list);
     let empty = push_record(out, &[]);
-    // The new instructions go at the columns' end, then into place by one
-    // permutation, as a pass's rebuild does.
-    if out.anchors.is_empty() {
-        out.anchors = (0..u32_of(out.len())).collect();
-    }
     // The copy's own instructions name the callee's as their anchors
     // ([`Body::inlined`]), so a panic in the copy reports the callee's
     // frame, then the call's; one without a position keeps none, as in
     // the callee, and so reports its enclosing one.
-    let (n0, anchor) = (out.len(), out.anchors[c]);
+    let anchor = out.anchors[c];
     let first = out.inlined.last().map_or(0, |e| e[0] + e[1]);
     out.inlined.push([first, u32_of(m), k.item.raw(), anchor]);
+    // The arguments, renumbered with the caller.
+    let args = out.record(out.data[c][1]).to_vec();
     let mut put = |tag: Tag, data: [u32; 2], ty: Ty, at: Option<usize>| {
         out.tags.push(tag);
         out.data.push(data);
@@ -250,7 +346,7 @@ pub fn inline_call(b: &mut Body, c: usize, mut k: Body, binds: &[Bind]) -> Resul
     for &(p, a, _) in &params {
         put(
             Tag::Store,
-            [(p + lbase) | place::BARE_LOCAL, a],
+            [(p + lbase) | place::BARE_LOCAL, args[a]],
             Ty::VOID,
             None,
         );
@@ -262,11 +358,6 @@ pub fn inline_call(b: &mut Body, c: usize, mut k: Body, binds: &[Bind]) -> Resul
     // The root takes the call's type, which its `Break`s carry.
     put(Tag::Block, [rec, NONE], ty, Some(m - 1));
     put(Tag::Scope, [root_at, empty], ty, None);
-    let mut order = Vec::with_capacity(out.len());
-    for i in (0..c).chain(n0..out.len()).chain(c + 1..n0) {
-        order.push(u32_of(i));
-    }
-    permute_columns(out, &order);
     out.label_inst.extend_from_slice(&k.label_inst);
     out.label_inst.push(root_at);
     let sbase = out.strings.len() as u64;
@@ -281,14 +372,10 @@ pub fn inline_call(b: &mut Body, c: usize, mut k: Body, binds: &[Bind]) -> Resul
             .push((t, if t == Ty::STRING { bits + sbase } else { bits }));
     }
     out.strings.append(&mut k.strings);
-    // The copy's fallback rows, sorted, go where its instructions stand.
-    let rest = out
-        .fallback
-        .split_off(out.fallback.partition_point(|r| r[0] < base));
+    // The copy's fallback rows, sorted with the caller's once all are in.
     for &[i, l] in &k.fallback {
         out.fallback.push([i, if l == 0 { 0 } else { l + lbase }]);
     }
-    out.fallback.extend_from_slice(&rest);
     for &(p, _, bound) in &params {
         if let Some(receiver) = bound {
             out.bound.push((p + lbase, receiver));
@@ -376,15 +463,24 @@ mod tests {
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::{Ty, TyList};
 
-    use super::{Bind, inlinable, inline_call, plain_call, rechoose, u32_of};
+    use super::{Bind, Site, inlinable, inline_calls, plain_call, rechoose, u32_of};
     use crate::ir::{
-        Body, BodyKind, Callee, ChoiceKind, Place, PlaceRoot, Proj, Providers, ReadMode, Ref, Tag,
-        TirBuilder, TirSink, local_flags, map_body_types, verify, verify_owned,
+        Body, BodyKind, Callee, ChoiceKind, Op, Place, PlaceRoot, Proj, Providers, ReadMode, Ref,
+        Tag, TirBuilder, TirSink, local_flags, map_body_types, verify, verify_owned,
     };
     use crate::own::tests::{Cx, show};
     use crate::own::{OwnScratch, run};
 
     const N: NodeIdx = NodeIdx::from_raw(1);
+
+    /// Copies one call, as [`inline_calls`] does for each of a body's.
+    fn inline_call(b: &mut Body, call: usize, copy: Body, binds: &[Bind]) -> Result<(), String> {
+        let binds = binds.to_vec();
+        match inline_calls(b, vec![Site { call, copy, binds }])?[..] {
+            [true] => Ok(()),
+            _ => Err("skipped".into()),
+        }
+    }
     /// The callee's type parameter, which the call substitutes by `string`.
     const T: Ty = Ty(1_000_001);
 
@@ -498,6 +594,130 @@ mod tests {
              %11 Block [%8 %9 %10]\n%12 Scope\n%13 Drop [$0]\n%14 Call %12\n\
              %15 Block [%0 %1 %11 %12 %13 %14]\n"
         );
+    }
+
+    /// `g() { r = 3(7("caller")); if true { 9(3(r)) } }`: two calls of
+    /// callee 3 in two blocks, the second taking the first's result.
+    fn two_calls() -> Body {
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let s = b.const_str("caller");
+        let a = b.call(&item(7), &[s], Providers::None, Ty::STRING, N);
+        let r = b.call(&item(3), &[a], Providers::None, Ty::STRING, N);
+        let yes = b.const_value(Ty::BOOL, 1);
+        let then = b.open_block();
+        let r2 = b.call(&item(3), &[r], Providers::None, Ty::STRING, N);
+        b.call(&item(9), &[r2], Providers::None, Ty::VOID, N);
+        let then = b.close_block(then, None, Ty::VOID, N);
+        let other = b.open_block();
+        let other = b.close_block(other, None, Ty::VOID, N);
+        let arms = b.refs_record(&[then, other]);
+        b.emit(Tag::If, yes.0, arms, Ty::VOID, N);
+        let root = b.close_block(blk, None, Ty::VOID, N);
+        b.finish(root, &[]).expect("caller verifies")
+    }
+
+    /// One rebuild for all of `b`'s calls of callee 3 gives the body a
+    /// rebuild per call gives, the latest call first.
+    fn one_splice_equals_one_per_copy(b: Body, copy: &dyn Fn() -> Body, binds: &[Bind]) -> Body {
+        let calls: Vec<usize> = (0..b.len())
+            .rev()
+            .filter(|&i| plain_call(&b, i) == Some(item(3)))
+            .collect();
+        let site = |call| Site {
+            call,
+            copy: copy(),
+            binds: binds.to_vec(),
+        };
+        let mut one = b.clone();
+        let sites = calls.iter().map(|&c| site(c)).collect();
+        assert_eq!(inline_calls(&mut one, sites), Ok(vec![true, true]));
+        let mut each = b;
+        for &c in &calls {
+            assert_eq!(inline_calls(&mut each, vec![site(c)]), Ok(vec![true]));
+        }
+        // Both leave the block records they replaced behind, with words
+        // renumbered at different times; every record in use is the same.
+        let live = |b: &Body| {
+            let mut v = b.clone();
+            v.extra.clear();
+            for i in 0..b.len() {
+                let (oa, ob) = b.tags[i].operands();
+                for (w, op) in b.data[i].into_iter().zip([oa, ob]) {
+                    let rec = matches!(op, Op::Values | Op::Blocks | Op::Record)
+                        || (op == Op::Place && w & crate::ir::place::BARE_LOCAL == 0);
+                    if rec && w != crate::ir::NONE {
+                        v.extra.extend_from_slice(b.record(w));
+                    }
+                }
+            }
+            v
+        };
+        assert_eq!(live(&one), live(&each));
+        one
+    }
+
+    #[test]
+    fn one_splice_for_all_copies_equals_one_per_copy() {
+        let mut b = one_splice_equals_one_per_copy(two_calls(), &callee, &[Bind::Store]);
+        run(&mut b, &Cx, &mut OwnScratch::default()).expect("passes");
+        assert_eq!(verify_owned(&b, &Cx), []);
+        // `x = 7(); 3(x.1, "q"); 3(x.1, "q")`: each `p` is rooted at `x.1`,
+        // and the later call's copy binds `q` first.
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let x = b.local(LIST, Symbol::from_raw(0), 0, N);
+        let made = b.call(&item(7), &[], Providers::None, LIST, N);
+        b.set(x, made, N);
+        for _ in 0..2 {
+            let w = b.place(&Place {
+                root: PlaceRoot::Local(x),
+                proj: vec![Proj::Field(1)],
+            });
+            let a = b.emit(Tag::Read, w, ReadMode::Use as u32, LIST, N);
+            let q = b.const_str("q");
+            b.call(&item(3), &[a, q], Providers::None, Ty::VOID, N);
+        }
+        let root = b.close_block(blk, None, Ty::VOID, N);
+        let b = b.finish(root, &[]).expect("caller verifies");
+        let b = one_splice_equals_one_per_copy(b, &|| changer(true), &[Bind::Place, Bind::Store]);
+        let stores = (0..b.len()).filter(|&i| b.tags[i] == Tag::Store);
+        let places: Vec<_> = stores
+            .filter_map(|i| b.decode_place(b.data[i][0]).map(|p| p.to_string()))
+            .collect();
+        assert_eq!(places, ["[$0]", "[$4]", "[$0 .1]", "[$2]", "[$0 .1]"]);
+    }
+
+    /// The verifier checks what a copy promises: anchors in its rows, the
+    /// rows in order, a bound local stored once, and places rooted at
+    /// locals the body defines.
+    #[test]
+    fn the_verifier_checks_what_a_copy_promises() {
+        let mut b = caller();
+        inline_call(&mut b, 1, callee(), &[Bind::Store]).expect("inlines");
+        run(&mut b, &Cx, &mut OwnScratch::default()).expect("passes");
+        assert_eq!(verify_owned(&b, &Cx), []);
+        let finds =
+            |b: &Body, what: &str| verify_owned(b, &Cx).iter().any(|e| e.what.contains(what));
+        let i = (0..b.len()).find(|&i| b.anchors[i] & crate::ir::INLINED != 0);
+        let mut bad = b.clone();
+        bad.anchors[i.expect("a copied instruction")] = crate::ir::INLINED | 0x63;
+        assert!(finds(&bad, "in no inlined copy"));
+        let mut bad = b.clone();
+        bad.inlined[0][3] |= crate::ir::INLINED;
+        assert!(finds(&bad, "called in a copy"));
+        let mut bad = b.clone();
+        bad.bound.push(bad.bound[0]);
+        assert!(finds(&bad, "bound local"));
+        // An in-place parameter's local left in its copy.
+        let mut b = changing_caller(false);
+        inline_call(&mut b, 5, changer(true), &[Bind::Place, Bind::Store]).expect("inlines");
+        run(&mut b, &Cx, &mut OwnScratch::default()).expect("passes");
+        assert!(!finds(&b, "nothing stores"));
+        let copied = |i: usize| b.anchors[i] & crate::ir::INLINED != 0 && b.tags[i] == Tag::Read;
+        let read = (0..b.len()).find(|&i| copied(i)).expect("the copy's read");
+        b.data[read][0] = 1 | crate::ir::place::BARE_LOCAL;
+        assert!(finds(&b, "rooted at $1, which nothing stores"));
     }
 
     /// The test context's list type ([`crate::own::tests::Cx`]).
