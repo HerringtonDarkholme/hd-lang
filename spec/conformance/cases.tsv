@@ -3677,6 +3677,7 @@ typing/invalid/serde-skip-none-non-optional.hd	type	reject:type-mismatch	std/ser
 runtime/valid/serde-skip.hd	runtime	accept	std/serde.md#skipped-members
 typing/invalid/serde-skip-retains-bound.hd	type	reject:member-not-derivable	std/serde.md#r-std-serde.skip.bounds
 typing/invalid/serde-skip-retains-deserialize-bound.hd	type	reject:member-not-derivable	std/serde.md#r-std-serde.skip.bounds
+runtime/valid/serde-derive-keeps-declared-parameter-bounds.hd	runtime	accept	std/serde.md#derived-implementations
 runtime/valid/serde-std-writes.hd	runtime	accept	std/serde.md#r-std-serde.model.one-value
 runtime/valid/serde-std-reads.hd	runtime	accept	std/serde.md#r-std-serde.read.scalar
 runtime/valid/serde-set-tuple.hd	runtime	accept	std/serde.md#r-std-serde.std.tuple
@@ -4693,6 +4694,7 @@ runtime/valid/a-generic-part-delegates-at-the-targets-arguments.hd	runtime	accep
 runtime/valid/a-suspending-method-and-a-row-forward-as-declared.hd	runtime	accept	lang/09-traits.md#trait-delegation
 runtime/valid/a-user-template-derives-for-an-enum.hd	runtime	accept	lang/14-annotations.md#typed-derivation
 runtime/valid/a-generic-type-derives-under-its-parameter-bound.hd	runtime	accept	std/cmp.md#derived-equality
+runtime/valid/derive-keeps-declared-parameter-bounds.hd	runtime	accept	lang/14-annotations.md#r-annot.bound.declared
 runtime/valid/build-reads-each-member-from-a-source.hd	runtime	accept	lang/14-annotations.md#typed-derivation
 runtime/valid/downcast-ref-unboxes-a-scalar.hd	runtime	accept	lang/09-traits.md#runtime-type-identity
 runtime/valid/downcast-mut-and-bound-receivers.hd	runtime	accept	lang/09-traits.md#runtime-type-identity

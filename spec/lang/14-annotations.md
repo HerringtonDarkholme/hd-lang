@@ -1645,9 +1645,10 @@ impl[S] Source[S] for Strict:  # variant, next, and member elided
 ### Derived Bounds
 
 1. r[annot.bound.params] A derived implementation for a generic type gets `T < Trait` for each type parameter `T` that appears in a walked, described, or built member.
-2. r[annot.bound.omitted] An omitted member contributes no bound.
-3. r[annot.bound.recursive] Recursion is checked coinductively: while checking the members of `Tree[T]`, its own derived implementation is assumed to hold.
-4. r[annot.bound.more] When a member needs more than `T < Trait`, as a `Map[T, V]` member needs `T < Hash`, the error suggests a derivation block whose header states the bounds. Error: `member-not-derivable`.
+2. r[annot.bound.declared] A derived implementation also keeps every bound the type declares on its parameters. So `@derive(Eq) struct Pair[T < Eq & Debug]` derives `impl[T < Eq & Debug] Eq for Pair[T]`.
+3. r[annot.bound.omitted] An omitted member contributes no bound.
+4. r[annot.bound.recursive] Recursion is checked coinductively: while checking the members of `Tree[T]`, its own derived implementation is assumed to hold.
+5. r[annot.bound.more] When a member needs more than `T < Trait`, as a `Map[T, V]` member needs `T < Hash`, the error suggests a derivation block whose header states the bounds. Error: `member-not-derivable`.
 
 ```hd
 @derive(Eq, Debug)

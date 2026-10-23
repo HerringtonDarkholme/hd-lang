@@ -1,0 +1,18 @@
+# test: Serialize and Deserialize derive for a type whose parameter declares both traits, and a value round-trips through JSON
+# Spec std/serde Derived Implementations; Spec 14 Derived Bounds: annot.bound.declared.
+use std.json.{decode, encode}
+use std.serde.{Serialize, Deserialize}
+
+@derive(Serialize, Deserialize)
+struct Example[T < Serialize & Deserialize]:
+    value: T?
+
+tests:
+    use std.testing.assert_equal
+
+    it("a value round-trips through JSON"):
+        text := encode(Example { value: .Some(+7) })
+        assert_equal(text, "{\"value\":7}", reason="the member is written")
+        back := decode::[Example[i32]](text).expect("read")
+        assert_equal(back.value, .Some(+7), reason="the member is read back")
+        assert_equal(decode::[Example[i32]]("{\"value\":null}").expect("null").value, .None, reason="an absent payload reads as None")

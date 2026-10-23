@@ -3849,20 +3849,35 @@ impl Lower<'_, '_, '_> {
                         .intern(self.names.module(self.module), PathKind::Impl, &seg)
                         .raw(),
                 );
+                let params: Vec<Ty> = (0..generics.len())
+                    .map(|i| {
+                        let index = u16::try_from(i).unwrap_or(u16::MAX);
+                        pool.intern_ty(&TyData::Param(ParamRef { owner: def, index }))
+                    })
+                    .collect();
+                // The type's own parameters, moved to the implementation's.
+                let own = |t: Ty| {
+                    pool.subst(t, &|p: ParamRef| {
+                        (p.owner == h.def).then(|| params.get(usize::from(p.index)).copied())?
+                    })
+                };
                 let mut gs = Vec::new();
-                let mut params = Vec::new();
-                for (i, g) in generics.iter().enumerate() {
-                    let index = u16::try_from(i).unwrap_or(u16::MAX);
-                    let param = pool.intern_ty(&TyData::Param(ParamRef { owner: def, index }));
-                    params.push(param);
+                for (g, &param) in generics.iter().zip(&params) {
                     let mut g2 = Generic::plain(g.name);
                     if !g.row {
-                        g2.bound = Some(tr);
-                        g2.bounds = vec![pool.intern_ty(&TyData::TraitValue {
+                        // The bounds the type declares on the parameter
+                        // stay (`annot.bound.declared`), then `T < X`
+                        // unless one of them already is it.
+                        let derived = pool.intern_ty(&TyData::TraitValue {
                             def: tr,
                             args: self.r.fill_trait_args(tr, TyList::EMPTY, Some(param)),
                             bindings: vec![],
-                        })];
+                        });
+                        g2.bounds = g.bounds.iter().map(|b| own(*b)).collect();
+                        if !g2.bounds.contains(&derived) {
+                            g2.bounds.push(derived);
+                        }
+                        g2.bound = g.bound.or(Some(tr));
                     }
                     g2.row = g.row;
                     gs.push(g2);
