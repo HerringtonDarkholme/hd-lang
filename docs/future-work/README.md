@@ -14,6 +14,7 @@ action at a distance.
 
 ## What Remains
 
+- [hd lint](HD_LINT.md): proposed command, shared diagnostics, package allow/deny policy, and a first lint for lost temporary-receiver writes (#651).
 - [Open Issues](OPEN_ISSUES.md): the open language and library design
   questions. It holds only open questions.
 - [Serializable Closure Design](SERIALIZABLE_CLOSURE_DESIGN.md): the design
