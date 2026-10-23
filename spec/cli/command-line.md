@@ -1065,6 +1065,22 @@ See also: [Doc Tests](../lang/10-modules.md#doc-tests),
 [Documentation Comments](../lang/01-lexical-structure.md#documentation-comments),
 [Creating A Package](#creating-a-package).
 
+## Text Output
+
+Without `--format json`, a diagnostic's fix-its follow it in text output:
+
+```sh
+hd check shape.hd
+# error: shape.hd:4:14: trait-used-as-type: `Shape` is a trait, not a type
+#     fix: insert `dyn` before the trait name
+```
+
+1. r[cli.text.fix-line] In text output, each fix-it of a diagnostic prints on its own line after the diagnostic's line: four spaces, `fix: `, and the fix-it's message, as [`cli.json.fix.object`](#r-cli.json.fix.object) gives it.
+
+> **Note.** The rest of a text diagnostic's layout is the implementation's.
+> [Machine Output](#machine-output) is the stable form, and it also holds
+> each fix-it's edits.
+
 ## Machine Output
 
 ```sh

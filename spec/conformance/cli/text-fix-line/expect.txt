@@ -1,0 +1,11 @@
+# In text output, each fix-it prints on its own indented `fix:` line after
+# its diagnostic, with the message that JSON gives the fix-it.
+run: hd check shape.hd
+exit: 101
+stdout-json: []
+stderr: error: shape.hd:4:14: trait-used-as-type: `Shape` is a trait, not a type
+stderr:     fix: insert `dyn` before the trait name
+stderr: check result: FAILED. errors: 1; warnings: 0
+run: hd check --format json shape.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"trait-used-as-type","fixes":[{"message":"insert `dyn` before the trait name"}]},{"kind":"summary","errors":1,"status":101}]

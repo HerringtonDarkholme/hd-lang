@@ -235,3 +235,4 @@ process-output-ok	cli.test.process,cli.host.default-profile.granted
 test-hd-run-command	cli.test.builds-executables,cli.test.process,cli.test.process.tasks
 http-timeout-composition	cli.host.default-profile.granted
 console-raw-writes	cli.file.run,cli.exit.success
+text-fix-line	cli.text.fix-line,cli.check.report.stream,cli.json.diagnostic.fixes,cli.json.fix.object,cli.exit.hd-failure

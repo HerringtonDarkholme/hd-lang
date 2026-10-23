@@ -93,7 +93,8 @@ impl Diag {
     }
 
     /// The text line: `severity: file:line:column: code: message`, leaving
-    /// out each part the diagnostic lacks.
+    /// out each part the diagnostic lacks, then one `    fix: message`
+    /// line for each fix-it (`cli.text.fix-line`).
     #[must_use]
     pub fn text(&self) -> String {
         let mut s = format!("{}: ", self.severity_word());
@@ -108,6 +109,9 @@ impl Diag {
             let _ = write!(s, "{}: ", code.as_str());
         }
         s.push_str(&self.message);
+        for f in &self.fixes {
+            let _ = write!(s, "\n    fix: {}", f.message);
+        }
         s
     }
 
