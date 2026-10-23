@@ -509,6 +509,7 @@ the code `hd check` reports today.
 | `Item(name: "a")` | `trailing-block-position` | `Item { name: "a" }` |
 | a second `tests:` block | `duplicate-tests-block` | one `tests:` block per file |
 | a trait in a public row | `private-type-leak` | `pub trait` |
+| keeping an element reference, `r := &mut xs[i]` | `element-reference-outlives-call` | keep the list reference and the index (`xs[i] = v` later), copy the value out (`v := xs[i]`), or store references in the list (`List[&mut T]`) and copy a reference out |
 
 ## Recovering An Erased Concrete Type
 
