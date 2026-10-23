@@ -1,0 +1,21 @@
+# @dump: own
+# A change through a top-level binding names its place, as one through a
+# local does: place folding roots `bags[i].items` at the binding, the
+# `IsUnique`s are of the binding's places, and the push reads the place
+# after them. Where an argument may write (a call), the receiver's own
+# read only evaluates the receiver, first, with its index check, and the
+# push reads the place again after the `IsUnique`s.
+struct Bag:
+    items: List[i64]
+
+let mut saved: List[i64] = []
+let mut bags: List[Bag] = []
+
+fn twice(n: i64) -> i64:
+    n * 2
+
+fn add(i: usize, n: i64) -> void:
+    saved.push(n)
+    saved.push(twice(n))
+    bags[i].items.push(n)
+    bags[i].items.push(twice(n))

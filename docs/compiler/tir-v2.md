@@ -3675,6 +3675,48 @@ whose noise was about ±2.5% at `List`'s commit 1.
   unique copy and clone a map's `IsUnique` and owner word name, and
   `MapEntries`' step; `emit/iter.rs` goes.
 
+**As built.** 3a roots a top-level binding's places as a local's and
+lets a change name them. Place folding (`ir::root_places`) folds a
+chain that starts at a binding as one that starts at a local, so
+`bags[i].items` is `[@bags [%i] .items]` and `config.names` is
+`[@config .names]`; the checker's reads of a binding were all values
+before, so the plan's insertion piece alone would have named only
+`saved.push(n)`. A binding's type is never open, so folding's third
+rule does not apply. Insertion's `changes` takes an operand read from
+such a place as rooted, with no local access to record:
+`saved.push(twice(n))` is `Read borrow [@saved]`, which only evaluates
+the receiver, the call, `IsUnique [@saved]`, a new `Read borrow
+[@saved]` and the push, as for a local. The emitter's walk starts at the
+binding's static slot, or at its Wasm globals read into locals
+(`Em::at_root`). A place rooted at a binding takes the walk when it has
+a step other than a field, or when it is read through fields; a store
+into or a reference to a binding's fields keeps the old lowering
+(`global_field_store`, the static slot's address), which already writes
+it. `IsUnique` and `Pin` of a binding's place need nothing more, since
+`place_header` walks. No store writes a whole binding through the walk
+yet: under headers an `IsUnique` replaces nothing, so the write-back the
+plan priced here comes with 3f's stores of a new buffer. The verifier
+needed no change; checked-mode conformance passes.
+
+3a adds 46 Rust code lines and deletes 15 (`ir/root.rs` +13/−9,
+`own/insert.rs` +6/−2, `emit/refs.rs` +27/−4), against 80, under the
+stop line of 120. No baseline changes; the new fixture
+`a-change-through-a-top-level-binding-names-its-place` shows the quiet
+and the re-read forms, whole and through an element. The 13 release
+`.wasm` files are byte-identical to adaeaea81's, since no program or std
+module holds a collection in a top-level binding, so no study time can
+move. A probe that changes lists through bindings (whole, through an
+element, a field and a `mut self` call, by an element reference and in a
+loop) prints the same and goes from 14,696 to 14,866 B: each `IsUnique`
+of a binding's place loads the binding again where the header model
+checked the value it had read. Cold build CPU, medians of 11 interleaved
+builds with the dev-profile compiler: json 0.35 s to 0.35 s, nbody
+0.29 s to 0.29 s. The web compiler's gzip grows 302 B
+(1,904,470 to 1,904,772). The known failure
+`runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy` stays: its
+change is through a local whose header a callee stored into a binding,
+which 3f fixes.
+
 No commit carries two copy paths: through 3e both kinds copy by
 `ListCopy` (a new header over the same buffer), 3f moves both to the
 buffer copy glue at once, and 3g removes the header copies of both.
