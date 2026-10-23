@@ -450,7 +450,7 @@ fn values(
             let (u, op) = t.uses[k];
             // An argument's header copy stands right after the value
             // (rule 7), which is where the value's use ends.
-            let at = if early_copy(t, v, k) {
+            let at = if early_copy(b, t, v, k) {
                 Some((t.blk[v], t.pos[v]))
             } else {
                 t.at(b, u, &op)
@@ -460,7 +460,7 @@ fn values(
                     // A header copy stands right before its use, so a use
                     // in the value's own block ends at the copy.
                     if t.hcopy[k] != Ty::VOID
-                        && !early_copy(t, v, k)
+                        && !early_copy(b, t, v, k)
                         && t.chain[met.0 as usize].0 == blk
                         && met.1 > 0
                     {
@@ -522,7 +522,7 @@ fn values(
             // change its source, and a jump between drops it.
             if t.hcopy[k] != Ty::VOID {
                 let n = u32_of(b.len());
-                let early = early_copy(t, v, k);
+                let early = early_copy(b, t, v, k);
                 let at = if early { t.pos[v] + 1 } else { pos };
                 let rec = u32_of(b.extra.len());
                 b.extra.extend([1, u32_of(v)]);
@@ -614,11 +614,13 @@ fn after_drops(t: &mut Tables, edits: &mut splice::Tables) {
 }
 
 /// Whether use `k` of value `v` takes a header copy right after the value
-/// (rule 7): an argument's, in the value's own block, before a later
-/// argument can change its source.
-fn early_copy(t: &Tables, v: usize, k: usize) -> bool {
+/// (rule 7): an argument's, an inlined one's too, in the value's own
+/// block, before a later argument can change its source.
+fn early_copy(b: &Body, t: &Tables, v: usize, k: usize) -> bool {
     let (u, op) = t.uses[k];
-    t.hcopy[k] != Ty::VOID && matches!(op.role, Role::Arg(_)) && t.blk[v] == t.blk[u as usize]
+    t.hcopy[k] != Ty::VOID
+        && (matches!(op.role, Role::Arg(_)) || b.binding(u as usize).is_some())
+        && t.blk[v] == t.blk[u as usize]
 }
 
 /// Rule 3: each owned local's `Drop` after its last access, and its exit

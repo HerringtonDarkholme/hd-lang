@@ -12,7 +12,8 @@ use std::cell::RefCell;
 use hd_base::{DefId, Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use hd_mono::ProgramEnv;
 use hd_mono::layout::LayoutEnv;
-use hd_tir::ir::{Body, Callee, ChoiceKind, local_flags};
+use hd_tir::inline::Bind;
+use hd_tir::ir::{Body, Callee, ChoiceKind};
 use hd_tir::own::{HeaderCopy, OwnCx, OwnScratch, Pass, Tri};
 use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, ParamEnv, Selection, SolveCx, Solver, TableSolver, TraitRef,
@@ -357,17 +358,22 @@ impl Env<'_> {
 
     /// Copies into `body` each call of a small std function outside
     /// `std.rt` (`docs/compiler/tir-v2.md`, "The inliner"), before the
-    /// passes, and returns its hash with each copied callee's TIR hash.
+    /// passes, each parameter bound by its pass mode, and returns the
+    /// body's hash with each copied callee's TIR hash.
     fn inline_calls(&self, body: &mut Body, hash: Hash128) -> Hash128 {
         let pool = &self.run.pool;
         let mut k = StableHasher::new("inline");
         k.hash(hash);
         let mut copied = false;
+        let mut binds = Vec::new();
         for c in (0..body.len()).rev() {
-            let Some((def, targs)) =
+            let Some((callee, (def, targs))) =
                 hd_tir::inline::plain_call(body, c).and_then(|callee| match callee {
-                    Callee::Item { def, targs } => Some((def, targs)),
-                    Callee::TraitMethod { .. } => self.impl_target(&callee),
+                    Callee::Item { def, targs } => Some((callee, (def, targs))),
+                    Callee::TraitMethod { .. } => {
+                        let target = self.impl_target(&callee)?;
+                        Some((callee, target))
+                    }
                 })
             else {
                 continue;
@@ -388,23 +394,24 @@ impl Env<'_> {
             hd_tir::ir::map_body_types(&mut copy, &ty, &list);
             // A projection left open names a type the caller's bounds may
             // fix, which the call's type already shows; such a copy waits.
-            // So does a copy with a parameter that may hold a list or a map:
-            // a call lends it, but a `Store` would copy its header, and an
-            // iterator or a reference made from the copy would lose the
-            // argument it names.
-            let param = |l: usize| copy.local_flags[l] & local_flags::PARAM != 0;
             if copy
                 .ty
                 .iter()
                 .chain(&copy.local_ty)
                 .any(|&t| pool.has_assoc(t))
-                || (0..copy.local_ty.len())
-                    .any(|l| param(l) && self.holds_coll(copy.local_ty[l], 0))
             {
                 continue;
             }
+            // Each parameter as the call passes it.
+            let n = body.record(body.data[c][1]).len().saturating_sub(3);
+            binds.clear();
+            binds.extend((0..n).map(|j| match self.pass(&callee, j, n) {
+                Pass::InPlace => Bind::Place,
+                _ if self.receiver(&callee, j, n) => Bind::Receiver,
+                _ => Bind::Store,
+            }));
             hd_tir::inline::rechoose(&mut copy, &|t, s, a| self.select_impl(t, s, a));
-            if hd_tir::inline::inline_call(body, c, copy).is_ok() {
+            if hd_tir::inline::inline_call(body, c, copy, &binds).is_ok() {
                 k.hash(callee_hash);
                 copied = true;
             }
@@ -497,8 +504,8 @@ impl Env<'_> {
     /// A fresh decoding of the checker's body of `def`, for the caller to
     /// change, and its hash, when a call of it inlines: a std function
     /// outside `std.rt`, not the caller, with a body of its own, that
-    /// neither suspends nor takes a `mut` parameter, and that
-    /// [`hd_tir::inline::inlinable`] allows at [`INLINE_LIMIT`].
+    /// does not suspend, and that [`hd_tir::inline::inlinable`] allows at
+    /// [`INLINE_LIMIT`].
     fn inline_callee(&self, def: DefId, caller: DefId) -> Option<(Body, Hash128)> {
         let module = self.run.item_module_text(def);
         let rt = module == "std.rt" || module.starts_with("std.rt.");
@@ -510,14 +517,7 @@ impl Env<'_> {
         {
             return None;
         }
-        let sig = self.sig(def)?;
-        let pool = &self.run.pool;
-        if sig.suspends
-            || sig
-                .params
-                .iter()
-                .any(|p| matches!(pool.get(self.low(p.1)), TyData::Mut(_)))
-        {
+        if self.sig(def)?.suspends {
             return None;
         }
         let path = self.run.paths.hash(hd_base::PathId::from_raw(def.raw()));

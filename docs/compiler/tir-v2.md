@@ -3112,6 +3112,38 @@ build` resolves those frames into `hd.positions` and drops
 `Display.to_string`), nbody 2, and dyn_iter also the default bodies of
 `Iterator.map`, `filter` and `sum`.
 
+Commit 3 binds each parameter as the call passes it (`inline::Bind`,
+which the driver picks from `OwnCx::pass` and `OwnCx::receiver`). A
+parameter the call lends or gives is still a `Store` of the argument
+into the parameter's local, but `Body::bound` lists that local, and the
+header copies take the store as the call's argument: rule 4 instead of
+rule 1. The local shares the argument's header unless the source may
+change while the call runs (a global, a dereference, an aliased local,
+or a local a later argument changes); then its copy stands right after
+the argument, as an argument's does. A list or map receiver is never
+copied, since a call passes it as is. A parameter the copy changes is
+copied, as rule 5 copies it on entry, and a binding counts as a call's
+argument in rule 1's test for a binding that shares its source, so
+`view := values; view.iter()` still gives `view` a header of its own.
+An in-place parameter (`Pass::InPlace`, the `mut` view of a list or a
+map) has no local: the copy's places rooted at it are rooted at the
+place its argument reads, so a change, or a whole store, writes back
+through that place, and the passes see the change there. A struct's
+`mut self` stays the callee's own copy, a `Store` like any other. The
+collection-parameter refusal and the `mut`-parameter refusal are gone,
+so `List.iter`'s cursor names the caller's list again. At limit 12, json
+inlines 124 call sites: commit 2's 113, `Field.fact` 3, `Field.default`
+2, `Field.has_default` 1, `JsonObject.len` 2, `List.is_empty` 1 and the
+`Iterable.iter` of `JsonObject` and of `List`; closures adds
+`List.iter`, and dyn_iter `List.iter`, `JsonObject.len` and
+`JsonObject.iter`. No std function small enough takes an in-place
+parameter today, so only the unit tests reach `Bind::Place`. Copying
+`Field.fact` and its siblings into the serde walkers removes their
+generic instances, so json's Wasm is 3.6% smaller than at commit 2.
+Panic traces are unchanged; a stack-exhausting recursion through
+`EqualWalker.member` now repeats 437 times instead of 481, since that
+frame now holds the copied `Field.get` and `Variant.holds`.
+
 **Emitted size budget.** hello's Wasm does not change, and each
 bench/study program's release `.wasm` stays within +5% of its size
 before the inliner; a commit over that stops for review, like a commit

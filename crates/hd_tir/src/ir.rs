@@ -879,6 +879,11 @@ pub struct Body {
     /// copy's call at anchor `call` ran ([`Body::inlined_frame`]). Never
     /// written to the wire.
     pub inlined: Vec<[u32; 4]>,
+    /// The locals the inliner's `Store`s bind to a call's arguments, each
+    /// with whether it is a list or map receiver, sorted: the passes take
+    /// such a store as the call's argument ([`crate::inline::Bind`]).
+    /// Never written to the wire.
+    pub bound: Vec<(u32, bool)>,
 }
 
 impl Body {
@@ -915,6 +920,7 @@ impl Body {
             regions: vec![],
             anchors: vec![],
             inlined: vec![],
+            bound: vec![],
         }
     }
 
@@ -927,6 +933,21 @@ impl Body {
         } else {
             self.anchors.get(i as usize).copied().unwrap_or(NONE)
         }
+    }
+
+    /// For a `Store` `i` the inliner made to bind a whole parameter's
+    /// local to a call's argument ([`Body::bound`]), whether that is a list
+    /// or map receiver; `None` for any other instruction.
+    #[must_use]
+    pub fn binding(&self, i: usize) -> Option<bool> {
+        let w = self.data[i][0];
+        if self.bound.is_empty() || self.tags[i] != Tag::Store || w & place::BARE_LOCAL == 0 {
+            return None;
+        }
+        let k = (self.bound)
+            .binary_search_by_key(&(w & !place::BARE_LOCAL), |e| e.0)
+            .ok()?;
+        Some(self.bound[k].1)
     }
 
     /// The callee, its instruction and the call's anchor that an inlined

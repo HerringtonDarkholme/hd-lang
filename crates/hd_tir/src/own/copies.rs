@@ -57,7 +57,10 @@
 //! 4. **A value argument** whose source may change while the callee runs:
 //!    a global, a dereference, an aliased local, or a local a later
 //!    argument changes. Not an in-place argument ([`Pass::InPlace`]), which
-//!    is meant to change, nor a list or map receiver, passed as is.
+//!    is meant to change, nor a list or map receiver, passed as is. The
+//!    inliner's `Store` of an argument into a parameter's local that does
+//!    not change ([`Body::binding`]) follows this rule instead of 1, and a
+//!    binding counts as an argument wherever 1 asks for one.
 //! 5. **A changing parameter**, at its sub-body's entry, but a `mut self`
 //!    view of a collection ([`OwnCx::in_place_view`]): it is read, copied
 //!    and stored back.
@@ -632,6 +635,13 @@ pub(crate) fn decide(
                 t.owns[lu] = false;
             } else if t.changing[lu] {
                 mark(ins, v, i, Loc::Data(1), h.ty);
+            } else if let Some(receiver) = b.binding(i) {
+                // An inlined parameter takes its argument as the call did
+                // (4): it shares the argument's header.
+                t.owns[lu] = false;
+                if !(receiver && h.coll) && changes_in_call(t, src, i) {
+                    mark(ins, v, i, Loc::Data(1), h.ty);
+                }
             } else if fixed(t, src) {
                 t.owns[lu] = false;
             } else if moves_out(b, ins, t, v) {
@@ -1004,8 +1014,9 @@ fn read_end(
             let (u, op) = ins.uses[k];
             let u = u as usize;
             // A block's value flows on, and a callee may keep an argument
-            // past the call (a reference to its parameter in its result).
-            if matches!(op.role, Role::Tail | Role::Arg(_)) {
+            // past the call (a reference to its parameter in its result),
+            // an inlined one too.
+            if matches!(op.role, Role::Tail | Role::Arg(_)) || b.binding(u).is_some() {
                 return None;
             }
             if snap_end(u, &op) {
@@ -1112,15 +1123,21 @@ fn arguments(b: &Body, cx: &dyn OwnCx, ins: &mut insert::Tables, t: &Tables, i: 
         {
             continue;
         }
-        let copy = match resolved(t, t.src[x]) {
-            Src::Global | Src::Deref => true,
-            Src::Local { l, at } => t.aliased[l as usize] || changed_between(t, l, at, u32_of(i)),
-            _ => false,
-        };
-        if copy {
+        if changes_in_call(t, resolved(t, t.src[x]), i) {
             let at = Loc::Extra(arg_word(b, i, k));
             mark(ins, x, i, at, h.ty);
         }
+    }
+}
+
+/// Whether an argument from `src` may change while the callee of call
+/// `i` runs: a global, a dereference, an aliased local, or a local a later
+/// argument changes.
+fn changes_in_call(t: &Tables, src: Src, i: usize) -> bool {
+    match src {
+        Src::Global | Src::Deref => true,
+        Src::Local { l, at } => t.aliased[l as usize] || changed_between(t, l, at, u32_of(i)),
+        _ => false,
     }
 }
 
