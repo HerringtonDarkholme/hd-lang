@@ -76,13 +76,6 @@ pub enum Pass {
     /// argument (the backend lowers the call in place and counts what it
     /// keeps): the caller keeps its value.
     Lent,
-    /// A parameter that changes its argument's collection in place: a
-    /// `mut self` receiver of a list or a map, whose declared type is the
-    /// `mut` view, so `xs[i].bump()` changes the element `xs[i]`. The
-    /// caller keeps the value, as for `Lent`, and insertion makes the
-    /// place the argument reads unique before the call (rule 5), as it
-    /// does before a push.
-    InPlace,
 }
 
 /// The facts the passes read besides the body (`docs/compiler/tir-v2.md`,
@@ -92,10 +85,10 @@ pub trait OwnCx {
     /// Whether a value of `ty` holds a counted leaf.
     fn counted(&self, ty: Ty) -> Tri;
     /// How argument `k` of `n` of a `Call` or `Await` of `callee` is
-    /// passed. `Lent` whenever it is not `Owned` or `InPlace`: a lent or
-    /// in-place argument the callee's instance owns takes a count at the
-    /// call, and an owned one an instance borrows is released after it
-    /// (`layout::Pass` in the backend).
+    /// passed. `Lent` whenever it is not `Owned`: a lent argument the
+    /// callee's instance owns takes a count at the call, and an owned one
+    /// an instance borrows is released after it (`layout::Pass` in the
+    /// backend).
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass;
     /// [`OwnCx::pass`] for a `CallValue` of a value of function type
     /// `fn_ty`.
@@ -122,10 +115,6 @@ pub trait OwnCx {
     /// function's. The borrow pass leaves a lent parameter the body never
     /// stores unowned, and an owned one too when no read of it keeps its
     /// value and the body does not suspend ([`OwnCx::suspending`]).
-    /// `InPlace` for a `mut self` receiver of a function that does not
-    /// suspend, when it is a list's or a map's or an instance may make it
-    /// one (`mut Self`): the body copies its final value out, so insertion
-    /// leaves it undropped and outside the exit set.
     fn received(&self, item: hd_base::DefId, k: usize, n: usize) -> Pass;
     /// Whether the body of `item` suspends, so that its frame holds a
     /// count of every parameter. The default answers yes, which leaves
@@ -142,11 +131,6 @@ pub trait OwnCx {
     /// shares them; a reference refers. `None` when it holds none.
     /// Insertion's header copies read it ([`HeaderCopy`]).
     fn header_copy(&self, ty: Ty) -> Option<HeaderCopy>;
-    /// Whether `ty` is the `mut` view of a value that is no struct: the
-    /// declared type of a `mut self` receiver of a list or a map, which
-    /// changes its caller's collection in place ([`Pass::InPlace`]), so the
-    /// body takes no copy of it on entry.
-    fn in_place_view(&self, ty: Ty) -> bool;
     /// Whether argument `k` of `n` of a call of `callee` is the callee's
     /// `self` receiver, which a list or map receiver passes as is.
     fn receiver(&self, callee: &Callee, k: usize, n: usize) -> bool;
@@ -407,13 +391,8 @@ pub(crate) fn owner_takes_tail(b: &Body, owner: u32, blk: u32) -> bool {
 }
 
 /// The collection operands instruction `i` changes in place, as (`extra`
-/// position, value): a push's list, a map store's or removal's map, and
-/// each in-place argument of a call ([`Pass::InPlace`]).
-pub(crate) fn changed<'b>(
-    b: &'b Body,
-    cx: &'b dyn OwnCx,
-    i: usize,
-) -> impl Iterator<Item = (u32, u32)> + 'b {
+/// position, value): a push's list, a map store's or removal's map.
+pub(crate) fn changed(b: &Body, i: usize) -> impl Iterator<Item = (u32, u32)> + '_ {
     use IntrinsicOp::{ListPush, MapRemove, MapSet};
     let [a, w] = b.data[i];
     let direct = b.tags[i] == Tag::Intrinsic
@@ -421,20 +400,7 @@ pub(crate) fn changed<'b>(
             IntrinsicOp::from_u32(a),
             Some(ListPush | MapSet | MapRemove)
         );
-    let callee = matches!(b.tags[i], Tag::Call | Tag::Await)
-        .then(|| Callee::from_words(b.record(a)))
-        .flatten();
-    let n = match &callee {
-        Some(_) => b.record(w).len().saturating_sub(3),
-        None => usize::from(direct),
-    };
-    (0..n)
-        .filter(move |&k| {
-            callee
-                .as_ref()
-                .is_none_or(|c| cx.pass(c, k, n) == Pass::InPlace)
-        })
-        .map(move |k| (w + 1 + u32::try_from(k).expect("operands"), b.record(w)[k]))
+    direct.then(|| (w + 1, b.record(w)[0])).into_iter()
 }
 
 /// Whether instruction `i`'s value is one the passes track: an owned
@@ -649,8 +615,7 @@ pub(crate) mod tests {
     const LIST: Ty = Ty(1_000_000);
 
     /// `string` and `LIST` are counted; callee 9 takes its argument as a value
-    /// parameter, callee 8 by reference, callee 5 in place (a `mut self`
-    /// receiver of a collection).
+    /// parameter, callee 8 by reference.
     pub(crate) struct Cx;
 
     impl super::OwnCx for Cx {
@@ -664,7 +629,6 @@ pub(crate) mod tests {
         fn pass(&self, callee: &Callee, _: usize, _: usize) -> Pass {
             match callee {
                 Callee::Item { def, .. } if *def == DefId::from_raw(9) => Pass::Owned,
-                Callee::Item { def, .. } if *def == DefId::from_raw(5) => Pass::InPlace,
                 _ => Pass::Lent,
             }
         }
@@ -682,9 +646,6 @@ pub(crate) mod tests {
         }
         fn header_copy(&self, ty: Ty) -> Option<super::HeaderCopy> {
             (ty == LIST).then_some(super::HeaderCopy { ty, coll: true })
-        }
-        fn in_place_view(&self, _: Ty) -> bool {
-            false
         }
         fn receiver(&self, _: &Callee, _: usize, _: usize) -> bool {
             false
@@ -928,7 +889,7 @@ pub(crate) mod tests {
 
     /// Rules 5 and 6: an `IsUnique` of the collection before each change
     /// of it (a push, an element store, each list on the path outermost
-    /// first, an in-place argument), an `IsUnique` of the list an element
+    /// first), an `IsUnique` of the list an element
     /// read indexes before the read when a change goes through the element,
     /// and an `IsUnique` and a `Pin` of the list before an element
     /// reference. The element reference addresses the buffer, not the
@@ -965,8 +926,6 @@ pub(crate) mod tests {
                         .expect("place"),
                 );
                 b.emit(Tag::Ref, word, 1, us, n);
-                let e = b.element(list, i, us, n);
-                call(b, 5, &[e], Ty::VOID);
                 None
             },
             Ty::VOID,
@@ -976,8 +935,7 @@ pub(crate) mod tests {
             "%0 Call\n%1 Call\n%2 IsUnique [%0]\n%3 Read copy [%0 [%1]]\n%4 IsUnique [%3]\n\
              %5 Intrinsic %3 %1\n%6 IsUnique [%0]\n%7 IsUnique [%0 [%1] .0]\n\
              %8 Store [%0 [%1] .0 [%1]] %1\n%9 IsUnique [$0]\n%10 Pin [$0]\n%11 Ref [$0 [%1]]\n\
-             %12 IsUnique [%0]\n%13 Read copy [%0 [%1]]\n%14 IsUnique [%13]\n%15 Call %13\n\
-             %16 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11 %12 %13 %14 %15]\n"
+             %12 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11]\n"
         );
     }
 

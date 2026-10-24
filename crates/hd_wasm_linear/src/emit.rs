@@ -208,17 +208,9 @@ fn body_func<'a>(
         em.open_ctx = ctx;
     }
     em.open_base = em.providers.len();
-    if sub == 0 && own.cold.is_none() {
-        let tys: Vec<Ty> = plocals.iter().map(|&l| em.sub(b.local_ty[l])).collect();
-        em.copy_out = copies_out(input, item, &tys).then(|| plocals[0]);
-    }
     let results = em.vals(ret)?;
     em.results.clone_from(&results);
     let mut fres = results.clone();
-    // A list or a map is one address.
-    if em.copy_out.is_some() {
-        fres.push(Val::I32);
-    }
     if suspending {
         fres.push(Val::I32);
     }
@@ -434,13 +426,10 @@ fn body_func<'a>(
     }
     if em.counting {
         em.close();
-        let out = em.copy_out_value()?;
         em.release_all()?;
-        for l in em.ret.clone().into_iter().chain(out) {
+        for l in em.ret.clone() {
             em.f.get(l);
         }
-    } else {
-        em.push_copy_out()?;
     }
     if let Some(cell) = &once {
         cell.leave(&mut em, ret)?;
@@ -783,10 +772,8 @@ fn forward(
 ) -> StageResult<Func> {
     let (pool, env) = (input.pool, input.env);
     let mut params = vec![Val::I32];
-    let mut tys = Vec::new();
     for p in env.params(callee).unwrap_or_default() {
-        tys.push(subst(pool, env, callee, cargs, p));
-        params.extend(vals(pool, env, tys[tys.len() - 1])?);
+        params.extend(vals(pool, env, subst(pool, env, callee, cargs, p))?);
     }
     // The context of the value's caller, which holds the value's row.
     let c = u32::try_from(params.len()).expect("params");
@@ -820,16 +807,6 @@ fn forward(
         f.get(c);
     }
     f.call(sym);
-    // A function value has no place for a receiver's final value.
-    if copies_out(input, callee, &tys) {
-        match crate::layout::pass(pool, env, input.runtime.is_some(), tys[0]) {
-            Pass::Owned(walk) => f.helper(Helper::Release {
-                vals: vec![Val::I32],
-                walk,
-            }),
-            _ => f.op(Instruction::Drop),
-        }
-    }
     Ok(f)
 }
 
@@ -861,30 +838,6 @@ pub(crate) fn callee_params(
         .into_iter()
         .map(|p| subst(pool, env, item, args, p))
         .collect()
-}
-
-/// Whether an instance of `item` whose parameters have types `params`
-/// copies out its receiver (`docs/compiler/tir-v2.md`, commit 3b): a
-/// function that does not suspend, whose `mut self` receiver is in place
-/// (`OwnCx::received`) and a list or a map here, returns the receiver's
-/// final value after its results, with a count of its own, and its caller
-/// stores it into the place the argument read.
-pub(crate) fn copies_out(input: &Input<'_>, item: DefId, params: &[Ty]) -> bool {
-    use hd_mono::layout::StdKind;
-    let pool = input.pool;
-    params.first().is_some_and(|&t| {
-        matches!(pool.get(t), TyData::Mut(_))
-            && matches!(pool.get(crate::layout::strip(pool, input.env, t)),
-                TyData::Adt { def, .. } if matches!(input.env.std_kind(def), StdKind::List | StdKind::Map))
-    }) && !input.env.suspends(item)
-        && input.own_cx.received(item, 0, params.len()) == hd_tir::own::Pass::InPlace
-}
-
-/// Whether `t` is a list or a map, under any `mut`.
-pub(crate) fn collection(input: &Input<'_>, t: Ty) -> bool {
-    use hd_mono::layout::StdKind;
-    matches!(input.pool.get(crate::layout::strip(input.pool, input.env, t)),
-        TyData::Adt { def, .. } if matches!(input.env.std_kind(def), StdKind::List | StdKind::Map))
 }
 
 /// The parameter locals of the body's own function, in order: those
@@ -1035,12 +988,6 @@ struct Em<'i, 'a, 'm> {
     /// While a hoisted `IsUnique` runs: a dereference on its place reads
     /// the reference's address, in a module no reference view reaches.
     deref_physical: bool,
-    /// The receiver local whose final value the function returns after its
-    /// results ([`copies_out`]).
-    copy_out: Option<usize>,
-    /// While [`Em::mark`] stores the marker, which no place holds, so no
-    /// store copies it.
-    marking: bool,
     /// The `Read` right after a plain `IsUnique` of its place, and the
     /// local holding the header the check's walk found ([`Em::own_unique`]).
     walked: Option<(u32, u32)>,
@@ -1127,8 +1074,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             own_ops: Vec::new(),
             hoisted: Vec::new(),
             deref_physical: false,
-            copy_out: None,
-            marking: false,
             walked: None,
         };
         em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
@@ -2061,7 +2006,7 @@ impl Em<'_, '_, '_> {
             self.f
                 .global_get(Global::Storage(h, u32::try_from(k).expect("k"), v));
         }
-        self.tested(true, i, false)
+        self.store(i)
     }
 
     /// The storage hash of top-level binding `def`, named for development
@@ -2197,99 +2142,6 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
-    /// After a call of `item` whose parameters are `params`: the receiver's
-    /// final value it copied out ([`copies_out`]), in a fresh local, with
-    /// its type.
-    fn take_copy_out(&mut self, item: DefId, params: Option<&[Ty]>) -> Option<(u32, Ty)> {
-        let ps = params.filter(|ps| copies_out(self.input, item, ps))?;
-        let x = self.f.local(Val::I32);
-        self.f.set(x);
-        Some((x, ps[0]))
-    }
-
-    /// Before a call of `item` that copies out its receiver: when the
-    /// argument's place is one another path may reach (a top-level
-    /// binding, a cell, a dereference), it holds the marker 0 for the call
-    /// (`docs/compiler/tir-v2.md`, commit 3c), which a read on such a path
-    /// tests ([`Em::test_local`]). The marker's store releases the place's
-    /// count, while the call's own count of the argument keeps the value;
-    /// the copied-out value's store over the marker takes a count of its
-    /// own ([`Em::copy_back`]).
-    fn mark(&mut self, i: u32, args: &[u32], item: DefId, ps: Option<&[Ty]>) -> StageResult<()> {
-        let (Some(&r), Some(ps)) = (args.first(), ps) else {
-            return Ok(());
-        };
-        let read = Ref(r).as_inst().is_some() && self.b.tags[r as usize] == Tag::Read;
-        let p = read
-            .then_some(r)
-            .and_then(|r| self.b.decode_place(self.b.data[r as usize][0]));
-        if !copies_out(self.input, item, ps) || !p.is_some_and(|p| self.reached(p.root, &p.proj)) {
-            return Ok(());
-        }
-        self.f.helper(Helper::Marker);
-        // A local no code writes holds 0.
-        let z = self.f.local(Val::I32);
-        self.marking = true;
-        let stored = self.copy_back(i, args, Some((z, self.ty_of(r))));
-        self.marking = false;
-        stored
-    }
-
-    /// Stores `out`, the final value a callee copied out of its receiver
-    /// `args[0]`, into the place of a local or a top-level binding that the
-    /// argument read, as a `Store` of it stores (taking a count of its
-    /// own), then releases its count. Any other argument keeps nothing.
-    fn copy_back(&mut self, i: u32, args: &[u32], out: Option<(u32, Ty)>) -> StageResult<()> {
-        let (Some((x, t)), Some(&r)) = (out, args.first()) else {
-            return Ok(());
-        };
-        let read = Ref(r).as_inst().is_some() && self.b.tags[r as usize] == Tag::Read;
-        let w = self.b.data.get(r as usize).map_or(NONE, |d| d[0]);
-        let rooted = read
-            && self.b.decode_place(w).is_some_and(|p| match p.root {
-                hd_tir::ir::PlaceRoot::Local(l) => self.locals.contains_key(&l.idx()),
-                hd_tir::ir::PlaceRoot::Global(..) => true,
-                _ => false,
-            });
-        if rooted {
-            let held = self.vals.insert(r, vec![x]);
-            // `r` consumes nothing, so the store takes no count over.
-            self.emitting.push(r);
-            let stored = self.store_into(i, w, r);
-            self.emitting.pop();
-            if let Some(h) = held {
-                self.vals.insert(r, h);
-            }
-            stored?;
-        }
-        self.release_locals(&[x], t)
-    }
-
-    /// The final value of the receiver the function copies out
-    /// ([`copies_out`]), in a fresh local, with a count of its own when
-    /// the function counts; nothing for any other function.
-    pub(super) fn copy_out_value(&mut self) -> StageResult<Option<u32>> {
-        let Some(l) = self.copy_out else {
-            return Ok(None);
-        };
-        let x = self.f.local(Val::I32);
-        let v = self.local_value(u32::try_from(l).expect("locals"))?;
-        self.f.get(v[0]);
-        self.f.set(x);
-        if self.counting {
-            self.retain_locals(&[x], self.sub(self.b.local_ty[l]))?;
-        }
-        Ok(Some(x))
-    }
-
-    /// Pushes [`Em::copy_out_value`] at a return.
-    pub(super) fn push_copy_out(&mut self) -> StageResult<()> {
-        if let Some(x) = self.copy_out_value()? {
-            self.f.get(x);
-        }
-        Ok(())
-    }
-
     fn call(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
         let mut args = self.rec(bw);
         args.truncate(args.len().saturating_sub(3));
@@ -2299,9 +2151,7 @@ impl Em<'_, '_, '_> {
                     let params = self.param_tys(ct.key, ct.item, ct.args);
                     self.push_args(&args, params.as_deref())?;
                     let c = self.push_call_providers(ct.item, ct.args)?;
-                    self.mark(i, &args, ct.item, params.as_deref())?;
                     self.f.call(Sym::Inst(ct.key));
-                    let out = self.take_copy_out(ct.item, params.as_deref());
                     // A suspending callee called cold returns its frame.
                     let ret = if self.env().suspends(ct.item) {
                         self.ty(i)
@@ -2309,7 +2159,6 @@ impl Em<'_, '_, '_> {
                         ct.ret
                     };
                     self.call_results(i, ret)?;
-                    self.copy_back(i, &args, out)?;
                     self.release_ctx(c);
                     Ok(())
                 }
@@ -2503,7 +2352,6 @@ impl Em<'_, '_, '_> {
                 let params = self.param_tys(call.key, call.item, call.args);
                 self.push_args(&args, params.as_deref())?;
                 let c = self.push_call_providers(call.item, call.args)?;
-                self.mark(i, &args, call.item, params.as_deref())?;
                 if bracket {
                     self.forbid_by(1);
                 }
@@ -2511,9 +2359,7 @@ impl Em<'_, '_, '_> {
                 if bracket {
                     self.forbid_by(-1);
                 }
-                let out = self.take_copy_out(call.item, params.as_deref());
                 self.call_results(i, call.ret)?;
-                self.copy_back(i, &args, out)?;
                 self.release_ctx(c);
                 Ok(())
             }

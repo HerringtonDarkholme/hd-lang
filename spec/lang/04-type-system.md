@@ -1247,7 +1247,7 @@ fn tagged(names: List[string]) -> List[string]:
 6. r[types.coll.writable.call] A changing method called on a list or a map that is no writable place is an error. Its fix-it makes the binding writable. Error: `not-writable`.
 7. r[types.coll.writable.store] An element store into such a list or map, or a field write through its element, is an error with the same fix-it. Error: `not-writable`.
 8. r[types.coll.element-place] An element of a list in a writable place is a writable place. So `xs[i] = v`, `xs[i].x = v`, and `xs[i].push(v)` change `xs` in place.
-9. r[types.coll.nested] A change through a path, such as `m[k].push(x)`, `team.members.push(x)`, or `xs[i].name = n`, changes the inner value where it is stored. Only a `mut self` method's call stores a changed copy back, when it returns ([`ref.elem.self-call.store`](13-values-and-references.md#r-ref.elem.self-call.store)).
+9. r[types.coll.nested] A change through a path, such as `m[k].push(x)`, `team.members.push(x)`, or `xs[i].name = n`, changes the inner value where it is stored. A `mut self` method called on such a path changes only its own copy ([`fn.method.mut-self-struct`](07-functions.md#r-fn.method.mut-self-struct)), so the inner value stays as it was.
 10. r[types.coll.shared] A list or a map that two places share is written `&mut List[T]` or `&mut Map[K, V]`. A change through the reference changes the place it refers to.
 
 ```text

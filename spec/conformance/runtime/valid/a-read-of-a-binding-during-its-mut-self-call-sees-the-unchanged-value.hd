@@ -1,0 +1,21 @@
+# test: a read of a top-level binding from inside a mut self call on its list sees the binding unchanged, since the method changes only its own copy
+# Spec 07 Method Receivers: fn.method.mut-self-struct, fn.method.receiver.mut-self.
+trait Visit:
+    fn visit(mut self, f: fn() -> usize) -> usize
+
+impl Visit for List[i64]:
+    fn visit(mut self, f: fn() -> usize) -> usize:
+        self.push(1)
+        f() + self.len()
+
+let mut seen: List[i64] = [1]
+
+fn count() -> usize:
+    seen.len()
+
+tests:
+    use std.testing.assert_equal
+
+    it("the callback reads the binding the call copied"):
+        assert_equal(seen.visit(count), 3, reason="the callback sees 1 element, the copy 2")
+        assert_equal(seen, [1], reason="the binding is unchanged after the call")

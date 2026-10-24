@@ -52,16 +52,7 @@ impl OwnCx for Env<'_> {
         // The signature's parameters, the receiver first.
         let def = match callee {
             Callee::Item { def, .. } => *def,
-            // A trait's `mut self` is in place when the receiver is a
-            // collection, which the call names and the trait does not.
-            Callee::TraitMethod {
-                method, self_ty, ..
-            } => {
-                if k == 0 && self.in_place(*method, k, n, Some(*self_ty)) {
-                    return Pass::InPlace;
-                }
-                *method
-            }
+            Callee::TraitMethod { method, .. } => *method,
         };
         let key = (
             def,
@@ -135,16 +126,7 @@ impl OwnCx for Env<'_> {
         if sig.suspends || sig.params.len() != n {
             return Pass::Owned;
         }
-        // A `mut self` receiver that is, or that an instance may make, a
-        // collection's: the body copies out its final value.
-        let declared = self.low(sig.params[k].1);
-        let pool = &self.run.pool;
-        if self.in_place(item, k, n, None)
-            || matches!(pool.get(declared), TyData::Mut(t) if matches!(pool.get(t), TyData::Param(_)))
-        {
-            return Pass::InPlace;
-        }
-        self.value_parameter(declared)
+        self.value_parameter(self.low(sig.params[k].1))
     }
 
     fn suspending(&self, item: DefId) -> bool {
@@ -169,14 +151,6 @@ impl OwnCx for Env<'_> {
         let known = &self.run.known;
         let coll = matches!(pool.get(ty), TyData::Adt { def, .. } if def == known.list || def == known.map);
         Some(HeaderCopy { ty, coll })
-    }
-
-    fn in_place_view(&self, ty: Ty) -> bool {
-        let pool = &self.run.pool;
-        if !matches!(pool.get(ty), TyData::Mut(_)) {
-            return false;
-        }
-        !matches!(pool.get(strip_mut(pool, ty)), TyData::Adt { def, .. } if self.is_struct(def))
     }
 
     fn receiver(&self, callee: &Callee, k: usize, n: usize) -> bool {
@@ -233,9 +207,6 @@ impl Env<'_> {
     /// arguments, from its declaration. A body without a signature (a
     /// module's init) is never called.
     fn declared_pass(&self, def: DefId, k: usize, n: usize) -> Pass {
-        if self.in_place(def, k, n, None) {
-            return Pass::InPlace;
-        }
         let Some(sig) = self.sig(def) else {
             return Pass::Lent;
         };
@@ -250,36 +221,6 @@ impl Env<'_> {
         // the callee's generics, which a default body's owner keeps in its
         // body, and the passes read no other body.
         self.value_parameter(self.low(sig.params[k].1))
-    }
-
-    /// Whether parameter `k` of `def` called with `n` arguments changes its
-    /// argument's collection in place ([`Pass::InPlace`]): its declared
-    /// type is the `mut` view of a list or a map, as a `mut self` receiver
-    /// of one is (`xs[i].bump()` changes `xs[i]`). A trait method's
-    /// receiver is declared `mut Self`; `self_ty`, the call's receiver
-    /// type, says whether that is a collection.
-    fn in_place(&self, def: DefId, k: usize, n: usize, self_ty: Option<Ty>) -> bool {
-        let Some(sig) = self.sig(def) else {
-            return false;
-        };
-        if sig.params.len() != n {
-            return false;
-        }
-        let pool = &self.run.pool;
-        let declared = self.low(sig.params[k].1);
-        if !matches!(pool.get(declared), TyData::Mut(_)) {
-            return false;
-        }
-        let strip = |mut t: Ty| {
-            while let TyData::Mut(inner) = pool.get(t) {
-                t = inner;
-            }
-            t
-        };
-        let known = &self.run.known;
-        let coll = |t: Ty| matches!(pool.get(strip(t)), TyData::Adt { def, .. } if def == known.list || def == known.map);
-        let inner = strip(declared);
-        coll(inner) || (matches!(pool.get(inner), TyData::Param(_)) && self_ty.is_some_and(coll))
     }
 
     /// How a parameter of declared type `t` takes its argument: owned when
@@ -414,10 +355,12 @@ impl Env<'_> {
             // Each parameter as the call passes it.
             let n = body.record(body.data[c][1]).len().saturating_sub(3);
             let binds = (0..n)
-                .map(|j| match self.pass(&callee, j, n) {
-                    Pass::InPlace => Bind::Place,
-                    _ if self.receiver(&callee, j, n) => Bind::Receiver,
-                    _ => Bind::Store,
+                .map(|j| {
+                    if self.receiver(&callee, j, n) {
+                        Bind::Receiver
+                    } else {
+                        Bind::Store
+                    }
                 })
                 .collect();
             hd_tir::inline::rechoose(&mut copy, &|t, s, a| self.select_impl(t, s, a));

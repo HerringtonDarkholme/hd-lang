@@ -3099,20 +3099,13 @@ new address must reach the place the list was read from.
   the receiver and checks an element's index (`fn.method.eval-order`).
   That is `List`'s commit 1, about 80 lines; nothing of `copies.rs` is
   needed for it.
-- **A call that stays a call copies out** (owner, 2026-10-23). A
-  non-inlined `mut self` change of a collection takes the collection's
-  value and returns its final value, and the caller stores that into the
-  argument's place with no count change; the passes count the call as a
-  write of that place. A read of that collection through another path
-  while the change is in progress, in practice through a top-level
-  binding, panics `conflicting-access` at run time. The check stays on in
-  dev and in release; there is no unchecked default. Its known cost: every
-  list read through a top-level binding or a dereference tests the
-  place's marker, measured on json and string_build when the check
-  lands. Copy-out reaches only `Pass::InPlace` parameters: a `mut self`
-  trait method whose `Self` is a list or a map, and a `mut List` or `mut
-  Map` parameter. std's `List` methods take `&mut self` and write back
-  through the reference, and std has no in-place parameter today.
+- **A `mut self` method's changes stay in its copy** (owner, 2026-10-23,
+  replacing the copy-out decision of the same day). A `mut self` method on
+  a list or a map gets its own copy of the receiver, exactly as on a
+  struct, and the caller never sees its changes. In-place changes go only
+  through `&mut self`, as std's `List.push` does. Nothing crosses a call
+  by value, so no call copies a value out and no read needs a
+  `conflicting-access` test.
 - **Option B: `push`, `len` and indexing stay lowered** (owner,
   2026-10-23). The same copy-out would hold for std's `push`, and with
   today's inliner `push` would stay a call: its fast path is about 20
@@ -3922,6 +3915,79 @@ by run, 21 interleaved runs each: string_build 218 to 214 ms (CPU 268 to
 267 ms), map_count 181 to 181 ms (189 to 188), json 123 to 123 ms (166
 to 165). The web compiler's gzip grows 1,884 B (1,907,820 to 1,909,704,
 both built here).
+
+3b's copy-out and 3c's marker are removed by the owner's decision of
+2026-10-23 on #667: a `mut self` method on a list or a map gets its own
+copy of the receiver, exactly as on a struct, so nothing a callee does
+to it reaches the caller's place. The commit after 3d reverts both
+commits' code (3b's `emit::copies_out` and its callee and caller halves,
+the `DynSlot`/`DynRead` `out` flag, insertion's kept receiver and the
+`received` answer; 3c's `Em::mark`, the read tests, `rt:marker_test`,
+`Helper::Marker`, `Module::erase_marker_tests` and the panic category)
+and 3b's `store_into` refactor, which nothing later uses. 3d keeps its
+walk and its verifier rule.
+
+The receiver now goes the way a `mut` parameter of a list goes (`mut xs:
+List[T]`, `fn.param.mut.copy`): `OwnCx::pass` and `received` answer from
+the declared type through `value_parameter`, which reads through the
+`mut` view, so the receiver is an owned value argument the move pass
+moves in at the caller's last use and that is copied (a retain)
+otherwise, and the callee's first change finds it changing and copies it
+on entry (insertion's rule 7.5), as
+`own/a-mut-self-receiver-is-the-methods-copy` shows. The driver's
+`in_place`, which made a receiver declared `mut List`, `mut Map` or (by
+the call's receiver type) `mut Self` an in-place argument, was the only
+source of `Pass::InPlace`, so the variant goes, with
+`OwnCx::in_place_view` (the entry-copy exemption), the call arm of
+`own::changed` and of `copies.rs`'s changing locals, rule 7.4's
+exemption, borrow's arm and the inliner's `Bind::Place` with its place
+rerooting. An entry copy takes the local's type, a receiver's `mut` view
+included, so it stores back as read, and the emitter's `value_copy`
+copies a list or a map through that view. Only a `mut self` receiver has
+a `mut` view of a list or a map, since no written type is one; a
+struct's `mut` view, which a `mut` provider has (`std.rt.host_provider`
+for json's `std.structure.Member`), stays shared, as before. A list
+receiver keeps `OwnCx::receiver`'s exemption from rule 7.4, since the
+callee copies it before any change.
+
+This changes later rows. 3b's four rows and 3c's three are gone. 3f's
+write-back is unchanged in scope: an `IsUnique`, a push's growth and a
+map's put still store a new buffer into the place they name, and
+`list_truncate` writes through its reference; no call has an in-place
+parameter, so none needs a buffer back from a callee, and the reason
+given below for landing copy-out before the buffer address no longer
+applies. 3g's row for `OwnCx::header_copy`, `in_place_view` and
+`HeaderCopy` deletes about 8 lines fewer, since `in_place_view` went
+here. 3g's "a parameter changed in place is owned" row now also covers
+`mut self` receivers, which are value parameters like any `mut` one,
+at the same size. 3c's open case of a closure's copy keeping an old
+buffer address, which 3f had to settle, no longer arises; nor do 3b's
+open cases (a kept suspension, a function value, a default method's
+`Bound` calls).
+
+The commit adds 73 Rust code lines and deletes 403 (`emit.rs` +3/−116,
+`hd_driver` `own.rs` +8/−53, `inline.rs` +5/−51, `emit/refs.rs`
++22/−41, `own/copies.rs` +9/−36, `rt.rs` +3/−33, `module.rs` +1/−22,
+`own.rs` +2/−21, `own/insert.rs` +5/−11, `emit/list.rs` +9/−2, the rest
++6/−17); 32 of the 73 restore 3d's parent's lines that 3b and 3c had
+edited. The spec drops "Mut Self Calls On Collections" and its five
+rules `ref.elem.self-call.*`, puts `types.coll.nested` and
+`flow.panic.known-categories` back as before 3c (`types.coll.nested`
+now says a `mut self` method on such a path changes only its own copy),
+and widens `fn.method.mut-self-struct` and the receiver table's
+`fn.method.receiver.mut-self` row to every receiver type, a list or a
+map included. The runtime case
+`a-mut-self-change-of-a-list-reaches-the-callers-place` becomes
+`a-mut-self-change-of-a-list-stays-in-the-methods-copy`, with each of
+its places unchanged after a `mut self` call and changed by a `&mut
+self` one; 3c's two cases become one,
+`a-read-of-a-binding-during-its-mut-self-call-sees-the-unchanged-value`.
+Both fail at 3d and pass on V8 and wasmtime, dev and release. The stage
+fixtures of 3b and 3c go, and `own/a-mut-self-receiver-changes-its-place`
+becomes `own/a-mut-self-receiver-is-the-methods-copy`; no other baseline
+changes. The 13 release `.wasm` files are byte-identical to 3d's. The
+web compiler's gzip shrinks 4,081 B (1,909,705 to 1,905,624, both built
+here).
 
 No commit carries two copy paths: through 3e both kinds copy by
 `ListCopy` (a new header over the same buffer), 3f moves both to the

@@ -1,0 +1,106 @@
+# test: a user trait's mut self method that grows a list or a map changes only its own copy, wherever the caller's place is, while a &mut self method changes the place
+# Spec 07 Method Receivers: fn.method.mut-self-struct, fn.method.receiver.mut-self, fn.method.receiver.ref-mut-self. Spec 04 Collection Values: types.coll.nested.
+trait Grow:
+    fn grow(mut self, n: i64) -> usize
+
+    fn grow_twice(mut self, n: i64) -> usize:
+        self.grow(n)
+        self.grow(n + 1)
+
+trait Keep:
+    fn kept(mut self, n: i64) -> List[i64]
+    fn early(mut self, n: i64) -> usize
+
+trait Add:
+    fn add(&mut self, n: i64) -> usize
+
+impl Grow for List[i64]:
+    fn grow(mut self, n: i64) -> usize:
+        self.push(n)
+        self.len()
+
+impl Keep for List[i64]:
+    fn kept(mut self, n: i64) -> List[i64]:
+        self.push(n)
+        self
+
+    fn early(mut self, n: i64) -> usize:
+        if n > 0:
+            self.push(n)
+            return 1
+        self.len()
+
+impl Add for List[i64]:
+    fn add(&mut self, n: i64) -> usize:
+        self.push(n)
+        self.len()
+
+impl Grow for Map[string, i64]:
+    fn grow(mut self, n: i64) -> usize:
+        self["n$n"] = n
+        self.len()
+
+struct Bag:
+    items: List[i64]
+
+let mut shared: List[i64] = [1]
+
+fn through(r: &mut List[i64]) -> usize:
+    r.grow(7)
+
+fn dynamic(g: &mut dyn Grow) -> usize:
+    g.grow(8)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a local, an element and a field keep their lists"):
+        let mut xs: List[i64] = [1]
+        assert_equal(xs.grow(2), 2, reason="the call sees its own push")
+        let mut rows: List[List[i64]] = [[], [1]]
+        assert_equal(rows[1].grow(3), 2, reason="the element's call")
+        let mut bag = Bag { items: [] }
+        assert_equal(bag.items.grow(4), 1, reason="the field's call")
+        assert_equal(xs, [1], reason="the local is unchanged")
+        assert_equal(rows, [[], [1]], reason="the element is unchanged")
+        assert_equal(bag.items, [], reason="the field is unchanged")
+
+    it("a &mut self method changes the local, the element and the field"):
+        let mut xs: List[i64] = [1]
+        assert_equal(xs.add(2), 2, reason="the call's push")
+        let mut rows: List[List[i64]] = [[], [1]]
+        assert_equal(rows[1].add(3), 2, reason="the element's call")
+        let mut bag = Bag { items: [] }
+        assert_equal(bag.items.add(4), 1, reason="the field's call")
+        assert_equal(xs, [1, 2], reason="the local has the push")
+        assert_equal(rows, [[], [1, 3]], reason="the element has the push")
+        assert_equal(bag.items, [4], reason="the field has the push")
+
+    it("a top-level binding, a reference and a trait value keep their lists"):
+        assert_equal(shared.grow(5), 2, reason="the binding's call")
+        let mut ys: List[i64] = []
+        assert_equal(through(&mut ys), 1, reason="the reference's call")
+        assert_equal(dynamic(&mut ys), 1, reason="the trait value's call")
+        assert_equal(shared, [1], reason="the binding is unchanged")
+        assert_equal(ys, [], reason="the referent is unchanged")
+        assert_equal(shared.add(6), 2, reason="a &mut self call on the binding")
+        assert_equal(shared, [1, 6], reason="the binding has that push")
+
+    it("a default method, a returned receiver and an early return"):
+        let mut xs: List[i64] = []
+        assert_equal(xs.grow_twice(1), 1, reason="each inner call changes a copy of its own")
+        kept := xs.kept(3)
+        assert_equal(xs.early(4), 1, reason="the early return")
+        assert_equal(xs.early(0), 0, reason="the plain return")
+        assert_equal(kept, [3], reason="the returned copy has its push")
+        assert_equal(xs, [], reason="no push reached the local")
+
+    it("a map value and a map keep their contents"):
+        let mut lists: Map[string, List[i64]] = {"a": [1]}
+        assert_equal(lists["a"].grow(2), 2, reason="the map value's call")
+        let mut counts: Map[string, i64] = {}
+        assert_equal(counts.grow(6), 1, reason="the map's call")
+        assert_equal(lists["a"], [1], reason="the map value is unchanged")
+        assert_equal(counts.len(), 0, reason="the map has no entry")
+        assert_equal(lists["a"].add(2), 2, reason="a &mut self call on the map value")
+        assert_equal(lists["a"], [1, 2], reason="the map value has that push")

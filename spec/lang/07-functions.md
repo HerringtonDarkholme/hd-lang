@@ -1046,7 +1046,7 @@ label := user.tagged::[string]("admin")
 
 1. r[fn.method.receiver-forms] A function declared in an `impl` block is a method when its first parameter is a **receiver**, in one of the four forms of the table below.
 2. r[fn.method.no-long-form] A receiver has no long form, so `self: &mut Self` is an error. Error: `syntax-error`.
-3. r[fn.method.mut-self-struct] On a struct, `mut self` is the method's own changeable copy of the receiver, a `mut` [parameter](#parameters) named `self` of the struct type.
+3. r[fn.method.mut-self-struct] `mut self` is the method's own changeable copy of the receiver, a `mut` [parameter](#parameters) named `self`, for every receiver type, a list or a map included. The caller's value is unchanged unless the method returns the copy and the caller keeps it.
 4. r[fn.method.no-ownership-receiver] There is no ownership-taking receiver form.
 5. r[fn.method.associated] Receiverless members are associated functions and are called with qualified `Type::function(...)` or `Trait::function(...)` syntax.
 6. r[fn.method.eval-order] Method-call syntax evaluates the receiver first and then ordinary arguments.
@@ -1056,7 +1056,7 @@ label := user.tagged::[string]("admin")
 | Receiver | Type of `self` | What the method gets |
 | --- | --- | --- |
 | r[fn.method.receiver.self] `self` | `Self` | the method's own copy of the receiver, which never changes |
-| r[fn.method.receiver.mut-self] `mut self` | `Self` on a struct | the method's own changeable copy of the receiver |
+| r[fn.method.receiver.mut-self] `mut self` | `Self` | the method's own changeable copy of the receiver, a list or a map included |
 | r[fn.method.receiver.ref-self] `&self` | `&Self` | a read of the caller's value, with no copy |
 | r[fn.method.receiver.ref-mut-self] `&mut self` | `&mut Self` | the caller's value, changed in place |
 
