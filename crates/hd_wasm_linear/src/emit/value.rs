@@ -8,11 +8,9 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
-use hd_tir::ir::NONE;
 use hd_types::{Ty, TyData};
 
 use super::Em;
-use super::refs::Start;
 use crate::layout::{
     Kind, Leaf, Mem, Part, Walk, enum_mem, fields_walk, kind, payload_mem, struct_mem, variants,
     walk,
@@ -487,27 +485,6 @@ impl Em<'_, '_, '_> {
             Kind::Ref { .. } => return unsupported("a reference's closure form"),
         }
         self.store(i)
-    }
-
-    /// A `Store` into a data field (`[*%o .k]`): a store into field `idx`
-    /// of the data value at `obj`.
-    pub(super) fn field_set(&mut self, obj: Start, idx: u32, v: u32) -> StageResult<()> {
-        if v != NONE && self.diverges(v) {
-            self.f.op(I::Unreachable);
-            return Ok(());
-        }
-        let Kind::Data(tys) = self.kind(self.start_ty(obj)) else {
-            return unsupported("a field write to a value that is not a data value");
-        };
-        let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
-        let Some(p) = parts.get(idx as usize).copied() else {
-            return unsupported("a field index outside the data type");
-        };
-        let at = self.f.local(Val::I32);
-        self.push_start(obj, Some(0))?;
-        self.f.set(at);
-        let leaves = &m.leaves[p.first..p.first + p.count];
-        self.replace(Dst::Mem(at, 0, leaves), tys[idx as usize], v)
     }
 
     /// The field types of struct type `t`, substituted.

@@ -1882,55 +1882,6 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// A `Store` into a whole local: TIR local `l` takes
-    /// value `v` (`NONE` for an empty initialization). A cell takes it in
-    /// memory; any other local takes a count of the new value and drops
-    /// the old one's, except a binding that borrows ([`Em::loan_locals`]).
-    fn local_set(&mut self, i: u32, l: u32, v: u32) -> StageResult<()> {
-        if self.is_cell(l as usize) {
-            if v != NONE && self.diverges(v) {
-                self.f.op(Instruction::Unreachable);
-                return Ok(());
-            }
-            return self.cell_set(i, l as usize, v);
-        }
-        let ls = self.local(l)?;
-        if self.loan_locals.contains_key(&(l as usize)) {
-            self.push(v)?;
-            for x in ls.iter().rev() {
-                self.f.set(*x);
-            }
-            return Ok(());
-        }
-        if v == NONE {
-            return Ok(());
-        }
-        if self.diverges(v) {
-            self.f.op(Instruction::Unreachable);
-            return Ok(());
-        }
-        let t = self.sub(self.b.local_ty[l as usize]);
-        self.replace(value::Dst::Locals(&ls), t, v)
-    }
-
-    /// A `Store` into a whole top-level binding: `def`
-    /// takes value `v`, in its static slot when some reference refers to
-    /// it, else in its Wasm globals.
-    fn global_set(&mut self, def: DefId, v: u32) -> StageResult<()> {
-        if let Some(at) = self.def_slot(def) {
-            return self.slot_set(def, at, v);
-        }
-        let h = self.def_hash(def);
-        if self.diverges(v) {
-            self.f.op(Instruction::Unreachable);
-            return Ok(());
-        }
-        let t = self.ty_of(v);
-        let vals = self.vals(t)?;
-        self.note_stored(h, t, None)?;
-        self.replace(value::Dst::Globals(h, 0, &vals), t, v)
-    }
-
     /// `Read [$l]` `i`: local `l`'s values, from its cell or its Wasm
     /// locals, as the read's mode says ([`Em::own_local_read`]); a thunk's
     /// read is a copy with its own count.

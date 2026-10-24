@@ -1252,7 +1252,7 @@ audit on the commits that touch the emitter).
    element as it counts a dereference: a list header names its buffer,
    so the store changes the buffer, never the value `%l`. Stage 2 folds
    the read into the place (`[*$0 [%2] .x]`), as it folds `LocalGet`
-   into reads. The emitter's element store (`elem_store`) is
+   into reads. The emitter's element store (`place_store`) is
    `list_set` and `list_field_set` made one: the bounds check, the
    uniqueness check, the count of the new value before the old one's
    release, `collection-pinned` only for a length change. `list.rs`
@@ -3690,7 +3690,7 @@ binding's static slot, or at its Wasm globals read into locals
 (`Em::at_root`). A place rooted at a binding takes the walk when it has
 a step other than a field, or when it is read through fields; a store
 into or a reference to a binding's fields keeps the old lowering
-(`global_field_store`, the static slot's address), which already writes
+(`store_start`, the static slot's address), which already writes
 it. `IsUnique` and `Pin` of a binding's place need nothing more, since
 `place_header` walks. No store writes a whole binding through the walk
 yet: under headers an `IsUnique` replaces nothing, so the write-back the

@@ -968,48 +968,6 @@ impl Em<'_, '_, '_> {
         Ok((et, self.slot_at(b, ix, e.size)))
     }
 
-    /// A `Store` into element `ix` of the list value `list`, or into the
-    /// struct field `path` reaches in it (`[%xs [%i] .p .x]`), whose
-    /// buffer the passes' `IsUnique` made the list's own; or into a map
-    /// value's, `[%m [%e] .p .x]` at entry `%e`. After the bounds check,
-    /// the place's old value is released after the new one is counted,
-    /// and no other field is read or written (#655). A pin does not stop
-    /// it: the length stays.
-    pub(super) fn elem_store(
-        &mut self,
-        list: u32,
-        ix: u32,
-        path: &[u32],
-        v: u32,
-    ) -> StageResult<()> {
-        let t = self.ty_of(list);
-        let b = self.buffer(list)?;
-        // The element's address, `off` bytes before it, and its leaves: a
-        // list's slot after the bounds check, or a map's value at its
-        // entry (`types.coll.map-value.place`).
-        let (et, all, at, off) = if self.is_map(t) {
-            let (vt, at) = self.map_value_at(b, t, ix)?;
-            (vt, mem_of(self.pool(), self.env(), vt)?.leaves, at, 0)
-        } else {
-            let (et, e) = self.elem(t)?;
-            let ix = self.index(b, ix)?;
-            (et, e.leaves, self.slot_at(b, ix, e.size), LIST_ELEMS)
-        };
-        // The place's values among the element's, and its type.
-        let (mut first, mut count, mut ft) = (0, all.len(), et);
-        for &k in path {
-            let (_, parts) = crate::layout::struct_mem(self.pool(), self.env(), ft)?;
-            let Some(part) = parts.get(k as usize) else {
-                return unsupported("a field store past the struct's fields");
-            };
-            first += part.first;
-            count = part.count;
-            ft = self.struct_fields(ft)[k as usize];
-        }
-        let leaves = &all[first..first + count];
-        self.replace(Dst::Mem(at, off, leaves), ft, v)
-    }
-
     /// `ListPush`: a pinned list panics (`ref.elem.pinned`); otherwise the
     /// value is stored at the length, after the buffer, which the passes'
     /// `IsUnique` made the list's own, has room for it.
