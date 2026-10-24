@@ -1,0 +1,6 @@
+run: hd line.hd
+stdout: sibling progressed
+stdout: input=EOF
+run: hd all.hd
+stdout: sibling progressed
+stdout: input=

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import {
+  closeSync,
+  openSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -1349,4 +1351,78 @@ test("Net UDP abort while DNS is held sends no late datagram", async (t) => {
   const [bytes] = await received;
   assert.equal(bytes.toString(), "next");
   assert.equal(arrivals, 1);
+});
+
+// #813: the worker reserves original bytes until guest finish.
+function inputWorker(t, content) {
+  const root = mkdtempSync(join(tmpdir(), "hd-input-"));
+  writeFileSync(join(root, "input"), content);
+  const fd = openSync(join(root, "input"), "r");
+  const call = netWorker(t, { url: new URL("./input.mjs", import.meta.url) });
+  t.after(() => {
+    closeSync(fd);
+    rmSync(root, { recursive: true, force: true });
+  });
+  const start = (kind = "line") => call({ op: "wait_start", kind, fd }).ok;
+  const ready = async (operation) => {
+    let result;
+    await t.waitFor(
+      () => {
+        result = call({ op: "wait_poll", operation });
+        assert.notEqual(result.pending, true);
+      },
+      { timeout: 5000 },
+    );
+    return result;
+  };
+  const read = async (kind = "line") => {
+    const operation = start(kind),
+      result = await ready(operation);
+    call({ op: "wait_finish", operation });
+    return result;
+  };
+  return { call, start, ready, read };
+}
+
+test("Console input preserves UTF-8, CRLF and the final unterminated line", async (t) => {
+  const input = inputWorker(
+    t,
+    Buffer.concat([Buffer.from("A\r\né\nbad"), Buffer.from([255]), Buffer.from("\r\nlast\r")]),
+  );
+  assert.deepEqual(await input.read(), { ok: "A" });
+  assert.deepEqual(await input.read("all"), { ok: "é\nbad�\nlast\r" });
+  assert.deepEqual(await input.read(), { ok: null });
+  assert.deepEqual(await input.read("all"), { ok: "" });
+});
+
+for (const reverse of [false, true]) {
+  test(`Console input restores concurrent reservations (${reverse ? "reverse" : "forward"} abort order)`, async (t) => {
+    const input = inputWorker(t, "first\r\nsecond\nthird\n");
+    const first = input.start(),
+      second = input.start();
+    assert.deepEqual(await input.ready(first), { ok: "first" });
+    assert.deepEqual(await input.ready(second), { ok: "second" });
+    for (const operation of reverse ? [second, first] : [first, second])
+      input.call({ op: "wait_abort", operation });
+    assert.deepEqual(await input.read(), { ok: "first" });
+    assert.deepEqual(await input.read("all"), { ok: "second\nthird\n" });
+  });
+}
+
+test("Console read_all abort restores bytes after readiness", async (t) => {
+  const input = inputWorker(t, "one\r\ntwo");
+  const operation = input.start("all");
+  assert.deepEqual(await input.ready(operation), { ok: "one\ntwo" });
+  input.call({ op: "wait_abort", operation });
+  input.call({ op: "wait_abort", operation });
+  assert.deepEqual(await input.read(), { ok: "one" });
+  assert.deepEqual(await input.read(), { ok: "two" });
+  assert.deepEqual(await input.read(), { ok: null });
+});
+
+test("Console unreadable input reports Closed", async (t) => {
+  const call = netWorker(t, { url: new URL("./input.mjs", import.meta.url) });
+  const operation = call({ op: "wait_start", kind: "line", fd: -1 }).ok;
+  assert.deepEqual(call({ op: "wait_poll", operation }), { closed: true });
+  call({ op: "wait_finish", operation });
 });

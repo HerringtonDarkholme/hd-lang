@@ -1,0 +1,12 @@
+use std.console.{ConsoleInput, read_line}
+use std.task.all
+
+fn input!() -> string $ ConsoleInput:
+    read_line!().expect("stdin is readable").unwrap_or("EOF")
+
+fn sibling!() -> void $ Console:
+    println("sibling progressed")
+
+pub fn main!() -> void $ Console + ConsoleInput:
+    pair := all!(input(), sibling())
+    println("input=${pair._0}")
