@@ -542,19 +542,11 @@ impl Em<'_, '_, '_> {
             *x = b;
             return Ok(());
         }
-        if self.borrowed(r) {
+        if self.b.is_borrow(r) {
             return self.put_buffer(self.b.data[r as usize][0], b);
         }
         let ls = self.local_value_of(r)?;
         self.put_at(&At::Vals(ls), b)
-    }
-
-    /// Whether value `r` is a `borrow` read of a place.
-    pub(super) fn borrowed(&self, r: u32) -> bool {
-        let i = r as usize;
-        hd_tir::ir::Ref(r).as_inst().is_some()
-            && self.b.tags[i] == Tag::Read
-            && self.b.data[i][1] == hd_tir::ir::ReadMode::Borrow as u32
     }
 
     /// Stores the buffer in local `b` into place `word`, raw: the change

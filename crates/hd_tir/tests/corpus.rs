@@ -57,9 +57,6 @@ impl hd_tir::own::OwnCx for NoCounts {
     fn holds_coll(&self, _: Ty) -> bool {
         false
     }
-    fn receiver(&self, _: &Callee, _: usize, _: usize) -> bool {
-        false
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

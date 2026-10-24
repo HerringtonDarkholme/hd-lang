@@ -95,10 +95,10 @@
 use hd_types::Ty;
 
 use super::splice::for_blocks;
-use super::{Loc, OwnCx, Pass, Role, Tri, consumes, operands, splice};
+use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, operands, splice};
 use crate::ir::{
     Body, BodyKind, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, is_suspension, local_flags,
-    place,
+    place, u32_of,
 };
 
 /// A projection step's code in a path: a field (its index), a variant
@@ -224,15 +224,6 @@ pub(crate) struct Tables {
     cpath: Vec<u32>,
     wpaths: Vec<u32>,
     ops: Vec<super::Operand>,
-}
-
-fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
-    v.clear();
-    v.resize(n, x);
-}
-
-fn u32_of(i: usize) -> u32 {
-    u32::try_from(i).expect("insts")
 }
 
 /// What a place starts at.
@@ -993,11 +984,7 @@ fn lent_refs(b: &mut Body, t: &Tables) {
             (from + 1..to).all(|x| b.extra[x as usize] & place::PROJ_KIND == place::PROJ_FIELD);
         let param = match root {
             Root::Local(l) => Some(l),
-            Root::Value(v)
-                if b.tags[v as usize] == Tag::Read
-                    && b.data[v as usize][1] == ReadMode::Borrow as u32
-                    && b.data[v as usize][0] & place::BARE_LOCAL != 0 =>
-            {
+            Root::Value(v) if b.is_borrow(v) && b.data[v as usize][0] & place::BARE_LOCAL != 0 => {
                 Some(b.data[v as usize][0] & !place::BARE_LOCAL)
             }
             _ => None,

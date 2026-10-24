@@ -13,6 +13,7 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
+use hd_mono::layout::StdKind;
 use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Step, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
@@ -21,7 +22,7 @@ use super::Em;
 use super::refs::{Head, Start};
 use super::shape::Through;
 use super::value::Src;
-use crate::layout::{coll_leaves, mem as mem_of, strip};
+use crate::layout::{coll_kind, coll_leaves, mem as mem_of, strip};
 use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_EXPOSED, LIST_LEN, LIST_OWN, empty_buffer};
 use crate::unsupported;
@@ -50,21 +51,12 @@ pub(super) struct ListCache {
 impl Em<'_, '_, '_> {
     /// `Some` when `t` is a `List`.
     fn list_root_ty(&self, t: Ty) -> Option<()> {
-        let TyData::Adt { def, .. } = self.pool().get(strip(self.pool(), self.env(), t)) else {
-            return None;
-        };
-        (self.env().std_kind(def) == hd_mono::layout::StdKind::List).then_some(())
+        (coll_kind(self.pool(), self.env(), t) == Some(StdKind::List)).then_some(())
     }
 
     fn list_root(&self, r: u32) -> Option<ListRoot> {
         let i = Ref(r).as_inst()?.0 as usize;
-        let TyData::Adt { def, .. } =
-            self.pool()
-                .get(strip(self.pool(), self.env(), self.ty_of(r)))
-        else {
-            return None;
-        };
-        if self.env().std_kind(def) != hd_mono::layout::StdKind::List {
+        if coll_kind(self.pool(), self.env(), self.ty_of(r)) != Some(StdKind::List) {
             return None;
         }
         let [a, _] = self.b.data[i];
@@ -1153,7 +1145,7 @@ impl Em<'_, '_, '_> {
     /// it up as any operand does; one only borrowed from its local leaves
     /// the static empty buffer there.
     pub(super) fn snap_end(&mut self, snap: u32) -> StageResult<()> {
-        if !self.borrowed(snap) {
+        if !self.b.is_borrow(snap) {
             return Ok(());
         }
         let b = self.buffer(snap)?;

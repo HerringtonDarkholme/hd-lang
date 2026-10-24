@@ -26,13 +26,12 @@
 //! with counts, its reads copy, and its exit releases every place it holds.
 
 use hd_base::StageResult;
-use hd_mono::layout::StdKind;
 use hd_tir::ir::{NONE, Ref, Tag};
-use hd_types::{Ty, TyData};
+use hd_types::Ty;
 
 use super::Em;
 use super::value::Src;
-use crate::layout::{Walk, coll_leaves, strip, walk};
+use crate::layout::{Walk, coll_kind, coll_leaves, walk};
 use crate::module::Val;
 use crate::rt::Helper;
 
@@ -49,18 +48,12 @@ impl Em<'_, '_, '_> {
     /// ([`Em::loan_locals`]): its stores count
     /// nothing and release nothing.
     pub(super) fn prepare_own_loans(&mut self) {
-        use hd_tir::ir::{ReadMode, place};
+        use hd_tir::ir::place;
         for i in 0..self.b.len() {
             let [a, w] = self.b.data[i];
             let x = u32::try_from(i).expect("insts");
-            let borrow = |r: u32| {
-                Ref(r).as_inst().is_some()
-                    && (r as usize) < self.b.len()
-                    && self.b.tags[r as usize] == Tag::Read
-                    && self.b.data[r as usize][1] == ReadMode::Borrow as u32
-            };
             match self.b.tags[i] {
-                Tag::Read if borrow(x) => {
+                Tag::Read if self.b.is_borrow(x) => {
                     if matches!(self.calls.get(&x), Some(hd_mono::Target::Open(_))) {
                         continue;
                     }
@@ -116,7 +109,7 @@ impl Em<'_, '_, '_> {
                     let flag = self.f.local(crate::module::Val::I32);
                     self.view_loans.insert(x, flag);
                 }
-                Tag::Store if borrow(w) => {
+                Tag::Store if self.b.is_borrow(w) => {
                     let l = if a & place::BARE_LOCAL != 0 {
                         Some(a & !place::BARE_LOCAL)
                     } else {
@@ -184,14 +177,10 @@ impl Em<'_, '_, '_> {
     /// struct's fields at any depth. A struct's `mut` view, a provider's,
     /// shares its fields.
     pub(super) fn copied(&self, t: Ty) -> Vec<u32> {
-        let s = strip(self.pool(), self.env(), t);
-        match self.pool().get(s) {
-            TyData::Adt { def, .. }
-                if matches!(self.env().std_kind(def), StdKind::List | StdKind::Map) =>
-            {
-                vec![0]
-            }
-            _ => coll_leaves(self.pool(), self.env(), t),
+        if coll_kind(self.pool(), self.env(), t).is_some() {
+            vec![0]
+        } else {
+            coll_leaves(self.pool(), self.env(), t)
         }
     }
 

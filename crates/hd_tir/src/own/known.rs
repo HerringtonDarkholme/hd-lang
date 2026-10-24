@@ -64,10 +64,11 @@ use hd_types::Ty;
 
 use super::moves::{Root, in_place, root_of};
 use super::splice::{self, for_blocks};
-use super::{Loc, Operand, OwnCx, Role, Tri, consumes, operands, tracked};
+use super::{Loc, Operand, OwnCx, Role, Tri, consumes, fill, operands, tracked};
 
 use crate::ir::{
     Body, CaptureMode, NONE, ReadMode, Ref, Tag, is_suspension, local_flags, place, ref_word,
+    u32_of,
 };
 
 /// Known-null's dense tables, reused across bodies.
@@ -147,15 +148,6 @@ pub(crate) struct Tables {
     /// Rule 5's visits: an instruction, an addressed local, and whether
     /// the local certainly held its value there.
     cells: Vec<(u32, u32, bool)>,
-}
-
-fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
-    v.clear();
-    v.resize(n, x);
-}
-
-fn u32_of(i: usize) -> u32 {
-    u32::try_from(i).expect("insts")
 }
 
 /// Runs known-null over `b` with the earlier passes' edits in `edits`,
@@ -349,8 +341,7 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &splice::Tables) -> b
     }
     t.nl = k;
     for v in 0..n {
-        let borrow = b.tags[v] == Tag::Read && b.data[v][1] == ReadMode::Borrow as u32;
-        let owned = if borrow {
+        let owned = if b.is_borrow(u32_of(v)) {
             t.dropped[v] && cx.counted(b.ty[v]) != Tri::No
         } else {
             tracked(b, cx, v)
@@ -1146,8 +1137,7 @@ impl Tables {
     }
 
     /// Loop `x` forward: its body from the head until the head stops
-    /// growing; what follows it is what its `Break`s carry (and its else
-    /// block, from the head).
+    /// growing; what follows it is what its `Break`s carry.
     fn repeat(
         &mut self,
         b: &Body,
@@ -1156,7 +1146,7 @@ impl Tables {
         x: u32,
         st: usize,
     ) -> bool {
-        let [body, els] = b.data[x as usize];
+        let body = b.data[x as usize][0];
         let label = self.label_of[x as usize];
         let head = self.alloc(Some(st));
         let brk = self.alloc(None);
@@ -1185,12 +1175,6 @@ impl Tables {
         let mut falls = false;
         if label != NONE && self.brk[label as usize].1 {
             self.join(st, &mut falls, brk);
-        }
-        if els != NONE && b.tags.get(els as usize) == Some(&Tag::Block) {
-            self.copy(end, head);
-            if self.block(b, cx, edits, els, end) {
-                self.join(st, &mut falls, end);
-            }
         }
         if let Some((bs, cs)) = saved {
             self.brk[label as usize] = bs;

@@ -45,7 +45,7 @@ fn operand_blocks(b: &Body, i: u32) -> Vec<u32> {
     };
     let mut out = match b.tags[i as usize] {
         Tag::If | Tag::Match => rec(bw),
-        Tag::Loop => vec![a, bw],
+        Tag::Loop => vec![a],
         Tag::Scope | Tag::Guard => [vec![a], rec(bw)].concat(),
         Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
             rec(bw).into_iter().skip(1).take(2).collect()

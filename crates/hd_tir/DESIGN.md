@@ -849,7 +849,7 @@ backend keeps the buffer's address and length in locals for that loop.
 | `Scope` | a: body `Block`, b: `[defer suite Blocks]`, in instruction order | the body's type. A cleanup scope ([`flow.defer.scopes`](../../spec/lang/06-control-flow.md#r-flow.defer.scopes)) |
 | `Defer` | a: suite number in the enclosing `Scope` | `void`; registers that suite here |
 | `If` | a: condition, b: `[then Block, else Block]` | the join of both |
-| `Loop` | a: body `Block`, b: else `Block` or `NONE` | the join of its `Break` values, or `void` |
+| `Loop` | a: body `Block`, b: always `NONE` | the join of its `Break` values, or `void` |
 | `Break` | a: target label, b: value or `NONE` | `never` |
 | `Continue` | a: target label of a `Loop` | `never` |
 | `Return` | a: value, or `NONE` for a bare `return` in a `void` body | `never` |
@@ -1239,8 +1239,7 @@ body built elsewhere, such as a generated structure method, gets
   source; a value argument whose source may change while the callee runs (an
   aliased local, a dereference, a global, a local a later argument
   changes), copied right after it; a changing parameter on entry; a
-  local a closure captures by value that may share its header. A list
-  or map receiver (`OwnCx::receiver`) is passed as is;
+  local a closure captures by value that may share its header;
   then borrow (`own/borrow.rs`): a `copy` read whose value only lends,
   over a span no write of what it reads, call that may reach it or
   suspension point crosses, becomes a `borrow` and loses its `Drop`s

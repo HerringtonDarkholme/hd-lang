@@ -46,7 +46,7 @@
 
 use hd_types::Ty;
 
-use super::{Body, IntrinsicOp, NONE, Tag, place};
+use super::{Body, IntrinsicOp, NONE, Tag, place, u32_of};
 use crate::own::{Loc, operands};
 
 /// The tables of [`root_places`], reused across bodies.
@@ -66,10 +66,6 @@ pub struct RootTables {
     ops: Vec<crate::own::Operand>,
     words: Vec<u32>,
     edits: crate::own::splice::Tables,
-}
-
-fn u32_of(i: usize) -> u32 {
-    u32::try_from(i).expect("insts")
 }
 
 /// The root words of place word `word`, a local's or a top-level

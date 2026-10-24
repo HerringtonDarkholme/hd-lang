@@ -37,7 +37,7 @@
 
 use hd_types::Ty;
 
-use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, place};
+use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, place, u32_of};
 
 pub use hoist::{EntryTest, entry_test};
 pub(crate) use splice::for_blocks as splice_for_blocks;
@@ -125,9 +125,6 @@ pub trait OwnCx {
     /// count of it copies: a list, a map, a struct holding one in a field
     /// at any depth, or a type the instance decides. Hoisting reads it.
     fn holds_coll(&self, ty: Ty) -> bool;
-    /// Whether argument `k` of `n` of a call of `callee` is the callee's
-    /// `self` receiver, which a list or map receiver passes as is.
-    fn receiver(&self, callee: &Callee, k: usize, n: usize) -> bool;
 }
 
 /// How an instruction uses one of its value operands.
@@ -387,6 +384,13 @@ pub(crate) fn changed(b: &Body, i: usize) -> impl Iterator<Item = (u32, u32)> + 
     direct.then(|| (w + 1, b.record(w)[0])).into_iter()
 }
 
+/// Clears `v` and refills it with `n` copies of `x`, as a pass resets one
+/// of its tables.
+fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
+    v.clear();
+    v.resize(n, x);
+}
+
 /// Whether instruction `i`'s value is one the passes track: an owned
 /// value that may hold a counted leaf. A block's value is its owner's, and
 /// a statement has none; a switch has one outside a decision tree. A
@@ -396,7 +400,7 @@ pub(crate) fn tracked(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
     if t == Ty::VOID || t == Ty::NEVER || t == Ty::POISON {
         return false;
     }
-    if b.tags[i] == Tag::Read && b.data[i][1] == crate::ir::ReadMode::Borrow as u32 {
+    if b.is_borrow(u32_of(i)) {
         return false;
     }
     if matches!(
@@ -518,8 +522,7 @@ pub fn consumers(b: &Body, cx: &dyn OwnCx, out: &mut Vec<u32>) {
             continue;
         };
         // A borrow owns no count to give.
-        let borrow = b.tags[v] == Tag::Read && b.data[v][1] == crate::ir::ReadMode::Borrow as u32;
-        if count[v] != 1 || blk[v] == NONE || borrow || !tracked(b, cx, v) {
+        if count[v] != 1 || blk[v] == NONE || b.is_borrow(u32_of(v)) || !tracked(b, cx, v) {
             continue;
         }
         let (direct, tail_owner) = if op.role == Role::Tail {
@@ -628,9 +631,6 @@ pub(crate) mod tests {
         }
         fn holds_coll(&self, ty: Ty) -> bool {
             ty == LIST
-        }
-        fn receiver(&self, _: &Callee, _: usize, _: usize) -> bool {
-            false
         }
     }
 

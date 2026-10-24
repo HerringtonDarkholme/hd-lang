@@ -2,8 +2,8 @@
 //! `Call` of a small body becomes a copy of that body, run before the
 //! ownership passes so they see the combined body. The copy's locals,
 //! labels, constants, strings and records move past the caller's; its
-//! parameters are bound as the call passes them ([`Bind`]); each `Return` is a
-//! `Break` to its root block, which a `Scope` with no suites owns in the
+//! parameters are bound by a `Store` of the call's argument; each `Return` is
+//! a `Break` to its root block, which a `Scope` with no suites owns in the
 //! call's place. The caller substitutes the call's type arguments first
 //! ([`crate::ir::map_body_types`]); choosing what to inline is the
 //! driver's.
@@ -11,7 +11,9 @@
 use hd_base::{DefId, NodeIdx};
 use hd_types::{Ty, TyList};
 
-use crate::ir::{Body, BodyKind, Callee, ChoiceKind, INLINED, NONE, Op, Tag, local_flags, place};
+use crate::ir::{
+    Body, BodyKind, Callee, ChoiceKind, INLINED, NONE, Op, Tag, local_flags, place, u32_of,
+};
 use crate::own::splice::{permute_columns, renumber_through};
 
 /// The callee of call `i` when it may inline: a `Call` with no providers
@@ -99,38 +101,19 @@ pub fn inlinable(c: &Body, limit: usize) -> bool {
         && !(0..n).any(refused)
 }
 
-/// How a copy binds a parameter to its call's argument, by the call's
-/// pass mode.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Bind {
-    /// A `Store` of the argument into the parameter's local, which the
-    /// passes take as the call's argument ([`Body::bound`]): it copies a
-    /// header only where the call would.
-    Store,
-    /// The same for a list or map receiver, which a call passes as is.
-    Receiver,
-}
-
-fn u32_of(n: usize) -> u32 {
-    u32::try_from(n).expect("TIR column")
-}
-
-/// A call to copy ([`inline_calls`]): the caller's `Call` `call`, the
-/// callee's copy `copy` with the call's types, and how each parameter
-/// binds.
+/// A call to copy ([`inline_calls`]): the caller's `Call` `call` and the
+/// callee's copy `copy` with the call's types.
 pub struct Site {
     pub call: usize,
     pub copy: Body,
-    pub binds: Vec<Bind>,
 }
 
 /// A site that passed its checks: its parameters a `Store` binds (local,
-/// argument, and for a bound one whether it is a receiver), the call's
-/// block, and where the copy will start.
+/// argument), the call's block, and where the copy will start.
 struct Ready {
     c: usize,
     k: Body,
-    params: Vec<(u32, usize, Option<bool>)>,
+    params: Vec<(u32, usize)>,
     outer: usize,
     base: u32,
 }
@@ -144,8 +127,8 @@ struct Ready {
 /// it last.
 ///
 /// A site is skipped, the rest still copied, when its callee's parameters
-/// do not match the call's arguments or binds, or the call is in no
-/// block. A caller the renumbering
+/// do not match the call's arguments, or the call is in no block. A caller
+/// the renumbering
 /// refuses (a `CallDyn`, a call's providers of an unknown kind) copies
 /// none and is unchanged.
 ///
@@ -220,14 +203,10 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
     Ok(copied)
 }
 
-/// Checks `site` against the caller, unchanged yet, and sorts its
-/// parameters by how they bind; `None` skips it.
+/// Checks `site` against the caller, unchanged yet, and lists the
+/// parameters it binds; `None` skips it.
 fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
-    let Site {
-        call: c,
-        copy: k,
-        binds,
-    } = site;
+    let Site { call: c, copy: k } = site;
     let r = b.record(b.data[c][1]);
     let args = &r[..r.len().saturating_sub(3)];
     let mut params = Vec::new();
@@ -235,12 +214,7 @@ fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
         if k.local_flags[l] & local_flags::PARAM == 0 {
             continue;
         }
-        let j = params.len();
-        let &bind = binds.get(j)?;
-        // A parameter the callee stores whole binds as any local does.
-        let word = u32_of(l) | place::BARE_LOCAL;
-        let stored = (0..k.len()).any(|i| k.tags[i] == Tag::Store && k.data[i][0] == word);
-        params.push((u32_of(l), j, (!stored).then_some(bind == Bind::Receiver)));
+        params.push((u32_of(l), params.len()));
     }
     let outer = *outer.get(c).filter(|&&o| o != NONE)?;
     (args.len() == params.len() && !k.is_empty()).then_some(Ready {
@@ -321,7 +295,7 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(), String> {
         });
         out.anchors.push(own.map_or(anchor, |o| o.1));
     };
-    for &(p, a, _) in &params {
+    for &(p, a) in &params {
         put(
             Tag::Store,
             [(p + lbase) | place::BARE_LOCAL, args[a]],
@@ -353,11 +327,6 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(), String> {
     // The copy's fallback rows, sorted with the caller's once all are in.
     for &[i, l] in &k.fallback {
         out.fallback.push([i, if l == 0 { 0 } else { l + lbase }]);
-    }
-    for &(p, _, bound) in &params {
-        if let Some(receiver) = bound {
-            out.bound.push((p + lbase, receiver));
-        }
     }
     Ok(())
 }
@@ -409,7 +378,7 @@ mod tests {
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::{Ty, TyList};
 
-    use super::{Bind, Site, inlinable, inline_calls, plain_call, rechoose, u32_of};
+    use super::{Site, inlinable, inline_calls, plain_call, rechoose, u32_of};
     use crate::ir::{
         Body, BodyKind, Callee, ChoiceKind, IntrinsicOp, Op, Place, PlaceRoot, Proj, Providers,
         ReadMode, Ref, Tag, TirBuilder, TirSink, local_flags, map_body_types, verify, verify_owned,
@@ -420,9 +389,8 @@ mod tests {
     const N: NodeIdx = NodeIdx::from_raw(1);
 
     /// Copies one call, as [`inline_calls`] does for each of a body's.
-    fn inline_call(b: &mut Body, call: usize, copy: Body, binds: &[Bind]) -> Result<(), String> {
-        let binds = binds.to_vec();
-        match inline_calls(b, vec![Site { call, copy, binds }])?[..] {
+    fn inline_call(b: &mut Body, call: usize, copy: Body) -> Result<(), String> {
+        match inline_calls(b, vec![Site { call, copy }])?[..] {
             [true] => Ok(()),
             _ => Err("skipped".into()),
         }
@@ -489,7 +457,7 @@ mod tests {
             targs: TyList::EMPTY,
         };
         assert_eq!(plain_call(&b, 1), Some(item));
-        inline_call(&mut b, 1, c, &[Bind::Store]).expect("inlines");
+        inline_call(&mut b, 1, c).expect("inlines");
         // Anchors are the driver's, which the checker's TIR has none of.
         let mut v = b.clone();
         v.anchors.clear();
@@ -565,16 +533,12 @@ mod tests {
 
     /// One rebuild for all of `b`'s calls of callee 3 gives the body a
     /// rebuild per call gives, the latest call first.
-    fn one_splice_equals_one_per_copy(b: Body, copy: &dyn Fn() -> Body, binds: &[Bind]) -> Body {
+    fn one_splice_equals_one_per_copy(b: Body, copy: &dyn Fn() -> Body) -> Body {
         let calls: Vec<usize> = (0..b.len())
             .rev()
             .filter(|&i| plain_call(&b, i) == Some(item(3)))
             .collect();
-        let site = |call| Site {
-            call,
-            copy: copy(),
-            binds: binds.to_vec(),
-        };
+        let site = |call| Site { call, copy: copy() };
         let mut one = b.clone();
         let sites = calls.iter().map(|&c| site(c)).collect();
         assert_eq!(inline_calls(&mut one, sites), Ok(vec![true, true]));
@@ -605,7 +569,7 @@ mod tests {
 
     #[test]
     fn one_splice_for_all_copies_equals_one_per_copy() {
-        let mut b = one_splice_equals_one_per_copy(two_calls(), &callee, &[Bind::Store]);
+        let mut b = one_splice_equals_one_per_copy(two_calls(), &callee);
         run(&mut b, &Cx, &mut OwnScratch::default()).expect("passes");
         assert_eq!(verify_owned(&b, &Cx), []);
         // `x = 7(); 3(x.1, "q"); 3(x.1, "q")`: each copy binds `p` and `q`
@@ -627,7 +591,7 @@ mod tests {
         }
         let root = b.close_block(blk, None, Ty::VOID, N);
         let b = b.finish(root, &[]).expect("caller verifies");
-        let b = one_splice_equals_one_per_copy(b, &|| changer(true), &[Bind::Store, Bind::Store]);
+        let b = one_splice_equals_one_per_copy(b, &|| changer(true));
         let stores = (0..b.len()).filter(|&i| b.tags[i] == Tag::Store);
         let places: Vec<_> = stores
             .filter_map(|i| b.decode_place(b.data[i][0]).map(|p| p.to_string()))
@@ -639,12 +603,11 @@ mod tests {
     }
 
     /// The verifier checks what a copy promises: anchors in its rows, the
-    /// rows in order, a bound local stored once, and places rooted at
-    /// locals the body defines.
+    /// rows in order, and places rooted at locals the body defines.
     #[test]
     fn the_verifier_checks_what_a_copy_promises() {
         let mut b = caller();
-        inline_call(&mut b, 1, callee(), &[Bind::Store]).expect("inlines");
+        inline_call(&mut b, 1, callee()).expect("inlines");
         run(&mut b, &Cx, &mut OwnScratch::default()).expect("passes");
         assert_eq!(verify_owned(&b, &Cx), []);
         let finds =
@@ -656,9 +619,6 @@ mod tests {
         let mut bad = b.clone();
         bad.inlined[0][3] |= crate::ir::INLINED;
         assert!(finds(&bad, "called in a copy"));
-        let mut bad = b.clone();
-        bad.bound.push(bad.bound[0]);
-        assert!(finds(&bad, "bound local"));
         // A copy's read of a local nothing stores.
         assert!(!finds(&b, "nothing stores"));
         let copied = |i: usize| b.anchors[i] & crate::ir::INLINED != 0 && b.tags[i] == Tag::Read;
@@ -729,24 +689,21 @@ mod tests {
         b.finish(root, &[]).expect("caller verifies")
     }
 
-    /// A list bound by a `Store` from a local a later argument changes, or
-    /// bound as a receiver, takes no copy of its own: its count is its
-    /// copy, which the change makes unique.
+    /// A list bound by a `Store` from a local a later argument changes
+    /// takes no copy of its own: its count is its copy, which the change
+    /// makes unique.
     #[test]
     fn a_bound_argument_shares_its_list_with_the_local_a_later_argument_changes() {
-        let copies = |bind| {
-            let mut b = changing_caller();
-            let c = (0..b.len()).find(|&i| plain_call(&b, i) == Some(item(3)));
-            let c = c.expect("the call");
-            inline_call(&mut b, c, changer(false), &[bind, Bind::Store]).expect("inlines");
-            run(&mut b, &Cx, &mut OwnScratch::default()).expect("passes");
-            assert_eq!(verify_owned(&b, &Cx), []);
-            let text = show(&b);
-            let change = text.find("IsUnique").expect("the change");
-            text.find(" Intrinsic %").is_some_and(|c| c < change)
-        };
-        assert!(!copies(Bind::Store));
-        assert!(!copies(Bind::Receiver));
+        let mut b = changing_caller();
+        let c = (0..b.len()).find(|&i| plain_call(&b, i) == Some(item(3)));
+        let c = c.expect("the call");
+        inline_call(&mut b, c, changer(false)).expect("inlines");
+        run(&mut b, &Cx, &mut OwnScratch::default()).expect("passes");
+        assert_eq!(verify_owned(&b, &Cx), []);
+        let text = show(&b);
+        let change = text.find("IsUnique").expect("the change");
+        let copies = text.find(" Intrinsic %").is_some_and(|c| c < change);
+        assert!(!copies);
     }
 
     /// A `Bound` call at a receiver substitution made concrete is chosen

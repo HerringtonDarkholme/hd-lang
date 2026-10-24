@@ -50,8 +50,8 @@
 use hd_types::Ty;
 
 use super::splice::for_blocks;
-use super::{Operand, OwnCx, Role, Tri, operands, splice, tracked};
-use crate::ir::{Body, CaptureMode, NONE, ReadMode, Ref, Tag, is_suspension, place};
+use super::{Operand, OwnCx, Role, Tri, fill, operands, splice, tracked};
+use crate::ir::{Body, CaptureMode, NONE, ReadMode, Ref, Tag, is_suspension, place, u32_of};
 
 /// A decision of [`Tables::decide`].
 const UNSEEN: u8 = 0;
@@ -119,15 +119,6 @@ pub(crate) struct Tables {
     sink_ins: Vec<(u32, u32, u32)>,
     sink_rm: Vec<u32>,
     sink_mv: Vec<u32>,
-}
-
-fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
-    v.clear();
-    v.resize(n, x);
-}
-
-fn u32_of(i: usize) -> u32 {
-    u32::try_from(i).expect("insts")
 }
 
 /// What a place word starts at.
@@ -288,7 +279,7 @@ fn deps(b: &Body, lnum: &[u32], vnum: &[u32], holds: &[u32], v: u32, f: &mut imp
     let mut x = v;
     for _ in 0..16 {
         let i = x as usize;
-        if i >= b.len() || b.tags[i] != Tag::Read || b.data[i][1] != ReadMode::Borrow as u32 {
+        if !b.is_borrow(x) {
             return;
         }
         match root_of(b, b.data[i][0]).0 {
@@ -389,12 +380,7 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
                 }
             }
             // A binding local holds a borrowed value: it owns no count.
-            Tag::Store
-                if Ref(w).as_inst().is_some()
-                    && (w as usize) < n
-                    && b.tags[w as usize] == Tag::Read
-                    && b.data[w as usize][1] == ReadMode::Borrow as u32 =>
-            {
+            Tag::Store if b.is_borrow(w) => {
                 if let (Root::Local(l), from, to) = root_of(b, a)
                     && from == to
                 {
@@ -807,18 +793,14 @@ fn inst(b: &Body, t: &mut Tables, x: u32, live: usize) {
     gen_operands(b, t, x, live);
 }
 
-/// Loop `x` backward: its head, from which the body and the else block
-/// run, to a fixed point; the body's end and a `Continue` go back to the
-/// head, a `Break` to after the loop.
+/// Loop `x` backward: its head, from which the body runs, to a fixed
+/// point; the body's end and a `Continue` go back to the head, a `Break`
+/// to after the loop.
 fn repeat(b: &Body, t: &mut Tables, x: u32, live: usize) {
-    let [body, els] = b.data[x as usize];
+    let body = b.data[x as usize][0];
     let label = t.label_of[x as usize];
     let brk = t.alloc(Some(live));
     let head = t.alloc(None);
-    if els != NONE && b.tags.get(els as usize) == Some(&Tag::Block) {
-        t.copy(head, live);
-        block(b, t, els, head);
-    }
     let cont = t.alloc(Some(head));
     let saved = (label != NONE).then(|| (t.brk[label as usize], t.cont[label as usize]));
     if label != NONE {

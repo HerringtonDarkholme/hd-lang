@@ -11,7 +11,7 @@ use std::cell::RefCell;
 
 use hd_base::{DefId, Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use hd_mono::ProgramEnv;
-use hd_tir::inline::{Bind, Site};
+use hd_tir::inline::Site;
 use hd_tir::ir::{Body, Callee, ChoiceKind};
 use hd_tir::own::{OwnCx, OwnScratch, Pass, Tri};
 use hd_types::solver::{
@@ -36,8 +36,7 @@ const INLINE_LIMIT: usize = 8;
 
 impl OwnCx for Env<'_> {
     fn counted(&self, ty: Ty) -> Tri {
-        let types = self.run.pool.types();
-        if types.has_param(ty) || types.has_assoc(ty) || types.has_opaque(ty) {
+        if self.is_open(ty) {
             return Tri::Maybe;
         }
         if self.layout_facts(ty).0 {
@@ -133,8 +132,7 @@ impl OwnCx for Env<'_> {
     }
 
     fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
-        let types = self.run.pool.types();
-        if types.has_param(ty) || types.has_assoc(ty) || types.has_opaque(ty) {
+        if self.is_open(ty) {
             out.clear();
             return false;
         }
@@ -143,24 +141,19 @@ impl OwnCx for Env<'_> {
 
     fn holds_coll(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
-        let types = pool.types();
-        types.has_param(ty)
-            || types.has_assoc(ty)
-            || types.has_opaque(ty)
+        self.is_open(ty)
             || hd_mono::holds_coll(pool, self, hd_wasm_linear::strip_type(pool, self, ty))
-    }
-
-    fn receiver(&self, callee: &Callee, k: usize, n: usize) -> bool {
-        match callee {
-            Callee::TraitMethod { .. } => k == 0,
-            Callee::Item { def, .. } => self.sig(*def).is_some_and(|sig| {
-                sig.params.len() == n && k < n && self.run.names().text(sig.params[k].0) == "self"
-            }),
-        }
     }
 }
 
 impl Env<'_> {
+    /// Whether `t` names a type parameter, an associated type or an opaque
+    /// type, which an instance decides.
+    fn is_open(&self, t: Ty) -> bool {
+        let types = self.run.pool.types();
+        types.has_param(t) || types.has_assoc(t) || types.has_opaque(t)
+    }
+
     /// [`OwnCx::pass`] of parameter `k` of `def` called with `n`
     /// arguments, from its declaration. A body without a signature (a
     /// module's init) is never called.
@@ -194,12 +187,10 @@ impl Env<'_> {
         while let TyData::Mut(inner) = pool.get(t) {
             t = inner;
         }
-        let types = pool.types();
-        let open = types.has_param(t) || types.has_assoc(t) || types.has_opaque(t);
         match pool.get(t) {
             TyData::Ref { .. } => Pass::Lent,
             TyData::Adt { def, .. } if def == self.run.known.ref_cell => Pass::Lent,
-            _ if open => Pass::Owned,
+            _ if self.is_open(t) => Pass::Owned,
             _ => match self.layout_facts(t) {
                 (true, false) => Pass::Owned,
                 _ => Pass::Lent,
@@ -275,13 +266,10 @@ impl Env<'_> {
         k.hash(hash);
         let (mut sites, mut hashes) = (Vec::new(), Vec::new());
         for c in (0..body.len()).rev() {
-            let Some((callee, (def, targs))) =
+            let Some((def, targs)) =
                 hd_tir::inline::plain_call(body, c).and_then(|callee| match callee {
-                    Callee::Item { def, targs } => Some((callee, (def, targs))),
-                    Callee::TraitMethod { .. } => {
-                        let target = self.impl_target(&callee)?;
-                        Some((callee, target))
-                    }
+                    Callee::Item { def, targs } => Some((def, targs)),
+                    Callee::TraitMethod { .. } => self.impl_target(&callee),
                 })
             else {
                 continue;
@@ -310,23 +298,8 @@ impl Env<'_> {
             {
                 continue;
             }
-            // Each parameter as the call passes it.
-            let n = body.record(body.data[c][1]).len().saturating_sub(3);
-            let binds = (0..n)
-                .map(|j| {
-                    if self.receiver(&callee, j, n) {
-                        Bind::Receiver
-                    } else {
-                        Bind::Store
-                    }
-                })
-                .collect();
             hd_tir::inline::rechoose(&mut copy, &|t, s, a| self.select_impl(t, s, a));
-            sites.push(Site {
-                call: c,
-                copy,
-                binds,
-            });
+            sites.push(Site { call: c, copy });
             hashes.push(callee_hash);
         }
         // All of the body's copies in one rebuild.
@@ -394,7 +367,7 @@ impl Env<'_> {
         let args = &items[..self.trait_arity(trait_).min(items.len())];
         if std::iter::once(&self_ty)
             .chain(args)
-            .any(|&t| types.has_param(t) || types.has_assoc(t) || types.has_opaque(t))
+            .any(|&t| self.is_open(t))
         {
             return None;
         }
@@ -459,10 +432,9 @@ impl Env<'_> {
     /// after the ownership passes. Its places are rooted at their locals
     /// first, as the checker roots its bodies' (`hd_tir::ir::root_places`).
     pub(super) fn owned_generated(&self, mut body: Body) -> StageResult<Body> {
-        let pool = &self.run.pool;
-        let open =
-            |t: Ty| pool.types().has_param(t) || pool.types().has_assoc(t) || pool.has_opaque(t);
-        ROOTS.with(|r| hd_tir::ir::root_places(&mut body, &open, &mut r.borrow_mut()));
+        ROOTS.with(|r| {
+            hd_tir::ir::root_places(&mut body, &|t| self.is_open(t), &mut r.borrow_mut());
+        });
         self.own_passes(body)
     }
 }

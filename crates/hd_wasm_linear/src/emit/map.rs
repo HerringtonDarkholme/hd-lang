@@ -7,7 +7,7 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
-use hd_mono::layout::{inline_map_key, strip_newtype};
+use hd_mono::layout::{StdKind, inline_map_key, strip_newtype};
 use hd_mono::{CallTarget, Target, TargetKind, subst};
 use hd_tir::ir::IntrinsicOp;
 use hd_types::{Ty, TyData};
@@ -15,7 +15,7 @@ use wasm_encoder::BlockType;
 
 use super::value::Src;
 use super::{Ctl, Em};
-use crate::layout::{coll_leaves, payload_mem, strip};
+use crate::layout::{coll_kind, coll_leaves, payload_mem, strip};
 use crate::map::{Entry, KeyOps, LIVE, MAP_PINNED, USED, entry_address, hash_address};
 use crate::module::{Global, HEAP, Import, Sym, Val, mem};
 use crate::rt::{Helper, empty_buffer};
@@ -44,10 +44,7 @@ impl Em<'_, '_, '_> {
 
     /// Whether `t` is a map type.
     pub(super) fn is_map(&self, t: Ty) -> bool {
-        matches!(
-            self.pool().get(strip(self.pool(), self.env(), t)),
-            TyData::Adt { def, .. } if self.env().std_kind(def) == hd_mono::layout::StdKind::Map
-        )
+        coll_kind(self.pool(), self.env(), t) == Some(StdKind::Map)
     }
 
     /// The key and value types of map type `t`, and its entry as the glue

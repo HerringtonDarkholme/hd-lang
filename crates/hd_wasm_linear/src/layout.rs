@@ -205,6 +205,16 @@ pub fn strip(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Ty {
     }
 }
 
+/// The kind of `t`, once stripped, when it is a list or a map.
+pub fn coll_kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<StdKind> {
+    match pool.get(strip(pool, env, t)) {
+        TyData::Adt { def, .. } => {
+            Some(env.std_kind(def)).filter(|k| matches!(k, StdKind::List | StdKind::Map))
+        }
+        _ => None,
+    }
+}
+
 /// A tuple type's members in order: its elements, then its rest list
 /// when it has one, laid out as one more member.
 pub fn tuple_members(pool: &InternPool, t: Ty) -> Vec<Ty> {

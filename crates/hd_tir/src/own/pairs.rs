@@ -48,7 +48,7 @@
 use super::moves::{self, Root, in_place, root_of};
 use super::splice::{self, for_blocks};
 use super::{Loc, Operand, OwnCx, Tri, operands};
-use crate::ir::{Body, NONE, ReadMode, Tag, is_suspension, place};
+use crate::ir::{Body, NONE, ReadMode, Tag, is_suspension, place, u32_of};
 
 /// The nearest later touch seen so far: the straight line it is in, its
 /// order in the walk (a larger number is nearer), and the instruction or
@@ -85,10 +85,6 @@ pub(crate) struct Tables {
     bits: Vec<u32>,
     stamp: u32,
     time: u32,
-}
-
-fn u32_of(i: usize) -> u32 {
-    u32::try_from(i).expect("insts")
 }
 
 /// The first-level part a place's projection words `from..to` name: the

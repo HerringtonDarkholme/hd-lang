@@ -61,9 +61,9 @@
 use hd_types::Ty;
 
 use super::splice::{self, for_blocks};
-use super::{Operand, OwnCx, Role, Tri, operands};
+use super::{Operand, OwnCx, Role, Tri, fill, operands};
 use crate::ir::{
-    Body, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, is_suspension, local_flags, place,
+    Body, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, is_suspension, local_flags, place, u32_of,
     unique_word,
 };
 
@@ -210,15 +210,6 @@ pub(crate) struct Tables {
     steps: Vec<u32>,
     raw: Vec<u32>,
     ops: Vec<Operand>,
-}
-
-fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
-    v.clear();
-    v.resize(n, x);
-}
-
-fn u32_of(i: usize) -> u32 {
-    u32::try_from(i).expect("insts")
 }
 
 /// The steps of the projection words `from..to`, appended to `out` as
@@ -368,9 +359,7 @@ fn pure(b: &Body, cx: &dyn OwnCx, x: u32, budget: &mut usize) -> bool {
         // A borrow's kept drop, which releases what an instance's view
         // made fresh.
         Tag::Drop => match root(b, a) {
-            (Some((false, v)), from, to) if from == to => {
-                b.tags[v as usize] == Tag::Read && b.data[v as usize][1] == ReadMode::Borrow as u32
-            }
+            (Some((false, v)), from, to) if from == to => b.is_borrow(v),
             _ => false,
         },
         Tag::Prim => true,

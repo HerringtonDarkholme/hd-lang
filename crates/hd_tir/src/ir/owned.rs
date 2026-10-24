@@ -60,7 +60,7 @@
 
 use super::{
     Body, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Tag, VerifyError,
-    is_suspension, local_flags, owned_blocks, place, verify_structure,
+    is_suspension, local_flags, owned_blocks, place, u32_of, verify_structure,
 };
 use crate::own::{OwnCx, Role, consumes, operands, tracked};
 
@@ -114,9 +114,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
 
 /// What the inliner's copies promise (`crate::inline`). Each anchor with
 /// the `INLINED` bit falls in a `Body::inlined` row; the rows are sorted
-/// and disjoint, and each call's anchor is the caller's own. A
-/// `Body::bound` row, sorted and once each, names a local that is no
-/// parameter and that one whole `Store`, its binding, writes. A place in a
+/// and disjoint, and each call's anchor is the caller's own. A place in a
 /// copy is rooted at a local the body defines: a parameter or a local some
 /// whole `Store` writes.
 fn copies(b: &Body, errs: &mut Vec<VerifyError>) {
@@ -152,16 +150,6 @@ fn copies(b: &Body, errs: &mut Vec<VerifyError>) {
             .get(l)
             .is_some_and(|f| f & local_flags::PARAM != 0)
     };
-    for (k, &(l, _)) in b.bound.iter().enumerate() {
-        let sorted = k == 0 || b.bound[k - 1].0 < l;
-        if !sorted || param(l as usize) || stores.get(l as usize) != Some(&1) {
-            err(
-                errs,
-                NONE,
-                format!("bound local ${l}: not sorted, a parameter, or not stored once"),
-            );
-        }
-    }
     for (i, &a) in b
         .anchors
         .iter()
@@ -196,10 +184,6 @@ fn err(errs: &mut Vec<VerifyError>, inst: u32, what: String) {
         inst,
         what,
     });
-}
-
-fn u32_of(i: usize) -> u32 {
-    u32::try_from(i).expect("insts")
 }
 
 /// No `Ref` takes its local's count of a cell in a sub-body that holds a
@@ -264,14 +248,10 @@ fn lent_refs(b: &Body, errs: &mut Vec<VerifyError>) {
             };
             let param = match p.root {
                 PlaceRoot::Local(l) => unowned(l.idx()),
-                PlaceRoot::Value(v) => v.as_inst().is_some_and(|v| {
-                    let v = v.0 as usize;
-                    v < b.len()
-                        && b.tags[v] == Tag::Read
-                        && b.data[v][1] == ReadMode::Borrow as u32
-                        && b.data[v][0] & place::BARE_LOCAL != 0
-                        && unowned((b.data[v][0] & !place::BARE_LOCAL) as usize)
-                }),
+                PlaceRoot::Value(v) if b.is_borrow(v.0) => {
+                    let w = b.data[v.0 as usize][0];
+                    w & place::BARE_LOCAL != 0 && unowned((w & !place::BARE_LOCAL) as usize)
+                }
                 _ => false,
             };
             fields && param
@@ -952,11 +932,10 @@ impl<'a> Empties<'a> {
     }
 
     /// A loop: its body from the head state until the head stops growing
-    /// (states only grow, so this ends); its exits are its `Break`s and,
-    /// when it has one, its else block from the final head.
+    /// (states only grow, so this ends); its exits are its `Break`s.
     fn repeat(&mut self, x: u32, s: Set) -> Option<Set> {
         let b = self.cx.b;
-        let [body, els] = b.data[x as usize];
+        let body = b.data[x as usize][0];
         let label = self.label_of[x as usize] as usize;
         let mut head = s;
         if let Some(x) = self.label_scopes.get_mut(label) {
@@ -977,11 +956,7 @@ impl<'a> Empties<'a> {
             }
             head = next;
         }
-        let exits = self.brk.get_mut(label).and_then(Option::take);
-        if els != NONE && self.is_block(els) {
-            return union(exits, self.block(els, head));
-        }
-        exits
+        self.brk.get_mut(label).and_then(Option::take)
     }
 
     /// A match: its decision tree from `s`, each arm from the union of the
@@ -1098,14 +1073,6 @@ impl<'a> Empties<'a> {
     }
 }
 
-/// Whether `v` is a `borrow` read's value.
-fn is_borrow(b: &Body, v: u32) -> bool {
-    Ref(v).as_inst().is_some()
-        && (v as usize) < b.len()
-        && b.tags[v as usize] == Tag::Read
-        && b.data[v as usize][1] == ReadMode::Borrow as u32
-}
-
 /// The locals the body does not own (`docs/compiler/tir-v2.md`,
 /// "Borrow"). A binding local: a `Store` of a `borrow` read goes into all
 /// of it, so it holds borrowed values only: every store into it stores
@@ -1134,7 +1101,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         }
     }
     for i in 0..b.len() {
-        if b.tags[i] != Tag::Store || !is_borrow(b, b.data[i][1]) {
+        if b.tags[i] != Tag::Store || !b.is_borrow(b.data[i][1]) {
             continue;
         }
         match &cx.places[i] {
@@ -1170,7 +1137,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         }
         let what = match b.tags[i] {
             Tag::Store if lent[l.idx()] => "a store into",
-            Tag::Store if !is_borrow(b, b.data[i][1]) => "an owned value stored into",
+            Tag::Store if !b.is_borrow(b.data[i][1]) => "an owned value stored into",
             Tag::Drop => "a `Drop` of",
             Tag::Read if b.data[i][1] == ReadMode::Move as u32 => "a `move` out of",
             Tag::Ref => "a reference to",
@@ -1211,7 +1178,7 @@ fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
     let mut bit = vec![NONE; n];
     let mut at = Vec::new();
     for (i, x) in bit.iter_mut().enumerate() {
-        if is_borrow(b, u32_of(i)) {
+        if b.is_borrow(u32_of(i)) {
             *x = u32_of(at.len());
             at.push(u32_of(i));
         }
@@ -1223,7 +1190,7 @@ fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
     let mut holds = vec![NONE; b.local_ty.len()];
     for i in 0..n {
         if b.tags[i] == Tag::Store
-            && is_borrow(b, b.data[i][1])
+            && b.is_borrow(b.data[i][1])
             && let Some(Place {
                 root: PlaceRoot::Local(l),
                 proj,
@@ -1476,14 +1443,10 @@ impl Live<'_> {
     /// Loop `x` backward, from its head to a fixed point.
     fn repeat(&mut self, x: u32, live: &mut Set) {
         let b = self.cx.b;
-        let [body, els] = b.data[x as usize];
+        let body = b.data[x as usize][0];
         let label = self.label_of[x as usize];
         let after = live.clone();
         let mut head = vec![0; live.len()];
-        if els != NONE && self.is_block(els) {
-            head.clone_from(&after);
-            self.block(els, &mut head);
-        }
         let saved = (label != NONE).then(|| {
             (
                 self.brk[label as usize].replace(after.clone()),
@@ -1843,7 +1806,7 @@ impl<'a> Balance<'a> {
         match b.tags[x as usize] {
             // A local a borrow is stored into holds no count. A store
             // refills what parts were taken.
-            Tag::Store if !is_borrow(b, w) => {
+            Tag::Store if !b.is_borrow(w) => {
                 // Into the local itself: one through it, into what it
                 // refers to, leaves it as it was.
                 if let Some(l) = b.local_in_place(a).map(hd_base::LocalId::idx) {

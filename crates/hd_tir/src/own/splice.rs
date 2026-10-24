@@ -17,7 +17,7 @@ use hd_base::NodeIdx;
 use hd_types::Ty;
 
 use super::Loc;
-use crate::ir::{Body, NONE, Op, Ref, Tag, place};
+use crate::ir::{Body, NONE, Op, Ref, Tag, place, u32_of};
 
 /// One new instruction: it stands in block `blk` before position `pos`
 /// (`pos` = the block's length: at its end).
@@ -177,10 +177,6 @@ impl Pending {
         let b = blk as usize;
         &self.row[self.row_start[b] as usize..self.row_start[b + 1] as usize]
     }
-}
-
-fn u32_of(i: usize) -> u32 {
-    u32::try_from(i).expect("insts")
 }
 
 /// Splices the edits into `b` and renumbers it.
