@@ -2,7 +2,9 @@ name: Test
 
 on:
   push:
-    branches: [main]
+    # Muse's branches run the full check too, so a branch is merged on a
+    # green run instead of a local gate.
+    branches: [main, "muse/**"]
     # Queue and log edits under docs/audit/ change no code, and pushing them often
     # would otherwise cancel every running check (cancel-in-progress below).
     paths-ignore:
@@ -12,12 +14,12 @@ on:
 permissions:
   contents: read
 
-# A newer push to a pull request supersedes its running check. On main the
-# running check always finishes, so frequent pushes can't leave main
-# unchecked; only the queued run is replaced by a newer push.
+# A newer push to a pull request or a muse/ branch supersedes its running
+# check. On main the running check always finishes, so frequent pushes
+# can't leave main unchecked; only the queued run is replaced.
 concurrency:
   group: test-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/muse/') }}
 
 jobs:
   # Every Rust command builds the whole workspace with all features, so CI
