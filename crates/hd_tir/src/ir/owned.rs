@@ -62,6 +62,7 @@ use super::{
     Body, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Root, Tag, Topology,
     VerifyError, is_suspension, local_flags, place, u32_of, verify_structure,
 };
+use crate::own::parts::Slots;
 use crate::own::{OwnCx, Role, consumes, operands, tracked};
 
 /// Verifies a body after the ownership passes: the structural invariants
@@ -1472,14 +1473,11 @@ struct Balance<'a> {
     /// Each local's number among the locals, all of them.
     words: usize,
     lwords: usize,
-    /// The parts of values that `move` reads and `Drop`s take: each
-    /// instruction's slot (a distinct place of one value), or `NONE`; the
-    /// slots of each value, in compressed rows, with a place word of each.
-    /// The walk keeps a bit per slot after the locals' bits, so a value
-    /// taken in parts is owned until its parts cover every counted leaf.
-    slot_of: Vec<u32>,
-    slot_start: Vec<u32>,
-    slot_word: Vec<u32>,
+    /// The parts of values and locals that `move` reads and `Drop`s take,
+    /// keyed by value, then by `n + local`. The walk keeps a bit per slot
+    /// after the locals' bits, so a value taken in parts is owned until
+    /// its parts cover every counted leaf.
+    slots: Slots,
     pwords: usize,
     brk: Vec<Option<Set>>,
     cont: Vec<Option<Set>>,
@@ -1525,8 +1523,18 @@ impl<'a> Balance<'a> {
                 *x = true;
             }
         }
-        let (slot_of, slot_start, slot_word) = part_slots(b);
-        let pwords = slot_word.len().div_ceil(64);
+        let takes = crate::own::parts::takes(b, |_| true).filter_map(|(i, a)| {
+            let p = b.view(a);
+            let key = match p.root {
+                _ if p.whole() => return None,
+                Root::Value(v) => v,
+                Root::Local(l) => u32_of(n) + l,
+                _ => return None,
+            };
+            Some((key, u32_of(i), a))
+        });
+        let mut slots = Slots::default();
+        let pwords = (slots.build(b, n, n + b.local_ty.len(), takes) as usize).div_ceil(64);
         Balance {
             b,
             topo,
@@ -1534,9 +1542,7 @@ impl<'a> Balance<'a> {
             num,
             words: (k as usize).div_ceil(64),
             lwords: b.local_ty.len().div_ceil(64),
-            slot_of,
-            slot_start,
-            slot_word,
+            slots,
             pwords,
             brk: vec![None; b.label_inst.len()],
             cont: vec![None; b.label_inst.len()],
@@ -1699,8 +1705,7 @@ impl<'a> Balance<'a> {
                 // refers to, leaves it as it was.
                 if let Some(l) = b.local_in_place(a).map(hd_base::LocalId::idx) {
                     self.set_full(st, l, true);
-                    let key = b.len() + l;
-                    for s in self.slot_start[key]..self.slot_start[key + 1] {
+                    for s in self.slots.of_key(u32_of(b.len() + l)) {
                         self.put_slot(st, s, false);
                     }
                 }
@@ -1735,7 +1740,7 @@ impl<'a> Balance<'a> {
             self.put(st, 1, k, false);
             self.put(st, 2, k, false);
             // A value computed again has none of its parts taken.
-            for s in self.slot_start[x as usize]..self.slot_start[x as usize + 1] {
+            for s in self.slots.of_key(x) {
                 self.put_slot(st, s, false);
             }
         }
@@ -1764,17 +1769,11 @@ impl<'a> Balance<'a> {
                 format!("%{x} takes a part of %{v} after its consumer or its drop"),
             );
         }
-        let s = self.slot_of[x as usize];
+        let s = self.slots.of[x as usize];
         if s != NONE {
             self.put_slot(st, s, true);
         }
-        let (from, to) = (self.slot_start[v as usize], self.slot_start[v as usize + 1]);
-        let base = 3 * self.words + self.lwords;
-        let taken: Vec<u32> = (from..to)
-            .filter(|&s| st[base + (s / 64) as usize] & (1 << (s % 64)) != 0)
-            .map(|s| self.slot_word[s as usize])
-            .collect();
-        let rest = rest_counted(self.b, self.cx, self.b.ty[v as usize], &taken);
+        let rest = self.rest(v, self.b.ty[v as usize], st);
         self.put(st, 0, k, rest);
         self.put(st, 1, k, true);
         self.put(st, 2, k, true);
@@ -1783,20 +1782,28 @@ impl<'a> Balance<'a> {
     /// Instruction `x` takes a part of local `l`: the local is empty once
     /// the parts taken on the path cover every counted leaf.
     fn local_part(&mut self, x: u32, l: usize, st: &mut Set) {
-        let s = self.slot_of[x as usize];
+        let s = self.slots.of[x as usize];
         if s == NONE {
             return;
         }
         self.put_slot(st, s, true);
-        let key = self.b.len() + l;
-        let base = 3 * self.words + self.lwords;
-        let taken: Vec<u32> = (self.slot_start[key]..self.slot_start[key + 1])
-            .filter(|&s| st[base + (s / 64) as usize] & (1 << (s % 64)) != 0)
-            .map(|s| self.slot_word[s as usize])
-            .collect();
-        if !rest_counted(self.b, self.cx, self.b.local_ty[l], &taken) {
+        if !self.rest(u32_of(self.b.len() + l), self.b.local_ty[l], st) {
             self.set_full(st, l, false);
         }
+    }
+
+    /// Whether the value or local at slot key `key`, of type `ty`, still
+    /// holds a counted leaf beside the parts taken on the path. A taken
+    /// place that does not decode leaves one.
+    fn rest(&mut self, key: u32, ty: hd_types::Ty, st: &Set) -> bool {
+        let (b, base) = (self.b, 3 * self.words + self.lwords);
+        let mut bad = false;
+        let rest = self.slots.rest(b, self.cx, key, ty, |s, word| {
+            let on = st[base + (s / 64) as usize] & (1 << (s % 64)) != 0;
+            bad |= on && b.decode_place(word).is_none();
+            on
+        });
+        rest || bad
     }
 
     /// Block `blk`'s tail, taken by the block's value when its owner uses
@@ -2117,132 +2124,6 @@ impl<'a> Balance<'a> {
         }
         out
     }
-}
-
-/// The part takes of values (a `move` read or a `Drop` of a part): each
-/// instruction's slot, one per distinct place of a value; each value's
-/// slots, in compressed rows by value; and a place word of each slot.
-fn part_slots(b: &Body) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
-    let n = b.len();
-    let mut takes: Vec<(u32, u32)> = Vec::new();
-    for i in 0..n {
-        let [a, w] = b.data[i];
-        let take = match b.tags[i] {
-            Tag::Read => w == ReadMode::Move as u32,
-            Tag::Drop => true,
-            _ => false,
-        };
-        if !take {
-            continue;
-        }
-        let p = b.view(a);
-        match p.root {
-            _ if p.whole() => {}
-            Root::Value(v) => takes.push((v, u32_of(i))),
-            Root::Local(l) => takes.push((u32_of(n) + l, u32_of(i))),
-            _ => {}
-        }
-    }
-    let rec = |x: u32| {
-        let at = b.data[x as usize][0] as usize;
-        let len = b.extra[at] as usize;
-        &b.extra[at + 1..=at + len]
-    };
-    takes.sort_by(|p, q| p.0.cmp(&q.0).then_with(|| rec(p.1).cmp(rec(q.1))));
-    let mut slot_of = vec![NONE; n];
-    let keys = n + b.local_ty.len();
-    let mut slot_start = vec![0u32; keys + 1];
-    let mut slot_word = Vec::new();
-    for (k, &(v, x)) in takes.iter().enumerate() {
-        let fresh = k == 0 || takes[k - 1].0 != v || rec(takes[k - 1].1) != rec(x);
-        if fresh {
-            slot_word.push(b.data[x as usize][0]);
-            slot_start[v as usize + 1] += 1;
-        }
-        slot_of[x as usize] = u32_of(slot_word.len() - 1);
-    }
-    for v in 0..keys {
-        slot_start[v + 1] += slot_start[v];
-    }
-    (slot_of, slot_start, slot_word)
-}
-
-/// Whether value `v`, whose parts at the places `taken` (place words) a
-/// `move` read or a `Drop` took, still holds a counted leaf beside them: a
-/// counted field that no taken place covers, or a step whose type's parts
-/// `cx` does not give.
-fn rest_counted(b: &Body, cx: &dyn OwnCx, ty: hd_types::Ty, taken: &[u32]) -> bool {
-    let paths: Vec<Vec<Proj>> = taken
-        .iter()
-        .filter_map(|&w| b.decode_place(w).map(|p| p.proj))
-        .collect();
-    if paths.len() != taken.len() {
-        return true;
-    }
-    let all: Vec<&[Proj]> = paths.iter().map(Vec::as_slice).collect();
-    uncovered(cx, ty, &all, 0, &mut Vec::new())
-}
-
-/// Whether a value of type `ty` at depth `depth` of the places `paths`
-/// holds a counted leaf that none of them covers.
-fn uncovered(
-    cx: &dyn OwnCx,
-    ty: hd_types::Ty,
-    paths: &[&[Proj]],
-    depth: usize,
-    parts: &mut Vec<hd_types::Ty>,
-) -> bool {
-    if paths.is_empty() {
-        return cx.counted(ty) != crate::own::Tri::No;
-    }
-    if paths.iter().any(|p| p.len() == depth) {
-        return false;
-    }
-    // One variant per group: a value is one variant on a path.
-    let mut variants: Vec<Option<u32>> = Vec::new();
-    for p in paths {
-        let v = match p[depth] {
-            Proj::Variant(vr) => Some(vr),
-            Proj::Field(_) => None,
-            _ => return true,
-        };
-        if !variants.contains(&v) {
-            variants.push(v);
-        }
-    }
-    for variant in variants {
-        let step = depth + usize::from(variant.is_some());
-        let group: Vec<&[Proj]> = paths
-            .iter()
-            .copied()
-            .filter(|p| match (variant, p[depth]) {
-                (Some(vr), Proj::Variant(x)) => vr == x,
-                (None, Proj::Field(_)) => true,
-                _ => false,
-            })
-            .collect();
-        if group.iter().any(|p| p.len() == step) {
-            continue;
-        }
-        if !cx.parts(ty, variant, parts) {
-            return true;
-        }
-        let fields = parts.clone();
-        for (j, &ft) in fields.iter().enumerate() {
-            if cx.counted(ft) == crate::own::Tri::No {
-                continue;
-            }
-            let sub: Vec<&[Proj]> = group
-                .iter()
-                .copied()
-                .filter(|p| p.get(step) == Some(&Proj::Field(u32_of(j))))
-                .collect();
-            if sub.is_empty() || uncovered(cx, ft, &sub, step + 1, parts) {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 /// The locals of sub-body `s` that hold a value on entry: its parameters,

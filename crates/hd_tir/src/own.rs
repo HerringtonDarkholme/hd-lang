@@ -42,11 +42,13 @@ use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, Topology, inside,
 pub use hoist::{EntryTest, entry_test};
 
 mod borrow;
+mod flow;
 pub(crate) mod hoist;
 mod insert;
 mod known;
 mod moves;
 mod pairs;
+pub(crate) mod parts;
 pub(crate) mod splice;
 
 /// Whether a type holds a counted leaf.

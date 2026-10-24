@@ -49,6 +49,7 @@
 
 use hd_types::Ty;
 
+use super::flow::BitArena;
 use super::{Operand, OwnCx, Role, Tri, fill, operands, splice, suite_touches, tracked};
 use crate::ir::{
     Body, CaptureMode, NONE, PlaceView, ReadMode, Ref, Root, Tag, Topology, for_blocks,
@@ -89,10 +90,8 @@ pub(crate) struct Tables {
     cont: Vec<u32>,
     /// The open matches' arm states: the first arm's offset and the count.
     arms: Vec<(u32, u32)>,
-    /// The liveness states, `words` words each, allocated and freed last
-    /// in, first out.
-    arena: Vec<u64>,
-    pub(super) words: usize,
+    /// The liveness states, one bit per candidate.
+    pub(super) arena: BitArena,
     /// Per instruction: [`MOVE`] or [`KEEP`] for a candidate read the walk
     /// reached, from the state after it.
     decide: Vec<u8>,
@@ -126,66 +125,47 @@ impl Tables {
         fill(&mut self.cont, labels, NONE);
         fill(&mut self.decide, n, UNSEEN);
         self.arms.clear();
-        self.arena.clear();
+        self.arena.free(0);
         self.touch.clear();
         self.stack.clear();
     }
 
-    /// A new state of all zeros, or a copy of state `from`.
-    fn alloc(&mut self, from: Option<usize>) -> usize {
-        let at = self.arena.len();
-        match from {
-            Some(f) => self.arena.extend_from_within(f..f + self.words),
-            None => self.arena.resize(at + self.words, 0),
-        }
-        at
-    }
-
-    /// Frees state `at` and every state allocated after it.
-    fn free(&mut self, at: usize) {
-        self.arena.truncate(at);
-    }
-
-    fn copy(&mut self, to: usize, from: usize) {
-        self.arena.copy_within(from..from + self.words, to);
-    }
-
-    fn clear(&mut self, at: usize) {
-        self.arena[at..at + self.words].fill(0);
-    }
-
-    /// `to |= from`; whether `to` grew.
-    fn union(&mut self, to: usize, from: usize) -> bool {
-        let mut grew = false;
-        for k in 0..self.words {
-            let v = self.arena[from + k];
-            let w = &mut self.arena[to + k];
-            grew |= v & !*w != 0;
-            *w |= v;
-        }
-        grew
-    }
-
-    fn set(&mut self, at: usize, bit: u32, on: bool) {
-        let w = &mut self.arena[at + (bit / 64) as usize];
-        if on {
-            *w |= 1 << (bit % 64);
-        } else {
-            *w &= !(1 << (bit % 64));
-        }
-    }
-
-    fn get(&self, at: usize, bit: u32) -> bool {
-        self.arena[at + (bit / 64) as usize] & (1 << (bit % 64)) != 0
-    }
-
-    /// [`deps`] over these tables.
+    /// Calls `f` with the bit of each candidate a use of value `v` keeps
+    /// live besides `v` itself: a `borrow` read lives on its place, so a
+    /// use of it uses the place's root too, and what that root's value
+    /// lives on in turn (a borrowed value, a binding local's read).
     pub(super) fn deps(&self, b: &Body, v: u32, f: &mut impl FnMut(u32)) {
-        deps(b, &self.lnum, &self.vnum, &self.holds, v, f);
+        let (lnum, vnum, holds) = (&self.lnum, &self.vnum, &self.holds);
+        let mut x = v;
+        for _ in 0..16 {
+            let i = x as usize;
+            if !b.is_borrow(x) {
+                return;
+            }
+            match b.view(b.data[i][0]).root {
+                Root::Local(l) => {
+                    let li = l as usize;
+                    if lnum[li] != NONE {
+                        f(lnum[li]);
+                    }
+                    if holds[li] == NONE {
+                        return;
+                    }
+                    x = holds[li];
+                }
+                Root::Value(u) => {
+                    if vnum[u as usize] != NONE {
+                        f(vnum[u as usize]);
+                    }
+                    x = u;
+                }
+                _ => return,
+            }
+        }
     }
 
-    /// [`deps`] of what the place at `word` reads through its root: the
-    /// read a binding local at the root holds.
+    /// [`Self::deps`] of what the place at `word` reads through its root:
+    /// the read a binding local at the root holds.
     fn place_deps(&self, b: &Body, word: u32, f: &mut impl FnMut(u32)) {
         if let Some(l) = b.view(word).local()
             && self.holds[l as usize] != NONE
@@ -221,40 +201,6 @@ impl Tables {
     }
 }
 
-/// Calls `f` with the bit of each candidate a use of value `v` keeps live
-/// besides `v` itself: a `borrow` read lives on its place, so a use of it
-/// uses the place's root too, and what that root's value lives on in turn
-/// (a borrowed value, a binding local's read). `lnum`, `vnum` and `holds`
-/// are [`Tables`]'.
-fn deps(b: &Body, lnum: &[u32], vnum: &[u32], holds: &[u32], v: u32, f: &mut impl FnMut(u32)) {
-    let mut x = v;
-    for _ in 0..16 {
-        let i = x as usize;
-        if !b.is_borrow(x) {
-            return;
-        }
-        match b.view(b.data[i][0]).root {
-            Root::Local(l) => {
-                let li = l as usize;
-                if lnum[li] != NONE {
-                    f(lnum[li]);
-                }
-                if holds[li] == NONE {
-                    return;
-                }
-                x = holds[li];
-            }
-            Root::Value(u) => {
-                if vnum[u as usize] != NONE {
-                    f(vnum[u as usize]);
-                }
-                x = u;
-            }
-            _ => return,
-        }
-    }
-}
-
 /// Runs the move pass over every sub-body of `b`.
 /// The edits go to `edits` beside the borrow pass's, which still stand in
 /// the body: it reads a deleted `Drop` of a borrowed value or of a binding
@@ -277,9 +223,9 @@ pub(crate) fn run(
         if root as usize >= n {
             continue;
         }
-        let live = t.alloc(None);
+        let live = t.arena.alloc(None);
         block(b, topo, t, root, live);
-        t.free(live);
+        t.arena.free(live);
     }
     apply(b, topo, cx, t, edits);
 }
@@ -361,7 +307,7 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
             k += 1;
         }
     }
-    t.words = (k as usize).div_ceil(64);
+    t.arena.words = (k as usize).div_ceil(64);
     k > 0
 }
 
@@ -393,7 +339,7 @@ fn keep_suites(b: &Body, t: &mut Tables, roots: &[u32]) {
 /// The instructions that touch each candidate, by bit, in index order.
 fn touches(b: &Body, t: &mut Tables) {
     let n = b.len();
-    let bits = t.words * 64;
+    let bits = t.arena.words * 64;
     fill(&mut t.start, bits + 1, 0);
     let mut ops = std::mem::take(&mut t.ops);
     for pass in 0..2 {
@@ -472,7 +418,7 @@ fn block(b: &Body, topo: &Topology, t: &mut Tables, blk: u32, live: usize) {
     let label = topo.label_of[blk as usize];
     let saved = (label != NONE).then(|| t.brk[label as usize]);
     if label != NONE {
-        let at = t.alloc(Some(live));
+        let at = t.arena.alloc(Some(live));
         t.brk[label as usize] = u32_of(at);
     }
     // The tail is taken at the block's end.
@@ -491,7 +437,7 @@ fn block(b: &Body, topo: &Topology, t: &mut Tables, blk: u32, live: usize) {
         }
     }
     if let Some(old) = saved {
-        t.free(t.brk[label as usize] as usize);
+        t.arena.free(t.brk[label as usize] as usize);
         t.brk[label as usize] = old;
     }
 }
@@ -501,18 +447,11 @@ fn gen_value(b: &Body, t: &mut Tables, live: usize, v: u32) {
     if let Some(&bit) = t.vnum.get(v as usize)
         && bit != NONE
     {
-        t.set(live, bit, true);
+        t.arena.set(live, bit, true);
     }
-    let Tables {
-        lnum,
-        vnum,
-        holds,
-        arena,
-        ..
-    } = t;
-    deps(b, lnum, vnum, holds, v, &mut |bit| {
-        arena[live + (bit / 64) as usize] |= 1 << (bit % 64);
-    });
+    let mut arena = std::mem::take(&mut t.arena);
+    t.deps(b, v, &mut |bit| arena.set(live, bit, true));
+    t.arena = arena;
 }
 
 /// The value operands of `x`, which it reads before it runs any block.
@@ -533,29 +472,18 @@ fn inst(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
     let [a, w] = b.data[i];
     // Its own value is made here: dead before.
     if t.vnum[i] != NONE {
-        t.set(live, t.vnum[i], false);
+        t.arena.set(live, t.vnum[i], false);
     }
     match b.tags[i] {
         Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Pin => {
             // A read through a binding local reads what its read lives on.
-            let Tables {
-                lnum,
-                vnum,
-                holds,
-                arena,
-                ..
-            } = t;
-            if let Some(l) = b.view(a).local()
-                && holds[l as usize] != NONE
-            {
-                deps(b, lnum, vnum, holds, holds[l as usize], &mut |bit| {
-                    arena[live + (bit / 64) as usize] |= 1 << (bit % 64);
-                });
-            }
+            let mut arena = std::mem::take(&mut t.arena);
+            t.place_deps(b, a, &mut |bit| arena.set(live, bit, true));
+            t.arena = arena;
             if let Some(bit) = t.bit(b, a) {
                 let p = b.view(a);
                 let addr = matches!(p.root, Root::Local(l) if t.addr[l as usize]);
-                let last = if t.get(live, bit) { KEEP } else { MOVE };
+                let last = if t.arena.get(live, bit) { KEEP } else { MOVE };
                 match b.tags[i] {
                     Tag::Read if w == ReadMode::Copy as u32 && !addr && p.in_place(b) => {
                         t.decide[i] = last;
@@ -565,7 +493,7 @@ fn inst(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
                     }
                     _ => {}
                 }
-                t.set(live, bit, true);
+                t.arena.set(live, bit, true);
             }
         }
         Tag::Store => {
@@ -576,7 +504,8 @@ fn inst(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
                 // A store into all of the local replaces it; into a part,
                 // it keeps the rest. A store into a cell writes through
                 // the cell the local holds.
-                t.set(live, t.lnum[l as usize], !p.whole() || t.addr[l as usize]);
+                t.arena
+                    .set(live, t.lnum[l as usize], !p.whole() || t.addr[l as usize]);
             }
         }
         Tag::Closure => {
@@ -584,28 +513,28 @@ fn inst(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
             for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
                 let l = b.cap_local[c].idx();
                 if t.lnum[l] != NONE {
-                    t.set(live, t.lnum[l], true);
+                    t.arena.set(live, t.lnum[l], true);
                 }
             }
         }
         Tag::If => {
             let r = b.record(w);
             let (then, els) = (r.first().copied(), r.get(1).copied());
-            let other = t.alloc(Some(live));
+            let other = t.arena.alloc(Some(live));
             if let Some(then) = then {
                 block(b, topo, t, then, other);
             }
             if let Some(els) = els {
                 block(b, topo, t, els, live);
             }
-            t.union(live, other);
-            t.free(other);
+            t.arena.union(live, other);
+            t.arena.free(other);
         }
         Tag::And | Tag::Or => {
-            let right = t.alloc(Some(live));
+            let right = t.arena.alloc(Some(live));
             block(b, topo, t, w, right);
-            t.union(live, right);
-            t.free(right);
+            t.arena.union(live, right);
+            t.arena.free(right);
         }
         Tag::With => block(b, topo, t, w, live),
         Tag::RefDyn => block(b, topo, t, a, live),
@@ -615,46 +544,47 @@ fn inst(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
         Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
             let r = b.record(w);
             let (cases, default) = r.split_at(r.len().saturating_sub(1));
-            let acc = t.alloc(None);
+            let acc = t.arena.alloc(None);
             for &blk in cases.iter().skip(1).step_by(2).chain(default) {
-                let s = t.alloc(Some(live));
+                let s = t.arena.alloc(Some(live));
                 block(b, topo, t, blk, s);
-                t.union(acc, s);
-                t.free(s);
+                t.arena.union(acc, s);
+                t.arena.free(s);
             }
-            t.copy(live, acc);
-            t.free(acc);
+            t.arena.copy(live, acc);
+            t.arena.free(acc);
         }
         Tag::Guard => {
-            let acc = t.alloc(None);
+            let acc = t.arena.alloc(None);
             for &blk in b.record(w) {
-                let s = t.alloc(Some(live));
+                let s = t.arena.alloc(Some(live));
                 block(b, topo, t, blk, s);
-                t.union(acc, s);
-                t.free(s);
+                t.arena.union(acc, s);
+                t.arena.free(s);
             }
-            t.copy(live, acc);
-            t.free(acc);
+            t.arena.copy(live, acc);
+            t.arena.free(acc);
             block(b, topo, t, a, live);
         }
         Tag::ToArm => {
             match t.arms.last() {
                 Some(&(first, count)) if a < count => {
-                    t.copy(live, first as usize + a as usize * t.words);
+                    t.arena
+                        .copy(live, first as usize + a as usize * t.arena.words);
                 }
-                _ => t.clear(live),
+                _ => t.arena.clear(live),
             }
             return;
         }
         Tag::Break => match t.brk.get(a as usize) {
-            Some(&s) if s != NONE => t.copy(live, s as usize),
-            _ => t.clear(live),
+            Some(&s) if s != NONE => t.arena.copy(live, s as usize),
+            _ => t.arena.clear(live),
         },
         Tag::Continue => match t.cont.get(a as usize) {
-            Some(&s) if s != NONE => t.copy(live, s as usize),
-            _ => t.clear(live),
+            Some(&s) if s != NONE => t.arena.copy(live, s as usize),
+            _ => t.arena.clear(live),
         },
-        Tag::Return | Tag::Unreachable => t.clear(live),
+        Tag::Return | Tag::Unreachable => t.arena.clear(live),
         _ => {}
     }
     gen_operands(b, t, x, live);
@@ -666,21 +596,21 @@ fn inst(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
 fn repeat(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
     let body = b.data[x as usize][0];
     let label = topo.label_of[x as usize];
-    let brk = t.alloc(Some(live));
-    let head = t.alloc(None);
-    let cont = t.alloc(Some(head));
+    let brk = t.arena.alloc(Some(live));
+    let head = t.arena.alloc(None);
+    let cont = t.arena.alloc(Some(head));
     let saved = (label != NONE).then(|| (t.brk[label as usize], t.cont[label as usize]));
     if label != NONE {
         t.brk[label as usize] = u32_of(brk);
         t.cont[label as usize] = u32_of(cont);
     }
-    let rounds = t.words * 64 + 2;
+    let rounds = t.arena.words * 64 + 2;
     for _ in 0..rounds {
-        t.copy(cont, head);
-        let end = t.alloc(Some(head));
+        t.arena.copy(cont, head);
+        let end = t.arena.alloc(Some(head));
         block(b, topo, t, body, end);
-        let grew = t.union(head, end);
-        t.free(end);
+        let grew = t.arena.union(head, end);
+        t.arena.free(end);
         if !grew {
             break;
         }
@@ -689,8 +619,8 @@ fn repeat(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
         t.brk[label as usize] = bs;
         t.cont[label as usize] = cs;
     }
-    t.copy(live, head);
-    t.free(brk);
+    t.arena.copy(live, head);
+    t.arena.free(brk);
 }
 
 /// Match `x` backward: each arm from after the match, then the decision
@@ -702,27 +632,27 @@ fn decide(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
     };
     let label = topo.label_of[x as usize];
     let saved = (label != NONE).then(|| t.brk[label as usize]);
-    let first = t.arena.len();
+    let first = t.arena.top();
     if label != NONE {
-        let at = t.alloc(Some(live));
+        let at = t.arena.alloc(Some(live));
         t.brk[label as usize] = u32_of(at);
     }
-    let arms_at = t.arena.len();
+    let arms_at = t.arena.top();
     for _ in arms {
-        t.alloc(Some(live));
+        t.arena.alloc(Some(live));
     }
     for (k, &arm) in arms.iter().enumerate() {
-        block(b, topo, t, arm, arms_at + k * t.words);
+        block(b, topo, t, arm, arms_at + k * t.arena.words);
     }
     t.arms.push((u32_of(arms_at), u32_of(arms.len())));
-    let tree = t.alloc(None);
+    let tree = t.arena.alloc(None);
     block(b, topo, t, decision, tree);
     t.arms.pop();
-    t.copy(live, tree);
+    t.arena.copy(live, tree);
     if let Some(old) = saved {
         t.brk[label as usize] = old;
     }
-    t.free(first);
+    t.arena.free(first);
 }
 
 /// Turns each read the walk proved last into a `move`, and deletes or
