@@ -17,7 +17,7 @@ use hd_base::NodeIdx;
 use hd_types::Ty;
 
 use super::Loc;
-use crate::ir::{Body, NONE, Op, Ref, Tag, place, u32_of};
+use crate::ir::{Body, NONE, Op, Ref, Tag, Topology, place, u32_of};
 
 /// One new instruction: it stands in block `blk` before position `pos`
 /// (`pos` = the block's length: at its end).
@@ -37,15 +37,14 @@ pub(crate) struct Tables {
     edits: Vec<Edit>,
     /// (instruction, operand position, edit): the operand names the edit.
     rewrites: Vec<(u32, Loc, u32)>,
-    /// (block, statement): statements to delete, which nothing uses (a
-    /// `Drop` the move pass makes unneeded).
-    removed: Vec<(u32, u32)>,
+    /// Statements to delete, which nothing uses (a `Drop` the move pass
+    /// makes unneeded).
+    removed: Vec<u32>,
     /// Per edit: withdrawn by a later pass before the splice (a `Drop`
     /// that pair cancellation deletes), so it is never spliced in.
     cancelled: Vec<bool>,
     dead: Vec<bool>,
     blocks: Vec<u32>,
-    start: Vec<u32>,
     anchor: Vec<(u32, u32)>,
     order: Vec<u32>,
     new_of: Vec<u32>,
@@ -115,9 +114,9 @@ impl Tables {
         self.rewrites.push((inst, at, edit));
     }
 
-    /// Deletes statement `inst` of block `blk`, which no instruction uses.
-    pub(crate) fn remove(&mut self, blk: u32, inst: u32) {
-        self.removed.push((blk, inst));
+    /// Deletes statement `inst`, which no instruction uses.
+    pub(crate) fn remove(&mut self, inst: u32) {
+        self.removed.push(inst);
     }
 }
 
@@ -139,7 +138,7 @@ impl Pending {
     pub(crate) fn build(&mut self, n: usize, edits: &Tables) {
         self.dead.clear();
         self.dead.resize(n, false);
-        for &(_, x) in &edits.removed {
+        for &x in &edits.removed {
             self.dead[x as usize] = true;
         }
         self.row_start.clear();
@@ -179,8 +178,9 @@ impl Pending {
     }
 }
 
-/// Splices the edits into `b` and renumbers it.
-pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
+/// Splices the edits into `b`, whose block structure is `topo`, and
+/// renumbers it.
+pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(), String> {
     if t.edits.is_empty() && t.removed.is_empty() {
         return Ok(());
     }
@@ -188,28 +188,8 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     let k = t.edits.len();
     t.dead.clear();
     t.dead.resize(n, false);
-    for &(_, x) in &t.removed {
+    for &x in &t.removed {
         t.dead[x as usize] = true;
-    }
-    // Each instruction's first instruction: its own index, or the first
-    // of the blocks it runs (which precede it).
-    t.start.clear();
-    t.start.extend((0..n).map(u32_of));
-    for i in 0..n {
-        let mut s = t.start[i];
-        if b.tags[i] == Tag::Block {
-            for &m in b.record(b.data[i][0]) {
-                if (m as usize) < i {
-                    s = s.min(t.start[m as usize]);
-                }
-            }
-        }
-        for_blocks(b, i, |blk| {
-            if (blk as usize) < i {
-                s = s.min(t.start[blk as usize]);
-            }
-        });
-        t.start[i] = s;
     }
     // Each edit's column position: before the first instruction of the
     // statement it precedes, or after a block's last statement.
@@ -220,10 +200,10 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
         }
         let members = b.record(b.data[ed.blk as usize][0]);
         let at = match members.get(ed.pos as usize) {
-            Some(&m) => t.start[m as usize],
+            Some(&m) => topo.first[m as usize],
             None => match members.last() {
                 Some(&m) => m + 1,
-                None => t.start[ed.blk as usize],
+                None => topo.first[ed.blk as usize],
             },
         };
         t.anchor.push((at, u32_of(e)));
@@ -249,7 +229,8 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     t.per_block.sort_unstable();
     t.blocks.clear();
     t.blocks.extend(t.edits.iter().map(|ed| ed.blk));
-    t.blocks.extend(t.removed.iter().map(|&(blk, _)| blk));
+    t.blocks
+        .extend(t.removed.iter().map(|&x| topo.blk[x as usize]));
     t.blocks.sort_unstable();
     t.blocks.dedup();
     let mut x = 0;
@@ -333,38 +314,6 @@ pub(crate) fn permute_columns(b: &mut Body, order: &[u32]) {
 fn permute<T: Copy>(v: &mut Vec<T>, order: &[u32]) {
     let old = std::mem::take(v);
     v.extend(order.iter().map(|&o| old[o as usize]));
-}
-
-/// The blocks instruction `i` runs, without allocating: a block operand,
-/// a block list, a switch's two arms, a `Defer`'s suite.
-pub(crate) fn for_blocks(b: &Body, i: usize, mut f: impl FnMut(u32)) {
-    let [a, w] = b.data[i];
-    let tag = b.tags[i];
-    let mut visit = |x: u32| {
-        if b.tags.get(x as usize) == Some(&Tag::Block) {
-            f(x);
-        }
-    };
-    for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
-        match op {
-            Op::Block => visit(word),
-            Op::Blocks if word != NONE => {
-                for &x in b.record(word) {
-                    visit(x);
-                }
-            }
-            _ => {}
-        }
-    }
-    match tag {
-        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-            for &x in b.record(w).iter().skip(1).take(2) {
-                visit(x);
-            }
-        }
-        Tag::Defer => visit(a),
-        _ => {}
-    }
 }
 
 /// Renumbers every instruction word of `b` through `new_of`, and moves

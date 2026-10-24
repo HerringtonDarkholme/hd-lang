@@ -60,18 +60,12 @@
 
 use hd_types::Ty;
 
-use super::splice::{self, for_blocks};
+use super::splice;
 use super::{Operand, OwnCx, Role, Tri, fill, operands};
 use crate::ir::{
-    Body, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, is_suspension, local_flags, place, u32_of,
-    unique_word,
+    Body, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceView, Proj, ReadMode, Ref, Root, Tag,
+    Topology, VARIANT, is_suspension, local_flags, place, u32_of, unique_word,
 };
-
-/// A projection step's code: a field (its index), an element, a
-/// dereference, a variant (its index with [`VARIANT`]).
-pub(crate) const ELEM: u32 = NONE - 1;
-pub(crate) const DEREF: u32 = NONE - 2;
-const VARIANT: u32 = 1 << 30;
 
 /// The longest chain of reads a place is resolved through.
 const DEPTH: usize = 8;
@@ -95,16 +89,48 @@ pub struct EntryTest {
     pub prefix: usize,
 }
 
-/// The entry test of `Loop` `l`, if it has one.
+/// The entry test of `Loop` `l`, if it has one: its [`loop_test`], with
+/// an arm that goes on.
 #[must_use]
 pub fn entry_test(b: &Body, l: u32) -> Option<EntryTest> {
-    let li = l as usize;
-    if b.tags.get(li) != Some(&Tag::Loop) {
+    let (test, prefix, [then, els]) = loop_test(b, l, false)?;
+    let arms = b.record(b.data[test as usize][1]);
+    let iteration = arms.get(usize::from(then)).copied().unwrap_or(NONE);
+    (then != els && iteration != NONE).then_some(EntryTest {
+        test,
+        iteration,
+        leaves_on_true: then,
+        prefix,
+    })
+}
+
+/// The statements of `Loop` `l`'s body block, without the blocks among
+/// them.
+pub fn loop_statements(b: &Body, l: u32) -> impl Iterator<Item = u32> + '_ {
+    let body = b.data[l as usize][0];
+    b.record(b.data[body as usize][0])
+        .iter()
+        .copied()
+        .filter(|&x| b.tags[x as usize] != Tag::Block)
+}
+
+/// The test of `Loop` `l`: the first `If` among its statements, how many
+/// statements stand before it, and whether each of its arms (then, else)
+/// only breaks out of the loop. A break with a value counts when `valued`.
+#[must_use]
+pub fn loop_test(b: &Body, l: u32, valued: bool) -> Option<(u32, usize, [bool; 2])> {
+    if b.tags.get(l as usize) != Some(&Tag::Loop) {
         return None;
     }
-    let body = b.data[li][0];
-    let is_break = |blk: u32| {
-        if blk == NONE || b.tags.get(blk as usize) != Some(&Tag::Block) {
+    let (prefix, test) = loop_statements(b, l)
+        .enumerate()
+        .find(|&(_, x)| b.tags[x as usize] == Tag::If)?;
+    let arms = b.record(b.data[test as usize][1]);
+    let breaks = |k: usize| {
+        let Some(&blk) = arms.get(k).filter(|&&a| a != NONE) else {
+            return false;
+        };
+        if b.tags.get(blk as usize) != Some(&Tag::Block) {
             return false;
         }
         let mut items = b
@@ -116,39 +142,10 @@ pub fn entry_test(b: &Body, l: u32) -> Option<EntryTest> {
         };
         let [label, value] = b.data[x as usize];
         b.tags[x as usize] == Tag::Break
-            && value == NONE
+            && (valued || value == NONE)
             && b.label_inst.get(label as usize) == Some(&l)
     };
-    let mut prefix = 0;
-    for &x in b.record(b.data[body as usize][0]) {
-        match b.tags[x as usize] {
-            Tag::Block => {}
-            Tag::If => {
-                let arms = b.record(b.data[x as usize][1]);
-                let (then, els) = (
-                    arms.first().copied().unwrap_or(NONE),
-                    arms.get(1).copied().unwrap_or(NONE),
-                );
-                return match (is_break(then), is_break(els)) {
-                    (true, false) if els != NONE => Some(EntryTest {
-                        test: x,
-                        iteration: els,
-                        leaves_on_true: true,
-                        prefix,
-                    }),
-                    (false, true) if then != NONE => Some(EntryTest {
-                        test: x,
-                        iteration: then,
-                        leaves_on_true: false,
-                        prefix,
-                    }),
-                    _ => None,
-                };
-            }
-            _ => prefix += 1,
-        }
-    }
-    None
+    Some((test, prefix, [breaks(0), breaks(1)]))
 }
 
 /// One place a loop may hoist or keep: a local root and its steps (`len`
@@ -176,12 +173,6 @@ struct Cand {
 #[derive(Default)]
 pub(crate) struct Tables {
     pending: splice::Pending,
-    /// Each instruction's block and position, its first instruction (its
-    /// own index, or the first of the blocks it runs), and per label its
-    /// target.
-    blk: Vec<u32>,
-    pos: Vec<u32>,
-    first: Vec<u32>,
     /// The loops, outermost first.
     loops: Vec<(u32, u32)>,
     /// Per local: a `Ref` roots at it; a closure captures it; a parameter;
@@ -212,51 +203,6 @@ pub(crate) struct Tables {
     ops: Vec<Operand>,
 }
 
-/// The steps of the projection words `from..to`, appended to `out` as
-/// codes; whether one goes into memory (an element or a dereference).
-fn push_steps(b: &Body, from: u32, to: u32, out: &mut Vec<u32>) -> bool {
-    let mut memory = false;
-    let mut x = from;
-    while x < to {
-        let w = b.extra[x as usize];
-        out.push(match w & place::PROJ_KIND {
-            place::PROJ_FIELD => w & place::PROJ_INDEX,
-            place::PROJ_VARIANT => VARIANT | (w & place::PROJ_INDEX),
-            place::PROJ_DEREF => {
-                memory = true;
-                DEREF
-            }
-            _ => {
-                memory = true;
-                x += 1;
-                ELEM
-            }
-        });
-        x += 1;
-    }
-    memory
-}
-
-/// The root of the place at `word`: a local (`Some(true, l)`), a value
-/// (`Some(false, v)`), or neither; and the `extra` range of its steps.
-fn root(b: &Body, word: u32) -> (Option<(bool, u32)>, u32, u32) {
-    if word & place::BARE_LOCAL != 0 {
-        return (Some((true, word & !place::BARE_LOCAL)), 0, 0);
-    }
-    let at = word as usize;
-    let Some(&n) = b.extra.get(at) else {
-        return (None, 0, 0);
-    };
-    let end = word + 1 + n;
-    match b.extra.get(at + 1..at + 3) {
-        Some(&[place::ROOT_LOCAL, l]) => (Some((true, l)), word + 3, end),
-        Some(&[place::ROOT_VALUE, v]) if Ref(v).as_inst().is_some() && (v as usize) < b.len() => {
-            (Some((false, v)), word + 3, end)
-        }
-        _ => (None, 0, 0),
-    }
-}
-
 /// Resolves the place at `word` through the reads its value roots come
 /// from (`%h = Read [$xs]` makes `[%h [%i]]` the place `[$xs [%i]]`): its
 /// local root, or `NONE`, with every step into `out`. Also whether the
@@ -265,24 +211,24 @@ fn root(b: &Body, word: u32) -> (Option<(bool, u32)>, u32, u32) {
 pub(crate) fn resolve(b: &Body, word: u32, out: &mut Vec<u32>, raw: &mut Vec<u32>) -> (u32, bool) {
     out.clear();
     raw.clear();
-    let mut ranges = [(0u32, 0u32); DEPTH];
+    let mut views = [b.view(word); DEPTH];
     let mut depth = 0;
     let mut word = word;
     let mut temp = false;
     let local = loop {
-        let (r, from, to) = root(b, word);
+        let p = b.view(word);
         if depth < DEPTH {
-            ranges[depth] = (from, to);
+            views[depth] = p;
         }
         depth += 1;
-        if depth == 1 {
-            raw.clear();
-            let memory = push_steps(b, from, to, raw);
-            temp = matches!(r, Some((false, _))) && !memory;
+        // Hoisting tracks only a local's and a value's steps.
+        if depth == 1 && matches!(p.root, Root::Local(_) | Root::Value(_)) {
+            let memory = p.push_steps(b, raw) != (0, false);
+            temp = p.value().is_some() && !memory;
         }
-        match r {
-            Some((true, l)) => break l,
-            Some((false, v)) if depth < DEPTH && b.tags[v as usize] == Tag::Read => {
+        match p.root {
+            Root::Local(l) => break l,
+            Root::Value(v) if depth < DEPTH && b.tags[v as usize] == Tag::Read => {
                 word = b.data[v as usize][0];
             }
             _ => break NONE,
@@ -291,8 +237,8 @@ pub(crate) fn resolve(b: &Body, word: u32, out: &mut Vec<u32>, raw: &mut Vec<u32
     if depth > DEPTH || local == NONE {
         return (NONE, temp);
     }
-    for &(from, to) in ranges[..depth].iter().rev() {
-        push_steps(b, from, to, out);
+    for p in views[..depth].iter().rev() {
+        p.push_steps(b, out);
     }
     (local, temp)
 }
@@ -358,10 +304,7 @@ fn pure(b: &Body, cx: &dyn OwnCx, x: u32, budget: &mut usize) -> bool {
         }
         // A borrow's kept drop, which releases what an instance's view
         // made fresh.
-        Tag::Drop => match root(b, a) {
-            (Some((false, v)), from, to) if from == to => b.is_borrow(v),
-            _ => false,
-        },
+        Tag::Drop => unique_header(b, a).is_some_and(|v| b.is_borrow(v)),
         Tag::Prim => true,
         Tag::Coerce => scalar,
         Tag::Intrinsic => matches!(
@@ -426,59 +369,34 @@ fn aliases(b: &Body, user: u32, role: Role) -> bool {
 }
 
 /// Runs hoisting over `b`, as the pending edits leave it, adding its own.
-pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
+pub(crate) fn run(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) {
     b.stable_lists.clear();
     let n = b.len();
     if !b.tags.contains(&Tag::Loop) {
         return;
     }
     t.pending.build(n, edits);
-    structure(b, t);
-    facts(b, t);
-    fill(&mut t.gone, n, false);
-    for k in 0..t.loops.len() {
-        let l = t.loops[k].1;
-        hoist_loop(b, cx, t, edits, l);
-    }
-    b.stable_lists.sort_unstable();
-    b.stable_lists.dedup();
-}
-
-/// Each instruction's block, position and first instruction; the loops,
-/// outermost first.
-fn structure(b: &Body, t: &mut Tables) {
-    let n = b.len();
-    fill(&mut t.blk, n, NONE);
-    fill(&mut t.pos, n, 0);
-    fill(&mut t.first, n, 0);
     t.loops.clear();
-    for i in 0..n {
-        let mut f = u32_of(i);
-        if b.tags[i] == Tag::Block {
-            for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
-                if (m as usize) < n {
-                    t.blk[m as usize] = u32_of(i);
-                    t.pos[m as usize] = u32_of(p);
-                    if (m as usize) < i {
-                        f = f.min(t.first[m as usize]);
-                    }
-                }
-            }
-        }
-        let first = &t.first;
-        for_blocks(b, i, |blk| {
-            if (blk as usize) < i {
-                f = f.min(first[blk as usize]);
-            }
-        });
-        t.first[i] = f;
-        if b.tags[i] == Tag::Loop {
-            t.loops.push((f, u32_of(i)));
-        }
+    for i in (0..n).filter(|&i| b.tags[i] == Tag::Loop) {
+        t.loops.push((topo.first[i], u32_of(i)));
     }
     // Outermost first: an outer loop starts no later and ends later.
     t.loops
         .sort_unstable_by_key(|&(f, l)| (f, std::cmp::Reverse(l)));
+    facts(b, t);
+    fill(&mut t.gone, n, false);
+    for k in 0..t.loops.len() {
+        let l = t.loops[k].1;
+        hoist_loop(b, topo, cx, t, edits, l);
+    }
+    b.stable_lists.sort_unstable();
+    b.stable_lists.dedup();
 }
 
 /// The per-local facts and the uses of every value.
@@ -556,9 +474,8 @@ fn facts(b: &Body, t: &mut Tables) {
                 }
             }
             Tag::Store => {
-                if let (Some((true, l)), from, to) = root(b, a)
-                    && from == to
-                {
+                let p = b.view(a);
+                if let Some(l) = p.local().filter(|_| p.whole()) {
                     let fresh = Ref(w).as_inst().is_none_or(|_| {
                         matches!(
                             b.tags.get(w as usize),
@@ -661,25 +578,15 @@ fn header_place(b: &Body, cx: &dyn OwnCx, t: &mut Tables, header: u32) -> Option
 /// `[*$0]`); without, all of the place (an `IsUnique`'s). Into `t.steps`;
 /// its local.
 fn rooted_place(b: &Body, t: &mut Tables, word: u32, elem: bool) -> Option<u32> {
-    let (Some((true, l)), from, to) = root(b, word) else {
-        return None;
-    };
-    let end = if elem {
-        let mut x = from;
-        loop {
-            if x >= to {
-                return None;
-            }
-            match b.extra[x as usize] & place::PROJ_KIND {
-                place::PROJ_ELEM => break x,
-                _ => x += 1,
-            }
-        }
+    let p = b.view(word);
+    let l = p.local()?;
+    let to = if elem {
+        (p.from..p.to).find(|&x| b.extra[x as usize] & place::PROJ_KIND == place::PROJ_ELEM)?
     } else {
-        to
+        p.to
     };
     t.steps.clear();
-    if push_steps(b, from, end, &mut t.steps) && t.steps.contains(&ELEM) {
+    if (PlaceView { to, ..p }).push_steps(b, &mut t.steps).1 {
         return None;
     }
     if !hoistable(&t.steps) {
@@ -696,28 +603,29 @@ fn rooted_place(b: &Body, t: &mut Tables, word: u32, elem: bool) -> Option<u32> 
 /// is its own header (none here: the forms come from reads), a value's is
 /// the value.
 fn unique_header(b: &Body, word: u32) -> Option<u32> {
-    match root(b, word) {
-        (Some((false, v)), from, to) if from == to => Some(v),
-        _ => None,
-    }
+    let p = b.view(word);
+    p.value().filter(|_| p.whole())
 }
 
-fn hoist_loop(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables, l: u32) {
-    let lo = t.first[l as usize];
+fn hoist_loop(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+    l: u32,
+) {
+    let lo = topo.first[l as usize];
     t.cands.clear();
     t.csteps.clear();
     t.hits.clear();
     // Rule 1: the `IsUnique`s of the iteration block, behind a pure
     // prefix.
     if let Some(e) = entry_test(b, l) {
-        let body = b.data[l as usize][0];
         let mut budget = b.len();
-        let prefix_pure = b
-            .record(b.data[body as usize][0])
-            .iter()
-            .filter(|&&x| b.tags[x as usize] != Tag::Block)
+        let prefix_pure = loop_statements(b, l)
             .take(e.prefix)
-            .all(|&x| pure(b, cx, x, &mut budget));
+            .all(|x| pure(b, cx, x, &mut budget));
         if prefix_pure {
             for k in 0..b.record(b.data[e.iteration as usize][0]).len() {
                 let x = b.record(b.data[e.iteration as usize][0])[k];
@@ -746,15 +654,12 @@ fn hoist_loop(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::
             continue;
         }
         let header = match b.tags[i] {
-            Tag::Read | Tag::Store => match root(b, b.data[i][0]) {
-                (Some((false, v)), from, to)
-                    if from < to
-                        && b.extra[from as usize] & place::PROJ_KIND == place::PROJ_ELEM =>
-                {
-                    Some(v)
-                }
+            Tag::Read | Tag::Store => match b.view(b.data[i][0]) {
+                p if p.value().is_some() => p
+                    .value()
+                    .filter(|_| matches!(p.first(b), Some(Proj::Elem(_)))),
                 // An element of a list a place rooted at a local names.
-                (Some((true, _)), _, _) => {
+                p if p.local().is_some() => {
                     if let Some(local) = rooted_place(b, t, b.data[i][0], true) {
                         candidate(t, local, false);
                     }
@@ -807,7 +712,7 @@ fn hoist_loop(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::
             }
         }
     }
-    let at = (t.blk[l as usize], t.pos[l as usize]);
+    let at = (topo.blk[l as usize], topo.pos[l as usize]);
     for k in 0..t.cands.len() {
         let c = t.cands[k];
         if !c.ok {
@@ -837,7 +742,7 @@ fn hoist_loop(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::
                 if deref {
                     b.data[x as usize][1] = unique_word::COVERED;
                 } else {
-                    edits.remove(t.blk[x as usize], x);
+                    edits.remove(x);
                 }
             }
         }

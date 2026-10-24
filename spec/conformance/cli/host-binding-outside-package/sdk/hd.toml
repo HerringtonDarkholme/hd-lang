@@ -1,0 +1,4 @@
+[package]
+name = "sdk"
+[host]
+"Server" = "../outside.mjs"

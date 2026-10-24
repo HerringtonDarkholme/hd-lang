@@ -37,17 +37,18 @@
 
 use hd_types::Ty;
 
-use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, place, u32_of};
+use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, Topology, inside, place, u32_of};
 
-pub use hoist::{EntryTest, entry_test};
-pub(crate) use splice::for_blocks as splice_for_blocks;
+pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
 mod borrow;
+pub(crate) mod flow;
 pub(crate) mod hoist;
 mod insert;
 mod known;
 mod moves;
 mod pairs;
+pub(crate) mod parts;
 pub(crate) mod splice;
 
 /// Whether a type holds a counted leaf.
@@ -301,6 +302,44 @@ pub fn operands(b: &Body, i: usize, out: &mut Vec<Operand>) {
     }
 }
 
+/// Marks what the cleanup suites `roots` touch, as [`inside`] walks
+/// them: each place's root local and each captured local with `local`,
+/// each operand with `value`, and with `own` each instruction's own value
+/// too. A suite runs at its scope's exits, which the passes' walks do not
+/// follow.
+pub(crate) fn suite_touches(
+    b: &Body,
+    roots: &[u32],
+    stack: &mut Vec<u32>,
+    ops: &mut Vec<Operand>,
+    own: bool,
+    mut local: impl FnMut(u32),
+    mut value: impl FnMut(u32),
+) {
+    inside(b, roots, stack, |i| {
+        match b.tags[i] {
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin => {
+                if let Some(l) = b.view(b.data[i][0]).local() {
+                    local(l);
+                }
+            }
+            Tag::Closure => {
+                let rec = b.record(b.data[i][1]);
+                (rec[0]..rec[0] + rec[1]).for_each(|c| local(b.cap_local[c as usize].raw()));
+            }
+            _ => {}
+        }
+        operands(b, i, ops);
+        for op in ops.iter() {
+            value(op.value);
+        }
+        if own {
+            value(u32_of(i));
+        }
+        true
+    });
+}
+
 /// Each word of the record at `at`, as a value operand.
 fn values(b: &Body, at: u32, f: &mut dyn FnMut(u32, Loc)) {
     if at == NONE {
@@ -386,7 +425,7 @@ pub(crate) fn changed(b: &Body, i: usize) -> impl Iterator<Item = (u32, u32)> + 
 
 /// Clears `v` and refills it with `n` copies of `x`, as a pass resets one
 /// of its tables.
-fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
+pub(crate) fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
     v.clear();
     v.resize(n, x);
 }
@@ -475,31 +514,14 @@ pub(crate) fn consumes(b: &Body, cx: &dyn OwnCx, i: usize, op: &Operand, owner: 
 /// is insertion's rule, which gives every other owned value a `Drop`
 /// instead; a backend that emits the body reads it from here, so the two
 /// always agree on which use takes a count.
-pub fn consumers(b: &Body, cx: &dyn OwnCx, out: &mut Vec<u32>) {
+pub fn consumers(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<u32>) {
     let n = b.len();
-    let mut blk = vec![NONE; n];
-    let mut owner = vec![NONE; n];
-    let mut is_root = vec![false; n];
-    for i in 0..n {
-        if b.tags[i] == Tag::Block {
-            for &m in b.record(b.data[i][0]) {
-                if let Some(x) = blk.get_mut(m as usize) {
-                    *x = u32::try_from(i).expect("insts");
-                }
-            }
-        }
-        let defer = b.tags[i] == Tag::Defer;
-        splice::for_blocks(b, i, |x| {
-            if !(defer && owner[x as usize] != NONE) {
-                owner[x as usize] = u32::try_from(i).expect("insts");
-            }
-        });
-    }
-    for &r in &b.sub_root {
-        if let Some(x) = is_root.get_mut(r as usize) {
-            *x = true;
-        }
-    }
+    let Topology {
+        blk,
+        owner,
+        is_root,
+        ..
+    } = topo;
     // Per value: how many uses, and the last one with its operand.
     let mut count = vec![0u32; n];
     let mut last = vec![(NONE, None::<Operand>); n];
@@ -547,6 +569,9 @@ pub fn consumers(b: &Body, cx: &dyn OwnCx, out: &mut Vec<u32>) {
 /// the whole run (`docs/compiler/tir-v2.md`, "Data layout of the passes").
 #[derive(Default)]
 pub struct OwnScratch {
+    /// The block structure of the body the passes run over: before
+    /// insertion's edits, then after them for the passes that follow.
+    pub(crate) topo: Topology,
     pub(crate) borrow: borrow::Tables,
     pub(crate) hoist: hoist::Tables,
     pub(crate) insert: insert::Tables,
@@ -563,25 +588,15 @@ pub struct OwnScratch {
 /// refused, with what stopped them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
     insert::run(b, cx, scratch)?;
-    borrow::run(b, cx, &mut scratch.borrow, &mut scratch.splice);
-    moves::run(b, cx, &mut scratch.moves, &mut scratch.splice);
-    pairs::write_backs(
-        b,
-        cx,
-        &scratch.moves,
-        &mut scratch.pairs,
-        &mut scratch.splice,
-    );
-    pairs::run(
-        b,
-        cx,
-        &mut scratch.moves,
-        &mut scratch.pairs,
-        &mut scratch.splice,
-    );
-    known::run(b, cx, &mut scratch.known, &mut scratch.splice);
-    hoist::run(b, cx, &mut scratch.hoist, &mut scratch.splice);
-    splice::apply(b, &mut scratch.splice)
+    scratch.topo.build(b);
+    let (topo, edits) = (&scratch.topo, &mut scratch.splice);
+    borrow::run(b, topo, cx, &mut scratch.borrow, edits);
+    moves::run(b, topo, cx, &mut scratch.moves, edits);
+    pairs::write_backs(b, topo, cx, &scratch.moves, &mut scratch.pairs, edits);
+    pairs::run(b, topo, cx, &mut scratch.moves, &mut scratch.pairs, edits);
+    known::run(b, topo, cx, &mut scratch.known, edits);
+    hoist::run(b, topo, cx, &mut scratch.hoist, edits);
+    splice::apply(b, topo, edits)
 }
 
 #[cfg(test)]

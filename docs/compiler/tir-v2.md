@@ -1,9 +1,8 @@
 # TIR v2: Places And Explicit Ownership
 
-Status: detailed design, 2026-10-21, for issue #667. Stage 1 is
-implemented (#718; its as-built notes are under [Commits](#commits));
-stages 2 and 3 are not, and the owner approves each before its
-implementation. The owner chose Direction 3 of
+Status: detailed design, 2026-10-21, for issue #667. Stages 1 and 2 are
+implemented, and stage 3 through 3h (3i to 3k are stopped; see #180).
+As-built notes are under [Commits](#commits). The owner chose Direction 3 of
 [tir-v2-directions.md](tir-v2-directions.md), which stays as the record
 of the alternatives. This document is the full design of that direction:
 the IR, what the checker emits, the ownership passes, the emitter, a
@@ -98,7 +97,7 @@ The design follows them, with two refinements that the table states.
 | **The checker stays simple** | Decided by the owner, above | — |
 | **The 24 intrinsics and today's list header stay through stages 1 and 2**, except the ones a place replaces (refinement). `ListSet` and `ListFieldSet` go in stage 1, since element writes become place stores; `ValueCopy`, `ListPin`, `ListUnpin`, `ListIndex` and `ListIndexMut` go in stage 2, since they become copy reads, pin statements, element reads and a uniqueness check before an element read. The other 17 stay to stage 3 | Stage 1's "element writes are place stores" and "the intrinsics stay" cannot both hold for the store intrinsics. Keeping an intrinsic that a place replaces would keep two forms of one write | Keeping all 24 through stage 2 means `xs[i].x = v` keeps its special intrinsic and the emitter keeps `list_field_set` beside the general place store |
 | **Generic bodies keep symbolic places**: a projection is a field index, and the emitter folds a chain to base plus constant offset in its per-instance walk. For a type parameter, count operations stay symbolic, and the emitter drops them for scalar instances | `emit/refs.rs` already folds a field path this way (`ref_place`, `path_step`). No lowering pass is needed | A per-instance lowering pass would add a stage between check and emission and store a second form per instance |
-| **Tier-2 hooks** (docs/future-work/OBJECT_MODEL_TIER2.md, #426, not adopted): a frame-slot root, lifetime regions on borrows, borrow-flag statements, all unused in tier 1 | The #667 claim is that tier 2 needs no further IR redesign; the hooks are the parts of the encoding it would need | Without them, tier 2 adds a root kind, a column and two tags later. That is a small extension, not a redesign, so the claim would still hold |
+| **Tier-2 hooks** (opt-in lifetimes, #163, parked): a frame-slot root, lifetime regions on borrows, borrow-flag statements, all unused in tier 1 | The #667 claim is that tier 2 needs no further IR redesign; the hooks are the parts of the encoding it would need | Without them, tier 2 adds a root kind, a column and two tags later. That is a small extension, not a redesign, so the claim would still hold |
 
 ## The IR
 
@@ -325,8 +324,7 @@ to 23 in `crates/hd_tir/DESIGN.md` §4.13.11's list:
 
 ### Tier-2 hooks
 
-[OBJECT_MODEL_TIER2.md](../future-work/OBJECT_MODEL_TIER2.md) is not
-adopted. The IR reserves what it would need, so the #667 claim can be
+Opt-in lifetimes (#163) are parked. The IR reserves what it would need, so the #667 claim can be
 checked when tier 2 is designed:
 
 | Tier 2 needs | TIR v2 provides |
@@ -1254,7 +1252,7 @@ audit on the commits that touch the emitter).
    element as it counts a dereference: a list header names its buffer,
    so the store changes the buffer, never the value `%l`. Stage 2 folds
    the read into the place (`[*$0 [%2] .x]`), as it folds `LocalGet`
-   into reads. The emitter's element store (`elem_store`) is
+   into reads. The emitter's element store (`place_store`) is
    `list_set` and `list_field_set` made one: the bounds check, the
    uniqueness check, the count of the new value before the old one's
    release, `collection-pinned` only for a length change. `list.rs`
@@ -3692,7 +3690,7 @@ binding's static slot, or at its Wasm globals read into locals
 (`Em::at_root`). A place rooted at a binding takes the walk when it has
 a step other than a field, or when it is read through fields; a store
 into or a reference to a binding's fields keeps the old lowering
-(`global_field_store`, the static slot's address), which already writes
+(`store_start`, the static slot's address), which already writes
 it. `IsUnique` and `Pin` of a binding's place need nothing more, since
 `place_header` walks. No store writes a whole binding through the walk
 yet: under headers an `IsUnique` replaces nothing, so the write-back the

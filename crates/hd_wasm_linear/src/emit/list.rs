@@ -21,7 +21,7 @@ use wasm_encoder::BlockType;
 use super::Em;
 use super::refs::{Head, Start};
 use super::shape::Through;
-use super::value::Src;
+use super::value::{Dst, Src};
 use crate::layout::{coll_kind, coll_leaves, mem as mem_of, strip};
 use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_EXPOSED, LIST_LEN, LIST_OWN, empty_buffer};
@@ -197,49 +197,18 @@ impl Em<'_, '_, '_> {
     /// A canonical loop test, before its body: the `If` after a scalar
     /// prefix one of whose branches only breaks out of the loop, and
     /// whether that branch is the first.
-    fn list_loop_guard(&self, loop_inst: u32, body: u32) -> Option<(u32, bool)> {
-        let is_break = |blk: u32| {
-            if blk == hd_tir::ir::NONE || self.b.tags[blk as usize] != Tag::Block {
-                return false;
-            }
-            let mut items = self
-                .b
-                .record(self.b.data[blk as usize][0])
-                .iter()
-                .copied()
-                .filter(|x| self.b.tags[*x as usize] != Tag::Block);
-            let Some(item) = items.next() else {
-                return false;
-            };
-            items.next().is_none()
-                && self.b.tags[item as usize] == Tag::Break
-                && self
-                    .b
-                    .label_inst
-                    .get(self.b.data[item as usize][0] as usize)
-                    == Some(&loop_inst)
-        };
+    fn list_loop_guard(&self, l: u32) -> Option<(u32, bool)> {
+        let (test, prefix, [first, second]) = hd_tir::own::loop_test(self.b, l, true)?;
         let mut budget = self.b.len();
-        for x in self.rec(self.b.data[body as usize][0]) {
-            if self.b.tags[x as usize] == Tag::Block {
-                continue;
-            }
-            if self.b.tags[x as usize] == Tag::If {
-                let branches = self.rec(self.b.data[x as usize][1]);
-                let first = is_break(branches[0]);
-                let second = branches.get(1).is_some_and(|b| is_break(*b));
-                return (first != second).then_some((x, first));
-            }
-            if !self.scalar_loop_test(x, &mut budget) {
-                return None;
-            }
-        }
-        None
+        let scalar = hd_tir::own::loop_statements(self.b, l)
+            .take(prefix)
+            .all(|x| self.scalar_loop_test(x, &mut budget));
+        (first != second && scalar).then_some((test, first))
     }
 
     /// Follow immutable scalar aliases and fields of a just-built range.
     /// A changed or addressable binding never supplies a range fact.
-    fn range_source(&self, mut r: u32, sets: &[Vec<(u32, u32)>], tree: &super::shape::Tree) -> u32 {
+    fn range_source(&self, mut r: u32, sets: &[Vec<(u32, u32)>]) -> u32 {
         for _ in 0..32 {
             let Some(i) = Ref(r).as_inst() else { break };
             let [a, w] = self.b.data[i.0 as usize];
@@ -255,7 +224,7 @@ impl Em<'_, '_, '_> {
                     let [(set, value)] = sets[l].as_slice() else {
                         break;
                     };
-                    if !tree.dominates(self.b, *set, r) {
+                    if !self.dominates(*set, r) {
                         break;
                     }
                     r = *value;
@@ -269,7 +238,7 @@ impl Em<'_, '_, '_> {
                         && let Some((_, Step::Field(k) | Step::DerefField(k))) =
                             self.b.read_step(i.0 as usize) =>
                 {
-                    let base = self.range_source(from, sets, tree);
+                    let base = self.range_source(from, sets);
                     let Some(bi) = Ref(base).as_inst() else { break };
                     if self.b.tags[bi.0 as usize] != Tag::NewStruct {
                         break;
@@ -288,13 +257,7 @@ impl Em<'_, '_, '_> {
 
     /// Exact usize induction from zero to an unchanged list length.
     /// This is a body-local proof; no callee summaries or unchecked TIR.
-    fn range_indices(
-        &self,
-        loop_inst: u32,
-        test: u32,
-        tree: &super::shape::Tree,
-        body: &[u32],
-    ) -> Vec<u32> {
+    fn range_indices(&self, loop_inst: u32, test: u32, body: &[u32]) -> Vec<u32> {
         // Every store into a local or a field of it, with the value of a
         // store into all of it (`NONE` for a field's).
         let mut sets = vec![Vec::new(); self.b.local_ty.len()];
@@ -335,15 +298,15 @@ impl Em<'_, '_, '_> {
         let [a, b] = sets[current].as_slice() else {
             return Vec::new();
         };
-        let (init, step) = if tree.in_loop(self.b, a.0, loop_inst) {
+        let (init, step) = if self.in_loop(a.0, loop_inst) {
             (*b, *a)
         } else {
             (*a, *b)
         };
-        if tree.in_loop(self.b, init.0, loop_inst)
-            || !tree.in_loop(self.b, step.0, loop_inst)
-            || !tree.dominates(self.b, init.0, loop_inst)
-            || self.const_u32(self.range_source(init.1, &sets, tree)) != Some(0)
+        if self.in_loop(init.0, loop_inst)
+            || !self.in_loop(step.0, loop_inst)
+            || !self.dominates(init.0, loop_inst)
+            || self.const_u32(self.range_source(init.1, &sets)) != Some(0)
             || Ref(step.1).as_inst().is_none()
             || self.b.tags[step.1 as usize] != Tag::Prim
             || self.b.data[step.1 as usize][0] != PrimOp::Add as u32
@@ -362,17 +325,17 @@ impl Em<'_, '_, '_> {
         let [(bound_set, value)] = sets[bound].as_slice() else {
             return Vec::new();
         };
-        if !tree.dominates(self.b, *bound_set, loop_inst) {
+        if !self.dominates(*bound_set, loop_inst) {
             return Vec::new();
         }
-        let len = self.range_source(*value, &sets, tree);
+        let len = self.range_source(*value, &sets);
         let Some(li) = Ref(len).as_inst() else {
             return Vec::new();
         };
         let [op, rec] = self.b.data[li.0 as usize];
         if self.b.tags[li.0 as usize] != Tag::Intrinsic
             || op != IntrinsicOp::ListLen as u32
-            || !tree.dominates(self.b, len, loop_inst)
+            || !self.dominates(len, loop_inst)
         {
             return Vec::new();
         }
@@ -389,9 +352,9 @@ impl Em<'_, '_, '_> {
         // Length observation and loop entry can be separated by arbitrary
         // statements. A pop there invalidates the fact just as one in the
         // loop does. Include nested statements of that prelude.
-        let (blk, start) = tree.path(self.b, len).expect("dominating length")[0];
-        let Some(finish) = tree
-            .path(self.b, loop_inst)
+        let (blk, start) = self.block_path(len).expect("dominating length")[0];
+        let Some(finish) = self
+            .block_path(loop_inst)
             .and_then(|p| p.into_iter().find(|(k, _)| *k == blk))
             .map(|(_, p)| p)
         else {
@@ -400,7 +363,7 @@ impl Em<'_, '_, '_> {
         let prelude: Vec<_> = (0..self.b.len())
             .map(|i| u32::try_from(i).expect("insts"))
             .filter(|&x| {
-                tree.path(self.b, x).is_some_and(|p| {
+                self.block_path(x).is_some_and(|p| {
                     p.iter()
                         .any(|(k, at)| *k == blk && start < *at && *at <= finish)
                 })
@@ -424,11 +387,11 @@ impl Em<'_, '_, '_> {
                 if list != Some(root) || self.ty_of(index) != Ty::prim(hd_types::Prim::Usize) {
                     return false;
                 }
-                let index = self.range_source(index, &sets, tree);
+                let index = self.range_source(index, &sets);
                 super::shape::read_local(self.b, index) == Some(current)
-                    && tree.dominates(self.b, cond, index)
-                    && tree.dominates(self.b, index, step.0)
-                    && tree.dominates(self.b, index, x)
+                    && self.dominates(cond, index)
+                    && self.dominates(index, step.0)
+                    && self.dominates(index, x)
             })
             .collect()
     }
@@ -592,11 +555,7 @@ impl Em<'_, '_, '_> {
             .filter(|_| self.susp.is_none())
             .and_then(|l| hd_tir::own::entry_test(self.b, l).map(|e| (l, e)));
         if let Some((l, e)) = test {
-            let body = self.b.data[l as usize][0];
-            let prefix: Vec<u32> = self
-                .rec(self.b.data[body as usize][0])
-                .into_iter()
-                .filter(|x| self.b.tags[*x as usize] != Tag::Block)
+            let prefix: Vec<u32> = hd_tir::own::loop_statements(self.b, l)
                 .take(e.prefix)
                 .collect();
             for x in prefix {
@@ -703,27 +662,22 @@ impl Em<'_, '_, '_> {
         Ok(roots)
     }
 
-    /// Loop `loop_inst`, whose body is block `block`, is about to start:
-    /// the hoisted `IsUnique`s waiting for it run, its exact range indices
-    /// are proven (§23.37), and its stable lists keep their buffer and
-    /// length in locals ([`Em::own_list_caches`]). The cached lists,
-    /// which the loop's exit drops from the cache.
-    pub(super) fn begin_list_loop(
-        &mut self,
-        loop_inst: u32,
-        block: u32,
-    ) -> StageResult<Vec<ListRoot>> {
+    /// Loop `loop_inst` is about to start: the hoisted `IsUnique`s waiting
+    /// for it run, its exact range indices are proven (§23.37), and its
+    /// stable lists keep their buffer and length in locals
+    /// ([`Em::own_list_caches`]). The cached lists, which the loop's exit
+    /// drops from the cache.
+    pub(super) fn begin_list_loop(&mut self, loop_inst: u32) -> StageResult<Vec<ListRoot>> {
         self.hoisted_uniques(Some(loop_inst))?;
         if self.susp.is_some() {
             return Ok(Vec::new());
         }
-        let tree = super::shape::Tree::new(self.b);
         let body: Vec<u32> = (0..self.b.len())
             .map(|i| u32::try_from(i).expect("insts"))
-            .filter(|x| tree.in_loop(self.b, *x, loop_inst))
+            .filter(|x| self.in_loop(*x, loop_inst))
             .collect();
-        if let Some((test, false)) = self.list_loop_guard(loop_inst, block) {
-            let proven = self.range_indices(loop_inst, test, &tree, &body);
+        if let Some((test, false)) = self.list_loop_guard(loop_inst) {
+            let proven = self.range_indices(loop_inst, test, &body);
             self.proven_list_indices.extend(proven);
         }
         self.own_list_caches(loop_inst)
@@ -842,22 +796,6 @@ impl Em<'_, '_, '_> {
         at
     }
 
-    /// Stores the values of `s` as the element at local `at`.
-    fn store_elem(&mut self, at: u32, e: &Elem, s: &Src) -> StageResult<()> {
-        for (k, l) in e.leaves.iter().copied().enumerate() {
-            self.store_leaf(
-                &|em: &mut Self| {
-                    em.f.get(at);
-                    Ok(())
-                },
-                LIST_ELEMS,
-                l,
-                &mut |em: &mut Self| em.src(s, k),
-            )?;
-        }
-        Ok(())
-    }
-
     /// Source `s` of a `t` value for the place that consumes it: an operand
     /// at its only use moves its count there ([`Em::take`]), any other
     /// value is a copy with counts of its own ([`Em::copy_locals`]).
@@ -950,7 +888,7 @@ impl Em<'_, '_, '_> {
                     self.f.set(at);
                 } else {
                     let s = self.retain_src(&Src::Ref(*r), et)?;
-                    self.store_elem(at, &e, &s)?;
+                    self.write_new(Dst::Mem(at, LIST_ELEMS, &e.leaves), &s)?;
                     self.f.get(at);
                     self.f.u32(e.size);
                     self.f.op(I::I32Add);
@@ -1030,69 +968,6 @@ impl Em<'_, '_, '_> {
         Ok((et, self.slot_at(b, ix, e.size)))
     }
 
-    /// A `Store` into element `ix` of the list value `list`, or into the
-    /// struct field `path` reaches in it (`[%xs [%i] .p .x]`), whose
-    /// buffer the passes' `IsUnique` made the list's own; or into a map
-    /// value's, `[%m [%e] .p .x]` at entry `%e`. After the bounds check,
-    /// the place's old value is released after the new one is counted,
-    /// and no other field is read or written (#655). A pin does not stop
-    /// it: the length stays.
-    pub(super) fn elem_store(
-        &mut self,
-        list: u32,
-        ix: u32,
-        path: &[u32],
-        v: u32,
-    ) -> StageResult<()> {
-        let t = self.ty_of(list);
-        let b = self.buffer(list)?;
-        // The element's address, `off` bytes before it, and its leaves: a
-        // list's slot after the bounds check, or a map's value at its
-        // entry (`types.coll.map-value.place`).
-        let (et, all, at, off) = if self.is_map(t) {
-            let (vt, at) = self.map_value_at(b, t, ix)?;
-            (vt, mem_of(self.pool(), self.env(), vt)?.leaves, at, 0)
-        } else {
-            let (et, e) = self.elem(t)?;
-            let ix = self.index(b, ix)?;
-            (et, e.leaves, self.slot_at(b, ix, e.size), LIST_ELEMS)
-        };
-        // The place's values among the element's, and its type.
-        let (mut first, mut count, mut ft) = (0, all.len(), et);
-        for &k in path {
-            let (_, parts) = crate::layout::struct_mem(self.pool(), self.env(), ft)?;
-            let Some(part) = parts.get(k as usize) else {
-                return unsupported("a field store past the struct's fields");
-            };
-            first += part.first;
-            count = part.count;
-            ft = self.struct_fields(ft)[k as usize];
-        }
-        let s = self.retain_src(&Src::Ref(v), ft)?;
-        let leaves = all[first..first + count].to_vec();
-        if self.counted(ft).is_some() {
-            let old: Vec<u32> = leaves.iter().map(|l| self.f.local(l.val)).collect();
-            for (l, o) in leaves.iter().zip(&old) {
-                self.f.get(at);
-                self.f.op(l.load(off));
-                self.f.set(*o);
-            }
-            self.release_locals(&old, ft)?;
-        }
-        for (k, l) in leaves.iter().enumerate() {
-            self.store_leaf(
-                &|em: &mut Self| {
-                    em.f.get(at);
-                    Ok(())
-                },
-                off,
-                *l,
-                &mut |em: &mut Self| em.src(&s, k),
-            )?;
-        }
-        Ok(())
-    }
-
     /// `ListPush`: a pinned list panics (`ref.elem.pinned`); otherwise the
     /// value is stored at the length, after the buffer, which the passes'
     /// `IsUnique` made the list's own, has room for it.
@@ -1118,7 +993,7 @@ impl Em<'_, '_, '_> {
         self.f.set(n);
         let at = self.slot_at(b, n, e.size);
         let s = self.retain_src(&Src::Ref(args[1]), et)?;
-        self.store_elem(at, &e, &s)?;
+        self.write_new(Dst::Mem(at, LIST_ELEMS, &e.leaves), &s)?;
         self.f.get(b);
         self.f.get(n);
         self.f.i32(1);

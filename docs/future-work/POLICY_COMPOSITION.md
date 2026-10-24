@@ -1,9 +1,9 @@
 # Composing Time And Failure Policies
 
-Status: design proposal, 2026-10-24; domain: standard library API (std.task); not accepted.
+Status: decided 2026-10-24 (#783, owner); domain: standard library API (std.task); not yet implemented.
 It answers [#783](https://github.com/HerringtonDarkholme/hd-lang/issues/783) and replaces the earlier version of this file and Composing Work.
 The owner selected policy values, pipes and one apply block on 2026-10-23.
-The public API below remains a proposal; no language change is proposed.
+The decision: `apply!` is the only public way to apply a policy; `timeout!`, `with_timeout!` and `retry!` become private building blocks in `std.task`. The implementation follows the phasing below, with the std spec rules and fixtures in the same job. No language change is needed.
 Under review: [`std.task`](../../spec/std/task.md) (`timeout!`, `with_timeout!`, `retry!`) and [suspending functions](../../spec/lang/11-requirements-and-suspension.md#suspending-functions).
 
 ## Contents
@@ -50,7 +50,7 @@ A trailing block supplies the work, so U1 is a staircase of three nested blocks.
 That runs, and the owner accepted it as the interim shape on 2026-10-22.
 There is no fallback, breaker or hedge in std.
 Policy values run today using generic trait implementations and tuples.
-The separately approved inferred-apply correction is merged; the proposed public library surface still needs approval.
+The separately approved inferred-apply correction is merged; the public library surface is approved.
 
 ## State of the art
 
@@ -660,7 +660,7 @@ Each slice targets about an hour of agent work and has a concrete observable tes
 The prerequisite associated-output row correction is already merged, with inferred-call, explicit, empty-row and invariant-rejection coverage.
 Keep that runtime regression in both-engine focused checks; do not reopen the compiler fix as a library phase.
 
-Second, introduce Layer, tuple composition and apply with stdlib rules and fixtures after API approval.
+Second, introduce Layer, tuple composition and apply with stdlib rules and fixtures.
 The test applies a user layer to two result types and proves an untimed policy needs no Clock.
 Third, expose the timeout/retry builders while making their bang implementations private and migrating every existing caller.
 
@@ -677,13 +677,12 @@ Each production slice must ship its stdlib rules and conformance cases with the 
 It gives up the four-line bang-only custom policy, because automatic reusable plain calls and nested application blocks were rejected.
 It also gives up provider middleware as an operation-level mechanism; providers may still carry a default strategy.
 
-Approval is needed for the proposed std.task surface and migration of public bang timeout/retry APIs into private implementation atoms.
-The source and exact signatures above make that review concrete.
+Approved (owner, 2026-10-24): the std.task surface, and migration of the public bang timeout/retry APIs into private implementation atoms.
+The source and exact signatures above are the reference.
 From[TimedOut] remains the current constraint; adopting Either or unions is not requested.
 
 The inferred apply correction is complete under existing rules, rather than an API limitation to normalize.
 No approval for a new plain-call rule, policy call syntax, generic function value or bare pipe step is sought.
-Ask about the public API as one next decision; later migration details follow that answer.
 
 ## Prototypes, sources and parse log
 
@@ -704,7 +703,6 @@ All eleven focused stress programs parse; six check and run on both engines, whi
 The resulting **24 successful ordinary engine runs** have exact Node/native stdout parity per source.
 Four additional instrumented Node executions cover 0, 1, 5 and 9 full sequences, retaining all counts and stdout.
 
-The final frozen tools, source hashes, complete outputs and measurements are retained at `/private/tmp/muse-783-docs-1792818831600015000`.
 No full test suite or production compiler/std change is part of this rewrite.
 
 Sources are the primary links in State of the art, rechecked on 2026-10-24.

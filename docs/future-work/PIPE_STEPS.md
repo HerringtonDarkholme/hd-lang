@@ -1199,8 +1199,6 @@ Parsing alone proves no type or runtime claim.
 The complete scratch matrix has 39 parsed/formatted programs: 23 clean checks and 16 intentional rejections.
 The 23 positive programs produced 46 successful engine runs, with matching stdout for each Node/native pair.
 
-The evidence directory is `/private/tmp/muse-818-pipe-steps-1792817126850624000`.
-It contains frozen compiler/parser binaries, provenance, checked source hashes, complete diagnostics, engine output, and count calculations.
 Every positive source in the final probe manifest ran on both engines.
 All negative cases are deliberate controls; no compiler rejection is silently reported as successful execution.
 No full suite ran.

@@ -2,4 +2,4 @@
 name = "host_probe"
 
 [host]
-traits = ["main.Server"]
+"main.Server" = "provider.mjs"

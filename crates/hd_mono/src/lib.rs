@@ -108,6 +108,11 @@ pub trait ProgramEnv: LayoutEnv {
     /// `std.json`'s `encode`, `decode`, their two trait declarations, and
     /// `std.result`'s checked unwrap after a boundary `decode`.
     fn json_items(&self) -> Option<JsonItems>;
+    /// A package-declared host trait selects the value-preserving JS bridge.
+    fn is_package_host_trait(&self, _def: DefId) -> bool {
+        false
+    }
+
     /// Data fields, for the struct types a program needs.
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>>;
     /// The names of `def`'s data fields, in [`ProgramEnv::data_fields`]'
@@ -396,6 +401,8 @@ pub fn trait_reference_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty,
 /// `.deserialize.exact`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct JsonItems {
+    pub package_encode: DefId,
+    pub package_decode: DefId,
     pub encode: DefId,
     pub decode: DefId,
     pub serialize: DefId,
@@ -423,6 +430,9 @@ pub struct JsonDecode {
 /// hd, `decode` for one entering it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct BoundaryCodecs {
+    pub package_encode: Option<Hash128>,
+    pub package_decode: Option<JsonDecode>,
+    pub package_decoded: Option<Ty>,
     pub encode: Option<Hash128>,
     pub decode: Option<JsonDecode>,
     /// The `decode` result type, whose Wasm values the boundary decoder
@@ -2014,9 +2024,14 @@ impl Cx<'_> {
         let mut visited = HashSet::default();
         let mut keys = Vec::new();
         for (def, args) in roots {
-            keys.extend(self.env.row_keys(*def, *args));
+            keys.extend(
+                self.env
+                    .row_keys(*def, *args)
+                    .into_iter()
+                    .map(|key| (key, false)),
+            );
         }
-        while let Some(key) = keys.pop() {
+        while let Some((key, package)) = keys.pop() {
             let TyData::TraitValue {
                 def: trait_,
                 args: targs,
@@ -2025,7 +2040,8 @@ impl Cx<'_> {
             else {
                 continue;
             };
-            if !visited.insert((trait_, targs)) {
+            let package = package || self.env.is_package_host_trait(trait_);
+            if !visited.insert((trait_, targs, package)) {
                 continue;
             }
             let full = self.pool.list(
@@ -2034,17 +2050,17 @@ impl Cx<'_> {
                     .collect::<Vec<_>>(),
             );
             for &parent in self.env.decls().supertraits(trait_) {
-                keys.push(subst(self.pool, self.env, trait_, full, parent));
+                keys.push((subst(self.pool, self.env, trait_, full, parent), package));
             }
             for m in self.env.trait_methods(trait_) {
                 let params = self.env.params(m).unwrap_or_default();
                 for p in params.into_iter().skip(1) {
                     let p = subst(self.pool, self.env, m, full, p);
-                    self.note_boundary_value(p, true, &mut Vec::new())?;
+                    self.note_boundary_value(p, true, package, &mut Vec::new())?;
                 }
                 let ret = self.env.ret(m).unwrap_or(Ty::VOID);
                 let ret = subst(self.pool, self.env, m, full, ret);
-                self.note_boundary_value(ret, false, &mut keys)?;
+                self.note_boundary_value(ret, false, package, &mut keys)?;
             }
         }
         Ok(())
@@ -2055,7 +2071,13 @@ impl Cx<'_> {
     /// its checked unwrap otherwise. A public wrapper still needs the
     /// codecs of the private types inside it. The trait values inside it
     /// go to `handles`.
-    fn note_boundary_value(&mut self, ty: Ty, out: bool, handles: &mut Vec<Ty>) -> StageResult<()> {
+    fn note_boundary_value(
+        &mut self,
+        ty: Ty,
+        out: bool,
+        package: bool,
+        handles: &mut Vec<(Ty, bool)>,
+    ) -> StageResult<()> {
         let mut todo = vec![ty];
         let mut seen = HashSet::default();
         while let Some(ty) = todo.pop() {
@@ -2089,7 +2111,7 @@ impl Cx<'_> {
                 }
                 TyData::Adt { def, args } => {
                     if self.env.has_private_field(def) {
-                        self.note_private_boundary(ty, out)?;
+                        self.note_private_boundary(ty, out, package)?;
                     }
                     todo.extend(self.pool.list_items(args).iter().copied());
                     for field in self.env.data_fields(def).unwrap_or_default() {
@@ -2108,36 +2130,60 @@ impl Cx<'_> {
                     todo.extend(self.pool.list_items(elems).iter().copied());
                     todo.extend(rest);
                 }
-                TyData::TraitValue { .. } => handles.push(ty),
+                TyData::TraitValue { .. } => handles.push((ty, package)),
                 _ => {}
             }
         }
         Ok(())
     }
 
-    fn note_private_boundary(&mut self, ty: Ty, out: bool) -> StageResult<()> {
+    fn note_private_boundary(&mut self, ty: Ty, out: bool, package: bool) -> StageResult<()> {
         let Some(json) = self.env.json_items() else {
             return err("a host boundary without its JSON codecs");
         };
         if out {
             self.select(json.serialize, ty, TyList::EMPTY, None)?;
-            let encode = self.target(json.encode, self.pool.list(&[ty]), InstId::NONE)?;
-            self.out.boundary.entry(ty).or_default().encode = Some(encode.key);
+            let def = if package {
+                json.package_encode
+            } else {
+                json.encode
+            };
+            let encode = self.target(def, self.pool.list(&[ty]), InstId::NONE)?;
+            let entry = self.out.boundary.entry(ty).or_default();
+            if package {
+                entry.package_encode = Some(encode.key);
+            } else {
+                entry.encode = Some(encode.key);
+            }
         } else {
             self.select(json.deserialize, ty, TyList::EMPTY, None)?;
-            let decode = self.target(json.decode, self.pool.list(&[ty]), InstId::NONE)?;
+            let decode = self.target(
+                if package {
+                    json.package_decode
+                } else {
+                    json.decode
+                },
+                self.pool.list(&[ty]),
+                InstId::NONE,
+            )?;
             let TyData::Adt { args, .. } = self.pool.get(decode.ret) else {
                 return err("a boundary `decode` without its `Result`");
             };
             let is_ok = self.target(json.result_is_ok, args, InstId::NONE)?;
             let expect = self.target(json.result_expect, args, InstId::NONE)?;
             let entry = self.out.boundary.entry(ty).or_default();
-            entry.decode = Some(JsonDecode {
+            let decoder = Some(JsonDecode {
                 decode: decode.key,
                 is_ok: is_ok.key,
                 expect: expect.key,
             });
-            entry.decoded = Some(decode.ret);
+            if package {
+                entry.package_decode = decoder;
+                entry.package_decoded = Some(decode.ret);
+            } else {
+                entry.decode = decoder;
+                entry.decoded = Some(decode.ret);
+            }
         }
         Ok(())
     }

@@ -15,6 +15,7 @@ This revision changes documentation only.
 - [Semantics](#semantics)
 - [First lint](#first-lint)
 - [Later lint: lost write to a `mut` parameter](#later-lint-lost-write-to-a-mut-parameter)
+- [Later lint: unused capability in `hd.toml`](#later-lint-unused-capability-in-hdtoml)
 - [Implementation choices](#implementation-choices)
 - [Architecture](#architecture)
 - [Command and configuration](#command-and-configuration)
@@ -410,6 +411,15 @@ The regression matrix includes unread pushes/map stores, later len/print/return,
 A write through a stored reference is not a write to the parameter's own value.
 Root-place facts must stop at that dereference rather than attribute its observable side effect to a lost copy.
 No automatic fix changes a value parameter into a shared reference.
+
+## Later lint: unused capability in `hd.toml`
+
+Once #827 makes `[capabilities]` list every capability a package's
+`main` uses, a listed capability that `main`'s requirement row never
+names grants power nothing needs. `hd lint` reports it, and its fix
+removes the line from `hd.toml`. `hd new` lists Console, Args, Clock and
+Random by default, so a program that uses none of them gets the same
+report.
 
 ## Implementation choices
 
@@ -1340,7 +1350,4 @@ The fourteen warning codes were checked against the current registry and their a
 The deleted analysis and three comparison helpers were read from their pinned source versions and counted literally.
 The source audit also distinguished uncoded browser-opening and cache-write messages from the fourteen registered program warnings.
 
-Current commands, diagnostics, source hashes and probes are preserved under
-`/private/tmp/muse-651-warning-crate-1792815904683811000`.
 The inherited mut-type example's exact compiler error and correction are appended to the writing log.
-Earlier evidence in `/private/tmp/muse-651-rewrite-1792782846927866000` remains historical, including the measured Go reference bytes.

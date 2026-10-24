@@ -14,48 +14,39 @@ action at a distance.
 
 ## What Remains
 
-- [Server Applications](SERVER_APPLICATIONS.md): proposed ordinary-main application lifetime, typed handlers, shared state and deployment SDKs; compared with hooks and isolated jobs, with runnable controls and the Node #810 prerequisite (#806).
-- [GUI Applications](GUI_APPLICATIONS.md): explores host UIs, message/view models, signals and immediate frames; recommends a separate browser-first framework, with explicit embedding and renderer gaps (#807).
-- [HTTP Server Handlers](HTTP_SERVER.md): proposed core-Wasm handler entry, fresh request instances, Cloudflare/Vercel adapters, portable async controls, and explicit deployment gaps (#266).
+Parked designs are not kept here; each lives in its GitHub issue, indexed by #833, which
+stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
-- [TLS Streams](TLS_STREAMS.md): client TLS boundary options, host-stream transfer, aliases and buffered bytes, trust roots, and Net grants (#265).
-- [Positional Union Types](UNION_TYPES.md): stress-tests unique static injection versus explicit construction, real error handling, policy ports, source chains and constructor inference (#804).
-- [Pipe Steps Without Placeholders](PIPE_STEPS.md): stress-tests standalone unary function steps, compatibility, effects, inference, and all three policy ports; no semantics are accepted (#818).
-- [Policy Composition](POLICY_COMPOSITION.md): lean policy values, tuple composition and one apply block; runnable ports, measured costs, typed errors and the fixed apply-row prerequisite (#783).
-- [hd bench](HD_BENCH.md): proposed ordinary suite registration, batched real-clock measurement, explicit optimization resistance and baseline reports (#184).
-- [Durable Resume](DURABLE_RESUME.md): proposed durable host-call replay, strict identity, interrupted-effect retries, resource restrictions and journal growth policy (#18).
-- [Module Hot Reload](MODULE_HOT_RELOAD.md): proposed compatible body updates, retained active code, explicit restart boundaries, and unchanged REPL reload (#182).
-- [Host Embedding](HOST_EMBEDDING.md): proposed explicit library registration, generated core-Wasm adapters, application providers, and structured panic outcomes (#51).
-- [hd lint](HD_LINT.md): proposed command, shared diagnostics, package allow/deny policy, and a first lint for lost temporary-receiver writes (#651).
-- [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes (#28).
-- [Release Stress Test](RELEASE_STRESS.md): real release histories, typed API hazards, command-by-command prior art and version/tag edge cases; questions remain open (#28).
-- [Open Issues](OPEN_ISSUES.md): the open language and library design
-  questions. It holds only open questions.
-- [Serializable Closure Design](SERIALIZABLE_CLOSURE_DESIGN.md): the design
-  study of serializable closures and remote calls (#166).
-- [Serializable Closure Prototype Plan](SERIALIZABLE_CLOSURE_PROTOTYPE.md): 31
-  hour-sized slices, each with its spec rules and fixtures, over an in-process transport.
-- [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): a design study for #163 after `Disposable`: a non-escaping `^` mode without lifetimes, worker isolation and shared bytes on Wasm today, frozen data later, and a re-plan of the ownership prototype.
-- [Rust Model Study](RUST_MODEL_STUDY.md): whether hd should adopt Rust's ownership, borrows and lifetimes with no tracing collector, and whether a `Gc[T]` can replace `Rc<RefCell<T>>`, priced on three programs written three ways (#163).
-- [Object Model, Tier 1](OBJECT_MODEL_TIER1.md): Go's object model on counted linear memory: struct values, global `&T` and `&mut T` references with no exclusivity check, copy-on-write collections, element references that pin their list, closures with one call kind, a tour, and a retrofit plan in hour-sized jobs (#426).
-- [Refcount Runtime](REFCOUNT_RUNTIME.md): the linear-memory runtime of reference counting with cycle detection, priced on Wasm: count elision, allocators, interior references, collectors and module size, with the recommended design and hour-sized jobs (#426).
-- [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1: reference and closure types carrying the set of things they depend on, `global` as one more lifetime, static exclusivity and freezes for the value world, a RefCell-style borrow flag where a scoped borrow goes through a global reference, closure kinds `fn`, `fn mut`, `fn once`, NonCopyable structs, a score against the three costs of counting, a tour, and hour-sized jobs (#426).
-- [Cancellation And Cleanup](CANCELLATION_AND_CLEANUP.md): cancelling a task gracefully with `cancel!()` or forcibly with `abandon()`; one cleanup per job, cleanup order under abandonment, and how `race!`, `all!` and `timeout!` compose and bound cleanup.
+### Application and host
+
+- [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
+- [Host Embedding](HOST_EMBEDDING.md): parked proposal for embedding hd in an application; package host capabilities are designed in #51.
 - [Streaming Design](STREAMING_DESIGN.md): one reader and writer shape for HTTP bodies, process pipes, files and `TcpStream`, on plain `Disposable` handles bound with `using` (#350).
-- [Live Execution](live-execution.md): the REPL session model, replay and
-  resume (#17, #18).
-- [REPL Journal Checkpoints](REPL_CHECKPOINTS.md): measured checkpoint options, a shared base module, resource limits and the historical evidence needed by reload (#646).
-- [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the
-  owner did not make explicitly, kept for the stdlib audit.
-- [SIMD Byte-Scan Primitives](SIMD_PRIMITIVES.md): proposed std
-  primitives for byte scans, and what blocks SIMD on GC strings (#428).
-- [Performance Roadmap](PERFORMANCE_ROADMAP.md): where time and memory go from the measurements on record, fixes by mechanism, and ranked hour-sized steps (#426).
-- [Native Backend](NATIVE_BACKEND.md): native executables, a collector
-  and threads without a Wasm engine, priced against wasmtime AOT (#188).
 
-- [Program Database](PROGRAM_DATABASE.md): proposed versioned source-fact snapshots, native SQLite queries and cache reuse without an editor protocol (#181).
+### Language and library
+
+- [Policy Composition](POLICY_COMPOSITION.md): decided design of lean policy values, tuple composition and one `apply!` block, the only public way to apply a policy; not yet implemented (#783).
+- [Pipe Steps Without Placeholders](PIPE_STEPS.md): stress-tests standalone unary function steps, compatibility, effects, inference, and all three policy ports; no semantics are accepted (#818).
+- [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
+- [SIMD Byte-Scan Primitives](SIMD_PRIMITIVES.md): five scan primitives; SIMD128 intrinsics are approved after TIR v2 stage 3 (#428).
+- [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
+- [Open Issues](OPEN_ISSUES.md): the open language and library design questions. It holds only open questions.
+
+### Tooling
+
+- [hd lint](HD_LINT.md): proposed command, shared diagnostics, package allow/deny policy, and a first lint for lost temporary-receiver writes (#651).
+- [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes; every version is compared with the last stable release (#28).
+- [Live Execution](live-execution.md): the built REPL, journal, replay and session rebuilds (#17).
+
+### Memory model and performance
+
+- [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
+- [Rust Model Study](RUST_MODEL_STUDY.md): the study that priced Rust's ownership for hd; decided against ownership (#163).
+- [Object Model, Tier 1](OBJECT_MODEL_TIER1.md): Go's object model on counted linear memory: struct values, global `&T` and `&mut T` references, copy-on-write collections and closures with one call kind (#426).
+- [Refcount Runtime](REFCOUNT_RUNTIME.md): the linear-memory runtime of reference counting with cycle detection, priced on Wasm; it is the only backend (#426).
+- [Performance Roadmap](PERFORMANCE_ROADMAP.md): where time and memory go from the measurements on record, fixes by mechanism, and ranked hour-sized steps (#426).
+
+No native backend is planned (#188 closed), and no direct TLS streams are planned.
 
 The compiler's design is in
 [docs/compiler/ARCHITECTURE.md](../compiler/ARCHITECTURE.md).
-
-- [WEAK_REFERENCES.md](WEAK_REFERENCES.md): weak references as a std type with side-table runtime (approved 2026-10-21).

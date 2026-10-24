@@ -128,17 +128,18 @@ hd build/debug/greeter.wasm --cap Console=false   # refused before it starts: 10
 2. r[cli.wasm.mode] Only the extension picks the mode: `hd FILE` for a FILE whose name ends in `.hd` runs a single-file program, by [`cli.file.run`](#r-cli.file.run).
 3. r[cli.wasm.host] The module runs under the [default profile](#host-capabilities), in the working directory of the `hd` command.
 4. r[cli.wasm.host.imports] `hd` binds each trait of the default profile that the module's import list names.
-5. r[cli.wasm.grant] The module's [capability grant](#capability-grants) comes from the command's `--cap` flags alone, even when FILE lies in a package, since no `hd.toml` comes with a module.
-6. r[cli.wasm.total-deny] The [total deny](#total-deny) refusal applies, with the module's needs read from its import list by [`cli.cap.total.needs`](#r-cli.cap.total.needs).
-7. r[cli.wasm.args] `hd FILE.wasm` passes the words after `--` to the module as its program arguments, by [`cli.args.pass`](#r-cli.args.pass).
-8. r[cli.wasm.status] Once the module starts, `hd FILE.wasm` exits with the program's own status, by [`cli.exit.program`](#r-cli.exit.program).
-9. r[cli.wasm.invalid] A FILE that is not a valid Wasm module is an error whose message names FILE. It exits with status 101, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
-10. r[cli.wasm.not-hd] A valid module that `hd build` did not write is an error, with status 101.
-11. r[cli.wasm.not-hd.detect] `hd` knows such a module by a missing entry export, or by an import of a host function that `hd` does not provide.
-12. r[cli.wasm.not-hd.message] The error's message names the missing export or the unknown import, and suggests rebuilding the module with `hd build`.
+5. r[cli.wasm.grant.package-context] A prebuilt module with package host capabilities uses the discovered app manifest and command flags for its grants.
+6. r[cli.wasm.grant.builtin-only] A prebuilt module without package host capabilities takes grants from command flags alone.
+7. r[cli.wasm.total-deny] The [total deny](#total-deny) refusal applies, with the module's needs read from its import list by [`cli.cap.total.needs`](#r-cli.cap.total.needs).
+8. r[cli.wasm.args] `hd FILE.wasm` passes the words after `--` to the module as its program arguments, by [`cli.args.pass`](#r-cli.args.pass).
+9. r[cli.wasm.status] Once the module starts, `hd FILE.wasm` exits with the program's own status, by [`cli.exit.program`](#r-cli.exit.program).
+10. r[cli.wasm.invalid] A FILE that is not a valid Wasm module is an error whose message names FILE. It exits with status 101, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
+11. r[cli.wasm.not-hd] A valid module that `hd build` did not write is an error, with status 101.
+12. r[cli.wasm.not-hd.detect] `hd` knows such a module by a missing entry export, or by an import of a host function that `hd` does not provide.
+13. r[cli.wasm.not-hd.message] The error's message names the missing export or the unknown import, and suggests rebuilding the module with `hd build`.
 
-> **Why.** A module carries no `hd.toml`, so its grant comes from the
-> command line, as for a single file outside any package.
+> **Why.** Builtin-only modules need no package source or manifest.
+> A package provider needs the app's manifest consent and its SDK's provider map.
 
 > **Note.** The runtime ABI is not specified yet
 > ([`module.host.abi`](../lang/10-modules.md#r-module.host.abi)), so a
@@ -1995,7 +1996,7 @@ version = "1.0.0"   # warning: unknown-manifest-key, since a tag is the version
 | --- | --- |
 | `[package]` | `name`, `hd` |
 | `[source]` | `root` |
-| `[host]` | `traits` |
+| `[host]` | package-relative host trait paths mapped to provider files |
 | `[[executable]]` | `name`, `module` |
 | `[dependencies]`, `[dev-dependencies]` | every key, each a [dependency requirement](../lang/10-modules.md#dependency-requirements) |
 | `[workspace]` | `members`, `exclude` |
@@ -2018,38 +2019,45 @@ See also: [Package Manifest](../lang/10-modules.md#package-manifest),
 
 ### Package Host Declarations
 
-The `[host] traits` list records the host traits declared by the package:
+The SDK maps each owned host trait to its provider file:
 
 ```toml
 [host]
-traits = ["server.HttpServer", "ui.Surface"]
+"server.HttpServer" = "providers/http.mjs"
+"ui.Surface" = "providers/ui.mjs"
 ```
 
-1. r[cli.host.declaration.list] `[host] traits` must be a list of strings. Error: `invalid-manifest`.
-2. r[cli.host.declaration.path] Each string must be a package-relative trait path of canonical identifier names separated by dots. Error: `invalid-manifest`.
-3. r[cli.host.declaration.unique] A trait path must occur at most once in the list. Error: `invalid-manifest`.
-4. r[cli.host.declaration.listed] Each listed path must name a trait declared with `@host` in its owning package. Error: `invalid-manifest`.
-5. r[cli.host.declaration.marked] Each trait marked `@host` must occur in its owning package's `[host] traits` list. Error: `invalid-manifest`.
-6. r[cli.host.declaration.locations] A source/list mismatch diagnostic identifies the trait and its source and manifest locations.
-7. r[cli.host.declaration.no-authority] A host declaration neither loads provider code nor grants authority.
-8. r[cli.host.declaration.recheck] Changing the manifest list must recheck source/list agreement even when the source has not changed.
+1. r[cli.host.declaration.map] `[host]` must be a table mapping trait paths to nonempty provider-file strings. Error: `invalid-manifest`.
+2. r[cli.host.declaration.map-key] Each key must be a package-relative trait path of canonical identifier names separated by dots. Error: `invalid-manifest`.
+3. r[cli.host.declaration.map-unique] Each trait path must occur at most once in the table. Error: `invalid-manifest`.
+4. r[cli.host.declaration.mapped] Each key must name a trait declared with `@host` in its owning package. Error: `invalid-manifest`.
+5. r[cli.host.declaration.marker-mapped] Each trait marked `@host` must have an entry in its owning package's `[host]` table. Error: `invalid-manifest`.
+6. r[cli.host.declaration.map-locations] A source/map mismatch diagnostic identifies the trait and its source and manifest locations.
+7. r[cli.host.declaration.mapping-no-consent] A dependency's host mapping does not grant consent to load its provider.
+8. r[cli.host.declaration.map-recheck] Changing the host map must recheck source/map agreement even when the source has not changed.
+9. r[cli.host.declaration.provider-relative] A provider-file value must be relative to its declaring package. Error: `invalid-manifest`.
 
 ### Package Host Bindings
 
-A package host binding connects a checked host trait to an invoker-selected provider:
+The app consents to load a provider through its root manifest:
+
+```toml
+[capabilities]
+"dep.server_sdk.server.HttpServer" = true
+```
 
 ```sh
-hd run --engine node --host dep.server_sdk.server.HttpServer=./provider.mjs
+hd run --engine node
 ```
 
 1. r[cli.host.package.entry] A package-declared host trait named by `main` belongs to that program's selected runtime profile.
 2. r[cli.host.package.javascript] Package host providers run only on JavaScript hosts.
 3. r[cli.host.package.native-refusal] Wasmtime refuses a required package host trait before guest initialization, naming the trait and its need for a JavaScript host.
 4. r[cli.host.package.no-fallback] A host unable to supply a package capability must not substitute another engine or provider.
-5. r[cli.host.package.flag] `--host SOURCE_TRAIT_PATH=PROVIDER.mjs` explicitly selects trusted provider JavaScript for `hd run` or a prebuilt Wasm run on Node.
-6. r[cli.host.package.flag-repeat] The `--host` flag may repeat before the program-argument separator `--`.
+5. r[cli.host.package.manifest-consent] Loading a required package provider needs an explicit `true` entry for its source trait path in the app's `[capabilities]` table.
+6. r[cli.host.package.no-flag-consent] A `--cap` flag cannot replace missing manifest consent for a package provider.
 7. r[cli.host.package.invoker] Only the invoker or its trusted adapter loads provider code.
-8. r[cli.host.package.preflight] Every required provider and total denial must be checked before any selected provider module loads.
+8. r[cli.host.package.consent-preflight] Every required provider and grant must be checked before any selected provider module loads.
 9. r[cli.host.package.contract] Provider identity and required method schemas, including suspension and returned handles, must match before guest initialization.
 10. r[cli.host.package.missing] A missing provider causes a startup refusal naming the package, version and trait.
 11. r[cli.host.package.duplicate] Registering multiple providers for one nominal capability is an error.
@@ -2060,8 +2068,15 @@ hd run --engine node --host dep.server_sdk.server.HttpServer=./provider.mjs
 16. r[cli.host.package.abort] Aborting a pending method signals cancellation and discards its undelivered result, including any later completion.
 17. r[cli.host.package.handle-release] Releasing the last HD reference to a returned handle drops its host binding without implicitly calling resource methods.
 
+18. r[cli.host.package.plain-provider] A provider module default-exports a plain JavaScript object with an own function property for each required method.
+19. r[cli.host.package.generated-wrapper] Generated glue wraps plain provider objects with the checked nominal identity and method schemas.
+20. r[cli.host.package.provider-containment] Loading refuses a missing provider file or a file whose canonical path leaves its declaring package.
+21. r[cli.host.package.prebuilt-manifest] A prebuilt Wasm run requiring package capabilities discovers its app manifest above the Wasm file.
+22. r[cli.host.package.prebuilt-no-manifest] A prebuilt Wasm run without that manifest refuses required package capabilities before loading any provider.
+23. r[cli.host.package.value-conversion] Generated bindings apply the JavaScript value conversions of [Package Host Traits](../lang/10-modules.md#package-host-traits).
+
 > **Why.** Provider JavaScript has its host realm's authority; an HD grant cannot sandbox arbitrary JavaScript imports.
-> Declaring or granting a capability therefore never selects executable provider code.
+> Root consent makes loading dependency code explicit.
 
 > **Why.** The paired declaration makes host interfaces discoverable without scanning source and keeps the provider's responsibility explicit in both places.
 

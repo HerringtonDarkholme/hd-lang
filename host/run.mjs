@@ -108,41 +108,36 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
   if (sections.length > 1) throw new HostContract("duplicate package host contracts");
   const required = sections.length ? readPackageContract(new Uint8Array(sections[0])) : [];
   const registrations = new Map();
+  const grants = { ...config.grants };
   for (const registration of config.hostProviders ?? []) {
-    const matches = required.filter(
-      (i) => !i.handle && i.selectors.includes(registration.selector),
-    );
-    if (matches.length !== 1)
-      throw new HostContract(
-        `provider selector ${registration.selector} names no required package capability`,
-      );
-    const i = matches[0];
+    const i = required.find((i) => !i.handle && i.module === registration.module);
+    if (!i || !i.selectors.includes(registration.grantPath))
+      throw new HostContract("provider mapping names no required package capability");
     if (registrations.has(i.module))
-      throw new HostContract(`duplicate registration for ${registration.selector}`);
+      throw new HostContract(`duplicate provider for ${i.identity.trait_path}`);
     registrations.set(i.module, registration);
   }
-  // Complete the grant/missing-provider check before importing ANY trusted
-  // provider: its module initialization can already touch the machine.
+  // Preflight every grant before importing any provider: initialization can
+  // already touch the machine. Mappings come from the CLI's manifest check.
   for (const i of required.filter((i) => !i.handle)) {
     const name = `${i.identity.package}@${i.identity.version}/${i.identity.trait_path}`;
-    if (i.selectors.some((s) => config.grants?.[s] === false))
+    if (i.selectors.some((s) => grants[s] === false))
       throw new HostContract(`package capability denied: ${name}`);
-    if (!registrations.has(i.module))
+    const registration = registrations.get(i.module);
+    if (!registration)
       throw new HostContract(
-        `missing package host provider for ${name}; register it with --host SOURCE_TRAIT_PATH=PROVIDER.mjs`,
+        `package capability ${name} is not granted; add its trait path to the app's [capabilities] table`,
       );
+    grants[registration.grantPath] = true;
   }
   let packageBindings = null;
   if (required.length) {
     // This module was regenerated from validated data by hd, in its private
     // host directory. It is never JavaScript obtained from a guest section.
     const generated = await import("./main.host.mjs");
-    const providers = [];
+    const providers = new Map();
     for (const [module, registration] of registrations) {
-      const provider = (await import(pathToFileURL(registration.path).href)).default;
-      if (provider?.module !== module)
-        throw new HostContract(`provider identity mismatch for ${registration.selector}`);
-      providers.push(provider);
+      providers.set(module, (await import(pathToFileURL(registration.path).href)).default);
     }
     packageBindings = (runtime) => generated.bind(runtime, providers);
   }
@@ -151,7 +146,7 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
     module,
     args,
     program: config.program ?? "",
-    grants: config.grants ?? {},
+    grants,
     providers: profile ? (io) => profile.providers(config.profile, io) : null,
     packageBindings,
     deadline,

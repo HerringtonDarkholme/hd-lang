@@ -5,7 +5,10 @@ the same program in JavaScript points at the compiler or the library,
 not at the language. This roadmap finds where time and memory go today
 and ranks the fixes, for the optimization umbrella #426. It changes no
 code and measured nothing new: every number comes from a record it
-cites.
+cites. The records predate the linear-memory backend, so the figures
+describe the Wasm GC era. The live plan is
+[docs/compiler/tir-v2.md](../compiler/tir-v2.md): the inliner (approved
+2026-10-23) and the passes after it, then runtime performance.
 
 Speed comes after correctness, ergonomics and usability, and runtime
 speed is not a gate today. These rules shape the plan:
@@ -49,10 +52,11 @@ document, JSON encode went from 26 MB/s to 47 MB/s and decode from
 
 What is left falls into five groups:
 
-1. **Allocation per element.** No compiler pass removes an allocation
-   today. Inlining, escape analysis and scalar replacement are declared
-   in the optimized pipeline but report `Skipped`. The `allocations`
-   metric passes only because its loops carry `i64` values. A record
+1. **Allocation per element.** Inlining, escape analysis and scalar
+   replacement are planned in TIR v2 stage 3
+   ([docs/compiler/tir-v2.md](../compiler/tir-v2.md)); the inliner is
+   approved. The `allocations` metric passes only because its loops carry
+   `i64` values. A record
    returned from a helper, a constant enum value that needs a box, a
    closure made per element, derived metadata built on every decode, and a time value
    each allocate.
@@ -181,8 +185,8 @@ and calls per element are.
 - **Per-value shapes** (crates/hd_wasm_linear/DESIGN.md §15.2). A string is a
   12-byte view in a field or a list element, and allocates nothing when
   sliced. An `Option` or `Result` within the layout bound allocates
-  nothing. A `data` value is one struct. An erased `i32` is an `i31ref`
-  when it fits; an erased `i64`, float or string is always a box. A
+  nothing. A `struct` value is one Wasm GC struct. An erased `i64`, float
+  or string is always a box. A
   3-byte string's array is a 32-byte heap object (the probe).
 - **Shapes that waste memory.** `Set[T]` wraps `Map[T, bool]`, a `bool`
   per entry. `Deque` and `Heap` store `List[T?]`, which doubles the
@@ -201,14 +205,14 @@ and calls per element are.
 | Question | Probe that answers it |
 | --- | --- |
 | The metric table after the eight fixes | a full `pnpm run metrics -- --pillar 3` on HEAD at low load (step 1) |
-| Allocations per element outside `i64` loops | new loops in `bench/metrics/scripts/allocations.ts`: a record returned and destructured, a 3-tuple returned, an `Option` of a record, a boxed constant enum value, a closure made per element, an `i64` through a `dyn` generic method, integer interpolation, `Duration` arithmetic (step 3) |
+| Allocations per element outside `i64` loops | new loops in `bench/metrics/scripts/allocations.ts`: a record returned and destructured, a 3-tuple returned, an `Option` of a record, a boxed constant enum value, a closure made per element, an `i64` through a `dyn` generic method, integer interpolation, `Duration` arithmetic |
 | Why `sum` is 4.77x | the release WAT of `bench/micro/sum.hd`, its time per iteration on V8 with and without Liftoff and on wasmtime, against a hand-written Wasm loop (step 4) |
 | The GC share after the fixes | V8 CPU profiles of JSON encode and decode and text build, as the review took them (step 1) |
 | wasmtime figures for text, JSON and regex | the review's cases run under `--engine wasmtime` (step 1) |
 | The A1 cast cost on wasmtime | catalog says "unmeasured"; a list-read kernel with and without the cast |
 | What fills the tiny program and the 17 KB per 1,000 lines | bytes per section and per function of a release build; the planned `hd build --size-report` would give it |
 | What `check-cost` pays for | a profile of the checked and unchecked builds of its program |
-| Iterator layer cost after closure specialization | the closures bench on wasmtime, as #65 asks (step 23) |
+| Iterator layer cost after closure specialization | the closures bench on wasmtime |
 
 ## 3. Candidate Fixes By Mechanism
 
@@ -221,9 +225,9 @@ and the dev pipeline is what `hd run` and `hd test` use.
 
 ### 3.1 Allocation per element
 
-**Today.** The optimized pipeline lists `inline_plan`, `escape` and
-`scalar_replace`, and each reports `Skipped` (crates/hd_opt/DESIGN.md
-§1.3). The planned `hoist-constants`, `inline-trivial` and `const-fold`
+**Today.** Inlining, escape analysis and scalar replacement are planned
+in TIR v2 stage 3 ([docs/compiler/tir-v2.md](../compiler/tir-v2.md)); the
+inliner is approved. The planned `hoist-constants`, `inline-trivial` and `const-fold`
 are not built either (docs/compiler/lowering-catalog.md, Optimization
 Passes). So every `data` value built is a heap struct, even one returned
 and destructured at once. A constant enum or tuple value that needs a
@@ -244,15 +248,10 @@ decoding builds its metadata per call (#377), and a downcast compares
 | **Time types as newtypes**: `Duration`, `Timestamp`, `Instant` | one allocation per time value; a newtype emits nothing | std only; the redesign says no API change | low, if a newtype can keep its constructor private as the field is today; check first | nothing |
 | **Integer type ids**: compare one `i64` per type, as §15.2 designs it | a string compare per downcast | lowering of `TypeId::of`; `inspect.hd` | low | nothing |
 
-The local `^` mode of [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md)
-gives a later option: a `^T` parameter cannot escape its callee, so
-escape analysis gets facts across calls without inlining.
-
 ### 3.2 Boxing of numbers and options
 
 **Today.** `Option` and `Result` within the bound of 4 Wasm values never
-allocate. An `i32` crossing an erased position is an `i31ref` when it
-fits (`730d7754d`); an `i64`, a float or a string is always boxed. A
+allocate. An `i64`, a float or a string crossing an erased position is boxed. A
 tuple or enum over the bound is boxed in every position, and a string
 counts 2 toward the bound. std adds boxes the layout does not need:
 `Deque` and `Heap` store `T?`, and `Set` stores a `bool` per entry.
@@ -262,7 +261,6 @@ counts 2 toward the bound. std adds boxes the layout does not need:
 | **`Heap` on `List[T]`** with `pop` and a hole (review fix 17) | heap 167 to about 50 ms (3x) | std only | low | nothing |
 | **`Deque` on plain slots**: the ring over `List[T]` with `pop` and truncation (the redesign's finding) | a tag test per access; half the arrays for a scalar `T` | std only | low; a removed slot keeps its value alive until overwritten, as a ring over `T?` does not | nothing |
 | **`Set` without the `bool`**: `Map[T, void]` | one byte per entry; a values array less | needs `Array[void]` lowering | low | #180 or a smaller map change |
-| **`i64` as `i31ref` when it fits**, as `i32` does | a box per small erased `i64` | two runtime helpers | low; no hot path on record needs it | nothing |
 | **Known-vtable devirtualization**: a `dyn` call on a constant vtable global becomes direct | an indirect call; on wasmtime it opens inlining, `mut dyn Hasher` above all | a small pass; vtables are already globals (§15.4) | low | nothing |
 
 ### 3.3 String building and concatenation
@@ -350,7 +348,7 @@ members per key (`structure.hd:201`).
 | --- | --- | --- | --- | --- |
 | The shared fixes above | the review projected 0.3x encode and 0.2x decode with all of its JSON fixes | listed above | - | - |
 | **A member index per type** from the compiler | O(m²) to O(m) member lookups per decoded value | `hd_structure` | low | #377 |
-| **`bytes_index_json`** through a native loop, later a SIMD body | the escape and string scans; the probe says a native loop gains little on V8 | one helper | low | the owner's deferral of native loops, and the layout for SIMD |
+| **`bytes_index_json`** through a native loop, later a SIMD body | the escape and string scans; the probe says a native loop gains little on V8 | one helper | low | step 29 (#428) |
 | **Float text in hd** (Ryu and Eisel-Lemire) | about 30 ns per float against about 250 ns with the host crossing (review estimate) | moves three host primitives into std; needs wide multiplication | medium | question 4 |
 | **A streaming deserializer** that skips the tree | decode without building `Json` | a reader design | medium | #377 and the reader work |
 
@@ -380,55 +378,31 @@ a release build at a 1-minute load under 8, as medians of interleaved
 runs, on V8 and wasmtime unless the step says otherwise.
 
 The order: measure first, then owner-approved fixes with the largest
-measured or estimated gain, then the compiler passes that #427 needs,
-then the rest.
+measured or estimated gain, then the rest. Step numbers are stable
+identifiers. Allocation removal and inlining are planned in
+[docs/compiler/tir-v2.md](../compiler/tir-v2.md), so this table has no
+steps for them.
 
 | # | Step | Issue | Report before and after |
 | --- | --- | --- | --- |
 | 1 | Re-run pillar 3 on HEAD; profile JSON encode, decode and text build on V8; run the review's cases on wasmtime. A new metrics record, no code | #426 | the whole pillar 3 table; GC share per profile |
-| 2 | Make the text-build row compare equal work | #429 | both ratios, old and equal-work |
-| 3 | Add per-element shapes to the `allocations` metric (section 2.6) | #427 | bytes per iteration for each shape; this is #427's baseline |
 | 4 | Find why `sum` is 4.77x | - | ns per iteration on V8 with and without Liftoff, on wasmtime, and for a hand-written loop; the WAT of the hot loop |
-| 5 | Integer `Display` through `format_int` | #357 | 10⁶ `i64` interpolations (91 ms), `to_string` (72 ms), text-build MB/s, runtime `string-build` ratio, integer-interpolation bytes per iteration |
-| 6 | A literal without a getter call per use | #361 | a loop of 10⁶ literal compares; text build with a constant piece (24 ms); share of the literal getter in a dev profile; functions recompiled after a one-literal edit |
-| 7 | Wrapping and bit-count methods as instructions | #362 | SHA-256 of 1 MiB (128 ms), 10⁶ `wrapping_add` (12 ms), `checked_add` in a loop |
 | 8 | SipHash-1-3 on native adds for string bucket hashes | #353 follow-up | 1M short keys insert and lookup (63 / 52-57 ms), 200k 63-byte keys (19 / 17 ms), the colliding-key tests (stay near 0) |
-| 9 | `Hasher.write_u64` and `write_str` | #434 | `(i32, i32)`-key map (190 ns per op), `hash_of(string)` 100k (23 ms), `(string, i32)` keys 200k |
-| 10 | Cheaper piece push and `concat_all` | #376 | 1M small-piece pushes plus one `concat_all` (8 ns per piece), 1M byte pushes (3 ns per byte), no-float JSON encode (23-25 ms) |
-| 11 | Derived metadata once per type | #377 | `from_json` steady state (about 122 ms per 500), bytes per decoded record |
 | 12 | `Display.write` into a builder | #436 | `debug` of a record 100k (78 ms), `Display` of a three-level nested value, text build |
-| 13 | Constant hoisting and payloadless singletons | #427 | the boxed-constant shape (bytes per iteration to 0), a match over a subtype enum, Wasm bytes per 1,000 lines |
-| 14 | `Heap` on `List[T]`; `Deque` on plain slots | #362 | heap 3 × 200,000 push and pop (167 ms), deque (22 ms), peak heap of a 1M-element deque |
-| 15 | Stable sort with one buffer | #362 | `sorted_by` 3 × 200,000 (132 ms), 3 × 100,000 strings (136 ms), runtime `sort` ratio |
 | 16 | Time types as newtypes | #426 | the `Duration` shape's bytes per iteration, `to_rfc3339` 10⁵ times |
-| 17 | Builders in std's `+` loops, `MemoryFs` append in place | #362 | the growth exponent of each fixed call at 2x and 4x input |
-| 18 | UTF-8 conversions in bulk | #362 | `to_utf8` plus `from_utf8` 5 × 1.09 MB (56 ms) |
-| 19 | Escape analysis and scalar replacement design note in crates/hd_opt/DESIGN.md: pass order, what counts as an escape, suspension frames, `defer`, panics, and how `^` borrows will feed it | #427 | none (docs) |
-| 20 | Trivial inlining in both pipelines | #427 | runtime suite (`bench/runtime`) on both engines, Wasm bytes per 1,000 lines, cold build of 10k lines (0.36 CPU-s), web compiler gzip |
-| 21 | Escape analysis as a fact only: count non-escaping sites | #427 | non-escaping sites in std and the examples; Wasm digests unchanged (`HD_CONFORMANCE_WASM_DIGEST=check`) |
-| 22 | Scalar replacement of non-escaping records, tuples and enum boxes | #427 | step 3's shapes (records, tuples, `Option` of a record to 0 bytes per iteration), runtime suite, Wasm size |
-| 23 | Re-measure iterator chains on both engines | #65 | closures bench (292 ms V8, 781 ms wasmtime), ns per layer per item; the choice between specialization and fusion |
-| 24 | Scalar replacement of closures and capture cells | #427 | the closure-per-element shape, closures bench |
 | 25 | Property runner: one import object per test, synchronous instantiation | #426 | cases per second (28k) |
 | 26 | One `realpath` per host file call, in both hosts | #426 | `list_dir!` (41 µs), `read_text!` (32 µs) |
 | 27 | The literal host fast path | #426 | tiny program release bytes (2399 B), hello.wasm, start to first output |
+| 28 | Buffer primitives: `StringBuilder` byte path, `format_int` and concat in hd | #514 | text-build MB/s, integer-interpolation bytes per iteration, hello.wasm |
+| 29 | SIMD128 intrinsics for byte scans, called from std hd, after TIR v2 stage 3 | #428 | byte scan of 1 MiB, JSON string scan, Wasm bytes |
+| 30 | Map update probes once; `unwrap_or` inlines | #683 | map update loop ns per op |
 
-Bounded inlining, known-vtable devirtualization and the closure
-specialization schedule follow step 24. Each is larger than an hour, so
-each needs its own split once steps 20 to 24 show their real cost.
-Several steps wait on a question: 7, 8 and 18 on question 1, and 22 and
-24 on question 2. Steps 8 and 9 change std hashing, so they rerun the
-#353 and #511 collision tests.
+Step 8 changes std hashing, so it reruns the #353 and #511 collision
+tests. It waits on question 1.
 
 ## 5. What Stays Parked
 
-- **The string layout** (`(array v128)` or `(array i64)`). The owner kept
-  `(array i8)`. Revisit once JSON and text scanning go through the
-  approved primitives and real programs can be measured, as
-  SIMD_PRIMITIVES.md section 11 says.
-- **Native loops for the SIMD primitives.** Deferred by the owner; the
-  probe found almost no gain on V8 and about 10% on wasmtime.
-- **SIMD bodies.** They need the layout change.
+- **SIMD for byte scans** is step 29 (#428), after TIR v2 stage 3.
 - **A lazy DFA for regex.** The Pike VM with a prefilter is linear; a DFA
   is a larger design for a row at 0.16x. Text and JSON come first.
 - **`Map` in hd** (#180). Not a speed item. `Set` without its `bool`
@@ -441,8 +415,6 @@ Several steps wait on a question: 7, 8 and 18 on question 1, and 22 and
   slowed the rest of the suite and dropped frames from release panics.
 - **Bounds-check hoisting and loop-invariant motion.** The engines do part
   of it; the catalog leaves them out.
-- **Escape facts from `^` borrows.** They wait for the ownership
-  prototype to settle.
 - **List views for `chunks` and `windows`, `flat_map` over `Iterable`.**
   These are API changes in the stdlib redesign, not speed jobs.
 - **The `list_dir!` 5 µs goal.** One `readdir` costs more. The metric

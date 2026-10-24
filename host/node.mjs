@@ -31,7 +31,8 @@ import {
 } from "node:fs";
 import { isIP } from "node:net";
 import { createOutput } from "./output.mjs";
-import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_threads";
+import { MessageChannel, Worker } from "node:worker_threads";
+import { receiveReply } from "./worker-control.mjs";
 import { arch as osArch, availableParallelism, hostname, platform, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
 import {
@@ -229,8 +230,9 @@ const entry = (path, st) => {
 // start/poll/finish/abort requests rather than waiting for their I/O here.
 // A control call waits at most `left()` milliseconds before stopping its
 // client and throwing the `time-limit` panic.
-const syncClient = (file, close = null) => {
+export const syncClient = (file, close = null) => {
   let client = null;
+  let nextCall = 1;
   // Stops the thread, allowing an optional close request to release OS children.
   const stop = () => {
     if (client !== null) {
@@ -239,7 +241,7 @@ const syncClient = (file, close = null) => {
         // Child processes outlive worker termination. Let this worker kill
         // and reap them even if a short control call hit the run deadline.
         client.worker.ref();
-        client.port.postMessage({ op: close });
+        client.port.postMessage({ id: 0, request: { op: close } });
         client.port.close();
       }
       client = null;
@@ -253,7 +255,7 @@ const syncClient = (file, close = null) => {
       if (client === null) {
         const { port1, port2 } = new MessageChannel();
         const flag = new Int32Array(new SharedArrayBuffer(4));
-        const worker = new Worker(new URL(`./${file}`, import.meta.url), {
+        const worker = new Worker(new URL(file, import.meta.url), {
           workerData: { port: port2, flag },
           transferList: [port2],
         });
@@ -262,13 +264,15 @@ const syncClient = (file, close = null) => {
         client = { port: port1, flag, worker };
       }
       const { port, flag } = client;
+      const id = nextCall++;
       Atomics.store(flag, 0, 0);
-      port.postMessage(request);
-      if (Atomics.wait(flag, 0, 0, Math.max(0, left())) === "timed-out") {
+      port.postMessage({ id, request });
+      const reply = receiveReply(port, flag, id, left);
+      if (reply === null) {
         stop();
         throw new TimeLimit();
       }
-      return receiveMessageOnPort(port).message;
+      return reply.result;
     },
     stop,
   };

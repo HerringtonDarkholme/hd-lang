@@ -1,0 +1,23 @@
+# @dump: own
+# Move's rule 4 holds for a closure whose only suspension point is in an
+# `if`: the closure's `Ref` of `c` at its last access counts the cell (no
+# `take`) and `c`'s own `Drop` stays, while `start`, which does not
+# suspend, takes the cell of its own `d`.
+struct Counter:
+    hits: i32
+    name: string
+
+fn pause!() -> void:
+    return
+
+fn tick(c: &mut Counter) -> void:
+    c.hits = c.hits + 1
+
+fn start() -> fn!(bool) -> void:
+    let mut d = Counter { hits: +0, name: "d" }
+    tick(&mut d)
+    fn!(go: bool) -> void:
+        let mut c = Counter { hits: +0, name: "a" }
+        if go:
+            pause!()
+        tick(&mut c)

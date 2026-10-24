@@ -2,13 +2,15 @@
 // never wait on a full pipe. Aborting a pending write drops its unwritten
 // suffix; bytes already passed to the stream cannot be undone.
 import { write } from "node:fs";
-import { MessageChannel, receiveMessageOnPort, Worker, workerData } from "node:worker_threads";
+import { MessageChannel, Worker, workerData } from "node:worker_threads";
+import { postReply, receiveReply } from "./worker-control.mjs";
 import { pendingOperation } from "./core.mjs";
 import { Err, Ok } from "./wire.mjs";
 
 export function createOutput(connection = null) {
   let client = connection;
   let worker = null;
+  let nextCall = 1;
   const call = (request, transfer = []) => {
     if (client === null) {
       const { port1, port2 } = new MessageChannel();
@@ -28,10 +30,12 @@ export function createOutput(connection = null) {
       client = { port: port1, flag };
     }
     Atomics.store(client.flag, 0, 0);
-    client.port.postMessage(request, transfer);
-    if (Atomics.wait(client.flag, 0, 0, 5000) === "timed-out")
-      throw new Error("output control reply timed out");
-    return receiveMessageOnPort(client.port).message;
+    const id = nextCall++;
+    const deadline = performance.now() + 5000;
+    client.port.postMessage({ id, request }, transfer);
+    const reply = receiveReply(client.port, client.flag, id, () => deadline - performance.now());
+    if (reply === null) throw new Error("output control reply timed out");
+    return reply.result;
   };
   const send = (fd, text) => call({ op: "enqueue", fd, text });
   const output = {
@@ -128,7 +132,7 @@ if (workerData?.output) {
       }
       pump();
     });
-    port.on("message", (request) => {
+    port.on("message", ({ id, request }) => {
       let result;
       switch (request.op) {
         case "attach":
@@ -183,9 +187,7 @@ if (workerData?.output) {
         default:
           result = { error: "unknown output control request" };
       }
-      port.postMessage(result);
-      Atomics.store(flag, 0, 1);
-      Atomics.notify(flag, 0);
+      postReply(port, flag, id, result);
     });
   };
   attach(workerData);

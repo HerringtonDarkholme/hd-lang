@@ -151,9 +151,8 @@ first release has no serializable closures. The decision above waits
 until after it.
 
 **Design study (#166, 2026-10-15).** Reopened under the owner's goals of
-remote calls, data fetching, security, caching, and a minimal wire. The
-design record, [Serializable Closures And Remote Calls](SERIALIZABLE_CLOSURE_DESIGN.md),
-now holds the options and the open questions; continue there.
+remote calls, data fetching, security, caching, and a minimal wire. The design
+is parked; its record and open questions are in #166.
 
 ### Observability Hooks
 
@@ -172,15 +171,15 @@ events. (2) Model tracing only as explicit requirement providers. (3) Let
 hosts instrument Wasm calls without language-level correlation.
 
 **Recommendation.** Option 1, while keeping exporters and policy behind
-ordinary providers. The hook must honor `Secret[T]`/`Redact` once defined.
+ordinary providers.
 
 **Unblocks.** Trace propagation across suspension, workflow event correlation,
 structured metrics, and enforceable redaction.
 
 **Decided 2026-09-27, not yet applied: option 1.** The runtime carries trace
 context task-locally in the poll context; hooks fire at host-boundary calls
-and suspension points; exporters and policy stay ordinary providers. The
-redaction clause waits for `Secret[T]`, which is removed for now.
+and suspension points; exporters and policy stay ordinary providers. `Secret[T]` is removed, so the hook has no redaction
+clause.
 
 **Hook points first (owner, 2026-10-06).** The new compiler reserves no-op
 hook points in suspension lowering from day one. The hook API and replay
@@ -242,16 +241,16 @@ aliasing and rely on checked `Closed` results.
 through `Disposable`
 ([Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)); a
 leaked handle is a runtime report and a call after disposal is `Closed`.
-Escape checking for locals is the `^` mode of
-[Parallelism And Locality](PARALLELISM_AND_LOCALITY.md).
+There is no escape checking for locals: the local `^` mode and the
+ownership prototype were removed.
 
 **Unblocks.** Leak-resistant files/sockets, safe cancellation, fallible cleanup
 design, stronger sandbox guarantees, and possibly complete per-tool authority
 reports: provider values are ordinary values that may escape today, and a
 `NonEscapable` provider category is the likely way to close that gap.
 
-**After the first release (owner, 2026-10-06).** NonEscapable is planned
-after the new compiler's first release.
+**Parked.** The spec, the std library and the compiler have no
+NonEscapable category.
 
 **Parked questions.** The owner does not want to discuss NonEscapable now.
 These are the initial answers, not to be applied until the owner reopens
@@ -259,7 +258,7 @@ the topic.
 
 | # | Question | Initial answer |
 | --- | --- | --- |
-| TQ-24 | How does NonEscapable propagate to a type holding a NonEscapable field, as `data HiddenFile` with `file: File`? Automatically, like Rust's auto traits, or declared and checked? | Declared and checked: such a type must itself be declared NonEscapable, and a generic type is NonEscapable exactly when an argument is. Erasure to `Any`, or to a trait value whose trait does not extend NonEscapable, is rejected. |
+| TQ-24 | How does NonEscapable propagate to a type holding a NonEscapable field, as `struct HiddenFile` with `file: File`? Automatically, like Rust's auto traits, or declared and checked? | Declared and checked: such a type must itself be declared NonEscapable, and a generic type is NonEscapable exactly when an argument is. Erasure to `Any`, or to a trait value whose trait does not extend NonEscapable, is rejected. |
 | TQ-25 | Does a generic parameter accept a NonEscapable argument by default? | No: a parameter opts in, as Swift's `~Escapable` does, so existing generic code stays valid. |
 | TQ-26 | How does a NonEscapable result, as in `fn first_line(file: File) -> Line`, say which parameters it depends on? | No NonEscapable returns for now; later, depend on every NonEscapable parameter, and name them only when a real API needs it. |
 
@@ -288,13 +287,6 @@ opt-in `Frozen`/`Immutable` marker trait checked at construction. This
 is what sharing values across threads or actors without copying needs
 (compare Rust's `Sync` and Swift's `Sendable`), so discuss it with
 `@pure` and NonEscapable capturing. Not in the spec.
-
-### Cancelling A Using Binding
-
-A stored suspension's `cancel()` cannot wait for a `dispose!` that
-suspends. The proposed answer, a graceful suspending `cancel!()` and a synchronous
-`abandon()`, is in
-[Cancellation And Cleanup](CANCELLATION_AND_CLEANUP.md).
 
 ### Closure Shorthand
 
@@ -360,8 +352,7 @@ that needs no decision lives in GitHub issues.
 - **Process with working directory and environment.** Needs a change to the
   language-tier `Process` trait.
 - **Host ABI.** The first release's host ABI is hd's own core-Wasm imports,
-  not the Component Model, which can't carry Wasm GC values (owner,
-  2026-10-06). Where a point below names the component ABI, read it as the
+  not the Component Model (owner, 2026-10-06). Where a point below names the component ABI, read it as the
   hd host ABI.
 - **Runtime code loading (parked, 2026-10-06).** A host trait `Loader`
   would load a built `.wasm` plugin at run time. It would check the

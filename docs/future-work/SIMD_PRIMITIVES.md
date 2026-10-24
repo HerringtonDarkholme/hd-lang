@@ -10,20 +10,20 @@ have.
 It defines five scan functions that std calls (`bytes_index`,
 `bytes_index_pair`, `bytes_index_json`, `bytes_mismatch`,
 `utf8_valid_len`), each a plain hd declaration whose body the compiler
-supplies. The measurements in section 10 show the catch: SIMD cannot
-load from hd's strings as they are laid out today, and the 16-byte
-layout that would allow it makes every other string operation slower.
-So strings keep their layout, and the functions get plain native loops
-first, later; SIMD bodies follow only if a layout change ever measures
-faster overall, and then they are emitted unconditionally. String copies
-already run at memory-copy speed, so they need nothing.
+supplies. Strings are views over linear memory, so SIMD128 can load from
+them directly. The owner decided on 2026-10-22 to add a few low-level
+SIMD128 intrinsics (find a byte, check all-ASCII, and similar) after
+TIR v2 stage 3, once text and JSON scans live in std hd code that calls
+them. The measurements in section 10 are from the earlier Wasm GC string
+layout and stay as history. String copies already run at memory-copy
+speed, so they need nothing.
 
 This is the proposal for issue #428, under #426; nothing in it is in the
 spec or the compiler yet.
 
 - [1. Motivation](#1-motivation)
 - [2. The Proposal On One Page](#2-the-proposal-on-one-page)
-- [3. What Blocks SIMD Today](#3-what-blocks-simd-today)
+- [3. Why The Layout No Longer Blocks SIMD](#3-why-the-layout-no-longer-blocks-simd)
 - [4. The Primitives](#4-the-primitives)
 - [5. The Callers](#5-the-callers)
 - [6. Expected Gains](#6-expected-gains)
@@ -38,7 +38,7 @@ spec or the compiler yet.
 Today every byte scan in `lib/std` is an hd loop over `bytes_at`. Each
 call of `bytes_at` checks the index against the view's length, unpacks
 the view's start, adds it, and reads one byte with `array.get_u`, which
-the engine bounds-checks again (`str_at` in `crates/hd_wasm/src/emit.rs`).
+the engine bounds-checks again.
 That is about 15 Wasm instructions per byte before the loop's own
 compare and branch.
 
@@ -81,64 +81,19 @@ Each returns a byte offset. A search that finds nothing returns
 hd reference body, and the supplied body must give the same result for
 every input.
 
-The work comes in two steps:
+The bodies are SIMD128 intrinsics that std hd code calls, added after
+TIR v2 stage 3 (owner, 2026-10-22). The reference body in hd defines the
+result, and the supplied body must give the same result for every input.
 
-1. **Native loops now.** The supplied bodies are runtime helpers that
-   loop over the backing array directly: one view check per call, not
-   per byte. This needs no new Wasm feature and no layout change.
-2. **SIMD later, only after a layout decision.** Wasm SIMD128 cannot
-   read hd's strings as they are laid out today (section 3). SIMD bodies
-   need the owner to approve a change of the string's backing array,
-   after a probe on both engines.
 
-The signatures stay the same across both steps, so the std callers are
-rewritten once.
+## 3. Why The Layout No Longer Blocks SIMD
 
-## 3. What Blocks SIMD Today
-
-A string is a view `(ref $bytes, i64 span)` over `$bytes = (array i8)`, a
-Wasm GC array (crates/hd_wasm_linear/DESIGN.md §15.2). A `List[u8]` stores its
-bytes in a packed `(array (mut i8))` the same way.
-
-SIMD128 loads a `v128` only from linear memory (`v128.load` and its
-variants). Wasm GC reads an `i8` array one element at a time
-(`array.get_u`). No instruction loads 16 bytes, or even 8, from an `i8`
-array. The GC proposal's post-MVP list (bulk copy, fill, init from a data
-segment) has no wide load either. The repository already records the
-same gap for host copies: "Wasm GC has no bulk copy between arrays and
-memory" (crates/hd_run_wasmtime/DESIGN.md §17.3).
-
-Assembling a vector from 16 `array.get_u` and 16 `i8x16.replace_lane`
-costs more than the scalar compare it replaces. Copying the bytes into
-linear memory first is a per-byte loop too. So, with today's layout,
-SIMD gives nothing.
-
-Three ways out, cheapest first:
-
-- **Keep the layout; ship native loops (step 1).** The gain is the view
-  and bounds work removed from every byte, not 16 bytes per step.
-- **Back strings with a wider array.** `$bytes` becomes `(array v128)`,
-  padded with zero bytes to a multiple of 16. The Wasm GC spec allows
-  `v128` as an array element type; both engines must be probed for it.
-  A scan then does one `array.get` per 16 bytes. The costs land on every
-  other string operation:
-  - `bytes_at` becomes `array.get`, then a lane pick with
-    `i8x16.swizzle` and `i8x16.extract_lane_u`: a few more instructions
-    per byte read.
-  - `array.copy` copies whole lanes, so a concatenation whose source
-    start is not a multiple of 16 needs a shifting copy loop.
-  - Every string rounds up to 16 bytes, so a 3-byte string's array is
-    five times larger. The peak-heap metrics would show it.
-  - Literals (`array.new_data`) need their segment padded, and the host
-    copy loops change.
-  - `List[u8]` keeps its own `(array (mut i8))`, so `utf8_valid_len`
-    would need the same change for byte lists, or would stay scalar.
-- **The same with `(array i64)`, as SWAR.** Eight bytes per step with
-  plain integer instructions, no SIMD128. The same layout costs, for
-  half the width.
-
-A future Wasm proposal with a wide load from a packed array would remove
-the layout cost. None is in the GC post-MVP list today.
+A string is a view `(address, length)` over bytes in linear memory
+(crates/hd_wasm_linear/DESIGN.md §23). SIMD128 loads a `v128` from
+linear memory with `v128.load` and its variants, so a scan can compare
+16 bytes per step with no layout change. The Wasm GC `(array i8)` layout
+that blocked this, and the wider `(array v128)` and SWAR alternatives
+the probe in section 10 priced, are gone with Wasm GC.
 
 ## 4. The Primitives
 
@@ -298,10 +253,6 @@ native code on x86_64 or ARM, not for Wasm. Wasm SIMD128 is 16 bytes
 wide, as SSE2 and NEON are, and narrower than AVX2. Treat each figure as
 an upper bound on what a SIMD body could reach for that scan alone.
 
-- **Step 1, native loops.** The gain is the per-byte view work removed:
-  about 15 Wasm instructions per byte down to about 5 (load, compare,
-  add, branch), counted from `str_at`. No published figure applies; the
-  first implementation measures it.
 - **`bytes_index`.** The memchr crate ships SIMD128 routines for wasm32,
   with SWAR as its fallback (its README). Its published benchmarks are
   native, so this proposal cites no Wasm figure.
@@ -441,8 +392,4 @@ be rerun from them on request.
 
 ## 11. Open Points
 
-1. When to land step 1 (native loops); deferred by the owner.
-2. The string layout. The owner kept `(array i8)` after the probe
-   (2026-10-17); revisit once JSON and text parsing scan through these
-   primitives instead of reading byte by byte, and measure real programs
-   then.
+1. Which SIMD128 intrinsics std needs first, once text and JSON scans live in std hd code.

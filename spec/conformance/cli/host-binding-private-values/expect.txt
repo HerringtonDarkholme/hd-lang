@@ -1,0 +1,7 @@
+run: hd run --engine node
+stdout: 18446744073709551614 -9223372036854775807 4607182418800017408 9223372036854775808 nested
+stdout: custom reply
+run: hd build --engine node
+run: hd build/debug/private_values.wasm --engine node
+stdout: 18446744073709551614 -9223372036854775807 4607182418800017408 9223372036854775808 nested
+stdout: custom reply

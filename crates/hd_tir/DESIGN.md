@@ -1028,10 +1028,13 @@ The verifier checks each of these:
 1. Every **value** operand precedes its user, and is visible where it is
    used: in the same block earlier, or in an enclosing block. Child
    blocks, labels and locals follow their own rules (5 and 10).
-2. Every non-root instruction has exactly one structural owner: either
-   one block list or one `If`, `Match` or `Loop` child-block operand,
-   never both. The verifier builds this ownership map and rejects
-   missing, duplicate and cyclic ownership.
+2. Every non-root instruction is listed in exactly one block. A child
+   block is listed too, in the block around the instruction that runs
+   it, and is also named by that instruction's operand (an `If`,
+   `Match`, `Loop` or `Scope`, for example); a closure's root is listed
+   in its parent's block the same way. The verifier checks only the listing:
+   it rejects a listed instruction that does not exist and one listed
+   in two blocks.
 3. After `finish`, every type is global. `Hole` and `Poison` occur only
    in a module with errors, which D2 does not lower.
 4. **Every operand's type equals the type its position expects**: call

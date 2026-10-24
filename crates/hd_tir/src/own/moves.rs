@@ -49,9 +49,12 @@
 
 use hd_types::Ty;
 
-use super::splice::for_blocks;
-use super::{Operand, OwnCx, Role, Tri, fill, operands, splice, tracked};
-use crate::ir::{Body, CaptureMode, NONE, ReadMode, Ref, Tag, is_suspension, place, u32_of};
+use super::flow::{Backward, BitArena, Flow, backward};
+use super::{Operand, OwnCx, Role, Tri, fill, operands, splice, suite_touches, tracked};
+use crate::ir::{
+    Body, CaptureMode, NONE, PlaceView, ReadMode, Root, Tag, Topology, for_blocks, is_suspension,
+    place, u32_of,
+};
 
 /// A decision of [`Tables::decide`].
 const UNSEEN: u8 = 0;
@@ -64,9 +67,6 @@ const TAKE: u8 = 3;
 /// The move pass's dense tables, reused across bodies.
 #[derive(Default)]
 pub(crate) struct Tables {
-    /// Each instruction's block and position in it, or `NONE`.
-    pub(super) blk: Vec<u32>,
-    pub(super) pos: Vec<u32>,
     /// Each local's and each value's bit among the candidates, or `NONE`.
     pub(super) lnum: Vec<u32>,
     pub(super) vnum: Vec<u32>,
@@ -84,20 +84,8 @@ pub(crate) struct Tables {
     /// Per sub-body: whether it holds a suspension point (known-null's
     /// points, `is_suspension`).
     susp_sub: Vec<bool>,
-    /// Per instruction: the sub-body it is the root block of, or `NONE`.
-    root_sub: Vec<u32>,
-    /// Each instruction's label, as a target of `Break` and `Continue`.
-    label_of: Vec<u32>,
-    /// Per label, the arena offset of the state a `Break` and a
-    /// `Continue` to it carry, while its target is walked.
-    brk: Vec<u32>,
-    cont: Vec<u32>,
-    /// The open matches' arm states: the first arm's offset and the count.
-    arms: Vec<(u32, u32)>,
-    /// The liveness states, `words` words each, allocated and freed last
-    /// in, first out.
-    arena: Vec<u64>,
-    pub(super) words: usize,
+    /// The liveness walk's states, one bit per candidate.
+    pub(super) back: Flow,
     /// Per instruction: [`MOVE`] or [`KEEP`] for a candidate read the walk
     /// reached, from the state after it.
     decide: Vec<u8>,
@@ -111,9 +99,6 @@ pub(crate) struct Tables {
     stack: Vec<u32>,
     parts: Vec<Ty>,
     pub(super) drops: Vec<u32>,
-    /// Each instruction's first instruction: its own index, or the first
-    /// of the blocks it runs, which precede it.
-    first: Vec<u32>,
     /// A sunk drop's pending edits: drops to insert as (block, position,
     /// place), statements to delete, reads that become moves.
     sink_ins: Vec<(u32, u32, u32)>,
@@ -121,47 +106,8 @@ pub(crate) struct Tables {
     sink_mv: Vec<u32>,
 }
 
-/// What a place word starts at.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum Root {
-    Local(u32),
-    Value(u32),
-    Other,
-}
-
-/// The root of the place at `word`, and the `extra` range of its
-/// projection words (empty for a bare local).
-pub(super) fn root_of(b: &Body, word: u32) -> (Root, u32, u32) {
-    if word & place::BARE_LOCAL != 0 {
-        return (Root::Local(word & !place::BARE_LOCAL), 0, 0);
-    }
-    let at = word as usize;
-    let Some(&n) = b.extra.get(at) else {
-        return (Root::Other, 0, 0);
-    };
-    let end = word + 1 + n;
-    match b.extra.get(at + 1..at + 3) {
-        Some(&[place::ROOT_LOCAL, l]) => (Root::Local(l), word + 3, end),
-        Some(&[place::ROOT_VALUE, v]) if Ref(v).as_inst().is_some() => {
-            (Root::Value(v), word + 3, end)
-        }
-        _ => (Root::Other, 0, 0),
-    }
-}
-
-/// Whether the projection words `from..to` are all field and variant
-/// steps, which name a part of the value at the root itself.
-pub(super) fn in_place(b: &Body, from: u32, to: u32) -> bool {
-    b.extra[from as usize..to as usize].iter().all(|&w| {
-        let kind = w & place::PROJ_KIND;
-        kind == place::PROJ_FIELD || kind == place::PROJ_VARIANT
-    })
-}
-
 impl Tables {
-    fn reset(&mut self, n: usize, locals: usize, labels: usize) {
-        fill(&mut self.blk, n, NONE);
-        fill(&mut self.pos, n, 0);
+    fn reset(&mut self, n: usize, locals: usize) {
         fill(&mut self.lnum, locals, NONE);
         fill(&mut self.vnum, n, NONE);
         fill(&mut self.keep_l, locals, false);
@@ -169,74 +115,49 @@ impl Tables {
         fill(&mut self.addr, locals, false);
         fill(&mut self.holds, locals, NONE);
         fill(&mut self.owns, locals, false);
-        fill(&mut self.label_of, n, NONE);
-        fill(&mut self.brk, labels, NONE);
-        fill(&mut self.cont, labels, NONE);
         fill(&mut self.decide, n, UNSEEN);
-        fill(&mut self.first, n, 0);
-        self.arms.clear();
-        self.arena.clear();
         self.touch.clear();
         self.stack.clear();
     }
 
-    /// A new state of all zeros, or a copy of state `from`.
-    fn alloc(&mut self, from: Option<usize>) -> usize {
-        let at = self.arena.len();
-        match from {
-            Some(f) => self.arena.extend_from_within(f..f + self.words),
-            None => self.arena.resize(at + self.words, 0),
-        }
-        at
-    }
-
-    /// Frees state `at` and every state allocated after it.
-    fn free(&mut self, at: usize) {
-        self.arena.truncate(at);
-    }
-
-    fn copy(&mut self, to: usize, from: usize) {
-        self.arena.copy_within(from..from + self.words, to);
-    }
-
-    fn clear(&mut self, at: usize) {
-        self.arena[at..at + self.words].fill(0);
-    }
-
-    /// `to |= from`; whether `to` grew.
-    fn union(&mut self, to: usize, from: usize) -> bool {
-        let mut grew = false;
-        for k in 0..self.words {
-            let v = self.arena[from + k];
-            let w = &mut self.arena[to + k];
-            grew |= v & !*w != 0;
-            *w |= v;
-        }
-        grew
-    }
-
-    fn set(&mut self, at: usize, bit: u32, on: bool) {
-        let w = &mut self.arena[at + (bit / 64) as usize];
-        if on {
-            *w |= 1 << (bit % 64);
-        } else {
-            *w &= !(1 << (bit % 64));
-        }
-    }
-
-    fn get(&self, at: usize, bit: u32) -> bool {
-        self.arena[at + (bit / 64) as usize] & (1 << (bit % 64)) != 0
-    }
-
-    /// [`deps`] over these tables.
+    /// Calls `f` with the bit of each candidate a use of value `v` keeps
+    /// live besides `v` itself: a `borrow` read lives on its place, so a
+    /// use of it uses the place's root too, and what that root's value
+    /// lives on in turn (a borrowed value, a binding local's read).
     pub(super) fn deps(&self, b: &Body, v: u32, f: &mut impl FnMut(u32)) {
-        deps(b, &self.lnum, &self.vnum, &self.holds, v, f);
+        let (lnum, vnum, holds) = (&self.lnum, &self.vnum, &self.holds);
+        let mut x = v;
+        for _ in 0..16 {
+            let i = x as usize;
+            if !b.is_borrow(x) {
+                return;
+            }
+            match b.view(b.data[i][0]).root {
+                Root::Local(l) => {
+                    let li = l as usize;
+                    if lnum[li] != NONE {
+                        f(lnum[li]);
+                    }
+                    if holds[li] == NONE {
+                        return;
+                    }
+                    x = holds[li];
+                }
+                Root::Value(u) => {
+                    if vnum[u as usize] != NONE {
+                        f(vnum[u as usize]);
+                    }
+                    x = u;
+                }
+                _ => return,
+            }
+        }
     }
 
-    /// [`deps`] of what the place at `word` reads through its root: the
-    /// read a binding local at the root holds.
+    /// [`Self::deps`] of what the place at `word` reads through its root:
+    /// the read a binding local at the root holds.
     fn place_deps(&self, b: &Body, word: u32, f: &mut impl FnMut(u32)) {
-        if let (Root::Local(l), _, _) = root_of(b, word)
+        if let Some(l) = b.view(word).local()
             && self.holds[l as usize] != NONE
         {
             self.deps(b, self.holds[l as usize], f);
@@ -245,10 +166,10 @@ impl Tables {
 
     /// The candidate bit of the root of place `word`, if it has one.
     fn bit(&self, b: &Body, word: u32) -> Option<u32> {
-        let x = match root_of(b, word).0 {
+        let x = match b.view(word).root {
             Root::Local(l) => self.lnum.get(l as usize).copied()?,
             Root::Value(v) => self.vnum.get(v as usize).copied()?,
-            Root::Other => NONE,
+            _ => NONE,
         };
         (x != NONE).then_some(x)
     }
@@ -270,106 +191,34 @@ impl Tables {
     }
 }
 
-/// Calls `f` with the bit of each candidate a use of value `v` keeps live
-/// besides `v` itself: a `borrow` read lives on its place, so a use of it
-/// uses the place's root too, and what that root's value lives on in turn
-/// (a borrowed value, a binding local's read). `lnum`, `vnum` and `holds`
-/// are [`Tables`]'.
-fn deps(b: &Body, lnum: &[u32], vnum: &[u32], holds: &[u32], v: u32, f: &mut impl FnMut(u32)) {
-    let mut x = v;
-    for _ in 0..16 {
-        let i = x as usize;
-        if !b.is_borrow(x) {
-            return;
-        }
-        match root_of(b, b.data[i][0]).0 {
-            Root::Local(l) => {
-                let li = l as usize;
-                if lnum[li] != NONE {
-                    f(lnum[li]);
-                }
-                if holds[li] == NONE {
-                    return;
-                }
-                x = holds[li];
-            }
-            Root::Value(u) => {
-                if vnum[u as usize] != NONE {
-                    f(vnum[u as usize]);
-                }
-                x = u;
-            }
-            Root::Other => return,
-        }
-    }
-}
-
 /// Runs the move pass over every sub-body of `b`.
 /// The edits go to `edits` beside the borrow pass's, which still stand in
 /// the body: it reads a deleted `Drop` of a borrowed value or of a binding
 /// local as a statement that touches no candidate.
-pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
+pub(crate) fn run(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) {
     let n = b.len();
-    t.reset(n, b.local_ty.len(), b.label_inst.len());
-    structure(b, t);
-    if !candidates(b, cx, t) {
+    t.reset(n, b.local_ty.len());
+    if !candidates(b, topo, cx, t) {
         return;
     }
     touches(b, t);
-    for s in 0..b.sub_root.len() {
-        let root = b.sub_root[s];
-        if root as usize >= n {
-            continue;
-        }
-        let live = t.alloc(None);
-        block(b, t, root, live);
-        t.free(live);
-    }
-    apply(b, cx, t, edits);
-}
-
-/// Each instruction's block and position, and each label's target.
-fn structure(b: &Body, t: &mut Tables) {
-    let n = b.len();
-    for i in 0..n {
-        if b.tags[i] == Tag::Block {
-            for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
-                if (m as usize) < n {
-                    t.blk[m as usize] = u32_of(i);
-                    t.pos[m as usize] = u32_of(p);
-                }
-            }
-        }
-    }
-    for (l, &x) in b.label_inst.iter().enumerate() {
-        if let Some(slot) = t.label_of.get_mut(x as usize) {
-            *slot = u32_of(l);
-        }
-    }
-    for i in 0..n {
-        let mut f = u32_of(i);
-        if b.tags[i] == Tag::Block {
-            for &m in b.record(b.data[i][0]) {
-                if (m as usize) < i {
-                    f = f.min(t.first[m as usize]);
-                }
-            }
-        }
-        let first = &t.first;
-        for_blocks(b, i, |blk| {
-            if (blk as usize) < i {
-                f = f.min(first[blk as usize]);
-            }
-        });
-        t.first[i] = f;
-    }
+    let mut back = std::mem::take(&mut t.back);
+    backward(b, topo, &mut back, t);
+    t.back = back;
+    apply(b, topo, cx, t, edits);
 }
 
 /// Numbers the candidates: the counted locals no reference, shared
 /// capture or cleanup suite reaches and that hold no borrowed value, and
 /// the tracked values a `copy` read reads a part of, or all of, in place.
 /// Whether there is any.
-fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
+fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     let n = b.len();
     for i in 0..n {
         let [a, w] = b.data[i];
@@ -381,9 +230,8 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
             }
             // A binding local holds a borrowed value: it owns no count.
             Tag::Store if b.is_borrow(w) => {
-                if let (Root::Local(l), from, to) = root_of(b, a)
-                    && from == to
-                {
+                let p = b.view(a);
+                if let Some(l) = p.local().filter(|_| p.whole()) {
                     t.keep_l[l as usize] = true;
                     t.holds[l as usize] = w;
                 }
@@ -391,21 +239,12 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
             // A pinned collection's copy is a clone (`ref.elem.copy`), so
             // a read of its local copies even at its last use.
             Tag::Pin => {
-                if let (Root::Local(l), _, _) = root_of(b, a) {
+                if let Some(l) = b.view(a).local() {
                     t.keep_l[l as usize] = true;
                 }
             }
-            Tag::Scope if w != NONE => {
-                let suites = b.record(w);
-                t.stack.clear();
-                t.stack.extend_from_slice(suites);
-                keep_suites(b, t);
-            }
-            Tag::Defer => {
-                t.stack.clear();
-                t.stack.push(a);
-                keep_suites(b, t);
-            }
+            Tag::Scope if w != NONE => keep_suites(b, t, b.record(w)),
+            Tag::Defer => keep_suites(b, t, &[a]),
             _ => {}
         }
     }
@@ -424,7 +263,7 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     // sub-body suspends when it holds a suspension point, the instructions
     // known-null gives unwind sets (`is_suspension`); an owned local's
     // sub-body is its exit row's.
-    suspending_subs(b, t);
+    suspending_subs(b, topo, t);
     for &(s, l) in &b.exit_drops {
         if t.susp_sub[s.idx()] && t.addr[l.idx()] {
             t.keep_l[l.idx()] = true;
@@ -443,87 +282,54 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
         if b.tags[i] != Tag::Read || w != ReadMode::Copy as u32 {
             continue;
         }
-        let (Root::Value(v), from, to) = root_of(b, a) else {
+        let p = b.view(a);
+        let Some(v) = p.value().map(|v| v as usize) else {
             continue;
         };
-        let v = v as usize;
-        if v < n && t.vnum[v] == NONE && !t.keep_v[v] && in_place(b, from, to) && tracked(b, cx, v)
-        {
+        if t.vnum[v] == NONE && !t.keep_v[v] && p.in_place(b) && tracked(b, cx, v) {
             t.vnum[v] = k;
             k += 1;
         }
     }
-    t.words = (k as usize).div_ceil(64);
+    t.back.arena.words = (k as usize).div_ceil(64);
     k > 0
 }
 
 /// Marks each sub-body that holds a suspension point: from each point,
-/// up through the blocks that hold it (`t.blk`) to a sub-body's root (a
-/// closure's root is listed in its parent's block too, so the climb stops
-/// at the first root).
-fn suspending_subs(b: &Body, t: &mut Tables) {
+/// up through the blocks that hold it to a sub-body's root (a closure's
+/// root is listed in its parent's block too, so the climb stops at the
+/// first root).
+///
+/// The climb follows only `blk`, yet reaches the root from a point inside
+/// an `if`, `match` or loop body: every child block is listed in the block
+/// around the instruction that runs it, as the builder lists each
+/// instruction made while a block is open and the inliner lists the
+/// copy's root. Issue #828; own/a-reference-after-a-suspension-in-* guard it.
+fn suspending_subs(b: &Body, topo: &Topology, t: &mut Tables) {
     fill(&mut t.susp_sub, b.sub_root.len(), false);
-    fill(&mut t.root_sub, b.len(), NONE);
-    for (s, &r) in b.sub_root.iter().enumerate() {
-        if let Some(x) = t.root_sub.get_mut(r as usize) {
-            *x = u32_of(s);
-        }
-    }
-    for i in 0..b.len() {
-        if !is_suspension(b.tags[i]) {
-            continue;
-        }
-        let mut x = i;
-        while t.root_sub[x] == NONE && t.blk[x] != NONE {
-            x = t.blk[x] as usize;
-        }
-        if let Some(s) = t.susp_sub.get_mut(t.root_sub[x] as usize) {
-            *s = true;
+    for i in (0..u32_of(b.len())).filter(|&i| is_suspension(b.tags[i as usize])) {
+        let x = topo.enclosing(i).last().unwrap_or(i) as usize;
+        if topo.is_root[x] {
+            t.susp_sub[topo.sub[x] as usize] = true;
         }
     }
 }
 
-/// Marks every local and value the blocks on `t.stack` touch, with every
-/// block they run: a cleanup suite runs at its scope's exits, which the
-/// walk does not model.
-fn keep_suites(b: &Body, t: &mut Tables) {
-    let mut ops = std::mem::take(&mut t.ops);
-    while let Some(x) = t.stack.pop() {
-        let i = x as usize;
-        if i >= b.len() {
-            continue;
-        }
-        if b.tags[i] == Tag::Block {
-            t.stack.extend_from_slice(b.record(b.data[i][0]));
-        }
-        let stack = &mut t.stack;
-        for_blocks(b, i, |blk| stack.push(blk));
-        match b.tags[i] {
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin => {
-                if let (Root::Local(l), _, _) = root_of(b, b.data[i][0]) {
-                    t.keep_l[l as usize] = true;
-                }
-            }
-            Tag::Closure => {
-                let rec = b.record(b.data[i][1]);
-                for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
-                    t.keep_l[b.cap_local[c].idx()] = true;
-                }
-            }
-            _ => {}
-        }
-        operands(b, i, &mut ops);
-        for op in &ops {
-            t.keep_v[op.value as usize] = true;
-        }
-    }
-    t.ops = ops;
+/// Keeps out every local and value the cleanup suites `roots` touch
+/// ([`suite_touches`]).
+fn keep_suites(b: &Body, t: &mut Tables, roots: &[u32]) {
+    let (keep_l, keep_v) = (&mut t.keep_l, &mut t.keep_v);
+    let (local, value) = (
+        |l: u32| keep_l[l as usize] = true,
+        |v: u32| keep_v[v as usize] = true,
+    );
+    suite_touches(b, roots, &mut t.stack, &mut t.ops, false, local, value);
 }
 
 /// The instructions that touch each candidate, by bit, in index order.
 fn touches(b: &Body, t: &mut Tables) {
     let n = b.len();
-    let bits = t.words * 64;
+    let bits = t.back.arena.words * 64;
     fill(&mut t.start, bits + 1, 0);
     let mut ops = std::mem::take(&mut t.ops);
     for pass in 0..2 {
@@ -545,7 +351,7 @@ fn touches(b: &Body, t: &mut Tables) {
             };
             match b.tags[i] {
                 Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin => {
-                    if let (Root::Local(l), _, _) = root_of(b, b.data[i][0])
+                    if let Some(l) = b.view(b.data[i][0]).local()
                         && t.lnum[l as usize] != NONE
                     {
                         hit(t, t.lnum[l as usize]);
@@ -592,302 +398,106 @@ fn touches(b: &Body, t: &mut Tables) {
     t.ops = ops;
 }
 
-/// Walks block `blk` backward: state `live`, what is live after the
-/// block, becomes what is live at its start.
-fn block(b: &Body, t: &mut Tables, blk: u32, live: usize) {
-    if b.tags.get(blk as usize) != Some(&Tag::Block) {
-        return;
-    }
-    // A `Break` to a labeled block continues after it.
-    let label = t.label_of[blk as usize];
-    let saved = (label != NONE).then(|| t.brk[label as usize]);
-    if label != NONE {
-        let at = t.alloc(Some(live));
-        t.brk[label as usize] = u32_of(at);
-    }
-    // The tail is taken at the block's end.
-    let tail = b.data[blk as usize][1];
-    if tail != NONE && Ref(tail).as_inst().is_some() {
-        gen_value(b, t, live, tail);
-    }
-    let rec = b.data[blk as usize][0] as usize;
-    let len = b.extra[rec] as usize;
-    for p in (0..len).rev() {
-        let x = b.extra[rec + 1 + p];
-        // A block in the list runs where the instruction that owns it
-        // runs it.
-        if b.tags[x as usize] != Tag::Block {
-            inst(b, t, x, live);
+/// The liveness walk ([`backward`]): a read decides on what is live
+/// after it.
+impl Backward for Tables {
+    fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, live: usize) {
+        let i = x as usize;
+        let [a, w] = b.data[i];
+        // Its own value is made here: dead before.
+        if self.vnum[i] != NONE {
+            s.set(live, self.vnum[i], false);
         }
-    }
-    if let Some(old) = saved {
-        t.free(t.brk[label as usize] as usize);
-        t.brk[label as usize] = old;
-    }
-}
-
-/// A use of value `v`: it and what it lives on ([`Tables::deps`]).
-fn gen_value(b: &Body, t: &mut Tables, live: usize, v: u32) {
-    if let Some(&bit) = t.vnum.get(v as usize)
-        && bit != NONE
-    {
-        t.set(live, bit, true);
-    }
-    let Tables {
-        lnum,
-        vnum,
-        holds,
-        arena,
-        ..
-    } = t;
-    deps(b, lnum, vnum, holds, v, &mut |bit| {
-        arena[live + (bit / 64) as usize] |= 1 << (bit % 64);
-    });
-}
-
-/// The value operands of `x`, which it reads before it runs any block.
-fn gen_operands(b: &Body, t: &mut Tables, x: u32, live: usize) {
-    let mut ops = std::mem::take(&mut t.ops);
-    operands(b, x as usize, &mut ops);
-    for op in &ops {
-        if op.role != Role::Dropped && op.role != Role::Tail {
-            gen_value(b, t, live, op.value);
-        }
-    }
-    t.ops = ops;
-}
-
-/// Instruction `x` backward over state `live`.
-fn inst(b: &Body, t: &mut Tables, x: u32, live: usize) {
-    let i = x as usize;
-    let [a, w] = b.data[i];
-    // Its own value is made here: dead before.
-    if t.vnum[i] != NONE {
-        t.set(live, t.vnum[i], false);
-    }
-    match b.tags[i] {
-        Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Pin => {
-            // A read through a binding local reads what its read lives on.
-            let Tables {
-                lnum,
-                vnum,
-                holds,
-                arena,
-                ..
-            } = t;
-            if let (Root::Local(l), _, _) = root_of(b, a)
-                && holds[l as usize] != NONE
-            {
-                deps(b, lnum, vnum, holds, holds[l as usize], &mut |bit| {
-                    arena[live + (bit / 64) as usize] |= 1 << (bit % 64);
-                });
-            }
-            if let Some(bit) = t.bit(b, a) {
-                let (root, from, to) = root_of(b, a);
-                let addr = matches!(root, Root::Local(l) if t.addr[l as usize]);
-                let last = if t.get(live, bit) { KEEP } else { MOVE };
-                match b.tags[i] {
-                    Tag::Read
-                        if w == ReadMode::Copy as u32
-                            && !addr
-                            && (from == to || in_place(b, from, to)) =>
-                    {
-                        t.decide[i] = last;
+        match b.tags[i] {
+            Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Pin => {
+                // A read through a binding local reads what its read lives on.
+                self.place_deps(b, a, &mut |bit| s.set(live, bit, true));
+                if let Some(bit) = self.bit(b, a) {
+                    let p = b.view(a);
+                    let addr = matches!(p.root, Root::Local(l) if self.addr[l as usize]);
+                    let last = if s.get(live, bit) { KEEP } else { MOVE };
+                    match b.tags[i] {
+                        Tag::Read if w == ReadMode::Copy as u32 && !addr && p.in_place(b) => {
+                            self.decide[i] = last;
+                        }
+                        Tag::Ref if addr && p.whole() => {
+                            self.decide[i] = if last == MOVE { TAKE } else { KEEP };
+                        }
+                        _ => {}
                     }
-                    Tag::Ref if addr && from == to => {
-                        t.decide[i] = if last == MOVE { TAKE } else { KEEP };
+                    s.set(live, bit, true);
+                }
+            }
+            Tag::Store => {
+                let p = b.view(a);
+                if let Some(l) = p.local()
+                    && self.lnum[l as usize] != NONE
+                {
+                    // A store into all of the local replaces it; into a
+                    // part, it keeps the rest. A store into a cell writes
+                    // through the cell the local holds.
+                    let keep = !p.whole() || self.addr[l as usize];
+                    s.set(live, self.lnum[l as usize], keep);
+                }
+            }
+            Tag::Closure => {
+                let rec = b.record(w);
+                for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
+                    let l = b.cap_local[c].idx();
+                    if self.lnum[l] != NONE {
+                        s.set(live, self.lnum[l], true);
                     }
-                    _ => {}
-                }
-                t.set(live, bit, true);
-            }
-        }
-        Tag::Store => {
-            if let (Root::Local(l), from, to) = root_of(b, a)
-                && t.lnum[l as usize] != NONE
-            {
-                // A store into all of the local replaces it; into a part,
-                // it keeps the rest. A store into a cell writes through
-                // the cell the local holds.
-                t.set(live, t.lnum[l as usize], from != to || t.addr[l as usize]);
-            }
-        }
-        Tag::Closure => {
-            let rec = b.record(w);
-            for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
-                let l = b.cap_local[c].idx();
-                if t.lnum[l] != NONE {
-                    t.set(live, t.lnum[l], true);
                 }
             }
+            _ => {}
         }
-        Tag::If => {
-            let r = b.record(w);
-            let (then, els) = (r.first().copied(), r.get(1).copied());
-            let other = t.alloc(Some(live));
-            if let Some(then) = then {
-                block(b, t, then, other);
-            }
-            if let Some(els) = els {
-                block(b, t, els, live);
-            }
-            t.union(live, other);
-            t.free(other);
-        }
-        Tag::And | Tag::Or => {
-            let right = t.alloc(Some(live));
-            block(b, t, w, right);
-            t.union(live, right);
-            t.free(right);
-        }
-        Tag::With => block(b, t, w, live),
-        Tag::RefDyn => block(b, t, a, live),
-        Tag::Scope => block(b, t, a, live),
-        Tag::Loop => repeat(b, t, x, live),
-        Tag::Match => decide(b, t, x, live),
-        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-            let r = b.record(w);
-            let (cases, default) = r.split_at(r.len().saturating_sub(1));
-            let acc = t.alloc(None);
-            for &blk in cases.iter().skip(1).step_by(2).chain(default) {
-                let s = t.alloc(Some(live));
-                block(b, t, blk, s);
-                t.union(acc, s);
-                t.free(s);
-            }
-            t.copy(live, acc);
-            t.free(acc);
-        }
-        Tag::Guard => {
-            let acc = t.alloc(None);
-            for &blk in b.record(w) {
-                let s = t.alloc(Some(live));
-                block(b, t, blk, s);
-                t.union(acc, s);
-                t.free(s);
-            }
-            t.copy(live, acc);
-            t.free(acc);
-            block(b, t, a, live);
-        }
-        Tag::ToArm => {
-            match t.arms.last() {
-                Some(&(first, count)) if a < count => {
-                    t.copy(live, first as usize + a as usize * t.words);
-                }
-                _ => t.clear(live),
-            }
-            return;
-        }
-        Tag::Break => match t.brk.get(a as usize) {
-            Some(&s) if s != NONE => t.copy(live, s as usize),
-            _ => t.clear(live),
-        },
-        Tag::Continue => match t.cont.get(a as usize) {
-            Some(&s) if s != NONE => t.copy(live, s as usize),
-            _ => t.clear(live),
-        },
-        Tag::Return | Tag::Unreachable => t.clear(live),
-        _ => {}
     }
-    gen_operands(b, t, x, live);
-}
 
-/// Loop `x` backward: its head, from which the body runs, to a fixed
-/// point; the body's end and a `Continue` go back to the head, a `Break`
-/// to after the loop.
-fn repeat(b: &Body, t: &mut Tables, x: u32, live: usize) {
-    let body = b.data[x as usize][0];
-    let label = t.label_of[x as usize];
-    let brk = t.alloc(Some(live));
-    let head = t.alloc(None);
-    let cont = t.alloc(Some(head));
-    let saved = (label != NONE).then(|| (t.brk[label as usize], t.cont[label as usize]));
-    if label != NONE {
-        t.brk[label as usize] = u32_of(brk);
-        t.cont[label as usize] = u32_of(cont);
-    }
-    let rounds = t.words * 64 + 2;
-    for _ in 0..rounds {
-        t.copy(cont, head);
-        let end = t.alloc(Some(head));
-        block(b, t, body, end);
-        let grew = t.union(head, end);
-        t.free(end);
-        if !grew {
-            break;
+    /// A use of value `v`: it and what it lives on ([`Tables::deps`]).
+    fn uses(&mut self, b: &Body, v: u32, s: &mut BitArena, live: usize) {
+        if let Some(&bit) = self.vnum.get(v as usize)
+            && bit != NONE
+        {
+            s.set(live, bit, true);
         }
+        self.deps(b, v, &mut |bit| s.set(live, bit, true));
     }
-    if let Some((bs, cs)) = saved {
-        t.brk[label as usize] = bs;
-        t.cont[label as usize] = cs;
-    }
-    t.copy(live, head);
-    t.free(brk);
-}
-
-/// Match `x` backward: each arm from after the match, then the decision
-/// tree, whose every path ends in a `ToArm` or `Unreachable`.
-fn decide(b: &Body, t: &mut Tables, x: u32, live: usize) {
-    let r = b.record(b.data[x as usize][1]);
-    let Some((&decision, arms)) = r.split_first() else {
-        return;
-    };
-    let label = t.label_of[x as usize];
-    let saved = (label != NONE).then(|| t.brk[label as usize]);
-    let first = t.arena.len();
-    if label != NONE {
-        let at = t.alloc(Some(live));
-        t.brk[label as usize] = u32_of(at);
-    }
-    let arms_at = t.arena.len();
-    for _ in arms {
-        t.alloc(Some(live));
-    }
-    for (k, &arm) in arms.iter().enumerate() {
-        block(b, t, arm, arms_at + k * t.words);
-    }
-    t.arms.push((u32_of(arms_at), u32_of(arms.len())));
-    let tree = t.alloc(None);
-    block(b, t, decision, tree);
-    t.arms.pop();
-    t.copy(live, tree);
-    if let Some(old) = saved {
-        t.brk[label as usize] = old;
-    }
-    t.free(first);
 }
 
 /// Turns each read the walk proved last into a `move`, and deletes or
 /// splits the `Drop` of its place that follows it in its block.
-fn apply(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
+fn apply(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) {
     for i in 0..b.len() {
-        if t.decide[i] == TAKE && t.blk[i] != NONE {
-            take(b, t, edits, i);
+        if t.decide[i] == TAKE && topo.blk[i] != NONE {
+            take(b, topo, t, edits, i);
             continue;
         }
-        if t.decide[i] != MOVE || t.blk[i] == NONE {
+        if t.decide[i] != MOVE || topo.blk[i] == NONE {
             continue;
         }
         let x = u32_of(i);
         let word = b.data[i][0];
-        let (root, from, to) = root_of(b, word);
+        let PlaceView { root, from, to } = b.view(word);
         let Some(bit) = t.bit(b, word) else {
             continue;
         };
         // The drop of the whole place right after the read, in its block.
         let drop = t.next_touch(bit, x).filter(|&d| {
             let d = d as usize;
-            if b.tags[d] != Tag::Drop || t.blk[d] != t.blk[i] {
+            if b.tags[d] != Tag::Drop || topo.blk[d] != topo.blk[i] {
                 return false;
             }
             let dw = b.data[d][0];
             match root {
                 Root::Local(l) => dw == l | place::BARE_LOCAL,
-                Root::Value(v) => {
-                    b.extra.get(dw as usize..dw as usize + 3) == Some(&[2, place::ROOT_VALUE, v])
-                }
-                Root::Other => false,
+                Root::Value(v) => drops_whole(b, u32_of(d), v),
+                _ => false,
             }
         });
         if from == to {
@@ -898,7 +508,7 @@ fn apply(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Table
             }
             b.data[i][1] = ReadMode::Move as u32;
             if let Some(d) = drop {
-                edits.remove(t.blk[d as usize], d);
+                edits.remove(d);
             }
             continue;
         }
@@ -914,11 +524,15 @@ fn apply(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Table
         let base = match root {
             Root::Local(l) => b.local_ty[l as usize],
             Root::Value(v) => b.ty[v as usize],
-            Root::Other => continue,
+            _ => continue,
         };
         if rest(b, cx, t, base, (from, from, to)) {
-            let (blk, pos, syn) = (t.blk[d as usize], t.pos[d as usize], b.syn[d as usize]);
-            edits.remove(blk, d);
+            let (blk, pos, syn) = (
+                topo.blk[d as usize],
+                topo.pos[d as usize],
+                b.syn[d as usize],
+            );
+            edits.remove(d);
             for k in 0..t.drops.len() {
                 let at = t.drops[k];
                 edits.insert(blk, pos, Tag::Drop, [at, NONE], Ty::VOID, syn);
@@ -927,16 +541,15 @@ fn apply(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Table
     }
     for v in 0..b.len() {
         if t.vnum[v] != NONE {
-            sink(b, cx, t, edits, u32_of(v));
+            sink(b, topo, cx, t, edits, u32_of(v));
         }
     }
 }
 
 /// Whether instruction `d` is a `Drop` of all of value `v`.
 fn drops_whole(b: &Body, d: u32, v: u32) -> bool {
-    let w = b.data[d as usize][0];
-    b.tags[d as usize] == Tag::Drop
-        && b.extra.get(w as usize..w as usize + 3) == Some(&[2, place::ROOT_VALUE, v])
+    let p = b.view(b.data[d as usize][0]);
+    b.tags[d as usize] == Tag::Drop && p.whole() && p.root == Root::Value(v)
 }
 
 /// Rule 3 across branches: temporary `v`'s `Drop` right after the `If`,
@@ -949,7 +562,14 @@ fn drops_whole(b: &Body, d: u32, v: u32) -> bool {
 /// `v` but its drops before their jumps, which go. Done only when it adds
 /// no more drops than it deletes, and never through a `Guard`, a loop or
 /// a nested match, whose paths leave the decision tree's shape.
-fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables, v: u32) {
+fn sink(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+    v: u32,
+) {
     let bit = t.vnum[v as usize];
     let (lo, hi) = (
         t.start[bit as usize] as usize,
@@ -959,11 +579,11 @@ fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables
         return;
     }
     let d = t.touch[hi - 1];
-    if !drops_whole(b, d, v) || t.blk[d as usize] == NONE {
+    if !drops_whole(b, d, v) || topo.blk[d as usize] == NONE {
         return;
     }
     // The statement before the drop, past other statements' drops.
-    let (h, pd) = (t.blk[d as usize], t.pos[d as usize]);
+    let (h, pd) = (topo.blk[d as usize], topo.pos[d as usize]);
     let members = b.record(b.data[h as usize][0]);
     let Some(&x) = members[..pd as usize]
         .iter()
@@ -973,7 +593,7 @@ fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables
         return;
     };
     let prev = t.touch[hi - 2];
-    if prev < t.first[x as usize] || prev > x || b.ty[x as usize] == Ty::NEVER {
+    if prev < topo.first[x as usize] || prev > x || b.ty[x as usize] == Ty::NEVER {
         return;
     }
     t.sink_ins.clear();
@@ -985,7 +605,7 @@ fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables
             let r = b.record(w);
             r.len() == 2 && {
                 let (then, els) = (r[0], r[1]);
-                sink_block(b, cx, t, v, then) && sink_block(b, cx, t, v, els)
+                sink_block(b, topo, cx, t, v, then) && sink_block(b, topo, cx, t, v, els)
             }
         }
         Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
@@ -996,16 +616,16 @@ fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables
                 .skip(1)
                 .step_by(2)
                 .chain(default)
-                .all(|&blk| sink_block(b, cx, t, v, blk))
+                .all(|&blk| sink_block(b, topo, cx, t, v, blk))
         }
         Tag::Match => {
             let r = b.record(w).to_vec();
             let Some((&decision, arms)) = r.split_first() else {
                 return;
             };
-            sink_block(b, cx, t, v, decision)
+            sink_block(b, topo, cx, t, v, decision)
                 && arms.iter().all(|&arm| {
-                    let (a0, a1) = (t.first[arm as usize] as usize, arm as usize);
+                    let (a0, a1) = (topo.first[arm as usize] as usize, arm as usize);
                     t.touch[lo..hi]
                         .iter()
                         .filter(|&&u| (a0..=a1).contains(&(u as usize)))
@@ -1023,9 +643,9 @@ fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables
     if !ok || t.sink_ins.len() > 1 + t.sink_rm.len() {
         return;
     }
-    edits.remove(h, d);
+    edits.remove(d);
     for &u in &t.sink_rm {
-        edits.remove(t.blk[u as usize], u);
+        edits.remove(u);
     }
     for &(blk, pos, at) in &t.sink_ins {
         edits.insert(blk, pos, Tag::Drop, [at, NONE], Ty::VOID, b.syn[d as usize]);
@@ -1037,7 +657,14 @@ fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables
 
 /// The drops of temporary `v` at the end of block `blk`'s paths, into
 /// `t.sink_*`: false when the block's shape is not one [`sink`] handles.
-fn sink_block(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, v: u32, blk: u32) -> bool {
+fn sink_block(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    v: u32,
+    blk: u32,
+) -> bool {
     if b.tags.get(blk as usize) != Some(&Tag::Block) || b.data[blk as usize][1] == v {
         return false;
     }
@@ -1075,7 +702,7 @@ fn sink_block(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, v: u32, blk: u32) ->
     };
     for p in (0..end).rev() {
         let m = b.extra[rec + 1 + p as usize];
-        if !t.touched(bit, t.first[m as usize], m) {
+        if !t.touched(bit, topo.first[m as usize], m) {
             continue;
         }
         // The block's end is never reached: only the statement that ends
@@ -1085,8 +712,8 @@ fn sink_block(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, v: u32, blk: u32) ->
         }
         let [a, w] = b.data[m as usize];
         match b.tags[m as usize] {
-            Tag::Read if root_of(b, a).0 == Root::Value(v) => {
-                let (_, from, to) = root_of(b, a);
+            Tag::Read if b.view(a).root == Root::Value(v) => {
+                let PlaceView { from, to, .. } = b.view(a);
                 if from == to {
                     // A whole copy at the path's end moves, as a copy with
                     // its drop right after it does.
@@ -1115,7 +742,7 @@ fn sink_block(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, v: u32, blk: u32) ->
                     whole(b, t);
                     return true;
                 }
-                return sink_block(b, cx, t, v, r[0]) && sink_block(b, cx, t, v, r[1]);
+                return sink_block(b, topo, cx, t, v, r[0]) && sink_block(b, topo, cx, t, v, r[1]);
             }
             Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
                 let r = b.record(w).to_vec();
@@ -1125,7 +752,7 @@ fn sink_block(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, v: u32, blk: u32) ->
                     .skip(1)
                     .step_by(2)
                     .chain(default)
-                    .all(|&c| sink_block(b, cx, t, v, c));
+                    .all(|&c| sink_block(b, topo, cx, t, v, c));
             }
             Tag::Guard
             | Tag::Match
@@ -1156,17 +783,17 @@ fn sink_block(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, v: u32, blk: u32) ->
 /// Rule 4: `Ref` `i` of a whole local at its last access takes the
 /// local's count of its cell, and the local's `Drop` right after it in its
 /// block goes.
-fn take(b: &mut Body, t: &Tables, edits: &mut splice::Tables, i: usize) {
-    let (Root::Local(l), _, _) = root_of(b, b.data[i][0]) else {
+fn take(b: &mut Body, topo: &Topology, t: &Tables, edits: &mut splice::Tables, i: usize) {
+    let Some(l) = b.view(b.data[i][0]).local() else {
         return;
     };
     b.data[i][1] |= crate::ir::ref_word::TAKES;
     if let Some(d) = t.next_touch(t.lnum[l as usize], u32_of(i))
         && b.tags[d as usize] == Tag::Drop
-        && t.blk[d as usize] == t.blk[i]
+        && topo.blk[d as usize] == topo.blk[i]
         && b.data[d as usize][0] == l | place::BARE_LOCAL
     {
-        edits.remove(t.blk[d as usize], d);
+        edits.remove(d);
     }
 }
 

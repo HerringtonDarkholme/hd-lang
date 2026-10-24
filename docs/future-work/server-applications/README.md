@@ -90,7 +90,5 @@ Its SHA-256 is `7b99aa5838cce7bb523f7fde347ad6633eab920c88c215cb887917d8868df59c
 Compression uses Node `gzipSync(bytes, {level: 9})`; compare with the same implementation and settings.
 This documentation job changes no compiler source and claims no measured future host/compiler size delta.
 
-Raw commands, results and frozen binaries are preserved locally in `/private/tmp/muse-806-server-app-1792801107010977000`.
-The committed sources and commands reproduce the controls without relying on that directory.
 Platform evidence is macOS; the Windows kill fallback does not establish descendant cleanup.
 No full test suite is required by these documentation experiments.

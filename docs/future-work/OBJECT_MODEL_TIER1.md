@@ -7,7 +7,7 @@ and [Element Reference Loops](../../spec/lang/06-control-flow.md#element-referen
 the rest remains the original design study. This update changes no spec or
 compiler behavior.
 
-hd is leaving Wasm GC. Objects will live in Wasm linear memory, managed
+Objects live in Wasm linear memory, managed
 by reference counting plus a cycle collector, a runtime that
 REFCOUNT_RUNTIME.md prices in a companion study. On top of it hd adopts
 Go's object model: every aggregate is a value stored inline, and sharing
@@ -18,7 +18,7 @@ by taking a reference to it, read-only `&T` or writable `&mut T`.
 The model has two tiers. **Tier 1**, this study, uses counted references
 that may escape and alias, except for call-scoped collection element
 references ([`ref.elem.call`](../../spec/lang/13-values-and-references.md#r-ref.elem.call)). **Tier 2**, a
-separate study, layers opt-in lifetimes on top: a reference may name
+separate and parked study, layers opt-in lifetimes on top: a reference may name
 what it depends on, `&{a, self.x} T`, and is then uncounted, and a
 scoped `&{l} mut T` is exclusive. An unannotated reference is always
 tier 1, so tier 1 must stand alone: a complete, safe language that an
@@ -846,35 +846,16 @@ marks nothing at the call site, which tier 1's auto-address keeps, and
 
 ## 15. Migration
 
-**A conservative rewrite keeps meaning.** `hd fix
---object-model` turns every composite of today into a reference:
-
-1. `data D` becomes `struct D`.
-2. A type `D` becomes `&D` and `mut D` becomes `&mut D`; `List[T]` and
-   `Map[K, V]` positions become `&List[T]` or `&mut List[T]`, so a list
-   shared today stays shared.
-3. A literal `D { ... }` becomes `&mut D { ... }`, a copy-update
-   `D { ...d, x }` becomes `&mut D { ...*d, x }`, and a list literal used
-   as `mut` becomes `&mut [...]`.
-4. `mut self` becomes `&mut self`, `self` on a former data type becomes
-   `&self`, and `let mut` stays. A list declared `let xs: mut List[T]`
-   becomes `let mut xs: List[T]`.
-5. `a == b` on two former data values becomes `*a == *b`.
-
-The result behaves as today, except that a loop which today panics on a
-length change now iterates a snapshot, and allocates about as today, one
-object per former data value: a starting point, not a destination.
+There is no migration tool and no `hd fix --object-model`: the repository's own code is converted directly.
 
 **Cleanup turns records into values.** A struct never shared or changed
 through two names loses its `&`, and a `&List[T]` parameter that is only
-read becomes `List[T]`; the tool lists types never compared with `is`
-and never written through a stored reference. Things that are
-interchangeable are values; things that change while others watch sit
-behind `&mut`.
+read becomes `List[T]`. Things that are interchangeable are values;
+things that change while others watch sit behind `&mut`.
 
 **std is migrated by hand**, since its layout is everyone's speed:
 records become values, builders and handles stay behind references, and
-borrowing methods get tier 2 headers once tier 2 lands.
+borrowing methods get tier 2 headers if tier 2 is ever adopted.
 
 ## 16. Implementation Plan
 
@@ -882,9 +863,7 @@ Each job is about an hour, ships its spec rules and conformance
 fixtures, and keeps every check green. The language lands first, on the
 current backend; the backend moves after, in the jobs of
 REFCOUNT_RUNTIME.md. `data` stays accepted next to `struct` until job
-18. Run fixtures of jobs 2 to 10 that the current backend cannot run yet
-enter `KNOWN_FAILURES.tsv`, one issue each, and jobs 11 and 12 remove
-them. A std migration chunk that runs long splits into further jobs.
+18. A std migration chunk that runs long splits into further jobs.
 
 | # | Job | Spec and fixtures |
 | --- | --- | --- |
@@ -898,9 +877,9 @@ them. A std migration chunk that runs long splits into further jobs.
 | 8 | Lists and maps as copy-on-write values: list and map element places, snapshot `for` | `types.coll.map-value.place`; collection and `for` fixtures |
 | 9 | Call-scoped element references and reference loops; static length conflicts, runtime pins, independent copies and callee-kept references | `ref.elem.call`, `ref.elem.kept`, `ref.elem.conflict`, `ref.elem.access.pin`, `ref.elem.copy`, `ref.elem.callee-copy`, `flow.for.ref.binding`; diagnostic and runtime fixtures |
 | 10 | Closures: capture rules restated for values and cells, per-iteration loop variables | capture rules; run fixtures |
-| 11 | Bridge on Wasm GC, part 1: struct values as exclusively owned GC objects copied on copy; `&` and `&mut` to struct-typed places | the run fixtures of jobs 2 to 7 pass |
-| 12 | Bridge, part 2: call-scoped list and map element access with runtime pin fallback; references to scalar fields as boxed cells | the run fixtures of jobs 8 to 10 pass, or `KNOWN_FAILURES.tsv` rows with an issue each |
-| 13 | `hd fix --object-model`, the conservative rewrite | before-and-after fixture pairs; rewritten examples run unchanged |
+| 11 | (Dropped: no bridge on Wasm GC was built.) | none |
+| 12 | (Dropped, with job 11.) | none |
+| 13 | (Dropped: no migration tool.) | none |
 | 14 | std migration 1: collections, iterators, `Option` and `Result` helpers | std rules that name `data` or `mut` views; fixtures |
 | 15 | std migration 2: text, formatting, encoding, hashing, time; small records become values (`Date`, the `Range` types, `regex.Match`, `Reverse`, `Datagram`, `Backoff`, `TimedOut`) | std rules; fixtures |
 | 16 | std migration 3: I/O, streams, net, processes, with handles behind references | std rules; fixtures |
@@ -908,8 +887,7 @@ them. A std migration chunk that runs long splits into further jobs.
 | 18 | Remove `data`, permission views, freshness rules, readonly edges and part copies from spec and checker | removed rules and fixtures; a rule inventory diff |
 | 19 | After the RC backend: stack placement of address-taken locals and new objects within one body | none (unobservable); allocation counts on the tour programs |
 
-Jobs 1 to 10 are the language; 11 and 12 let it run before the backend
-moves, so the suite stays green on the Wasm GC backend; 13 to 18 migrate; 19 follows the backend.
+Jobs 1 to 10 are the language; 14 to 18 migrate; 19 follows the backend.
 
 ## 17. Open Points
 
@@ -920,7 +898,7 @@ moves, so the suite stays green on the Wasm GC backend; 13 to 18 migrate; 19 fol
   measuring how much tier 2 headers on std already remove.
 - **Whole-value access**: `*r` as in Go and Rust, or `r.*` as in Zig,
   since `*` also multiplies.
-- **`Weak[T]`** for caches, once a program needs one.
+- **`Weak[T]`** for caches: approved, see [Weak References](WEAK_REFERENCES.md) (#720).
 
 ## Sources
 

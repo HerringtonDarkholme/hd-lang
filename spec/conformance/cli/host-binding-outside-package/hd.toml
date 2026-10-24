@@ -1,0 +1,7 @@
+[package]
+name = "outside_provider"
+[dependencies]
+sdk = { path = "sdk" }
+[capabilities]
+"dep.sdk.Server" = true
+Console = true

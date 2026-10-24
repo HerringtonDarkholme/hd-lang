@@ -126,8 +126,7 @@ fn embedded_std() -> &'static EmbeddedStd {
 /// (req.ref.host.reference-values); the driver roots one instance per such
 /// key of an entry row. It is compiler-supplied, like
 /// `std.core`, so the TS prototype's `lib/std` is unchanged.
-pub const RT_SOURCE: &str = "\
-# std.rt: the entry and test-case result functions (hd_driver::RT_SOURCE).
+pub const RT_SOURCE: &str = r#"# std.rt: the entry and test-case result functions (hd_driver::RT_SOURCE).
 use std.process.Termination
 use std.error.{Error, report_of}
 
@@ -152,10 +151,126 @@ fn host_provider[T](provider: T) -> &mut T:
     let mut held = provider
     &mut held
 
-@intrinsic(\"entry_write\")
+@intrinsic("entry_write")
 fn entry_write(text: string) -> void:
-    panic(\"intrinsic\")
-";
+    panic("intrinsic")
+
+# These module-wide imports follow the bootstrap entry declarations so their
+# source locations, and ordinary programs' position metadata, stay stable.
+use std.json.{Json, JsonError, JsonObject, Number, to_json, from_json, encode, decode}
+use std.serde.{Serialize, Deserialize}
+
+# Private package values follow Serialize/Deserialize, retaining integer and
+# floating-point kinds through a flat typed stream. No JS implementation sees
+# the transport text. Flat framing does not multiply JSON nesting depth.
+fn host_value_encode[T < Serialize](value: T) -> string:
+    let mut pending: List[Json] = [to_json(value)]
+    let mut tokens: List[Json] = []
+    while !pending.is_empty():
+        item := pending.pop().expect("pending value")
+        match item:
+            .Null => tokens.push(.Array([.Text("n")]))
+            .Bool(value) => tokens.push(.Array([.Text("b"), .Bool(value)]))
+            .Text(value) => tokens.push(.Array([.Text("s"), .Text(value)]))
+            .Number(value) =>
+                match value.as_i64():
+                    .Some(integer) => tokens.push(.Array([.Text("i"), .Text("$integer")]))
+                    .None =>
+                        match value.as_u64():
+                            .Some(integer) => tokens.push(.Array([.Text("u"), .Text("$integer")]))
+                            .None =>
+                                bits := value.as_f64().expect("number").to_bits()
+                                let text = bits.to_radix(16)
+                                while text.len() < 16:
+                                    text = "0" + text
+                                tokens.push(.Array([.Text("f"), .Text(text)]))
+            .Array(items) =>
+                tokens.push(.Array([.Text("a"), .Number(Number::from_u64(u64(items.len())))]))
+                let at = items.len()
+                while at > 0:
+                    at = at - 1
+                    pending.push(items[at])
+            .Object(fields) =>
+                tokens.push(.Array([.Text("o"), .Number(Number::from_u64(u64(fields.len())))]))
+                keys := fields.keys()
+                let at = keys.len()
+                while at > 0:
+                    at = at - 1
+                    key := keys[at]
+                    pending.push(fields.get(key).expect("object key"))
+                    pending.push(.Text(key))
+    encode(tokens)
+
+fn host_value_error() -> JsonError:
+    .WrongType(path="$", expected="a package host value")
+
+fn host_value_decode[T < Deserialize](text: string) -> Result[T, JsonError]:
+    tokens := decode::[List[Json]](text)?
+    let mut values: List[Json] = []
+    let at = tokens.len()
+    while at > 0:
+        at = at - 1
+        token := tokens[at]
+        tag := token.at(0).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
+        match token:
+            .Array(items) =>
+                expected := if tag == "n": 1 else: 2
+                if items.len() != expected:
+                    return .Err(host_value_error())
+            _ => return .Err(host_value_error())
+        match tag:
+            "n" => values.push(.Null)
+            "b" =>
+                value := token.at(1).and_then(fn(v): v.as_bool()).ok_or(host_value_error())?
+                values.push(.Bool(value))
+            "s" =>
+                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
+                values.push(.Text(value))
+            "i" =>
+                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
+                number := value.parse::[i64]().map_err(fn(_error): host_value_error())?
+                values.push(.Number(Number::from_i64(number)))
+            "u" =>
+                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
+                number := value.parse::[u64]().map_err(fn(_error): host_value_error())?
+                values.push(.Number(Number::from_u64(number)))
+            "f" =>
+                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
+                if value.len() != 16:
+                    return .Err(host_value_error())
+                bits := u64::parse_radix(value, 16).map_err(fn(_error): host_value_error())?
+                number := Number::from_f64(f64::from_bits(bits)).ok_or(host_value_error())?
+                values.push(.Number(number))
+            "a" =>
+                count := token.at(1).and_then(fn(v): v.as_u64()).ok_or(host_value_error())?
+                if count > u64(values.len()):
+                    return .Err(host_value_error())
+                let mut items: List[Json] = []
+                let left = count
+                while left > 0:
+                    items.push(values.pop().ok_or(host_value_error())?)
+                    left = left - 1
+                values.push(.Array(items))
+            "o" =>
+                count := token.at(1).and_then(fn(v): v.as_u64()).ok_or(host_value_error())?
+                if count > u64(values.len() / 2):
+                    return .Err(host_value_error())
+                let mut fields = JsonObject::new()
+                let left = count
+                while left > 0:
+                    key := values.pop().and_then(fn(v): v.as_text()).ok_or(host_value_error())?
+                    value := values.pop().ok_or(host_value_error())?
+                    if fields.contains_key(key):
+                        return .Err(host_value_error())
+                    fields.set(key, value)
+                    left = left - 1
+                values.push(.Object(fields))
+            _ => return .Err(host_value_error())
+    if values.len() != 1:
+        return .Err(host_value_error())
+    from_json::[T](values.pop().ok_or(host_value_error())?)
+
+"#;
 
 /// A source set with the virtual `core.hd` and `rt.hd` added when they are
 /// missing: a run whose root package is std itself.
@@ -1406,6 +1521,26 @@ pub struct HostPackage {
     pub manifest: String,
 }
 
+impl HostPackage {
+    /// The ABI identity of an owned trait at the selected package version.
+    #[must_use]
+    pub fn trait_identity(&self, trait_path: &str) -> Option<hd_host_abi::schema::Identity> {
+        let (package, version) = if let Some(source) = &self.versioned_source {
+            let (host, version) = source.rsplit_once('@')?;
+            (host.to_owned(), version.to_owned())
+        } else {
+            let mut key = hd_base::StableHasher::new("local-host-package-v1");
+            key.str(&self.identity);
+            (format!("local:{:032x}", key.finish().0), String::new())
+        };
+        Some(hd_host_abi::schema::Identity {
+            package,
+            version,
+            trait_path: trait_path.to_owned(),
+        })
+    }
+}
+
 /// Check source/manifest agreement on every build, including cache hits.
 /// Only a file containing a possible marker or a listed trait is parsed;
 /// unused executable bodies are never checked as a side effect.
@@ -1428,7 +1563,7 @@ fn check_host_declarations(
         let package = packages.get(&module.package).copied();
         let listed = package
             .and_then(|p| p.declarations.as_ref())
-            .and_then(|d| d.traits.as_deref())
+            .map(|d| d.trait_paths().collect::<Vec<_>>())
             .unwrap_or_default();
         let root = &table.roots[usize::from(module.package)];
         let relative = module
@@ -1511,9 +1646,9 @@ fn check_host_declarations(
             } else {
                 None
             };
-            if why.is_none() && !listed.contains(&path) {
+            if why.is_none() && !listed.contains(&path.as_str()) {
                 diags.error(Code::InvalidManifest, span, &format!(
-                    "host trait `{path}` is marked `@host` here but is missing from `[host] traits` at {manifest}:{line}; list `{path}` in its owning package's manifest"
+                    "host trait `{path}` is marked `@host` here but is missing from `[host]` at {manifest}:{line}; list `{path}` in its owning package's manifest"
                 ));
             }
             if let Some(why) = why
@@ -1531,7 +1666,8 @@ fn check_host_declarations(
         let Some(declarations) = &package.declarations else {
             continue;
         };
-        for path in declarations.traits.as_deref().unwrap_or_default() {
+        for entry in declarations.providers.iter().flatten() {
+            let path = &entry.trait_path;
             if found.contains(&(package.package, path.clone())) {
                 continue;
             }
@@ -1568,7 +1704,7 @@ fn check_host_declarations(
             let source = module.map_or(target, |m| table.files[m.file.idx()].clone());
             diags.error(Code::InvalidManifest, span, &format!(
                 "host trait `{path}` is listed at {}:{} but has no package-owned `@host pub trait` declaration in {source}; mark the owning trait or remove the manifest entry",
-                package.manifest, declarations.line,
+                package.manifest, entry.line,
             ));
         }
     }
@@ -1918,9 +2054,10 @@ pub fn build_packages(
     let mut host_key = hd_base::StableHasher::new("package-host-inputs-v1");
     let mut has_hosts = false;
     for p in &packages.host_packages {
-        let Some(traits) = p.declarations.as_ref().and_then(|d| d.traits.as_ref()) else {
+        let Some(declarations) = p.declarations.as_ref() else {
             continue;
         };
+        let traits: Vec<_> = declarations.trait_paths().collect();
         if traits.is_empty() {
             continue;
         }
@@ -9011,32 +9148,31 @@ impl Run<'_> {
         let root = &self.table.roots[usize::from(package)];
         let full = self.names().path(d).replace('/', ".");
         let trait_path = full.strip_prefix(&format!("{root}."))?.to_owned();
-        let (host, version) =
-            if let Some(meta) = self.host_packages.iter().find(|p| p.package == package) {
-                if let Some(source) = &meta.versioned_source {
-                    let (host, version) = source.rsplit_once('@')?;
-                    (host.to_owned(), version.to_owned())
-                } else {
-                    let mut key = hd_base::StableHasher::new("local-host-package-v1");
-                    key.str(&meta.identity);
-                    (format!("local:{:032x}", key.finish().0), String::new())
-                }
-            } else if self.table.identities[usize::from(package)] == "std" {
-                (
-                    "std".to_owned(),
-                    format!("abi:{}", hd_host_abi::schema::VERSION),
-                )
-            } else {
-                return None;
-            };
-        Some((
-            package,
+        let identity = if let Some(meta) = self.host_packages.iter().find(|p| p.package == package)
+        {
+            meta.trait_identity(&trait_path)?
+        } else if self.table.identities[usize::from(package)] == "std" {
             hd_host_abi::schema::Identity {
-                package: host,
-                version,
+                package: "std".to_owned(),
+                version: format!("abi:{}", hd_host_abi::schema::VERSION),
                 trait_path,
-            },
-        ))
+            }
+        } else {
+            return None;
+        };
+        Some((package, identity))
+    }
+
+    fn package_host_identity(&self, d: DefId) -> Option<hd_host_abi::schema::Identity> {
+        let (package, identity) = self.package_trait_identity(d)?;
+        self.host_packages
+            .iter()
+            .find(|p| p.package == package)?
+            .declarations
+            .as_ref()?
+            .trait_paths()
+            .any(|path| path == identity.trait_path)
+            .then_some(identity)
     }
 
     fn package_host_selectors(&self, def: DefId) -> Vec<String> {
@@ -9265,18 +9401,7 @@ impl Run<'_> {
             return;
         }
         let package_trait = |d| self.package_trait_identity(d);
-        let package_host = |d| {
-            let (package, identity) = self.package_trait_identity(d)?;
-            self.host_packages
-                .iter()
-                .find(|p| p.package == package)?
-                .declarations
-                .as_ref()?
-                .traits
-                .as_ref()?
-                .contains(&identity.trait_path)
-                .then_some(identity)
-        };
+        let package_host = |d| self.package_host_identity(d);
         let package_trait = |d| package_trait(d).map(|(_, identity)| identity);
         let package_selectors = |d| self.package_host_selectors(d);
         let input = hd_wasm_linear::Input {
@@ -10647,10 +10772,15 @@ impl ProgramEnv for Env<'_> {
         let k = self.p.items.get(def)?.intrinsic?;
         Some(self.run.syms.resolve(k).to_owned())
     }
+    fn is_package_host_trait(&self, def: DefId) -> bool {
+        self.run.package_host_identity(def).is_some()
+    }
     fn json_items(&self) -> Option<JsonItems> {
         let k = &self.run.known;
         let (result_is_ok, result_expect) = self.result_unwrap()?;
         Some(JsonItems {
+            package_encode: self.run.names().item("std.rt", "host_value_encode"),
+            package_decode: self.run.names().item("std.rt", "host_value_decode"),
             encode: k.json_encode,
             decode: k.json_decode,
             serialize: k.serialize,
@@ -11177,7 +11307,16 @@ mod host_declaration_tests {
             identity: format!("/sdk-{package}"),
             versioned_source: None,
             declarations: Some(hd_project::HostDeclarations {
-                traits: Some(paths.iter().map(|p| (*p).to_owned()).collect()),
+                providers: Some(
+                    paths
+                        .iter()
+                        .map(|p| hd_project::HostProvider {
+                            trait_path: (*p).to_owned(),
+                            path: Some("provider.mjs".into()),
+                            line: 7,
+                        })
+                        .collect(),
+                ),
                 line: 7,
             }),
             manifest: format!("/sdk-{package}/hd.toml"),
@@ -11384,9 +11523,30 @@ mod package_host_abi_tests {
         files.insert(
             "src/main.hd",
             "\
+use std.serde.{Serialize, Deserialize, Serializer, Deserializer}
+
 pub struct Message:
     pub text: string
     pub count: u64
+
+@derive(Serialize, Deserialize)
+pub struct Secret:
+    large: u64
+    signed: i64
+    ratio: f64
+    zero: f64
+    children: List[string]
+
+pub struct Token:
+    hidden: string
+
+impl Serialize for Token:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+        out.text(\"custom:${self.hidden}\")
+
+impl Deserialize for Token:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Token, R::Error]:
+        .Ok(Token { hidden: input.text(\"Token\")? })
 
 pub enum Problem:
     Broken(reason: string)
@@ -11394,11 +11554,17 @@ pub enum Problem:
 @host
 pub trait Server:
     fn ready(&self, message: Message) -> Message
+    fn secret(&self, value: Secret) -> Secret
+    fn custom(&self, value: Token) -> Token
     fn wait!(&mut self) -> Result[string, Problem]
 
 pub fn main!() -> void $ Console + Server:
     message := $.use(Server).ready(Message { text: \"hello\", count: 7 })
     println(\"${message.text} ${message.count}\")
+    secret := $.use(Server).secret(Secret { large: 18446744073709551615, signed: -9223372036854775808, ratio: 1.0, zero: -0.0, children: [\"nested\"] })
+    println(\"${secret.large} ${secret.signed} ${secret.ratio.to_bits()} ${secret.zero.to_bits()} ${secret.children[0]}\")
+    token := $.use(Server).custom(Token { hidden: \"private\" })
+    println(token.hidden)
     match $.use(Server).wait!():
         .Ok(value) => println(value)
         .Err(.Broken(reason)) => println(reason)
@@ -11418,7 +11584,11 @@ pub fn main!() -> void $ Console + Server:
                 identity: "example.org/sdk@1".into(),
                 versioned_source: Some("example.org/sdk@1.2.3".into()),
                 declarations: Some(hd_project::HostDeclarations {
-                    traits: Some(vec!["main.Server".into()]),
+                    providers: Some(vec![hd_project::HostProvider {
+                        trait_path: "main.Server".into(),
+                        path: Some("provider.mjs".into()),
+                        line: 4,
+                    }]),
                     line: 4,
                 }),
                 manifest: "hd.toml".into(),
@@ -11451,13 +11621,18 @@ pub fn main!() -> void $ Console + Server:
                 .iter()
                 .map(|m| (m.name.as_str(), m.suspends))
                 .collect::<Vec<_>>(),
-            [("ready", false), ("wait", true)]
+            [
+                ("ready", false),
+                ("secret", false),
+                ("custom", false),
+                ("wait", true)
+            ]
         );
         assert!(
             matches!(&interface.methods[0].params[0], hd_host_abi::schema::Value::Record(fields) if fields[0].name == "text" && fields[1].name == "count")
         );
         assert!(
-            matches!(&interface.methods[1].result, hd_host_abi::schema::Value::Result(_,error) if matches!(error.as_ref(), hd_host_abi::schema::Value::Enum(variants) if variants[0].name == "Broken" && variants[0].fields[0].name == "reason"))
+            matches!(&interface.methods[3].result, hd_host_abi::schema::Value::Result(_,error) if matches!(error.as_ref(), hd_host_abi::schema::Value::Enum(variants) if variants[0].name == "Broken" && variants[0].fields[0].name == "reason"))
         );
         assert!(artifacts.javascript.contains("runtime.record"));
         let cached = build_packages(&host, "app", &packages, &goal);
@@ -11473,36 +11648,43 @@ pub fn main!() -> void $ Console + Server:
 assert.throws(() => createCoreHost(sink, { module }), /missing package host provider.*main.Server/);
 const implementation = {
   ready(message) { return { text: message.text.toUpperCase(), count: message.count + 1n }; },
+  secret(value) {
+    assert.equal(typeof value, 'object');
+    assert.equal(value.large, 18446744073709551615n);
+    assert.equal(value.signed, -9223372036854775808n);
+    assert.equal(value.ratio, 1);
+    assert.equal(typeof value.ratio, 'number');
+    assert.ok(Object.is(value.zero, -0));
+    assert.deepEqual(value.children, ['nested']);
+    return { ...value, large: value.large - 1n, signed: value.signed + 1n };
+  },
+  custom(value) { assert.equal(value, 'custom:private'); return 'custom reply'; },
   async wait(context) { assert.equal(context.signal.aborted, false); await new Promise(r => setTimeout(r, 2)); return { ok: true, value: 'from async' }; }
 };
-const provider = glue.defineProvider('pkg.main.Server', implementation);
-const corrupted = provider.contract.slice();
-const word = new TextEncoder().encode('count');
-const offset = corrupted.findIndex((_, at) => word.every((b, n) => corrupted[at + n] === b));
-assert.ok(offset >= 0);
-corrupted[offset] = 'C'.charCodeAt(0);
-assert.throws(() => createCoreHost(sink, { module, packageBindings: rt => glue.bind(rt, [{ ...provider, contract: corrupted }]) }), /schema mismatch/);
-assert.throws(() => createCoreHost(sink, { module, grants: { 'pkg.main.Server': false }, packageBindings: rt => glue.bind(rt, [provider]) }), /capability denied/);
-const host = createCoreHost(sink, { module, packageBindings: rt => glue.bind(rt, [provider]) });
+const root = glue.interfaces.find(i => !i.handle);
+const providers = new Map([[root.module, implementation]]);
+assert.throws(() => createCoreHost(sink, { module, grants: { 'pkg.main.Server': false }, packageBindings: rt => glue.bind(rt, providers) }), /capability denied/);
+assert.throws(() => createCoreHost(sink, { module, packageBindings: rt => glue.bind(rt, new Map([[root.module, Object.create(implementation)]])) }), /plain object/);
+const host = createCoreHost(sink, { module, packageBindings: rt => glue.bind(rt, providers) });
 try {
   const instance = await WebAssembly.instantiate(module, host.imports);
   const result = await host.run(instance, 'hd.init', 'hd.poll');
   assert.equal(result.status, 0);
-  assert.equal(output.join(''), 'HELLO 8\nfrom async\n');
+  assert.equal(output.join(''), 'HELLO 8\n18446744073709551614 -9223372036854775807 4607182418800017408 9223372036854775808 nested\ncustom reply\nfrom async\n');
   assert.equal(errors.join(''), '');
 } finally { host.close(); }
 // Exercise the generated Pending/finish/abort protocol without invoking a
 // guest turn after abort. A late Promise cannot revive the consumed ID.
 let deliver, signal;
-const waiting = glue.defineProvider('pkg.main.Server', {
-  ready: implementation.ready,
+const waiting = {
+  ...implementation,
   wait(context) { signal = context.signal; return new Promise(resolve => { deliver = resolve; }); }
-});
-const cancelled = createCoreHost(sink, { module, packageBindings: rt => glue.bind(rt, [waiting]) });
+ };
+const cancelled = createCoreHost(sink, { module, packageBindings: rt => glue.bind(rt, new Map([[root.module, waiting]])) });
 try {
   const instance = await WebAssembly.instantiate(module, cancelled.imports);
   cancelled.prime(instance);
-  const target = cancelled.imports[waiting.module];
+  const target = cancelled.imports[root.module];
   const [state, id] = target['wait.start']();
   assert.equal(state, 1);
   assert.throws(() => target['wait.finish'](id), /not pending/);
@@ -11587,7 +11769,11 @@ pub fn main!() -> void $ Console + Server:
                 identity: "/local/sdk".into(),
                 versioned_source: None,
                 declarations: Some(hd_project::HostDeclarations {
-                    traits: Some(vec!["main.Server".into()]),
+                    providers: Some(vec![hd_project::HostProvider {
+                        trait_path: "main.Server".into(),
+                        path: Some("provider.mjs".into()),
+                        line: 4,
+                    }]),
                     line: 4,
                 }),
                 manifest: "hd.toml".into(),
@@ -11640,11 +11826,12 @@ pub fn main!() -> void $ Console + Server:
             &out,
             r"
 let disposed = 0, runtime;
-const provider = glue.defineProvider('pkg.main.Server', {
+const provider = {
   echo(text) { return text; },
   async open() { return { async next() { return { ok: true, value: 'event' }; }, async dispose() { disposed++; } }; }
-});
-const host = createCoreHost(sink, { module, packageBindings: rt => { runtime = rt; return glue.bind(rt, [provider]); } });
+ };
+const root = glue.interfaces.find(i => !i.handle);
+const host = createCoreHost(sink, { module, packageBindings: rt => { runtime = rt; return glue.bind(rt, new Map([[root.module, provider]])); } });
 try {
   const instance = await WebAssembly.instantiate(module, host.imports);
   assert.ok(WebAssembly.Module.imports(module).some(i => i.name === '$release'));
@@ -11747,7 +11934,11 @@ mod package_host_reexport_tests {
                 identity: "/local/sdk".into(),
                 versioned_source: Some("example.org/sdk@1.2.3".into()),
                 declarations: Some(hd_project::HostDeclarations {
-                    traits: Some(vec!["Server".into()]),
+                    providers: Some(vec![hd_project::HostProvider {
+                        trait_path: "Server".into(),
+                        path: Some("provider.mjs".into()),
+                        line: 4,
+                    }]),
                     line: 4,
                 }),
                 manifest: "sdk/hd.toml".into(),

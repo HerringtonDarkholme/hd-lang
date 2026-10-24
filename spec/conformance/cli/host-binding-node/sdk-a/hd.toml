@@ -2,4 +2,4 @@
 name = "same_sdk"
 
 [host]
-traits = ["Server"]
+"Server" = "provider.mjs"

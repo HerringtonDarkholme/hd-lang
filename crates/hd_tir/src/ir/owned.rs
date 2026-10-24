@@ -59,9 +59,13 @@
 //! maps.
 
 use super::{
-    Body, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Tag, VerifyError,
-    is_suspension, local_flags, owned_blocks, place, u32_of, verify_structure,
+    Body, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Root, Tag, Topology,
+    VerifyError, is_suspension, local_flags, place, u32_of, verify_structure,
 };
+use crate::own::flow::{
+    Backward, BitArena, Flow, Forward, Suites, backward, forward, get_bit, set_bit,
+};
+use crate::own::parts::Slots;
 use crate::own::{OwnCx, Role, consumes, operands, tracked};
 
 /// Verifies a body after the ownership passes: the structural invariants
@@ -69,7 +73,8 @@ use crate::own::{OwnCx, Role, consumes, operands, tracked};
 /// passes.
 #[must_use]
 pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
-    let mut errs = verify_structure(b);
+    let topo = Topology::new(b);
+    let mut errs = verify_structure(b, &topo);
     let places: Vec<Option<Place>> = (0..b.len())
         .map(|i| match b.tags[i].operands().0 {
             Op::Place => b.decode_place(b.data[i][0]),
@@ -96,18 +101,19 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     let own = cx;
     let cx = Cx {
         b,
+        topo: &topo,
         places: &places,
         addressed: &addressed,
     };
     decided(b, &mut errs);
-    takes_outside_suspension(b, &mut errs);
+    takes_outside_suspension(b, &topo, &mut errs);
     lent_refs(b, &mut errs);
-    change_places(b, &mut errs);
-    hoisted(b, own, &mut errs);
+    change_places(b, &topo, &mut errs);
+    hoisted(b, &topo, own, &mut errs);
     Empties::new(&cx).walk(&mut errs);
     borrow_spans(&cx, &mut errs);
     binding_locals(&cx, own, &mut errs);
-    Balance::new(b, own).walk(&mut errs);
+    Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
     errs
 }
@@ -189,12 +195,12 @@ fn err(errs: &mut Vec<VerifyError>, inst: u32, what: String) {
 /// No `Ref` takes its local's count of a cell in a sub-body that holds a
 /// suspension point: the frame saves the cell's local at each point, and
 /// a resume enters blocks in the middle (move's rule 4).
-fn takes_outside_suspension(b: &Body, errs: &mut Vec<VerifyError>) {
+fn takes_outside_suspension(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
     let takes = |i: usize| b.tags[i] == Tag::Ref && b.data[i][1] & super::ref_word::TAKES != 0;
     if !(0..b.len()).any(takes) {
         return;
     }
-    let subs = b.inst_subs();
+    let subs = &topo.sub;
     let mut suspends = vec![false; b.sub_root.len()];
     for (i, &tag) in b.tags.iter().enumerate() {
         if is_suspension(tag)
@@ -278,16 +284,8 @@ fn lent_refs(b: &Body, errs: &mut Vec<VerifyError>) {
 /// address, a check or a change can store the buffer it leaves only into
 /// the place it names, and one rooted at such a value would leave the
 /// place with the old one.
-fn change_places(b: &Body, errs: &mut Vec<VerifyError>) {
+fn change_places(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
     let n = b.len();
-    let mut at = vec![(usize::MAX, 0); n];
-    for i in (0..n).filter(|&i| b.tags[i] == Tag::Block) {
-        for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
-            if let Some(x) = at.get_mut(m as usize) {
-                *x = (i, p);
-            }
-        }
-    }
     let unique = |x: usize, p: &Place| {
         b.tags[x] == Tag::IsUnique && b.decode_place(b.data[x][0]).as_ref() == Some(p)
     };
@@ -363,11 +361,12 @@ fn change_places(b: &Body, errs: &mut Vec<VerifyError>) {
                 }
                 continue;
             };
-            let ((blk, pos), (cb, cp)) = (at[r], at[c]);
-            let list = if blk == usize::MAX {
+            let (blk, cb) = (topo.blk[r], topo.blk[c]);
+            let (pos, cp) = (topo.pos[r] as usize, topo.pos[c] as usize);
+            let list = if blk == NONE {
                 &[][..]
             } else {
-                b.record(b.data[blk][0])
+                b.record(b.data[blk as usize][0])
             };
             let checked = pos > 0 && unique(list[pos - 1] as usize, &p)
                 || (0..n).any(|x| unique(x, &p) && b.data[x][1] == super::unique_word::HOISTED);
@@ -382,7 +381,7 @@ fn change_places(b: &Body, errs: &mut Vec<VerifyError>) {
 
 /// Hoisting's `IsUnique`s and stable lists (`docs/compiler/tir-v2.md`,
 /// "Hoisting"): what the pass relies on, checked again.
-fn hoisted(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
+fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     use super::unique_word::{COVERED, HOISTED};
     use crate::own::hoist;
     let n = b.len();
@@ -390,30 +389,7 @@ fn hoisted(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     if !any && b.stable_lists.is_empty() {
         return;
     }
-    // Each statement's block and position; each instruction's first.
-    let mut blk = vec![NONE; n];
-    let mut pos = vec![0u32; n];
-    let mut first: Vec<u32> = (0..n).map(u32_of).collect();
-    for i in 0..n {
-        if b.tags[i] == Tag::Block {
-            for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
-                if (m as usize) < n {
-                    blk[m as usize] = u32_of(i);
-                    pos[m as usize] = u32_of(p);
-                    if (m as usize) < i {
-                        first[i] = first[i].min(first[m as usize]);
-                    }
-                }
-            }
-        }
-        let mut f = first[i];
-        crate::own::splice_for_blocks(b, i, |x| {
-            if (x as usize) < i {
-                f = f.min(first[x as usize]);
-            }
-        });
-        first[i] = f;
-    }
+    let (blk, pos, first) = (&topo.blk, &topo.pos, &topo.first);
     let mut addressed = vec![false; b.local_ty.len()];
     let mut captured = vec![false; b.local_ty.len()];
     for i in 0..n {
@@ -628,6 +604,7 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
 /// the locals a reference or a shared capture can reach.
 struct Cx<'a> {
     b: &'a Body,
+    topo: &'a Topology,
     places: &'a [Option<Place>],
     addressed: &'a [bool],
 }
@@ -681,25 +658,14 @@ fn covers(q: &Place, p: &Place) -> bool {
     same_root(q.root, p.root) && q.proj.len() <= p.proj.len() && q.proj == p.proj[..q.proj.len()]
 }
 
-/// A bit set over the body's moves and drops.
-type Set = Vec<u64>;
+/// A bit set: a walk's state.
+type Set = [u64];
 
-fn union(a: Option<Set>, c: Option<Set>) -> Option<Set> {
-    match (a, c) {
-        (Some(mut x), Some(y)) => {
-            for (w, v) in x.iter_mut().zip(y) {
-                *w |= v;
-            }
-            Some(x)
-        }
-        (x, y) => x.or(y),
-    }
-}
-
-/// The read-after-move walk: a forward walk over the structured control
-/// flow of each sub-body, carrying the set of places a `move` read or a
-/// `Drop` emptied. Joins are unions ("on any path"); a loop runs to a fixed
-/// point.
+/// The read-after-move walk: a forward walk ([`forward`]) over each
+/// sub-body, carrying the set of places a `move` read or a `Drop` emptied.
+/// A cleanup suite starts from the union of the states at its scope's
+/// exits, since it runs at whichever exit the body takes: its end, or a
+/// jump that leaves it.
 struct Empties<'a> {
     cx: &'a Cx<'a>,
     /// Each instruction's number among the moves and drops, or `NONE`.
@@ -710,22 +676,6 @@ struct Empties<'a> {
     /// rooted at an instruction's value, sorted: running that instruction
     /// again makes a new value, which refills the place.
     by_value: Vec<(u32, u32)>,
-    /// The label each `Loop` or labeled `Block` instruction is the target
-    /// of, or `NONE`.
-    label_of: Vec<u32>,
-    /// Per label, the union of the states its `Break`s and `Continue`s
-    /// carry, during the walk of its target.
-    brk: Vec<Option<Set>>,
-    cont: Vec<Option<Set>>,
-    /// The open matches' arm entry states, innermost last.
-    arms: Vec<Vec<Option<Set>>>,
-    /// The open cleanup scopes, innermost last, each with the union of the
-    /// states at the exits that leave its body by a jump: its suites run
-    /// there.
-    scopes: Vec<Set>,
-    /// Per label, how many scopes were open when its target's walk began:
-    /// a jump to it leaves the ones opened after.
-    label_scopes: Vec<usize>,
     reported: Vec<bool>,
     errs: Vec<VerifyError>,
 }
@@ -753,12 +703,6 @@ impl<'a> Empties<'a> {
                 at.push(u32_of(i));
             }
         }
-        let mut label_of = vec![NONE; b.len()];
-        for (l, &t) in b.label_inst.iter().enumerate() {
-            if let Some(x) = label_of.get_mut(t as usize) {
-                *x = u32_of(l);
-            }
-        }
         let mut by_value: Vec<(u32, u32)> = at
             .iter()
             .enumerate()
@@ -773,24 +717,8 @@ impl<'a> Empties<'a> {
             id,
             at,
             by_value,
-            label_of,
-            brk: vec![None; b.label_inst.len()],
-            cont: vec![None; b.label_inst.len()],
-            arms: Vec::new(),
-            scopes: Vec::new(),
-            label_scopes: vec![0; b.label_inst.len()],
             reported: vec![false; b.len()],
             errs: Vec::new(),
-        }
-    }
-
-    /// A jump that leaves the scopes opened since `from`: their suites run
-    /// from its state.
-    fn leave_scopes(&mut self, from: usize, s: &Set) {
-        for acc in self.scopes.iter_mut().skip(from) {
-            for (w, v) in acc.iter_mut().zip(s) {
-                *w |= v;
-            }
         }
     }
 
@@ -798,222 +726,23 @@ impl<'a> Empties<'a> {
         if self.at.is_empty() {
             return;
         }
-        let words = self.at.len().div_ceil(64);
-        for &root in &self.cx.b.sub_root {
-            self.block(root, vec![0; words]);
+        let (b, topo) = (self.cx.b, self.cx.topo);
+        let mut s = Flow::default();
+        s.arena.words = self.at.len().div_ceil(64);
+        for &root in &b.sub_root {
+            let st = s.arena.alloc(None);
+            forward(b, topo, &mut s, &mut self, root, st);
+            s.arena.free(st);
         }
         errs.append(&mut self.errs);
-    }
-
-    fn is_block(&self, x: u32) -> bool {
-        self.cx.b.tags.get(x as usize) == Some(&Tag::Block)
-    }
-
-    /// Walks block `blk` from `s`; `None` when every path leaves it by a
-    /// jump.
-    fn block(&mut self, blk: u32, s: Set) -> Option<Set> {
-        if !self.is_block(blk) {
-            return Some(s);
-        }
-        let b = self.cx.b;
-        let label = self.label_of[blk as usize];
-        if label != NONE {
-            self.label_scopes[label as usize] = self.scopes.len();
-        }
-        let mut cur = Some(s);
-        for &x in b.record(b.data[blk as usize][0]) {
-            let Some(st) = cur else {
-                break;
-            };
-            // A block in the list runs where the instruction that owns it
-            // runs it, as emission does; a closure's root block is walked as
-            // its own sub-body.
-            cur = if b.tags[x as usize] == Tag::Block {
-                Some(st)
-            } else {
-                self.inst(x, st)
-            };
-        }
-        let label = self.label_of[blk as usize];
-        if label != NONE {
-            cur = union(cur, self.brk[label as usize].take());
-        }
-        cur
-    }
-
-    fn inst(&mut self, x: u32, mut s: Set) -> Option<Set> {
-        let b = self.cx.b;
-        let [a, w] = b.data[x as usize];
-        // A new value of `x` (a loop's next round) refills its places.
-        let from = self.by_value.partition_point(|&(v, _)| v < x);
-        for &(v, k) in &self.by_value[from..] {
-            if v != x {
-                break;
-            }
-            s[(k / 64) as usize] &= !(1u64 << (k % 64));
-        }
-        match b.tags[x as usize] {
-            Tag::Read | Tag::IsUnique | Tag::Pin => {
-                self.check(x, &s);
-                self.empty(x, &mut s);
-            }
-            Tag::Drop => self.empty(x, &mut s),
-            Tag::Store => self.refill(x, &mut s),
-            Tag::If => {
-                let r = b.record(w);
-                let (then, els) = (r.first().copied(), r.get(1).copied());
-                let t = then.map_or(Some(s.clone()), |t| self.block(t, s.clone()));
-                let e = els.map_or(Some(s.clone()), |e| self.block(e, s));
-                return union(t, e);
-            }
-            Tag::And | Tag::Or => {
-                let right = self.block(w, s.clone());
-                return union(Some(s), right);
-            }
-            Tag::With => return self.block(w, s),
-            Tag::RefDyn => return self.block(a, s),
-            Tag::Loop => return self.repeat(x, s),
-            Tag::Match => return self.decide(x, s),
-            Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-                let r = b.record(w).to_vec();
-                let (cases, default) = r.split_at(r.len().saturating_sub(1));
-                let mut out = None;
-                for &blk in cases.iter().skip(1).step_by(2).chain(default) {
-                    if self.is_block(blk) {
-                        out = union(out, self.block(blk, s.clone()));
-                    }
-                }
-                return out;
-            }
-            Tag::Guard => {
-                let s = self.block(a, s)?;
-                let r = b.record(w).to_vec();
-                let mut out = None;
-                for &blk in &r {
-                    out = union(out, self.block(blk, s.clone()));
-                }
-                return out;
-            }
-            Tag::Scope => return self.scope(x, s),
-            Tag::ToArm => {
-                if let Some(arm) = self
-                    .arms
-                    .last_mut()
-                    .and_then(|arms| arms.get_mut(a as usize))
-                {
-                    *arm = union(arm.take(), Some(s));
-                }
-                return None;
-            }
-            Tag::Break => {
-                let from = self.label_scopes.get(a as usize).copied().unwrap_or(0);
-                self.leave_scopes(from, &s);
-                if let Some(t) = self.brk.get_mut(a as usize) {
-                    *t = union(t.take(), Some(s));
-                }
-                return None;
-            }
-            Tag::Continue => {
-                let from = self.label_scopes.get(a as usize).copied().unwrap_or(0);
-                self.leave_scopes(from, &s);
-                if let Some(t) = self.cont.get_mut(a as usize) {
-                    *t = union(t.take(), Some(s));
-                }
-                return None;
-            }
-            Tag::Return => {
-                self.leave_scopes(0, &s);
-                return None;
-            }
-            Tag::Unreachable => return None,
-            _ => {}
-        }
-        Some(s)
-    }
-
-    /// A loop: its body from the head state until the head stops growing
-    /// (states only grow, so this ends); its exits are its `Break`s.
-    fn repeat(&mut self, x: u32, s: Set) -> Option<Set> {
-        let b = self.cx.b;
-        let body = b.data[x as usize][0];
-        let label = self.label_of[x as usize] as usize;
-        let mut head = s;
-        if let Some(x) = self.label_scopes.get_mut(label) {
-            *x = self.scopes.len();
-        }
-        for _ in 0..=self.at.len() + 1 {
-            if let Some(t) = self.brk.get_mut(label) {
-                *t = None;
-            }
-            if let Some(t) = self.cont.get_mut(label) {
-                *t = None;
-            }
-            let end = self.block(body, head.clone());
-            let back = self.cont.get_mut(label).and_then(Option::take);
-            let next = union(union(Some(head.clone()), end), back).expect("the head");
-            if next == head {
-                break;
-            }
-            head = next;
-        }
-        self.brk.get_mut(label).and_then(Option::take)
-    }
-
-    /// A match: its decision tree from `s`, each arm from the union of the
-    /// states its `ToArm`s carry.
-    fn decide(&mut self, x: u32, s: Set) -> Option<Set> {
-        let b = self.cx.b;
-        let r = b.record(b.data[x as usize][1]).to_vec();
-        let Some((&decision, arms)) = r.split_first() else {
-            return Some(s);
-        };
-        self.arms.push(vec![None; arms.len()]);
-        // Every path of the tree ends in `ToArm` or `Unreachable`.
-        let _ = self.block(decision, s);
-        let entries = self.arms.pop().unwrap_or_default();
-        let mut out = None;
-        for (&arm, entry) in arms.iter().zip(entries) {
-            if let Some(e) = entry {
-                out = union(out, self.block(arm, e));
-            }
-        }
-        out
-    }
-
-    /// A cleanup scope: its body, then each suite from the union of the
-    /// states at the body's exits, since a suite runs at whichever exit the
-    /// body takes: its end, or a jump that leaves it.
-    fn scope(&mut self, x: u32, s: Set) -> Option<Set> {
-        let b = self.cx.b;
-        let [body, suites] = b.data[x as usize];
-        self.scopes.push(vec![0; s.len()]);
-        let after = self.block(body, s);
-        let mut seen = self.scopes.pop().unwrap_or_default();
-        if let Some(a) = &after {
-            for (w, v) in seen.iter_mut().zip(a) {
-                *w |= v;
-            }
-        }
-        let mut out = after;
-        if suites != NONE {
-            for &suite in &b.record(suites).to_vec() {
-                let end = self.block(suite, seen.clone());
-                if out.is_some() {
-                    out = union(out, end);
-                }
-            }
-        }
-        out
     }
 
     /// Instruction `x` empties its place: a `move` read or a `Drop`.
     fn empty(&mut self, x: u32, s: &mut Set) {
         let k = self.id[x as usize];
-        if k == NONE {
-            return;
+        if k != NONE {
+            set_bit(s, k as usize, true);
         }
-        let (w, bit) = ((k / 64) as usize, 1u64 << (k % 64));
-        s[w] |= bit;
     }
 
     /// A `Store` refills every emptied place it covers.
@@ -1022,12 +751,11 @@ impl<'a> Empties<'a> {
             return;
         };
         for (k, &e) in self.at.iter().enumerate() {
-            let (w, bit) = (k / 64, 1u64 << (k % 64));
-            if s[w] & bit != 0
+            if get_bit(s, k)
                 && let Some(p) = &self.cx.places[e as usize]
                 && covers(q, p)
             {
-                s[w] &= !bit;
+                set_bit(s, k, false);
             }
         }
     }
@@ -1056,7 +784,7 @@ impl<'a> Empties<'a> {
             return;
         }
         for (k, &e) in self.at.iter().enumerate() {
-            if s[k / 64] & (1u64 << (k % 64)) != 0
+            if get_bit(s, k)
                 && let Some(p) = &self.cx.places[e as usize]
                 && self.empties(e, p, q)
             {
@@ -1069,6 +797,32 @@ impl<'a> Empties<'a> {
                 err(&mut self.errs, x, what);
                 return;
             }
+        }
+    }
+}
+
+impl Forward for Empties<'_> {
+    const SUITES: Suites = Suites::FromExits;
+
+    fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, st: usize) {
+        self.enter(b, x, s, st);
+        let st = s.row_mut(st);
+        match b.tags[x as usize] {
+            Tag::Read | Tag::IsUnique | Tag::Pin => {
+                self.check(x, st);
+                self.empty(x, st);
+            }
+            Tag::Drop => self.empty(x, st),
+            Tag::Store => self.refill(x, st),
+            _ => {}
+        }
+    }
+
+    /// A new value of `x` (a loop's next round) refills its places.
+    fn enter(&mut self, _: &Body, x: u32, s: &mut BitArena, st: usize) {
+        let from = self.by_value.partition_point(|&(v, _)| v < x);
+        for &(_, k) in self.by_value[from..].iter().take_while(|&&(v, _)| v == x) {
+            s.set(st, k, false);
         }
     }
 }
@@ -1200,32 +954,17 @@ fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
             holds[l.idx()] = b.data[i][1];
         }
     }
-    let mut label_of = vec![NONE; n];
-    for (l, &t) in b.label_inst.iter().enumerate() {
-        if let Some(x) = label_of.get_mut(t as usize) {
-            *x = u32_of(l);
-        }
-    }
     let mut walk = Live {
         cx,
         bit,
         at,
         holds,
-        label_of,
-        brk: vec![None; b.label_inst.len()],
-        cont: vec![None; b.label_inst.len()],
-        arms: Vec::new(),
-        ops: Vec::new(),
         reported: vec![false; n],
         errs: Vec::new(),
     };
-    let words = walk.at.len().div_ceil(64);
-    for &root in &b.sub_root {
-        if (root as usize) < n {
-            let mut live = vec![0u64; words];
-            walk.block(root, &mut live);
-        }
-    }
+    let mut back = Flow::default();
+    back.arena.words = walk.at.len().div_ceil(64);
+    backward(b, cx.topo, &mut back, &mut walk);
     errs.append(&mut walk.errs);
 }
 
@@ -1236,193 +975,18 @@ struct Live<'a> {
     bit: Vec<u32>,
     at: Vec<u32>,
     holds: Vec<u32>,
-    label_of: Vec<u32>,
-    /// While a target is walked: the state after it, for a `Break`, and at
-    /// a loop's head, for a `Continue`.
-    brk: Vec<Option<Set>>,
-    cont: Vec<Option<Set>>,
-    /// The open matches' arm entry states.
-    arms: Vec<Vec<Set>>,
-    ops: Vec<crate::own::Operand>,
     reported: Vec<bool>,
     errs: Vec<VerifyError>,
 }
 
 impl Live<'_> {
-    fn is_block(&self, x: u32) -> bool {
-        self.cx.b.tags.get(x as usize) == Some(&Tag::Block)
-    }
-
-    /// A use of value `v`: it, and every borrow it lives on.
-    fn uses(&self, live: &mut Set, v: u32) {
-        let b = self.cx.b;
-        let mut x = v;
-        for _ in 0..b.len() {
-            let Some(&k) = self.bit.get(x as usize) else {
-                return;
-            };
-            if k == NONE {
-                return;
-            }
-            live[(k / 64) as usize] |= 1 << (k % 64);
-            match self.cx.places[x as usize].as_ref().map(|p| p.root) {
-                Some(PlaceRoot::Value(r)) if (r.0 as usize) < b.len() => x = r.0,
-                Some(PlaceRoot::Local(l)) if self.holds[l.idx()] != NONE => {
-                    x = self.holds[l.idx()];
-                }
-                _ => return,
-            }
-        }
-    }
-
-    /// Block `blk` backward: `live` after it becomes `live` at its start.
-    fn block(&mut self, blk: u32, live: &mut Set) {
-        if !self.is_block(blk) {
-            return;
-        }
-        let b = self.cx.b;
-        let label = self.label_of[blk as usize];
-        let saved = (label != NONE).then(|| self.brk[label as usize].replace(live.clone()));
-        let tail = b.data[blk as usize][1];
-        if tail != NONE && Ref(tail).as_inst().is_some() {
-            self.uses(live, tail);
-        }
-        let members = b.record(b.data[blk as usize][0]).to_vec();
-        for &x in members.iter().rev() {
-            if b.tags[x as usize] != Tag::Block {
-                self.inst(x, live);
-            }
-        }
-        if let Some(old) = saved {
-            self.brk[label as usize] = old;
-        }
-    }
-
-    fn union(to: &mut Set, from: &Set) -> bool {
-        let mut grew = false;
-        for (w, v) in to.iter_mut().zip(from) {
-            grew |= v & !*w != 0;
-            *w |= v;
-        }
-        grew
-    }
-
-    /// Instruction `x` backward.
-    fn inst(&mut self, x: u32, live: &mut Set) {
-        let b = self.cx.b;
-        let i = x as usize;
-        let [a, w] = b.data[i];
-        if self.bit[i] != NONE {
-            let k = self.bit[i];
-            live[(k / 64) as usize] &= !(1 << (k % 64));
-        }
-        let tag = b.tags[i];
-        let writes = match tag {
-            Tag::Store | Tag::Drop | Tag::IsUnique => true,
-            Tag::Read => w == ReadMode::Move as u32,
-            Tag::Ref => w & super::ref_word::MUT != 0,
-            _ => false,
-        };
-        // A write through a borrow's own value (into the buffer its list
-        // header names, or the referent its reference names) keeps that
-        // value as it is.
-        if writes && let Some(q) = &self.cx.places[i] {
-            self.check(x, live, |r, p| {
-                q.root != PlaceRoot::Value(Ref(r)) && self.cx.overlap(p, q)
-            });
-        }
-        match tag {
-            Tag::If => {
-                let r = b.record(w);
-                let (then, els) = (r.first().copied(), r.get(1).copied());
-                let mut other = live.clone();
-                if let Some(t) = then {
-                    self.block(t, &mut other);
-                }
-                if let Some(e) = els {
-                    self.block(e, live);
-                }
-                Self::union(live, &other);
-            }
-            Tag::And | Tag::Or => {
-                let mut right = live.clone();
-                self.block(w, &mut right);
-                Self::union(live, &right);
-            }
-            Tag::With => self.block(w, live),
-            Tag::RefDyn | Tag::Scope => self.block(a, live),
-            Tag::Loop => self.repeat(x, live),
-            Tag::Match => self.decide(x, live),
-            Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-                let r = b.record(w).to_vec();
-                let (cases, default) = r.split_at(r.len().saturating_sub(1));
-                let mut acc = vec![0; live.len()];
-                for &blk in cases.iter().skip(1).step_by(2).chain(default) {
-                    let mut s = live.clone();
-                    self.block(blk, &mut s);
-                    Self::union(&mut acc, &s);
-                }
-                *live = acc;
-            }
-            Tag::Guard => {
-                let mut acc = vec![0; live.len()];
-                for &blk in b.record(w) {
-                    let mut s = live.clone();
-                    self.block(blk, &mut s);
-                    Self::union(&mut acc, &s);
-                }
-                *live = acc;
-                self.block(a, live);
-            }
-            Tag::ToArm => {
-                match self.arms.last().and_then(|arms| arms.get(a as usize)) {
-                    Some(s) => live.clone_from(s),
-                    None => live.fill(0),
-                }
-                return;
-            }
-            Tag::Break => match self.brk.get(a as usize) {
-                Some(Some(s)) => live.clone_from(s),
-                _ => live.fill(0),
-            },
-            Tag::Continue => match self.cont.get(a as usize) {
-                Some(Some(s)) => live.clone_from(s),
-                _ => live.fill(0),
-            },
-            Tag::Return | Tag::Unreachable => live.fill(0),
-            _ => {}
-        }
-        let mut ops = std::mem::take(&mut self.ops);
-        operands(b, i, &mut ops);
-        // A borrow's own `Drop` releases only a value an instance made
-        // fresh, which lives on nothing: no use.
-        for op in &ops {
-            if op.role != Role::Tail && op.role != Role::Dropped {
-                self.uses(live, op.value);
-            }
-        }
-        self.ops = ops;
-        // A read through a binding local reads the borrow it holds.
-        if let Some(Place {
-            root: PlaceRoot::Local(l),
-            ..
-        }) = &self.cx.places[i]
-            && self.holds[l.idx()] != NONE
-        {
-            self.uses(live, self.holds[l.idx()]);
-        }
-        if is_suspension(tag) {
-            self.check(x, live, |_, _| true);
-        }
-    }
-
     /// An error at `x` for the first live borrow whose place `hit` names.
-    fn check(&mut self, x: u32, live: &Set, hit: impl Fn(u32, &Place) -> bool) {
+    fn check(&mut self, x: u32, s: &BitArena, live: usize, hit: impl Fn(u32, &Place) -> bool) {
         if self.reported[x as usize] {
             return;
         }
         for (k, &r) in self.at.iter().enumerate() {
-            if live[k / 64] & (1 << (k % 64)) == 0 || r == x {
+            if !s.get(live, u32_of(k)) || r == x {
                 continue;
             }
             let Some(p) = &self.cx.places[r as usize] else {
@@ -1439,60 +1003,68 @@ impl Live<'_> {
             }
         }
     }
+}
 
-    /// Loop `x` backward, from its head to a fixed point.
-    fn repeat(&mut self, x: u32, live: &mut Set) {
-        let b = self.cx.b;
-        let body = b.data[x as usize][0];
-        let label = self.label_of[x as usize];
-        let after = live.clone();
-        let mut head = vec![0; live.len()];
-        let saved = (label != NONE).then(|| {
-            (
-                self.brk[label as usize].replace(after.clone()),
-                self.cont[label as usize].take(),
-            )
-        });
-        for _ in 0..=self.at.len() + 1 {
-            if label != NONE {
-                self.cont[label as usize] = Some(head.clone());
-            }
-            let mut end = head.clone();
-            self.block(body, &mut end);
-            if !Self::union(&mut head, &end) {
-                break;
-            }
+impl Backward for Live<'_> {
+    fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, live: usize) {
+        let i = x as usize;
+        let w = b.data[i][1];
+        if self.bit[i] != NONE {
+            s.set(live, self.bit[i], false);
         }
-        if let Some((bs, cs)) = saved {
-            self.brk[label as usize] = bs;
-            self.cont[label as usize] = cs;
+        let writes = match b.tags[i] {
+            Tag::Store | Tag::Drop | Tag::IsUnique => true,
+            Tag::Read => w == ReadMode::Move as u32,
+            Tag::Ref => w & super::ref_word::MUT != 0,
+            _ => false,
+        };
+        // A write through a borrow's own value (into the buffer its list
+        // header names, or the referent its reference names) keeps that
+        // value as it is.
+        if writes && let Some(q) = &self.cx.places[i] {
+            self.check(x, s, live, |r, p| {
+                q.root != PlaceRoot::Value(Ref(r)) && self.cx.overlap(p, q)
+            });
         }
-        *live = head;
     }
 
-    /// Match `x` backward: each arm from after the match, then the decision
-    /// tree from the arms' entry states.
-    fn decide(&mut self, x: u32, live: &mut Set) {
-        let b = self.cx.b;
-        let r = b.record(b.data[x as usize][1]).to_vec();
-        let Some((&decision, arms)) = r.split_first() else {
-            return;
-        };
-        let label = self.label_of[x as usize];
-        let saved = (label != NONE).then(|| self.brk[label as usize].replace(live.clone()));
-        let mut entries = Vec::with_capacity(arms.len());
-        for &arm in arms {
-            let mut s = live.clone();
-            self.block(arm, &mut s);
-            entries.push(s);
+    /// Besides the operands (a borrow's own `Drop`, which the walk skips,
+    /// releases only a value an instance made fresh, which lives on
+    /// nothing): the borrow a binding local holds, and a suspension point.
+    fn reads(&mut self, b: &Body, x: u32, s: &mut BitArena, live: usize) {
+        let i = x as usize;
+        // A read through a binding local reads the borrow it holds.
+        if let Some(Place {
+            root: PlaceRoot::Local(l),
+            ..
+        }) = &self.cx.places[i]
+            && self.holds[l.idx()] != NONE
+        {
+            self.uses(b, self.holds[l.idx()], s, live);
         }
-        self.arms.push(entries);
-        let mut tree = vec![0; live.len()];
-        self.block(decision, &mut tree);
-        self.arms.pop();
-        *live = tree;
-        if let Some(old) = saved {
-            self.brk[label as usize] = old;
+        if is_suspension(b.tags[i]) {
+            self.check(x, s, live, |_, _| true);
+        }
+    }
+
+    /// A use of value `v`: it, and every borrow it lives on.
+    fn uses(&mut self, b: &Body, v: u32, s: &mut BitArena, live: usize) {
+        let mut x = v;
+        for _ in 0..b.len() {
+            let Some(&k) = self.bit.get(x as usize) else {
+                return;
+            };
+            if k == NONE {
+                return;
+            }
+            s.set(live, k, true);
+            match self.cx.places[x as usize].as_ref().map(|p| p.root) {
+                Some(PlaceRoot::Value(r)) if (r.0 as usize) < b.len() => x = r.0,
+                Some(PlaceRoot::Local(l)) if self.holds[l.idx()] != NONE => {
+                    x = self.holds[l.idx()];
+                }
+                _ => return,
+            }
         }
     }
 }
@@ -1510,31 +1082,19 @@ impl Live<'_> {
 /// a path did not compute drops an empty place, which does nothing.
 struct Balance<'a> {
     b: &'a Body,
+    topo: &'a Topology,
     cx: &'a dyn OwnCx,
     /// Each tracked value's number among the tracked values, or `NONE`.
     num: Vec<u32>,
     /// Each local's number among the locals, all of them.
     words: usize,
     lwords: usize,
-    /// The parts of values that `move` reads and `Drop`s take: each
-    /// instruction's slot (a distinct place of one value), or `NONE`; the
-    /// slots of each value, in compressed rows, with a place word of each.
-    /// The walk keeps a bit per slot after the locals' bits, so a value
-    /// taken in parts is owned until its parts cover every counted leaf.
-    slot_of: Vec<u32>,
-    slot_start: Vec<u32>,
-    slot_word: Vec<u32>,
+    /// The parts of values and locals that `move` reads and `Drop`s take,
+    /// keyed by value, then by `n + local`. The walk keeps a bit per slot
+    /// after the locals' bits, so a value taken in parts is owned until
+    /// its parts cover every counted leaf.
+    slots: Slots,
     pwords: usize,
-    /// Each block's owner, a cleanup scope owning its suites; whether an
-    /// instruction is a sub-body's root; the innermost loop whose body
-    /// holds each instruction.
-    owner: Vec<u32>,
-    is_root: Vec<bool>,
-    loop_of: Vec<u32>,
-    label_of: Vec<u32>,
-    brk: Vec<Option<Set>>,
-    cont: Vec<Option<Set>>,
-    arms: Vec<Vec<Option<Set>>>,
     /// The exit set of the sub-body being walked, by local, and the locals
     /// the passes own: a counted type's, or one a cell may hold.
     exit: Vec<bool>,
@@ -1545,7 +1105,7 @@ struct Balance<'a> {
 }
 
 impl<'a> Balance<'a> {
-    fn new(b: &'a Body, cx: &'a dyn OwnCx) -> Self {
+    fn new(b: &'a Body, topo: &'a Topology, cx: &'a dyn OwnCx) -> Self {
         let n = b.len();
         let mut num = vec![NONE; n];
         let mut k = 0u32;
@@ -1553,58 +1113,6 @@ impl<'a> Balance<'a> {
             if tracked(b, cx, i) {
                 *x = k;
                 k += 1;
-            }
-        }
-        let mut owner = vec![NONE; n];
-        for i in 0..n {
-            for blk in owned_blocks(b, i) {
-                if b.tags[i] == Tag::Defer && owner[blk as usize] != NONE {
-                    continue;
-                }
-                owner[blk as usize] = u32_of(i);
-            }
-        }
-        let mut is_root = vec![false; n];
-        for &r in &b.sub_root {
-            if let Some(x) = is_root.get_mut(r as usize) {
-                *x = true;
-            }
-        }
-        let mut parent = vec![NONE; n];
-        for i in 0..n {
-            if b.tags[i] == Tag::Block {
-                for &m in b.record(b.data[i][0]) {
-                    if let Some(p) = parent.get_mut(m as usize) {
-                        *p = u32_of(i);
-                    }
-                }
-            }
-        }
-        let mut loop_of = vec![NONE; n];
-        for i in (0..n).rev() {
-            if is_root[i] {
-                continue;
-            }
-            let p = if parent[i] == NONE {
-                owner[i]
-            } else {
-                parent[i]
-            };
-            if p == NONE || p as usize >= n {
-                continue;
-            }
-            let p = p as usize;
-            loop_of[i] =
-                if b.tags[i] == Tag::Block && b.tags[p] == Tag::Loop && b.data[p][0] == u32_of(i) {
-                    u32_of(p)
-                } else {
-                    loop_of[p]
-                };
-        }
-        let mut label_of = vec![NONE; n];
-        for (l, &t) in b.label_inst.iter().enumerate() {
-            if let Some(x) = label_of.get_mut(t as usize) {
-                *x = u32_of(l);
             }
         }
         let mut held: Vec<bool> = b
@@ -1628,25 +1136,27 @@ impl<'a> Balance<'a> {
                 *x = true;
             }
         }
-        let (slot_of, slot_start, slot_word) = part_slots(b);
-        let pwords = slot_word.len().div_ceil(64);
+        let takes = crate::own::parts::takes(b, |_| true).filter_map(|(i, a)| {
+            let p = b.view(a);
+            let key = match p.root {
+                _ if p.whole() => return None,
+                Root::Value(v) => v,
+                Root::Local(l) => u32_of(n) + l,
+                _ => return None,
+            };
+            Some((key, u32_of(i), a))
+        });
+        let mut slots = Slots::default();
+        let pwords = (slots.build(b, n, n + b.local_ty.len(), takes) as usize).div_ceil(64);
         Balance {
             b,
+            topo,
             cx,
             num,
             words: (k as usize).div_ceil(64),
             lwords: b.local_ty.len().div_ceil(64),
-            slot_of,
-            slot_start,
-            slot_word,
+            slots,
             pwords,
-            owner,
-            is_root,
-            loop_of,
-            label_of,
-            brk: vec![None; b.label_inst.len()],
-            cont: vec![None; b.label_inst.len()],
-            arms: Vec::new(),
             exit: vec![false; b.local_ty.len()],
             owned: held,
             ops: Vec::new(),
@@ -1656,33 +1166,34 @@ impl<'a> Balance<'a> {
     }
 
     fn walk(mut self, errs: &mut Vec<VerifyError>) {
-        for s in 0..self.b.sub_root.len() {
-            let root = self.b.sub_root[s];
-            if root as usize >= self.b.len() {
+        let (b, topo) = (self.b, self.topo);
+        let mut s = Flow::default();
+        s.arena.words = 3 * self.words + self.lwords + self.pwords;
+        for (sub, &root) in b.sub_root.iter().enumerate() {
+            if root as usize >= b.len() {
                 continue;
             }
-            for x in &mut self.exit {
-                *x = false;
-            }
-            for &(sub, l) in &self.b.exit_drops {
-                if sub.idx() == s
+            self.exit.fill(false);
+            for &(at, l) in &b.exit_drops {
+                if at.idx() == sub
                     && let Some(x) = self.exit.get_mut(l.idx())
                 {
                     *x = true;
                 }
             }
-            let mut st = vec![0; 3 * self.words + self.lwords + self.pwords];
+            let st = s.arena.alloc(None);
             // An entry local outside the exit set is a lent parameter the
             // body does not own.
-            for l in entry_locals(self.b, s) {
+            for l in entry_locals(b, sub) {
                 if self.exit[l] {
-                    self.set_full(&mut st, l, true);
+                    self.set_full(s.arena.row_mut(st), l, true);
                 }
             }
-            if let Some(mut end) = self.block(root, st) {
-                self.tail(root, &mut end);
-                self.at_exit(root, &end);
+            if forward(b, topo, &mut s, &mut self, root, st) {
+                self.tail(b, root, &mut s.arena, st);
+                self.at_exit(root, s.arena.row(st));
             }
+            s.arena.free(st);
         }
         errs.append(&mut self.errs);
     }
@@ -1698,29 +1209,16 @@ impl<'a> Balance<'a> {
     }
 
     fn bit(&self, st: &Set, set: usize, k: u32) -> bool {
-        st[set * self.words + (k / 64) as usize] & (1 << (k % 64)) != 0
+        get_bit(st, set * self.words * 64 + k as usize)
     }
 
     fn put(&self, st: &mut Set, set: usize, k: u32, on: bool) {
-        let w = set * self.words + (k / 64) as usize;
-        if on {
-            st[w] |= 1 << (k % 64);
-        } else {
-            st[w] &= !(1 << (k % 64));
-        }
+        set_bit(st, set * self.words * 64 + k as usize, on);
     }
 
     fn set_full(&self, st: &mut Set, l: usize, on: bool) {
-        if !self.owned.get(l).copied().unwrap_or(false) {
-            return;
-        }
-        let w = 3 * self.words + l / 64;
-        if let Some(x) = st.get_mut(w) {
-            if on {
-                *x |= 1 << (l % 64);
-            } else {
-                *x &= !(1 << (l % 64));
-            }
+        if self.owned.get(l).copied().unwrap_or(false) {
+            set_bit(st, 3 * self.words * 64 + l, on);
         }
     }
 
@@ -1753,11 +1251,13 @@ impl<'a> Balance<'a> {
         let [a, w] = b.data[x as usize];
         // The value at the root of a move read's or a drop's place, and
         // whether the place is a part of it.
+        let p = b.view(a);
         let taken = match b.tags[x as usize] {
-            Tag::Read if w == ReadMode::Move as u32 => value_root(b, a),
-            Tag::Drop => value_root(b, a).filter(|&(_, part)| part),
+            Tag::Read if w == ReadMode::Move as u32 => p.value(),
+            Tag::Drop => p.value().filter(|_| !p.whole()),
             _ => None,
-        };
+        }
+        .map(|v| (v, !p.whole()));
         let mut ops = std::mem::take(&mut self.ops);
         operands(b, x as usize, &mut ops);
         for op in &ops {
@@ -1794,15 +1294,7 @@ impl<'a> Balance<'a> {
             }
         }
         self.ops = ops;
-        let local = |word: u32| -> Option<usize> {
-            if word & place::BARE_LOCAL != 0 {
-                return Some((word & !place::BARE_LOCAL) as usize);
-            }
-            match b.extra.get(word as usize + 1..word as usize + 3)? {
-                [place::ROOT_LOCAL, l] => Some(*l as usize),
-                _ => None,
-            }
-        };
+        let local = |word: u32| b.view(word).local().map(|l| l as usize);
         match b.tags[x as usize] {
             // A local a borrow is stored into holds no count. A store
             // refills what parts were taken.
@@ -1811,8 +1303,7 @@ impl<'a> Balance<'a> {
                 // refers to, leaves it as it was.
                 if let Some(l) = b.local_in_place(a).map(hd_base::LocalId::idx) {
                     self.set_full(st, l, true);
-                    let key = b.len() + l;
-                    for s in self.slot_start[key]..self.slot_start[key + 1] {
+                    for s in self.slots.of_key(u32_of(b.len() + l)) {
                         self.put_slot(st, s, false);
                     }
                 }
@@ -1820,7 +1311,8 @@ impl<'a> Balance<'a> {
             // A `move` read or a `Drop` of a part of a local takes it.
             Tag::Read | Tag::Drop
                 if (b.tags[x as usize] == Tag::Drop || w == ReadMode::Move as u32)
-                    && let Some((l, true)) = local_root(b, a) =>
+                    && !b.view(a).whole()
+                    && let Some(l) = local(a) =>
             {
                 self.local_part(x, l, st);
             }
@@ -1846,19 +1338,14 @@ impl<'a> Balance<'a> {
             self.put(st, 1, k, false);
             self.put(st, 2, k, false);
             // A value computed again has none of its parts taken.
-            for s in self.slot_start[x as usize]..self.slot_start[x as usize + 1] {
+            for s in self.slots.of_key(x) {
                 self.put_slot(st, s, false);
             }
         }
     }
 
     fn put_slot(&self, st: &mut Set, s: u32, on: bool) {
-        let w = 3 * self.words + self.lwords + (s / 64) as usize;
-        if on {
-            st[w] |= 1 << (s % 64);
-        } else {
-            st[w] &= !(1 << (s % 64));
-        }
+        set_bit(st, (3 * self.words + self.lwords) * 64 + s as usize, on);
     }
 
     /// Instruction `x` takes a part of value `v`: an error after its
@@ -1875,17 +1362,11 @@ impl<'a> Balance<'a> {
                 format!("%{x} takes a part of %{v} after its consumer or its drop"),
             );
         }
-        let s = self.slot_of[x as usize];
+        let s = self.slots.of[x as usize];
         if s != NONE {
             self.put_slot(st, s, true);
         }
-        let (from, to) = (self.slot_start[v as usize], self.slot_start[v as usize + 1]);
-        let base = 3 * self.words + self.lwords;
-        let taken: Vec<u32> = (from..to)
-            .filter(|&s| st[base + (s / 64) as usize] & (1 << (s % 64)) != 0)
-            .map(|s| self.slot_word[s as usize])
-            .collect();
-        let rest = rest_counted(self.b, self.cx, self.b.ty[v as usize], &taken);
+        let rest = self.rest(v, self.b.ty[v as usize], st);
         self.put(st, 0, k, rest);
         self.put(st, 1, k, true);
         self.put(st, 2, k, true);
@@ -1894,41 +1375,28 @@ impl<'a> Balance<'a> {
     /// Instruction `x` takes a part of local `l`: the local is empty once
     /// the parts taken on the path cover every counted leaf.
     fn local_part(&mut self, x: u32, l: usize, st: &mut Set) {
-        let s = self.slot_of[x as usize];
+        let s = self.slots.of[x as usize];
         if s == NONE {
             return;
         }
         self.put_slot(st, s, true);
-        let key = self.b.len() + l;
-        let base = 3 * self.words + self.lwords;
-        let taken: Vec<u32> = (self.slot_start[key]..self.slot_start[key + 1])
-            .filter(|&s| st[base + (s / 64) as usize] & (1 << (s % 64)) != 0)
-            .map(|s| self.slot_word[s as usize])
-            .collect();
-        if !rest_counted(self.b, self.cx, self.b.local_ty[l], &taken) {
+        if !self.rest(u32_of(self.b.len() + l), self.b.local_ty[l], st) {
             self.set_full(st, l, false);
         }
     }
 
-    /// Block `blk`'s tail, taken by the block's value when its owner uses
-    /// it, at the block's end.
-    fn tail(&mut self, blk: u32, st: &mut Set) {
-        let w = self.b.data[blk as usize][1];
-        if w == NONE || Ref(w).as_inst().is_none() || w as usize >= self.b.len() {
-            return;
-        }
-        let owner = if self.is_root[blk as usize] {
-            NONE
-        } else {
-            self.owner[blk as usize]
-        };
-        let op = crate::own::Operand {
-            value: w,
-            role: Role::Tail,
-            at: crate::own::Loc::Data(1),
-        };
-        let consumed = consumes(self.b, self.cx, blk as usize, &op, owner);
-        self.used(blk, w, consumed, st);
+    /// Whether the value or local at slot key `key`, of type `ty`, still
+    /// holds a counted leaf beside the parts taken on the path. A taken
+    /// place that does not decode leaves one.
+    fn rest(&mut self, key: u32, ty: hd_types::Ty, st: &Set) -> bool {
+        let (b, base) = (self.b, (3 * self.words + self.lwords) * 64);
+        let mut bad = false;
+        let rest = self.slots.rest(b, self.cx, key, ty, |s, word| {
+            let on = get_bit(st, base + s as usize);
+            bad |= on && b.decode_place(word).is_none();
+            on
+        });
+        rest || bad
     }
 
     /// Where a sub-body ends: no value owned, and every local that may
@@ -1946,8 +1414,7 @@ impl<'a> Balance<'a> {
             }
         }
         for l in 0..self.b.local_ty.len() {
-            let w = 3 * self.words + l / 64;
-            if st[w] & (1 << (l % 64)) != 0 && !self.exit[l] {
+            if get_bit(st, 3 * self.words * 64 + l) && !self.exit[l] {
                 self.err(
                     x,
                     format!("local ${l} may hold a value at the exit, which does not drop it"),
@@ -1978,8 +1445,7 @@ impl<'a> Balance<'a> {
             }
         }
         for l in 0..self.b.local_ty.len() {
-            let w = 3 * self.words + l / 64;
-            if st[w] & (1 << (l % 64)) != 0 && !self.exit[l] {
+            if get_bit(st, 3 * self.words * 64 + l) && !self.exit[l] {
                 self.err(
                     x,
                     format!("local ${l} may hold a value at suspension point %{x}, and the exit does not drop it"),
@@ -1995,394 +1461,76 @@ impl<'a> Balance<'a> {
             if k == NONE || !self.bit(st, 0, k) {
                 continue;
             }
-            let mut l = self.loop_of[v];
+            let mut l = self.topo.loop_of[v];
             while l != NONE {
                 if l == lp {
                     let what = format!("%{v} is still owned where loop %{lp} goes round at %{x}");
                     self.err(x, what);
                     return;
                 }
-                l = self.loop_of[l as usize];
+                l = self.topo.loop_of[l as usize];
             }
         }
     }
+}
 
-    fn is_block(&self, x: u32) -> bool {
-        self.b.tags.get(x as usize) == Some(&Tag::Block)
-    }
+impl Forward for Balance<'_> {
+    const SUITES: Suites = Suites::FromEnd { union: false };
 
-    /// Walks block `blk` from `st`; `None` when every path leaves it by a
-    /// jump. Its tail is its owner's to take.
-    fn block(&mut self, blk: u32, st: Set) -> Option<Set> {
-        if !self.is_block(blk) {
-            return Some(st);
-        }
-        let b = self.b;
-        let mut cur = Some(st);
-        for &x in b.record(b.data[blk as usize][0]) {
-            let Some(s) = cur else {
-                break;
-            };
-            cur = if b.tags[x as usize] == Tag::Block {
-                Some(s)
-            } else {
-                self.inst(x, s)
-            };
-        }
-        let label = self.label_of[blk as usize];
-        if label != NONE {
-            cur = union(cur, self.brk[label as usize].take());
-        }
-        cur
-    }
-
-    /// Walks block `blk` and takes its tail.
-    fn valued(&mut self, blk: u32, st: Set) -> Option<Set> {
-        let mut end = self.block(blk, st)?;
-        if self.is_block(blk) {
-            self.tail(blk, &mut end);
-        }
-        Some(end)
-    }
-
-    fn inst(&mut self, x: u32, mut st: Set) -> Option<Set> {
-        let b = self.b;
-        let [a, w] = b.data[x as usize];
-        match b.tags[x as usize] {
-            Tag::If => {
-                self.uses_only(x, &mut st);
-                let r = b.record(w);
-                let (then, els) = (r.first().copied(), r.get(1).copied());
-                let t = then.map_or(Some(st.clone()), |t| self.valued(t, st.clone()));
-                let e = els.map_or(Some(st.clone()), |e| self.valued(e, st));
-                return self.defined(x, union(t, e));
-            }
-            Tag::And | Tag::Or => {
-                self.uses_only(x, &mut st);
-                let right = self.valued(w, st.clone());
-                return self.defined(x, union(Some(st), right));
-            }
-            Tag::With => {
-                self.uses_only(x, &mut st);
-                let end = self.valued(w, st);
-                return self.defined(x, end);
-            }
-            Tag::RefDyn => {
-                let end = self.valued(a, st);
-                return self.defined(x, end);
-            }
-            Tag::Loop => {
-                let end = self.repeat(x, st);
-                return self.defined(x, end);
-            }
-            Tag::Match => {
-                self.uses_only(x, &mut st);
-                let end = self.decide(x, st);
-                return self.defined(x, end);
-            }
-            Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-                self.uses_only(x, &mut st);
-                let r = b.record(w).to_vec();
-                let (cases, default) = r.split_at(r.len().saturating_sub(1));
-                let mut out = None;
-                for &blk in cases.iter().skip(1).step_by(2).chain(default) {
-                    if self.is_block(blk) {
-                        out = union(out, self.valued(blk, st.clone()));
-                    }
-                }
-                // A switch outside a decision tree has a value.
-                return self.defined(x, out);
-            }
-            Tag::Guard => {
-                let s = self.valued(a, st)?;
-                let r = b.record(w).to_vec();
-                let mut out = None;
-                for &blk in &r {
-                    out = union(out, self.block(blk, s.clone()));
-                }
-                return out;
-            }
-            Tag::Scope => {
-                let body = self.valued(a, st);
-                let mut out = body.clone();
-                if w != NONE
-                    && let Some(s) = body
-                {
-                    for &suite in &b.record(w).to_vec() {
-                        if let Some(end) = self.block(suite, s.clone()) {
-                            out = Some(end);
-                        }
-                    }
-                }
-                return self.defined(x, out);
-            }
-            Tag::ToArm => {
-                if let Some(arm) = self
-                    .arms
-                    .last_mut()
-                    .and_then(|arms| arms.get_mut(a as usize))
-                {
-                    *arm = union(arm.take(), Some(st));
-                }
-                return None;
-            }
-            Tag::Break => {
-                self.uses(x, &mut st);
-                if let Some(t) = self.brk.get_mut(a as usize) {
-                    *t = union(t.take(), Some(st));
-                }
-                return None;
-            }
-            Tag::Continue => {
-                let target = b.label_inst.get(a as usize).copied().unwrap_or(NONE);
-                self.round(x, target, &st);
-                if let Some(t) = self.cont.get_mut(a as usize) {
-                    *t = union(t.take(), Some(st));
-                }
-                return None;
-            }
-            Tag::Return => {
-                self.uses(x, &mut st);
-                self.at_exit(x, &st);
-                return None;
-            }
-            Tag::Unreachable => return None,
-            _ => self.uses(x, &mut st),
-        }
-        Some(st)
+    fn stmt(&mut self, _: &Body, x: u32, s: &mut BitArena, st: usize) {
+        self.uses(x, s.row_mut(st));
     }
 
     /// The operand uses of a control instruction, before the blocks it
-    /// runs; its value comes after them ([`Balance::defined`]).
-    fn uses_only(&mut self, x: u32, st: &mut Set) {
-        let b = self.b;
+    /// runs.
+    fn enter(&mut self, b: &Body, x: u32, s: &mut BitArena, st: usize) {
         let mut ops = std::mem::take(&mut self.ops);
         operands(b, x as usize, &mut ops);
         for op in &ops {
             let consumed = consumes(b, self.cx, x as usize, op, NONE);
-            self.used(x, op.value, consumed, st);
+            self.used(x, op.value, consumed, s.row_mut(st));
         }
         self.ops = ops;
     }
 
-    fn defined(&mut self, x: u32, st: Option<Set>) -> Option<Set> {
-        let mut st = st?;
+    fn leave(&mut self, _: &Body, x: u32, s: &mut BitArena, st: usize) {
         let k = self.num[x as usize];
         if k != NONE {
-            self.put(&mut st, 0, k, true);
-            self.put(&mut st, 1, k, false);
-            self.put(&mut st, 2, k, false);
+            let st = s.row_mut(st);
+            self.put(st, 0, k, true);
+            self.put(st, 1, k, false);
+            self.put(st, 2, k, false);
         }
-        Some(st)
     }
 
-    /// A loop: its body from the head state until the head stops growing;
-    /// its exits are its `Break`s.
-    fn repeat(&mut self, x: u32, st: Set) -> Option<Set> {
-        let b = self.b;
-        let body = b.data[x as usize][0];
-        let label = self.label_of[x as usize] as usize;
-        let mut head = st;
-        let rounds = 3 * self.words * 64 + self.lwords * 64 + self.pwords * 64 + 2;
-        for _ in 0..rounds {
-            if let Some(t) = self.brk.get_mut(label) {
-                *t = None;
-            }
-            if let Some(t) = self.cont.get_mut(label) {
-                *t = None;
-            }
-            let end = self.block(body, head.clone());
-            if let Some(e) = &end {
-                self.round(x, x, e);
-            }
-            let back = self.cont.get_mut(label).and_then(Option::take);
-            let next = union(union(Some(head.clone()), end), back).expect("the head");
-            if next == head {
-                break;
-            }
-            head = next;
+    /// Block `blk`'s tail, taken by the block's value when its owner uses
+    /// it, at the block's end.
+    fn tail(&mut self, b: &Body, blk: u32, s: &mut BitArena, st: usize) {
+        let w = b.data[blk as usize][1];
+        if w == NONE || Ref(w).as_inst().is_none() || w as usize >= b.len() {
+            return;
         }
-        self.brk.get_mut(label).and_then(Option::take)
-    }
-
-    /// A match: its decision tree from `st`, each arm from the union of
-    /// the states its `ToArm`s carry.
-    fn decide(&mut self, x: u32, st: Set) -> Option<Set> {
-        let b = self.b;
-        let r = b.record(b.data[x as usize][1]).to_vec();
-        let Some((&decision, arms)) = r.split_first() else {
-            return Some(st);
+        let owner = if self.topo.is_root[blk as usize] {
+            NONE
+        } else {
+            self.topo.owner[blk as usize]
         };
-        self.arms.push(vec![None; arms.len()]);
-        let _ = self.block(decision, st);
-        let entries = self.arms.pop().unwrap_or_default();
-        let mut out = None;
-        for (&arm, entry) in arms.iter().zip(entries) {
-            if let Some(e) = entry {
-                out = union(out, self.valued(arm, e));
-            }
-        }
-        let label = self.label_of[x as usize];
-        if label != NONE {
-            out = union(out, self.brk[label as usize].take());
-        }
-        out
-    }
-}
-
-/// The local at the root of the place at `word`, and whether the place is
-/// a part of it; `None` for a place with another root.
-fn local_root(b: &Body, word: u32) -> Option<(usize, bool)> {
-    if word & place::BARE_LOCAL != 0 {
-        return Some(((word & !place::BARE_LOCAL) as usize, false));
-    }
-    let at = word as usize;
-    let n = *b.extra.get(at)?;
-    match b.extra.get(at + 1..at + 3)? {
-        &[place::ROOT_LOCAL, l] if (l as usize) < b.local_ty.len() => Some((l as usize, n > 2)),
-        _ => None,
-    }
-}
-
-/// The instruction value at the root of the place at `word`, and whether
-/// the place is a part of it (a projection follows); `None` for a place
-/// with another root.
-fn value_root(b: &Body, word: u32) -> Option<(u32, bool)> {
-    if word & place::BARE_LOCAL != 0 {
-        return None;
-    }
-    let at = word as usize;
-    let n = *b.extra.get(at)?;
-    match b.extra.get(at + 1..at + 3)? {
-        &[place::ROOT_VALUE, v] if Ref(v).as_inst().is_some() && (v as usize) < b.len() => {
-            Some((v, n > 2))
-        }
-        _ => None,
-    }
-}
-
-/// The part takes of values (a `move` read or a `Drop` of a part): each
-/// instruction's slot, one per distinct place of a value; each value's
-/// slots, in compressed rows by value; and a place word of each slot.
-fn part_slots(b: &Body) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
-    let n = b.len();
-    let mut takes: Vec<(u32, u32)> = Vec::new();
-    for i in 0..n {
-        let [a, w] = b.data[i];
-        let take = match b.tags[i] {
-            Tag::Read => w == ReadMode::Move as u32,
-            Tag::Drop => true,
-            _ => false,
+        let op = crate::own::Operand {
+            value: w,
+            role: Role::Tail,
+            at: crate::own::Loc::Data(1),
         };
-        if !take {
-            continue;
-        }
-        if let Some((v, true)) = value_root(b, a) {
-            takes.push((v, u32_of(i)));
-        } else if let Some((l, true)) = local_root(b, a) {
-            takes.push((u32_of(n + l), u32_of(i)));
-        }
+        let consumed = consumes(b, self.cx, blk as usize, &op, owner);
+        self.used(blk, w, consumed, s.row_mut(st));
     }
-    let rec = |x: u32| {
-        let at = b.data[x as usize][0] as usize;
-        let len = b.extra[at] as usize;
-        &b.extra[at + 1..=at + len]
-    };
-    takes.sort_by(|p, q| p.0.cmp(&q.0).then_with(|| rec(p.1).cmp(rec(q.1))));
-    let mut slot_of = vec![NONE; n];
-    let keys = n + b.local_ty.len();
-    let mut slot_start = vec![0u32; keys + 1];
-    let mut slot_word = Vec::new();
-    for (k, &(v, x)) in takes.iter().enumerate() {
-        let fresh = k == 0 || takes[k - 1].0 != v || rec(takes[k - 1].1) != rec(x);
-        if fresh {
-            slot_word.push(b.data[x as usize][0]);
-            slot_start[v as usize + 1] += 1;
-        }
-        slot_of[x as usize] = u32_of(slot_word.len() - 1);
-    }
-    for v in 0..keys {
-        slot_start[v + 1] += slot_start[v];
-    }
-    (slot_of, slot_start, slot_word)
-}
 
-/// Whether value `v`, whose parts at the places `taken` (place words) a
-/// `move` read or a `Drop` took, still holds a counted leaf beside them: a
-/// counted field that no taken place covers, or a step whose type's parts
-/// `cx` does not give.
-fn rest_counted(b: &Body, cx: &dyn OwnCx, ty: hd_types::Ty, taken: &[u32]) -> bool {
-    let paths: Vec<Vec<Proj>> = taken
-        .iter()
-        .filter_map(|&w| b.decode_place(w).map(|p| p.proj))
-        .collect();
-    if paths.len() != taken.len() {
-        return true;
+    fn back(&mut self, _: &Body, x: u32, lp: u32, s: &mut BitArena, st: usize) {
+        self.round(x, lp, s.row(st));
     }
-    let all: Vec<&[Proj]> = paths.iter().map(Vec::as_slice).collect();
-    uncovered(cx, ty, &all, 0, &mut Vec::new())
-}
 
-/// Whether a value of type `ty` at depth `depth` of the places `paths`
-/// holds a counted leaf that none of them covers.
-fn uncovered(
-    cx: &dyn OwnCx,
-    ty: hd_types::Ty,
-    paths: &[&[Proj]],
-    depth: usize,
-    parts: &mut Vec<hd_types::Ty>,
-) -> bool {
-    if paths.is_empty() {
-        return cx.counted(ty) != crate::own::Tri::No;
+    fn exit(&mut self, _: &Body, x: u32, s: &mut BitArena, st: usize) {
+        self.at_exit(x, s.row(st));
     }
-    if paths.iter().any(|p| p.len() == depth) {
-        return false;
-    }
-    // One variant per group: a value is one variant on a path.
-    let mut variants: Vec<Option<u32>> = Vec::new();
-    for p in paths {
-        let v = match p[depth] {
-            Proj::Variant(vr) => Some(vr),
-            Proj::Field(_) => None,
-            _ => return true,
-        };
-        if !variants.contains(&v) {
-            variants.push(v);
-        }
-    }
-    for variant in variants {
-        let step = depth + usize::from(variant.is_some());
-        let group: Vec<&[Proj]> = paths
-            .iter()
-            .copied()
-            .filter(|p| match (variant, p[depth]) {
-                (Some(vr), Proj::Variant(x)) => vr == x,
-                (None, Proj::Field(_)) => true,
-                _ => false,
-            })
-            .collect();
-        if group.iter().any(|p| p.len() == step) {
-            continue;
-        }
-        if !cx.parts(ty, variant, parts) {
-            return true;
-        }
-        let fields = parts.clone();
-        for (j, &ft) in fields.iter().enumerate() {
-            if cx.counted(ft) == crate::own::Tri::No {
-                continue;
-            }
-            let sub: Vec<&[Proj]> = group
-                .iter()
-                .copied()
-                .filter(|p| p.get(step) == Some(&Proj::Field(u32_of(j))))
-                .collect();
-            if sub.is_empty() || uncovered(cx, ft, &sub, step + 1, parts) {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 /// The locals of sub-body `s` that hold a value on entry: its parameters,

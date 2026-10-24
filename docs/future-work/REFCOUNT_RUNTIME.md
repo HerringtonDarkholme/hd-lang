@@ -1,14 +1,15 @@
 # Refcount Runtime: Design Study
 
-Status: proposal (#426). The spec and the compiler are unchanged.
+Status: design record (#426). The linear-memory runtime with reference
+counting is the only backend (#626, #627). Sections 2 to 9 stay as the
+measured reference.
 
 ## 1. The Problem
 
-hd is leaving Wasm GC. Objects will live in Wasm linear memory and be
-freed by reference counting, with a cycle detector for the garbage that
-counting cannot see. That is decided. What is open is how much it costs,
-in run time and in module size, and how to build it so the cost stays
-small.
+Objects live in Wasm linear memory and are freed by reference counting,
+with a cycle detector for the garbage that counting cannot see. That is
+decided. This study prices the runtime, in run time and in module size,
+and plans how to build it so the cost stays small.
 
 The decision comes with a new object model, taken from Go. Every
 aggregate is a struct, a value stored inline: in a local, in its parent,
@@ -45,10 +46,8 @@ allocator than `dlmalloc`), and counts rarely (moves, borrows,
 immutability). This study measures each of those on proxies written in
 Rust and compiled to Wasm, then proposes the runtime.
 
-Today's layout is the starting point of the migration, not a constraint:
-[crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md) §15 maps
-every value to Wasm GC structs and arrays; the earlier value-structs
-study's layout plan, which assumed Wasm GC, is obsolete and deleted.
+The linear-memory layout is in
+[crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md) §23.
 
 ## 2. The Runtime On One Page
 
@@ -322,7 +321,7 @@ one body is free to use anything that body shows.
 | objects and address-taken locals on the stack | tier 1: in a shadow-stack frame that holds one count, when no reference leaves the body or reaches a call that is not inlined; tier 2 headers extend this across calls | across calls, yes |
 | deferred counting of stack references | no: Wasm cannot scan its own stack, so it needs a shadow stack of every reference, the very cost AssemblyScript met (section 8.1) | no |
 | coalesced field updates | no: a write log and a collection phase for a gain the elisions above mostly take | no |
-| non-atomic counts | yes: stage A instances share no objects ([PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md) §4.2) | no |
+| non-atomic counts | yes: stage A instances share no objects ([PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md) §3.2) | no |
 
 One rule needs care. A `&T` argument must stay alive for the call, so
 when the caller passes a reference to a value it just read from a
@@ -672,13 +671,12 @@ may be shared.
 
 ### 9.6 The backend rewrite
 
-Every row of `hd_wasm`'s layout table changes: memory and data
+Moving from Wasm GC to linear memory changes every row of the layout table: memory and data
 segments, the runtime in the module, count updates and release glue,
 a shadow stack for borrowed locals, monomorphized layouts with no
 `eqref` casts, new host codecs. In exchange, SIMD over bytes becomes
-possible ([SIMD_PRIMITIVES.md](SIMD_PRIMITIVES.md)), and a native
-backend needs no collector beyond the cycle detector
-([NATIVE_BACKEND.md](NATIVE_BACKEND.md) §5).
+possible ([SIMD_PRIMITIVES.md](SIMD_PRIMITIVES.md)). A native backend
+is not planned (#188 closed).
 
 ## 10. Recommendation And Plan
 
@@ -706,8 +704,7 @@ The runtime, in ten lines:
    lists and maps as counted buffers with inline elements.
 9. All of it ordinary reachable code: a program that never allocates
    links none of it.
-10. The Wasm GC backend stays the default until the linear backend
-    passes conformance, then goes.
+10. The linear backend is the only backend; Wasm GC emission is gone.
 
 For the tier 1 study's open runtime assumptions: the thin address is
 confirmed (section 5), and the header is 8 bytes, the count plus the
@@ -744,17 +741,13 @@ example and tour program today, carries no collector.
 
 ### 10.2 Jobs
 
-Each job is about an hour and leaves `main` green. The linear backend
-grows behind a switch while the Wasm GC backend stays the default; the
-conformance suite runs on both, and the linear backend's failures are
-listed as known failures until they reach zero. Jobs marked (2) are
-likely two jobs.
+Each job is about an hour and leaves `main` green. Jobs marked (2) are
+likely two jobs. Jobs 2 and 25 are dropped: there is no backend switch,
+because the linear backend is the only backend.
 
 1. Layout record: `crates/hd_wasm_linear/DESIGN.md` gains a linear-memory
    layout section from this study (docs only).
-2. Backend switch: `--backend linear` for `hd build` and `hd run`, the
-   conformance runner on both backends, a known-failures list for the
-   linear one.
+2. (Dropped.)
 3. Module skeleton: memory, data segments, globals, entry wrapper;
    hello and integer-only programs pass; hello stays at 2,935 bytes.
 4. Memory intrinsics (load, store, grow, copy, fill) in a privileged
@@ -791,7 +784,7 @@ likely two jobs.
     jobs).
 24. Benchmarks: the Rust study's suite and this study's on the linear
     backend, with the footprint guard.
-25. Switch the default; delete Wasm GC emission and its host paths (2).
+25. (Dropped.)
 
 ## Sources
 
@@ -835,5 +828,4 @@ likely two jobs.
 - This repository: [RUST_MODEL_STUDY.md](RUST_MODEL_STUDY.md) section 8
   and its appendix (hd's Wasm GC numbers),
   [PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md),
-  [NATIVE_BACKEND.md](NATIVE_BACKEND.md),
   [crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md) §14 and §15.

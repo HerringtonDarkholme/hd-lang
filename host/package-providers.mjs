@@ -1,5 +1,6 @@
 // Helpers used by signature-generated NAME.host.mjs modules. Providers are
-// explicitly selected trusted JS; no manifest or guest data loads code.
+// trusted JS selected from package manifests after the root grants access.
+// Guest contract data is never interpreted as module code or import paths.
 import { Dec, Enc, HostContract, decodeUtf8 } from "./wire.mjs";
 
 const fail = (message) => {
@@ -13,6 +14,113 @@ const own = (v, k) => {
 };
 const object = (fields) => Object.fromEntries(fields);
 const named = (i) => `${i.identity.package}@${i.identity.version}/${i.identity.trait_path}`;
+
+// Typed Serde transport is internal. Provider methods receive JS values:
+// bigint integers, number floats, and ordinary arrays/objects. Using a flat
+// stream preserves numeric kind and avoids multiplying container depth.
+function encodePrivate(value) {
+  const tokens = [];
+  const pending = [{ value }];
+  const active = new Set();
+  while (pending.length) {
+    const job = pending.pop();
+    if (job.leave) {
+      active.delete(job.leave);
+      continue;
+    }
+    const v = job.value;
+    if (v === null) tokens.push(["n"]);
+    else if (typeof v === "boolean") tokens.push(["b", v]);
+    else if (typeof v === "string") tokens.push(["s", v]);
+    else if (typeof v === "bigint") {
+      if (v < -(1n << 63n) || v >= 1n << 64n) fail("private integer outside 64-bit range");
+      tokens.push([v < 0n ? "i" : "u", String(v)]);
+    } else if (typeof v === "number") {
+      if (!Number.isFinite(v)) tokens.push(["n"]);
+      else {
+        const bits = new DataView(new ArrayBuffer(8));
+        bits.setFloat64(0, v, true);
+        tokens.push(["f", bits.getBigUint64(0, true).toString(16).padStart(16, "0")]);
+      }
+    } else if (typeof v === "object") {
+      if (active.has(v)) fail("cyclic private value");
+      active.add(v);
+      pending.push({ leave: v });
+      if (Array.isArray(v)) {
+        tokens.push(["a", v.length]);
+        for (let i = v.length - 1; i >= 0; --i) pending.push({ value: v[i] });
+      } else {
+        if (![Object.prototype, null].includes(Object.getPrototypeOf(v)))
+          fail("private value must be a plain object");
+        const entries = Object.entries(v);
+        tokens.push(["o", entries.length]);
+        for (let i = entries.length - 1; i >= 0; --i) {
+          pending.push({ value: entries[i][1] }, { value: entries[i][0] });
+        }
+      }
+    } else fail("unsupported private value");
+  }
+  return JSON.stringify(tokens);
+}
+
+function decodePrivate(text) {
+  let tokens;
+  try {
+    tokens = JSON.parse(text);
+  } catch {
+    fail("invalid private value transport");
+  }
+  if (!Array.isArray(tokens)) fail("invalid private value transport");
+  const values = [];
+  for (let i = tokens.length - 1; i >= 0; --i) {
+    const token = tokens[i];
+    if (!Array.isArray(token)) fail("invalid private value token");
+    const [tag, v] = token;
+    if (token.length !== (tag === "n" ? 1 : 2)) fail("invalid private value token");
+    if (tag === "n") values.push(null);
+    else if (tag === "b" && typeof v === "boolean") values.push(v);
+    else if (tag === "s" && typeof v === "string") values.push(v);
+    else if (["i", "u", "f"].includes(tag)) {
+      if (
+        typeof v !== "string" ||
+        !(tag === "f" ? /^[0-9a-f]{16}$/ : /^(?:0|-?[1-9][0-9]*)$/).test(v)
+      )
+        fail("invalid private numeric token");
+      const n = BigInt(tag === "f" ? "0x" + v : v);
+      if (tag === "i") {
+        if (n < -(1n << 63n) || n >= 1n << 63n) fail("private signed integer out of range");
+        values.push(n);
+      } else {
+        if (n < 0n || n >= 1n << 64n) fail("private unsigned integer out of range");
+        if (tag === "u") values.push(n);
+        else {
+          const bits = new DataView(new ArrayBuffer(8));
+          bits.setBigUint64(0, n, true);
+          const number = bits.getFloat64(0, true);
+          if (!Number.isFinite(number)) fail("invalid private float");
+          values.push(number);
+        }
+      }
+    } else if (tag === "a" || tag === "o") {
+      if (!Number.isSafeInteger(v) || v < 0 || v > values.length / (tag === "o" ? 2 : 1))
+        fail("invalid private container length");
+      if (tag === "a") values.push(Array.from({ length: v }, () => values.pop()));
+      else {
+        const entries = [];
+        const keys = new Set();
+        for (let n = 0; n < v; ++n) {
+          const key = values.pop();
+          if (typeof key !== "string" || keys.has(key)) fail("invalid private object key");
+          keys.add(key);
+          entries.push([key, values.pop()]);
+        }
+        values.push(Object.fromEntries(entries));
+      }
+    } else fail("invalid private value token");
+  }
+  if (values.length !== 1) fail("invalid private value framing");
+  return values[0];
+}
 
 // Decode the compiler's data section, with canonical lengths and bounded
 // nesting. Never interpret guest data as module source or import paths.
@@ -251,9 +359,11 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
     },
     (d) => d.bytes().slice(),
   );
-  // Private types preserve their existing Serialize/Deserialize JSON TEXT.
-  // Parsing here would lose large integers and override custom serialization.
-  const json = codec([14], str.enc, str.dec);
+  const json = codec(
+    [14],
+    (e, v) => e.str(encodePrivate(v)),
+    (d) => decodePrivate(d.str()),
+  );
   const array = (xs, n = null) => {
     if (!Array.isArray(xs) || (n !== null && xs.length !== n)) fail("invalid array");
   };
@@ -394,11 +504,14 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
       );
       if (!root || registrations.has(provider.module))
         fail("invalid or duplicate provider registration");
-      registrations.set(provider.module, {
-        expected,
-        root,
-        implementation: provider.implementation,
-      });
+      const implementation = provider.implementation;
+      if (
+        implementation === null ||
+        typeof implementation !== "object" ||
+        ![Object.prototype, null].includes(Object.getPrototypeOf(implementation))
+      )
+        fail(`provider for ${named(root)} must default-export a plain object of methods`);
+      registrations.set(provider.module, { expected, root, implementation });
     }
     const checkExpected = (needed, expected, seen = new Set()) => {
       if (seen.has(needed.module)) return;
@@ -442,7 +555,10 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
       if (i.selectors.some((s) => Object.hasOwn(grants, s) && grants[s] === false))
         fail(`capability denied: ${named(i)}`);
       for (const m of i.methods)
-        if (typeof registration.implementation?.[m.member] !== "function")
+        if (
+          !Object.hasOwn(registration.implementation, m.member) ||
+          typeof registration.implementation[m.member] !== "function"
+        )
           fail(`missing provider method ${named(i)}.${m.member}`);
     }
     const imports = Object.create(null);

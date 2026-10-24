@@ -4,7 +4,7 @@
 //! `cli.dep.invalid`, Package Tooling's `cli.manifest.*`).
 
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use hd_diag::{Code, Severity};
 
@@ -25,8 +25,8 @@ pub struct Manifest {
     pub source_root: Option<(String, u32)>,
     pub dependencies: Vec<Requirement>,
     pub dev_dependencies: Vec<Requirement>,
-    /// Package-owned traits listed by `[host] traits`; this declares no grant
-    /// and never names code that the toolchain should execute.
+    /// Package-owned host traits and their provider files. The root app's
+    /// explicit capability grant authorizes loading; a declaration alone does not.
     pub host: Option<HostDeclarations>,
     /// `[capabilities]` (`cli.cap.table`): each key as written, its grant
     /// (`None` when the value is neither a boolean nor a list of strings),
@@ -43,12 +43,30 @@ pub struct Manifest {
     pub unknown: Vec<(String, u32)>,
 }
 
-/// The package's host-trait declaration list and its manifest location.
+/// The package's trait-to-provider map and its manifest location.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HostDeclarations {
-    /// `None` preserves an invalid/missing list for a located diagnostic.
-    pub traits: Option<Vec<String>>,
+    /// `None` preserves a non-table value for a located diagnostic.
+    pub providers: Option<Vec<HostProvider>>,
     pub line: u32,
+}
+
+/// One `[host]` entry. The path is relative to the declaring package.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HostProvider {
+    pub trait_path: String,
+    /// `None` preserves a non-string value for a located diagnostic.
+    pub path: Option<String>,
+    pub line: u32,
+}
+
+impl HostDeclarations {
+    pub fn trait_paths(&self) -> impl Iterator<Item = &str> {
+        self.providers
+            .iter()
+            .flatten()
+            .map(|entry| entry.trait_path.as_str())
+    }
 }
 
 /// One `[[executable]]` table: `name`, `module`, and the line of its
@@ -374,22 +392,22 @@ pub fn parse_manifest(text: &str) -> Result<Manifest, ManifestError> {
                 }
             }
             ("host", toml::Value::Table(h)) => {
-                only(&mut unknowns, "host", h, &["traits"]);
-                let traits = h
-                    .get("traits")
-                    .and_then(toml::Value::as_array)
-                    .and_then(|a| a.iter().map(|v| v.as_str().map(str::to_owned)).collect());
                 m.host = Some(HostDeclarations {
-                    traits,
-                    line: lines
-                        .get("host.traits")
-                        .copied()
-                        .unwrap_or_else(|| at("host")),
+                    providers: Some(
+                        h.iter()
+                            .map(|(trait_path, value)| HostProvider {
+                                trait_path: trait_path.clone(),
+                                path: value.as_str().map(str::to_owned),
+                                line: at(&format!("host.{trait_path}")),
+                            })
+                            .collect(),
+                    ),
+                    line: at("host"),
                 });
             }
             ("host", _) => {
                 m.host = Some(HostDeclarations {
-                    traits: None,
+                    providers: None,
                     line: at("host"),
                 });
             }
@@ -777,34 +795,48 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
         });
     }
     if let Some(host) = &m.host {
-        let mut seen = BTreeSet::new();
-        let mut report = |message| {
+        let mut report = |line, message| {
             out.push(Problem {
                 code: Some(Code::InvalidManifest),
                 severity: Severity::Error,
-                line: Some(host.line),
+                line: Some(line),
                 message,
             });
         };
-        if let Some(traits) = &host.traits {
-            for path in traits {
+        if let Some(providers) = &host.providers {
+            for entry in providers {
+                let path = &entry.trait_path;
                 let valid = path.split('.').all(|part| {
-                    // These are canonical names, not source tokens: a raw
-                    // identifier such as `type` has the canonical name type.
+                    // A raw identifier has its canonical spelling here.
                     part != "_" && !part.contains('$') && crate::is_module_ident(part)
                 });
                 if !valid {
-                    report(format!(
-                        "host trait `{path}` is not a package-relative trait path; write a path such as `server.HttpServer`"
-                    ));
-                } else if !seen.insert(path) {
-                    report(format!(
-                        "host trait `{path}` is listed more than once in `[host] traits`; keep one entry"
-                    ));
+                    report(
+                        entry.line,
+                        format!(
+                            "host trait `{path}` is not a package-relative trait path; write a path such as `server.HttpServer`"
+                        ),
+                    );
+                }
+                if !entry.path.as_deref().is_some_and(|file| {
+                    !file.is_empty()
+                        && !file.contains('\0')
+                        && !file.starts_with(['/', '\\'])
+                        && file.as_bytes().get(1) != Some(&b':')
+                }) {
+                    report(
+                        entry.line,
+                        format!(
+                            "provider for host trait `{path}` must be a nonempty package-relative file path, such as \"providers/http.mjs\""
+                        ),
+                    );
                 }
             }
         } else {
-            report("`[host] traits` must be a list of package-relative trait paths, such as [\"server.HttpServer\"]".to_owned());
+            report(
+                host.line,
+                "`[host]` must map package-relative trait paths to provider file paths".to_owned(),
+            );
         }
     }
     for (key, grant, line) in m.capabilities.iter().chain(&m.test_capabilities) {
@@ -933,14 +965,19 @@ mod tests {
     #[test]
     fn host_declarations_keep_their_location_without_granting_capabilities() {
         let m = parse_manifest(
-            "[package]\nname = \"sdk\"\n[host]\ntraits = [\"server.HttpServer\", \"ui.Σurface\", \"server.type\"]\n",
-        )
-        .unwrap();
+            "[package]\nname = \"sdk\"\n[host]\n\"server.HttpServer\" = \"providers/http.mjs\"\n\"ui.Σurface\" = \"ui.mjs\"\n\"server.type\" = \"type.mjs\"\n",
+        ).unwrap();
         let host = m.host.as_ref().unwrap();
-        assert_eq!(host.line, 4);
+        assert_eq!(host.line, 3);
         assert_eq!(
-            host.traits.as_ref().unwrap(),
-            &["server.HttpServer", "ui.Σurface", "server.type"]
+            host.trait_paths().collect::<Vec<_>>(),
+            ["server.HttpServer", "server.type", "ui.Σurface"]
+        );
+        let entries = host.providers.as_ref().unwrap();
+        assert_eq!(entries[0].path.as_deref(), Some("providers/http.mjs"));
+        assert_eq!(
+            entries.iter().map(|e| e.line).collect::<Vec<_>>(),
+            [4, 6, 5]
         );
         assert!(m.capabilities.is_empty());
         assert!(m.unknown.is_empty());
@@ -949,6 +986,7 @@ mod tests {
             "{:?}",
             problems(&m, "0.1.0")
         );
+        assert!(problems(&parse_manifest("[host]").unwrap(), "0.1.0").is_empty());
     }
 
     #[test]
@@ -982,21 +1020,26 @@ mod tests {
     fn invalid_host_declarations_are_located_errors() {
         for text in [
             "host = true",
-            "[host]",
-            "[host]\ntraits = \"Server\"",
-            "[host]\ntraits = [1]",
-            "[host]\ntraits = [\"server..Server\"]",
-            "[host]\ntraits = [\"server.$internal\"]",
-            "[host]\ntraits = [\"server._\"]",
-            "[host]\ntraits = [\"Server\", \"Server\"]",
+            "[host]\ntraits = [\"Server\"]",
+            "[host]\n\"server.Server\" = true",
+            "[host]\n\"server..Server\" = \"provider.mjs\"",
+            "[host]\n\"server.$internal\" = \"provider.mjs\"",
+            "[host]\n\"server._\" = \"provider.mjs\"",
+            "[host]\nServer = \"\"",
+            "[host]\nServer = \"/provider.mjs\"",
+            "[host]\nServer = \"C:/provider.mjs\"",
         ] {
             let m = parse_manifest(text).unwrap();
             let errors = problems(&m, "0.1.0");
             assert_eq!(errors.len(), 1, "{text}: {errors:?}");
             assert_eq!(errors[0].code, Some(hd_diag::Code::InvalidManifest));
             assert_eq!(errors[0].severity, hd_diag::Severity::Error);
-            assert!(errors[0].line.is_some());
+            assert_eq!(
+                errors[0].line,
+                Some(if text == "host = true" { 1 } else { 2 })
+            );
         }
+        assert!(parse_manifest("[host]\nServer = \"a.mjs\"\nServer = \"b.mjs\"").is_err());
     }
 
     #[test]

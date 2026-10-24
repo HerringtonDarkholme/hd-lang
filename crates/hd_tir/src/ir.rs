@@ -15,8 +15,13 @@ use hd_types::{Ty, TyList};
 
 mod owned;
 mod root;
+mod topo;
+mod view;
 pub use owned::verify_owned;
 pub use root::{RootTables, root_places};
+pub use topo::Topology;
+pub(crate) use topo::{for_blocks, inside};
+pub use view::{DEREF, ELEM, PlaceView, Root, Steps, VARIANT};
 
 pub const NONE: u32 = u32::MAX;
 /// The bit of an anchor that names an inlined copy's instruction
@@ -981,40 +986,10 @@ impl Body {
         self.tags[i] == Tag::Closure && self.record(self.data[i][1]).len() == 4
     }
 
-    /// Each instruction's sub-body: the one whose root block holds it,
-    /// directly or through nested blocks. A block's members precede it,
-    /// so one backward pass settles every instruction.
+    /// Each instruction's sub-body ([`Topology::sub`]).
     #[must_use]
     pub fn inst_subs(&self) -> Vec<u32> {
-        let n = self.len();
-        let mut owner = vec![NONE; n];
-        for (i, tag) in self.tags.iter().enumerate() {
-            if *tag == Tag::Block {
-                for &c in self.record(self.data[i][0]) {
-                    if let Some(o) = owner.get_mut(c as usize) {
-                        *o = u32::try_from(i).expect("insts");
-                    }
-                }
-            }
-        }
-        let mut root_of = vec![NONE; n];
-        for (k, &r) in self.sub_root.iter().enumerate() {
-            if let Some(x) = root_of.get_mut(r as usize) {
-                *x = u32::try_from(k).expect("subs");
-            }
-        }
-        let mut out = vec![0; n];
-        for i in (0..n).rev() {
-            let o = owner[i] as usize;
-            out[i] = if root_of[i] != NONE {
-                root_of[i]
-            } else if o < n {
-                out[o]
-            } else {
-                0
-            };
-        }
-        out
+        Topology::new(self).sub
     }
 
     /// The value operands of instruction `i` that compute one result from
@@ -1115,16 +1090,11 @@ impl Body {
     /// place.
     #[must_use]
     pub fn stored_local(&self, i: usize) -> Option<(LocalId, bool)> {
-        if self.tags[i] != Tag::Store {
-            return None;
-        }
-        let p = self.decode_place(self.data[i][0])?;
-        match p.root {
-            PlaceRoot::Local(l) if p.proj.iter().all(|s| matches!(s, Proj::Field(_))) => {
-                Some((l, p.proj.is_empty()))
-            }
-            _ => None,
-        }
+        let v = (self.tags[i] == Tag::Store).then(|| self.view(self.data[i][0]))?;
+        let l = v
+            .local()
+            .filter(|_| v.steps(self).all(|p| matches!(p, Proj::Field(_))))?;
+        Some((LocalId::from_raw(l), v.whole()))
     }
 
     /// The local whose own storage the place at `word` lies in: a place
@@ -1136,24 +1106,10 @@ impl Body {
     /// place.
     #[must_use]
     pub fn local_in_place(&self, word: u32) -> Option<LocalId> {
-        if word & place::BARE_LOCAL != 0 {
-            return Some(LocalId::from_raw(word & !place::BARE_LOCAL));
-        }
-        let at = word as usize;
-        let n = *self.extra.get(at)? as usize;
-        let rec = self.extra.get(at + 1..at + 1 + n)?;
-        let [place::ROOT_LOCAL, l, steps @ ..] = rec else {
-            return None;
-        };
-        steps
-            .iter()
-            .all(|w| {
-                matches!(
-                    w & place::PROJ_KIND,
-                    place::PROJ_FIELD | place::PROJ_VARIANT
-                )
-            })
-            .then(|| LocalId::from_raw(*l))
+        let v = self.view(word);
+        v.local()
+            .filter(|_| v.in_place(self))
+            .map(LocalId::from_raw)
     }
 
     /// The local a plain local read `i` reads: a `Read` of a bare local,
@@ -1174,21 +1130,22 @@ impl Body {
     /// place.
     #[must_use]
     pub fn read_step(&self, i: usize) -> Option<(u32, Step)> {
-        use place::{
-            BARE_LOCAL, PROJ_DEREF, PROJ_FIELD, PROJ_INDEX, PROJ_KIND, PROJ_VARIANT, ROOT_VALUE,
+        let (v, mut s) = self.value_steps(i, Tag::Read)?;
+        let step = match (s.next()?, s.next(), s.next()) {
+            (Proj::Field(k), None, _) => Step::Field(k),
+            (Proj::Deref, Some(Proj::Field(k)), None) => Step::DerefField(k),
+            (Proj::Variant(x), Some(Proj::Field(k)), None) => Step::Variant(x, k),
+            _ => return None,
         };
-        let word = self.data[i][0];
-        if self.tags[i] != Tag::Read || word & BARE_LOCAL != 0 {
-            return None;
-        }
-        let at = word as usize;
-        let field = |w: u32| (w & PROJ_KIND == PROJ_FIELD).then_some(w & PROJ_INDEX);
-        match *self.extra.get(at..)? {
-            [3, ROOT_VALUE, v, w, ..] => Some((v, Step::Field(field(w)?))),
-            [4, ROOT_VALUE, v, PROJ_DEREF, w, ..] => Some((v, Step::DerefField(field(w)?))),
-            [4, ROOT_VALUE, v, x, w, ..] if x & PROJ_KIND == PROJ_VARIANT => {
-                Some((v, Step::Variant(x & PROJ_INDEX, field(w)?)))
-            }
+        Some((v, step))
+    }
+
+    /// The root value of instruction `i`'s place (a constant included)
+    /// and its steps, when `i` is a `tag` with a place rooted at a value.
+    fn value_steps(&self, i: usize, tag: Tag) -> Option<(u32, Steps<'_>)> {
+        let p = (self.tags[i] == tag).then(|| self.view(self.data[i][0]))?;
+        match p.root {
+            Root::Value(v) | Root::Const(v) => Some((v, p.steps(self))),
             _ => None,
         }
     }
@@ -1199,12 +1156,9 @@ impl Body {
     /// in place. `None` for any other instruction or place.
     #[must_use]
     pub fn element_read(&self, i: usize) -> Option<(u32, u32)> {
-        let word = self.data[i][0];
-        if self.tags[i] != Tag::Read || word & place::BARE_LOCAL != 0 {
-            return None;
-        }
-        match *self.extra.get(word as usize..)? {
-            [4, place::ROOT_VALUE, list, place::PROJ_ELEM, index, ..] => Some((list, index)),
+        let (list, mut s) = self.value_steps(i, Tag::Read)?;
+        match (s.next()?, s.next()) {
+            (Proj::Elem(index), None) => Some((list, index.0)),
             _ => None,
         }
     }
@@ -1215,26 +1169,18 @@ impl Body {
     /// instruction or place.
     #[must_use]
     pub fn value_read(&self, i: usize) -> Option<u32> {
-        let word = self.data[i][0];
-        if self.tags[i] != Tag::Read || word & place::BARE_LOCAL != 0 {
-            return None;
-        }
-        match *self.extra.get(word as usize..word as usize + 3)? {
-            [2, place::ROOT_VALUE, v] => Some(v),
-            _ => None,
-        }
+        let (v, mut s) = self.value_steps(i, Tag::Read)?;
+        s.next().is_none().then_some(v)
     }
 
     /// The pointer value whose target `Read` or `Store` `i` reads or
     /// writes, `[ptr %p]`. `None` for any other instruction or place.
     #[must_use]
     pub fn ptr_target(&self, i: usize) -> Option<u32> {
-        let word = self.data[i][0];
-        if !matches!(self.tags[i], Tag::Read | Tag::Store) || word & place::BARE_LOCAL != 0 {
-            return None;
-        }
-        match *self.extra.get(word as usize..word as usize + 3)? {
-            [2, place::ROOT_PTR, p] => Some(p),
+        let p =
+            matches!(self.tags[i], Tag::Read | Tag::Store).then(|| self.view(self.data[i][0]))?;
+        match p.root {
+            Root::Ptr(x) if p.whole() => Some(x),
             _ => None,
         }
     }
@@ -1244,12 +1190,9 @@ impl Body {
     /// instruction.
     #[must_use]
     pub fn global_read(&self, i: usize) -> Option<DefId> {
-        let word = self.data[i][0];
-        if self.tags[i] != Tag::Read || word & place::BARE_LOCAL != 0 {
-            return None;
-        }
-        match self.extra.get(word as usize..word as usize + 4)? {
-            [3, place::ROOT_GLOBAL, d, _] => Some(DefId::from_raw(*d)),
+        let p = (self.tags[i] == Tag::Read).then(|| self.view(self.data[i][0]))?;
+        match p.root {
+            Root::Global(d, _) if p.whole() => Some(d),
             _ => None,
         }
     }
@@ -2010,30 +1953,6 @@ pub fn global_place_types(b: &Body) -> Vec<usize> {
     out
 }
 
-/// The blocks instruction `i` owns through its operands: a block
-/// operand, a block list, a switch's two arms, or a `Defer`'s suite.
-pub(crate) fn owned_blocks(b: &Body, i: usize) -> Vec<u32> {
-    let [a, w] = b.data[i];
-    let tag = b.tags[i];
-    let mut out = Vec::new();
-    for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
-        match op {
-            Op::Block => out.push(word),
-            Op::Blocks => out.extend_from_slice(b.record(word)),
-            _ => {}
-        }
-    }
-    match tag {
-        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-            out.extend(b.record(w).iter().skip(1).take(2));
-        }
-        Tag::Defer => out.push(a),
-        _ => {}
-    }
-    out.retain(|&x| b.tags.get(x as usize) == Some(&Tag::Block));
-    out
-}
-
 /// The instructions of a `defer` suite that invariant 6 forbids: a
 /// suspension point, a `Return`, or a `Break` or `Continue` whose loop
 /// is outside the suite. A closure inside the suite is its own body and
@@ -2047,33 +1966,22 @@ pub fn defer_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
             *s = true;
         }
     }
-    let mut inside = Vec::new();
-    let mut stack = vec![suite];
-    while let Some(i) = stack.pop() {
-        let Some(s) = seen.get_mut(i as usize) else {
-            continue;
-        };
-        if std::mem::replace(s, true) {
-            continue;
+    let (mut found, mut in_suite) = (Vec::new(), vec![false; b.len()]);
+    inside(b, &[suite], &mut Vec::new(), |i| {
+        let fresh = !std::mem::replace(&mut seen[i], true);
+        if fresh {
+            found.push(u32_of(i));
+            in_suite[i] = true;
         }
-        inside.push(i);
-        if b.tags[i as usize] == Tag::Block {
-            stack.extend(b.record(b.data[i as usize][0]));
-        }
-        stack.extend(owned_blocks(b, i as usize));
-    }
-    let mut in_suite = vec![false; b.len()];
-    for &i in &inside {
-        in_suite[i as usize] = true;
-    }
+        fresh
+    });
     let within = |l: u32| {
         b.label_inst
             .get(l as usize)
             .is_some_and(|&t| in_suite.get(t as usize) == Some(&true))
     };
-    let mut out: Vec<u32> = inside
-        .iter()
-        .copied()
+    let mut out: Vec<u32> = found
+        .into_iter()
         .filter(|&i| match b.tags[i as usize] {
             Tag::Return => true,
             Tag::Break | Tag::Continue => !within(b.data[i as usize][0]),
@@ -2089,7 +1997,7 @@ pub fn defer_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
 /// after the ownership passes is verified with [`verify_owned`].
 #[must_use]
 pub fn verify(b: &Body) -> Vec<VerifyError> {
-    let mut errs = verify_structure(b);
+    let mut errs = verify_structure(b, &Topology::new(b));
     no_ownership(b, &mut errs);
     errs
 }
@@ -2145,7 +2053,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
 
 /// The invariants of every body, before or after the ownership passes:
 /// all of [`CHECKED_INVARIANTS`] but 22 and 23.
-pub(crate) fn verify_structure(b: &Body) -> Vec<VerifyError> {
+pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
     let mut errs = Vec::new();
     let n = u32::try_from(b.len()).expect("insts");
     let mut owner = vec![NONE; b.len()];
@@ -2301,9 +2209,8 @@ pub(crate) fn verify_structure(b: &Body) -> Vec<VerifyError> {
             });
         }
     }
-    let tree = Tree::new(b, owner);
     types_are_global(b, &mut errs);
-    suspension_scopes(b, &tree, &mut errs);
+    suspension_scopes(b, topo, &mut errs);
     constant_rows(b, &mut errs);
     errs
 }
@@ -2360,41 +2267,6 @@ fn place_errors(b: &Body, user: u32, word: u32) -> Vec<VerifyError> {
         }
     }
     out
-}
-
-/// Block ownership from the block lists, and the sub-body roots.
-struct Tree {
-    owner: Vec<u32>,
-    root: Vec<bool>,
-}
-
-impl Tree {
-    fn new(b: &Body, owner: Vec<u32>) -> Self {
-        let mut root = vec![false; b.len()];
-        for &r in &b.sub_root {
-            if let Some(x) = root.get_mut(r as usize) {
-                *x = true;
-            }
-        }
-        Self { owner, root }
-    }
-
-    /// The blocks that enclose instruction `i` in its own sub-body,
-    /// innermost first. A sub-body's root block ends the walk, so a
-    /// closure's instructions are never inside the blocks around it.
-    fn enclosing(&self, i: u32) -> Vec<u32> {
-        let mut out = Vec::new();
-        let mut cur = i as usize;
-        while cur < self.root.len() && !self.root[cur] && out.len() < self.owner.len() {
-            let o = self.owner[cur];
-            if o == NONE {
-                break;
-            }
-            out.push(o);
-            cur = o as usize;
-        }
-        out
-    }
 }
 
 /// A call's arguments: its value record without the three provider words.
@@ -2468,7 +2340,7 @@ fn types_are_global(b: &Body, errs: &mut Vec<VerifyError>) {
 /// list (words of `extra`) is the `Scope`s around that point, innermost
 /// first. A suspension point with no row is not checked: no body writes
 /// rows yet.
-fn suspension_scopes(b: &Body, tree: &Tree, errs: &mut Vec<VerifyError>) {
+fn suspension_scopes(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
     let n = b.len();
     let mut scope_of = vec![NONE; n];
     for (i, &tag) in b.tags.iter().enumerate() {
@@ -2490,9 +2362,8 @@ fn suspension_scopes(b: &Body, tree: &Tree, errs: &mut Vec<VerifyError>) {
             err("suspension row names no suspension point");
             continue;
         }
-        let want: Vec<u32> = tree
+        let want: Vec<u32> = topo
             .enclosing(row.inst)
-            .into_iter()
             .map(|blk| scope_of[blk as usize])
             .filter(|&s| s != NONE)
             .collect();

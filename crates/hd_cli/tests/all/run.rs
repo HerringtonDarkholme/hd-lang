@@ -1372,7 +1372,7 @@ fn fetch_with_path_requirements_only_has_nothing_to_do() {
     assert!(r.err.contains("fetch-failed"), "{}", r.err);
 }
 
-/// `cli.wasm.run`, `cli.wasm.grant`, `cli.wasm.invalid`, `cli.wasm.not-hd`,
+/// `cli.wasm.run`, `cli.wasm.grant.builtin-only`, `cli.wasm.invalid`, `cli.wasm.not-hd`,
 /// `cli.args.separator`: `hd FILE.wasm` runs what `hd build` wrote, with a
 /// grant from flags alone, and rejects a file that is no Wasm module or
 /// no module of `hd`; words after `--` are the program's.

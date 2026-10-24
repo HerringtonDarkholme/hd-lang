@@ -39,7 +39,9 @@ pub fn generate(contract: &Contract) -> Result<String, &'static str> {
         }
         out.push_str("]) }),\n");
     }
-    out.push_str("]);\nexport function defineProvider(selector, implementation) {\n  const matches = interfaces.filter(i => !i.handle && (typeof selector === 'string'\n    ? i.module === selector || i.selectors.includes(selector)\n    : selector && ['package', 'version', 'trait_path'].every(k => i.identity[k] === selector[k])));\n  if (matches.length !== 1) throw new Error('provider selector must identify exactly one package capability');\n  const i = matches[0];\n  return Object.freeze({ identity: i.identity, module: i.module, contract: checkedContract.slice(), implementation });\n}\nexport function bind(runtime, providers) {\n  return runtime.bind(checkedContract.slice(), [\n");
+    out.push_str(
+        "]);\nexport function bind(runtime, implementations) {\n  if (!(implementations instanceof Map)) throw new Error('provider implementations must be a map keyed by interface module');\n  const roots = interfaces.filter(i => !i.handle);\n  for (const key of implementations.keys()) {\n    if (!roots.some(i => i.module === key)) throw new Error('implementation names no required package capability');\n  }\n  const providers = roots.map(i => {\n    if (!implementations.has(i.module)) throw new Error('missing package provider implementation');\n    return Object.freeze({ identity: i.identity, module: i.module, contract: checkedContract.slice(), implementation: implementations.get(i.module) });\n  });\n  return runtime.bind(checkedContract.slice(), [\n"
+    );
     for i in &contract.interfaces {
         let _ = writeln!(
             out,
@@ -181,18 +183,16 @@ mod tests {
         let glue = generate(&c).unwrap();
         let script = format!(
             r"
-const {{ bind, contract, abiVersion, defineProvider, interfaces }} = await import('data:text/javascript,' + encodeURIComponent({}));
-const implementation = {{}};
-const provider = defineProvider(interfaces[0].selectors[0], implementation);
-if (provider.implementation !== implementation || provider.identity !== interfaces[0].identity) throw Error('provider identity lost');
-if (defineProvider(provider.identity, implementation).module !== provider.module) throw Error('exact identity lookup failed');
-if (!Object.isFrozen(provider) || !Object.isFrozen(provider.identity)) throw Error('mutable identity');
+const exports = await import('data:text/javascript,' + encodeURIComponent({}));
+const {{ bind, contract, abiVersion, interfaces }} = exports;
+if ('defineProvider' in exports) throw Error('provider selector API remains');
+const implementation = {{ echo() {{}} }};
+const implementations = new Map([[interfaces[0].module, implementation]]);
 contract.fill(0);
-if (provider.contract[0] !== 1 || defineProvider(provider.module, implementation).contract[0] !== 1) throw Error('exported bytes altered registration');
-for (const bad of ['missing', interfaces[0].identity.trait_path, interfaces[0].identity.trait_path.split('.').at(-1)]) {{
+for (const bad of [[], new Map(), new Map([['missing', implementation]])]) {{
   let refused = false;
-  try {{ defineProvider(bad, implementation); }} catch {{ refused = true; }}
-  if (!refused) throw Error('unqualified provider selector accepted');
+  try {{ bind({{}}, bad); }} catch {{ refused = true; }}
+  if (!refused) throw Error('invalid implementation map accepted');
 }}
 let called = 0;
 const runtime = new Proxy({{
@@ -203,12 +203,16 @@ const runtime = new Proxy({{
     if (interfaces[0].methods[0].params.length !== 13) throw Error('parameters changed');
     if (interfaces[0].methods[0].params[2] !== 'int:64,true') throw Error('integer type changed');
     if (interfaces[0].methods[0].params[11] !== 'record:text,str') throw Error('record fields lost');
-    if (providers !== 17) throw Error('registration changed');
+    if (bytes[0] !== 1 || providers.length !== 1) throw Error('contract or provider count changed');
+    const provider = providers[0];
+    if (provider.implementation !== implementation || provider.identity !== exports.interfaces[0].identity) throw Error('plain provider identity lost');
+    if (!Object.isFrozen(provider) || !Object.isFrozen(provider.identity)) throw Error('mutable identity');
+    if (provider.contract[0] !== 1) throw Error('exported bytes altered registration');
     called++;
     return interfaces;
   }}
 }}, {{ get(o, k) {{ return k in o ? o[k] : ['unit','bool','char','f32','f64','str','bytes','json'].includes(k) ? k : (...xs) => k + ':' + xs.flat(Infinity).join(','); }} }});
-bind(runtime, 17);
+bind(runtime, implementations);
 if (called !== 1) throw Error('binding missing');
 console.log('generated glue ok');
 ",

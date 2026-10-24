@@ -1,5 +1,4 @@
-import { defineProvider } from "./build/debug/host_app.host.mjs";
-export default defineProvider("dep.a.Server", {
+export default {
   read(text) {
     return "A " + text;
   },
@@ -7,4 +6,4 @@ export default defineProvider("dep.a.Server", {
     await Promise.resolve();
     return "A pending";
   },
-});
+};

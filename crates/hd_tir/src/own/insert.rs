@@ -61,12 +61,13 @@
 use hd_base::{LocalId, NodeIdx, SubId};
 use hd_types::Ty;
 
-use super::splice::for_blocks;
 use super::{
-    Loc, Operand, OwnCx, OwnScratch, Role, Tri, consumes, fill, operands, splice, tracked,
+    Loc, Operand, OwnCx, OwnScratch, Role, Tri, consumes, fill, operands, splice, suite_touches,
+    tracked,
 };
 use crate::ir::{
-    Body, CaptureMode, IntrinsicOp, NONE, ReadMode, Ref, Tag, local_flags, place, u32_of,
+    Body, CaptureMode, IntrinsicOp, NONE, PlaceView, ReadMode, Ref, Root, Tag, Topology,
+    local_flags, place, u32_of,
 };
 
 /// A place a jump may need to drop: a value or a local (bit 31 set),
@@ -86,14 +87,6 @@ const LOCAL_BIT: u32 = 1 << 31;
 /// Insertion's dense tables, reused across bodies.
 #[derive(Default)]
 pub(crate) struct Tables {
-    /// Each instruction's block and position in it, or `NONE`.
-    pub(super) blk: Vec<u32>,
-    pub(super) pos: Vec<u32>,
-    /// Each block's owning instruction, or `NONE`.
-    pub(super) owner: Vec<u32>,
-    /// Each instruction's sub-body, and whether it is a sub-body's root.
-    pub(super) sub: Vec<u32>,
-    pub(super) is_root: Vec<bool>,
     tracked: Vec<bool>,
     /// The uses of each tracked value, in compressed rows by value.
     pub(super) start: Vec<u32>,
@@ -158,11 +151,6 @@ struct After {
 
 impl Tables {
     fn reset(&mut self, n: usize, locals: usize) {
-        fill(&mut self.blk, n, NONE);
-        fill(&mut self.pos, n, 0);
-        fill(&mut self.owner, n, NONE);
-        fill(&mut self.sub, n, 0);
-        fill(&mut self.is_root, n, false);
         fill(&mut self.tracked, n, false);
         fill(&mut self.start, n + 1, 0);
         fill(&mut self.fill, n + 1, 0);
@@ -191,38 +179,25 @@ impl Tables {
         self.exits.clear();
     }
 
-    /// The statement that holds block `blk`: its owner's block and
-    /// position, or `None` at a sub-body's root.
-    fn up(&self, blk: u32) -> Option<(u32, u32)> {
-        if self.is_root[blk as usize] {
-            return None;
-        }
-        let o = self.owner[blk as usize];
-        if o == NONE || self.blk[o as usize] == NONE {
-            return None;
-        }
-        Some((self.blk[o as usize], self.pos[o as usize]))
-    }
-
     /// Walks up from `(blk, pos)` to the first block of the marked chain:
     /// its level and the statement position there.
-    pub(super) fn meet(&self, mut blk: u32, mut pos: u32) -> Option<(u32, u32)> {
+    pub(super) fn meet(&self, topo: &Topology, mut blk: u32, mut pos: u32) -> Option<(u32, u32)> {
         loop {
             let m = self.mark[blk as usize];
             if m != 0 {
                 return Some((m - 1, pos));
             }
-            (blk, pos) = self.up(blk)?;
+            (blk, pos) = topo.up(blk)?;
         }
     }
 
     /// Marks the chain of blocks from `(blk, pos)` up.
-    pub(super) fn mark_chain(&mut self, mut blk: u32, mut pos: u32) {
+    pub(super) fn mark_chain(&mut self, topo: &Topology, mut blk: u32, mut pos: u32) {
         self.chain.clear();
         loop {
             self.chain.push((blk, pos));
             self.mark[blk as usize] = u32::try_from(self.chain.len()).expect("depth");
-            match self.up(blk) {
+            match topo.up(blk) {
                 Some(next) => (blk, pos) = next,
                 None => break,
             }
@@ -234,24 +209,24 @@ impl Tables {
             self.mark[blk as usize] = 0;
         }
     }
+}
 
-    /// Where use `(u, op)` stands: `u`'s block and position, or for a
-    /// block's tail, the end of that block.
-    fn at(&self, b: &Body, u: u32, op: &Operand) -> Option<(u32, u32)> {
-        if op.role == Role::Tail {
-            return Some((u, block_len(b, u)));
-        }
-        let blk = self.blk[u as usize];
-        (blk != NONE).then(|| (blk, self.pos[u as usize]))
+/// Where use `(u, op)` stands: `u`'s block and position, or for a block's
+/// tail, the end of that block.
+fn at(b: &Body, topo: &Topology, u: u32, op: &Operand) -> Option<(u32, u32)> {
+    if op.role == Role::Tail {
+        return Some((u, block_len(b, u)));
     }
+    let blk = topo.blk[u as usize];
+    (blk != NONE).then(|| (blk, topo.pos[u as usize]))
+}
 
-    /// The owner a use's block tail goes to, for [`consumes`].
-    fn tail_owner(&self, u: u32, op: &Operand) -> u32 {
-        if op.role == Role::Tail && !self.is_root[u as usize] {
-            self.owner[u as usize]
-        } else {
-            NONE
-        }
+/// The owner a use's block tail goes to, for [`consumes`].
+fn tail_owner(topo: &Topology, u: u32, op: &Operand) -> u32 {
+    if op.role == Role::Tail && !topo.is_root[u as usize] {
+        topo.owner[u as usize]
+    } else {
+        NONE
     }
 }
 
@@ -262,21 +237,13 @@ fn block_len(b: &Body, blk: u32) -> u32 {
         .unwrap_or(0)
 }
 
-/// The root local of a place word, if it has one.
-fn root_local(b: &Body, word: u32) -> Option<u32> {
-    if word & place::BARE_LOCAL != 0 {
-        return Some(word & !place::BARE_LOCAL);
-    }
-    match b.extra.get(word as usize + 1..word as usize + 3)? {
-        [place::ROOT_LOCAL, l] => Some(*l),
+/// The root local of a place word, or `NONE` for a top-level binding.
+fn named_root(b: &Body, word: u32) -> Option<u32> {
+    match b.view(word).root {
+        Root::Local(l) => Some(l),
+        Root::Global(..) => Some(NONE),
         _ => None,
     }
-}
-
-/// `Some(NONE)` for a place word rooted at a top-level binding.
-fn global_root(b: &Body, word: u32) -> Option<u32> {
-    (word & place::BARE_LOCAL == 0 && b.extra.get(word as usize + 1) == Some(&place::ROOT_GLOBAL))
-        .then_some(NONE)
 }
 
 /// The syntax node of statement `pos` of block `blk`, for a statement the
@@ -317,23 +284,22 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
         return Err("an exit set before insertion".into());
     }
     let n = b.len();
-    let t = &mut scratch.insert;
-    let edits = &mut scratch.splice;
+    scratch.topo.build(b);
+    let (topo, t, edits) = (&scratch.topo, &mut scratch.insert, &mut scratch.splice);
     edits.clear();
     t.reset(n, b.local_ty.len());
-    structure(b, t);
     for i in 0..n {
         t.tracked[i] = tracked(b, cx, i);
     }
     collect_uses(b, t);
     for i in 0..n {
-        changes(b, t, i);
+        changes(b, topo, t, i);
     }
-    values(b, cx, t, edits)?;
-    locals(b, cx, t, edits);
+    values(b, topo, cx, t, edits)?;
+    locals(b, topo, cx, t, edits);
     after_drops(t, edits);
-    jumps(b, t, edits);
-    uniqueness(b, t, edits);
+    jumps(b, topo, t, edits);
+    uniqueness(b, topo, t, edits);
     for i in 0..n {
         if b.tags[i] == Tag::Read && b.data[i][1] == ReadMode::Use as u32 {
             // A read through a pointer moves the value out
@@ -345,53 +311,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     t.exits.sort_unstable_by_key(|(s, l)| (s.raw(), l.raw()));
     t.exits.dedup();
     b.exit_drops.clone_from(&t.exits);
-    splice::apply(b, edits)
-}
-
-/// The block structure: each instruction's block and position, each
-/// block's owner (a cleanup scope owns its suites, since it runs them, not
-/// the `Defer` that registers one), and each instruction's sub-body.
-fn structure(b: &Body, t: &mut Tables) {
-    let n = b.len();
-    for i in 0..n {
-        if b.tags[i] == Tag::Block {
-            for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
-                if (m as usize) < n {
-                    t.blk[m as usize] = u32_of(i);
-                    t.pos[m as usize] = u32_of(p);
-                }
-            }
-        }
-    }
-    for i in 0..n {
-        let defer = b.tags[i] == Tag::Defer;
-        let owner = &mut t.owner;
-        for_blocks(b, i, |blk| {
-            if !(defer && owner[blk as usize] != NONE) {
-                owner[blk as usize] = u32_of(i);
-            }
-        });
-    }
-    for (s, &r) in b.sub_root.iter().enumerate() {
-        if (r as usize) < n {
-            t.is_root[r as usize] = true;
-            t.sub[r as usize] = u32_of(s);
-        }
-    }
-    // A member or an owned block comes before its block or owner.
-    for i in (0..n).rev() {
-        if t.is_root[i] {
-            continue;
-        }
-        let parent = if t.blk[i] == NONE {
-            t.owner[i]
-        } else {
-            t.blk[i]
-        };
-        if parent != NONE {
-            t.sub[i] = t.sub[parent as usize];
-        }
-    }
+    splice::apply(b, topo, edits)
 }
 
 /// The uses of each tracked value.
@@ -436,16 +356,17 @@ fn collect_uses(b: &Body, t: &mut Tables) {
 /// gets a copy and the value a `Drop` after its home's last use.
 fn values(
     b: &mut Body,
+    topo: &Topology,
     cx: &dyn OwnCx,
     t: &mut Tables,
     edits: &mut splice::Tables,
 ) -> Result<(), String> {
     for v in 0..b.len() {
-        if !t.tracked[v] || t.blk[v] == NONE {
+        if !t.tracked[v] || topo.blk[v] == NONE {
             continue;
         }
         let (lo, hi) = (t.start[v] as usize, t.start[v + 1] as usize);
-        t.mark_chain(t.blk[v], t.pos[v]);
+        t.mark_chain(topo, topo.blk[v], topo.pos[v]);
         t.levels.clear();
         let mut home = 0;
         let mut stray = None;
@@ -455,7 +376,7 @@ fn values(
             if u == t.reread[v] {
                 continue;
             }
-            match t.at(b, u, &op).and_then(|(blk, pos)| t.meet(blk, pos)) {
+            match at(b, topo, u, &op).and_then(|(blk, pos)| t.meet(topo, blk, pos)) {
                 Some(met) => {
                     home = home.max(met.0);
                     t.levels.push(met);
@@ -467,7 +388,7 @@ fn values(
         for x in 0..t.relook.len() {
             let u = t.relook[x].1 as usize;
             if t.relook[x].0 == u32_of(v)
-                && let Some(met) = t.meet(t.blk[u], t.pos[u])
+                && let Some(met) = t.meet(topo, topo.blk[u], topo.pos[u])
             {
                 home = home.max(met.0);
                 t.levels.push(met);
@@ -491,17 +412,17 @@ fn values(
             let direct = if op.role == Role::Tail {
                 u == own
             } else {
-                t.blk[u as usize] == own
+                topo.blk[u as usize] == own
             };
-            if direct && consumes(b, cx, u as usize, &op, t.tail_owner(u, &op)) {
+            if direct && consumes(b, cx, u as usize, &op, tail_owner(topo, u, &op)) {
                 let last = match op.role {
                     Role::Tail => block_len(b, own).saturating_sub(1),
-                    _ => t.pos[u as usize].saturating_sub(1),
+                    _ => topo.pos[u as usize].saturating_sub(1),
                 };
                 t.items.push(Item {
                     blk: own,
                     what: u32_of(v),
-                    first: t.pos[v],
+                    first: topo.pos[v],
                     last,
                 });
                 continue;
@@ -512,10 +433,10 @@ fn values(
             if u == t.reread[v] {
                 continue;
             }
-            let consumed = consumes(b, cx, u as usize, &op, t.tail_owner(u, &op));
+            let consumed = consumes(b, cx, u as usize, &op, tail_owner(topo, u, &op));
             let (blk, pos) = match op.role {
                 Role::Tail => (u, block_len(b, u)),
-                _ => (t.blk[u as usize], t.pos[u as usize]),
+                _ => (topo.blk[u as usize], topo.pos[u as usize]),
             };
             if !consumed {
                 continue;
@@ -565,7 +486,7 @@ fn after_drops(t: &mut Tables, edits: &mut splice::Tables) {
 
 /// Rule 3: each owned local's `Drop` after its last access, and its exit
 /// row.
-fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
+fn locals(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
     let n = b.len();
     // The entry locals: each closure body's parameters and captures, and
     // the body's own parameters, those in no closure's list.
@@ -589,8 +510,8 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
         let [a, w] = b.data[i];
         match b.tags[i] {
             Tag::Read | Tag::Store | Tag::Ref => {
-                if let Some(l) = root_local(b, a) {
-                    t.acc.push((t.sub[i], l, u32_of(i)));
+                if let Some(l) = b.view(a).local() {
+                    t.acc.push((topo.sub[i], l, u32_of(i)));
                     // A reference to the local's own storage puts it in a
                     // cell; one through it, to a referent or an element,
                     // does not.
@@ -604,7 +525,7 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
                 let (start, len) = (rec[0] as usize, rec[1] as usize);
                 for c in start..start + len {
                     let l = b.cap_local[c].raw();
-                    t.acc.push((t.sub[i], l, u32_of(i)));
+                    t.acc.push((topo.sub[i], l, u32_of(i)));
                     if b.cap_mode.get(c) == Some(&CaptureMode::Shared) {
                         t.celled[l as usize] = true;
                     }
@@ -638,7 +559,7 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
             t.placed[l as usize] = s;
             if owned(b, t, l) {
                 let entry = t.entry[l as usize] == s;
-                place_local(b, t, s, l, k..end, entry);
+                place_local(b, topo, t, s, l, k..end, entry);
             }
             k = end;
         }
@@ -668,6 +589,7 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
 /// root.
 fn place_local(
     b: &Body,
+    topo: &Topology,
     t: &mut Tables,
     s: u32,
     l: u32,
@@ -675,18 +597,18 @@ fn place_local(
     entry: bool,
 ) {
     let first = t.acc[range.start].2 as usize;
-    if t.blk[first] == NONE {
+    if topo.blk[first] == NONE {
         return;
     }
-    t.mark_chain(t.blk[first], t.pos[first]);
+    t.mark_chain(topo, topo.blk[first], topo.pos[first]);
     t.levels.clear();
     let mut common = 0;
     for k in range {
         let x = t.acc[k].2 as usize;
-        if t.blk[x] == NONE {
+        if topo.blk[x] == NONE {
             continue;
         }
-        if let Some(met) = t.meet(t.blk[x], t.pos[x]) {
+        if let Some(met) = t.meet(topo, topo.blk[x], topo.pos[x]) {
             common = common.max(met.0);
             t.levels.push(met);
         }
@@ -721,7 +643,7 @@ fn place_local(
 }
 
 /// Rule 4: the drops each jump needs before it.
-fn jumps(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
+fn jumps(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tables) {
     let n = b.len();
     for it in &t.items {
         t.item_start[it.blk as usize + 1] += 1;
@@ -744,7 +666,8 @@ fn jumps(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
     }
     for j in 0..n {
         let tag = b.tags[j];
-        if !matches!(tag, Tag::Break | Tag::Continue | Tag::Return | Tag::ToArm) || t.blk[j] == NONE
+        if !matches!(tag, Tag::Break | Tag::Continue | Tag::Return | Tag::ToArm)
+            || topo.blk[j] == NONE
         {
             continue;
         }
@@ -757,7 +680,7 @@ fn jumps(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
             _ => NONE,
         };
         let stamp = u32_of(j);
-        let (jb, jp) = (t.blk[j], t.pos[j]);
+        let (jb, jp) = (topo.blk[j], topo.pos[j]);
         let mut crossed = false;
         let (mut blk, mut ps) = (jb, jp);
         loop {
@@ -786,7 +709,7 @@ fn jumps(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                     edits.insert(jb, jp, Tag::Drop, [word, NONE], Ty::VOID, b.syn[j]);
                 }
             }
-            let owner = t.owner[blk as usize];
+            let owner = topo.owner[blk as usize];
             let done = match tag {
                 Tag::Return => false,
                 Tag::Break | Tag::Continue => blk == target || owner == target,
@@ -806,7 +729,7 @@ fn jumps(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                 crossed = true;
                 mark_suites(b, t, owner, stamp);
             }
-            match t.up(blk) {
+            match topo.up(blk) {
                 Some(next) => (blk, ps) = next,
                 None => break,
             }
@@ -814,57 +737,29 @@ fn jumps(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
     }
 }
 
-/// Stamps every local and value the suites of cleanup scope `scope` read.
+/// Stamps every local and value the suites of cleanup scope `scope` read
+/// ([`suite_touches`]).
 fn mark_suites(b: &Body, t: &mut Tables, scope: u32, stamp: u32) {
-    t.stack.clear();
-    t.stack
-        .extend_from_slice(b.record(b.data[scope as usize][1]));
-    let mut ops = std::mem::take(&mut t.ops);
-    while let Some(x) = t.stack.pop() {
-        let i = x as usize;
-        if i >= b.len() {
-            continue;
-        }
-        if b.tags[i] == Tag::Block {
-            t.stack.extend_from_slice(b.record(b.data[i][0]));
-        }
-        let stack = &mut t.stack;
-        for_blocks(b, i, |blk| stack.push(blk));
-        match b.tags[i] {
-            Tag::Read | Tag::Store | Tag::Ref => {
-                if let Some(l) = root_local(b, b.data[i][0]) {
-                    t.local_stamp[l as usize] = stamp;
-                }
-            }
-            Tag::Closure => {
-                let rec = b.record(b.data[i][1]);
-                for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
-                    t.local_stamp[b.cap_local[c].idx()] = stamp;
-                }
-            }
-            _ => {}
-        }
-        operands(b, i, &mut ops);
-        for op in &ops {
-            if Ref(op.value).as_inst().is_some() {
-                t.value_stamp[op.value as usize] = stamp;
-            }
-        }
-    }
-    t.ops = ops;
+    let (ls, vs) = (&mut t.local_stamp, &mut t.value_stamp);
+    let (local, value) = (
+        |l: u32| ls[l as usize] = stamp,
+        |v: u32| vs[v as usize] = stamp,
+    );
+    let roots = b.record(b.data[scope as usize][1]);
+    suite_touches(b, roots, &mut t.stack, &mut t.ops, false, local, value);
 }
 
 /// Rules 5 and 6: an `IsUnique` before each in-place change of a list or
 /// map place, and a `Pin` after it before each element reference; and the
 /// same for the lists on the path of each read the change goes through,
 /// before that read.
-fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
+fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tables) {
     for i in 0..b.len() {
-        if t.blk[i] == NONE {
+        if topo.blk[i] == NONE {
             continue;
         }
         let a = b.data[i][0];
-        let (blk, pos, syn) = (t.blk[i], t.pos[i], b.syn[i]);
+        let (blk, pos, syn) = (topo.blk[i], topo.pos[i], b.syn[i]);
         match b.tags[i] {
             Tag::Store | Tag::Ref => {
                 let pin = b.tags[i] == Tag::Ref;
@@ -873,8 +768,8 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                 // place, which folding kept (a reference of an open type):
                 // its checks name that place, and it reads the place again
                 // after them, as a change does.
-                let root = value_root(b, a);
-                let base = root.and_then(|v| read_place(b, t, v));
+                let root = b.view(a).value();
+                let base = root.and_then(|v| read_place(b, topo, v));
                 for k in 0..t.elems.len() {
                     let word = match base {
                         Some(w) => graft(b, w, a, t.elems[k]),
@@ -897,14 +792,14 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                 // A change through a dereference reaches the referent, not
                 // the reads the reference came from.
                 if !deref && let Some(root) = root {
-                    through(b, t, edits, root, pin);
+                    through(b, topo, t, edits, root, pin);
                 }
             }
             _ => {}
         }
     }
     for k in 0..t.changes.len() {
-        own_place(b, t, edits, t.changes[k]);
+        own_place(b, topo, t, edits, t.changes[k]);
     }
 }
 
@@ -921,18 +816,20 @@ type Change = (u32, u32, u32, Option<bool>);
 /// any, and an operand read again at the change owns nothing; its map
 /// value steps look their entries up again there, with their keys
 /// ([`Tables::relook`]).
-fn changes(b: &Body, t: &mut Tables, i: usize) {
-    if t.blk[i] == NONE {
+fn changes(b: &Body, topo: &Topology, t: &mut Tables, i: usize) {
+    if topo.blk[i] == NONE {
         return;
     }
     // A store or a reference through a read of a local's place names
     // that place in its checks ([`uniqueness`]): an access of the local.
     if matches!(b.tags[i], Tag::Store | Tag::Ref)
-        && let Some(l) = value_root(b, b.data[i][0])
-            .and_then(|v| read_root(b, t, v))
+        && let Some(l) = b
+            .view(b.data[i][0])
+            .value()
+            .and_then(|v| read_root(b, topo, v))
             .filter(|&l| l != NONE)
     {
-        t.acc.push((t.sub[i], l, u32_of(i)));
+        t.acc.push((topo.sub[i], l, u32_of(i)));
     }
     for (at, v) in super::changed(b, i) {
         let Some(r) = Ref(v).as_inst().map(|r| r.0 as usize) else {
@@ -940,18 +837,18 @@ fn changes(b: &Body, t: &mut Tables, i: usize) {
         };
         // `NONE` for a place rooted at a top-level binding, which has no
         // local access to record.
-        let root = (b.tags[r] == Tag::Read && t.blk[r] != NONE)
-            .then(|| root_local(b, b.data[r][0]).or(global_root(b, b.data[r][0])))
+        let root = (b.tags[r] == Tag::Read && topo.blk[r] != NONE)
+            .then(|| named_root(b, b.data[r][0]))
             .flatten();
         // An operand through reads of a local's place, which folding kept,
         // names that place and reads it again, as one rooted there does.
-        let chained = root.is_none().then(|| read_root(b, t, v)).flatten();
+        let chained = root.is_none().then(|| read_root(b, topo, v)).flatten();
         let once = t.start[r + 1] - t.start[r] == 1;
         // A read right before its change is the change's operand; one with
         // an argument between is read again, after the drops the argument
         // ends, so that no write stands between the operand's borrow and
         // the change.
-        let still = once && t.blk[r] == t.blk[i] && t.pos[i] == t.pos[r] + 1;
+        let still = once && topo.blk[r] == topo.blk[i] && topo.pos[i] == topo.pos[r] + 1;
         let kind = root
             .or(chained)
             .is_some()
@@ -962,7 +859,7 @@ fn changes(b: &Body, t: &mut Tables, i: usize) {
         t.tracked[r] &= kind.is_none() || !once;
         t.changes.push((u32_of(i), at, v, kind));
         if let Some(l) = root.or(chained).filter(|&l| l != NONE) {
-            t.acc.push((t.sub[i], l, u32_of(i)));
+            t.acc.push((topo.sub[i], l, u32_of(i)));
         }
         if kind == Some(false) {
             t.reread[r] = u32_of(i);
@@ -977,7 +874,7 @@ fn changes(b: &Body, t: &mut Tables, i: usize) {
                         t.relook.push((b.record(b.data[e][1])[1], u32_of(i)));
                     }
                 }
-                let Some(u) = value_root(b, b.data[x as usize][0]) else {
+                let Some(u) = b.view(b.data[x as usize][0]).value() else {
                     break;
                 };
                 x = u;
@@ -999,13 +896,13 @@ fn changes(b: &Body, t: &mut Tables, i: usize) {
 /// before it. Since a write between may grow a map on the path, and
 /// growth renumbers entries, that read's map value steps take new
 /// `MapEntry`s, each after its map's `IsUnique`.
-fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change) {
+fn own_place(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tables, c: Change) {
     let (i, r, quiet) = (c.0 as usize, c.2 as usize, c.3);
     let s = if quiet == Some(true) { r } else { i };
-    let (blk, pos, syn, word) = (t.blk[s], t.pos[s], b.syn[s], b.data[r][0]);
+    let (blk, pos, syn, word) = (topo.blk[s], topo.pos[s], b.syn[s], b.data[r][0]);
     if quiet.is_none() {
-        through(b, t, edits, c.2, false);
-        let word = read_place(b, t, c.2).unwrap_or_else(|| value_place(b, c.2));
+        through(b, topo, t, edits, c.2, false);
+        let word = read_place(b, topo, c.2).unwrap_or_else(|| value_place(b, c.2));
         edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
         return;
     }
@@ -1016,8 +913,8 @@ fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change
     let (n, mode) = (u32_of(b.len()), ReadMode::Borrow as u32);
     // The re-read's own place, whose entries the new lookups replace,
     // rooted where its reads start.
-    let word = match (quiet, read_place(b, t, c.2)) {
-        (Some(false), Some(w)) if value_root(b, word).is_some() => w,
+    let word = match (quiet, read_place(b, topo, c.2)) {
+        (Some(false), Some(w)) if b.view(word).value().is_some() => w,
         (Some(false), _) => whole(b, word),
         _ => word,
     };
@@ -1050,7 +947,7 @@ fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change
         if t.start[r + 1] - t.start[r] == 1
             && b.decode_place(b.data[r][0]).is_some_and(|p| !elem(p))
         {
-            edits.remove(t.blk[r], c.2);
+            edits.remove(c.2);
         }
     }
 }
@@ -1058,51 +955,47 @@ fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change
 /// Whether the place at `word` goes into memory: through an element or
 /// a dereference.
 fn in_memory(b: &Body, word: u32) -> bool {
-    b.decode_place(word).is_some_and(|p| {
-        p.proj
-            .iter()
-            .any(|s| matches!(s, crate::ir::Proj::Elem(_) | crate::ir::Proj::Deref))
-    })
+    b.view(word).kinds(b) != (0, false)
 }
 
 /// The local the chain of reads ending at value `v` starts at, through
 /// the reads of values; `Some(NONE)` for a top-level binding, or for a
 /// chain from another value that goes into memory on the way (a list
 /// behind a reference a call returned). `None` for a value's own parts.
-fn read_root(b: &Body, t: &Tables, mut v: u32) -> Option<u32> {
+fn read_root(b: &Body, topo: &Topology, mut v: u32) -> Option<u32> {
     let mut memory = false;
     for _ in 0..64 {
         let i = v as usize;
-        if b.tags[i] != Tag::Read || t.blk[i] == NONE {
+        if b.tags[i] != Tag::Read || topo.blk[i] == NONE {
             return memory.then_some(NONE);
         }
         let w = b.data[i][0];
-        if let Some(l) = root_local(b, w).or(global_root(b, w)) {
+        if let Some(l) = named_root(b, w) {
             return Some(l);
         }
         memory |= in_memory(b, w);
-        v = value_root(b, w)?;
+        v = b.view(w).value()?;
     }
     None
 }
 
 /// The place read `v` reads, rooted where its chain of reads starts
 /// ([`read_root`]): `[*%0]` after `%0 = Read [$0]` is `[$0 *]`.
-fn read_place(b: &mut Body, t: &Tables, v: u32) -> Option<u32> {
+fn read_place(b: &mut Body, topo: &Topology, v: u32) -> Option<u32> {
     let i = v as usize;
-    if b.tags[i] != Tag::Read || t.blk[i] == NONE {
+    if b.tags[i] != Tag::Read || topo.blk[i] == NONE {
         return None;
     }
     let w = b.data[i][0];
-    if root_local(b, w).or(global_root(b, w)).is_some() {
+    if named_root(b, w).is_some() {
         return Some(w);
     }
-    let u = value_root(b, w)?;
-    match read_place(b, t, u) {
+    let u = b.view(w).value()?;
+    match read_place(b, topo, u) {
         Some(base) => Some(graft(b, base, w, w + 1 + b.extra[w as usize])),
         // A chain from another value names a place once it goes into
         // memory.
-        None => read_root(b, t, v).map(|_| w),
+        None => read_root(b, topo, v).map(|_| w),
     }
 }
 
@@ -1135,23 +1028,19 @@ fn entry(b: &Body, ix: u32) -> Option<usize> {
     .then_some(e)
 }
 
-/// The value a place word is rooted at, if it is rooted at one.
-fn value_root(b: &Body, word: u32) -> Option<u32> {
-    if word & place::BARE_LOCAL != 0 {
-        return None;
-    }
-    match b.extra.get(word as usize + 1..word as usize + 3)? {
-        [place::ROOT_VALUE, v] if Ref(*v).as_inst().is_some() => Some(*v),
-        _ => None,
-    }
-}
-
 /// The reads a change through value `v` goes through, from `v` back to
 /// a read of a local, a global, a dereference or no read at all: for each,
 /// an `IsUnique` (and a `Pin`, for a reference) of every list on its path,
 /// outermost first, before the read. A coercion passes its value on, and
 /// a read of a field of a value goes on to that value.
-fn through(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, v: u32, pin: bool) {
+fn through(
+    b: &mut Body,
+    topo: &Topology,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+    v: u32,
+    pin: bool,
+) {
     let mut cur = v;
     for _ in 0..64 {
         let Some(at) = Ref(cur).as_inst() else {
@@ -1160,14 +1049,14 @@ fn through(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, v: u32, pin
         let i = at.0 as usize;
         match b.tags[i] {
             Tag::Coerce => cur = b.data[i][0],
-            Tag::Read if t.blk[i] != NONE => {
+            Tag::Read if topo.blk[i] != NONE => {
                 let word = b.data[i][0];
                 let deref = path_lists(b, t, word);
                 let need = if pin { 3 } else { 1 };
                 let done = t.walked[i];
                 if done & need != need {
-                    let (blk, pos, syn) = (t.blk[i], t.pos[i], b.syn[i]);
-                    let base = value_root(b, word).and_then(|u| read_place(b, t, u));
+                    let (blk, pos, syn) = (topo.blk[i], topo.pos[i], b.syn[i]);
+                    let base = b.view(word).value().and_then(|u| read_place(b, topo, u));
                     for k in 0..t.elems.len() {
                         let place = match base {
                             Some(w) => graft(b, w, word, t.elems[k]),
@@ -1182,7 +1071,7 @@ fn through(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, v: u32, pin
                     }
                     t.walked[i] = done | need;
                 }
-                match value_root(b, word) {
+                match b.view(word).value() {
                     Some(root) if !deref => cur = root,
                     _ => return,
                 }
@@ -1197,18 +1086,11 @@ fn through(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, v: u32, pin
 /// dereference.
 fn path_lists(b: &Body, t: &mut Tables, word: u32) -> bool {
     t.elems.clear();
-    if word & place::BARE_LOCAL != 0 {
-        return false;
-    }
-    let rec = word + 1;
-    let end = rec + b.extra[word as usize];
-    let mut x = rec
-        + match b.extra[rec as usize] {
-            place::ROOT_GLOBAL => 3,
-            _ => 2,
-        };
+    let PlaceView {
+        from: mut x, to, ..
+    } = b.view(word);
     let mut deref = false;
-    while x < end {
+    while x < to {
         match b.extra[x as usize] & place::PROJ_KIND {
             place::PROJ_ELEM => {
                 t.elems.push(x);
@@ -1228,12 +1110,11 @@ fn path_lists(b: &Body, t: &mut Tables, word: u32) -> bool {
 /// the projection word at `end`: the list an element projection indexes.
 fn prefix(b: &mut Body, word: u32, end: u32) -> u32 {
     let rec = word + 1;
-    let roots = match b.extra[rec as usize] {
-        place::ROOT_GLOBAL => 3,
-        _ => 2,
-    };
-    if b.extra[rec as usize] == place::ROOT_LOCAL && end == rec + roots {
-        return b.extra[rec as usize + 1] | place::BARE_LOCAL;
+    let p = b.view(word);
+    if let Root::Local(l) = p.root
+        && end == p.from
+    {
+        return l | place::BARE_LOCAL;
     }
     let at = u32_of(b.extra.len());
     b.extra.push(end - rec);

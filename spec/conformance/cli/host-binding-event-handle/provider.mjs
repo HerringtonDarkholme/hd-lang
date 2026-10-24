@@ -1,5 +1,4 @@
-import { defineProvider } from "./build/debug/surface.host.mjs";
-export default defineProvider("pkg.main.Surface", {
+export default {
   async render(commands) {
     return commands.length;
   },
@@ -16,4 +15,4 @@ export default defineProvider("pkg.main.Surface", {
       },
     };
   },
-});
+};

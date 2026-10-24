@@ -801,7 +801,7 @@ Workspace-wide coordinated releases, executables' command-line compatibility, an
 
 `--since VERSION` selects an exact local package-prefixed tag and requires its commit to be an ancestor of pinned HEAD.
 Without it, choose the greatest matching version among HEAD's ancestors, as [version selection](../../spec/lang/10-modules.md#r-module.version.pseudo) does.
-Include prereleases in that search and order them by [SemVer precedence](../../spec/lang/10-modules.md#r-module.version.order).
+The default baseline is the last stable release: the search skips prereleases and orders versions by [SemVer precedence](../../spec/lang/10-modules.md#r-module.version.order).
 Never use lexical tag order or another package's prefix.
 
 No release-specific `hd.toml` keys are introduced.
@@ -827,9 +827,10 @@ Compare numeric components, not formatted strings; `1.10.0` follows `1.9.0`.
 A target must also be strictly newer than its selected baseline.
 
 Prerelease targets are author-written; never guess suffix increments.
-A later prerelease or final release of the same core is accepted only for `patch` API magnitude.
-A compatible addition must cross the minor core, except that a later same-core prerelease may carry it before that core is final.
-A break still crosses the compatibility line, even between prereleases; the tool does not weaken hd's existing line rule.
+Every version, prerelease or final, is checked against the last stable release, never against an earlier prerelease.
+With stable `1.4.2`, the versions `1.5.0-rc.1`, `1.5.0-rc.2` and `1.5.0` are each compared with `1.4.2`.
+Prereleases of one core may add or change API freely among themselves.
+The suggested bump names the smallest stable core; an author-written prerelease of that core also passes.
 
 A target prerelease with a sufficiently increased core satisfies the corresponding bump, while remaining labeled prerelease.
 Reject build metadata: hd's accepted tag grammar allows a prerelease suffix, not a `+metadata` extension.
@@ -971,9 +972,11 @@ A budget violation or extraction coverage gap falls back to a smaller checked ta
 
 ## Stress test
 
-The [2026-10-24 release stress report](RELEASE_STRESS.md) tests the single-command design against real library histories and typed clients.
-It also exercises Git/version edge cases.
-It records unresolved prerelease arithmetic without changing this proposal's decisions.
+A stress test translated real release histories (Rand, logr, Lodash) and typed clients into hd and ran them against this design, plus Git and version edge cases. Its prerelease finding is settled by the rule in Bump arithmetic. Three limits remain:
+
+- **Typed checks do not certify behavior.** A changed default value or body prints different output with identical signatures. The writer's summary says "typed API checks passed; behavior not assessed" and lists changed defaults and bodies as review notes, never "compatible release". Unassessed extraction coverage is still a failure.
+- **Impl changes are classified conservatively.** An added impl can make an old inference site ambiguous, and a removed impl or derive removes a usable obligation, so some changes a maintainer thinks harmless need a larger bump. The report keeps definite and potential findings apart and shows a witness when it has one. A waiver mechanism waits for real false-positive reports.
+- **The pieces were probed, not the command.** Enabling the tag writer requires end-to-end CLI fixtures for the bare, `--dry-run` and writing forms, including a ref that changes during the run, on every platform CI covers.
 
 The ten old-library/new-library/client pairs above are executable translations of practical API hazards.
 The embedding client ports the `Point`/extra-field witness in Go apidiff's README to hd embedding.

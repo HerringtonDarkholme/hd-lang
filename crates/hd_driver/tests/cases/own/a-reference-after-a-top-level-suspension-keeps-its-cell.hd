@@ -1,0 +1,19 @@
+# @dump: own
+# Move's rule 4 stops at a suspension point at the body's top level: the
+# `Ref` of `c` at its last access counts the cell (no `take`) and `c`'s
+# own `Drop` stays. The twin of
+# a-reference-after-a-suspension-in-an-if-keeps-its-cell.hd.
+struct Counter:
+    hits: i32
+    name: string
+
+fn pause!() -> void:
+    return
+
+fn tick(c: &mut Counter) -> void:
+    c.hits = c.hits + 1
+
+fn run!(go: bool) -> void:
+    let mut c = Counter { hits: +0, name: "a" }
+    pause!()
+    tick(&mut c)

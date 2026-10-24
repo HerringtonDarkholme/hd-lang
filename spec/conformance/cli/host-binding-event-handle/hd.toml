@@ -2,4 +2,7 @@
 name = "surface"
 
 [host]
-traits = ["main.Surface"]
+"main.Surface" = "provider.mjs"
+
+[capabilities]
+"pkg.main.Surface" = true

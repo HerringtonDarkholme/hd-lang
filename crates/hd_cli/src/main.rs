@@ -37,9 +37,9 @@ use hd_run::{HostSetup, Outcome};
 use crate::report::Reporter;
 
 const USAGE: &str = "usage:
-  hd [--release] [--format json] [--cap NAME=VALUE]... [--host PATH=PROVIDER.mjs]... FILE.hd [-- ARGS]
-  hd [--cap NAME=VALUE]... [--host PATH=PROVIDER.mjs]... FILE.wasm [-- ARGS]
-  hd run [--release] [--format json] [--cap NAME=VALUE]... [--host PATH=PROVIDER.mjs]... [NAME]
+  hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd [-- ARGS]
+  hd [--cap NAME=VALUE]... FILE.wasm [-- ARGS]
+  hd run [--release] [--format json] [--cap NAME=VALUE]... [NAME]
   hd --repl [--engine NAME] FILE
   hd build [--release] [--format json] [FILE.hd]
   hd check [FILE.hd] [--tests | --all] [--format json]
@@ -581,7 +581,7 @@ fn execute(
     table: &[(String, hd_project::Grant)],
     table_dir: Option<&Path>,
     flags: &[caps::CapFlag],
-    registrations: &[node::HostRegistration],
+    provider_program: Option<&disk::Program>,
     args: &[OsString],
     (engine, level, limits): (engine::EngineKind, OptLevel, engine::ProgramLimits),
     rep: &mut Reporter,
@@ -608,7 +608,15 @@ fn execute(
             .collect(),
         program: program.to_owned(),
     };
-    match engine::run(engine, level, wasm, &host, registrations) {
+    let providers = if engine == engine::EngineKind::Node {
+        match node::manifest_providers(wasm, provider_program, table, &host.grants) {
+            Ok(providers) => providers,
+            Err(error) => return rep.fail(&error),
+        }
+    } else {
+        Vec::new()
+    };
+    match engine::run(engine, level, wasm, &host, &providers) {
         Ok((Outcome::Exit(code), trap)) => {
             // A panic's location follows the host's `panic:` line, as a
             // test's report does (`flow.panic.report`).
@@ -640,7 +648,6 @@ fn execute(
 struct FileWords {
     json: bool,
     caps: Vec<caps::CapFlag>,
-    host_registrations: Vec<node::HostRegistration>,
     file: Option<PathBuf>,
     /// The program's arguments (`cli.args.pass`).
     program_args: Vec<OsString>,
@@ -654,7 +661,6 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
     let mut w = FileWords {
         json: false,
         caps: Vec::new(),
-        host_registrations: Vec::new(),
         file: None,
         program_args: Vec::new(),
         engine: engine::EngineKind::default(),
@@ -677,12 +683,6 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
         if let Some(cap) = caps::cap_flag(args, i) {
             let (flag, used) = cap?;
             w.caps.push(flag);
-            i += used;
-            continue;
-        }
-        if let Some(registration) = node::host_flag(args, i) {
-            let (registration, used) = registration?;
-            w.host_registrations.push(registration);
             i += used;
             continue;
         }
@@ -757,7 +757,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
             &program.capabilities,
             program.package_dir.as_deref(),
             &w.caps,
-            &w.host_registrations,
+            Some(&program),
             &w.program_args,
             (w.engine, pipeline.level, w.limits),
             &mut rep,
@@ -792,7 +792,7 @@ fn run_stdin_command() -> ExitCode {
             &program.capabilities,
             program.package_dir.as_deref(),
             &[],
-            &[],
+            Some(&program),
             &[],
             (engine, pipeline.level, engine::ProgramLimits::default()),
             &mut rep,
@@ -804,8 +804,8 @@ fn run_stdin_command() -> ExitCode {
 /// `hd [--cap NAME=VALUE]... FILE.wasm [-- ARGS]` (Prebuilt Modules,
 /// `cli.wasm.*`): a module that `hd build` wrote. It is checked first: a
 /// valid module (`cli.wasm.invalid`), with the entry exports and only
-/// imports `hd` provides (`cli.wasm.not-hd.*`). Its grant comes from the
-/// flags alone (`cli.wasm.grant`).
+/// imports `hd` provides (`cli.wasm.not-hd.*`). Builtin-only modules use
+/// flags alone; package providers discover consent above the artifact.
 fn run_wasm_command(args: &[OsString]) -> ExitCode {
     let w = match file_words(args) {
         Ok(w) => w,
@@ -855,14 +855,40 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
             "`{shown}` imports `{m}` `{n}`, which `hd` does not provide: {rebuild}"
         ));
     }
+    // Package providers need the root manifest's explicit consent even for a
+    // prebuilt artifact. Discovery follows the artifact, never the caller cwd.
+    let provider_program = if artifacts.is_some() {
+        let absolute = match std::path::absolute(file) {
+            Ok(path) => path,
+            Err(e) => return rep.fail(&format!("{shown}: {e}")),
+        };
+        let Some(root) = absolute.parent().and_then(disk::package_root) else {
+            return rep.fail("package host capabilities need an app hd.toml above the Wasm file");
+        };
+        let program = match disk::load_package(&root, "src/main.hd") {
+            Ok(program) => program,
+            Err(e) => return rep.fail(&e),
+        };
+        if rep.diags(&program.problems) {
+            return rep.finish(HD_FAILURE);
+        }
+        Some(program)
+    } else {
+        None
+    };
+    let table = provider_program
+        .as_ref()
+        .map_or(&[][..], |p| p.capabilities.as_slice());
     let built = Compiled { wasm, frames: None };
     execute(
         &built,
         &file.to_string_lossy(),
-        &[],
-        None,
+        table,
+        provider_program
+            .as_ref()
+            .and_then(|p| p.package_dir.as_deref()),
         &w.caps,
-        &w.host_registrations,
+        provider_program.as_ref(),
         &w.program_args,
         (w.engine, level_of(w.release), w.limits),
         &mut rep,
@@ -875,7 +901,6 @@ struct Words {
     json: bool,
     /// `--cap` flags; only `hd run` takes them (`cli.cap.flag.commands`).
     caps: Vec<caps::CapFlag>,
-    host_registrations: Vec<node::HostRegistration>,
     positional: Vec<OsString>,
     /// The words after `--`; only `hd run` takes them (`cli.args.separator`).
     program_args: Vec<OsString>,
@@ -892,7 +917,6 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         release: false,
         json: false,
         caps: Vec::new(),
-        host_registrations: Vec::new(),
         positional: Vec::new(),
         program_args: Vec::new(),
         packages: Vec::new(),
@@ -932,14 +956,6 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
             continue;
         }
 
-        if command == "run"
-            && let Some(registration) = node::host_flag(args, i)
-        {
-            let (registration, used) = registration?;
-            w.host_registrations.push(registration);
-            i += used;
-            continue;
-        }
         if command == "run"
             && let Some(cap) = caps::cap_flag(args, i)
         {
@@ -1109,7 +1125,7 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
         &program.capabilities,
         program.package_dir.as_deref(),
         &w.caps,
-        &w.host_registrations,
+        Some(&program),
         &w.program_args,
         (w.engine, pipeline.level, w.limits),
         &mut rep,

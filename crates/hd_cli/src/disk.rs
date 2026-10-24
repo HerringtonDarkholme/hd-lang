@@ -271,6 +271,15 @@ impl Program {
             .retain(|path| hd_project::in_program(entry_file, path));
     }
 
+    /// The on-disk directory of a selected package, with the root at index zero.
+    pub(crate) fn package_directory(&self, package: u16) -> Option<&Path> {
+        if package == 0 {
+            self.package_dir.as_deref()
+        } else {
+            Some(&self.deps.get(usize::from(package) - 1)?.sources.root)
+        }
+    }
+
     /// The packages around the root, as the driver takes them.
     pub fn packages(&self) -> Packages<'_> {
         Packages {
@@ -1258,7 +1267,7 @@ mod host_declaration_tests {
         .unwrap();
         for name in ["left", "right"] {
             std::fs::write(root.0.join(name).join("hd.toml"),
-                "[package]\nname = \"same-sdk\"\n[host]\ntraits = [\"Server\"]\n[capabilities]\nProcess = true\n").unwrap();
+                "[package]\nname = \"same-sdk\"\n[host]\nServer = \"provider.mjs\"\n[capabilities]\nProcess = true\n").unwrap();
             std::fs::write(
                 root.0.join(name).join("src/lib.hd"),
                 "@host\npub trait Server:\n    fn next!(&mut self) -> string\n",
@@ -1292,8 +1301,11 @@ mod host_declaration_tests {
                     || hosts[i].manifest.ends_with(&format!("{name}\\hd.toml"))
             );
             let declarations = hosts[i].declarations.as_ref().unwrap();
-            assert_eq!(declarations.line, 4);
-            assert_eq!(declarations.traits.as_ref().unwrap(), &["Server"]);
+            assert_eq!(declarations.line, 3);
+            assert_eq!(declarations.trait_paths().collect::<Vec<_>>(), ["Server"]);
+            let provider = &declarations.providers.as_ref().unwrap()[0];
+            assert_eq!(provider.line, 4);
+            assert_eq!(provider.path.as_deref(), Some("provider.mjs"));
         }
     }
 }

@@ -80,9 +80,19 @@ test("package codecs own their data and preserve names including __proto__", () 
     fields: { tag: 7 },
   });
   assert.throws(() => encode(res, { ok: 0, error: {} }), HostContract);
-  const privateText = '{"large":18446744073709551615,"custom":"representation"}';
-  assert.equal(roundTrip(r.json, privateText), privateText);
-  assert.throws(() => encode(r.json, JSON.parse(privateText)), HostContract);
+  const privateValue = {
+    large: 18446744073709551615n,
+    signed: -9223372036854775808n,
+    float: 1.0,
+    nested: [null, false, "🦉", { empty: [] }],
+    __proto__: null,
+  };
+  assert.deepEqual(roundTrip(r.json, privateValue), { ...privateValue });
+  assert.equal(
+    roundTrip(r.json, "a custom string representation"),
+    "a custom string representation",
+  );
+  assert.ok(Object.is(roundTrip(r.json, -0), -0));
 });
 
 test("package contract reader rejects truncated, noncanonical and unknown versions", () => {
@@ -97,4 +107,45 @@ test("package contract reader rejects truncated, noncanonical and unknown versio
     [1, 0, 0, 0, 255, 255, 255, 255, 15],
   ])
     assert.throws(() => readPackageContract(new Uint8Array(bytes)), HostContract);
+});
+
+test("private Serde values retain numeric kind, deep containers and literal object keys", () => {
+  const r = runtime();
+  const input = Object.fromEntries([
+    ["__proto__", { count: 9007199254740993n }],
+    ["f", 1.0],
+  ]);
+  assert.deepEqual(roundTrip(r.json, input), input);
+  const wire = (tokens) => {
+    const e = new Enc();
+    e.str(JSON.stringify(tokens));
+    return new Dec(e.done());
+  };
+  assert.equal(r.json.dec(wire([["f", "3ff0000000000000"]])), 1);
+  assert.equal(r.json.dec(wire([["u", "1"]])), 1n);
+  for (const tokens of [
+    [],
+    [["u", "18446744073709551616"]],
+    [["f", "7ff0000000000000"]],
+    [["i", "-9223372036854775809"]],
+    [["a", 2], ["n"]],
+    [["o", 1], ["b", true], ["n"]],
+    [["n"], ["n"]],
+  ])
+    assert.throws(() => r.json.dec(wire(tokens)), HostContract);
+  for (const bad of [undefined, () => {}, 1n << 64n, -(1n << 63n) - 1n, new Date(), [undefined]])
+    assert.throws(() => encode(r.json, bad), HostContract);
+  const cyclic = {};
+  cyclic.self = cyclic;
+  assert.throws(() => encode(r.json, cyclic), /cyclic/);
+  const shared = { value: 7n };
+  assert.deepEqual(roundTrip(r.json, [shared, shared]), [shared, shared]);
+  let deep = null;
+  for (let i = 0; i < 128; ++i) deep = [deep];
+  let decoded = roundTrip(r.json, deep);
+  for (let i = 0; i < 128; ++i) {
+    assert.equal(decoded.length, 1);
+    decoded = decoded[0];
+  }
+  assert.equal(decoded, null);
 });

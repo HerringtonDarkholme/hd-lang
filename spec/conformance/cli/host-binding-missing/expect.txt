@@ -3,3 +3,6 @@ stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd run --engine node
 exit: 101
 stdout-json: []
+run: hd run --engine node --cap pkg.main.Server=true
+exit: 101
+stdout-json: []

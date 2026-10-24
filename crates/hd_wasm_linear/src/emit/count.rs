@@ -553,24 +553,7 @@ impl Em<'_, '_, '_> {
     /// The consumer of each value of an owned body, by the passes' rule
     /// (`hd_tir::own::consumers`).
     pub(super) fn own_consumers(&mut self) {
-        let mut out = std::mem::take(&mut self.consumer);
-        hd_tir::own::consumers(self.b, self.input.own_cx, &mut out);
-        self.consumer = out;
-        let mut at = std::mem::take(&mut self.own_at);
-        at.clear();
-        at.resize(self.b.len(), (NONE, 0));
-        for (k, &tag) in self.b.tags.iter().enumerate() {
-            if tag != Tag::Block {
-                continue;
-            }
-            let blk = u32::try_from(k).expect("insts");
-            for (p, &m) in self.b.record(self.b.data[k][0]).iter().enumerate() {
-                if let Some(x) = at.get_mut(m as usize) {
-                    *x = (blk, u32::try_from(p).expect("statements"));
-                }
-            }
-        }
-        self.own_at = at;
+        hd_tir::own::consumers(self.b, &self.topo, self.input.own_cx, &mut self.consumer);
     }
 
     /// In an owned body, at an instance that receives some of the
@@ -808,7 +791,8 @@ impl Em<'_, '_, '_> {
     /// check left ([`Em::read_walked`]).
     fn read_after(&self, i: u32) -> Option<u32> {
         use hd_tir::ir::ReadMode::{Borrow, Copy};
-        let &(blk, pos) = self.own_at.get(i as usize).filter(|at| at.0 != NONE)?;
+        let blk = *self.topo.blk.get(i as usize).filter(|&&blk| blk != NONE)?;
+        let pos = self.topo.pos[i as usize];
         let r = *self
             .rec(self.b.data[blk as usize][0])
             .get(pos as usize + 1)?;

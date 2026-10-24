@@ -19,6 +19,7 @@
 // (std-net.handles.closed). The program's thread checks the host's form
 // and the grant before it posts an operation that accesses an address;
 // a metadata-only check may first reject a closed or unknown handle.
+import { postReply } from "./worker-control.mjs";
 import dgram from "node:dgram";
 import { promises as dns } from "node:dns";
 import net from "node:net";
@@ -132,10 +133,19 @@ class Inbox {
   }
 }
 
+// How many received bytes a stream holds before it stops reading from the
+// socket. Reading pauses there, so a fast peer meets backpressure from the
+// hd reader instead of filling this process's memory (std-net.read).
+const READ_AHEAD = 256 * 1024;
+const queued = (inbox) => inbox.items.reduce((n, item) => n + item.value.length, 0);
+
 // A TCP stream handle: its socket and the data it received.
 const stream = (socket) => {
   const inbox = new Inbox();
-  socket.on("data", (c) => inbox.push(c));
+  socket.on("data", (c) => {
+    inbox.push(c);
+    if (queued(inbox) >= READ_AHEAD) socket.pause();
+  });
   socket.on("end", () => inbox.finish({ end: true }));
   socket.on("error", (e) => inbox.finish({ error: e }));
   socket.on("close", () => inbox.finish({ end: true }));
@@ -384,6 +394,7 @@ const ops = {
     retain?.(() => {
       if (!h.closed) h.inbox.restore(unread);
     });
+    if (h.socket.isPaused() && queued(h.inbox) < READ_AHEAD / 2) h.socket.resume();
     return { ok: chunk };
   },
   // std-net.write: once every byte is written.
@@ -539,14 +550,12 @@ export const run = async (r) => {
 };
 
 const { port, flag } = workerData;
-port.on("message", async (r) => {
+port.on("message", async ({ id, request: r }) => {
   let out;
   try {
     out = await run(r);
   } catch (e) {
     out = fail("Other", String(e?.message ?? e));
   }
-  port.postMessage(out);
-  Atomics.store(flag, 0, 1);
-  Atomics.notify(flag, 0);
+  postReply(port, flag, id, out);
 });

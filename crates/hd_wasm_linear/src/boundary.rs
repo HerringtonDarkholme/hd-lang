@@ -400,7 +400,11 @@ fn json(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy> 
         _ => None,
     };
     if at.out {
-        let Some(encode) = codecs.encode else {
+        let Some(encode) = (if at.package {
+            codecs.package_encode
+        } else {
+            codecs.encode
+        }) else {
             return unsupported(format!(
                 "`{}` at a profile's boundary without its Serialize codec",
                 name()
@@ -415,7 +419,11 @@ fn json(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy> 
             decoded_walk: None,
         })));
     }
-    let (Some(decode), Some(decoded)) = (codecs.decode, codecs.decoded) else {
+    let (Some(decode), Some(decoded)) = (if at.package {
+        (codecs.package_decode, codecs.package_decoded)
+    } else {
+        (codecs.decode, codecs.decoded)
+    }) else {
         return unsupported(format!(
             "`{}` at a profile's boundary without its Deserialize codec",
             name()

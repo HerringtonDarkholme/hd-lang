@@ -35,7 +35,7 @@ pub enum Value {
     Record(Vec<Field>),
     Enum(Vec<Variant>),
     Result(Box<Self>, Box<Self>),
-    /// A private-field boundary's existing Serialize/Deserialize JSON text.
+    /// A private-field boundary's Serialize/Deserialize value (typed transport).
     Json,
     /// The import module of a host-returned handle interface.
     Handle(String),

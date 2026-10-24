@@ -978,9 +978,8 @@ struct Em<'i, 'a, 'm> {
     /// A consumer that cannot move the count in takes a count of its own,
     /// and the value is released after it ([`Em::release_untaken`]).
     consumer: Vec<u32>,
-    /// In an owned body, each instruction's block and position in it, or
-    /// `NONE` (`Em::own_drop_rest`).
-    own_at: Vec<(u32, u32)>,
+    /// The body's block structure.
+    topo: hd_tir::ir::Topology,
     own_ops: Vec<hd_tir::own::Operand>,
     /// The hoisted `IsUnique`s met before the loop that follows them
     /// (`docs/compiler/tir-v2.md`, "Hoisting"), which run at that loop
@@ -1074,7 +1073,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             owned: false,
             sub_id: 0,
             consumer: Vec::new(),
-            own_at: Vec::new(),
+            topo: hd_tir::ir::Topology::new(b),
             own_ops: Vec::new(),
             hoisted: Vec::new(),
             deref_physical: false,
@@ -1348,7 +1347,7 @@ impl Em<'_, '_, '_> {
             return unsupported("a block operand that is not a block");
         }
         let [list, tail] = self.b.data[blk as usize];
-        let labelled = self.b.label_inst.contains(&blk);
+        let labelled = self.topo.label_of[blk as usize] != NONE;
         if labelled {
             self.open(Ctl::Brk(blk));
         }
@@ -1374,7 +1373,7 @@ impl Em<'_, '_, '_> {
         } else if tail != NONE
             && self.owned
             && self.consumer.get(tail as usize) == Some(&blk)
-            && !self.b.sub_root.contains(&blk)
+            && !self.topo.is_root[blk as usize]
         {
             // A tail the passes gave to a block whose value no one reads;
             // a sub-body's root's is its result, which `body_func` takes.
@@ -1669,7 +1668,7 @@ impl Em<'_, '_, '_> {
             }
             Tag::Loop => {
                 self.slot(i)?;
-                let caches = self.begin_list_loop(i, a)?;
+                let caches = self.begin_list_loop(i)?;
                 self.open(Ctl::Brk(i));
                 self.f.op(Instruction::Loop(BlockType::Empty));
                 self.ctl.push(Ctl::Cont(i));
@@ -1879,80 +1878,6 @@ impl Em<'_, '_, '_> {
                 self.close();
             }
             tag => return unsupported(format!("`{}` (job 3, #540)", tag.name())),
-        }
-        Ok(())
-    }
-
-    /// A `Store` into a whole local: TIR local `l` takes
-    /// value `v` (`NONE` for an empty initialization). A cell takes it in
-    /// memory; any other local takes a count of the new value and drops
-    /// the old one's, except a binding that borrows ([`Em::loan_locals`]).
-    fn local_set(&mut self, i: u32, l: u32, v: u32) -> StageResult<()> {
-        if self.is_cell(l as usize) {
-            if v != NONE && self.diverges(v) {
-                self.f.op(Instruction::Unreachable);
-                return Ok(());
-            }
-            return self.cell_set(i, l as usize, v);
-        }
-        let ls = self.local(l)?;
-        if self.loan_locals.contains_key(&(l as usize)) {
-            self.push(v)?;
-            for x in ls.iter().rev() {
-                self.f.set(*x);
-            }
-            return Ok(());
-        }
-        if v == NONE {
-            return Ok(());
-        }
-        if self.diverges(v) {
-            self.f.op(Instruction::Unreachable);
-            return Ok(());
-        }
-        let t = self.sub(self.b.local_ty[l as usize]);
-        let mut s = value::Src::Ref(v);
-        if self.counted(t).is_some() {
-            s = self.consumed(v)?;
-            self.release_locals(&ls, t)?;
-        }
-        self.push_src(&s)?;
-        for x in ls.iter().rev() {
-            self.f.set(*x);
-        }
-        Ok(())
-    }
-
-    /// A `Store` into a whole top-level binding: `def`
-    /// takes value `v`, in its static slot when some reference refers to
-    /// it, else in its Wasm globals.
-    fn global_set(&mut self, def: DefId, v: u32) -> StageResult<()> {
-        if let Some(at) = self.def_slot(def) {
-            return self.slot_set(def, at, v);
-        }
-        let h = self.def_hash(def);
-        if self.diverges(v) {
-            self.f.op(Instruction::Unreachable);
-            return Ok(());
-        }
-        let vs = self.vals(self.ty_of(v))?;
-        let t = self.ty_of(v);
-        let mut s = value::Src::Ref(v);
-        if self.counted(t).is_some() {
-            self.note_stored(h, t, None)?;
-            s = self.consumed(v)?;
-            let old: Vec<u32> = vs.iter().map(|x| self.f.local(*x)).collect();
-            for (k, (x, o)) in vs.iter().zip(&old).enumerate() {
-                self.f
-                    .global_get(Global::Storage(h, u32::try_from(k).expect("k"), *x));
-                self.f.set(*o);
-            }
-            self.release_locals(&old, t)?;
-        }
-        self.push_src(&s)?;
-        for (k, x) in vs.into_iter().enumerate().rev() {
-            self.f
-                .global_set(Global::Storage(h, u32::try_from(k).expect("k"), x));
         }
         Ok(())
     }
@@ -2772,14 +2697,7 @@ impl Em<'_, '_, '_> {
             return self.store_as(i, w == hd_tir::ir::ReadMode::Move as u32);
         }
         let s = self.retain_src(&value::Src::Ref(w), t)?;
-        for (k, l) in m.leaves.iter().enumerate() {
-            let address = |em: &mut Self| {
-                em.f.get(at);
-                Ok(())
-            };
-            self.store_leaf(&address, 0, *l, &mut |em: &mut Self| em.src(&s, k))?;
-        }
-        Ok(())
+        self.write_new(value::Dst::Mem(at, 0, &m.leaves), &s)
     }
 
     /// The result type `T` of a `Suspend[T]`.

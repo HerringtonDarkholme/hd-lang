@@ -1036,7 +1036,7 @@ references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
 ### 23.21 Suspension Frames And Wakers
 
 Suspending code uses §14's state machine, waker, entry driver
-and cancellation (docs/future-work/CANCELLATION_AND_CLEANUP.md) over
+and cancellation (spec/lang/11-requirements-and-suspension.md, Cancellation) over
 counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
 
 - **The frame.** A frame is a counted object. Its payload starts with
@@ -1866,7 +1866,7 @@ store, and removes the scaffolding that a folded view test left.
 - **One field store.** A write into a field path of a list element
   (`xs[i].p.x = v`) is one `Store [%xs [%i] .p .x] v` (TIR v2 stage 1;
   #655 first made it an intrinsic). It used to read the element out,
-  rebuild each struct on the path and store the whole element back. The emitter (`elem_store`) checks the index, after the
+  rebuild each struct on the path and store the whole element back. The emitter (`place_store`) checks the index, after the
   passes' `IsUnique` made the buffer unique, and stores only the field's
   values at their offsets. A field with counted references releases its
   old value after the new one is counted. Reads already load only the

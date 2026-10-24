@@ -46,14 +46,13 @@
 
 use hd_types::Ty;
 
-use super::{Body, IntrinsicOp, NONE, Tag, place, u32_of};
+use super::{Body, IntrinsicOp, NONE, PlaceView, Root, Tag, Topology, place, u32_of};
 use crate::own::{Loc, operands};
 
 /// The tables of [`root_places`], reused across bodies.
 #[derive(Default)]
 pub struct RootTables {
-    blk: Vec<u32>,
-    pos: Vec<u32>,
+    topo: Topology,
     /// The uses of each value, in compressed rows by value: the
     /// instruction, and whether the use is the root of its place.
     start: Vec<u32>,
@@ -68,48 +67,9 @@ pub struct RootTables {
     edits: crate::own::splice::Tables,
 }
 
-/// The root words of place word `word`, a local's or a top-level
-/// binding's, with how many there are, and the `extra` range of its
-/// projection words; `None` for a place rooted elsewhere.
-fn local_root(b: &Body, word: u32) -> Option<([u32; 3], usize, u32, u32)> {
-    if word & place::BARE_LOCAL != 0 {
-        return Some(([place::ROOT_LOCAL, word & !place::BARE_LOCAL, 0], 2, 0, 0));
-    }
-    let at = word as usize;
-    let n = *b.extra.get(at)?;
-    let k = match *b.extra.get(at + 1)? {
-        place::ROOT_LOCAL => 2,
-        place::ROOT_GLOBAL => 3,
-        _ => return None,
-    };
-    let mut root = [0; 3];
-    root[..k].copy_from_slice(b.extra.get(at + 1..at + 1 + k)?);
-    Some((root, k, word + 1 + u32_of(k), word + 1 + n))
-}
-
-/// Whether the projection words `from..to` hold a step of one of the
-/// kinds `kinds` (`place::PROJ_*`).
-fn has_step(b: &Body, from: u32, to: u32, kinds: &[u32]) -> bool {
-    let mut x = from;
-    while x < to {
-        let kind = b.extra[x as usize] & place::PROJ_KIND;
-        if kinds.contains(&kind) {
-            return true;
-        }
-        x += if kind == place::PROJ_ELEM { 2 } else { 1 };
-    }
-    false
-}
-
-/// Whether the projection words `from..to` hold an element step.
-fn has_elem(b: &Body, from: u32, to: u32) -> bool {
-    has_step(b, from, to, &[place::PROJ_ELEM])
-}
-
-/// Whether the projection words `from..to` go into memory: an element or
-/// a dereference.
-fn has_mem(b: &Body, from: u32, to: u32) -> bool {
-    has_step(b, from, to, &[place::PROJ_ELEM, place::PROJ_DEREF])
+/// Whether place `p` goes into memory: an element or a dereference.
+fn has_mem(b: &Body, p: PlaceView) -> bool {
+    p.kinds(b) != (0, false)
 }
 
 /// Whether statement `i` leaves every place as it was and calls nothing:
@@ -150,16 +110,7 @@ fn unchecked(b: &Body, s: usize) -> bool {
     if b.tags[s] != Tag::Read {
         return false;
     }
-    let w = b.data[s][0];
-    if w & place::BARE_LOCAL != 0 {
-        return true;
-    }
-    let n = b.extra[w as usize];
-    let first = match b.extra.get(w as usize + 1) {
-        Some(&place::ROOT_GLOBAL) => w + 4,
-        _ => w + 3,
-    };
-    !has_elem(b, first, w + 1 + n)
+    !b.view(b.data[s][0]).kinds(b).1
 }
 
 /// Whether local `l` keeps its value from read `v` to its last use `last`
@@ -170,7 +121,7 @@ fn unreached(b: &Body, l: u32, v: usize, last: usize, mark: &[u32]) -> bool {
     use super::local_flags::{CAPTURED, CAPTURED_ASSIGNED};
     let names = |x: usize| {
         matches!(b.tags[x], Tag::Read | Tag::Store | Tag::Ref)
-            && local_root(b, b.data[x][0]).is_some_and(|(root, n, ..)| n == 2 && root[1] == l)
+            && b.view(b.data[x][0]).local() == Some(l)
     };
     b.local_flags[l as usize] & (CAPTURED | CAPTURED_ASSIGNED) == 0
         && !(v + 1..last).any(|x| mark[x] != u32_of(v) && names(x))
@@ -181,24 +132,11 @@ fn unreached(b: &Body, l: u32, v: usize, last: usize, mark: &[u32]) -> bool {
 /// says whether a type names a type parameter or an associated type.
 pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) {
     let n = b.len();
-    t.blk.clear();
-    t.blk.resize(n, NONE);
-    t.pos.clear();
-    t.pos.resize(n, 0);
+    t.topo.build(b);
     t.gone.clear();
     t.gone.resize(n, false);
     t.mark.clear();
     t.mark.resize(n, NONE);
-    for i in 0..n {
-        if b.tags[i] == Tag::Block {
-            for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
-                if (m as usize) < n {
-                    t.blk[m as usize] = u32_of(i);
-                    t.pos[m as usize] = u32_of(p);
-                }
-            }
-        }
-    }
     // Every use of each value, and whether it is its place's root.
     t.start.clear();
     t.start.resize(n + 1, 0);
@@ -220,8 +158,7 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
         let word = b.data[i][0];
         // The place's root value sits at the record's third word.
         let root_at = (matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref)
-            && word & place::BARE_LOCAL == 0
-            && b.extra.get(word as usize + 1) == Some(&place::ROOT_VALUE))
+            && matches!(b.view(word).root, Root::Value(_) | Root::Const(_)))
         .then(|| word + 2);
         for op in &ops {
             let v = op.value as usize;
@@ -232,7 +169,9 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
     }
     t.ops = ops;
     for v in 0..n {
-        if b.tags[v] != Tag::Read || b.data[v][1] != super::ReadMode::Use as u32 || t.blk[v] == NONE
+        if b.tags[v] != Tag::Read
+            || b.data[v][1] != super::ReadMode::Use as u32
+            || t.topo.blk[v] == NONE
         {
             continue;
         }
@@ -240,25 +179,19 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
         // reference a call returned) folds into its stores and references
         // alone, which name their place.
         let w = b.data[v][0];
-        let (valued, found) = match local_root(b, w) {
-            Some(found) => (false, found),
-            None if w & place::BARE_LOCAL == 0
-                && b.extra.get(w as usize + 1) == Some(&place::ROOT_VALUE)
-                && has_mem(b, w + 3, w + 1 + b.extra[w as usize]) =>
-            {
-                let root = [place::ROOT_VALUE, b.extra[w as usize + 2], 0];
-                (true, (root, 2, w + 3, w + 1 + b.extra[w as usize]))
-            }
-            None => continue,
+        let p = b.view(w);
+        let valued = match p.root {
+            Root::Local(_) | Root::Global(..) => false,
+            Root::Value(_) | Root::Const(_) if has_mem(b, p) => true,
+            _ => continue,
         };
-        let (root, roots, from, to) = found;
         let (lo, hi) = (t.start[v] as usize, t.start[v + 1] as usize);
         // A top-level binding's type is never open.
-        if lo == hi || !valued && roots == 2 && open(b.local_ty[root[1] as usize]) {
+        if lo == hi || matches!(p.root, Root::Local(l) if open(b.local_ty[l as usize])) {
             continue;
         }
-        let blk = t.blk[v];
-        let mut last = t.pos[v];
+        let blk = t.topo.blk[v];
+        let mut last = t.topo.pos[v];
         let (mut ok, mut kept) = (true, false);
         for &(u, root) in &t.uses[lo..hi] {
             let entry = !root
@@ -269,31 +202,26 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
             // memory the value names (a referent, a buffer): one that names
             // the value's own parts would change or address a copy, which
             // the local does not hold.
-            let through = |b: &Body| {
-                let w = b.data[u as usize][0];
-                let n = b.extra[w as usize];
-                has_mem(b, w + 3, w + 1 + n)
-            };
+            let through = |b: &Body| has_mem(b, b.view(b.data[u as usize][0]));
             if !(root || entry)
-                || t.blk[u as usize] != blk
-                || t.pos[u as usize] <= t.pos[v]
+                || t.topo.blk[u as usize] != blk
+                || t.topo.pos[u as usize] <= t.topo.pos[v]
                 || (root && b.tags[u as usize] != Tag::Read && !through(b))
             {
                 ok = false;
                 break;
             }
-            last = last.max(t.pos[u as usize]);
+            last = last.max(t.topo.pos[u as usize]);
             t.mark[u as usize] = u32_of(v);
         }
         let mut quiet = ok && !valued;
         if ok {
-            let elem = has_elem(b, from, to);
+            let elem = p.kinds(b).1;
             let members = b.record(b.data[blk as usize][0]);
-            let between = &members[t.pos[v] as usize + 1..last as usize];
-            let calm = !valued
-                && roots == 2
-                && !has_mem(b, from, to)
-                && unreached(b, root[1], v, members[last as usize] as usize, &t.mark);
+            let between = &members[t.topo.pos[v] as usize + 1..last as usize];
+            let calm = p.local().is_some_and(|l| {
+                !has_mem(b, p) && unreached(b, l, v, members[last as usize] as usize, &t.mark)
+            });
             for &s in between {
                 let s = s as usize;
                 let fine = t.gone[s]
@@ -320,14 +248,18 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
                 kept = true;
                 continue;
             }
-            let word = b.data[u][0];
-            let len = b.extra[word as usize];
+            let q = b.view(b.data[u][0]);
             t.words.clear();
-            t.words.extend_from_slice(&root[..roots]);
+            match p.root {
+                Root::Local(l) if w & place::BARE_LOCAL != 0 => {
+                    t.words.extend([place::ROOT_LOCAL, l]);
+                }
+                _ => t
+                    .words
+                    .extend_from_slice(&b.extra[w as usize + 1..p.to as usize]),
+            }
             t.words
-                .extend_from_slice(&b.extra[from as usize..to as usize]);
-            t.words
-                .extend_from_slice(&b.extra[word as usize + 3..(word + 1 + len) as usize]);
+                .extend_from_slice(&b.extra[q.from as usize..q.to as usize]);
             let at = u32_of(b.extra.len());
             b.extra.push(u32::try_from(t.words.len()).expect("place"));
             b.extra.extend_from_slice(&t.words);
@@ -335,12 +267,12 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
         }
         if !kept {
             t.gone[v] = true;
-            t.edits.remove(blk, u32_of(v));
+            t.edits.remove(u32_of(v));
         }
     }
     if t.gone.iter().any(|g| *g) {
         // A folded read has no use left, so the rebuild only drops it.
-        crate::own::splice::apply(b, &mut t.edits).expect("a rebuild that only deletes");
+        crate::own::splice::apply(b, &t.topo, &mut t.edits).expect("a rebuild that only deletes");
     }
     t.edits.clear();
 }

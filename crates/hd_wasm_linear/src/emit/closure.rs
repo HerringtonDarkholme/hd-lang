@@ -15,7 +15,7 @@ use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
 use super::Em;
-use super::value::Src;
+use super::value::{Dst, Src};
 use crate::layout::{Mem, Part, Walk, env_mem, mem as mem_of, strip};
 use crate::module::{Sym, Val};
 use crate::unsupported;
@@ -312,31 +312,11 @@ impl Em<'_, '_, '_> {
     /// pushes, in the cell's layout and with the count the cell takes,
     /// then releases the old one.
     pub(super) fn cell_put(&mut self, l: usize, src: &Src) -> StageResult<()> {
-        let t = self.cell_ty(l);
-        let c = self.cell_of(l)?;
-        let (m, walk) = self.cell_mem(l)?;
-        let old: Vec<u32> = m.leaves.iter().map(|x| self.f.local(x.val)).collect();
-        if walk.is_some() {
-            for (leaf, o) in m.leaves.iter().zip(&old) {
-                self.f.get(c);
-                self.f.op(leaf.load(0));
-                self.f.set(*o);
-            }
-        }
-        self.store_part(
-            c,
-            &m,
-            Part {
-                first: 0,
-                count: m.leaves.len(),
-                offset: 0,
-            },
-            src,
-        )?;
-        if walk.is_some() {
-            self.release_locals(&old, t)?;
-        }
-        Ok(())
+        let at = self.cell_of(l)?;
+        let (m, _) = self.cell_mem(l)?;
+        let d = Dst::Mem(at, 0, &m.leaves);
+        let old = self.old_locals(d);
+        self.replace_late(d, self.cell_ty(l), src, &old)
     }
 
     /// One count less on the cell address on the stack.

@@ -1,0 +1,3 @@
+use dep.sdk.Server
+pub fn main() -> void $ Console + Server:
+    println("${$.use(Server).read()}")

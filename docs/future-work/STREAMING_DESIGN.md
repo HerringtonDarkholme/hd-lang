@@ -19,9 +19,9 @@ handle is a plain descriptor id that std wraps, as Rust's `File` wraps
 a file descriptor.
 
 This is the design for issue #350; nothing in it is implemented yet,
-and every name is a placeholder. It answers question 5 of
-[Standard Library Redesign](STDLIB_REDESIGN.md), which recommended one
-reader shape added beside the buffered terminals.
+and every name is a placeholder. It adds one
+reader shape beside the buffered terminals, as
+[the standard library convention](STDLIB.md) allows.
 
 ## 1. The Problem
 
@@ -53,15 +53,15 @@ pub trait ErrorType:
     type Error                                   # implements std.error.Error
 
 pub trait Reader < ErrorType:
-    fn read_into!(mut self, buffer: mut List[u8], max: usize) -> Result[usize, Self::Error]
-    fn read!(mut self, max: usize) -> Result[List[u8], Self::Error]     # default: a new list, then read_into!
-    fn read_all!(mut self) -> Result[List[u8], Self::Error]            # default: read_into! until the end
+    fn read_into!(&mut self, buffer: &mut List[u8], max: usize) -> Result[usize, Self::Error]
+    fn read!(&mut self, max: usize) -> Result[List[u8], Self::Error]     # default: a new list, then read_into!
+    fn read_all!(&mut self) -> Result[List[u8], Self::Error]            # default: read_into! until the end
 
 pub trait Writer < ErrorType:
-    fn write!(mut self, bytes: List[u8]) -> Result[void, Self::Error]
-    fn write_text!(mut self, text: string) -> Result[void, Self::Error]  # default: write! of the UTF-8 bytes
-    fn flush!(mut self) -> Result[void, Self::Error]                    # default: .Ok(())
-    fn finish!(mut self) -> Result[void, Self::Error]                   # default: flush!; a handle also closes
+    fn write!(&mut self, bytes: List[u8]) -> Result[void, Self::Error]
+    fn write_text!(&mut self, text: string) -> Result[void, Self::Error]  # default: write! of the UTF-8 bytes
+    fn flush!(&mut self) -> Result[void, Self::Error]                    # default: .Ok(())
+    fn finish!(&mut self) -> Result[void, Self::Error]                   # default: flush!; a handle also closes
 ```
 
 | Source | Buffered terminal (unchanged) | Streaming terminal (new) | Handle | Error |
@@ -69,16 +69,16 @@ pub trait Writer < ErrorType:
 | HTTP | `Request.send!`, `Client.send!` | `send_streaming!` | `StreamedResponse`: `Reader` | `HttpError` |
 | Process | `Command.run!` | `Command.spawn!` | `Child` with `PipeReader?` and `PipeWriter?` fields | `ProcessError` |
 | Files | `read_text!`, `write_text!` | `open!`, `create!` | `FileReader`, `FileWriter` | `FsError` |
-| TCP | none | `connect!`, `accept!` | `dyn TcpStream`: both | `NetError` |
+| TCP | none | `connect!`, `accept!` | `&dyn TcpStream`: both | `NetError` |
 
 1. **Pull, not push.** Nothing is read until the program reads. A read
    returns at least one byte, or zero bytes at the end.
-2. **Plain handles, closed by `using`.** Every handle is a plain `mut`
+2. **Plain handles, closed by `using`.** Every handle is a plain
    value that implements `Disposable`. A `using` binding disposes it at
    scope end, on every exit and on cancellation. Disposing closes it;
    disposing a closed handle does nothing. There is no `close` method.
-3. **Shared use.** Reads and writes take `mut self`, so a helper takes
-   `mut R` or `mut dyn Reader[Error = E]`, and the caller holds the same
+3. **Shared use.** Reads and writes take `&mut self`, so a helper takes
+   `&mut R` or `&mut dyn Reader[Error = E]`, and the caller holds the same
    handle afterwards.
 4. **Module errors, with `Closed`.** A handle reports its module's enum
    through the associated type `Error`. Any call on a closed handle
@@ -104,11 +104,11 @@ A downloader shows progress while it hashes a large file:
 use std.digest.Sha256
 use std.http.{Http, Request}
 
-fn fetch_digest!(url: string) -> Result[string, dyn Error] $ Http + Console:
+fn fetch_digest!(url: string) -> Result[string, &dyn Error] $ Http + Console:
     using response = Request::get(url).send_streaming!()?
     total := response.header("content-length").unwrap_or("?")
-    let hasher: mut Sha256 = Sha256::new()
-    let buffer: mut List[u8] = []
+    let mut hasher: Sha256 = Sha256::new()
+    let mut buffer: List[u8] = []
     let seen: u64 = 0
     while true:
         buffer.clear()
@@ -140,7 +140,7 @@ A build runner prints each warning while `cargo` runs:
 use std.io.LineReader
 use std.process.{Command, Process, Stdio}
 
-fn build!(dir: Path) -> Result[usize, dyn Error] $ Process + Console:
+fn build!(dir: Path) -> Result[usize, &dyn Error] $ Process + Console:
     using child = Command::new("cargo").arg("build").current_dir(dir).stdout(Stdio.Inherit).spawn!()?
     err := child.stderr.expect("stderr is piped by default")
     lines := LineReader::new(err)
@@ -170,21 +170,21 @@ not waited for kills its process group, as cancelling `run!` does, so a
 cancelled build or an early `?` leaves no orphan.
 
 ```text
-pub data Child:
+pub struct Child:
     pub stdin: PipeWriter?
     pub stdout: PipeReader?
     pub stderr: PipeReader?
 
 impl Disposable for Child:
-    fn dispose(mut self) -> void                  # kills the process group if still running, closes the pipes
+    fn dispose(&mut self) -> void                  # kills the process group if still running, closes the pipes
 
 impl Child:
-    pub fn wait!(mut self) -> Result[ProcessOutput, ProcessError]
+    pub fn wait!(&mut self) -> Result[ProcessOutput, ProcessError]
 
 impl Command:
-    pub fn spawn!(self) -> Result[mut Child, ProcessError] $ Process
-    pub fn stdout(mut self, mode: Stdio) -> mut Command
-    pub fn stderr(mut self, mode: Stdio) -> mut Command
+    pub fn spawn!(self) -> Result[&mut Child, ProcessError] $ Process
+    pub fn stdout(&mut self, mode: Stdio) -> &mut Command
+    pub fn stderr(&mut self, mode: Stdio) -> &mut Command
 
 pub enum Stdio:
     Piped                                         # the default; run! captures it
@@ -203,7 +203,7 @@ an inherited stream is `""` in the output.
 use std.fs.{FsWrite, create}
 use std.io.copy
 
-fn download!(url: string, to: Path) -> Result[u64, dyn Error] $ Http + FsWrite:
+fn download!(url: string, to: Path) -> Result[u64, &dyn Error] $ Http + FsWrite:
     using response = Request::get(url).send_streaming!()?
     using file = create!(to)?
     copied := copy!(response, file)?
@@ -226,8 +226,8 @@ pub enum CopyError[R, W]:
     Read(error: R)
     Write(error: W)
 
-pub fn copy![R < Reader, W < Writer](from: mut R, to: mut W) -> Result[u64, CopyError[R::Error, W::Error]]:
-    let buffer: mut List[u8] = []
+pub fn copy![R < Reader, W < Writer](from: &mut R, to: &mut W) -> Result[u64, CopyError[R::Error, W::Error]]:
+    let mut buffer: List[u8] = []
     let total: u64 = 0
     while true:
         buffer.clear()
@@ -254,7 +254,7 @@ A cache client sends a command and reads one reply line:
 use std.io.LineReader
 use std.net.{Net, NetError, connect}
 
-fn lookup!(key: string) -> Result[string?, dyn Error] $ Net:
+fn lookup!(key: string) -> Result[string?, &dyn Error] $ Net:
     using stream = connect!("cache.local", 6379)?
     lines := LineReader::new(stream)
     stream.write_text!("GET $key\n")?
@@ -273,15 +273,15 @@ no binding.
 
 ```text
 pub trait TcpStream < Reader[Error = NetError] & Writer[Error = NetError] & Disposable:
-    fn set_timeout(mut self, timeout: Duration?) -> Result[void, NetError]
-    fn set_nodelay(mut self, enabled: bool) -> Result[void, NetError]
-    fn set_keepalive(mut self, idle: Duration?) -> Result[void, NetError]
-    fn close_write!(mut self) -> Result[void, NetError]
+    fn set_timeout(&mut self, timeout: Duration?) -> Result[void, NetError]
+    fn set_nodelay(&mut self, enabled: bool) -> Result[void, NetError]
+    fn set_keepalive(&mut self, idle: Duration?) -> Result[void, NetError]
+    fn close_write!(&mut self) -> Result[void, NetError]
 
 pub trait TcpListener < Disposable:
-    fn accept!(mut self) -> Result[mut dyn TcpStream, NetError]
+    fn accept!(&mut self) -> Result[&mut dyn TcpStream, NetError]
 
-pub fn connect!(host: string, port: u16) -> Result[mut dyn TcpStream, NetError] $ Net: panic("stub")
+pub fn connect!(host: string, port: u16) -> Result[&mut dyn TcpStream, NetError] $ Net: panic("stub")
 ```
 
 `read!` and `write!` move to `Reader` and `Writer`. `close` goes:
@@ -298,7 +298,7 @@ A program pipes generated text into `sort` and reads the result:
 ```text
 use std.task.all
 
-fn sorted!(lines: List[string]) -> Result[string, dyn Error] $ Process:
+fn sorted!(lines: List[string]) -> Result[string, &dyn Error] $ Process:
     using child = Command::new("sort").spawn!()?
     input := child.stdin.expect("stdin is piped by default")
     output := child.stdout.expect("stdout is piped by default")
@@ -307,7 +307,7 @@ fn sorted!(lines: List[string]) -> Result[string, dyn Error] $ Process:
     child.wait!()?
     .Ok(string::from_utf8(text?)?)
 
-fn feed!(input: mut PipeWriter, lines: List[string]) -> Result[void, ProcessError]:
+fn feed!(input: &mut PipeWriter, lines: List[string]) -> Result[void, ProcessError]:
     for line in lines:
         input.write_text!("$line\n")?
     input.finish!()
@@ -326,16 +326,16 @@ Chunk iteration needs no type: a `while` loop over `read_into!`, as in
 producer:
 
 ```text
-pub data LineReader[R]:
-    source: mut R
-    buffer: mut List[u8]                          # bytes read but not yet returned
+pub struct LineReader[R]:
+    source: &mut R
+    buffer: List[u8]                          # bytes read but not yet returned
     limit: usize = 1048576
 
 impl[R < Reader] LineReader[R]:
-    pub fn new(source: mut R) -> mut LineReader[R]
-    pub fn limit(mut self, max: usize) -> mut LineReader[R]
-    pub fn read_line!(mut self) -> Result[string?, LineError[R::Error]]
-    pub fn read_until!(mut self, byte: u8) -> Result[List[u8]?, LineError[R::Error]]
+    pub fn new(source: &mut R) -> &mut LineReader[R]
+    pub fn limit(&mut self, max: usize) -> &mut LineReader[R]
+    pub fn read_line!(&mut self) -> Result[string?, LineError[R::Error]]
+    pub fn read_until!(&mut self, byte: u8) -> Result[List[u8]?, LineError[R::Error]]
 
 pub enum LineError[E]:
     Read(error: E)
@@ -449,7 +449,7 @@ same time.
 ```text
 use std.task.timeout
 
-fn first_line!(host: string) -> Result[string?, dyn Error] $ Net + Clock:
+fn first_line!(host: string) -> Result[string?, &dyn Error] $ Net + Clock:
     using stream = connect!(host, 25)?
     stream.set_timeout(.Some(5s))?                # each later read waits at most 5s
     lines := LineReader::new(stream)
@@ -482,7 +482,7 @@ associated type `Error` carries it, as the embedded-io crate's
 `ErrorType` does, so a generic helper writes `R::Error`. `std.io` names
 errors for its own operations only, as the convention allows a pure
 module (`DecodeError`, `TimedOut`): `LineError[E]` and `CopyError[R, W]`.
-A program that mixes sources returns `dyn Error`, as the tour does, or
+A program that mixes sources returns `&dyn Error`, as the tour does, or
 its own enum with `From` impls, which `?` finds.
 
 Each of the four enums gains a `Closed` variant, which replaces
@@ -499,12 +499,12 @@ terminal:
 
 ```text
 impl ScriptedReader:
-    pub fn new(chunks: List[List[u8]]) -> mut ScriptedReader[E]
-    pub fn failing(chunks: List[List[u8]], error: E) -> mut ScriptedReader[E]
+    pub fn new(chunks: List[List[u8]]) -> &mut ScriptedReader[E]
+    pub fn failing(chunks: List[List[u8]], error: E) -> &mut ScriptedReader[E]
 
 impl ScriptedWriter:
-    pub fn new() -> (mut ScriptedWriter[E], WriteLog)
-    pub fn failing(after: usize, error: E) -> (mut ScriptedWriter[E], WriteLog)
+    pub fn new() -> (&mut ScriptedWriter[E], WriteLog)
+    pub fn failing(after: usize, error: E) -> (&mut ScriptedWriter[E], WriteLog)
 
 impl WriteLog:
     pub fn bytes(self) -> List[u8]
@@ -537,7 +537,7 @@ test.
 ```text
 use std.io.{LineReader, ScriptedReader}
 
-fn count_errors![R < Reader](source: mut R) -> Result[usize, LineError[R::Error]]:
+fn count_errors![R < Reader](source: &mut R) -> Result[usize, LineError[R::Error]]:
     lines := LineReader::new(source)
     let count: usize = 0
     while true:
@@ -552,7 +552,7 @@ tests:
     use std.testing.assert_equal
 
     it("counts a line split across reads"):
-        using source: mut ScriptedReader[NetError] = ScriptedReader::new(["ok\nERR".to_utf8(), "OR disk\n".to_utf8()])
+        using source: &mut ScriptedReader[NetError] = ScriptedReader::new(["ok\nERR".to_utf8(), "OR disk\n".to_utf8()])
         assert_equal(count_errors!(source), .Ok(1), reason="one error line")
 ```
 

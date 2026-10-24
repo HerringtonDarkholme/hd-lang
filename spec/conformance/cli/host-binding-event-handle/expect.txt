@@ -1,5 +1,5 @@
 run: hd build --engine node
 file: build/debug/surface.host.mjs
-run: hd run --engine node --host pkg.main.Surface=provider.mjs
+run: hd run --engine node
 stdout: rendered 1
 stdout: click 7
