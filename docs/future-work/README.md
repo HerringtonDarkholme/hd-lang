@@ -40,6 +40,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
 - [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1. Its first cut, local references, is under investigation in #834 and will be folded in here (#704).
+- [Local References](LOCAL_REFERENCES.md): tier 2's first cut: local `&T` references on parameters, receivers and `let`, counted `*T` references to whole objects, soundness by counting rules without an exclusivity check; use cases, edge cases, prior art, a stress test, a prototype, costs and an implementation plan (#834).
 - [Refcount Runtime](REFCOUNT_RUNTIME.md): the linear-memory runtime of reference counting with cycle detection, priced on Wasm; it is the only backend (#426).
 - [Performance Roadmap](PERFORMANCE_ROADMAP.md): where time and memory go from the measurements on record, fixes by mechanism, and ranked hour-sized steps (#426).
 
