@@ -23,8 +23,8 @@ impl HostIo {
     #[must_use]
     pub fn process() -> HostIo {
         HostIo {
-            out: Box::new(std::io::stdout()),
-            err: Box::new(std::io::stderr()),
+            out: super::output::process_stdout(),
+            err: super::output::process_stderr(),
             input: Some(Box::new(std::io::BufReader::new(std::io::stdin()))),
         }
     }
@@ -36,6 +36,8 @@ pub(crate) const HELD_OUTPUT_BOUND: usize = 64 * 1024;
 
 /// The per-instance host state of the store.
 pub struct Host {
+    // Drop the reactor first: it cancels pending output before the writer joins.
+    pub(crate) reactor: Reactor,
     output: super::output::Output,
     /// Standard output not yet written.
     pub(crate) out: Vec<u8>,
@@ -50,7 +52,6 @@ pub struct Host {
     /// prefix: what a test runner reads the category and message of
     /// (`take_panic`), never the standard error text.
     panic: Option<String>,
-    pub(crate) reactor: Reactor,
     pub(crate) args: Vec<String>,
     pub(crate) program: String,
     pub(crate) grants: Grants,
@@ -263,7 +264,10 @@ impl Host {
                 }
                 return None;
             }
-            Control::Exit { status, close } => (status, close),
+            Control::Exit { status, close } => {
+                self.drop_pending();
+                (status, close)
+            }
             // A trapped run's pending operations can never finish: end
             // them, so a child it started is killed before the run ends.
             Control::Trap { close } => {
@@ -333,14 +337,14 @@ impl Host {
     }
 
     /// A guest bang write completes only when the writer accepted its
-    /// whole chunk. Aborting its wait discards the wake, not accepted bytes.
+    /// whole chunk. Aborting discards bytes not yet written to the stream.
     pub(crate) fn write_console(&mut self, to: Stream, line: Vec<u8>) -> i32 {
         self.flush();
-        let (handle, done) = self.reactor.output();
+        let (handle, wait, done) = self.reactor.output();
         if self.muted {
             done();
         } else {
-            self.output.write(to, line, Some(Box::new(done)));
+            self.output.write(to, line, Some((wait, Box::new(done))));
         }
         handle
     }

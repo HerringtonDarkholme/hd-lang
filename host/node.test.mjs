@@ -27,6 +27,7 @@ import { Dec, Enc, Err, Ok, str } from "./wire.mjs";
 import { METHODS } from "./gen/abi.mjs";
 
 import { cgroupCpuCount, createHost } from "./node.mjs";
+import { createOutput } from "./output.mjs";
 
 function fixture(t, files) {
   // The resolved path: grant errors report a path with its links resolved,
@@ -1684,48 +1685,96 @@ test("Console unreadable input reports Closed", async (t) => {
   call({ op: "wait_finish", operation });
 });
 
-// #816: the same queue orders guest writes and untracked panic/session
-// frames. Aborting a wait must keep every byte the writer accepted.
-test("Output full socket keeps control replies live and drains accepted bytes after abort", async (t) => {
-  const server = net.createServer();
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  t.after(() => server.close());
-  const accepted = once(server, "connection");
-  const writer = net.connect(server.address().port, "127.0.0.1");
-  await once(writer, "connect");
-  const [reader] = await accepted;
-  reader.pause();
-  t.after(() => {
-    writer.destroy();
-    reader.destroy();
+// #816: the real Console ABI must preserve start-then-abort semantics.
+for (const method of ["write", "write_error"]) {
+  test(`Console ${method} aborted before polling writes nothing`, async (t) => {
+    const root = fixture(t, { output: "" });
+    const fd = openSync(join(root, "output"), "w");
+    t.after(() => closeSync(fd));
+    const output = createOutput();
+    t.after(() => output.close());
+    const host = createHost({ out() {}, err() {}, write: (_, text) => output.write(fd, text) });
+    t.after(() => host.close());
+    const memory = new WebAssembly.Memory({ initial: 1 });
+    host.prime({ exports: { "hd.x": memory } });
+    new Uint8Array(memory.buffer).set(new TextEncoder().encode("must-not-be-written"));
+    const [status, operation] = host.imports["hd:Console"][`${method}.start`](19);
+    assert.equal(status, 1);
+    host.imports["hd:rt"].abort(operation);
+    await output.close();
+    assert.equal(readFileSync(join(root, "output"), "utf8"), "");
   });
-  const call = netWorker(t, {
-    url: new URL("./output.mjs", import.meta.url),
-    data: { output: true },
-  });
-  const text = "abcdefg".repeat(2400000);
-  const { ok: operation } = call({ op: "wait_start", fd: writer._handle.fd, text });
-  for (let i = 0; i < 5; i++) {
-    assert.deepEqual(call({ op: "wait_poll", operation }), { pending: true });
-    assert.deepEqual(call({ op: "idle" }), { ok: false });
-  }
-  call({ op: "wait_abort", operation });
-  const suffix = '\nerr\t"panic after output"\nran\tcomplete\n';
-  call({ op: "enqueue", fd: writer._handle.fd, text: suffix });
-  const chunks = [];
-  let count = 0;
-  reader.on("data", (bytes) => {
-    chunks.push(bytes);
-    count += bytes.length;
-  });
-  reader.resume();
-  await t.waitFor(
-    () => {
-      assert.equal(count, Buffer.byteLength(text + suffix));
-      assert.deepEqual(call({ op: "idle" }), { ok: true });
-    },
-    { timeout: 10000 },
-  );
-  assert.equal(Buffer.concat(chunks).toString(), text + suffix);
+}
+
+test("Output connection close cancels its guest's unpolled write", async (t) => {
+  const root = fixture(t, { output: "" });
+  const fd = openSync(join(root, "output"), "w");
+  t.after(() => closeSync(fd));
+  const output = createOutput();
+  t.after(() => output.close());
+  const connection = output.connection();
+  const guest = createOutput(connection);
+  guest.write(fd, "must-not-be-written");
+  connection.port.close();
+  await output.drain();
+  assert.equal(readFileSync(join(root, "output"), "utf8"), "");
 });
+
+// The queue keeps preceding writes in order. Cancellation drops an active
+// chunk's unwritten suffix as well as a later chunk still waiting in the queue.
+for (const abort of [false, true]) {
+  test(`Output full socket keeps control live (${abort ? "abort" : "finish"})`, async (t) => {
+    const server = net.createServer();
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    t.after(() => server.close());
+    const accepted = once(server, "connection");
+    const writer = net.connect(server.address().port, "127.0.0.1");
+    await once(writer, "connect");
+    const [reader] = await accepted;
+    reader.pause();
+    t.after(() => {
+      writer.destroy();
+      reader.destroy();
+    });
+    const call = netWorker(t, {
+      url: new URL("./output.mjs", import.meta.url),
+      data: { output: true },
+    });
+    const fd = writer._handle.fd;
+    const before = "earlier-output\n";
+    call({ op: "enqueue", fd, text: before });
+    const text = "abcdefg".repeat(2400000);
+    const { ok: operation } = call({ op: "wait_start", fd, text });
+    for (let i = 0; i < 5; i++) {
+      assert.deepEqual(call({ op: "wait_poll", operation }), { pending: true });
+      assert.deepEqual(call({ op: "idle" }), { ok: false });
+    }
+    if (abort) {
+      const queued = call({ op: "wait_start", fd, text: "must-not-be-written" }).ok;
+      assert.deepEqual(call({ op: "wait_poll", operation: queued }), { pending: true });
+      call({ op: "wait_abort", operation: queued });
+      call({ op: "wait_abort", operation });
+    }
+    const suffix = '\nerr\t"panic after output"\nran\tcomplete\n';
+    call({ op: "enqueue", fd, text: suffix });
+    const chunks = [];
+    reader.on("data", (bytes) => chunks.push(bytes));
+    const ended = once(reader, "end");
+    reader.resume();
+    await t.waitFor(() => assert.deepEqual(call({ op: "idle" }), { ok: true }), { timeout: 10000 });
+    writer.end();
+    await ended;
+    const received = Buffer.concat(chunks).toString();
+    assert(received.startsWith(before));
+    assert(received.endsWith(suffix));
+    const body = received.slice(before.length, -suffix.length);
+    assert.equal(body, text.slice(0, body.length));
+    if (abort) assert(body.length < text.length, "the unwritten suffix is discarded");
+    else {
+      assert.equal(body, text);
+      assert.deepEqual(call({ op: "wait_poll", operation }), { result: Ok(undefined) });
+      call({ op: "wait_finish", operation });
+    }
+  });
+}

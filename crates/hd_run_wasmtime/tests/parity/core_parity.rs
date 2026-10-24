@@ -1706,6 +1706,15 @@ fn console_full_pipe_yields_and_drains_on_both_engines() {
             }
             let progressed = marker.exists();
             let began = entered.exists();
+            let cancelled_without_reader = if fail && progressed {
+                let until = Instant::now() + Duration::from_secs(3);
+                while child.0.try_wait().unwrap().is_none() && Instant::now() < until {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                child.0.try_wait().unwrap().is_some()
+            } else {
+                true
+            };
             // Always release the reader, including the negative control,
             // so a regressed native writer cannot keep a process blocked.
             let mut stdout = child.0.stdout.take().unwrap();
@@ -1741,10 +1750,18 @@ fn console_full_pipe_yields_and_drains_on_both_engines() {
             } else {
                 &stdout
             };
-            assert_eq!(guest.len(), 2_097_152);
+            if fail {
+                assert!(
+                    cancelled_without_reader,
+                    "mode {mode}: cancellation discards the suffix before any reader resumes"
+                );
+                assert!(guest.len() < 2_097_152, "the unwritten suffix is discarded");
+            } else {
+                assert_eq!(guest.len(), 2_097_152);
+            }
             assert!(
                 guest.iter().all(|&b| b == b'x'),
-                "every accepted byte is preserved"
+                "the written prefix remains in order"
             );
             if fail {
                 assert!(String::from_utf8_lossy(&stderr).contains("output-panic-drain"));
