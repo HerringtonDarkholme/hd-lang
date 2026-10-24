@@ -1,7 +1,8 @@
 //! The bitset states of the ownership passes' dataflow walks (moves,
 //! known-null and the verifier), and the walks over the structured control
 //! flow they run on: backward for moves and the verifier's borrow walk,
-//! forward for the verifier's read-after-move and one-consumer walks.
+//! forward for known-null and the verifier's read-after-move and
+//! one-consumer walks.
 
 use super::{Operand, Role, fill, operands};
 use crate::ir::{Body, NONE, Ref, Tag, Topology, u32_of};
@@ -368,6 +369,9 @@ pub(crate) enum Suites {
 /// the paths.
 pub(crate) trait Forward {
     const SUITES: Suites;
+    /// What a loop's `Break`s carry joins over every round, not only the
+    /// last round's.
+    const ALL_ROUNDS: bool = false;
     /// Instruction `x` over `st`, unless it runs blocks: a jump before it
     /// leaves.
     fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, st: usize);
@@ -383,6 +387,24 @@ pub(crate) trait Forward {
     fn back(&mut self, _: &Body, _x: u32, _lp: u32, _s: &mut BitArena, _st: usize) {}
     /// `Return` `x` leaves the sub-body.
     fn exit(&mut self, _: &Body, _x: u32, _s: &mut BitArena, _st: usize) {}
+    /// Member `p` of block `blk` runs next, or the block ends (`p` is its
+    /// length); `y` is the analysis's own place in the block, from 0.
+    fn before(
+        &mut self,
+        _: &Body,
+        _blk: u32,
+        _p: usize,
+        _y: &mut usize,
+        _s: &mut BitArena,
+        _st: usize,
+    ) {
+    }
+    /// Whether member `x` of a block is gone and the walk skips it.
+    fn skip(&self, _x: u32) -> bool {
+        false
+    }
+    /// The walk enters a scope's cleanup suites (`true`), or leaves them.
+    fn suites(&mut self, _inside: bool) {}
 }
 
 /// Walks block `blk` of `b` forward from state `st` of `s`; false when no
@@ -417,8 +439,16 @@ impl<A: Forward> Ahead<'_, A> {
         let saved = self.s.open(self.topo, blk, None, NONE);
         // A block in the list runs where the instruction that owns it runs
         // it.
-        let mut members = b.record(b.data[blk as usize][0]).iter();
-        let mut falls = members.all(|&x| b.tags[x as usize] == Tag::Block || self.inst(x, st));
+        let members = b.record(b.data[blk as usize][0]);
+        let mut y = 0;
+        let mut falls = members.iter().enumerate().all(|(p, &x)| {
+            self.a.before(b, blk, p, &mut y, &mut self.s.arena, st);
+            b.tags[x as usize] == Tag::Block || self.a.skip(x) || self.inst(x, st)
+        });
+        if falls {
+            self.a
+                .before(b, blk, members.len(), &mut y, &mut self.s.arena, st);
+        }
         self.close(blk, saved, first, st, &mut falls);
         falls
     }
@@ -558,9 +588,11 @@ impl<A: Forward> Ahead<'_, A> {
         let label = self.topo.label_of[x as usize] as usize;
         // Each round but the last grows the head, by a bit at least.
         for _ in 0..self.s.arena.words * 64 + 2 {
-            // What the jumps carry is the last round's.
+            // What the jumps carry is the last round's, or every round's
+            // `Break`s with [`Forward::ALL_ROUNDS`].
             if let Some(j) = self.s.jumps.get_mut(label) {
-                *j = j.map(|(at, _)| (at, false));
+                j[0].1 &= A::ALL_ROUNDS;
+                j[1].1 = false;
             }
             self.s.arena.copy(end, head);
             let mut grew = false;
@@ -631,6 +663,7 @@ impl<A: Forward> Ahead<'_, A> {
         }
         if (falls || exits) && suites != NONE {
             let at = self.s.arena.alloc(None);
+            self.a.suites(true);
             for &suite in b.record(suites) {
                 self.s.arena.copy(at, from);
                 if self.block(suite, at) && falls {
@@ -641,6 +674,7 @@ impl<A: Forward> Ahead<'_, A> {
                     }
                 }
             }
+            self.a.suites(false);
         }
         self.s.arena.free(from);
         falls
