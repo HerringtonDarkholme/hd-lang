@@ -714,25 +714,57 @@ impl Em<'_, '_, '_> {
             }
             _ => {}
         }
-        self.unique_at(i)
+        let h = self.unique_at(i)?;
+        self.walked = self.read_after(i).map(|r| (r, h));
+        Ok(())
     }
 
-    /// The uniqueness check of `IsUnique` `i`'s place.
-    pub(super) fn unique_at(&mut self, i: u32) -> StageResult<()> {
+    /// The uniqueness check of `IsUnique` `i`'s place, and the local that
+    /// holds the place's header.
+    pub(super) fn unique_at(&mut self, i: u32) -> StageResult<u32> {
         let (h, t) = self.place_header(self.b.data[i as usize][0])?;
         if self.input.runtime.is_none() {
-            return Ok(());
+            return Ok(h);
         }
         // A map's type has its key and value types; a list's, one.
         if let Ok((_, _, e)) = self.entry(t) {
             self.f.get(h);
             self.f.helper(Helper::MapUnique { entry: e });
-            return Ok(());
+            return Ok(h);
         }
         let (_, e) = self.elem(t)?;
         self.f.get(h);
         self.f.helper(Helper::ListUnique { elem: e });
-        Ok(())
+        Ok(h)
+    }
+
+    /// The `copy` or `borrow` read of `IsUnique` `i`'s place, through a
+    /// step, that stands right after it in its block, outside an erased
+    /// body's thunk: the change's operand, which takes the header the
+    /// check's walk found ([`Em::read_walked`]).
+    fn read_after(&self, i: u32) -> Option<u32> {
+        use hd_tir::ir::ReadMode::{Borrow, Copy};
+        let &(blk, pos) = self.own_at.get(i as usize).filter(|at| at.0 != NONE)?;
+        let r = *self
+            .rec(self.b.data[blk as usize][0])
+            .get(pos as usize + 1)?;
+        let [a, mode] = self.b.data[r as usize];
+        let read = self.b.tags[r as usize] == Tag::Read
+            && [Copy as u32, Borrow as u32].contains(&mode)
+            && !matches!(self.calls.get(&r), Some(hd_mono::Target::Open(_)));
+        let place = self
+            .b
+            .decode_place(a)
+            .filter(|p| read && !p.proj.is_empty())?;
+        (Some(place) == self.b.decode_place(self.b.data[i as usize][0])).then_some(r)
+    }
+
+    /// `Read` `i` of the place whose header the `IsUnique` right before it
+    /// left in local `h`: one walk for both. A view's loan holds nothing.
+    pub(super) fn read_walked(&mut self, i: u32, h: u32) -> StageResult<()> {
+        self.begin_view_loan(i)?;
+        self.f.get(h);
+        self.store(i)
     }
 
     /// `Pin` `i`: the list's header becomes its buffer's one owner while

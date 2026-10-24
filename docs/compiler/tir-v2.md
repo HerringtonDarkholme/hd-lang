@@ -3855,6 +3855,74 @@ with the erasure on measured 122.2 and 122.7 ms for json and 215.4 and
 220.1 ms for string_build, the same bytes as 3b. The web compiler's
 gzip grows 1,075 B (1,906,745 to 1,907,820, both built here).
 
+3d makes every change name its place. One list of the operands an
+instruction changes in place (`own::changed`: a push's list, a map
+store's or removal's map, each in-place argument) serves insertion and
+the verifier, so `uniqueness`'s map arm goes and `m[k] = v` is
+`IsUnique [$m]`, `Read borrow [$m]` and the `MapSet`, the read standing
+right after the check where nothing between may write and read again
+there otherwise, as for a push (`own/a-map-change-names-its-place`). A
+read used by more than its change kept the check on its value before;
+the one such case in the conformance suite is the map read of
+`m[k] += 1`, which also finds the entry and reads the value. It now
+keeps its own count for those uses, and the change reads the place again
+and no longer counts as one of them (`Tables::reread`). A change through
+`[%m [%e]]` whose arguments may write reads the place again with a new
+`MapEntry` of the same key after the map's `IsUnique`, one per map value
+step on the path: `m[k].push(next(&mut k))` is the receiver's `Read
+borrow [$m [%e]]`, which only finds the entry, the call, `IsUnique
+[$m]`, `Read borrow [$m]`, `MapEntry` of the key read before the call,
+`IsUnique [$m [%e2]]`, `Read borrow [$m [%e2]]` and the push, and the
+key's `Drop` follows the push (`Tables::relook`). The emitter lowers a
+plain `IsUnique` and a `copy` or `borrow` read of the same place through
+a step right after it in its block as one walk: the read takes the
+header the check's walk left in a local (`Em::read_walked`). The
+verifier's `change_places` wants a change's operand that reads a place
+rooted at a local or a binding to read it right after the place's
+`IsUnique`, or anywhere a hoisted one names it, with only reads,
+arithmetic, coercions, constructions, drops and header copies between
+the read and the change. It fired on nothing outside the multiple-use
+case, so none of 3b's and 3c's open cases needed an exemption: a
+default method's `Bound` calls are not in-place to the passes, a call
+through a trait value or a function value is no `Call` the rule reads,
+and a suspending callee's `Await` keeps the form.
+
+Left open: an operand that reads no place rooted at a local or a binding
+still takes the check on its value, which 3f's write-back cannot store
+into, and the verifier skips it. Besides a value-rooted place, that
+includes a map value whose index calls something:
+`m["k$n"].push(twice(n))` keeps `[%3 [%13]]`, since place folding
+stops at the interpolation's call between the map's read and its
+`MapEntry`.
+
+3d adds 177 Rust code lines and deletes 61 against 145, under the stop
+line of 220 (`own/insert.rs` +62/−54, `ir/owned.rs` +54/−1, `own.rs`
++27, `emit/count.rs` +28/−5, `emit.rs` +6/−1); the verifier's test adds
+37 more. Four baselines change as the rule says:
+`changes-make-the-collection-unique` and
+`a-change-through-a-map-value-names-its-place` (whose push after a call
+now looks its entry up again, and which gains the key case), and the wat
+of `calls/a-mut-self-call-copies-the-receiver-out` and
+`maps/update-from-get`, where the receiver's read takes the check's
+header and `counts[word] = ...` borrows the map it read for its entry
+where it retained it. The new wat fixture
+`element-access/a-change-takes-the-header-its-check-found` shows the one
+walk. Release `.wasm` on node against 3c: json 169,956 to 168,515 B
+(−0.85%), map_count 18,514 to 18,443 (−0.38%), string_build 11,739 to
+11,687 (−0.44%), hello and the other nine byte-identical. Against
+6792b1bfa, built here (string_build 11,750, json 172,416, map_count
+18,662, hello 7,426), string_build is −0.5%, json −2.3% and map_count
+−1.2%: the +4.3% the plan started from was string_build at commit 1
+(12,253 B), and later commits shrank it before 3d. Study times on V8,
+`--quick`, medians of three interleaved rounds of 7 runs, under a load
+average of 8 to 16 from other builds: string_build 221 to 236 ms and
+211 to 237 ms, map_count 184 to 188 ms and 207 to 213 ms, json 125 to
+128 ms and 131 to 143 ms, with single rounds 50% apart, so noise. Run
+by run, 21 interleaved runs each: string_build 218 to 214 ms (CPU 268 to
+267 ms), map_count 181 to 181 ms (189 to 188), json 123 to 123 ms (166
+to 165). The web compiler's gzip grows 1,884 B (1,907,820 to 1,909,704,
+both built here).
+
 No commit carries two copy paths: through 3e both kinds copy by
 `ListCopy` (a new header over the same buffer), 3f moves both to the
 buffer copy glue at once, and 3g removes the header copies of both.

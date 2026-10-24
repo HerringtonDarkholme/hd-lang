@@ -1041,6 +1041,9 @@ struct Em<'i, 'a, 'm> {
     /// While [`Em::mark`] stores the marker, which no place holds, so no
     /// store copies it.
     marking: bool,
+    /// The `Read` right after a plain `IsUnique` of its place, and the
+    /// local holding the header the check's walk found ([`Em::own_unique`]).
+    walked: Option<(u32, u32)>,
 }
 
 impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
@@ -1126,6 +1129,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             deref_physical: false,
             copy_out: None,
             marking: false,
+            walked: None,
         };
         em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
         em
@@ -1503,7 +1507,10 @@ impl Em<'_, '_, '_> {
             }
         }
         self.emitting.push(i);
-        let mut r = self.inst_body(i);
+        let mut r = match self.walked.take() {
+            Some((x, h)) if x == i => self.read_walked(i, h),
+            _ => self.inst_body(i),
+        };
         self.emitting.pop();
         self.f.at = outer;
         if r.is_ok() && self.owned {

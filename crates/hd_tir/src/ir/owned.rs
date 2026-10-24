@@ -43,6 +43,10 @@
 //!   the place a hoisted one before an enclosing loop does; each
 //!   stable-list row names a loop and a place of that form, in order
 //!   ([`hoisted`]);
+//! - a collection change's operand that reads a place rooted at a local
+//!   or a top-level binding reads it right after the place's `IsUnique`
+//!   (or a hoisted one names the place), with nothing that may write
+//!   between that read and the change ([`change_places`]);
 //! - nothing tier 2 reserves: no `FlagSet`, `FlagClear` or `regions` row.
 //!
 //! The walks follow the body's layout: dense tables indexed by instruction,
@@ -50,7 +54,7 @@
 //! maps.
 
 use super::{
-    Body, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Tag, VerifyError,
+    Body, INLINED, IntrinsicOp, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Tag, VerifyError,
     is_suspension, local_flags, owned_blocks, place, verify_structure,
 };
 use crate::own::{OwnCx, Role, consumes, operands, tracked};
@@ -93,6 +97,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     decided(b, &mut errs);
     takes_outside_suspension(b, &mut errs);
     lent_refs(b, &mut errs);
+    change_places(b, own, &mut errs);
     hoisted(b, own, &mut errs);
     Empties::new(&cx).walk(&mut errs);
     borrow_spans(&cx, &mut errs);
@@ -397,6 +402,66 @@ fn lent_refs(b: &Body, errs: &mut Vec<VerifyError>) {
                 u32_of(i),
                 "a lent `Ref` that is no field of what a lent parameter refers to".into(),
             );
+        }
+    }
+}
+
+/// A collection change's operand that reads a place rooted at a local or
+/// a top-level binding (insertion's rule 5) is a `Read` of that place in
+/// the change's block, right after the place's `IsUnique` (or anywhere,
+/// where a hoisted `IsUnique` names the place), with only reads,
+/// arithmetic steps, coercions, constructions, drops and header copies
+/// between it and the change: nothing that may write the place or
+/// replace its buffer.
+fn change_places(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
+    let n = b.len();
+    let mut at = vec![(usize::MAX, 0); n];
+    for i in (0..n).filter(|&i| b.tags[i] == Tag::Block) {
+        for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
+            if let Some(x) = at.get_mut(m as usize) {
+                *x = (i, p);
+            }
+        }
+    }
+    let unique = |x: usize, p: &Place| {
+        b.tags[x] == Tag::IsUnique && b.decode_place(b.data[x][0]).as_ref() == Some(p)
+    };
+    let quiet = |&x: &u32| match b.tags[x as usize] {
+        Tag::Intrinsic => b.data[x as usize][0] == IntrinsicOp::ValueCopy as u32,
+        t => matches!(
+            t,
+            Tag::Read
+                | Tag::Prim
+                | Tag::Coerce
+                | Tag::NewTuple
+                | Tag::NewStruct
+                | Tag::NewVariant
+                | Tag::Drop
+        ),
+    };
+    for c in 0..n {
+        for (_, v) in crate::own::changed(b, cx, c) {
+            let r = v as usize;
+            let Some(p) = (Ref(v).as_inst().is_some() && r < n && b.tags[r] == Tag::Read)
+                .then(|| b.decode_place(b.data[r][0]))
+                .flatten()
+                .filter(|p| matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..)))
+            else {
+                continue;
+            };
+            let ((blk, pos), (cb, cp)) = (at[r], at[c]);
+            let list = if blk == usize::MAX {
+                &[][..]
+            } else {
+                b.record(b.data[blk][0])
+            };
+            let checked = pos > 0 && unique(list[pos - 1] as usize, &p)
+                || (0..n).any(|x| unique(x, &p) && b.data[x][1] == super::unique_word::HOISTED);
+            if !checked || blk != cb || cp <= pos || !list[pos + 1..cp].iter().all(quiet) {
+                let what =
+                    format!("change operand %{r} is no read of its place after its `IsUnique`");
+                err(errs, u32_of(c), what);
+            }
         }
     }
 }

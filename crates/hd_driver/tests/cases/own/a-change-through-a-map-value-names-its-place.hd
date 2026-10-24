@@ -3,12 +3,23 @@
 # element does: `m[k]` reads `[$m [%e]]` at the entry `MapEntry` found,
 # the `IsUnique`s are of the map and of the value's place, and the push
 # reads the place after them. Where an argument may write (a call), the
-# map may grow, and growth renumbers entries, so the push keeps the value
-# its receiver read and the check on that value.
+# map may grow, and growth renumbers entries, so after the call the push
+# looks its entry up again with the same key, after the map's `IsUnique`,
+# and reads the value's place at the new entry; the receiver's read only
+# finds the entry first. The key keeps its value and lives to the push,
+# even where the call changes the local it was read from.
 fn twice(n: i64) -> i64:
     n * 2
 
 fn add(mut m: Map[string, List[i64]], n: i64) -> Map[string, List[i64]]:
     m["a"].push(n)
     m["a"].push(twice(n))
+    m
+
+fn next(k: &mut string) -> i64:
+    *k = "b"
+    1
+
+fn add_at(mut m: Map[string, List[i64]], mut k: string) -> Map[string, List[i64]]:
+    m[k].push(next(&mut k))
     m
