@@ -646,7 +646,18 @@ async function packageOptions(
     .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
   return {
     packageRole: role,
-    dependencies: names.map((name) => ({ name, directory: resolve(directory, name) })),
+    dependencies: await Promise.all(
+      names.map(async (name) => {
+        const root = resolve(directory, name);
+        const pointer = resolve(root, "package-root.txt");
+        return {
+          name,
+          directory: existsSync(pointer)
+            ? resolve(root, (await readFile(pointer, "utf8")).trim())
+            : root,
+        };
+      }),
+    ),
   };
 }
 

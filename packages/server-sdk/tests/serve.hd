@@ -1,0 +1,68 @@
+use pkg.{HttpServer, Incoming, RequestId, ServerError, CancelReason, serve}
+use std.http.{Request, Response}
+use std.testing.{assert, assert_equal}
+
+struct Scripted:
+    next: u64
+    replies: List[(u64, Response)]
+
+impl HttpServer for Scripted:
+    fn accept!(&mut self) -> Result[Incoming?, ServerError]:
+        if self.next > 3:
+            return .Ok(.None)
+        sequence := self.next
+        self.next = self.next + 1
+        .Ok(.Some(Incoming {
+            id: RequestId { generation: 7, sequence: sequence },
+            request: Request { url: "https://example.test/$sequence" },
+        }))
+
+    fn respond!(&mut self, id: RequestId, response: Response) -> Result[void, ServerError]:
+        assert_equal(id.generation, 7, reason="the complete request lease returns to its source")
+        self.replies.push((id.sequence, response))
+        .Ok(())
+
+    fn cancelled!(&mut self, _id: RequestId) -> CancelReason:
+        .Stopping
+
+struct Hits:
+    count: usize
+
+fn handle!(request: Request, hits: &mut Hits) -> Response:
+    hits.count = hits.count + 1
+    Response { status: 200, body: "${hits.count} ${request.url}".to_utf8() }
+
+struct FailedSource: pass
+
+impl HttpServer for FailedSource:
+    fn accept!(&mut self) -> Result[Incoming?, ServerError]: .Err(.Closed)
+    fn respond!(&mut self, _id: RequestId, _response: Response) -> Result[void, ServerError]: .Err(.Closed)
+    fn cancelled!(&mut self, _id: RequestId) -> CancelReason: .Stopping
+
+
+it("joined workers preserve one application state and typed response per lease"):
+    server := &mut Scripted { next: 1, replies: [] }
+    hits := &mut Hits { count: 0 }
+    $.with(HttpServer=server):
+        assert(serve!(4, hits, handle).is_ok(), reason="all workers finish when the source ends")
+    assert_equal(hits.count, 3, reason="one shared application object survives every request")
+    assert_equal(server.replies.len(), 3, reason="every accepted lease gets one response")
+    for (sequence, response) in server.replies:
+        assert_equal(response.status, 200, reason="the handler's complete response is preserved")
+        body := string::from_utf8(response.body).expect("UTF-8 fixture")
+        assert(body.ends_with("https://example.test/$sequence"), reason="the reply keeps its request")
+
+it("zero workers still provides one serving loop"):
+    server := &mut Scripted { next: 1, replies: [] }
+    hits := &mut Hits { count: 0 }
+    $.with(HttpServer=server):
+        assert(serve!(0, hits, handle).is_ok(), reason="the minimum width is one")
+    assert_equal(hits.count, 3, reason="a zero argument must not silently discard all requests")
+
+it("a source failure is returned after the workers finish"):
+    hits := &mut Hits { count: 0 }
+    $.with(HttpServer=&mut FailedSource {}):
+        match serve!(3, hits, handle):
+            .Err(.Closed) => pass
+            _ => panic("the original source error must survive")
+    assert_equal(hits.count, 0, reason="a failed accept does not invoke the handler")

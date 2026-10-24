@@ -1,0 +1,35 @@
+use dep.server_sdk.server.{HttpServer, serve}
+use std.http.{Request, Response}
+use std.json.{decode, encode}
+use std.serde.{Deserialize, Serialize}
+use std.time.{Clock, sleep, ms}
+
+struct Hits:
+    count: usize
+
+@derive(Deserialize)
+struct Input:
+    message: string
+
+@derive(Serialize)
+struct Reply:
+    count: usize
+    message: string
+
+fn handle!(request: Request, hits: &mut Hits) -> Response $ Clock:
+    text := match string::from_utf8(request.body):
+        .Ok(text) => text
+        .Err(_) => return Response { status: 400 }
+    input := match decode::[Input](text):
+        .Ok(input) => input
+        .Err(_) => return Response { status: 400 }
+    hits.count = hits.count + 1
+    count := hits.count
+    if request.url.ends_with("/slow"):
+        sleep!(ms(150))
+    Response { status: 200, headers: [("content-type", "application/json")], body: encode(Reply { count: count, message: input.message }).to_utf8() }
+
+pub fn main!() -> void $ HttpServer + Clock + Console:
+    hits := &mut Hits { count: 0 }
+    serve!(4, hits, handle).expect("server")
+    println("total ${hits.count}")

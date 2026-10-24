@@ -1,0 +1,4 @@
+[package]
+name = "server_sdk"
+[host]
+"server.HttpServer" = "providers/node.mjs"

@@ -1,0 +1,49 @@
+use std.http.{Request, Response}
+use std.task.map_all
+
+pub struct RequestId:
+    pub generation: u64
+    pub sequence: u64
+
+pub struct Incoming:
+    pub id: RequestId
+    pub request: Request
+
+@error
+pub enum ServerError:
+    @error("server closed")
+    Closed
+    @error("request lease expired")
+    Expired
+    @error("$reason")
+    Other(reason: string)
+
+pub enum CancelReason:
+    Disconnected
+    Deadline
+    Stopping
+
+@host
+pub trait HttpServer:
+    fn accept!(&mut self) -> Result[Incoming?, ServerError]
+    fn respond!(&mut self, id: RequestId, response: Response) -> Result[void, ServerError]
+    fn cancelled!(&mut self, id: RequestId) -> CancelReason
+
+fn worker![S, $R](state: &mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R + HttpServer:
+    server := $.use(HttpServer)
+    while true:
+        incoming := match server.accept!()?:
+            .Some(incoming) => incoming
+            .None => return .Ok(())
+        response := handler!(incoming.request, state)
+        server.respond!(incoming.id, response)?
+
+pub fn serve![S, $R](workers: usize, state: &mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R + HttpServer:
+    width := if workers < 1: 1 else: workers
+    let mut slots: List[usize] = []
+    for slot in 0..width:
+        slots.push(slot)
+    results := map_all!(slots, width, fn!(_slot: usize) -> Result[void, ServerError] $ R + HttpServer: worker!(state, handler))
+    for result in results:
+        result?
+    .Ok(())

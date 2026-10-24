@@ -146,6 +146,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/regex.md` | `std-regex` |
 | `std/process.md` | `std-process` |
 | `std/http.md` | `std-http` |
+| `std/server-sdk.md` | `std-server-sdk` |
 | `std/net.md` | `std-net` |
 | `std/ops.md` | `std-ops` |
 | `std/testing.md` | `std-testing` |

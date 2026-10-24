@@ -462,6 +462,12 @@ of a package in the named role. That package depends on every package under
 - Each directory `packages/NAME/` is the source root of one package, used as
   `dep.NAME` ([Use Roots](../lang/10-modules.md#use-roots)). Its `lib.hd` is the
   package's root module.
+- A directory containing `package-root.txt` instead names a packaged library
+  by the file's relative path, resolved from that directory. The package's
+  `hd.toml` and `src/` supply its declarations and library sources; its own
+  tests, tasks and JavaScript providers are not fixture inputs. The adapter
+  receives that package directory, including its manifest. This form lets an
+  SDK fixture import the shipped library rather than a copy.
 - [`dep.models`](packages/models/lib.hd) declares `data User` with one
   public `name: string` field.
 - [`dep.members`](packages/members/lib.hd) declares the public traits
