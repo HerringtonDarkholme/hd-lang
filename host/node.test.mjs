@@ -21,13 +21,14 @@ import net from "node:net";
 import dgram from "node:dgram";
 import http from "node:http";
 import { once } from "node:events";
-import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_threads";
-import { createCoreHost, httpProvider, pendingOperation } from "./core.mjs";
+import { MessageChannel, Worker } from "node:worker_threads";
+import { createCoreHost, httpProvider, pendingOperation, TimeLimit } from "./core.mjs";
 import { Dec, Enc, Err, Ok, str } from "./wire.mjs";
 import { METHODS } from "./gen/abi.mjs";
 
-import { cgroupCpuCount, createHost } from "./node.mjs";
+import { cgroupCpuCount, createHost, syncClient } from "./node.mjs";
 import { createOutput } from "./output.mjs";
+import { postReply, receiveReply } from "./worker-control.mjs";
 
 function fixture(t, files) {
   // The resolved path: grant errors report a path with its links resolved,
@@ -41,6 +42,82 @@ function fixture(t, files) {
   }
   return root;
 }
+
+// Deliberately violate notification timing in a worker, while using the
+// production client. Queue publication and the wake hint must be independent.
+function controlClient(t) {
+  const root = fixture(t, {
+    "control.mjs": `
+      import {workerData} from 'node:worker_threads';
+      const {port,flag}=workerData;
+      const notify=()=>{Atomics.store(flag,0,1);Atomics.notify(flag,0);};
+      port.on('message',({id,request})=>{
+        const send=()=>port.postMessage({id,result:{id,value:request.op}});
+        if(request.op==='empty') { notify(); setTimeout(send,30); }
+        else if(request.op==='old') {
+          port.postMessage({id:id-1,result:{value:'stale'}});
+          notify(); setTimeout(send,30);
+        } else if(request.op==='late') { notify(); setTimeout(send,150); }
+        else if(request.op==='never') { notify(); }
+        else { send(); notify(); }
+      });
+    `,
+  });
+  const client = syncClient(pathToFileURL(join(root, "control.mjs")));
+  t.after(() => client.stop());
+  return {
+    ...client,
+    call: (request, left = null) => {
+      const deadline = performance.now() + 5000;
+      return client.call(request, left ?? (() => deadline - performance.now()));
+    },
+  };
+}
+
+test("worker control waits for a message after an empty notification", (t) => {
+  const client = controlClient(t);
+  const deadline = performance.now() + 5000;
+  assert.equal(client.call({ op: "empty" }, () => deadline - performance.now()).value, "empty");
+});
+
+test("worker control ignores an old call ID before the current reply", (t) => {
+  const client = controlClient(t);
+  const first = client.call({ op: "first" });
+  const next = client.call({ op: "old" });
+  assert.equal(next.value, "old");
+  assert.ok(next.id > first.id);
+});
+
+for (const op of ["late", "never"]) {
+  test(`worker control times out and restarts after ${op} replies`, (t) => {
+    const client = controlClient(t);
+    const first = client.call({ op: "first" });
+    const deadline = performance.now() + 30;
+    assert.throws(() => client.call({ op }, () => deadline - performance.now()), TimeLimit);
+    assert.equal(client.started(), false);
+    const current = client.call({ op: "current" });
+    assert.equal(current.value, "current");
+    assert.ok(current.id > first.id);
+  });
+}
+
+test("worker control publishes a reply before setting its wake hint", () => {
+  const flag = new Int32Array(new SharedArrayBuffer(4));
+  let message;
+  postReply(
+    {
+      postMessage: (m) => {
+        assert.equal(Atomics.load(flag, 0), 0);
+        message = m;
+      },
+    },
+    flag,
+    7,
+    { ok: 9 },
+  );
+  assert.deepEqual(message, { id: 7, result: { ok: 9 } });
+  assert.equal(Atomics.load(flag, 0), 1);
+});
 
 // #408: libuv's last finite ancestor must not override a stricter child.
 test("v2: one-CPU child inside a four-CPU parent offers one CPU", (t) => {
@@ -355,11 +432,15 @@ function netWorker(t, options = {}) {
     port1.close();
     await worker.terminate();
   });
+  let nextCall = 1;
   const call = (request) => {
+    const id = nextCall++;
+    const deadline = performance.now() + 5000;
     Atomics.store(flag, 0, 0);
-    port1.postMessage(request);
-    assert.notEqual(Atomics.wait(flag, 0, 0, 5000), "timed-out", "worker control reply");
-    return receiveMessageOnPort(port1).message;
+    port1.postMessage({ id, request });
+    const reply = receiveReply(port1, flag, id, () => deadline - performance.now());
+    assert.ok(reply, "worker control reply");
+    return reply.result;
   };
   call.worker = worker;
   return call;
@@ -1113,6 +1194,7 @@ async function heldLookupHost(t) {
     "node.mjs",
     "core.mjs",
     "output.mjs",
+    "worker-control.mjs",
     "checked-report.mjs",
     "float.mjs",
     "journal.mjs",
@@ -1557,9 +1639,9 @@ test("Fs blocked helper exits if its control worker is terminated", fifoTest, as
     const worker = new Worker(process.argv[1], {
       workerData: { port: port2, flag }, transferList: [port2],
     });
-    port1.postMessage({
+    port1.postMessage({ id: 1, request: {
       op: 'wait_start', module: 'hd:FsRead', name: 'read_text', args: [process.argv[2]],
-    });
+    } });
     if (Atomics.wait(flag, 0, 0, 5000) === 'timed-out') process.exit(1);
     receiveMessageOnPort(port1);
     setTimeout(async () => {

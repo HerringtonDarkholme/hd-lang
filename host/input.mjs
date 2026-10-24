@@ -1,5 +1,6 @@
 // Guest stdin belongs to an I/O worker, including under synchronous rt.block.
 // Like Net, reads reserve bytes until guest finish; abort restores reservations.
+import { postReply } from "./worker-control.mjs";
 import { createReadStream, fstatSync } from "node:fs";
 import { Socket } from "node:net";
 import { isatty, ReadStream } from "node:tty";
@@ -120,9 +121,7 @@ const run = (request) => {
 };
 
 const { port, flag } = workerData;
-port.on("message", (request) => {
+port.on("message", ({ id, request }) => {
   const result = run(request);
-  port.postMessage(result);
-  Atomics.store(flag, 0, 1);
-  Atomics.notify(flag, 0);
+  postReply(port, flag, id, result);
 });
