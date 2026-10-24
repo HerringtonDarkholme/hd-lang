@@ -971,6 +971,10 @@ A budget violation or extraction coverage gap falls back to a smaller checked ta
 
 ## Stress test
 
+The [2026-10-24 release stress report](RELEASE_STRESS.md) tests the single-command design against real library histories and typed clients.
+It also exercises Git/version edge cases.
+It records unresolved prerelease arithmetic without changing this proposal's decisions.
+
 The ten old-library/new-library/client pairs above are executable translations of practical API hazards.
 The embedding client ports the `Point`/extra-field witness in Go apidiff's README to hd embedding.
 The `Source[T]` case follows hd's bound-inference rule; defaulted callable and enum cases exercise the client forms compatibility tools must preserve.
