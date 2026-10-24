@@ -1,5 +1,7 @@
 # GUI Applications
 
+**Parked by the owner on 2026-10-24: not worth doing now, and the owner thinks the recommended direction (an Elm-style message/model/view package) is somehow wrong.** Keep this as the exploration of the domain only: any future GUI work starts from a fresh direction discussion, not from this recommendation.
+
 Design exploration, 2026-10-24; domains: application framework, runtime and host; nothing here is accepted behavior.
 This answers [#807](https://github.com/HerringtonDarkholme/hd-lang/issues/807), following [#58's exploration-first instruction](https://github.com/HerringtonDarkholme/hd-lang/issues/58#issuecomment-6376850875).
 It teaches the domain, compares four mechanisms, and recommends a placement and initial model for owner review.
