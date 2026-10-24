@@ -63,7 +63,7 @@ impl Em<'_, '_, '_> {
                     }
                     // A place rooted at a local that reads its referent
                     // through a reference after other steps
-                    // (`[$l .r *]`, `Em::rooted_read`).
+                    // (`[$l .r *]`, `Em::place_read`).
                     if let Some(p) = self.b.decode_place(a)
                         && Self::rooted(&p)
                     {

@@ -1553,10 +1553,6 @@ impl Em<'_, '_, '_> {
                 self.push(r)?;
                 self.store(i)?;
             }
-            // An element read, `Read [%xs [%i]]` (`emit/list.rs`).
-            Tag::Read if let Some((list, index)) = self.b.element_read(i as usize) => {
-                self.list_index(i, list, index)?;
-            }
             // The ownership passes' statements, in an owned body
             // (`count.rs`); the checker's TIR has none (invariant 22).
             Tag::Drop if self.owned => self.own_drop(i)?,
