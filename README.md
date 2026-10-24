@@ -173,8 +173,18 @@ Correctness is a gate, not a pillar.
    compiled into the Wasm module.
 
 The goal metrics are scripts under [bench/metrics](bench/metrics/README.md)
-(`pnpm run metrics`); run them for current numbers. Runtime speed against
-hand-written JS is tracked by `bench/runtime`.
+(`pnpm run metrics`). The current baseline (2026-10-17, commit
+`493f95da4` plus the harness fixes of #347) is in [docs/audit/metrics-2026-10-17.md](docs/audit/metrics-2026-10-17.md):
+
+- Pillar 1: 36 pass, 17 fail, 3 n/a.
+- Pillar 2: 33 pass, 5 fail, 1 n/a.
+- Pillar 3: 19 pass, 16 fail, 0 n/a (for example, runtime geomean 1.35x
+  Node against 1.5x; allocations 0 B per iteration).
+- Correctness gate: conformance passes 171 of 171; incremental soundness
+  passes.
+
+The remaining failures are measured values. They are listed in the
+baseline with their targets.
 
 ## What hd borrows
 
