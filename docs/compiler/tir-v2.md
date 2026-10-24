@@ -4236,6 +4236,110 @@ type argument or part of one, which holds no list or map in place, since
 enum or an optional cannot be changed in place. So neither the setter path
 nor a runtime case could be written; the check stays.
 
+3h measured the list slow paths in std hd and kept `rt.rs`'s kernels:
+growth, the unique copy and truncation were written as `list_grow`,
+`list_unique` and `list_truncate` in `std.rt.memory`, generic over
+`Buffer[T]`, with std tests. Wired in, they pass every gate and print the
+same, but they cost 94 Rust code lines against the share of 40 and the
+stop line of 60, json runs about 1.5% slower and grows 3.0% (one instance
+per element type, against one kernel per layout), and the web compiler
+grows 253 B instead of shrinking 1.3 KB. By this commit's rule, the
+kernels stay, and the std code is not merged: unwired, it would only add
+dead code and 297 B to the web compiler. The full wired version is kept
+as a patch on the lane branch `lane/lm-3h` (7db2fff8c plus
+`3h-wiring.patch`) for a later attempt, for example after the inliner
+can inline `std.rt` callees.
+
+Each function takes the place's count of the buffer and returns the
+buffer the place holds after it, as the kernels do since 3f. Growth moves
+the bytes with `copy` and carries the owner word. The unique copy copies
+a buffer only when it is shared and has no owner word: it reads each
+value out of the old buffer and writes it into the copy, then back into
+the old one, so the copy's values take counts of their own and a
+collection among them runs the copy glue (`ref.elem.copy`). Truncation
+panics `collection-pinned` for a pinned list whose length would change,
+calls `list_unique`, and reads out each value past the new length, which
+drops it. The code reads the buffer's words through its address and not
+through `Buffer[T]`'s methods. The inliner never inlines a `std.rt`
+callee, and each method call passed the buffer as an owned argument with
+a count of its own: a retain and a release around every `len()` and
+`at(i)` of the copy loop, about 200 B more per instance. An address
+keeps no count, so the move pass dropped the buffer right after the
+last read of its address, before the stores that still wrote through
+it. `_ := b` now keeps it to the end. std hd adds 42 code lines, against
+50 and the stop line of 75: growth 11, the unique copy 16, truncation 12,
+and the `panic` intrinsic's declaration 3.
+
+The unique copy and truncation count elements, so the wired build
+calls an instance per element type, not the element's glue: a function
+value would be a `call_indirect` per element and two more arguments at
+each `IsUnique`. Emitted code cannot name an instance that collection
+did not make, so `hd_mono` makes them. `Collected::list_paths` maps a
+path and an element type to the instance's key, and the driver names
+the three items (`ProgramEnv::list_paths`). Growth comes from each
+`ListPush` at its operand's type. The unique copy comes from each
+`IsUnique` whose place is a list, which needs the place's type: a fold
+over the root's type through fields, dereferences and elements
+(`Cx::place_ty`), 30 of the 94 lines. Truncation comes from each
+`list_truncate` call. A cheaper trigger, one instance for each list type
+some instruction has, failed five driver fixtures: a change through a
+`&mut List[T]` parameter, or through a struct field that no instruction
+reads whole, has no such instruction. That trigger also placed
+truncation's two panic strings in static data for every program (49 B),
+since static data is laid out before the link drops unreachable
+functions. The instances are exact, since `Buffer::new` takes its glue
+and its cycle bit from the element type. An erased body's `IsUnique` of
+an open list takes the instance at the erased view, one counted address
+(`class_ref`), as the kernel took that view's element. Without that,
+`a-dyn-generic-call-inside-an-erased-body-reaches-its-own-witness` ended
+in a trap in the collector. The emitter's three sites call the instance
+in place of the kernel, and `rt.rs` deletes 158 code lines: the three
+kernels, their variants and their dispatch. The Rust lines are
+`hd_mono` +76, the driver +4, `emit/list.rs` +9/−1, `emit.rs` +3/−3
+and `emit/count.rs` +2/−2, against the plan's 30 for
+"call by name". The plan priced growth as needing no element type, but
+`Buffer::new` does.
+
+Measured wired, against 3g (dad199407). The release `.wasm` on node:
+hello, binary_trees, dyn_iter and mandelbrot byte-identical; closures,
+fannkuch_redux and sieve +297 B; spectral_norm +301; string_build and
+map_count +317; points +332; nbody +342; json 165,548 to 170,561
+(+5,013, 3.0%), for its 11 element types. Every program stays within +5%
+of its size at 6792b1bfa; string_build keeps 527 B of room. One element
+type costs about 300 B against the kernels' 163 B of code. In sieve, code
+grows 176 B, and the hd code's positions, names and lines tables 121 B
+more, which the Rust kernels never had. The kernels shared one instance
+among element types of one layout; the std instances do not. Splitting
+each function's fast path into a function of its own was 1% to 2% faster
+on string_build, but cost about 210 B more a program, so it was not kept.
+Study times on V8, 21 runs each alternated run by run, two rounds under
+a load average of 7 to 15: string_build 189 to 190 ms and 188 to 190
+(CPU +0.9% and +0.6%), sieve 222 to 222 and 222 to 221, fannkuch_redux
+86 to 86 both times, json 95 to 97 and 95 to 96 (CPU 130 to 132 both
+times). Earlier rounds gave json +0.1% to +2.4%. The json loss is
+small but it showed every time. Cold build CPU, medians of 11
+alternated release builds with an empty cache and the dev-profile
+compiler: json 0.248 s to 0.251 s, nbody 0.196 s to 0.197 s. The web
+compiler's gzip grows 253 B wired (1,912,159 to 1,912,412, both built
+here), against the planned −1.3 KB: the std text and `hd_mono`'s
+collection add about what the kernels give back.
+
+Left for the owner: whether to land the wiring over the stop line, with
+json about 1.5% slower. The unique copy writes each value twice where the
+kernel copies the bytes once with `memory.copy` and then counts them
+(`rt:copy_elems`), and every element type has a copy loop of its own.
+
+As committed, unwired, 3h adds no Rust. The 13 release `.wasm` files are
+byte-identical to 3g's, since nothing instantiates the std functions
+outside their tests. The web compiler's gzip grows 297 B (1,912,159 to
+1,912,456), the std text. The tests are seven new cases in the
+`std.rt.list_tests` file, 122 code lines: growth, pushes that grow, the
+unique copy of a shared buffer only, the unique copy's counts, truncation
+of a shared and an own buffer, and truncation, `pop`, `remove_at` and
+`clear` in bounded memory. Together they cover `i32`, `string`, lists of lists
+and a struct holding a list and a string, in the plain and checked
+runtimes.
+
 No commit carries two copy paths: through 3e both kinds copy by
 `ListCopy` (a new header over the same buffer), 3f moves both to the
 buffer copy glue at once, and 3g removes the header copies of both.
