@@ -289,8 +289,9 @@ pub enum Global {
     Aband,
     /// The `ABANDONED` bits that a frame's cancels saw.
     AbSeen,
-    /// Set when an abandon or an aborted host call leaves a party that no
-    /// wake will reach: the driver polls its root again.
+    /// Set when an abandon, an aborted host call, or a `block_on` that took
+    /// host completions leaves a party that no wake will reach: the driver
+    /// polls its root again.
     Rewake,
     /// The entry's pending root frame, 0 for none.
     Root,

@@ -1,0 +1,20 @@
+# expect-stdout: second
+# expect-stdout: 1 2
+# test: a zero sleep that completes while a sibling's println waits in the host still wakes its all! child
+# Spec lang/11 Cooperative Scheduling: req.schedule.all-unfinished.
+# println drives its write with block_on, whose host wait also takes the
+# sleep's completion; the all! must poll first again instead of waiting.
+use std.task.all
+use std.time.{Clock, ms, sleep}
+
+fn first!() -> usize $ Clock:
+    sleep!(ms(0))
+    1
+
+fn second!() -> usize $ Console:
+    println("second")
+    2
+
+pub fn main!() -> void $ Clock + Console:
+    pair := all!(first(), second())
+    println("${pair._0} ${pair._1}")

@@ -1317,8 +1317,8 @@ fn host_cancel(m: &Module) -> Func {
 /// `hd.poll(ctx)` of a suspending root (`crates/hd_wasm_linear/DESIGN.md` §14.4):
 /// the first poll builds the root's frame with the host providers (no
 /// data beside each vtable of host stubs) and claims it for its driver;
-/// each poll then polls it, again while an abandon or an aborted host
-/// call asks for it. -1 is Pending; a Ready root's result goes to
+/// each poll then polls it, again while an abandon, an aborted host call
+/// or a `block_on` that took host completions asks for it. -1 is Pending; a Ready root's result goes to
 /// `report`, whose status is the answer; a root that ended cancelled
 /// answers -2, or -3 when its cleanup was cut short.
 #[must_use]

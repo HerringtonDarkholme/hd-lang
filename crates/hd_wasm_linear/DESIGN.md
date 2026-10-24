@@ -1115,8 +1115,9 @@ counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
   after completion. It continues a cancelled root's cleanup and answers
   -1 while Pending. A cancelled root answers -2, or -3 when its cleanup
   was cut short. The module exports `hd.cancel` and `hd.abandon` for a
-  `main!` that suspends. `block_on` drives with the same checks, and
-  hands an abandon's rewake to the outer driver.
+  `main!` that suspends. `block_on` drives with the same checks. It
+  hands the outer driver a rewake after an abandon, and after taking host
+  completions, which may belong to the outer driver's tasks.
 - **Scenarios.** `Entry::Scenario` is `main`'s entry with
   `hd.scenario.cleanup`. Its held call answers every poll Pending, and
   flags the frame active for `reentrant-poll`. A direct step of the held

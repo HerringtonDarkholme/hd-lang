@@ -2810,12 +2810,16 @@ impl Em<'_, '_, '_> {
         let tmp: Vec<u32> = result.iter().map(|v| self.f.local(*v)).collect();
         self.comp(s, 0)?;
         self.f.set(frame);
+        self.f.i32(0);
+        self.f.set(seen);
         // Poll; when Pending, wait in the host and take its wakes. A
         // cancelled suspension never completes: each poll continues its
         // cleanup, and the drive ends once that has ended
         // (`req.drive.block-on.cancelled`). An abandon in the drive may
-        // have ended a cleanup that a party waits on with no wake: poll
-        // again, and hand the request on to the outer driver.
+        // have ended a cleanup that a party waits on with no wake, and the
+        // completions a host wait hands over may be an outer driver's,
+        // which no later wait repeats: poll again, and hand the request on
+        // to the outer driver.
         self.f.op(Instruction::Block(BlockType::Empty));
         self.f.op(Instruction::Loop(BlockType::Empty));
         self.f.get(frame);
@@ -2842,14 +2846,14 @@ impl Em<'_, '_, '_> {
         self.f.i32(crate::task::CANCELLED);
         self.f.op(Instruction::I32Eq);
         self.f.op(Instruction::BrIf(2));
+        self.f.op(Instruction::End);
         self.f.global_get(Global::Rewake);
         self.f.op(Instruction::If(BlockType::Empty));
         self.f.i32(0);
         self.f.global_set(Global::Rewake);
         self.f.i32(1);
         self.f.set(seen);
-        self.f.op(Instruction::Br(2));
-        self.f.op(Instruction::End);
+        self.f.op(Instruction::Br(1));
         self.f.op(Instruction::End);
         self.f.call(Sym::Import(crate::module::Import::new(
             "hd:rt",
@@ -2858,16 +2862,15 @@ impl Em<'_, '_, '_> {
             &[Val::I32],
         )));
         self.f.helper(Helper::WakeMark);
+        self.f.i32(1);
+        self.f.set(seen);
         self.f.op(Instruction::Br(0));
         self.f.op(Instruction::End);
         self.f.op(Instruction::End);
-        self.f.helper(Helper::CanCancel);
-        self.f.op(Instruction::If(BlockType::Empty));
         self.f.get(seen);
         self.f.global_get(Global::Rewake);
         self.f.op(Instruction::I32Or);
         self.f.global_set(Global::Rewake);
-        self.f.op(Instruction::End);
         // `.Completed(value)`, which counts its own copy of the poll's
         // result; or how the cleanup ended: `.Abandoned` when the frame
         // carries `ABANDONED`, else `.Cancelled`.

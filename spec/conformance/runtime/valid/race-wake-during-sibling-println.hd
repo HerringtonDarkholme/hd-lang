@@ -1,0 +1,22 @@
+# expect-stdout: second
+# expect-stdout: 1
+# test: a zero sleep that completes while a sibling's println waits in the host still wakes its race! child
+# Spec lang/11 Driving A Stored Suspension: req.drive.block-on.inner-only.
+# println's block_on takes the zero sleep's completion but polls only its
+# own write. The race! polls first again at once, so first's second sleep
+# ends long before second's, and first wins.
+use std.task.race
+use std.time.{Clock, ms, s, sleep}
+
+fn first!() -> usize $ Clock:
+    sleep!(ms(0))
+    sleep!(ms(10))
+    1
+
+fn second!() -> usize $ Clock + Console:
+    println("second")
+    sleep!(s(5))
+    2
+
+pub fn main!() -> void $ Clock + Console:
+    println("${race!(first(), second())}")

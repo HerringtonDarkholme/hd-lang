@@ -4960,3 +4960,8 @@ runtime/valid/task-map-all-2000.hd	runtime	accept	std/task.md#r-std-task.map-all
 typing/valid/mut-self-struct-trait.hd	type	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
 runtime/valid/mut-self-struct-trait-copy.hd	runtime	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
 typing/invalid/mut-self-struct-trait-reference.hd	type	reject:trait-method-signature	lang/09-traits.md#r-trait.impl.signature
+runtime/valid/all-wake-during-sibling-println.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.schedule.all-unfinished
+runtime/valid/race-wake-during-sibling-println.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.inner-only
+runtime/valid/all-nested-wake-during-sibling-println.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.schedule.all-unfinished
+runtime/valid/all-wake-during-sibling-dispose.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.schedule.all-unfinished
+runtime/valid/block-on-all-wake-during-sibling-println.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.inner-only
