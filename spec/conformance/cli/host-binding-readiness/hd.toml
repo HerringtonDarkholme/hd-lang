@@ -1,0 +1,8 @@
+[package]
+name = "readiness"
+[host]
+"main.Source" = "provider.mjs"
+[capabilities]
+"pkg.main.Source" = true
+Console = true
+Clock = true

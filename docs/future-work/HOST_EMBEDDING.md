@@ -291,7 +291,8 @@ Registering HttpServer grants no implicit Net, Http, Process or filesystem acces
 
 ### Pending Calls And Request Context
 
-A suspending method returns either a ready value or a Promise.
+A suspending method returns a ready value, a Promise, or `context.pending(poll, done, abort, finish)`.
+The pollable form reuses the core's nonblocking readiness, cancellation and optional delivery hooks without retaining a cross-request Promise.
 Its final argument supplies `signal` for the operation and `instanceSignal` for the instance.
 Aborting discards undelivered results and signals cancellation; a later Promise completion cannot revive a consumed operation ID.
 The provider remains responsible for stopping its external work.

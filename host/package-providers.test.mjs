@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createPackageRuntime, readPackageContract } from "./package-providers.mjs";
 import { Dec, Enc, HostContract } from "./wire.mjs";
+import { createCoreHost, pendingOperation } from "./core.mjs";
 
 const runtime = () => createPackageRuntime({});
 const encode = (codec, value) => {
@@ -148,4 +149,295 @@ test("private Serde values retain numeric kind, deep containers and literal obje
     decoded = decoded[0];
   }
   assert.equal(decoded, null);
+});
+
+// A tiny module with the real contract custom section and exchange memory.
+// Its methods are driven directly so readiness and delivery can be separated.
+function operationHost(wait, suspends = true) {
+  const identity = { package: "tests/sdk", version: "1.0.0", trait_path: "Source" };
+  const moduleName = "hd:pkg:readiness-test";
+  const e = new Enc();
+  e.leb(1);
+  e.str(identity.package).str(identity.version).str(identity.trait_path).str(moduleName);
+  e.leb(1).str("pkg.Source").leb(0).leb(1);
+  e.str("wait")
+    .str("wait")
+    .leb(suspends ? 1 : 0)
+    .leb(0)
+    .leb(6);
+  const contract = new Uint8Array([1, 0, 0, 0, ...e.done()]);
+  const custom = new Uint8Array([...new Enc().str("hd.capabilities").done(), ...contract]);
+  const memory = new Enc().leb(1).leb(0).leb(1).done();
+  const exported = new Enc().leb(1).str("hd.x").leb(2).leb(0).done();
+  const bytes = new Uint8Array([
+    0,
+    97,
+    115,
+    109,
+    1,
+    0,
+    0,
+    0,
+    ...new Enc().leb(0).bytes(custom).leb(5).bytes(memory).leb(7).bytes(exported).done(),
+  ]);
+  const module = new WebAssembly.Module(bytes);
+  const host = createCoreHost(
+    { out() {}, err() {} },
+    {
+      module,
+      grants: { "pkg.Source": true },
+      packageBindings: (runtime) =>
+        runtime.bind(
+          contract,
+          [
+            {
+              module: moduleName,
+              handle: false,
+              methods: [
+                {
+                  name: "wait",
+                  member: "wait",
+                  wait: suspends ? "may" : "never",
+                  params: [],
+                  result: runtime.str,
+                },
+              ],
+            },
+          ],
+          [{ identity, module: moduleName, contract, implementation: { wait } }],
+        ),
+    },
+  );
+  const instance = new WebAssembly.Instance(module, host.imports);
+  host.prime(instance);
+  return {
+    host,
+    target: host.imports[moduleName],
+    finish(id) {
+      const length = host.imports[moduleName]["wait.finish"](id);
+      return new Dec(new Uint8Array(instance.exports["hd.x"].buffer, 0, length)).str();
+    },
+  };
+}
+
+test("pollable package operations retain results until checked delivery", () => {
+  let ready = false,
+    computed = 0,
+    delivered = 0,
+    aborted = 0;
+  const h = operationHost((context) =>
+    context.pending(
+      () => ready,
+      () => {
+        computed++;
+        return "computed";
+      },
+      () => {
+        aborted++;
+      },
+      () => {
+        delivered++;
+        return "delivered";
+      },
+    ),
+  );
+  try {
+    const [state, id] = h.target["wait.start"]();
+    assert.equal(state, 1);
+    assert.equal(h.host.core.st.ops.get(id).poll(), false);
+    assert.throws(() => h.finish(id), /not pending/);
+    ready = true;
+    assert.equal(h.host.imports["hd:rt"].block(), 1);
+    assert.equal(computed, 1);
+    assert.equal(delivered, 0);
+    assert.equal(h.finish(id), "delivered");
+    assert.equal(delivered, 1);
+    assert.equal(h.host.core.st.ops.size, 0);
+    assert.throws(() => h.finish(id), /not pending/);
+  } finally {
+    h.host.close();
+  }
+  assert.equal(aborted, 0);
+});
+
+test("aborting a ready package operation cancels its undelivered resource once", () => {
+  let computed = 0,
+    delivered = 0,
+    aborted = 0,
+    signal;
+  const h = operationHost((context) => {
+    signal = context.signal;
+    return context.pending(
+      () => true,
+      () => {
+        computed++;
+        return "held";
+      },
+      () => {
+        assert.equal(signal.aborted, true);
+        aborted++;
+      },
+      () => {
+        delivered++;
+        return "taken";
+      },
+    );
+  });
+  try {
+    const [, id] = h.target["wait.start"]();
+    assert.equal(h.host.imports["hd:rt"].block(), 1);
+    assert.equal(computed, 1);
+    h.host.imports["hd:rt"].abort(id);
+    assert.equal(aborted, 1);
+    assert.equal(delivered, 0);
+    assert.throws(() => h.finish(id), /not pending/);
+    assert.equal(h.host.core.st.ops.size, 0);
+  } finally {
+    h.host.close();
+  }
+  assert.equal(aborted, 1);
+});
+
+test("package close cancels pollable work and preserves the original core factory", () => {
+  let aborted = 0,
+    instanceSignal;
+  const h = operationHost((context) => {
+    instanceSignal = context.instanceSignal;
+    return context.pending(
+      () => false,
+      () => {
+        throw new Error("not ready");
+      },
+      () => {
+        assert.equal(context.signal.aborted, true);
+        aborted++;
+      },
+    );
+  });
+  h.target["wait.start"]();
+  h.host.close();
+  h.host.close();
+  assert.equal(aborted, 1);
+  assert.equal(instanceSignal.aborted, true);
+  assert.equal(h.host.core.st.ops.size, 0);
+  const shared = operationHost(() =>
+    pendingOperation(
+      () => true,
+      () => "same core",
+      () => {},
+    ),
+  );
+  try {
+    const [, id] = shared.target["wait.start"]();
+    assert.equal(shared.host.imports["hd:rt"].block(), 1);
+    assert.equal(shared.finish(id), "same core");
+  } finally {
+    shared.host.close();
+  }
+});
+
+test("a failed pollable delivery is a contract failure with cleanup still owned", () => {
+  let aborted = 0;
+  const h = operationHost((context) =>
+    context.pending(
+      () => true,
+      () => "held",
+      () => {
+        aborted++;
+      },
+      () => {
+        throw new Error("delivery failed");
+      },
+    ),
+  );
+  try {
+    const [, id] = h.target["wait.start"]();
+    h.host.imports["hd:rt"].block();
+    assert.throws(() => h.finish(id), /provider callback threw.*delivery failed/);
+    assert.equal(h.host.core.st.ops.size, 1);
+  } finally {
+    h.host.close();
+  }
+  assert.equal(aborted, 1);
+});
+
+test("synchronous package methods cannot create or retain pending work", () => {
+  const context = operationHost(
+    (c) =>
+      c.pending(
+        () => true,
+        () => "value",
+      ),
+    false,
+  );
+  try {
+    assert.throws(() => context.target.wait(), /non-suspending.*pending operation/);
+  } finally {
+    context.host.close();
+  }
+  let aborted = 0;
+  const direct = operationHost(
+    () =>
+      pendingOperation(
+        () => false,
+        () => "value",
+        () => {
+          aborted++;
+        },
+      ),
+    false,
+  );
+  try {
+    assert.throws(() => direct.target.wait(), /non-suspending.*pending operation/);
+  } finally {
+    direct.host.close();
+  }
+  assert.equal(aborted, 1);
+});
+
+test("pollable callback failures preserve cancellation ownership", () => {
+  for (const stage of ["poll", "done", "invalid readiness"]) {
+    let aborted = 0;
+    const h = operationHost((context) =>
+      context.pending(
+        () => {
+          if (stage === "poll") throw new Error("probe failed");
+          return stage === "invalid readiness" ? 1 : true;
+        },
+        () => {
+          throw new Error("result failed");
+        },
+        () => {
+          assert.equal(context.signal.aborted, true);
+          aborted++;
+        },
+      ),
+    );
+    try {
+      h.target["wait.start"]();
+      assert.throws(() => h.host.imports["hd:rt"].block(), HostContract);
+      assert.equal(h.host.core.st.ops.size, 1);
+    } finally {
+      h.host.close();
+    }
+    assert.equal(aborted, 1);
+  }
+});
+
+test("pollable factories validate callbacks before registering work", () => {
+  for (const args of [
+    [],
+    [true, () => "value"],
+    [() => true, null],
+    [() => true, () => "value", 1],
+    [() => true, () => "value", null, 1],
+  ]) {
+    const h = operationHost((context) => context.pending(...args));
+    try {
+      assert.throws(() => h.target["wait.start"](), HostContract);
+      assert.equal(h.host.core.st.ops.size, 0);
+    } finally {
+      h.host.close();
+    }
+  }
 });

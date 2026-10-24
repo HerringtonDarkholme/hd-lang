@@ -2064,7 +2064,7 @@ hd run --engine node
 12. r[cli.host.package.generated] JS host glue is generated from checked host trait signatures, including value conversion and suspension plumbing.
 13. r[cli.host.package.companion] A build requiring package host bindings writes generated `NAME.host.mjs` beside `NAME.wasm`.
 14. r[cli.host.package.no-companion] A build requiring no package host binding emits no companion glue file.
-15. r[cli.host.package.pending] A suspending provider method may return a ready value or a Promise whose result remains pending until completion.
+15. r[cli.host.package.completion-forms] A suspending provider method may return a ready value, a Promise, or a pollable operation.
 16. r[cli.host.package.abort] Aborting a pending method signals cancellation and discards its undelivered result, including any later completion.
 17. r[cli.host.package.handle-release] Releasing the last HD reference to a returned handle drops its host binding without implicitly calling resource methods.
 
@@ -2074,6 +2074,16 @@ hd run --engine node
 21. r[cli.host.package.prebuilt-manifest] A prebuilt Wasm run requiring package capabilities discovers its app manifest above the Wasm file.
 22. r[cli.host.package.prebuilt-no-manifest] A prebuilt Wasm run without that manifest refuses required package capabilities before loading any provider.
 23. r[cli.host.package.value-conversion] Generated bindings apply the JavaScript value conversions of [Package Host Traits](../lang/10-modules.md#package-host-traits).
+24. r[cli.host.package.context-pending] The method context's `pending(poll, done, abort, finish)` factory creates a pollable operation.
+25. r[cli.host.package.poll-nonblocking] A pollable operation's readiness probe must return a boolean without blocking.
+26. r[cli.host.package.poll-result] Its result callback runs once when readiness first succeeds.
+27. r[cli.host.package.poll-delivery] Its optional delivery hook runs only when the guest takes a valid finish.
+28. r[cli.host.package.poll-abort] Aborting an undelivered pollable operation invokes its cancellation hook at most once.
+29. r[cli.host.package.poll-abort-signal] Cancellation signals the pending call before invoking its cancellation hook.
+30. r[cli.host.package.poll-close] Closing the instance cancels its outstanding pollable operations.
+31. r[cli.host.package.synchronous-completion] A non-suspending provider method cannot return a Promise or a pollable operation. Boundary failure: `host-contract`.
+32. r[cli.host.package.poll-callback-failure] A pollable operation's callback failure is a host-contract failure. Boundary failure: `host-contract`.
+
 
 > **Why.** Provider JavaScript has its host realm's authority; an HD grant cannot sandbox arbitrary JavaScript imports.
 > Root consent makes loading dependency code explicit.

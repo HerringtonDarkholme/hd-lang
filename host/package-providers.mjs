@@ -613,7 +613,23 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
           const f = receiver?.[m.member];
           if (typeof f !== "function") fail(`missing provider method ${m.member}`);
           try {
-            return f.call(receiver, ...args, { signal, instanceSignal: lifetime.signal });
+            return f.call(receiver, ...args, {
+              signal,
+              instanceSignal: lifetime.signal,
+              pending(poll, done, abort = null, finish = null) {
+                if (m.wait !== "may")
+                  fail(`non-suspending method ${label} cannot create a pending operation`);
+                if (typeof poll !== "function" || typeof done !== "function")
+                  fail("a pending operation needs readiness and result functions");
+                if (
+                  (abort !== null && typeof abort !== "function") ||
+                  (finish !== null && typeof finish !== "function")
+                )
+                  fail("pending cancellation and delivery hooks must be functions");
+                if (!io.prepare) fail("the host cannot create pending operations");
+                return io.prepare(poll, done, abort, finish);
+              },
+            });
           } catch (error) {
             throw new HostContract(`${label}: provider threw ${String(error)}`);
           }
@@ -625,12 +641,46 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
               Promise.resolve(value).catch(() => {});
               fail(`non-suspending method ${label} returned a Promise`);
             }
+            const prepared = io.prepared?.(value);
+            if (prepared) {
+              try {
+                prepared.abort?.();
+              } finally {
+                fail(`non-suspending method ${label} returned a pending operation`);
+              }
+            }
             return write(value);
           };
         else {
           out[`${m.name}.start`] = (...raw) => {
             const operation = new AbortController();
             const value = invoke(raw, operation.signal);
+            const prepared = io.prepared?.(value);
+            if (prepared) {
+              const call = (hook) => {
+                try {
+                  return hook?.();
+                } catch (error) {
+                  throw new HostContract(`${label}: provider callback threw ${String(error)}`);
+                }
+              };
+              return io.pending(
+                prepared.at,
+                () => call(prepared.done),
+                key,
+                () => {
+                  const ready = call(prepared.poll);
+                  if (typeof ready !== "boolean")
+                    fail(`readiness probe for ${label} did not return a boolean`);
+                  return ready;
+                },
+                () => {
+                  operation.abort();
+                  call(prepared.abort);
+                },
+                prepared.finish ? () => call(prepared.finish) : null,
+              );
+            }
             if (!value || typeof value.then !== "function") return [0, write(value)];
             let live = true,
               ready = false,

@@ -724,7 +724,15 @@ export function createCoreHost(sink, env = {}, layer = null) {
     "hd:rt": rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }),
     "hd:prim": primImports({ put, text, env }),
   };
-  const io = { view, text, put, pending, finished };
+  const io = {
+    view,
+    text,
+    put,
+    pending,
+    finished,
+    prepare: pendingOperation,
+    prepared: (value) => (value instanceof Later ? value : null),
+  };
   for (const [module, provider] of Object.entries(providers)) {
     imports[module] = traitImports(module, provider, io);
   }

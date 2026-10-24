@@ -17,7 +17,9 @@ export interface Sink {
 export interface CoreEnv {
   args?: string[];
   program?: string;
-  grants?: Record<string, false | string[]>;
+  grants?: Record<string, boolean | string[]>;
+  module?: WebAssembly.Module;
+  packageBindings?: ((runtime: unknown) => WebAssembly.Imports) | null;
   seed?: number | null;
   runner?: unknown;
   providers?:
@@ -29,6 +31,27 @@ export interface CoreEnv {
       }) => Record<string, unknown>)
     | null;
 }
+
+/** The trailing argument supplied to a generated package-provider method. */
+export interface ProviderContext {
+  signal: AbortSignal;
+  instanceSignal: AbortSignal;
+  /** Owned readiness, cancellation and delivery hooks; no retained Promise is required. */
+  pending<T>(
+    poll: () => boolean,
+    done: () => T,
+    abort?: (() => void) | null,
+    finish?: (() => T | undefined) | null,
+  ): unknown;
+}
+
+/** A pollable operation accepted by builtin and package providers in this core. */
+export function pendingOperation<T>(
+  poll: () => boolean,
+  done: () => T,
+  abort?: (() => void) | null,
+  finish?: (() => T | undefined) | null,
+): unknown;
 
 export interface RunResult {
   status: number;
