@@ -1,7 +1,8 @@
-# Serializable Closures And Remote Calls: Design Study
+# Serializable Closures And Remote Calls
 
-This is the design study for issue #166. Nothing in it is in the spec
-yet. Spellings, std names, and diagnostic names not listed under
+Status: parked (#166, owner review). This is the design study and its
+prototype plan; nothing in it is in the spec yet, and no slice is
+scheduled. Slice 1's draft is on the local branch `park/remote-slice1`. Spellings, std names, and diagnostic names not listed under
 [Decisions So Far](#decisions-so-far) are placeholders. It builds on the boundary rules of
 [Modules](../../spec/lang/10-modules.md), the requirement rows of
 [Requirements And Suspension](../../spec/lang/11-requirements-and-suspension.md),
@@ -17,6 +18,7 @@ and the worker model of
 - [6. Security](#6-security)
 - [7. Cost](#7-cost)
 - [8. Open Points](#8-open-points)
+- [9. Prototype Plan](#9-prototype-plan)
 - [Appendix: Holes And Limits](#appendix-holes-and-limits)
 
 ## Decisions So Far
@@ -701,8 +703,8 @@ This section states each rule from the tour once, grouped by piece.
 
 1. `Opaque[T < Boundary]` is a boundary-safe data type. `Boundary` is
    implemented exactly by the boundary-safe types, as `AnyVal` is.
-2. No owned position, no type with an `own` part, and no type that
-   carries a lifetime implements `Boundary`.
+2. No mutable type, trait value, closure or live host handle implements
+   `Boundary`.
 3. `opaque(value)` makes an opaque value and `o.open()` reads it. Both
    need `$ OpaqueStore`, a std trait with two std impls.
 4. A place's `[places]` entry names the impl it binds. Values from a
@@ -872,6 +874,149 @@ runtime, since a library cannot see host-call reads. A place runs a
 closure from an untrusted edge only if it made it; otherwise every
 `portable` literal is a public endpoint. An edge with no declared trust
 is untrusted, which is "secure by default".
+
+## 9. Prototype Plan
+
+The prototype is the smallest end-to-end path that shows what paper
+cannot: one source program builds into several place-specific modules
+whose calls meet on the wire, a hostile caller cannot reach or forge
+anything section 6 says it cannot, and a program that uses none of this
+keeps its Wasm byte for byte. Its only transport runs every place in one
+process (4.3, "in-process for tests"), so every fixture is deterministic.
+
+### Scope
+
+In scope: remote functions and calls, `[places]`, opaque values with
+both strategies and `bind_caller`, portable closures, `RemoteError` and
+cancellation, retries with request IDs, queries with the memo and
+`watch`, and recorded runs with replay.
+
+| Deferred | Why | Meanwhile |
+| --- | --- | --- |
+| Network transports (HTTP, WebSocket, worker messages, service RPC) | Deployment work, each with its own authentication | In-process loopback only |
+| The Origin and CSRF guard of section 6 | Belongs to the first network transport, which must ship with it | Nothing to guard on loopback |
+| Generic fan-out providers (`Workers.map![A, B]`) | The host ABI has no codec per instantiation | A non-generic fixture trait; generic forms are `not-in-remote-prototype` |
+| GPU places | A separate study | Nothing |
+| Callbacks to a caller's closure under `ServerRefs` | Needs nested routing in the transport | Only portables made at home are accepted |
+| Seal expiry, key rotation, a `Remote` grant key | No spelling decided; runtime configuration | One sealing key per run; `Remote` needs no grant |
+
+A program that reaches a deferred form gets `not-in-remote-prototype`,
+once per form, and the spec chapter's status note lists those forms.
+
+### Where It Lives
+
+The spec gains `spec/lang/15-places-and-remote-calls.md` and
+`spec/std/remote.md`, plus smaller edits in Modules (`[places]`, the
+boundary-safe list), Annotations (`@remote`, `@query`), Command Line
+(per-place build output) and the conformance README (fixture
+environments). Each slice removes its item from the chapter's status
+note.
+
+A program without `[places]` is one implicit place that serves every
+module, so `remote!` runs in process. With `[places]`, `hd build` checks
+once and emits one module per place: the entry where that place runs
+it, one adapter export per served `@remote` function with a `hd.remote`
+section mapping call identities to exports, one adapter per `portable`
+literal, and one stub per crossing callee that imports `hd:Remote`
+`call.start` and `call.finish`.
+
+A crossing call on the loopback transport: the stub writes the 16-byte
+call identity and canonical arguments into its exchange buffer and calls
+`call.start`, which returns pending; the host finds the serving place in
+its `hd.remote` section, starts a fresh instance, copies the bytes in and
+calls the adapter; the adapter decodes by the declared parameter types,
+binds the row from the place's providers (`Caller` included), runs the
+function as a root suspension and encodes the result; the host copies it
+back as `.Ok`, or `.Err` with `Incompatible`, `Rejected` or `Panicked`.
+Node (`host/remote.mjs`) and wasmtime (`hd_run_wasmtime`) each implement
+it, and the parity tests compare them.
+
+| Stage | Adds | Incremental behavior |
+| --- | --- | --- |
+| Manifest (`hd_project`) | `[places]` parsing and problems | Part of the manifest key |
+| Interfaces (`hd_resolve`) | `@remote`/`@query` marks and call identities | A mark changes the interface hash; a body edit does not |
+| Checking (`hd_check`) | `remote!` typing, `portable` capture rules, `@query` rows | Per module, as today |
+| Placement (`hd_driver`, new task) | `remote-call-unmarked`, `remote-no-place`, `portable-row-not-bound` | Keyed by `[places]` and each module's call summary; never rechecks a body |
+| Content identity (`hd_driver`) | SHA-256 of a function and its callees, for portables and queries only | Memoized by TIR hash and callee identities |
+| Collection and emission (`hd_mono`, `hd_wasm_linear`) | Adapter roots, lifted portable bodies, stubs, the `hd.remote` section | Code keys as today; an instance shared by two places is emitted once |
+| Run (`host/`, `hd_run_wasmtime`) | Loopback transport, seals, memo, histories | — |
+
+A local `remote!` costs one direct call and one `.Ok`. A crossing call
+costs an encode, two buffer copies, a decode each way, and one
+instantiation. A sealed value adds 33 bytes; a server reference is 10 to
+17 bytes; a portable value is 16 bytes of identity plus its captures.
+
+### Slices
+
+Each slice is about an hour, is one feature, and lands with its spec
+rules and fixtures. Every slice that touches the back half checks that
+hello's Wasm is byte-identical.
+
+| # | Slice | Needs | Done when |
+| --- | --- | --- | --- |
+| 1 | `std.remote` and the chapter | — | Items type-check; the status note lists every form |
+| 2 | The `Boundary` marker, sharing the host-signature predicate | 1 | Accepted and rejected bounds per category |
+| 3 | `@remote` declarations | 2 | A fixture per diagnostic |
+| 4 | `remote!` in one place | 3 | Local calls run; nested results match; `race!(remote(f, x), ...)` |
+| 5 | `[places]` in `hd.toml` | 1 | A fixture per manifest problem |
+| 6 | Placement checks, with a fix-it that wraps in `remote!` | 4, 5 | Unmarked and unservable calls reject |
+| 7 | One module per place | 6 | `hd build` writes a module per place; a single-place build is byte-identical |
+| 8 | Loopback transport on Node | 7 | A call crosses and returns |
+| 9 | Every boundary type and `RemoteError` | 8 | Each type round-trips; a home panic is `Panicked` |
+| 10 | Loopback on wasmtime | 9 | Parity tests pass |
+| 11 | Maps at the boundary, entries ordered by encoded key bytes | 9 | Two insertion orders encode the same bytes |
+| 12 | Trust and `Caller` | 8 | The principal per trust level |
+| 13 | The hostile client scenario | 12 | Forged identities and truncated arguments never run a body |
+| 14 | Opaque values in one place (ChaCha20-Poly1305, eager seal) | 2, 4 | `open(opaque(v))` is `v` |
+| 15 | Opaque arguments checked at home, at any depth | 13, 14 | A flipped bit fails before the body |
+| 16 | Seals bound to a caller | 15 | A replay by another principal fails |
+| 17 | `ServerRefs`, one table per connection | 15 | References from another connection fail |
+| 18 | Content identity | 7 | Rename-stable, edit-sensitive, order-independent |
+| 19 | `portable` literal checks | 2 | A fixture per diagnostic |
+| 20 | Portable values in one place | 18, 19 | Plain and `remote!` calls agree |
+| 21 | Portables across places | 20, 9 | A closure crosses and runs at home |
+| 22 | Portables on untrusted edges | 21, 15 | A forged closure is `portable-not-own` |
+| 23 | `sends` and `portable-row-not-bound` | 21 | The row check rejects; a job runs |
+| 24 | Cancellation across places | 9 | A cancelled call stops at home and runs its cleanup |
+| 25 | Retries and request IDs | 9 | A lost reply runs the body once |
+| 26 | `@query` checks | 3 | Tracked rows accept; others reject |
+| 27 | The memo, keyed by content identity, arguments and principal | 26, 18, 9 | A repeated query does not rerun |
+| 28 | `watch` and pushed results | 27 | A write pushes a new result |
+| 29 | Recorded runs and replay (`crash-resume` scenario) | 9 | A crash between two host calls charges once |
+| 30 | Host calls in flight, with a per-method idempotency flag | 29 | A lost non-idempotent call is `OutcomeUnknown` |
+| 31 | Tour fixtures and cost report against section 7 | all | Numbers recorded |
+
+The plan's implementation choices: `open()` returns `T`; a seal is made
+eagerly when `opaque` runs; captures are encoded when the literal runs;
+map entries are ordered by encoded key bytes; a plain cross-place call is
+`remote-call-unmarked`; a local `remote!` binds `f`'s row from the
+place's providers, never from the caller's `$.with`; malformed arguments
+at home are `Rejected`, never a panic that poisons the home.
+
+### Open Points For The Prototype
+
+These need the owner before slice 1, each with the recommendation:
+
+1. **Default placement.** A program without `[places]` is one implicit
+   place binding the run's profile plus `Remote` and `OpaqueStore`; with
+   `[places]`, the entry runs where its module is served, or at an
+   implicit client place that serves nothing.
+2. **Declaring `remote` and `portable`.** One sealed std trait
+   (`RemoteTarget`) that functions and `Portable` implement, so both keep
+   ordinary hd signatures and `remote!(page.publish)` keeps its spelling.
+3. **The seal's purpose label.** The label is `T`'s type identity (a
+   portable's content identity for a closure), since home checks by
+   parameter type and knows no `opaque` site. Two purposes use two types.
+4. **A place's `profile` list.** It is the place's registration contract:
+   the keys the host must bind before the place starts.
+5. **A fresh instance per remote call.** Callers share no top-level state,
+   poison or handle; the cost is one instantiation per call.
+6. **The fixture format.** A package tree with an `hd.toml` holding only
+   `[places]`; a `loopback-places` profile with fixed principals, a
+   `Probe` trait counting body runs, a `Pool` trait for `sends` and a
+   `drop_first_reply` setting; a `tracked-notes` profile; and the
+   `hostile-client` and `crash-resume` scenarios, all specified in the
+   conformance README.
 
 ## Appendix: Holes And Limits
 

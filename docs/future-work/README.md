@@ -48,8 +48,7 @@ the design stays.
 
 ### Memory model and performance
 
-- [Serializable Closure Design](SERIALIZABLE_CLOSURE_DESIGN.md): the design study of serializable closures and remote calls; not approved (#166).
-- [Serializable Closure Prototype Plan](SERIALIZABLE_CLOSURE_PROTOTYPE.md): 31 hour-sized slices, each with its spec rules and fixtures, over an in-process transport; no slice is scheduled.
+- [Serializable Closures And Remote Calls](SERIALIZABLE_CLOSURE_DESIGN.md): parked design study and prototype plan for remote calls, opaque values, portable closures and live queries (#166).
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
 - [Rust Model Study](RUST_MODEL_STUDY.md): the study that priced Rust's ownership for hd; decided against ownership (#163).
 - [Object Model, Tier 1](OBJECT_MODEL_TIER1.md): Go's object model on counted linear memory: struct values, global `&T` and `&mut T` references, copy-on-write collections and closures with one call kind (#426).
