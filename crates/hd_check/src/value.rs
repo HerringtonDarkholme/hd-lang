@@ -220,7 +220,8 @@ impl Ck<'_, '_> {
     /// Marks the `mut` parameters of the function `f`: each is its own
     /// changeable copy, so it may be reassigned and, for a struct, its
     /// fields are writable places (`fn.param.mut`). `mut self` on a data
-    /// type keeps its `mut` type and is not marked.
+    /// type keeps its `mut` type and is not marked; on a struct, a list or
+    /// a map it is (`fn.method.mut-self-struct`).
     pub(crate) fn mark_mut_params(&mut self, f: NodeRef<'_>) {
         let Some(list) = hd_resolve::Src::child(f, SyntaxKind::ParameterList) else {
             return;
@@ -251,8 +252,13 @@ impl Ck<'_, '_> {
             // A data type's `mut self` keeps its `mut` type. A rejected
             // `mut` view of a struct is marked, so one error is reported.
             let t = self.b.local_ty(l);
-            if matches!(self.pool().get(t), TyData::Mut(_)) && !self.is_struct_ty(t) {
-                continue;
+            if matches!(self.pool().get(t), TyData::Mut(_)) {
+                if self.is_coll_ty(t) {
+                    // A list's or a map's own copy has the value type.
+                    self.b.body_mut().local_ty[l.idx()] = self.strip_mut(t);
+                } else if !self.is_struct_ty(t) {
+                    continue;
+                }
             }
             self.mut_params.push(l);
             self.mut_locals.push(l);

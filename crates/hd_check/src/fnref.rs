@@ -866,8 +866,8 @@ impl Ck<'_, '_> {
             // and read through for the call.
             let by_ref = self.ref_of(rt).is_none() && self.ref_of(self.b.ty_of(recv)).is_some();
             // `fn.ref.bound.address.writable`.
-            if !by_ref {
-                self.check_receiver(recv_ty, recv, rt, n);
+            if !by_ref && mutates {
+                self.coll_change(recv, rt, "this call", n);
             }
             let lt = if by_ref { self.b.ty_of(recv) } else { rt };
             let receiver = self.cx.names.syms.intern("$receiver");

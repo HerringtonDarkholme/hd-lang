@@ -229,12 +229,6 @@ impl Ck<'_, '_> {
         if matches!(pool.get(self.strip_mut(inner)), TyData::Prim(_)) {
             return;
         }
-        // A collection value changes through a writable place
-        // (`types.coll.writable`).
-        if self.is_coll_ty(rt) {
-            self.coll_change(recv, rt, "this call", at);
-            return;
-        }
         if self.has_mut_access(rt) {
             return;
         }

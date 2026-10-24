@@ -1490,6 +1490,8 @@ runtime/valid/a-list-default-is-fresh-on-every-call.hd	runtime	accept	lang/07-fu
 runtime/valid/a-literal-list-beside-collect-takes-the-default-list.hd	runtime	accept	std/iter.md#r-std-iter.collect.default
 runtime/valid/a-method-default-reads-the-receiver-and-earlier-parameters.hd	runtime	accept	lang/07-functions.md#default-values
 runtime/valid/a-mut-self-change-of-a-list-stays-in-the-methods-copy.hd	runtime	accept	lang/07-functions.md#r-fn.method.mut-self-struct
+runtime/valid/a-mut-self-call-needs-no-writable-binding.hd	runtime	accept	lang/04-type-system.md#r-types.coll.writable.call
+runtime/valid/a-mut-self-method-may-reassign-self.hd	runtime	accept	lang/07-functions.md#r-fn.param.mut.reassign
 runtime/valid/a-parenthesized-chain-is-a-value.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
 runtime/valid/a-read-of-a-binding-during-its-mut-self-call-sees-the-unchanged-value.hd	runtime	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
 runtime/valid/a-spread-through-a-value-passes-each-element.hd	runtime	accept	lang/07-functions.md#function-types-and-values
@@ -4470,6 +4472,8 @@ runtime/valid/struct-mut-self-copy.hd	runtime	accept	lang/07-functions.md#r-fn.p
 typing/valid/mut-parameters.hd	type	accept	lang/07-functions.md#r-fn.param.mut.reassign
 parse/valid/mut-parameters.hd	parse	accept	lang/02-grammar.md#r-grammar.fn.param-mut
 typing/warnings/lost-write-mut-self.hd	type	warn:lost-write	lang/07-functions.md#r-fn.param.mut.lost-write
+typing/warnings/lost-write-mut-self-list.hd	type	warn:lost-write	lang/07-functions.md#r-fn.param.mut.lost-write
+typing/warnings/lost-write-mut-self-map.hd	type	warn:lost-write	lang/07-functions.md#r-fn.param.mut.lost-write
 typing/warnings/lost-write-mut-parameter.hd	type	warn:lost-write	lang/07-functions.md#r-fn.param.mut.lost-write.scope
 typing/invalid/struct-mut-param-mut-type.hd	type	reject:mut-on-struct	lang/07-functions.md#r-fn.param.mut.view
 typing/invalid/struct-field-write-plain-param-with-mut-sibling.hd	type	reject:non-reassignable-parameter-binding	lang/04-type-system.md#r-types.value.write.plain-param

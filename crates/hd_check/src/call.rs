@@ -3998,8 +3998,9 @@ impl Ck<'_, '_> {
             }
             Some(Hit::Builtin { op, params, ret }) => {
                 if matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove) {
-                    let st = pool.intern_ty(&TyData::Mut(self.strip_mut(rt)));
-                    self.check_receiver(st, recv, rt, n);
+                    // `push` and `remove` change the receiver in place
+                    // (`types.coll.writable.call`).
+                    self.coll_change(recv, rt, "this call", n);
                     // An element receiver's access begins before the
                     // arguments run (`fn.method.eval-order`,
                     // `ref.elem.access`).

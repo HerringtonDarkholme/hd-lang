@@ -1,0 +1,41 @@
+# test: a mut self method called on a list or a map in a binding that is not let mut changes only its own copy, so the call is accepted and the caller keeps its value
+# Spec 07 Method Receivers: fn.method.mut-self-struct, fn.method.receiver.mut-self. Spec 04 Collection Values: types.coll.writable.call.
+trait Grow:
+    fn grow(mut self, n: i64) -> usize
+
+impl Grow for List[i64]:
+    fn grow(mut self, n: i64) -> usize:
+        self.push(n)
+        self.len()
+
+impl Grow for Map[string, i64]:
+    fn grow(mut self, n: i64) -> usize:
+        self["n$n"] = n
+        self.len()
+
+fn two() -> List[i64]:
+    [1, 2]
+
+fn through_parameter(xs: List[i64]) -> usize:
+    xs.grow(3)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a plain binding and a short binding keep their lists"):
+        let xs: List[i64] = [1]
+        ys := two()
+        assert_equal(xs.grow(5), 2, reason="the plain binding's call sees its own push")
+        assert_equal(ys.grow(5), 3, reason="the short binding's call sees its own push")
+        assert_equal(xs, [1], reason="the plain binding is unchanged")
+        assert_equal(ys, [1, 2], reason="the short binding is unchanged")
+
+    it("a parameter keeps its list"):
+        let xs: List[i64] = [7]
+        assert_equal(through_parameter(xs), 2, reason="the parameter's call")
+        assert_equal(xs, [7], reason="the argument is unchanged")
+
+    it("a plain map keeps its contents"):
+        let counts: Map[string, i64] = {}
+        assert_equal(counts.grow(6), 1, reason="the map's call")
+        assert_equal(counts.len(), 0, reason="the map has no entry")

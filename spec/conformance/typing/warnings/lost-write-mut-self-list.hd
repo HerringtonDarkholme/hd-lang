@@ -1,0 +1,13 @@
+# test: a write to a list's mut self that nothing reads afterwards is lost and warns
+# Spec 07 Parameters: fn.param.mut.lost-write. Spec 07 Methods And Receivers: fn.method.mut-self-struct.
+trait Reset:
+    fn reset(mut self) -> void
+    fn rebuilt(mut self) -> Self
+
+impl Reset for List[i64]:
+    fn reset(mut self) -> void:
+        self = []  # warning: lost-write
+
+    fn rebuilt(mut self) -> List[i64]:
+        self = [1]
+        self

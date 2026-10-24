@@ -1,0 +1,13 @@
+# test: a write to a map's mut self that nothing reads afterwards is lost and warns
+# Spec 07 Parameters: fn.param.mut.lost-write. Spec 07 Methods And Receivers: fn.method.mut-self-struct.
+trait Reset:
+    fn reset(mut self) -> void
+    fn rebuilt(mut self) -> Self
+
+impl Reset for Map[string, i64]:
+    fn reset(mut self) -> void:
+        self = {}  # warning: lost-write
+
+    fn rebuilt(mut self) -> Map[string, i64]:
+        self = {}
+        self
