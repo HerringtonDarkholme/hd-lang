@@ -37,7 +37,7 @@
 
 use hd_types::Ty;
 
-use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, Topology, inside, place, u32_of};
+use crate::ir::{Body, Callee, IntrinsicOp, NONE, Ref, Tag, Topology, Word, inside, slots, u32_of};
 
 pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
@@ -128,34 +128,7 @@ pub trait OwnCx {
     fn holds_coll(&self, ty: Ty) -> bool;
 }
 
-/// How an instruction uses one of its value operands.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Role {
-    /// The use reads the value and keeps nothing: an operand of `Prim`, a
-    /// place's root or element index, a borrowed argument.
-    Lend,
-    /// The use takes the value's count: a stored value (a list push's and
-    /// a map store's too), a construction part, a `Return` or `Break`
-    /// value.
-    Consume,
-    /// Argument `k` of a call, which consumes it when its parameter is a
-    /// value parameter ([`OwnCx::pass`]).
-    Arg(u32),
-    /// A block's tail, which its block's value takes when the block's
-    /// owner uses that value.
-    Tail,
-    /// The place of a `Drop`: no use, the value's end.
-    Dropped,
-}
-
-/// Where an operand word sits, so a pass can rewrite it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Loc {
-    /// Data word `k` of the instruction.
-    Data(u8),
-    /// A word of `extra`.
-    Extra(u32),
-}
+pub use crate::ir::{Loc, Role};
 
 /// One value operand of an instruction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -166,140 +139,25 @@ pub struct Operand {
 }
 
 /// The value operands instruction `i` reads, in emission order, each with
-/// its role and position: the operands of `Body::value_operands`, a call's
-/// providers, `With`'s and `ContextNew`'s provider values, a block's tail,
-/// and the value operands of control flow (a condition, a scrutinee, a
-/// `Return` or `Break` value). Constants and `NONE` are left out. One
-/// definition serves the passes, their verifier and the emitter, so all
-/// three agree on what a use is.
+/// its role and position: its value and provider [`slots`], which are the
+/// operands of `Body::value_operands`, a call's providers, `With`'s and
+/// `ContextNew`'s provider values, a block's tail, and the value operands
+/// of control flow (a condition, a scrutinee, a `Return` or `Break`
+/// value). Constants and `NONE` are left out. One definition serves the
+/// passes, their verifier and the emitter, so all three agree on what a
+/// use is.
 pub fn operands(b: &Body, i: usize, out: &mut Vec<Operand>) {
     out.clear();
-    let [a, w] = b.data[i];
-    let tag = b.tags[i];
-    let push = |out: &mut Vec<Operand>, value: u32, role: Role, at: Loc| {
-        if value != NONE && Ref(value).as_inst().is_some() && (value as usize) < b.len() {
+    slots(b, i, |at, value, slot| {
+        let role = match slot {
+            Word::Value(role) => role,
+            Word::Provider => Role::Lend,
+            Word::Block | Word::Inst => return,
+        };
+        if Ref(value).as_inst().is_some() && (value as usize) < b.len() {
             out.push(Operand { value, role, at });
         }
-    };
-    let record = |at: u32| -> (u32, u32) {
-        let n = b.extra.get(at as usize).copied().unwrap_or(0);
-        (at + 1, n)
-    };
-    match tag {
-        Tag::Block => push(out, w, Role::Tail, Loc::Data(1)),
-        Tag::Read | Tag::Ref | Tag::Store | Tag::Drop | Tag::IsUnique | Tag::Pin => {
-            let role = if tag == Tag::Drop {
-                Role::Dropped
-            } else {
-                Role::Lend
-            };
-            if a & place::BARE_LOCAL == 0 {
-                place_words(b, a, |value, at| push(out, value, role, at));
-            }
-            if tag == Tag::Store {
-                push(out, w, Role::Consume, Loc::Data(1));
-            }
-        }
-        Tag::Call | Tag::Await => {
-            let (start, n) = record(w);
-            let args = n.saturating_sub(3);
-            for k in 0..args {
-                let at = start + k;
-                push(out, b.extra[at as usize], Role::Arg(k), Loc::Extra(at));
-            }
-            // The providers: (key, value) pairs at `x` (1), or a context
-            // value (2).
-            if n >= 3 {
-                let kind = b.extra[(start + n - 3) as usize];
-                let x = b.extra[(start + n - 2) as usize];
-                let len = b.extra[(start + n - 1) as usize];
-                match kind {
-                    1 => {
-                        for k in (1..len).step_by(2) {
-                            let at = x + k;
-                            if let Some(&v) = b.extra.get(at as usize) {
-                                push(out, v, Role::Lend, Loc::Extra(at));
-                            }
-                        }
-                    }
-                    2 => push(out, x, Role::Lend, Loc::Extra(start + n - 2)),
-                    _ => {}
-                }
-            }
-        }
-        Tag::CallValue => {
-            push(out, a, Role::Lend, Loc::Data(0));
-            let (start, n) = record(w);
-            for k in 0..n {
-                let at = start + k;
-                push(out, b.extra[at as usize], Role::Arg(k), Loc::Extra(at));
-            }
-        }
-        Tag::NewStruct | Tag::NewVariant | Tag::NewMap => {
-            values(b, w, &mut |v, at| push(out, v, Role::Consume, at));
-        }
-        Tag::NewTuple => {
-            values(b, w, &mut |v, at| push(out, v, Role::Consume, at));
-            push(out, a, Role::Consume, Loc::Data(0));
-        }
-        Tag::NewList => {
-            values(b, w, &mut |v, at| push(out, v, Role::Consume, at));
-        }
-        Tag::CopyStruct => {
-            push(out, a, Role::Lend, Loc::Data(0));
-            let (start, n) = record(w);
-            for k in (1..n).step_by(2) {
-                let at = start + k;
-                push(out, b.extra[at as usize], Role::Consume, Loc::Extra(at));
-            }
-        }
-        Tag::With | Tag::ContextNew => {
-            let (start, n) = record(a);
-            for k in (1..n).step_by(2) {
-                let at = start + k;
-                push(out, b.extra[at as usize], Role::Lend, Loc::Extra(at));
-            }
-        }
-        Tag::Return => push(out, a, Role::Consume, Loc::Data(0)),
-        Tag::Break => push(out, w, Role::Consume, Loc::Data(1)),
-        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-            push(out, a, Role::Lend, Loc::Data(0));
-        }
-        _ => {
-            for (k, (word, op)) in [(a, tag.operands().0), (w, tag.operands().1)]
-                .into_iter()
-                .enumerate()
-            {
-                match op {
-                    Op::Value => push(out, word, Role::Lend, Loc::Data(u8::from(k == 1))),
-                    Op::Values if word != NONE => {
-                        values(b, word, &mut |v, at| push(out, v, Role::Lend, at));
-                    }
-                    Op::Record if word != NONE && matches!(tag, Tag::Intrinsic | Tag::Interp) => {
-                        // The value a list push or a map store puts in
-                        // the collection, which keeps it: a store.
-                        let stored = match IntrinsicOp::from_u32(a) {
-                            _ if tag != Tag::Intrinsic => NONE,
-                            Some(IntrinsicOp::ListPush) => 1,
-                            Some(IntrinsicOp::MapSet) => 2,
-                            _ => NONE,
-                        };
-                        let mut k = 0;
-                        values(b, word, &mut |v, at| {
-                            let role = if k == stored {
-                                Role::Consume
-                            } else {
-                                Role::Lend
-                            };
-                            k += 1;
-                            push(out, v, role, at);
-                        });
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
+    });
 }
 
 /// Marks what the cleanup suites `roots` touch, as [`inside`] walks
@@ -338,47 +196,6 @@ pub(crate) fn suite_touches(
         }
         true
     });
-}
-
-/// Each word of the record at `at`, as a value operand.
-fn values(b: &Body, at: u32, f: &mut dyn FnMut(u32, Loc)) {
-    if at == NONE {
-        return;
-    }
-    let n = b.extra.get(at as usize).copied().unwrap_or(0);
-    for k in 0..n {
-        let x = at + 1 + k;
-        if let Some(&v) = b.extra.get(x as usize) {
-            f(v, Loc::Extra(x));
-        }
-    }
-}
-
-/// The value words of the place record at `at`: a value or pointer root,
-/// then each element index, with their positions.
-pub(crate) fn place_words(b: &Body, at: u32, mut f: impl FnMut(u32, Loc)) {
-    let Some(&n) = b.extra.get(at as usize) else {
-        return;
-    };
-    let rec = at + 1;
-    let end = rec + n;
-    let word = |x: u32| b.extra.get(x as usize).copied().unwrap_or(0);
-    let mut x = match word(rec) {
-        place::ROOT_VALUE | place::ROOT_PTR => {
-            f(word(rec + 1), Loc::Extra(rec + 1));
-            rec + 2
-        }
-        place::ROOT_GLOBAL => rec + 3,
-        _ => rec + 2,
-    };
-    while x < end {
-        if word(x) & place::PROJ_KIND == place::PROJ_ELEM {
-            f(word(x + 1), Loc::Extra(x + 1));
-            x += 2;
-        } else {
-            x += 1;
-        }
-    }
 }
 
 /// The block owners whose value takes their block's tail: the arms of an

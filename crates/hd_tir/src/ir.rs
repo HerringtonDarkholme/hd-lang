@@ -15,10 +15,12 @@ use hd_types::{Ty, TyList};
 
 mod owned;
 mod root;
+mod slots;
 mod topo;
 mod view;
 pub use owned::verify_owned;
 pub use root::{RootTables, root_places};
+pub use slots::{Loc, Role, Word, slot_words, slots};
 pub use topo::Topology;
 pub(crate) use topo::{for_blocks, inside};
 pub use view::{DEREF, ELEM, PlaceView, Root, Steps, VARIANT};
@@ -995,39 +997,20 @@ impl Body {
     /// The value operands of instruction `i` that compute one result from
     /// values and own no block, label or local (an erased body outlines
     /// such an instruction, `crates/hd_mono/DESIGN.md` §13.5.1), in the order emission
-    /// reads them; constants included. `None` for any other instruction.
-    /// For `Read`, `Store`, `Ref`, `IsUnique` and `Pin`, the values their
-    /// place reads (a
-    /// value root, then each element index), then a `Store`'s value; a
-    /// local or global root is no value and is not listed.
+    /// reads them ([`slots`]); constants included. `None` for any other
+    /// instruction. A call's providers are not listed, nor a place's local
+    /// or global root.
     #[must_use]
     pub fn value_operands(&self, i: usize) -> Option<Vec<u32>> {
-        let [a, w] = self.data[i];
-        let one = |v: u32| if v == NONE { vec![] } else { vec![v] };
-        Some(match self.tags[i] {
-            Tag::Prim | Tag::NewStruct | Tag::NewVariant | Tag::NewMap | Tag::DefaultCall => {
-                self.record(w).to_vec()
-            }
-            // The last three words are the call's providers.
-            Tag::Call => {
-                let r = self.record(w);
-                r[..r.len().saturating_sub(3)].to_vec()
-            }
-            Tag::CallValue => [one(a), self.record(w).to_vec()].concat(),
-            Tag::Intrinsic | Tag::Interp => self.record(w).to_vec(),
-            Tag::Is => [one(a), one(w)].concat(),
-            Tag::Coerce => one(a),
-            Tag::CopyStruct => {
-                let pairs = self.record(w).iter().skip(1).step_by(2).copied();
-                one(a).into_iter().chain(pairs).collect()
-            }
-            Tag::NewTuple => [self.record(w).to_vec(), one(a)].concat(),
-            Tag::NewList if a == NONE => self.record(w).to_vec(),
-            Tag::ProviderGet | Tag::ItemRef => vec![],
-            Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Pin => self.place_values(a),
-            Tag::Store => [self.place_values(a), one(w)].concat(),
-            _ => return None,
-        })
+        let outlined = match self.tags[i] {
+            Tag::Prim | Tag::NewStruct | Tag::NewVariant | Tag::NewMap | Tag::DefaultCall => true,
+            Tag::Call | Tag::CallValue | Tag::Intrinsic | Tag::Interp | Tag::Is => true,
+            Tag::Coerce | Tag::CopyStruct | Tag::NewTuple | Tag::ProviderGet | Tag::ItemRef => true,
+            Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Pin | Tag::Store => true,
+            Tag::NewList => self.data[i][0] == NONE,
+            _ => false,
+        };
+        outlined.then(|| slot_words(self, i, |s| matches!(s, Word::Value(_))))
     }
 
     /// Decodes a place word ([`place`]); `None` when it is malformed: a
@@ -2381,34 +2364,18 @@ fn suspension_scopes(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
 /// Invariant 12, its first half: a constant `Ref` names a row of `consts`.
 /// The row's type against its position is invariant 4's.
 fn constant_rows(b: &Body, errs: &mut Vec<VerifyError>) {
-    for (i, (&tag, &[a, w])) in b.tags.iter().zip(&b.data).enumerate() {
-        let mut vals: Vec<u32> = Vec::new();
-        for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
-            match op {
-                Op::Value => vals.push(word),
-                Op::Values if matches!(tag, Tag::Call | Tag::Await) => {
-                    vals.extend_from_slice(call_args(b, i));
-                }
-                Op::Values if (word as usize) < b.extra.len() => {
-                    vals.extend_from_slice(b.record(word));
-                }
-                Op::Place => vals.extend(b.place_values(word)),
-                _ => {}
-            }
-        }
-        vals.extend(b.value_operands(i).unwrap_or_default());
-        // A record can be both a `Values` operand and a value operand.
-        vals.sort_unstable();
-        vals.dedup();
-        for v in vals {
-            if v != NONE
-                && v & Ref::CONST_BIT != 0
-                && (v & !Ref::CONST_BIT) as usize >= b.consts.len()
-            {
+    for i in 0..b.len() {
+        let mut rows = slot_words(b, i, |s| matches!(s, Word::Value(_) | Word::Provider));
+        rows.retain(|&v| v != NONE && v & Ref::CONST_BIT != 0);
+        // A constant can fill two slots.
+        rows.sort_unstable();
+        rows.dedup();
+        for k in rows.into_iter().map(|v| v & !Ref::CONST_BIT) {
+            if k as usize >= b.consts.len() {
                 errs.push(VerifyError {
                     invariant: 12,
-                    inst: u32::try_from(i).expect("i"),
-                    what: format!("constant {} has no row", v & !Ref::CONST_BIT),
+                    inst: u32_of(i),
+                    what: format!("constant {k} has no row"),
                 });
             }
         }

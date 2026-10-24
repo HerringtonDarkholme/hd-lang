@@ -214,28 +214,10 @@ pub fn erased_args(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: T
     pool.list(&all)
 }
 
-/// The words of instruction `i` that its operand schema marks as values.
+/// The words of instruction `i` that its operand schema marks as values
+/// ([`hd_tir::ir::slots`]): a superset of [`Body::value_operands`].
 fn schema_values(b: &Body, i: usize) -> Vec<u32> {
-    let [a, w] = b.data[i];
-    let (oa, ow) = b.tags[i].operands();
-    let mut out = Vec::new();
-    for (word, op) in [(a, oa), (w, ow)] {
-        match op {
-            hd_tir::ir::Op::Value => out.push(word),
-            hd_tir::ir::Op::Place => out.extend(b.place_values(word)),
-            hd_tir::ir::Op::Values => {
-                let r = b.record(word);
-                let n = if matches!(b.tags[i], Tag::Call | Tag::Await) {
-                    r.len().saturating_sub(3)
-                } else {
-                    r.len()
-                };
-                out.extend_from_slice(&r[..n]);
-            }
-            _ => {}
-        }
-    }
-    out
+    hd_tir::ir::slot_words(b, i, |s| matches!(s, hd_tir::ir::Word::Value(_)))
 }
 
 /// The type of a value word: an instruction's, or a constant's.
@@ -348,9 +330,6 @@ pub fn open_insts(
         }
         let [a, w] = b.data[i];
         let mut open = is_open(pool, s(b.ty[i])) || schema_values(b, i).into_iter().any(open_word);
-        if let Some(ops) = b.value_operands(i) {
-            open |= ops.into_iter().any(open_word);
-        }
         open |= match tag {
             Tag::Call | Tag::Await => match Callee::from_words(b.record(a)) {
                 Some(Callee::Item { targs, .. }) => open_list(targs),

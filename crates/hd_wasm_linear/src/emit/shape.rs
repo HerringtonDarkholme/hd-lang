@@ -3,7 +3,7 @@
 //! projection, a read through a reference). Nothing here decides a count:
 //! the ownership passes did (`docs/compiler/tir-v2.md`, "Stage 2").
 
-use hd_tir::ir::{Body, NONE, Op, PlaceRoot, Proj, Ref, Tag};
+use hd_tir::ir::{Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Word, slot_words};
 
 use super::Em;
 
@@ -168,57 +168,36 @@ pub(super) fn read_through(b: &Body, i: usize, projs: &[Projected]) -> Option<(T
     }
 }
 
-/// The instruction values instruction `i` reads: TIR's own list where it
-/// has one, else every operand word that names an instruction, an
-/// over-approximation, which only ever makes a list's alias check refuse.
+/// The instruction values instruction `i` reads: its value and provider
+/// slots ([`hd_tir::ir::slots`]) but a `Drop`'s place, and more, an over-approximation
+/// which only ever makes a list's alias check refuse: every word of an
+/// `Await`'s records, of a list's spread positions and of a call's
+/// provider pairs.
 pub(super) fn uses(b: &Body, i: usize) -> Vec<u32> {
     let [a, w] = b.data[i];
-    let tag = b.tags[i];
-    // A block's record is its statements; only its tail is a use.
-    if tag == Tag::Block {
-        return if w != NONE && Ref(w).as_inst().is_some() {
-            vec![w]
-        } else {
-            vec![]
-        };
-    }
-    let mut out = if let Some(mut v) = b.value_operands(i) {
-        // A call's last three words are its providers: a range of key and
-        // value pairs (1), or a context value (2).
-        if tag == Tag::Call {
-            let r = b.record(w);
-            if let [.., kind, x, n] = *r {
-                match kind {
-                    1 => v.extend(b.extra.iter().skip(x as usize).take(n as usize)),
-                    2 => v.push(x),
-                    _ => {}
-                }
-            }
-        }
-        v
-    } else if matches!(tag, Tag::With | Tag::ContextNew) {
-        // Keys and values in pairs.
-        b.record(a).iter().skip(1).step_by(2).copied().collect()
-    } else {
-        let mut out = Vec::new();
-        for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
-            match op {
-                Op::Value => out.push(word),
-                Op::Values if word != NONE => out.extend_from_slice(b.record(word)),
-                // Only these records hold values; a closure's holds its
-                // captures' range, a switch's its case and arms.
-                Op::Record
-                    if word != NONE && matches!(tag, Tag::CallDyn | Tag::Await | Tag::NewList) =>
-                {
-                    out.extend_from_slice(b.record(word));
-                }
-                _ => {}
-            }
-        }
-        out
+    let mut out = match b.tags[i] {
+        Tag::Await => return in_body(b, [b.record(a), b.record(w)].concat()),
+        Tag::NewList if a != NONE => b.record(a).to_vec(),
+        Tag::Call => match *b.record(w) {
+            [.., 1, x, n] => b
+                .extra
+                .get(x as usize..(x + n) as usize)
+                .unwrap_or(&[])
+                .to_vec(),
+            _ => vec![],
+        },
+        _ => vec![],
     };
-    out.retain(|&r| r != NONE && Ref(r).as_inst().is_some() && (r as usize) < b.len());
-    out
+    out.extend(slot_words(b, i, |s| {
+        s == Word::Provider || matches!(s, Word::Value(r) if r != Role::Dropped)
+    }));
+    in_body(b, out)
+}
+
+/// The words of `v` that name an instruction of `b`.
+fn in_body(b: &Body, mut v: Vec<u32>) -> Vec<u32> {
+    v.retain(|&r| r != NONE && Ref(r).as_inst().is_some() && (r as usize) < b.len());
+    v
 }
 
 #[cfg(test)]

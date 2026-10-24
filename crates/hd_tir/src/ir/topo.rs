@@ -5,7 +5,7 @@
 //! block, and what follows from the two. A block's members and an
 //! instruction's blocks come before it, so each column takes one pass.
 
-use super::{Body, NONE, Op, Tag, u32_of};
+use super::{Body, NONE, Tag, Word, slots, u32_of};
 use crate::own::fill;
 
 /// The block structure of a body, a column per instruction.
@@ -135,36 +135,15 @@ impl Topology {
     }
 }
 
-/// The blocks instruction `i` runs, without allocating: a block operand,
-/// a block list, a switch's two arms, a `Defer`'s suite.
+/// The blocks instruction `i` runs, without allocating: its
+/// [`Word::Block`]s, a block operand, a block list, a switch's arms, a
+/// `Defer`'s suite.
 pub(crate) fn for_blocks(b: &Body, i: usize, mut f: impl FnMut(u32)) {
-    let [a, w] = b.data[i];
-    let tag = b.tags[i];
-    let mut visit = |x: u32| {
-        if b.tags.get(x as usize) == Some(&Tag::Block) {
+    slots(b, i, |_, x, s| {
+        if s == Word::Block && b.tags.get(x as usize) == Some(&Tag::Block) {
             f(x);
         }
-    };
-    for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
-        match op {
-            Op::Block => visit(word),
-            Op::Blocks if word != NONE => {
-                for &x in b.record(word) {
-                    visit(x);
-                }
-            }
-            _ => {}
-        }
-    }
-    match tag {
-        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-            for &x in b.record(w).iter().skip(1).take(2) {
-                visit(x);
-            }
-        }
-        Tag::Defer => visit(a),
-        _ => {}
-    }
+    });
 }
 
 /// Walks every instruction the blocks `roots` hold, nested blocks

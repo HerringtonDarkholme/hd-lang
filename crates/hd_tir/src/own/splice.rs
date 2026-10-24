@@ -17,7 +17,7 @@ use hd_base::NodeIdx;
 use hd_types::Ty;
 
 use super::Loc;
-use crate::ir::{Body, NONE, Op, Ref, Tag, Topology, place, u32_of};
+use crate::ir::{Body, NONE, Ref, Tag, Topology, slots, u32_of};
 
 /// One new instruction: it stands in block `blk` before position `pos`
 /// (`pos` = the block's length: at its end).
@@ -51,7 +51,7 @@ pub(crate) struct Tables {
     done: Vec<bool>,
     per_block: Vec<(u32, u32, u32)>,
     words: Vec<u32>,
-    places: Vec<u32>,
+    locs: Vec<Loc>,
     /// Added to every constant word: 0 for a pass, the caller's constant
     /// count for the inliner's copy of a callee.
     konst: u32,
@@ -328,7 +328,8 @@ pub(crate) fn renumber_through(b: &mut Body, new_of: Vec<u32>, konst: u32) -> Re
 }
 
 /// Renumbers every word of `b` that names an instruction, by the operand
-/// schema; a record several instructions share is renumbered once.
+/// schema ([`slots`]); a record several instructions share is renumbered
+/// once.
 fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     let map = |t: &Tables, w: u32| -> u32 {
         if w == NONE {
@@ -342,85 +343,25 @@ fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     t.done.clear();
     t.done.resize(b.extra.len(), false);
     for i in 0..b.len() {
-        let [a, w] = b.data[i];
-        let tag = b.tags[i];
-        let (oa, ob) = tag.operands();
-        for (k, (word, op)) in [(a, oa), (w, ob)].into_iter().enumerate() {
-            match op {
-                Op::Value | Op::Block => b.data[i][k] = map(t, word),
-                Op::Meta if (tag == Tag::Defer && k == 0) || (tag == Tag::Hook && k == 1) => {
-                    b.data[i][k] = map(t, word);
+        let w = b.data[i][1];
+        match b.tags[i] {
+            Tag::CallDyn if w != NONE => return Err("`CallDyn`".into()),
+            Tag::Call | Tag::Await if w != NONE => {
+                if let Some(&kind @ 3..) = b.record(w).iter().rev().nth(2) {
+                    return Err(format!("call providers of kind {kind}"));
                 }
-                Op::Place if word & place::BARE_LOCAL == 0 => {
-                    t.places.clear();
-                    super::place_words(b, word, |_, l| {
-                        if let Loc::Extra(p) = l {
-                            t.places.push(p);
-                        }
-                    });
-                    for x in 0..t.places.len() {
-                        let p = t.places[x];
-                        remap_extra(b, t, p, &map);
-                    }
+            }
+            _ => {}
+        }
+        t.locs.clear();
+        slots(b, i, |at, _, _| t.locs.push(at));
+        for x in 0..t.locs.len() {
+            match t.locs[x] {
+                Loc::Data(k) => {
+                    let k = usize::from(k);
+                    b.data[i][k] = map(t, b.data[i][k]);
                 }
-                Op::Values | Op::Blocks if word != NONE => {
-                    let n = b.extra[word as usize];
-                    let last = match tag {
-                        // A call's last three words are its providers.
-                        Tag::Call | Tag::Await => n.saturating_sub(3),
-                        _ => n,
-                    };
-                    for x in 0..last {
-                        remap_extra(b, t, word + 1 + x, &map);
-                    }
-                    if matches!(tag, Tag::Call | Tag::Await) && n >= 3 {
-                        let p = word + 1 + n - 3;
-                        match b.extra[p as usize] {
-                            0 => {}
-                            1 => {
-                                let (x, len) = (b.extra[p as usize + 1], b.extra[p as usize + 2]);
-                                for y in (1..len).step_by(2) {
-                                    remap_extra(b, t, x + y, &map);
-                                }
-                            }
-                            2 => remap_extra(b, t, p + 1, &map),
-                            other => return Err(format!("call providers of kind {other}")),
-                        }
-                    }
-                }
-                Op::Record if word != NONE => {
-                    let n = b.extra[word as usize];
-                    let words = word + 1..word + 1 + n;
-                    match tag {
-                        Tag::Block | Tag::Intrinsic | Tag::Interp => {
-                            for p in words {
-                                remap_extra(b, t, p, &map);
-                            }
-                        }
-                        Tag::NewList if k == 1 => {
-                            for p in words {
-                                remap_extra(b, t, p, &map);
-                            }
-                        }
-                        Tag::CopyStruct | Tag::With | Tag::ContextNew => {
-                            for p in words.skip(1).step_by(2) {
-                                remap_extra(b, t, p, &map);
-                            }
-                        }
-                        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-                            let last = word + n;
-                            for p in words.skip(1).step_by(2) {
-                                remap_extra(b, t, p, &map);
-                            }
-                            if n % 2 == 1 {
-                                remap_extra(b, t, last, &map);
-                            }
-                        }
-                        Tag::CallDyn => return Err("`CallDyn`".into()),
-                        _ => {}
-                    }
-                }
-                _ => {}
+                Loc::Extra(p) => remap_extra(b, t, p, &map),
             }
         }
     }
