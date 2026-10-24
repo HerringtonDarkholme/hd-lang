@@ -1183,20 +1183,18 @@ fn cli_conformance_passes_except_known_failures() {
         }
     };
     let mode = EngineMode::parse(selected.as_deref()).unwrap_or_else(|error| panic!("{error}"));
-    let all = case_names();
-    if let Ok(only) = std::env::var("HD_CONFORMANCE_ONLY") {
+    let only = std::env::var("HD_CONFORMANCE_ONLY").ok();
+    let mut names = case_names();
+    if let Some(only) = &only {
         let parts: Vec<&str> = only.split(',').filter(|p| !p.is_empty()).collect();
-        let names: Vec<String> = all
-            .into_iter()
-            .filter(|name| parts.iter().any(|part| name.contains(part)))
-            .collect();
-        let results = run_all(&names, mode);
+        names.retain(|name| parts.iter().any(|part| name.contains(part)));
+    }
+    let results = run_all(&names, mode);
+    if only.is_some() {
         for (name, verdict) in names.iter().zip(&results) {
             println!("cli/{name}: {verdict:?}");
         }
-        return;
     }
-    let results = run_all(&all, mode);
     let engine = match mode.forced_engine() {
         Some(engine) => engine.to_owned(),
         None => std::env::var("HD_ENGINE")
@@ -1204,7 +1202,7 @@ fn cli_conformance_passes_except_known_failures() {
             .filter(|engine| !engine.is_empty())
             .unwrap_or_else(|| "node".to_owned()),
     };
-    let paths: Vec<String> = all.iter().map(|name| format!("cli/{name}")).collect();
+    let paths: Vec<String> = names.iter().map(|name| format!("cli/{name}")).collect();
     let outcomes: Vec<Outcome<'_>> = paths
         .iter()
         .zip(&results)
@@ -1219,14 +1217,18 @@ fn cli_conformance_passes_except_known_failures() {
         .collect();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let known = known_failures::load(&root);
-    let (summary, errors) = known_failures::judge(
-        "CLI",
-        &engine,
-        None,
-        &known,
-        |path| path.starts_with("cli/"),
-        &outcomes,
-    );
+    let (summary, errors) = if only.is_some() {
+        known_failures::judge_selection("CLI", &engine, None, &known, &outcomes)
+    } else {
+        known_failures::judge(
+            "CLI",
+            &engine,
+            None,
+            &known,
+            |path| path.starts_with("cli/"),
+            &outcomes,
+        )
+    };
     // Straight to stdout, past the test harness's capture, so a passing run
     // shows the counts too.
     std::io::stdout()

@@ -185,6 +185,28 @@ pub fn judge(
     (summary, errors)
 }
 
+/// Judges only the cases that a filtered run selected. Known rows outside
+/// that selection are not missing cases; selected rows keep the full run's
+/// exception and unexpected-pass rules.
+#[must_use]
+pub fn judge_selection(
+    tier: &str,
+    engine: &str,
+    pipeline: Option<&str>,
+    known: &[KnownFailure],
+    outcomes: &[Outcome<'_>],
+) -> (String, Vec<String>) {
+    let selected: BTreeSet<&str> = outcomes.iter().map(|outcome| outcome.path).collect();
+    judge(
+        tier,
+        engine,
+        pipeline,
+        known,
+        |path| selected.contains(path),
+        outcomes,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,6 +270,51 @@ mod tests {
         assert_eq!(
             errors,
             ["a.hd: unsupported:Link: fix it or list it in KNOWN_FAILURES.tsv with its issue"]
+        );
+    }
+
+    #[test]
+    fn selected_runs_reject_failures_and_unsupported_cases_but_accept_passes() {
+        for bucket in [None, Some("fail:mismatch"), Some("unsupported:runtime")] {
+            let outcomes = [Outcome {
+                path: "selected.hd",
+                bucket: bucket.map(str::to_owned),
+            }];
+            let (_, errors) = judge_selection("driver", "node", None, &[], &outcomes);
+            assert_eq!(
+                errors.is_empty(),
+                bucket.is_none(),
+                "{bucket:?}: {errors:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn selected_runs_apply_only_the_selected_known_failure_rows() {
+        let known = rows();
+        let mut outcomes = [Outcome {
+            path: "b.hd",
+            bucket: Some("fail:trap".to_owned()),
+        }];
+        let (summary, errors) = judge_selection("driver", "wasmtime", None, &known, &outcomes);
+        assert!(errors.is_empty(), "{errors:?}");
+        assert!(summary.contains("pass 0, known 1, fail 0, unsupported 0, total 1"));
+        let (_, errors) = judge_selection("driver", "node", None, &known, &outcomes);
+        assert_eq!(
+            errors.len(),
+            1,
+            "an engine-specific row does not hide another engine's failure"
+        );
+        outcomes[0].bucket = None;
+        let (_, errors) = judge_selection("driver", "wasmtime", None, &known, &outcomes);
+        assert_eq!(
+            errors,
+            ["b.hd passes now: remove its row from KNOWN_FAILURES.tsv"]
+        );
+        let (_, errors) = judge_selection("driver", "node", None, &known, &outcomes);
+        assert!(
+            errors.is_empty(),
+            "unselected known rows do not make missing-case errors"
         );
     }
 }
