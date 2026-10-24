@@ -1,0 +1,2 @@
+run: hd run --time-limit 20s
+stdout: write yielded and all bytes arrived

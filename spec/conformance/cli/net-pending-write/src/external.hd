@@ -1,0 +1,31 @@
+# The parity driver supplies main and a real peer withheld until "tick".
+use std.net.{Net, NetError, TcpStream, connect}
+use std.task.all
+use std.testing.assert
+use std.time.{Clock, ms, sleep}
+
+struct Progress:
+    finished: bool = false
+
+fn send!(stream: &mut dyn TcpStream, bytes: List[u8], state: &mut Progress) -> Result[void, NetError]:
+    stream.write!(bytes)?
+    state.finished = true
+    .Ok(())
+
+fn ticker!(state: &Progress) -> usize $ Clock + Console:
+    println("tick")
+    let ticks = 0
+    while !state.finished:
+        sleep!(ms(10))
+        ticks += 1
+    ticks
+
+pub fn exercise!(port: u16) -> Result[void, NetError] $ Net + Clock + Console:
+    using stream = connect!("127.0.0.1", port)?
+    bytes := "abcdefg".repeat(2400000).to_utf8()
+    state := &mut Progress {}
+    let (sent, ticks) = all!(send(stream, bytes, state), ticker(state))
+    sent?
+    assert(ticks > 0, reason="the write cannot complete before the peer reads")
+    println("complete")
+    .Ok(())

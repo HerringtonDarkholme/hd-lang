@@ -85,13 +85,13 @@ fn set_timeout(p: &mut Program, kind: &str, h: i32, millis: Option<i64>) {
 fn net_numeric_lookup_and_scope_host_match_ignores_port() {
     let scratch = Scratch::new();
     let mut p = Program::new();
-    p.call(
+    p.call_waiting(
         "hd:Net",
         "lookup",
         b"127.0.0.1",
         Enc::default().leb(0).leb(1).str("127.0.0.1").0,
     );
-    p.call(
+    p.call_waiting(
         "hd:Net",
         "lookup",
         b"::1",
@@ -1334,4 +1334,154 @@ fn node_zero_bound_accept_observes_kernel_input_before_callback_dispatch() {
     );
     assert!(stdout.lines().any(|line| line == "# tests 1"), "{stdout}");
     assert!(stdout.lines().any(|line| line == "# pass 1"), "{stdout}");
+}
+
+#[derive(Clone)]
+struct ReleaseOnTick {
+    bytes: Arc<Mutex<Vec<u8>>>,
+    release: Option<std::sync::mpsc::Sender<()>>,
+}
+
+impl Write for ReleaseOnTick {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let mut output = self.bytes.lock().unwrap();
+        output.extend_from_slice(bytes);
+        if output.windows(5).any(|part| part == b"tick\n")
+            && let Some(release) = self.release.take()
+        {
+            let _ = release.send(());
+        }
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// The real peer reads nothing until a sibling prints. Returning Ready
+/// only after a blocked write would therefore prevent the release marker.
+#[test]
+fn net_backpressured_write_keeps_a_sibling_running_on_both_engines() {
+    use hd_driver::{Executor, Goal, Host, NoClock};
+    use hd_project::MemorySources;
+    use hd_sched::SerialOrder;
+    use std::process::{Command, Stdio};
+    use std::sync::mpsc;
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let template = std::fs::read_to_string(
+        root.join("spec/conformance/cli/net-pending-write/src/external.hd"),
+    )
+    .unwrap();
+    for native in [false, true] {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (release, released) = mpsc::channel();
+        let peer = std::thread::spawn(move || {
+            let (mut peer, _) = listener.accept().unwrap();
+            peer.set_read_timeout(Some(Duration::from_secs(20)))
+                .unwrap();
+            released
+                .recv_timeout(Duration::from_secs(20))
+                .expect("the sibling runs before the peer starts reading");
+            let mut count = 0usize;
+            let mut bytes = vec![0u8; 65536];
+            loop {
+                let size = peer.read(&mut bytes).unwrap();
+                if size == 0 {
+                    break;
+                }
+                for &byte in &bytes[..size] {
+                    assert_eq!(byte, b"abcdefg"[count % 7]);
+                    count += 1;
+                }
+            }
+            assert_eq!(count, 16_800_000, "every byte arrives in order");
+        });
+        let source = format!(
+            "{template}\npub fn main!() -> Result[void, NetError] $ Net + Clock + Console:\n    exercise!({port})\n"
+        );
+        let mut sources = MemorySources::default();
+        sources.insert("main.hd", &source);
+        let store = hd_cache::MemoryStore::default();
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+        };
+        let built = hd_driver::build(
+            &host,
+            "pending-write",
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(built.diags.is_empty(), "{}", built.render());
+        let wasm = built.wasm.unwrap();
+        let output = ReleaseOnTick {
+            bytes: Arc::default(),
+            release: Some(release),
+        };
+        if native {
+            let setup = HostSetup {
+                providers: vec![],
+                grants: Grants::default(),
+                limits: Limits {
+                    wall_ms: Some(20_000),
+                    ..Limits::default()
+                },
+                args: vec![],
+                program: String::new(),
+            };
+            let outcome = hd_run_wasmtime::run(
+                EngineConfig::default(),
+                &wasm,
+                &setup,
+                HostIo {
+                    out: Box::new(output.clone()),
+                    err: Box::new(Vec::<u8>::new()),
+                    input: None,
+                },
+            )
+            .unwrap();
+            assert_eq!(outcome, Outcome::Exit(0));
+        } else {
+            let scratch = Scratch::new();
+            let file = scratch.at("pending-write.wasm");
+            std::fs::write(&file, wasm).unwrap();
+            let config = scratch.at("run.json");
+            std::fs::write(&config, "{\"timeLimitMs\":20000}").unwrap();
+            let mut node = Command::new("node")
+                .arg(root.join("host/run.mjs"))
+                .arg(file)
+                .arg(config)
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut stdout = node.stdout.take().unwrap();
+            let mut stderr = node.stderr.take().unwrap();
+            let mut sink = output.clone();
+            let out = std::thread::spawn(move || std::io::copy(&mut stdout, &mut sink).unwrap());
+            let err = std::thread::spawn(move || {
+                let mut bytes = Vec::new();
+                stderr.read_to_end(&mut bytes).unwrap();
+                bytes
+            });
+            let status = node.wait().unwrap();
+            out.join().unwrap();
+            let errors = err.join().unwrap();
+            assert_eq!(
+                status.code(),
+                Some(0),
+                "Node: {}",
+                String::from_utf8_lossy(&errors)
+            );
+            assert!(errors.is_empty());
+        }
+        assert_eq!(*output.bytes.lock().unwrap(), b"tick\ncomplete\n");
+        peer.join().unwrap();
+    }
 }
