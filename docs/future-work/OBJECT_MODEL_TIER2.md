@@ -3,7 +3,7 @@
 Status: parked proposal (#426, #163). Adoption is parked (owner, 2026-10-18); the
 lifetime prototype was built and removed. The spec and the compiler are unchanged.
 
-Tier 1 ([OBJECT_MODEL_TIER1.md](OBJECT_MODEL_TIER1.md)) gives hd Go's
+Tier 1 (the tier-1 design, `58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) gives hd Go's
 object model on counted linear memory: structs are values, sharing comes
 from global references `&T` and `&mut T`, and every reference is
 counted, may escape and may alias. It is complete and safe, and an agent
@@ -956,7 +956,7 @@ and meets the panic only through std's scoped headers.
 
 ## 14. What Survives, Changes And Is New
 
-Tier 2 adds to tier 1's retrofit (OBJECT_MODEL_TIER1.md section 14) and
+Tier 2 adds to tier 1's retrofit (the tier-1 design (`58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) section 14) and
 removes nothing that tier 1 keeps.
 
 | hd today, or tier 1 | Under tier 2 |
@@ -1098,7 +1098,7 @@ jobs 1 to 10.
   [ownership](https://docs.modular.com/mojo/manual/values/ownership/).
   Kotlin: [inline functions](https://kotlinlang.org/docs/inline-functions.html),
   [`callsInPlace`](https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.contracts/-contract-builder/calls-in-place.html).
-- hd: [OBJECT_MODEL_TIER1.md](OBJECT_MODEL_TIER1.md), [REFCOUNT_RUNTIME.md](REFCOUNT_RUNTIME.md),
+- hd: the tier-1 design, `58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`, [REFCOUNT_RUNTIME.md](REFCOUNT_RUNTIME.md),
   the Rust model study (`git show b3f5eed1a:docs/future-work/RUST_MODEL_STUDY.md`), [PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md),
   [07-functions.md](../../spec/lang/07-functions.md); the removed chapter 13 at
   `5d0b21e0a^` (`^`), `101344d4c^` (lifetime sets) and `a04c3497c^` (owned values).

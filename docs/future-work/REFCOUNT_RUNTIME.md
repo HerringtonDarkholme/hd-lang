@@ -20,7 +20,7 @@ tracing collector; hd manages it with counts, escape analysis, and
 opt-in lifetime marks that make "this reference does not escape" a
 checked fact. Two separate studies design the language side: tier 1,
 Go-style references that may go anywhere
-([OBJECT_MODEL_TIER1.md](OBJECT_MODEL_TIER1.md)), and tier 2,
+(the tier-1 design, `58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`), and tier 2,
 Rust-style lifetimes on request. This study prices the runtime under
 both, and settles the runtime assumptions the tier 1 study marks "to be
 confirmed" (section 10).

@@ -41,7 +41,6 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 ### Memory model and performance
 
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
-- [Object Model, Tier 1](OBJECT_MODEL_TIER1.md): Go's object model on counted linear memory: struct values, global `&T` and `&mut T` references, copy-on-write collections and closures with one call kind (#426).
 - [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1. Its first cut, local references, is under investigation in #834 and will be folded in here (#704).
 - [Refcount Runtime](REFCOUNT_RUNTIME.md): the linear-memory runtime of reference counting with cycle detection, priced on Wasm; it is the only backend (#426).
 - [Performance Roadmap](PERFORMANCE_ROADMAP.md): where time and memory go from the measurements on record, fixes by mechanism, and ranked hour-sized steps (#426).

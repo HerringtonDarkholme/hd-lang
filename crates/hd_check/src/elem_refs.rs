@@ -1,5 +1,5 @@
 //! Element references (spec/lang/13-values-and-references.md, "Element
-//! References"; `OBJECT_MODEL_TIER1.md` §6.3 and §6.4).
+//! References"; the tier-1 design `58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md` §6.3 and §6.4).
 //!
 //! `&xs[i]` and `&mut xs[i]` name a slot of the list's buffer, as Go's
 //! `&s[i]` does, and `&m[k]` and `&mut m[k]` the value of a map's entry

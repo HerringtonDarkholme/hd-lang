@@ -216,7 +216,7 @@ type in every position; aggregate values are inline in memory.
   compiler-supplied data type is still a counted object with identity.
 - **No bound.** In
   linear memory a wide value costs only its moves, as in Go and C#. A
-  large struct passed by value is the price OBJECT_MODEL_TIER1.md §3
+  large struct passed by value is the price the tier-1 design (`58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) §3
   accepts. A signature too wide for Wasm values passes through the
   shadow stack (§23.29).
 - **Type-only.** Every rule reads the type's definition and the
@@ -324,7 +324,7 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
   copies the buffer otherwise (REFCOUNT_RUNTIME.md §9.1). Once an element
   reference pins the list, the owner word is set and one place holds the
   buffer, so its other counts are pins, the second count of
-  OBJECT_MODEL_TIER1.md §6.3 (§23.20).
+  the tier-1 design (`58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) §6.3 (§23.20).
 - **A map** is the address of its table, one counted block that holds
   the entries in the order they were added and a probing index over them
   (§23.18), with the owner word at the offset a list buffer has it, so
@@ -354,7 +354,7 @@ of a pinned list copies it at once.
 - **A closure** is `(code, environment)`. The environment is a counted
   object holding the captures inline, absent (0) when nothing is captured;
   each closure literal's environment layout has its own descriptor, whose
-  release and trace know the captures (OBJECT_MODEL_TIER1.md §9.3).
+  release and trace know the captures (the tier-1 design (`58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) §9.3).
 - **A `dyn Trait` value** is `(data, vtable)`. The data is always one
   counted address (the value itself, or a box of it, §23.19), so dropping
   a `dyn` releases its data with no knowledge of the type: the release
@@ -814,7 +814,7 @@ Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
   reference (`double` as a value) is an adapter instance that ignores its
   environment and calls its target.
 - **Environments.** One counted object per closure value, holding each
-  capture inline (OBJECT_MODEL_TIER1.md §9.1): an immutable capture's
+  capture inline (the tier-1 design (`58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) §9.1): an immutable capture's
   value, with a count of its own, or a shared local's cell address. Its
   descriptor's glue releases the captures, so each closure literal's
   layout has its own release, as §23.8 says. A closure copied counts its
@@ -889,7 +889,7 @@ Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
 ### 23.20 Reference Addresses And Typed Views
 
 References use addresses and typed views; cleanup scopes and element
-references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
+references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) §6.3).
 
 - **References as addresses** (issue #587). The checker names each
   reference's place in the TIR (`Ref` of a place: a local, a top-level
