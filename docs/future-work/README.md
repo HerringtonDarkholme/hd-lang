@@ -19,6 +19,7 @@ action at a distance.
 - [HTTP Server Handlers](HTTP_SERVER.md): proposed core-Wasm handler entry, fresh request instances, Cloudflare/Vercel adapters, portable async controls, and explicit deployment gaps (#266).
 
 - [TLS Streams](TLS_STREAMS.md): client TLS boundary options, host-stream transfer, aliases and buffered bytes, trust roots, and Net grants (#265).
+- [Positional Union Types](UNION_TYPES.md): stress-tests unique static injection versus explicit construction, real error handling, policy ports, source chains and constructor inference (#804).
 - [Pipe Steps Without Placeholders](PIPE_STEPS.md): stress-tests standalone unary function steps, compatibility, effects, inference, and all three policy ports; no semantics are accepted (#818).
 - [Policy Composition](POLICY_COMPOSITION.md): lean policy values, tuple composition and one apply block; runnable ports, measured costs, typed errors and the fixed apply-row prerequisite (#783).
 - [hd bench](HD_BENCH.md): proposed ordinary suite registration, batched real-clock measurement, explicit optimization resistance and baseline reports (#184).
