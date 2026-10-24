@@ -889,10 +889,9 @@ pub(crate) mod tests {
 
     /// Rules 5 and 6: an `IsUnique` of the collection before each change
     /// of it (a push, an element store, each list on the path outermost
-    /// first), an `IsUnique` of the list an element
-    /// read indexes before the read when a change goes through the element,
-    /// and an `IsUnique` and a `Pin` of the list before an element
-    /// reference. The element reference addresses the buffer, not the
+    /// first); a push through an element names the element's place, which
+    /// it reads again after the checks; and an `IsUnique` and a `Pin` of
+    /// the list before an element reference. The element reference addresses the buffer, not the
     /// local, so the local (of a type with no counted leaf here) takes no
     /// cell and no drop.
     #[test]
@@ -932,10 +931,11 @@ pub(crate) mod tests {
         );
         assert_eq!(
             text,
-            "%0 Call\n%1 Call\n%2 IsUnique [%0]\n%3 Read copy [%0 [%1]]\n%4 IsUnique [%3]\n\
-             %5 Intrinsic %3 %1\n%6 IsUnique [%0]\n%7 IsUnique [%0 [%1] .0]\n\
-             %8 Store [%0 [%1] .0 [%1]] %1\n%9 IsUnique [$0]\n%10 Pin [$0]\n%11 Ref [$0 [%1]]\n\
-             %12 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11]\n"
+            "%0 Call\n%1 Call\n%2 Read borrow [%0 [%1]]\n%3 IsUnique [%0]\n\
+             %4 IsUnique [%0 [%1]]\n%5 Read borrow [%0 [%1]]\n%6 Intrinsic %5 %1\n\
+             %7 IsUnique [%0]\n%8 IsUnique [%0 [%1] .0]\n%9 Store [%0 [%1] .0 [%1]] %1\n\
+             %10 IsUnique [$0]\n%11 Pin [$0]\n%12 Ref [$0 [%1]]\n\
+             %13 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11 %12]\n"
         );
     }
 

@@ -23,15 +23,16 @@ app/main/collect
   %18 = Store [$3] %16 : ()
   %19 = Read borrow [$2] : List[string]
   %20 = Read move [$3] : string
-  %21 = Intrinsic ListPush [%19 %20] : ()
-  %22 = Read copy [$4] : i32
-  %23 = Prim Add [%22 1:i32] : i32
-  %24 = Store [$4] %23 : ()
-  %25 = Block - : ()
-  %26 = Break L0 - : never
-  %27 = Block - : ()
-  %28 = If %7 [%25 %27] : ()
-  %29 = Block - : ()
-  %30 = Loop %29 - : ()
-  %31 = Drop [$3] : ()
+  %21 = Read borrow [$2] : List[string]
+  %22 = Intrinsic ListPush [%21 %20] : ()
+  %23 = Read copy [$4] : i32
+  %24 = Prim Add [%23 1:i32] : i32
+  %25 = Store [$4] %24 : ()
+  %26 = Block - : ()
+  %27 = Break L0 - : never
+  %28 = Block - : ()
+  %29 = If %7 [%26 %28] : ()
+  %30 = Block - : ()
+  %31 = Loop %30 - : ()
+  %32 = Drop [$3] : ()
   exit sub 0 drops [$0]

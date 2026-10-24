@@ -192,7 +192,7 @@ trait Iterable[T]:
 5. r[flow.for.iterator.value-state] Iterator values follow ordinary value semantics; copying a mutable reference shares the referenced cursor and its progress.
 6. r[flow.for.iter-independent] An ordinary iterable creates an independent iterator on every `iter()` call.
 7. r[flow.for.iterator-exhausted] The iterator stores traversal progress. Once `next` has returned `.None`, the iterator is **exhausted**.
-8. r[flow.for.iterator-after-none] What `next` returns when it is called again on an exhausted iterator is unspecified, except for the panic that [Iterator Invalidation](#iterator-invalidation) requires.
+8. r[flow.for.iterator-after-none] What `next` returns when it is called again on an exhausted iterator is unspecified.
 9. r[flow.for.iterable-collections] `List[T]` and `Map[K, V]` implement `Iterable`: a list yields `T`, and a map `(K, V)`.
 10. r[flow.for.iterator.iterable-not-implied] Implementing `Iterator[T]` does not imply `Iterable[T]`.
 11. r[flow.for.string-not-iterable] `string` does not implement `Iterable`, so a loop over a string is an error. Error: `unsatisfied-trait-bound`.
@@ -442,20 +442,14 @@ fn invalid(n: i32) -> void:
 > range of literals whose type is still open, as in `(1..4).iter()`,
 > already has its cursor type.
 
-### Iterator Invalidation
+### Iterator Snapshots
 
-An iterator that `iter()` returns follows the rules of this section; a `for`
-loop over a list or a map iterates a snapshot instead
-([Snapshot Iteration](#snapshot-iteration)).
+An iterator that `iter()` returns over a list or a map iterates a snapshot,
+as a `for` loop over one does ([Snapshot Iteration](#snapshot-iteration)).
 
-1. r[flow.for.length] Built-in list and map iterators capture the collection's length when they are created.
-2. r[flow.for.invalidate] An iterator is invalidated when the collection's length differs from the captured length.
-3. r[flow.for.invalidate.map-rebuild] A map iterator is also invalidated when an insertion rebuilds the map's entry storage, which moves the entries. Only an insertion of a new key can rebuild it. Which insertions do is unspecified.
-4. r[flow.for.invalidate.panic] An invalidated iterator's next `next` call causes a checked runtime panic, even when the iterator was already exhausted. Panic: `iterator-invalidated`.
-5. r[flow.for.replace] Replacing an existing list element or map value keeps the length, so it does not invalidate the iterator.
-6. r[flow.for.replace.observed] Later visits observe the replacement.
-7. r[flow.for.user-defined] User-defined iterables must document equivalent mutation behavior in their own contract.
-8. r[flow.for.collection-cursor.copy] A copy of a list or map cursor has its own position and reads the same collection, so these rules hold for each copy.
+1. r[flow.for.cursor.snapshot] An iterator that `iter()` returns over a `List` or a `Map` yields the elements or entries the collection held when `iter()` ran. A later push, removal, or replacement changes the collection but not the iterator, and does not make it panic.
+2. r[flow.for.user-defined] User-defined iterables must document equivalent mutation behavior in their own contract.
+3. r[flow.for.collection-cursor.copy] A copy of a list or map cursor has its own position and iterates the same snapshot.
 
 ```hd
 fn demo() -> void:
@@ -463,14 +457,14 @@ fn demo() -> void:
     let mut cursor = items.iter()
     _ := cursor.next()
     items.push(+3)
-    _ := cursor.next()   # panics with iterator-invalidated
+    _ := cursor.next()   # .Some(+2): the list as iter() found it
+    _ := cursor.next()   # .None: the pushed element is not in the snapshot
 ```
 
-> **Note.** The length check alone misses a removal and an addition between
-> two `next` calls that restore the length. A map iterator still panics when
-> that addition rebuilt the map's storage, so it never resumes from a moved
-> entry. This is memory-safe: the iterator reads the collection's current
-> contents.
+> **Why.** A cursor is a value made from a value. A change to the list
+> after `iter()` changes the list, as a change to any copy of it does
+> ([`types.coll.copy-on-write`](04-type-system.md#r-types.coll.copy-on-write)),
+> and no rule asks the author to know whether a cursor is live.
 
 ## While Loops
 

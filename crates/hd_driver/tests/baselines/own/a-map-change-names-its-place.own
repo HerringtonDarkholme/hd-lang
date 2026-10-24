@@ -21,7 +21,7 @@ fn put(mut m: Map[string, List[i64]], k: string, n: i64) -> Map[string, List[i64
 >   %6 = IsUnique [$0] : ()
 >   %7 = Read borrow [$0] : Map[string, List[i64]]
 >   %8 = Intrinsic MapSet [%7 %4 %5] : ()
->   %24 = Block %22 : Map[string, List[i64]]
+>   %25 = Block %23 : Map[string, List[i64]]
     m[k] = [n]
 >   %9 = Read borrow [$0] : Map[string, List[i64]]
 >   %10 = Read borrow [$1] : string
@@ -31,15 +31,16 @@ fn put(mut m: Map[string, List[i64]], k: string, n: i64) -> Map[string, List[i64
 >   %14 = Read borrow [$0] : Map[string, List[i64]]
 >   %15 = Intrinsic MapSet [%14 %10 %12] : ()
     _ := m.remove(k)
->   %16 = IsUnique [$0] : ()
->   %17 = Read borrow [$0] : Map[string, List[i64]]
->   %18 = Read borrow [$1] : string
->   %19 = Intrinsic MapRemove [%17 %18] : List[i64]?
->   %20 = Drop [%19] : ()
+>   %16 = Read borrow [$0] : Map[string, List[i64]]
+>   %17 = Read borrow [$1] : string
+>   %18 = IsUnique [$0] : ()
+>   %19 = Read borrow [$0] : Map[string, List[i64]]
+>   %20 = Intrinsic MapRemove [%19 %17] : List[i64]?
+>   %21 = Drop [%20] : ()
     m
->   %21 = Read move [$0] : Map[string, List[i64]]
->   %22 = Intrinsic ValueCopy [%21] : Map[string, List[i64]]
->   %23 = Drop [%21] : ()
+>   %22 = Read move [$0] : Map[string, List[i64]]
+>   %23 = Intrinsic ValueCopy [%22] : Map[string, List[i64]]
+>   %24 = Drop [%22] : ()
 >   exit sub 0 drops [$0]
 
 fn tally(mut counts: Map[string, i64], k: string) -> Map[string, i64]:

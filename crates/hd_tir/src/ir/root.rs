@@ -24,7 +24,12 @@
 //!    so the local holds the same value at every use as at `%v`. When `P`
 //!    has an element step, which checks its index, only other uses of `%v`
 //!    and reads that check nothing (an index local's) may stand between,
-//!    so no other check runs before that one;
+//!    so no other check runs before that one. When `P` is a local's own
+//!    value or a field of it, with no element or dereference, any
+//!    statement may stand between, a call included, if nothing between
+//!    names the local and nothing can reach it: no reference to it and no
+//!    closure capture (`m["k$n"].push(v)`, whose key calls a formatter
+//!    between the map's read and its `MapEntry`);
 //! 3. the local's type names no type parameter or associated type: an
 //!    erased instance outlines an open read by its values
 //!    (`crates/hd_mono/DESIGN.md` §13.5.1), and a local is none.
@@ -161,6 +166,20 @@ fn unchecked(b: &Body, s: usize) -> bool {
     !has_elem(b, first, w + 1 + n)
 }
 
+/// Whether local `l` keeps its value from read `v` to its last use `last`
+/// whatever runs between: no instruction between but `v`'s own uses
+/// (marked in `mark`) names it, and no closure captures it or reference
+/// refers to it, which the checker marks as a capture.
+fn unreached(b: &Body, l: u32, v: usize, last: usize, mark: &[u32]) -> bool {
+    use super::local_flags::{CAPTURED, CAPTURED_ASSIGNED};
+    let names = |x: usize| {
+        matches!(b.tags[x], Tag::Read | Tag::Store | Tag::Ref)
+            && local_root(b, b.data[x][0]).is_some_and(|(root, n, ..)| n == 2 && root[1] == l)
+    };
+    b.local_flags[l as usize] & (CAPTURED | CAPTURED_ASSIGNED) == 0
+        && !(v + 1..last).any(|x| mark[x] != u32_of(v) && names(x))
+}
+
 /// Folds every base read of a local's place into the places rooted at its
 /// value (the module docs' rules), and deletes the reads it folds. `open`
 /// says whether a type names a type parameter or an associated type.
@@ -221,12 +240,25 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
         {
             continue;
         }
-        let Some((root, roots, from, to)) = local_root(b, b.data[v][0]) else {
-            continue;
+        // A read through memory from another value (a list behind a
+        // reference a call returned) folds into its stores and references
+        // alone, which name their place.
+        let w = b.data[v][0];
+        let (valued, found) = match local_root(b, w) {
+            Some(found) => (false, found),
+            None if w & place::BARE_LOCAL == 0
+                && b.extra.get(w as usize + 1) == Some(&place::ROOT_VALUE)
+                && has_mem(b, w + 3, w + 1 + b.extra[w as usize]) =>
+            {
+                let root = [place::ROOT_VALUE, b.extra[w as usize + 2], 0];
+                (true, (root, 2, w + 3, w + 1 + b.extra[w as usize]))
+            }
+            None => continue,
         };
+        let (root, roots, from, to) = found;
         let (lo, hi) = (t.start[v] as usize, t.start[v + 1] as usize);
         // A top-level binding's type is never open.
-        if lo == hi || roots == 2 && open(b.local_ty[root[1] as usize]) {
+        if lo == hi || !valued && roots == 2 && open(b.local_ty[root[1] as usize]) {
             continue;
         }
         let blk = t.blk[v];
@@ -257,14 +289,20 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
             last = last.max(t.pos[u as usize]);
             t.mark[u as usize] = u32_of(v);
         }
-        let mut quiet = ok;
+        let mut quiet = ok && !valued;
         if ok {
             let elem = has_elem(b, from, to);
             let members = b.record(b.data[blk as usize][0]);
-            for &s in &members[t.pos[v] as usize + 1..last as usize] {
+            let between = &members[t.pos[v] as usize + 1..last as usize];
+            let calm = !valued
+                && roots == 2
+                && !has_mem(b, from, to)
+                && unreached(b, root[1], v, members[last as usize] as usize, &t.mark);
+            for &s in between {
                 let s = s as usize;
                 let fine = t.gone[s]
                     || t.mark[s] == u32_of(v)
+                    || calm
                     || if elem { unchecked(b, s) } else { inert(b, s) };
                 if !fine {
                     quiet = false;

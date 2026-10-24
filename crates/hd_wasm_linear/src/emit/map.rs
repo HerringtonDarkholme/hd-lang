@@ -1,7 +1,7 @@
 //! Maps (`crates/hd_wasm_linear/DESIGN.md` §23.7, §23.18, job 10). A map value
-//! is a list's kind of header (`list.rs`) over a counted table
-//! (`crate::map`), so a copy is a new header over the same table and a
-//! change makes the table the map's own first (`rt:map_unique`). Keys
+//! is the address of a counted table (`crate::map`), so a copy counts one
+//! more holder of the same table and a change makes the table the map's
+//! own first (`rt:map_unique`). Keys
 //! hash and compare through the operations collection chose
 //! (`crates/hd_mono/DESIGN.md` §13.12).
 
@@ -23,10 +23,10 @@ use crate::unsupported;
 
 impl Em<'_, '_, '_> {
     /// The value type of map type `t` and a local holding the address of
-    /// the value of entry `e`, a `MapEntry`'s number, in the table of the
-    /// map header in local `h`: the place `[%m [%e]]` (`ref.elem.map`),
-    /// laid out as the value type is.
-    pub(super) fn map_value_at(&mut self, h: u32, t: Ty, e: u32) -> StageResult<(Ty, u32)> {
+    /// the value of entry `e`, a `MapEntry`'s number, in the map table in
+    /// local `m`: the place `[%m [%e]]` (`ref.elem.map`), laid out as the
+    /// value type is.
+    pub(super) fn map_value_at(&mut self, m: u32, t: Ty, e: u32) -> StageResult<(Ty, u32)> {
         let (kt, vt, entry) = self.entry(t)?;
         let (_, parts) = payload_mem(self.pool(), self.env(), &[kt, vt])?;
         let Some(value) = parts.get(1) else {
@@ -35,7 +35,7 @@ impl Em<'_, '_, '_> {
         let (ix, at) = (self.f.local(Val::I32), self.f.local(Val::I32));
         self.comp(e, 0)?;
         self.f.set(ix);
-        entry_address(&mut self.f, h, ix, entry.size);
+        entry_address(&mut self.f, m, ix, entry.size);
         self.f.u32(value.offset);
         self.f.op(I::I32Add);
         self.f.set(at);
@@ -178,9 +178,9 @@ impl Em<'_, '_, '_> {
     }
 
     /// Puts the key in locals `kl` (hash `h`) with value `v` into the map
-    /// header in local `m`: the table takes a count of each, and a value
-    /// holding a collection that some place holds is stored as its copy
-    /// (`types.coll.value`).
+    /// table in local `m`, which then holds the table, moved when it grew:
+    /// the table takes a count of each, and a value holding a collection
+    /// that some place holds is stored as its copy (`types.coll.value`).
     fn map_put(
         &mut self,
         m: u32,
@@ -204,6 +204,7 @@ impl Em<'_, '_, '_> {
             entry: e.clone(),
             ops: ops.clone(),
         });
+        self.f.set(m);
         Ok(())
     }
 
@@ -217,7 +218,6 @@ impl Em<'_, '_, '_> {
         if items.is_empty() {
             let at = empty_buffer(self.m);
             self.f.static_addr(at);
-            self.f.helper(Helper::ListHeader { cyclic: e.cyclic });
             return self.store_owned(i);
         }
         let ops = self.key_ops(i, kt, &e.key_vals())?;
@@ -227,7 +227,6 @@ impl Em<'_, '_, '_> {
         let m = self.f.local(Val::I32);
         self.f.u32(cap);
         self.f.helper(Helper::MapTable { entry: e.clone() });
-        self.f.helper(Helper::ListHeader { cyclic: e.cyclic });
         self.f.set(m);
         for pair in items.chunks(2) {
             let (kl, h) = self.map_key(pair[0], &e, &ops)?;
@@ -240,7 +239,6 @@ impl Em<'_, '_, '_> {
     /// Pushes field `at` of the table of the map value `r`.
     fn table_field(&mut self, r: u32, at: u64) -> StageResult<()> {
         self.comp(r, 0)?;
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
         self.f.op(I::I32Load(mem(HEAP, at, 2)));
         Ok(())
     }
@@ -273,12 +271,12 @@ impl Em<'_, '_, '_> {
         if self.vals(self.ty(i))? != e.leaves.iter().map(|l| l.val).collect::<Vec<_>>() {
             return unsupported("a map entry that lays out unlike its table's");
         }
-        let h = self.header(map)?;
+        let m = self.buffer(map)?;
         let s = self.f.local(Val::I32);
         self.comp(slot, 0)?;
         self.f.set(s);
         let at = self.f.local(Val::I32);
-        entry_address(&mut self.f, h, s, e.size);
+        entry_address(&mut self.f, m, s, e.size);
         self.f.set(at);
         for l in &e.leaves {
             self.f.get(at);
@@ -290,18 +288,19 @@ impl Em<'_, '_, '_> {
     /// `m.get(k)`, `m[k] = v`, `m.remove(k)` and a map value place's
     /// entry (`MapEntry`): the key is hashed, then its entry probed
     /// for. The passes' `IsUnique` made the table the map's own before a
-    /// change.
+    /// change, and a put stores the table, moved when it grew, into the
+    /// map's place.
     pub(super) fn map_op(&mut self, i: u32, op: IntrinsicOp, args: &[u32]) -> StageResult<()> {
         let (kt, vt, e) = self.entry(self.ty_of(args[0]))?;
         let ops = self.key_ops(i, kt, &e.key_vals())?;
-        let m = self.header(args[0])?;
+        let m = self.buffer(args[0])?;
         let (kl, h) = self.map_key(args[1], &e, &ops)?;
         if op == IntrinsicOp::MapSet {
-            return self.map_put(m, (kt, vt), (&e, &ops), (&kl, h), args[2]);
+            self.map_put(m, (kt, vt), (&e, &ops), (&kl, h), args[2])?;
+            return self.put_back(args[0], m);
         }
         let ent = self.f.local(Val::I32);
         self.f.get(m);
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
         self.f.get(h);
         for l in &kl {
             self.f.get(*l);
@@ -377,12 +376,8 @@ impl Em<'_, '_, '_> {
             hash_address(&mut self.f, m, ent);
             self.f.i32(-1);
             self.f.op(I::I32Store(mem(HEAP, 0, 2)));
-            let t = self.f.local(Val::I32);
             self.f.get(m);
-            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-            self.f.set(t);
-            self.f.get(t);
-            self.f.get(t);
+            self.f.get(m);
             self.f.op(I::I32Load(mem(HEAP, LIVE, 2)));
             self.f.i32(1);
             self.f.op(I::I32Sub);

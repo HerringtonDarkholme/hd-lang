@@ -1,8 +1,6 @@
-//! List and list-view iterator invalidation (#192, `flow.for.length`,
-//! `flow.for.invalidate.panic`, `flow.for.replace`,
-//! `std-collections.view.invalidate`), and the snapshot a `for` over a
-//! list (`flow.for.snapshot`) or a deque
-//! (`std-collections.deque.snapshot`) iterates.
+//! List cursors, which iterate the list as `iter()` found it
+//! (`flow.for.cursor.snapshot`), and list views, which a length change
+//! invalidates (#192, `std-collections.view.invalidate`).
 //! Programs build through the driver and run on V8 (`host/run.mjs`).
 
 use std::path::Path;
@@ -37,7 +35,7 @@ fn ran(name: &str, main: &str) -> Ran {
     let wasm = out.wasm.expect("wasm");
     let path = Scratch::unmade(
         env!("CARGO_TARGET_TMPDIR"),
-        &format!("list-invalidation-run-{name}.wasm"),
+        &format!("list-cursor-run-{name}.wasm"),
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
@@ -70,32 +68,45 @@ fn panics(name: &str, body: &str, before: &str) {
     assert!(err.contains("panic: iterator-invalidated"), "{name}: {err}");
 }
 
+/// A program whose `body` runs in `main`; it must complete, printing
+/// `out`.
+fn prints(name: &str, body: &str, out: &str) {
+    let r = ran(name, &program(body));
+    let err = String::from_utf8_lossy(&r.stderr);
+    assert!(r.status.success(), "{name}: {err}");
+    assert_eq!(String::from_utf8_lossy(&r.stdout), out, "{name}");
+}
+
 #[test]
-fn a_list_iterator_panics_after_the_list_changes_length() {
-    panics(
+fn a_list_iterator_keeps_its_snapshot_after_a_push() {
+    prints(
         "list-iter-push",
         "    let mut v: List[i32] = [1, 2]
     let mut it = v.iter()
     println(it.next().unwrap_or(-1))
     v.push(3)
-    _ := it.next()
+    println(it.next().unwrap_or(-1))
+    println(it.next().unwrap_or(-1))
+    println(v.len())
 ",
-        "1\n",
+        "1\n2\n-1\n3\n",
     );
 }
 
 #[test]
-fn an_exhausted_list_iterator_still_panics_after_a_pop() {
-    panics(
+fn a_list_iterator_keeps_its_snapshot_after_a_pop() {
+    prints(
         "list-iter-pop",
-        "    let mut v: List[i32] = [1]
+        "    let mut v: List[i32] = [1, 2]
     let mut it = v.iter()
-    _ := it.next()
-    _ := it.next()
     _ := v.pop()
-    _ := it.next()
+    _ := v.pop()
+    println(it.next().unwrap_or(-1))
+    println(it.next().unwrap_or(-1))
+    println(it.next().is_some())
+    println(v.len())
 ",
-        "",
+        "1\n2\nfalse\n0\n",
     );
 }
 

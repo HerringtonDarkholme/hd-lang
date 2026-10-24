@@ -1,8 +1,0 @@
-
-fn invalidated(values: &mut List[i32]) -> void:
-    let mut iterator = values.iter()
-    values.push(4)
-    _ := iterator.next()  # panic: iterator-invalidated
-
-let mut values: List[i32] = [1, 2, 3]
-invalidated(&mut values)

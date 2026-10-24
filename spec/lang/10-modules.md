@@ -1240,10 +1240,10 @@ The following built-in methods are normative:
 | `remove_at(0)`, which returns `1` | `[2, 3]` |
 | `clear()` | `[]` |
 
-> **Note.** `push`, `insert`, `remove_at`, and a `pop` or `clear` that
-> removes an element change the list's length, so each invalidates the
-> list's iterators by
-> [`flow.for.invalidate`](06-control-flow.md#r-flow.for.invalidate).
+> **Note.** `push`, `insert`, `remove_at`, `pop` and `clear` change the
+> list, not an iterator taken from it before the change, which iterates
+> the list as `iter()` found it
+> ([`flow.for.cursor.snapshot`](06-control-flow.md#r-flow.for.cursor.snapshot)).
 
 See also: [Text](../std/text.md#string-methods) for the string methods above
 these, such as `trim` and `split`. [Iterators](../std/iter.md#list-and-optional-map)

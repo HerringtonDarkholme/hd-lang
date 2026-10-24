@@ -1,2 +1,1 @@
 path	issue	engine	reason
-runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy.hd	#667		a list a callee stores into a top-level binding keeps sharing the caller's header, so a later push reaches the saved list

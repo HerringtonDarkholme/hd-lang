@@ -101,7 +101,7 @@ impl Em<'_, '_, '_> {
             // A value of no Wasm values needs no box: its slots load
             // nothing. A value that is one counted address is the data
             // itself, never a copy, so
-            // an element reference's identity base is its list's header.
+            // an element reference's identity base is its list's buffer.
             let leaves: Option<&[Leaf]> = if direct {
                 self.comp(a, 0)?;
                 None

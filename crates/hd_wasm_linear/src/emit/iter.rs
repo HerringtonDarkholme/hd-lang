@@ -1,8 +1,8 @@
 //! std's `map_steps` (`crates/hd_wasm_linear/DESIGN.md` §23.19): the
 //! step closure of `Map.iter()`'s `MapEntries`. The cursor keeps its own
-//! position and passes it in. Its environment holds the map's header and
-//! creation-time written, live and rebuild counts. The code checks those
-//! counts and returns the first live entry at or after the given number
+//! position and passes it in. Its environment holds the map's table, a
+//! snapshot by its count, and the written entry count at creation. The code
+//! returns the first live entry at or after the given number
 //! (`rt:map_step`, `map.rs`). List cursors are ordinary std code.
 
 use crate::op::Op as I;
@@ -11,13 +11,13 @@ use hd_types::{Prim, TyData};
 
 use super::Em;
 use crate::layout::{Mem, Part, fields_walk, payload_mem};
-use crate::map::{GROWN, LIVE, USED};
+use crate::map::USED;
 use crate::module::{HEAP, Sym, mem};
 use crate::rt::{Helper, OptVal};
 use crate::unsupported;
 
 /// Pushes one `i32` field of an iterator environment, given the local
-/// holding the collection's header.
+/// holding the collection's buffer.
 type IntField<'f, E> = dyn Fn(&mut E, u32) -> StageResult<()> + 'f;
 
 impl Em<'_, '_, '_> {
@@ -39,7 +39,7 @@ impl Em<'_, '_, '_> {
         Ok((opt, om.vals()))
     }
 
-    /// A new iterator environment holding collection `coll`'s header,
+    /// A new iterator environment holding collection `coll`'s buffer,
     /// then `ints` `i32` values, each pushed by its closure; and the code
     /// that steps it, pushed as the closure's code.
     fn iter_env(
@@ -63,7 +63,7 @@ impl Em<'_, '_, '_> {
         let walk = fields_walk(self.pool(), self.env(), &tys);
         let cyclic = self.cyclic_holding(&tys);
         let env = self.object(&m, walk.as_ref(), cyclic);
-        let h = self.header(coll)?;
+        let h = self.buffer(coll)?;
         let store = |em: &mut Self, m: &Mem, p: Part, v: &dyn Fn(&mut Self) -> StageResult<()>| {
             em.store_leaf(
                 &|em: &mut Self| {
@@ -108,17 +108,16 @@ impl Em<'_, '_, '_> {
         let count = |at: u64| {
             move |em: &mut Self, h: u32| {
                 em.f.get(h);
-                em.f.op(I::I32Load(mem(HEAP, 0, 2)));
                 em.f.op(I::I32Load(mem(HEAP, at, 2)));
                 Ok(())
             }
         };
-        let (used, live, grown) = (count(USED), count(LIVE), count(GROWN));
+        let used = count(USED);
         let code = Helper::MapStep {
             entry,
             opt,
             results,
         };
-        self.iter_env(i, map, &[&used, &live, &grown], code)
+        self.iter_env(i, map, &[&used], code)
     }
 }

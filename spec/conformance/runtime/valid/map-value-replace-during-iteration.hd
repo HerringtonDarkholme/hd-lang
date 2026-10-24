@@ -1,5 +1,5 @@
-# test: replacing a map value keeps the length, so the loop goes on without a panic
-# Spec 06 Iterator Invalidation: flow.for.replace.
+# test: replacing each map value during a loop over the map changes the map, and the loop visits each entry once
+# Spec 06 Snapshot Iteration: flow.for.snapshot.change.
 fn double(entries: &mut Map[string, i32]) -> void:
     for (key, value) in entries:
         entries[key] = value * 2

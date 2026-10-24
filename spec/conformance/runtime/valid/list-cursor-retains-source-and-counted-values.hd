@@ -1,6 +1,6 @@
-# test: list cursor values retain their source place and copy counted elements independently
+# test: a list cursor keeps its list alive and iterates it as iter found it, and its copies advance independently over the same snapshot
 # Spec std/iter: std-iter.cursor.list.
-# Spec 06 Iteration Protocols: flow.for.iterator.copy-preserves-source.
+# Spec 06 Iteration Protocols: flow.for.iterator.copy-preserves-source; Iterator Snapshots: flow.for.cursor.snapshot, flow.for.collection-cursor.copy.
 # expect: test
 
 use std.iter.ListIter
@@ -18,16 +18,17 @@ tests:
         assert_equal(cursor.next(), .Some("second"), reason="the next string stays alive")
         assert_equal(cursor.next(), .None, reason="the returned cursor exhausts normally")
 
-    it("cursor copies advance independently and follow the same source place"):
+    it("cursor copies advance independently over the same snapshot"):
         let mut items = [["one"], ["two"]]
         snapshot := items
         let mut left = items.iter()
         let mut right = left
         assert_equal(left.next(), .Some(["one"]), reason="the first cursor advances")
         items[1] = ["changed"]
-        assert_equal(left.next(), .Some(["changed"]), reason="the source's COW replacement is visible")
+        assert_equal(left.next(), .Some(["two"]), reason="the cursor yields the list as iter found it")
         assert_equal(right.next(), .Some(["one"]), reason="the copy kept its own position")
-        assert_equal(right.next(), .Some(["changed"]), reason="both cursors keep the same source place")
+        assert_equal(right.next(), .Some(["two"]), reason="both cursors iterate the same snapshot")
+        assert_equal(items[1], ["changed"], reason="the list itself has the replacement")
         assert_equal(snapshot, [["one"], ["two"]], reason="the independent collection value stays unchanged")
         assert_equal(left.next(), .None, reason="the first cursor is exhausted")
         assert_equal(right.next(), .None, reason="the second cursor is exhausted")

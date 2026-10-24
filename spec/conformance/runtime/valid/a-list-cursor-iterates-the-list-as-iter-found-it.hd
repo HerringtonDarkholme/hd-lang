@@ -1,0 +1,35 @@
+# test: a list cursor iterates the list as iter found it: a push before its first next, after it, or after it was exhausted changes the list but not the cursor, and nothing panics
+# Spec 06 Iterator Snapshots: flow.for.cursor.snapshot.
+fn grow(values: &mut List[i32]) -> List[i32?]:
+    let mut iterator = values.iter()
+    values.push(4)
+    let mut seen: List[i32?] = []
+    for _ in 0..4:
+        seen.push(iterator.next())
+    seen
+
+tests:
+    use std.testing.assert_equal
+
+    it("a push through a reference before the first next"):
+        let mut values: List[i32] = [1, 2, 3]
+        assert_equal(grow(&mut values), [.Some(+1), .Some(2), .Some(3), .None], reason="the cursor yields the three elements iter found")
+        assert_equal(values, [+1, 2, 3, 4], reason="the list has the push")
+
+    it("a push after the cursor was exhausted"):
+        let mut items: List[i32] = [+1]
+        let mut cursor = items.iter()
+        assert_equal(cursor.next(), .Some(+1), reason="the one element")
+        assert_equal(cursor.next(), .None, reason="exhausted")
+        items.push(+2)
+        assert_equal(cursor.next(), .None, reason="still exhausted after the push")
+        assert_equal(items.len(), 2, reason="the list has the push")
+
+    it("pushes that grow the list several times"):
+        let mut items: List[i32] = [+1, 2]
+        let mut cursor = items.iter()
+        _ := cursor.next()
+        for n in 0..40:
+            items.push(+0)
+        assert_equal(cursor.next(), .Some(2), reason="the second element iter found")
+        assert_equal(cursor.next(), .None, reason="no element the pushes added")

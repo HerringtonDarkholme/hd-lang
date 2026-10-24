@@ -980,9 +980,11 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                 let pin = b.tags[i] == Tag::Ref;
                 let deref = path_lists(b, t, a);
                 // A place rooted at a read of a local's or a binding's
-                // place, which folding kept (`xs[i] += f()`): its checks
-                // name that place, as a change's do.
-                let base = value_root(b, a).and_then(|v| read_place(b, t, v));
+                // place, which folding kept (a reference of an open type):
+                // its checks name that place, and it reads the place again
+                // after them, as a change does.
+                let root = value_root(b, a);
+                let base = root.and_then(|v| read_place(b, t, v));
                 for k in 0..t.elems.len() {
                     let word = match base {
                         Some(w) => graft(b, w, a, t.elems[k]),
@@ -993,9 +995,18 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                         edits.insert(blk, pos, Tag::Pin, [word, NONE], Ty::VOID, syn);
                     }
                 }
+                if let (Some(w), Some(v), false) = (base, root, t.elems.is_empty()) {
+                    let w = match w & place::BARE_LOCAL {
+                        0 => prefix(b, w, w + 1 + b.extra[w as usize]),
+                        _ => w,
+                    };
+                    let mode = ReadMode::Borrow as u32;
+                    let e = edits.insert(blk, pos, Tag::Read, [w, mode], b.ty[v as usize], syn);
+                    edits.rewrite(u32_of(i), super::Loc::Extra(a + 2), e);
+                }
                 // A change through a dereference reaches the referent, not
                 // the reads the reference came from.
-                if !deref && let Some(root) = value_root(b, a) {
+                if !deref && let Some(root) = root {
                     through(b, t, edits, root, pin);
                 }
             }
@@ -1013,8 +1024,9 @@ type Change = (u32, u32, u32, Option<bool>);
 /// (change, `extra` word, operand, quiet): a push's list, a map store's
 /// or removal's map. Quiet is `None` for an operand that reads no place
 /// rooted at a local or a top-level binding, directly or through the
-/// reads of values, and else whether it reads it directly and nothing
-/// between that read and the change may write. A change whose operand
+/// reads of values, and else whether it reads it directly, right before
+/// the change: then the read is the change's `borrow` operand, and else
+/// the change reads the place again. A change whose operand
 /// reads a place is an access of the local the place is rooted at, if
 /// any, and an operand read again at the change owns nothing; its map
 /// value steps look their entries up again there, with their keys
@@ -1045,29 +1057,43 @@ fn changes(b: &Body, t: &mut Tables, i: usize) {
         // names that place and reads it again, as one rooted there does.
         let chained = root.is_none().then(|| read_root(b, t, v)).flatten();
         let once = t.start[r + 1] - t.start[r] == 1;
-        let still = once && t.blk[r] == t.blk[i] && (r + 1..i).all(|x| quiet(b, x));
+        // A read right before its change is the change's operand; one with
+        // an argument between is read again, after the drops the argument
+        // ends, so that no write stands between the operand's borrow and
+        // the change.
+        let still = once && t.blk[r] == t.blk[i] && t.pos[i] == t.pos[r] + 1;
         let kind = root
             .or(chained)
             .is_some()
             .then_some(still && chained.is_none());
-        // A read used again keeps its count; the change's use moves on.
-        t.tracked[r] &= kind != Some(false) || !once;
+        // A read used again keeps its count; the change's use moves on,
+        // and a read only the change uses is a borrow: the change replaces
+        // the place's buffer, which no other count may hold.
+        t.tracked[r] &= kind.is_none() || !once;
         t.changes.push((u32_of(i), at, v, kind));
         if let Some(l) = root.or(chained).filter(|&l| l != NONE) {
             t.acc.push((t.sub[i], l, u32_of(i)));
         }
         if kind == Some(false) {
             t.reread[r] = u32_of(i);
-            // The map value steps of every read on the way.
-            let mut x = Some(v);
-            while let Some(w) = x.filter(|&w| b.tags[w as usize] == Tag::Read) {
-                path_lists(b, t, b.data[w as usize][0]);
+            // The keys of the map value steps of every read on the way, and
+            // the value a chain from another value starts at (a reference
+            // a call returned), live to the change, which reads again.
+            let mut x = v;
+            while b.tags[x as usize] == Tag::Read {
+                path_lists(b, t, b.data[x as usize][0]);
                 for k in 0..t.elems.len() {
                     if let Some(e) = entry(b, b.extra[t.elems[k] as usize + 1]) {
                         t.relook.push((b.record(b.data[e][1])[1], u32_of(i)));
                     }
                 }
-                x = value_root(b, b.data[w as usize][0]);
+                let Some(u) = value_root(b, b.data[x as usize][0]) else {
+                    break;
+                };
+                x = u;
+            }
+            if b.tags[x as usize] != Tag::Read {
+                t.relook.push((x, u32_of(i)));
             }
         }
     }
@@ -1121,25 +1147,41 @@ fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change
     }
     let p = whole(b, word);
     edits.insert(blk, pos, Tag::IsUnique, [p, 0], Ty::VOID, syn);
-    if quiet == Some(false) {
+    if quiet.is_some() {
         b.data[r][1] = mode;
+    }
+    if quiet == Some(false) {
         let e = edits.insert(blk, pos, Tag::Read, [word, mode], b.ty[r], syn);
         edits.rewrite(c.0, super::Loc::Extra(c.1), e);
     }
 }
 
+/// Whether the place at `word` goes into memory: through an element or
+/// a dereference.
+fn in_memory(b: &Body, word: u32) -> bool {
+    b.decode_place(word).is_some_and(|p| {
+        p.proj
+            .iter()
+            .any(|s| matches!(s, crate::ir::Proj::Elem(_) | crate::ir::Proj::Deref))
+    })
+}
+
 /// The local the chain of reads ending at value `v` starts at, through
-/// the reads of values; `Some(NONE)` for a top-level binding.
+/// the reads of values; `Some(NONE)` for a top-level binding, or for a
+/// chain from another value that goes into memory on the way (a list
+/// behind a reference a call returned). `None` for a value's own parts.
 fn read_root(b: &Body, t: &Tables, mut v: u32) -> Option<u32> {
+    let mut memory = false;
     for _ in 0..64 {
         let i = v as usize;
         if b.tags[i] != Tag::Read || t.blk[i] == NONE {
-            return None;
+            return memory.then_some(NONE);
         }
         let w = b.data[i][0];
         if let Some(l) = root_local(b, w).or(global_root(b, w)) {
             return Some(l);
         }
+        memory |= in_memory(b, w);
         v = value_root(b, w)?;
     }
     None
@@ -1156,8 +1198,13 @@ fn read_place(b: &mut Body, t: &Tables, v: u32) -> Option<u32> {
     if root_local(b, w).or(global_root(b, w)).is_some() {
         return Some(w);
     }
-    let base = read_place(b, t, value_root(b, w)?)?;
-    Some(graft(b, base, w, w + 1 + b.extra[w as usize]))
+    let u = value_root(b, w)?;
+    match read_place(b, t, u) {
+        Some(base) => Some(graft(b, base, w, w + 1 + b.extra[w as usize])),
+        // A chain from another value names a place once it goes into
+        // memory.
+        None => read_root(b, t, v).map(|_| w),
+    }
 }
 
 /// A new place record: the place at `base` followed by the steps of the
@@ -1187,16 +1234,6 @@ fn entry(b: &Body, ix: u32) -> Option<usize> {
         && b.tags[e] == Tag::Intrinsic
         && IntrinsicOp::from_u32(b.data[e][0]) == Some(IntrinsicOp::MapEntry))
     .then_some(e)
-}
-
-/// Whether instruction `x` can neither write a place nor call: a read, an
-/// arithmetic step, a coercion or a construction.
-fn quiet(b: &Body, x: usize) -> bool {
-    use Tag::{Coerce, NewStruct, NewTuple, NewVariant, Prim, Read};
-    matches!(
-        b.tags[x],
-        Read | Prim | Coerce | NewTuple | NewStruct | NewVariant
-    )
 }
 
 /// The value a place word is rooted at, if it is rooted at one.

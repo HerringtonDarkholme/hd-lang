@@ -1,5 +1,5 @@
 # test: a cursor is a value: each `iter()` call makes a new one, a copy advances on its own, and a `&mut` reference, a loop over it, or a callee given it advances the one cursor it refers to
-# Spec 06 Iteration Protocols: flow.for.iterator.value-state, flow.for.iterator.next.trait, flow.for.iterator.reference-progress, flow.for.iterator.copy-preserves-source; Iterator Invalidation: flow.for.collection-cursor.copy.
+# Spec 06 Iteration Protocols: flow.for.iterator.value-state, flow.for.iterator.next.trait, flow.for.iterator.reference-progress, flow.for.iterator.copy-preserves-source; Iterator Snapshots: flow.for.collection-cursor.copy.
 use std.iter.{from_fn}
 fn take_two(source: &mut dyn Iterator[i32]) -> List[i32]:
     let mut taken: List[i32] = []
@@ -39,15 +39,15 @@ tests:
         _ := shared.next()
         assert_equal(first.next(), .Some(3), reason="the reference advanced it")
 
-    it("a copy reads the same list"):
+    it("a copy iterates the same snapshot"):
         let mut values: List[i32] = [+1, 2, 3]
         let mut first = values.iter()
         let mut second = first
         _ := first.next()
         values[1] = 20
         assert_equal(second.next(), .Some(1), reason="the copy keeps its own position")
-        assert_equal(second.next(), .Some(20), reason="the copy reads the replacement")
-        assert_equal(first.next(), .Some(20), reason="so does the original")
+        assert_equal(second.next(), .Some(2), reason="the copy yields the list as iter found it")
+        assert_equal(first.next(), .Some(2), reason="so does the original")
 
     it("a callee advances the caller's cursor through &mut"):
         let mut cursor = [+1, 2, 3].iter()

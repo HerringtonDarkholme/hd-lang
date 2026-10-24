@@ -1,7 +1,7 @@
 //! Maps run (#124, `crates/hd_mono/DESIGN.md` §13.12): iteration in entry order, removal
 //! by tombstone, growth that keeps the order, keys hashed and compared
-//! through their own `Hash` and `Eq`, and the iterator's invalidation
-//! check. Programs build through the driver and run on V8
+//! through their own `Hash` and `Eq`, and a cursor that keeps its
+//! snapshot while the map changes. Programs build through the driver and run on V8
 //! (`host/run.mjs`), as the conformance runner does.
 
 use std::path::Path;
@@ -165,11 +165,10 @@ pub fn main() -> void $ Console:
 }
 
 #[test]
-fn a_growth_that_doubles_during_iteration_invalidates_the_cursor() {
-    // flow.for.invalidate.map-rebuild: the four-entry literal is full, so
-    // the insertion doubles the entry arrays and moves the entries; the
-    // live count is restored, but the cursor's next call panics instead
-    // of resuming from a moved slot.
+fn a_growth_that_doubles_during_iteration_leaves_the_cursor_on_its_snapshot() {
+    // flow.for.cursor.snapshot: the four-entry literal is full, so the
+    // insertion doubles the entry arrays of the map's own copy; the
+    // cursor goes on over the entries `iter()` found.
     let main = "\
 pub fn main() -> void $ Console:
     let mut m: Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}
@@ -179,20 +178,23 @@ pub fn main() -> void $ Console:
         .None => println(\"none\")
     _ := m.remove(\"c\")
     m[\"e\"] = 5
-    _ := it.next()
+    while true:
+        match it.next():
+            .Some((k, _)) => println(k)
+            .None => break
+    println(m.len())
 ";
     let r = ran("double-cursor", main);
-    assert!(!r.status.success(), "the cursor must panic");
-    assert_eq!(String::from_utf8_lossy(&r.stdout), "a\n");
     let err = String::from_utf8_lossy(&r.stderr);
-    assert!(err.contains("iterator-invalidated"), "{err}");
+    assert!(r.status.success(), "{err}");
+    assert_eq!(String::from_utf8_lossy(&r.stdout), "a\nb\nc\nd\n4\n");
 }
 
 #[test]
-fn a_compaction_in_place_during_iteration_invalidates_the_cursor() {
-    // flow.for.invalidate.map-rebuild: fewer than half of the eight slots
-    // are live, so the rebuild keeps the capacity and only compacts; the
-    // cursor's next call panics all the same.
+fn a_compaction_in_place_during_iteration_leaves_the_cursor_on_its_snapshot() {
+    // flow.for.cursor.snapshot: fewer than half of the eight slots are
+    // live, so the rebuild of the map's own copy keeps the capacity and
+    // only compacts; the cursor goes on over the entries `iter()` found.
     let main = "\
 pub fn main() -> void $ Console:
     let mut m: Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4, \"e\": 5, \"f\": 6, \"g\": 7, \"h\": 8}
@@ -205,13 +207,15 @@ pub fn main() -> void $ Console:
     _ := m.remove(\"f\")
     m[\"i\"] = 9
     println(m.len())
-    _ := it.next()
+    while true:
+        match it.next():
+            .Some((k, _)) => println(k)
+            .None => break
 ";
     let r = ran("compact-during", main);
-    assert!(!r.status.success(), "the cursor must panic");
-    assert_eq!(String::from_utf8_lossy(&r.stdout), "f\n3\n");
     let err = String::from_utf8_lossy(&r.stderr);
-    assert!(err.contains("iterator-invalidated"), "{err}");
+    assert!(r.status.success(), "{err}");
+    assert_eq!(String::from_utf8_lossy(&r.stdout), "f\n3\ng\nh\n");
 }
 
 #[test]

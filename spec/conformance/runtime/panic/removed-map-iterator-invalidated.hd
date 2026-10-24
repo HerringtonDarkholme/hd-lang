@@ -1,7 +1,0 @@
-fn invalidated(values: &mut Map[string, i32]) -> void:
-    let mut iterator = values.iter()
-    _ := values.remove("first")
-    _ := iterator.next()  # panic: iterator-invalidated
-
-let mut values: Map[string, i32] = {"first": 1, "second": 2}
-invalidated(&mut values)

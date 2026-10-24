@@ -616,9 +616,7 @@ runtime/valid/structural-ordering.hd	runtime	accept	lang/05-expressions.md#unary
 runtime/valid/list-cursor-retains-source-and-counted-values.hd	runtime	accept	std/iter.md#r-std-iter.cursor.list
 runtime/valid/list-iterator.hd	runtime	accept	lang/06-control-flow.md#for-loops
 runtime/valid/map-iterator.hd	runtime	accept	lang/06-control-flow.md#for-loops
-runtime/panic/map-iterator-invalidated.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#for-loops
 runtime/valid/for-loop-snapshot-push.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
-runtime/panic/removed-map-iterator-invalidated.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#for-loops
 runtime/panic/explicit-panic.hd	runtime	panic:explicit-panic	lang/06-control-flow.md#runtime-panics
 runtime/panic/integer-add-overflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#numeric-conversions
 runtime/panic/invalid-shift.hd	runtime	panic:invalid-shift	lang/05-expressions.md#unary-and-binary-operators
@@ -895,7 +893,6 @@ runtime/valid/runtimes-bind-different-providers.hd	runtime	accept	lang/11-requir
 typing/valid/stored-suspension-driving.hd	type	accept	lang/11-requirements-and-suspension.md#suspending-functions
 typing/invalid/readonly-suspension-cancel.hd	type	reject:not-writable	lang/11-requirements-and-suspension.md#suspending-functions
 typing/invalid/user-suspend-implementation.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.protocol.builtin
-runtime/panic/invalidated-iterator.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#for-loops
 typing/invalid/mixed-signedness.hd	type	reject:mixed-signedness	lang/04-type-system.md#numeric-conversions
 typing/invalid/unsigned-negation.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
 typing/invalid/nonnumeric-unary-plus.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
@@ -1511,13 +1508,16 @@ runtime/valid/a-generic-caller-forwards-its-arguments.hd	runtime	accept	lang/07-
 runtime/valid/a-generic-data-type-copies-with-substituted-fields.hd	runtime	accept	lang/08-data-and-enums.md#r-data.update.new-value
 runtime/valid/a-generic-function-default-runs-at-each-instantiation.hd	runtime	accept	lang/07-functions.md#default-values
 runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/valid/a-list-cursor-iterates-the-list-as-iter-found-it.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.cursor.snapshot
 runtime/valid/a-list-default-is-fresh-on-every-call.hd	runtime	accept	lang/07-functions.md#default-values
 runtime/valid/a-literal-list-beside-collect-takes-the-default-list.hd	runtime	accept	std/iter.md#r-std-iter.collect.default
+runtime/valid/a-map-cursor-iterates-the-map-as-iter-found-it.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.cursor.snapshot
 runtime/valid/a-method-default-reads-the-receiver-and-earlier-parameters.hd	runtime	accept	lang/07-functions.md#default-values
 runtime/valid/a-mut-self-change-of-a-list-stays-in-the-methods-copy.hd	runtime	accept	lang/07-functions.md#r-fn.method.mut-self-struct
 runtime/valid/a-mut-self-call-needs-no-writable-binding.hd	runtime	accept	lang/04-type-system.md#r-types.coll.writable.call
 runtime/valid/a-mut-self-method-may-reassign-self.hd	runtime	accept	lang/07-functions.md#r-fn.param.mut.reassign
 runtime/valid/a-parenthesized-chain-is-a-value.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
+runtime/valid/a-push-through-a-map-value-with-a-computed-key-keeps-every-element.hd	runtime	accept	lang/04-type-system.md#r-types.coll.map-value.place
 runtime/valid/a-read-of-a-binding-during-its-mut-self-call-sees-the-unchanged-value.hd	runtime	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
 runtime/valid/a-spread-through-a-value-passes-each-element.hd	runtime	accept	lang/07-functions.md#function-types-and-values
 runtime/valid/a-three-link-chain-binds-every-name.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
@@ -1546,10 +1546,7 @@ typing/invalid/string-identity.hd	type	reject:identity-requires-references	lang/
 runtime/valid/closure-mutable-capture-runtime.hd	runtime	accept	lang/07-functions.md#captures
 runtime/valid/for-map-snapshot-insert.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
 runtime/valid/for-map-snapshot-remove.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
-runtime/panic/exhausted-iterator-invalidated-by-growth.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#for-loops
 runtime/valid/for-map-snapshot-rebuild.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
-runtime/panic/map-rebuild-invalidates-iterator.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#r-flow.for.invalidate.map-rebuild
-runtime/panic/exhausted-map-iterator-invalidated-by-rebuild.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#r-flow.for.invalidate.map-rebuild
 runtime/valid/list-copy-iterator-unaffected.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/iterator-shape-versus-value-changes.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
 runtime/valid/map-properties.hd	runtime	accept	std/collections.md#r-std-collections.map.entries
@@ -4157,10 +4154,8 @@ parse/invalid/same-line-if-as-function-body.hd	parse	reject:syntax-error	lang/06
 runtime/valid/for-string-explicit-views.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.string-explicit
 typing/invalid/for-over-integer.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#r-flow.for.protocol-required
 typing/invalid/for-mut-root-readonly-element.hd	type	reject:not-writable	lang/06-control-flow.md#r-flow.for.no-root-grant
-runtime/panic/iterator-length-captured-at-creation.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#r-flow.for.length
 runtime/valid/for-map-snapshot-grow.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
-runtime/panic/exhausted-iterator-invalidated.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#r-flow.for.invalidate.panic
-runtime/valid/map-value-replace-during-iteration.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.replace
+runtime/valid/map-value-replace-during-iteration.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
 runtime/valid/list-replace-not-seen-by-loop.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
 typing/invalid/omitted-result-self-recursion.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-recursion
 typing/invalid/omitted-result-mutual-cycle.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle

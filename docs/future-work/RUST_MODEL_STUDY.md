@@ -285,8 +285,8 @@ contents hold:
   itself collected, nothing is freed while anything reaches it. A push
   that grows the buffer leaves the old buffer alive for whoever still
   reads it. Aliased mutation is then memory-safe, and that is exactly
-  today's hd, which checks list invalidation during iteration at run
-  time ([Iterator Invalidation](../../spec/lang/06-control-flow.md#iterator-invalidation)).
+  today's hd, whose iterators iterate a snapshot
+  ([Iterator Snapshots](../../spec/lang/06-control-flow.md#iterator-snapshots)).
   So `Gc[mut T]` can give today's `mut` permission semantics with no
   flag and no `borrow_mut()`.
 - **Contents that hold owned values.** If a `Gc` object can own a

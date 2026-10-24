@@ -99,6 +99,19 @@ fn raw_ty(b: &hd_tir::ir::Body, r: u32) -> Ty {
     b.ty[r as usize]
 }
 
+/// The operand that open instruction `at` changes in place, when it is a
+/// collection change (`hd_tir::own::changed`'s push, map store or removal).
+fn outlined_change(b: &hd_tir::ir::Body, at: u32) -> Option<u32> {
+    use hd_tir::ir::IntrinsicOp::{ListPush, MapRemove, MapSet};
+    let [a, w] = b.data[at as usize];
+    (b.tags[at as usize] == Tag::Intrinsic
+        && matches!(
+            hd_tir::ir::IntrinsicOp::from_u32(a),
+            Some(ListPush | MapSet | MapRemove)
+        ))
+    .then(|| b.record(w)[0])
+}
+
 /// Thunk `id`: one open instruction of an erased body at the caller's
 /// type arguments. It takes the erased body's view of the instruction's
 /// operands and captures, each with a count of its own, then the body's
@@ -160,10 +173,12 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
     }
     em.open_base = em.providers.len();
     let switch = b.tags[at as usize] == Tag::SwitchTag;
-    // An outlined store returns its local's new value.
+    // An outlined store returns its local's new value, and an outlined
+    // change the buffer it leaves.
     let stored = outlined_store_local(b, at);
+    let change = outlined_change(b, at);
     let rty = se(stored.map_or(b.ty[at as usize], |l| b.local_ty[l as usize]));
-    let results = if switch {
+    let results = if switch || change.is_some() {
         vec![Val::I32]
     } else {
         em.vals(rty)?
@@ -216,6 +231,14 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
         em.f.set(x);
         em.write_back(backs)?;
         vec![x]
+    } else if let Some(r) = change {
+        em.changed = Some(NONE);
+        em.inst(at)?;
+        em.write_back(backs)?;
+        match em.changed.take() {
+            Some(x) if x != NONE => vec![x],
+            _ => em.vals.get(&r).cloned().unwrap_or_default(),
+        }
     } else {
         em.inst(at)?;
         em.write_back(backs)?;
@@ -289,6 +312,14 @@ impl Em<'_, '_, '_> {
         if let Some(l) = outlined_store_local(self.b, i) {
             return self.open_local_store(i, k, l);
         }
+        // An outlined change returns the buffer it leaves, for the place
+        // its operand names.
+        if let Some(r) = outlined_change(self.b, i) {
+            self.open_call(i, k)?;
+            let x = self.f.local(Val::I32);
+            self.f.set(x);
+            return self.put_back(r, x);
+        }
         self.open_call(i, k)?;
         if self.diverges(i) {
             self.f.op(I::Unreachable);
@@ -351,7 +382,8 @@ impl Em<'_, '_, '_> {
         } else {
             None
         };
-        let results = if self.b.tags[i as usize] == Tag::SwitchTag {
+        let change = outlined_change(self.b, i).is_some();
+        let results = if self.b.tags[i as usize] == Tag::SwitchTag || change {
             vec![Val::I32]
         } else if let Some(l) = outlined_store_local(self.b, i) {
             self.vals(self.sub(self.b.local_ty[l as usize]))?

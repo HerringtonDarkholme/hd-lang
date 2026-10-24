@@ -1633,7 +1633,6 @@ fn all_node(f: &mut Func, frame: u32, index: u32) {
 
 fn all_child(f: &mut Func, frame: u32, index: u32) {
     all_field(f, frame, ALL_TASKS);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.get(index);
     f.i32(4);
     f.op(Instruction::I32Mul);
@@ -1690,7 +1689,6 @@ fn all_cold(m: &Module, elem: &Elem) -> Func {
         f.local(Val::I32),
     );
     f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.op(Instruction::I32Load(mem(HEAP, crate::rt::LIST_LEN, 2)));
     f.set(n);
     // No overflowing n+30: quotient plus a nonzero remainder.
@@ -2217,9 +2215,6 @@ fn all_poll(m: &Module, elem: &Elem) -> Func {
     f.op(Instruction::I32Store(mem(HEAP, ALL_RESULTS, 2)));
     f.i32(1);
     f.get(buffer);
-    f.helper(Helper::ListHeader {
-        cyclic: elem.cyclic,
-    });
     f
 }
 
@@ -2387,7 +2382,7 @@ fn all_drop(m: &Module, elem: &Elem) -> Func {
     f
 }
 
-/// The list a race frame holds: its header's address at its first field.
+/// The list a race frame holds: its buffer's address at its first field.
 const RACE_LIST: u32 = F_SAVED;
 /// Where a race frame keeps its winner's value while losers settle.
 const RACE_WIN: u32 = F_SAVED + 8;
@@ -2439,7 +2434,6 @@ fn race_cold(m: &Module, results: &[Val], walk: Option<&Walk>) -> Func {
 fn race_task(f: &mut Func, i: u32) {
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(RACE_LIST), 2)));
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.get(i);
     f.i32(4);
     f.op(Instruction::I32Mul);
@@ -2454,7 +2448,6 @@ fn race_task(f: &mut Func, i: u32) {
 fn race_len(f: &mut Func) {
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(RACE_LIST), 2)));
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.op(Instruction::I32Load(mem(HEAP, crate::rt::LIST_LEN, 2)));
 }
 
@@ -2895,13 +2888,11 @@ mod tests {
             f.op(I::I32Store(mem(HEAP, u64::from(crate::rt::LIST_ELEMS), 2)));
         });
         f.get(buffer);
-        f.helper(Helper::ListHeader { cyclic: true });
         let tasks = Sym::Inst(hd_base::Hash128(48_903));
         m.define(tasks.clone(), f);
         m.export("tasks", tasks);
         let mut f = m.func("test:peek", vec![Val::I32; 2], vec![Val::I32]);
         f.get(0);
-        f.op(I::I32Load(mem(HEAP, 0, 2)));
         f.get(1);
         f.i32(4);
         f.op(I::I32Mul);

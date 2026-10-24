@@ -538,10 +538,9 @@ JavaScript's `Map` (`layout::map_ty`):
 - **Speed:** a lookup hashes the key, probes `index`, compares the stored
   hash, then compares the key. Removal marks the entry; growth drops
   removed entries, keeps order and counts the rebuild in `grown`.
-  Iteration walks entries and skips removed ones, in insertion order; it
-  captures `grown` and panics once it changes
-  ([`flow.for.invalidate.map-rebuild`](../../spec/lang/06-control-flow.md#r-flow.for.invalidate.map-rebuild)),
-  one load and compare per step beside the length check.
+  Iteration walks entries and skips removed ones, in insertion order,
+  over a snapshot of the table
+  ([`flow.for.cursor.snapshot`](../../spec/lang/06-control-flow.md#r-flow.for.cursor.snapshot)).
 - **Hashing.** Every key hashes by a function keyed by the run's seed,
   which the first call asks the host's `hd:rt` `hash_seed` import for
   and keeps in a runtime global. An integer, `bool`, `char` or 64-bit
@@ -899,8 +898,8 @@ it reads, which the code key lists (crates/hd_mono/DESIGN.md §13.8).
 
 ```wat
 ;; for i in a..b: i = a; end = b; loop: if i >= end break; bind i; advance; body
-;; for x in items: len captured; loop over the backing array; compare len each step (iterator-invalidated)
-;; for (k, v) in m: loop over entries, skipping holes; the same length check plus the rebuild count
+;; for x in items: loop over a snapshot of the buffer, len captured
+;; for (k, v) in m: loop over a snapshot's entries, skipping holes
 ;; for x in it (an Iterator): call step until .None
 ;; while c: (block $exit (loop $top (br_if $exit (i32.eqz c)) body (br $top)))
 ```

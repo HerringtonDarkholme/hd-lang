@@ -62,7 +62,7 @@ mod join_once;
 mod lazy_ifaces;
 mod least_common_type_run;
 mod let_mut_module_level;
-mod list_invalidation_run;
+mod list_cursor_run;
 mod literals;
 mod local_items_run;
 mod map_key_bounds;

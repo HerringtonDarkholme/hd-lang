@@ -1,5 +1,5 @@
 //! The map glue (`crates/hd_wasm_linear/DESIGN.md` §23.7, §23.18, job 10): a map
-//! is a list's kind of header over a counted table that holds its entries
+//! value is the address of a counted table that holds its entries
 //! in the order they were added, a removed entry marked by hash -1, and a
 //! linear-probing index of entry numbers plus one (0 empty), twice the
 //! entry capacity, so a probe always meets an empty slot. It is the Wasm
@@ -473,7 +473,7 @@ fn index_insert(f: &mut Func, t: u32, cap: u32, h: u32, slot: u32) {
     f.op(I::I32Store(mem(HEAP, u64::from(INDEX), 2)));
 }
 
-/// [`Helper::MapPut`]: `(map, hash, key..., value...)`, taking over one
+/// [`Helper::MapPut`]: `(map, hash, key..., value...) -> map`, taking over one
 /// count of the key and of the value. An equal key's entry keeps its
 /// place and takes the value (`types.map.replace.in-place`,
 /// `expr.map.duplicate.last`), and the key given is released; a new key
@@ -484,21 +484,11 @@ pub fn put(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     let nk = entry.keys;
     let n = entry.leaves.len();
     let params = [vec![Val::I32, Val::I32], entry.key_vals(), entry.val_vals()].concat();
-    let mut f = m.func("rt:map_put", params, vec![]);
-    let (t, cap, e, at) = (
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-    );
-    let arg = |k: usize| 2 + n32(k);
-    let table_of = |f: &mut Func| {
-        load_u32(f, 0, 0);
-        f.set(t);
-        load_u32(f, t, CAP);
-        f.set(cap);
-    };
-    table_of(&mut f);
+    let mut f = m.func("rt:map_put", params, vec![Val::I32]);
+    let (cap, e, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    let (t, arg) = (0, |k: usize| 2 + n32(k));
+    load_u32(&mut f, t, CAP);
+    f.set(cap);
     f.get(t);
     f.get(1);
     for k in 0..nk {
@@ -532,6 +522,7 @@ pub fn put(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
             f.helper(Helper::ReleaseRef);
         });
     }
+    f.get(t);
     f.op(I::Return);
     f.op(I::End);
     // A new key changes a pinned map's length (`ref.elem.pinned.map`).
@@ -544,11 +535,13 @@ pub fn put(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     f.get(cap);
     f.op(I::I32Eq);
     f.op(I::If(BlockType::Empty));
-    f.get(0);
+    f.get(t);
     f.helper(Helper::MapGrow {
         entry: entry.clone(),
     });
-    table_of(&mut f);
+    f.set(t);
+    load_u32(&mut f, t, CAP);
+    f.set(cap);
     f.op(I::End);
     load_u32(&mut f, t, USED);
     f.set(e);
@@ -578,18 +571,19 @@ pub fn put(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
         f.i32(1);
         f.op(I::I32Add);
     });
+    f.get(t);
     f
 }
 
-/// [`Helper::MapGrow`]: `(map)`, its own table full. The live entries move
+/// [`Helper::MapGrow`]: `(map) -> map`, its own table full. The live entries move
 /// in order into a capacity that doubles (at least 4) when at least half
 /// of them are live and stays otherwise, the index is rebuilt from their
-/// hashes, the rebuild is counted, and the old block is freed with no
-/// release, since its entries moved.
+/// hashes, the rebuild is counted, and the old table, its entries moved
+/// and none written, loses the count the map held.
 pub fn grow(entry: &Entry, m: &Module) -> Func {
-    let mut f = m.func("rt:map_grow", vec![Val::I32], vec![]);
-    let (t, cap, ncap, nt, e, j, h, slot) = (
-        f.local(Val::I32),
+    let mut f = m.func("rt:map_grow", vec![Val::I32], vec![Val::I32]);
+    let t = 0;
+    let (cap, ncap, nt, e, j, h, slot) = (
         f.local(Val::I32),
         f.local(Val::I32),
         f.local(Val::I32),
@@ -598,8 +592,6 @@ pub fn grow(entry: &Entry, m: &Module) -> Func {
         f.local(Val::I32),
         f.local(Val::I32),
     );
-    load_u32(&mut f, 0, 0);
-    f.set(t);
     load_u32(&mut f, t, CAP);
     f.set(cap);
     f.get(cap);
@@ -659,41 +651,46 @@ pub fn grow(entry: &Entry, m: &Module) -> Func {
     });
     // An exposed map stays unshared after its pin ends, so the word moves.
     store_u32(&mut f, nt, LIST_OWN, &|f| load_u32(f, t, LIST_OWN));
-    if let Some(r) = m.runtime {
-        f.get(t);
-        f.u32(HEADER);
-        f.op(I::I32Sub);
-        f.call(Sym::Inst(r.free));
-    }
-    store_u32(&mut f, 0, 0, &|f| f.get(nt));
+    store_u32(&mut f, t, USED, &|f| f.i32(0));
+    f.get(t);
+    f.helper(Helper::ReleaseKnown);
+    f.get(nt);
     f
 }
 
-/// [`Helper::MapUnique`]: `(map)`: a shared table is copied whole, its
+/// [`Helper::MapUnique`]: `(map) -> map`: a shared table is copied whole, its
 /// live entries take their own counts, the collections among their values
-/// become copies, and the old table loses one owner.
-pub fn unique(entry: &Entry, m: &Module) -> Func {
-    let mut f = m.func("rt:map_unique", vec![Val::I32], vec![]);
+/// become copies, and the old table loses one holder. With `clone`,
+/// [`Helper::MapClone`]: the table is copied whatever its count, the copy
+/// starts with no owner word, and the original keeps its own
+/// (`ref.elem.copy`).
+pub fn unique(entry: &Entry, m: &Module, clone: bool) -> Func {
+    let name = if clone {
+        "rt:map_clone"
+    } else {
+        "rt:map_unique"
+    };
+    let mut f = m.func(name, vec![Val::I32], vec![Val::I32]);
     let (t, cap, nt, e, at) = (
-        f.local(Val::I32),
+        0,
         f.local(Val::I32),
         f.local(Val::I32),
         f.local(Val::I32),
         f.local(Val::I32),
     );
-    load_u32(&mut f, 0, 0);
-    f.set(t);
     f.get(t);
     f.u32(HEADER);
     f.op(I::I32Sub);
     f.op(I::I32Load(mem(HEAP, 0, 2)));
     f.i32(1);
     f.op(I::I32Ne);
-    // A table with an owner word has one header holding it; the other
-    // counts are element references, which see the change in place.
+    // A table with an owner word has one holder; the other counts are
+    // element references, which see the change in place.
     load_u32(&mut f, t, LIST_OWN);
     f.op(I::I32Eqz);
     f.op(I::I32And);
+    f.i32(i32::from(clone));
+    f.op(I::I32Or);
     f.op(I::If(BlockType::Empty));
     load_u32(&mut f, t, CAP);
     f.set(cap);
@@ -708,6 +705,7 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
         src_mem: HEAP,
         dst_mem: HEAP,
     });
+    store_u32(&mut f, nt, LIST_OWN, &|f| f.i32(0));
     let walk = entry.walk().and_then(|w| w.without(&entry.colls));
     let retain = retain_call(m);
     if walk.is_some() || !entry.colls.is_empty() {
@@ -724,44 +722,19 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
                 let l = entry.leaves[*c as usize];
                 f.get(at);
                 f.get(ls[*c as usize]);
-                f.helper(Helper::ListCopy);
+                f.helper(Helper::CollCopy);
                 f.op(I::I32Store(mem(HEAP, u64::from(l.offset), 2)));
             }
         });
     }
-    f.get(t);
-    f.helper(Helper::ReleaseKnown);
-    store_u32(&mut f, 0, 0, &|f| f.get(nt));
-    f.op(I::End);
-    f
-}
-
-/// [`Helper::MapClone`]: `(map) -> map`: a new header over the map's
-/// table, which takes one more count, then made unique, so the table is
-/// copied whole and the original keeps its own (`ref.elem.copy`). The
-/// owner word is set aside meanwhile, so the table reads as shared and
-/// the copy starts with none.
-pub fn clone(m: &Module, entry: &Entry) -> Func {
-    let mut f = m.func("rt:map_clone", vec![Val::I32], vec![Val::I32]);
-    let (t, h, own) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
-    load_u32(&mut f, 0, 0);
+    if !clone {
+        f.get(t);
+        f.helper(Helper::ReleaseKnown);
+    }
+    f.get(nt);
     f.set(t);
-    load_u32(&mut f, t, LIST_OWN);
-    f.set(own);
-    store_u32(&mut f, t, LIST_OWN, &|f| f.i32(0));
+    f.op(I::End);
     f.get(t);
-    f.helper(Helper::RetainKnown);
-    f.get(t);
-    f.helper(Helper::ListHeader {
-        cyclic: entry.cyclic,
-    });
-    f.set(h);
-    f.get(h);
-    f.helper(Helper::MapUnique {
-        entry: entry.clone(),
-    });
-    store_u32(&mut f, t, LIST_OWN, &|f| f.get(own));
-    f.get(h);
     f
 }
 
@@ -769,9 +742,7 @@ pub fn clone(m: &Module, entry: &Entry) -> Func {
 /// entry in `pos..end` among those written, or `end`.
 pub fn slot_next(m: &Module) -> Func {
     let mut f = m.func("rt:map_slot_next", vec![Val::I32; 3], vec![Val::I32]);
-    let (t, cap, lim) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
-    load_u32(&mut f, 0, 0);
-    f.set(t);
+    let (t, cap, lim) = (0, f.local(Val::I32), f.local(Val::I32));
     load_u32(&mut f, t, CAP);
     f.set(cap);
     load_u32(&mut f, t, USED);
@@ -808,11 +779,9 @@ pub fn slot_next(m: &Module) -> Func {
 /// [`Helper::MapStep`]: `(env, at) -> (usize, (K, V))?`, the step closure
 /// code of std's `map_steps` (`emit/iter.rs`): the first live entry from
 /// entry `at` on, with its entry number. The environment holds the map's
-/// header at 0, and at creation the written entry count at 4, the live
-/// count at 8 and the rebuild count at 12. A changed live or rebuild count
-/// is the `iterator-invalidated` panic; with neither changed, the entries
-/// before the written count at creation are where they were. The entry
-/// leaves with its own counts. In `opt`, the item's leaf 0 is the entry
+/// table at 0, a count of it that keeps it as `iter` found it
+/// (`flow.for.cursor.snapshot`), and the written entry count at 4. The
+/// entry leaves with its own counts. In `opt`, the item's leaf 0 is the entry
 /// number and leaf `k` the entry's leaf `k - 1`.
 pub fn step(m: &Module, entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func {
     // A closure's code: the environment, the first entry to look at, then
@@ -822,25 +791,11 @@ pub fn step(m: &Module, entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func 
         vec![Val::I32, Val::I32, Val::I32],
         results.to_vec(),
     );
-    let (h, t, cap) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    let (t, cap) = (f.local(Val::I32), f.local(Val::I32));
     let (i, end, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     let out: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
     load_u32(&mut f, 0, 0);
-    f.set(h);
-    load_u32(&mut f, h, 0);
     f.set(t);
-    load_u32(&mut f, t, LIVE);
-    load_u32(&mut f, 0, 8);
-    f.op(I::I32Ne);
-    load_u32(&mut f, t, GROWN);
-    load_u32(&mut f, 0, 12);
-    f.op(I::I32Ne);
-    f.op(I::I32Or);
-    f.op(I::If(BlockType::Empty));
-    f.helper(Helper::Panic(
-        "iterator-invalidated: map changed during iteration".into(),
-    ));
-    f.op(I::End);
     load_u32(&mut f, t, CAP);
     f.set(cap);
     f.get(1);
@@ -904,22 +859,19 @@ pub fn step(m: &Module, entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func 
     f
 }
 
-/// Pushes the address of entry `e` (a local) of map header `h` (a local),
-/// for the emitter.
-pub fn entry_address(f: &mut Func, h: u32, e: u32, size: u32) {
-    let (t, cap) = (f.local(Val::I32), f.local(Val::I32));
-    load_u32(f, h, 0);
-    f.set(t);
+/// Pushes the address of entry `e` (a local) of the map table in local
+/// `t`, for the emitter.
+pub fn entry_address(f: &mut Func, t: u32, e: u32, size: u32) {
+    let cap = f.local(Val::I32);
     load_u32(f, t, CAP);
     f.set(cap);
     entry_at(f, t, cap, e, size);
 }
 
-/// Pushes `hashes[e]`'s address of map header `h`, for removal.
-pub fn hash_address(f: &mut Func, h: u32, e: u32) {
-    let (t, cap) = (f.local(Val::I32), f.local(Val::I32));
-    load_u32(f, h, 0);
-    f.set(t);
+/// Pushes `hashes[e]`'s address of the map table in local `t`, for
+/// removal.
+pub fn hash_address(f: &mut Func, t: u32, e: u32) {
+    let cap = f.local(Val::I32);
     load_u32(f, t, CAP);
     f.set(cap);
     hashes(f, t, cap);

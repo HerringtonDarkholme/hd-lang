@@ -27,28 +27,31 @@ fn add(mut m: Map[string, List[i64]], n: i64) -> Map[string, List[i64]]:
     m["a"].push(n)
 >   %3 = Read borrow [$0] : Map[string, List[i64]]
 >   %4 = Intrinsic MapEntry [%3 "a"] : usize
->   %5 = IsUnique [$0] : ()
->   %6 = IsUnique [$0 [%4]] : ()
->   %7 = Read borrow [$0 [%4]] : List[i64]
->   %8 = Read copy [$1] : i64
->   %9 = Intrinsic ListPush [%7 %8] : ()
->   %24 = Block %22 : Map[string, List[i64]]
+>   %5 = Read borrow [$0 [%4]] : List[i64]
+>   %6 = Read copy [$1] : i64
+>   %7 = IsUnique [$0] : ()
+>   %8 = Read borrow [$0] : Map[string, List[i64]]
+>   %9 = Intrinsic MapEntry [%8 "a"] : usize
+>   %10 = IsUnique [$0 [%9]] : ()
+>   %11 = Read borrow [$0 [%9]] : List[i64]
+>   %12 = Intrinsic ListPush [%11 %6] : ()
+>   %27 = Block %25 : Map[string, List[i64]]
     m["a"].push(twice(n))
->   %10 = Read borrow [$0] : Map[string, List[i64]]
->   %11 = Intrinsic MapEntry [%10 "a"] : usize
->   %12 = Read borrow [$0 [%11]] : List[i64]
->   %13 = Read copy [$1] : i64
->   %14 = Call app/main/twice[] (%13) : i64
->   %15 = IsUnique [$0] : ()
->   %16 = Read borrow [$0] : Map[string, List[i64]]
->   %17 = Intrinsic MapEntry [%16 "a"] : usize
->   %18 = IsUnique [$0 [%17]] : ()
->   %19 = Read borrow [$0 [%17]] : List[i64]
->   %20 = Intrinsic ListPush [%19 %14] : ()
+>   %13 = Read borrow [$0] : Map[string, List[i64]]
+>   %14 = Intrinsic MapEntry [%13 "a"] : usize
+>   %15 = Read borrow [$0 [%14]] : List[i64]
+>   %16 = Read copy [$1] : i64
+>   %17 = Call app/main/twice[] (%16) : i64
+>   %18 = IsUnique [$0] : ()
+>   %19 = Read borrow [$0] : Map[string, List[i64]]
+>   %20 = Intrinsic MapEntry [%19 "a"] : usize
+>   %21 = IsUnique [$0 [%20]] : ()
+>   %22 = Read borrow [$0 [%20]] : List[i64]
+>   %23 = Intrinsic ListPush [%22 %17] : ()
     m
->   %21 = Read move [$0] : Map[string, List[i64]]
->   %22 = Intrinsic ValueCopy [%21] : Map[string, List[i64]]
->   %23 = Drop [%21] : ()
+>   %24 = Read move [$0] : Map[string, List[i64]]
+>   %25 = Intrinsic ValueCopy [%24] : Map[string, List[i64]]
+>   %26 = Drop [%24] : ()
 >   exit sub 0 drops [$0]
 
 fn next(k: &mut string) -> i64:

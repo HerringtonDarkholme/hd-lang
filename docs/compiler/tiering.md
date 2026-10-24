@@ -189,7 +189,7 @@ with hd types in view.
    reorders a possible panic relative to output or host calls.
 2. **Evaluation order.** Inlining binds arguments to locals in source
    order before the callee body runs. Closure specialization keeps
-   `iterator-invalidated` checks at the same points.
+   collection checks at the same points.
 3. **Folding uses Wasm semantics.** Integer folding follows the profile.
    A folded operation that would panic emits the panic, not a compile
    error. Float folding is IEEE-exact.

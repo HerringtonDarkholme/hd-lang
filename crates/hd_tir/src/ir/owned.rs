@@ -446,17 +446,31 @@ fn change_places(b: &Body, errs: &mut Vec<VerifyError>) {
         ),
     };
     // Whether value `v` reads a place rooted at a local or a binding.
+    let in_memory = |p: &Place| {
+        p.proj
+            .iter()
+            .any(|s| matches!(s, Proj::Elem(_) | Proj::Deref))
+    };
+    // Whether value `v` reads a place rooted at a local or a binding, or
+    // goes into memory on the way: an element, a referent.
     let placed = |mut v: u32| {
+        let mut memory = false;
         for _ in 0..64 {
             let r = v as usize;
             if Ref(v).as_inst().is_none() || r >= n {
-                return false;
+                return memory;
             }
-            match (b.tags[r], b.decode_place(b.data[r][0]).map(|p| p.root)) {
+            match (b.tags[r], b.decode_place(b.data[r][0])) {
                 (Tag::Coerce, _) => v = b.data[r][0],
-                (Tag::Read, Some(PlaceRoot::Value(u))) => v = u.0,
-                (Tag::Read, Some(PlaceRoot::Local(_) | PlaceRoot::Global(..))) => return true,
-                _ => return false,
+                (Tag::Read, Some(p)) => match p.root {
+                    PlaceRoot::Value(u) => {
+                        memory |= in_memory(&p);
+                        v = u.0;
+                    }
+                    PlaceRoot::Local(_) | PlaceRoot::Global(..) => return true,
+                    _ => return memory,
+                },
+                _ => return memory,
             }
         }
         false
@@ -478,7 +492,12 @@ fn change_places(b: &Body, errs: &mut Vec<VerifyError>) {
             let Some(p) = (Ref(v).as_inst().is_some() && r < n && b.tags[r] == Tag::Read)
                 .then(|| b.decode_place(b.data[r][0]))
                 .flatten()
-                .filter(|p| matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..)))
+                .filter(|p| match p.root {
+                    PlaceRoot::Local(_) | PlaceRoot::Global(..) => true,
+                    // Memory behind another value: a referent, a buffer.
+                    PlaceRoot::Value(u) => !placed(u.0) && in_memory(p),
+                    _ => false,
+                })
             else {
                 if placed(v) {
                     let what = format!("change operand %{r} leaves its buffer in no place");

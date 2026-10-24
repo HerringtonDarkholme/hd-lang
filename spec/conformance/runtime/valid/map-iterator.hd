@@ -12,7 +12,7 @@ tests:
         assert((one == first && two == second) || (one == second && two == first), reason="both entries, in the map's order")
         assert(iterator.next() == exhausted, reason="the exhausted map iterator returns .None")
 
-    it("map value replacement preserves an iterator and changes a later yield"):
+    it("map value replacement leaves an iterator on its snapshot"):
         let mut values: Map[string, i32] = {"first": 1, "second": 2}
         let mut iterator = values.iter()
         let first: (string, i32)? = ("first", 1)
@@ -20,5 +20,7 @@ tests:
         if iterator.next() == first:
             later = "second"
         values[later] = 42
-        let replacement: (string, i32)? = (later, 42)
-        assert(iterator.next() == replacement, reason="replacement does not invalidate the iterator")
+        let original: i32 = if later == "first": 1 else: 2
+        let snapshot: (string, i32)? = (later, original)
+        assert(iterator.next() == snapshot, reason="the iterator yields the map as iter found it")
+        assert(values[later] == 42, reason="the map itself has the replacement")

@@ -11,13 +11,14 @@ app/main/grow
   %5 = Store [$1] %4 : ()
   %6 = Read borrow [$0] : List[i64]
   %7 = Store [$2] %6 : ()
-  %8 = IsUnique [$1] : ()
-  %9 = Read borrow [$1] : List[i64]
-  %10 = Read copy [$2 [0:usize]] : i64
-  %11 = Intrinsic ListPush [%9 %10] : ()
-  %12 = Read move [$1] : List[i64]
-  %13 = Return %12 : never
-  %14 = Block - : never
-  %15 = If %2 [%14 -] : ()
-  %16 = Drop [$0] : ()
+  %8 = Read borrow [$1] : List[i64]
+  %9 = Read copy [$2 [0:usize]] : i64
+  %10 = IsUnique [$1] : ()
+  %11 = Read borrow [$1] : List[i64]
+  %12 = Intrinsic ListPush [%11 %9] : ()
+  %13 = Read move [$1] : List[i64]
+  %14 = Return %13 : never
+  %15 = Block - : never
+  %16 = If %2 [%15 -] : ()
+  %17 = Drop [$0] : ()
   exit sub 0 drops [$0]

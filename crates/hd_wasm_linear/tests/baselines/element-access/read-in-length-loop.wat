@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $xs i32) (result f64) (local $sum f64) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $i i32) (local $t5 f64) (local $t6 i32) (local $t7 i32) (local $t8 i32)
+  (func $total (param $xs i32) (result f64) (local $sum f64) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $i i32) (local $t4 f64) (local $t5 i32) (local $t6 i32) (local $t7 i32)
     block
       ;; ...
     ;; 10 |     for i in 0..n:
@@ -14,10 +14,8 @@
         local.get $xs
         i32.load $heap
         local.tee $t2
-        i32.load $heap
-        local.tee $t3
         i32.load $heap offset=4
-        local.set $t4
+        local.set $t3
       end
       block
         loop
@@ -34,30 +32,26 @@
           local.set $t0
     ;; 11 |         sum = sum + xs[i]
           local.get $sum
-          local.set $t5
+          local.set $t4
           local.get $i
-          local.set $t6
+          local.set $t5
           block (result i32)
             local.get $t2
           end
-          drop
+          local.set $t6
+          local.get $t5
+          local.tee $t7
           block (result i32)
             local.get $t3
-          end
-          local.set $t7
-          local.get $t6
-          local.tee $t8
-          block (result i32)
-            local.get $t4
           end
           i32.ge_u
           if
             call $rt:panic
             unreachable
           end
-          local.get $t5
+          local.get $t4
+          local.get $t6
           local.get $t7
-          local.get $t8
           i32.const 8
           i32.mul
           i32.add

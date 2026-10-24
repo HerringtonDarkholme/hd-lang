@@ -17,12 +17,11 @@ in ordinary hd over the language tier:
 The language tier keeps what the compiler knows about a list
 ([List Indexing](../lang/05-expressions.md#list-indexing),
 [Built-In Methods](../lang/10-modules.md#built-in-methods),
-[Iterator Invalidation](../lang/06-control-flow.md#iterator-invalidation)):
+[Iterator Snapshots](../lang/06-control-flow.md#iterator-snapshots)):
 
 | Item | Why it stays in the language tier |
 | --- | --- |
 | `items[i]`, `len`, `iter`, `push`, `pop`, `insert`, `remove_at`, `clear` | built-in indexing and intrinsics over the list's representation |
-| the captured length | [`flow.for.length`](../lang/06-control-flow.md#r-flow.for.length), a language rule, defines when a change invalidates an iterator |
 
 ## List And Map Values
 
@@ -110,7 +109,7 @@ fn total(view: ListView[i32]) -> i32:
 14. r[std-collections.view.to-list-value] `to_list` returns a new list value that holds the view's elements in order, as the slice `items[start..end]` does, so `let mut copy = view.to_list()` may grow the copy.
 15. r[std-collections.view.read-only] A view has no `IndexSet` implementation, so assigning to `view[i]` is an error. Error: `invalid-assignment-target`.
 16. r[std-collections.view.writes] An element write to the list's place, as `items[i] = v`, shows through every view of it, so a later read of the view gives the new value.
-17. r[std-collections.view.invalidate] Changing the list's length invalidates every view of it, as [`flow.for.invalidate`](../lang/06-control-flow.md#r-flow.for.invalidate) does for an iterator.
+17. r[std-collections.view.invalidate] Changing the list's length invalidates every view of it.
 18. r[std-collections.view.invalidate.anywhere] A length change invalidates a view wherever it happens, so appending past a view's end invalidates it too.
 19. r[std-collections.view.invalid-use] The next use of an invalidated view is a checked runtime panic. Such a use is a `len`, index, or `to_list` call, an `iter()` call, or the next `next` call of an iterator taken from it. Panic: `iterator-invalidated`.
 
@@ -529,7 +528,7 @@ fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
 6. r[std-collections.access.reversed] `reversed` returns a new list of the elements in reverse order.
 7. r[std-collections.access.sorted-by] `sorted_by(compare)` returns a new list in ascending order by `compare`. The sort is stable.
 8. r[std-collections.access.zip] `zip(other)` returns a new list of pairs `(self[i], other[i])` for each index `i` of both lists, so it stops at the shorter one.
-9. r[std-collections.access.extend] `extend(other)` appends each element of `other` to the receiver, in order, as `push` does. It changes the length, so it invalidates iterators by [`flow.for.invalidate`](../lang/06-control-flow.md#r-flow.for.invalidate).
+9. r[std-collections.access.extend] `extend(other)` appends each element of `other` to the receiver, in order, as `push` does. It changes the length, so it invalidates the list's views by [`std-collections.view.invalidate`](#r-std-collections.view.invalidate).
 10. r[std-collections.access.extend.self] `items.extend(items)` appends a copy of the elements `items` held before the call, so it doubles the list.
 11. r[std-collections.access.helper-rules] The callbacks of `filter` and `sorted_by` follow [`std-collections.helper.callback-row`](#r-std-collections.helper.callback-row): each has the empty row.
 

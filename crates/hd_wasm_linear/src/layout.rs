@@ -11,7 +11,7 @@
 //! stores need no branch on the tag. A data value, a self-recursive enum
 //! and a suspension are one address; a string is its address and byte
 //! length; a trait value its data address and its vtable's address; a
-//! list or a map the address of its header (§23.7); a function value its
+//! list or a map the address of its buffer (§23.7); a function value its
 //! code's table slot and its environment's address (§23.8). A reference,
 //! the checker's `std.core.Ref[T]`, is the address of its place (§23.5,
 //! §23.20); a reference to a trait value is that trait value, whose data

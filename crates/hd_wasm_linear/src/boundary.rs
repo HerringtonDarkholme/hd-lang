@@ -49,7 +49,7 @@ pub enum LTy {
     F64,
     /// A string `(address, length)`: its length, then its bytes.
     Str,
-    /// `List[u8]`, a header's address: its length, then its bytes.
+    /// `List[u8]`, a buffer's address: its length, then its bytes.
     Bytes,
     /// Any other list: its count, then its elements.
     List(Box<LList>),
@@ -1105,10 +1105,7 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
             copy(&mut f, 0, 2, true, |f| f.get(1));
         }
         LTy::Bytes => {
-            let (buf, n) = (f.local(Val::I32), f.local(Val::I32));
-            f.get(1);
-            f.op(I::I32Load(mem(HEAP, 0, 2)));
-            f.set(buf);
+            let (buf, n) = (1, f.local(Val::I32));
             f.get(buf);
             f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
             f.set(n);
@@ -1125,7 +1122,6 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
         LTy::List(l) => {
             let (at, n, i) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
             f.get(1);
-            f.op(I::I32Load(mem(HEAP, 0, 2)));
             f.set(at);
             f.get(at);
             f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
@@ -1345,7 +1341,6 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 f.op(I::I32Add);
             });
             f.get(buf);
-            f.helper(Helper::ListHeader { cyclic: false });
         }
         LTy::List(l) => {
             let (n, buf, at, i) = (
@@ -1396,9 +1391,6 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.op(I::End);
             f.op(I::End);
             f.get(buf);
-            f.helper(Helper::ListHeader {
-                cyclic: l.elem.cyclic,
-            });
         }
         LTy::Record(fields) => {
             let mut all = Vec::new();

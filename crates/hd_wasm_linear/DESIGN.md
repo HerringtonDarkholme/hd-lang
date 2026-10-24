@@ -150,7 +150,7 @@ what the spec names as intrinsic or what only it can build.
 | memory intrinsics: load, store, grow, copy, fill | the privileged std module `std.rt.memory`: plain hd declarations whose bodies are `@intrinsic` |
 | the allocator | hd in `std.rt.alloc`, over `std.rt.memory` |
 | counts | `retain` and `release` in `std.rt.alloc`, called by emitted code, with release glue that `rt.rs` generates per layout |
-| lists | `emit/list.rs` for the list kernels, and `rt.rs` for the header, the buffer, its release glue and the change that makes a buffer a list's own (§23.17) |
+| lists | `emit/list.rs` for the list kernels, and `rt.rs` for the buffer, its copy and release glue and the change that makes a buffer a list's own (§23.17) |
 | maps | `emit/map.rs` for the map kernels, and `map.rs` for the table: its probe, put, growth, release glue and the change that makes a table a map's own (§23.18) |
 | closures and `dyn` | `emit/closure.rs` for environments, cells and calls of function values, `emit/dyn_value.rs` for trait values and their vtables, `emit/iter.rs` for collection iterators (§23.19) |
 | references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, the ownership passes' `Drop`s for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) |
@@ -205,7 +205,7 @@ type in every position; aggregate values are inline in memory.
 | `string` | `(address, length)`: two `i32` | 8 bytes |
 | `&T`, `&mut T` | the address of the `T`, possibly inside an object (§23.5); of a trait value, that trait value (§23.20) | 4 bytes; 8 for a trait value |
 | a compiler-supplied data type | the address of a counted object holding the fields | 4 bytes |
-| `List[T]`, `Map[K, V]` | the address of a counted header over a counted buffer (§23.7) | 4 bytes |
+| `List[T]`, `Map[K, V]` | the address of a counted buffer (§23.7) | 4 bytes |
 | closure | `(code, environment)`: a function-table index and the address of a counted environment, 0 when nothing is captured | 8 bytes |
 | `dyn Trait`, `Any` | `(data, vtable)`: the value's address and a static vtable's (§23.8) | 8 bytes |
 | suspension | the address of a counted frame owned by its task | 4 bytes |
@@ -317,19 +317,18 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
   is one static value**: its address is one fixed static location and its
   length 0, never counted, so a view one past a buffer's end can never
   reach the next object's count. Slicing to length zero yields it.
-- **A list** is the address of a counted header, which holds its buffer's
-  address. The buffer is a counted object holding the capacity, the
-  length, the owner word and then the elements inline at their layout's
-  size. While the owner word is 0, the buffer's count is its owner count,
-  for copy-on-write: a change first checks it is 1 and copies the buffer
-  otherwise (REFCOUNT_RUNTIME.md §9.1). Once an element reference pins
-  the list, the owner word is set and one header holds the buffer, so
-  its other counts are pins, the second count of
+- **A list** is the address of its buffer, a counted object holding the
+  capacity, the length, the owner word and then the elements inline at
+  their layout's size. While the owner word is 0, the buffer's count is
+  its holder count, for copy-on-write: a change first checks it is 1 and
+  copies the buffer otherwise (REFCOUNT_RUNTIME.md §9.1). Once an element
+  reference pins the list, the owner word is set and one place holds the
+  buffer, so its other counts are pins, the second count of
   OBJECT_MODEL_TIER1.md §6.3 (§23.20).
-- **A map** is the same kind of header over its table, one counted block
-  that holds the entries in the order they were added and a probing
-  index over them (§23.18), with the owner word at the offset a list
-  buffer has it, so one copy reads it the same way for either.
+- **A map** is the address of its table, one counted block that holds
+  the entries in the order they were added and a probing index over them
+  (§23.18), with the owner word at the offset a list buffer has it, so
+  one copy glue (`rt:coll_copy`) reads it the same way for either.
 
 | Buffer payload offset | Size | Field |
 | --- | --- | --- |
@@ -338,18 +337,13 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
 | 8 | 4 | the owner word: clone-glue table slot plus one once pinned (0 while shareable), with bit 31 recording transitive exposure; growth moves it to the new buffer |
 | 16 | capacity times the element size | the elements, inline |
 
-Why a header, and not the buffer's address as the value: the TIR changes
-a list through its value, not through the place that holds it (`push`,
-and an element store take the list as an operand), and
-the checker (on the ownership passes' path, insertion's rule 7) lets
-places share one list value where nothing can change it in place
-(`ValueCopy`, §15.2, "Collection values"). So the change must
-reach every holder of that value,
-while the buffer underneath may move when it grows or is copied, except
-while pinned: an element reference is an address in the buffer, so a
-pinned buffer never moves, and a copy of a pinned list copies it at
-once. A TIR that wrote changes back to their place would let the value
-be the buffer's address and save one object per list.
+The value is the buffer's address, not a header's, because every change
+that may replace the buffer (an `IsUnique` that copies it, a `push` that
+grows it, a put that grows a table, `list_truncate`) names the place it
+changes, and the emitter stores the new address there
+(`docs/compiler/tir-v2.md`, "List and Map buffers", 3f). A pinned buffer
+never moves, since an element reference is an address in it, and a copy
+of a pinned list copies it at once.
 
 ### 23.8 Closures, `dyn` And Vtables
 
@@ -705,17 +699,17 @@ count glue, with release glue in `rt.rs`, and decides none itself.
 
 ### 23.17 List Operations
 
-List kernels live in `emit/list.rs`, with buffer/header glue in
-`rt.rs`; changes preserve collection value semantics (§23.7).
+List kernels live in `emit/list.rs`, with buffer glue in `rt.rs`;
+changes preserve collection value semantics (§23.7).
 
 - **Literals.** A literal sizes its buffer exactly for its items and its
   spreads (`expr.list.spread.insert`), stores each item, copies each
-  spread's elements with one `memory.copy`, then makes a header over it
-  (`rt:list_header`). Every empty literal shares one static empty
-  buffer, whose count word is 2, so a change always copies it first. A
+  spread's elements with one `memory.copy`. Every empty literal shares
+  one static empty
+  buffer, whose count word is 0, a static object's, so no count changes it and a change always copies it first. A
   tuple's rest list is its last member.
-- **Copies.** `ValueCopy` and `SnapBegin` make a new header over the same
-  buffer, which counts one more owner (`rt:list_copy`); a struct's copy
+- **Copies.** `ValueCopy` and `SnapBegin` count one more holder of the
+  same buffer, or clone a pinned or exposed one (`rt:coll_copy`); a struct's copy
   copies each list among its fields at any depth (`layout::coll_leaves`,
   after `hd_mono::holds_coll`). An operand stored into an element, a
   field, a payload or a tuple is copied the same way, unless its own
@@ -725,12 +719,12 @@ List kernels live in `emit/list.rs`, with buffer/header glue in
   store makes the buffer the list's own (`rt:list_unique`). A shared
   buffer is copied: its elements take their own counts, the lists among
   them become copies in turn, so a nested write never reaches another
-  list, and the old buffer loses one owner. A `push` into a full buffer
+  list, and the old buffer loses one holder. A `push` into a full buffer
   moves it to one of twice the length plus 4 (`rt:list_grow`), and frees
-  the old block without releasing its elements, which moved. A store
-  counts the new element before it releases the old one.
-- **Release.** A header's release glue releases its buffer; a buffer's
-  (`rt:drop_elems`) releases each element's counted references up to the
+  the old block without releasing its elements, which moved. Either
+  stores the new buffer into the place the change names. A store counts
+  the new element before it releases the old one.
+- **Release.** A buffer's release glue (`rt:drop_elems`) releases each element's counted references up to the
   length. A list of strings or of structs holding lists frees everything
   at its last release.
 - **Loops.** `SnapEnd` gives the snapshot's buffer back at once, so after
@@ -757,8 +751,7 @@ Map kernels live in `emit/map.rs`, with table glue in `map.rs` (§23.7).
 Each operation implements collection value semantics (§15.2;
 `crates/hd_mono/DESIGN.md` §13.12), using the table's count for copy-on-write.
 
-- **The table.** A map is a list's kind of header over one counted
-  block: the live and written entry counts, the owner word (at a list
+- **The table.** A map is the address of one counted block: the live and written entry counts, the owner word (at a list
   buffer's offset), the capacity, the rebuild count, then an index of entry numbers plus one (0 empty) twice the
   capacity long, each entry's hash (-1 once removed), and the entries
   in the order they were added, each a `(K, V)` record laid out as a
@@ -787,7 +780,7 @@ Each operation implements collection value semantics (§15.2;
   their order. The result takes its own count of the value before the
   table releases the entry's key and value.
 - **Copies and changes.** `ValueCopy`, `SnapBegin` and `SnapEnd` are the
-  list ones (§23.17), since the header is the same. `m[k] = v`,
+  list ones (§23.17), with the owner word where a list's is. `m[k] = v`,
   `remove` and a change through a value place first make the table the
   map's own (`rt:map_unique`): a shared table is copied whole, each live entry
   takes its own counts, and the collections among the values become
@@ -876,17 +869,16 @@ Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
   body, borrowing `v`'s locals, whose count lasts to the function's
   exit. (`Guard`, a match guard's condition block and its two branches,
   lowers here too.)
-- **Iterators.** `List.iter()` uses std's direct cursor: a reference to
-  the source list, its length at creation, and an independent position.
-  Its std `next` checks invalidation and reads the indexed element;
-  neither constructing nor stepping it needs a closure. `Map.iter()`'s
-  `MapEntries` still uses `map_steps`: its step closure keeps the map's
-  header and creation counts, while the cursor keeps its own position.
-  `rt:map_step` checks those counts on every step, including exhaustion.
-  Both report `iterator-invalidated` when the collection changes
-  (`flow.for.invalidate.panic`). `list_truncate`, used by `pop`, `insert`,
-  `remove_at` and `clear`, reads through the list reference and truncates
-  it in place.
+- **Iterators.** A cursor iterates a snapshot
+  (`flow.for.cursor.snapshot`): it holds a count of the collection's
+  buffer, so a later change copies the buffer first. `List.iter()` uses
+  std's direct cursor, the list and an independent position; neither
+  constructing nor stepping it needs a closure. `Map.iter()`'s
+  `MapEntries` uses `map_steps`: its step closure keeps the map's table
+  and its written entry count at creation, while the cursor keeps its own
+  position. `list_truncate`, used by `pop`, `insert`, `remove_at` and
+  `clear`, reads the list through its reference, truncates it, and stores
+  the buffer back, through a view's setter for a representation view.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/closure_tests.hd`
   calls function references and closures, shares a local between a scope
   and its closures, dispatches through boxed and widened trait values,

@@ -1,0 +1,42 @@
+# test: a map cursor iterates the map as iter found it: a new key, a removal, or changes that rebuild the map's storage change the map but not the cursor, and nothing panics
+# Spec 06 Iterator Snapshots: flow.for.cursor.snapshot.
+use std.iter.MapEntries
+
+fn churn(entries: &mut Map[string, i32]) -> void:
+    for i in 0..64:
+        _ := entries.remove("a")
+        entries["new$i"] = i
+        entries["a"] = 0
+        _ := entries.remove("new$i")
+
+fn count(cursor: &mut MapEntries[string, i32]) -> usize:
+    let n: usize = 0
+    while cursor.next().is_some():
+        n += 1
+    n
+
+tests:
+    use std.testing.assert_equal
+
+    it("a new key"):
+        let mut values: Map[string, i32] = {"first": 1, "second": 2}
+        let mut cursor = values.iter()
+        values["third"] = 3
+        assert_equal(count(&mut cursor), 2, reason="the two entries iter found")
+        assert_equal(values.len(), 3, reason="the map has the new key")
+
+    it("a removal"):
+        let mut values: Map[string, i32] = {"first": 1, "second": 2}
+        let mut cursor = values.iter()
+        _ := values.remove("first")
+        assert_equal(cursor.next(), .Some(("first", +1)), reason="the removed entry is still in the snapshot")
+        assert_equal(values.len(), 1, reason="the map lost the key")
+
+    it("changes that rebuild the storage, before and after exhaustion"):
+        let mut entries: Map[string, i32] = {"a": +1, "b": +2, "c": +3, "d": +4}
+        let mut cursor = entries.iter()
+        _ := cursor.next()
+        churn(&mut entries)
+        assert_equal(count(&mut cursor), 3, reason="the three entries left of the snapshot")
+        churn(&mut entries)
+        assert_equal(cursor.next(), .None, reason="still exhausted")

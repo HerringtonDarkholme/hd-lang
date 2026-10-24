@@ -265,26 +265,14 @@ pub enum Helper {
         walk: Walk,
     },
     /// `(list) -> bool`: whether an element reference pins the list: its
-    /// header has an owner word and its buffer a count over 1 (§23.20).
+    /// buffer has an owner word and a count over 1 (§23.20).
     ListPinned,
-    /// `(list) -> list`: a new list over a copy of the list's buffer,
-    /// whose elements take their own counts: how [`Helper::ListCopy`]
-    /// copies a pinned list, through the owner word's slot.
+    /// `(list) -> list`: a copy of the list's buffer, whose elements take
+    /// their own counts: how [`Helper::CollCopy`] copies a pinned list,
+    /// through the owner word's slot.
     ListClone {
         elem: Elem,
     },
-    /// `(buffer) -> list`: a new list header (§23.7) over `buffer`, whose
-    /// count it takes over, with no owner word; it takes part in cycle
-    /// collection when `cyclic` (its element's `Elem::cyclic`).
-    ListHeader {
-        cyclic: bool,
-    },
-    /// `(buffer, flag) -> list`: a new list header as [`Helper::ListHeader`]
-    /// makes, whose descriptor takes `flag`, [`CYCLIC`] or 0, as a copied
-    /// header's original says at run time.
-    ListHeaderAs,
-    /// A collection header owns a known buffer payload start.
-    ListHeaderDrop,
     /// `(capacity) -> buffer`: a new, empty list buffer with room for
     /// `capacity` elements laid out as `elem`.
     ListBuf {
@@ -295,9 +283,10 @@ pub enum Helper {
     DropElems {
         elem: Elem,
     },
-    /// `(list) -> list`: a copy of a list (`types.coll.value`): a new
-    /// header over the same buffer, which counts one more owner.
-    ListCopy,
+    /// `(coll) -> coll`: a copy of a list or a map (`types.coll.value`):
+    /// one more count on its buffer, or a clone through the owner word's
+    /// slot when it is pinned or exposed.
+    CollCopy,
     /// `(ctx, key) -> entry`: the entry of key id `key` in context `ctx`
     /// ([`ctx_elem`]), `LIST_ELEMS` before it. Checking covers every key a
     /// body looks up, so a miss is internal and traps.
@@ -308,17 +297,19 @@ pub enum Helper {
     CtxNew,
     /// `(at, n)`: the `n` elements at `at`, just copied from a buffer that
     /// keeps them too, take their own counts; each collection among an
-    /// element's values becomes its copy ([`Helper::ListCopy`]).
+    /// element's values becomes its copy ([`Helper::CollCopy`]).
     CopyElems {
         elem: Elem,
     },
-    /// `(list)`: makes the list's buffer its own before a change: a
-    /// buffer it shares is copied.
+    /// `(list) -> list`: the list's buffer made its own before a change:
+    /// a buffer it shares is copied, and the place's count goes to the
+    /// copy.
     ListUnique {
         elem: Elem,
     },
-    /// `(list)`: moves the list's full buffer, its own already (an owned
-    /// body's `IsUnique` made it so), to one with room for a `push`.
+    /// `(list) -> list`: the list's buffer, its own already (an owned
+    /// body's `IsUnique` made it so), moved to one with room for a `push`
+    /// when full.
     ListGrow {
         elem: Elem,
     },
@@ -342,25 +333,26 @@ pub enum Helper {
         entry: map::Entry,
         ops: KeyOps,
     },
-    /// `(map, hash, key, value)`: puts the entry, taking over one count of
-    /// the key and of the value; the map's table is its own already.
+    /// `(map, hash, key, value) -> map`: puts the entry, taking over one
+    /// count of the key and of the value; the map's table is its own
+    /// already, and moves when full.
     MapPut {
         entry: map::Entry,
         ops: KeyOps,
     },
-    /// `(map)`: moves the map's full table to one with room.
+    /// `(map) -> map`: the map's full table moved to one with room.
     MapGrow {
         entry: map::Entry,
     },
-    /// `(map)`: makes the map's table its own before a change: a table it
-    /// shares is copied, its entries taking their own counts. A header
-    /// with an owner word is its table's one owner (a pinned map).
+    /// `(map) -> map`: the map's table made its own before a change: a
+    /// table it shares is copied, its entries taking their own counts. A
+    /// table with an owner word has one holder (a pinned map).
     MapUnique {
         entry: map::Entry,
     },
-    /// `(map) -> map`: a new map over a copy of the map's table: how
-    /// [`Helper::ListCopy`] copies a pinned map, through the owner word's
-    /// slot, as [`Helper::ListClone`] copies a pinned list.
+    /// `(map) -> map`: a copy of the map's table: how [`Helper::CollCopy`]
+    /// copies a pinned map, through the owner word's slot, as
+    /// [`Helper::ListClone`] copies a pinned list.
     MapClone {
         entry: map::Entry,
     },
@@ -399,9 +391,10 @@ pub enum Helper {
         opt: Vec<OptVal>,
         results: Vec<Val>,
     },
-    /// `(list, n)`: std's `list_truncate`: a pinned list whose length
-    /// would change panics; otherwise the buffer is made the list's own,
-    /// the elements from `n` on are released and the length becomes `n`.
+    /// `(list, n) -> list`: std's `list_truncate`: a pinned list whose
+    /// length would change panics; otherwise the buffer is made the list's
+    /// own, the elements from `n` on are released and the length becomes
+    /// `n`.
     ListTruncate {
         elem: Elem,
     },
@@ -618,9 +611,9 @@ impl Elem {
 /// element reference pinned the collection, the function-table slot of
 /// its [`Helper::ListClone`] or [`Helper::MapClone`] plus one, with
 /// [`LIST_EXPOSED`] for transitive exposure. A buffer whose owner word is
-/// set has one header holding it, so each count past the first is an
-/// element reference's: the collection is pinned while its buffer's count
-/// is over 1 (§23.20).
+/// set has one holder, so each count past the first is an element
+/// reference's: the collection is pinned while its buffer's count is over
+/// 1 (§23.20).
 pub const LIST_OWN: u64 = 8;
 
 /// A list containing collection values has exposed an element. Keep its
@@ -669,11 +662,11 @@ pub const CTX_VTABLE: u64 = 28;
 
 /// The address of the one static empty buffer, shared by every empty list
 /// and map literal: its payload's 24 zero bytes are an empty list buffer
-/// and an empty map table. Its count word is 2, so a change always copies
-/// it first, and as static data it is never counted.
+/// and an empty map table. Its count word is 0, a static object's: no
+/// count changes it, and as no count is 1, a change always copies it
+/// first. An empty list's value is this buffer itself.
 pub fn empty_buffer(m: &mut Module) -> u32 {
-    let mut bytes = [0u8; 32];
-    bytes[0] = 2;
+    let bytes = [0u8; 32];
     let at = m.static_bytes(&bytes, 8) + HEADER;
     m.label_static(at, "empty-buffer");
     at
@@ -1503,20 +1496,11 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::RetainFields { leaves, walk } => {
             fields_glue(m, "rt:retain_fields", leaves, walk, &retain_call(m))
         }
-        Helper::ListHeader { cyclic } => list_header(m, *cyclic),
-        Helper::ListHeaderAs => list_header_as(m),
-        Helper::ListHeaderDrop => {
-            let mut f = m.func("rt:list_header_drop", vec![Val::I32], vec![]);
-            f.get(0);
-            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-            f.helper(Helper::ReleaseKnown);
-            f
-        }
         Helper::ListPinned => list_pinned(m),
         Helper::ListClone { elem } => list_clone(m, elem),
         Helper::ListBuf { elem } => list_buf(m, elem),
         Helper::DropElems { elem } => drop_elems(m, elem),
-        Helper::ListCopy => list_copy(m),
+        Helper::CollCopy => coll_copy(m),
         Helper::CtxFind => ctx_find(m),
         Helper::CtxNew => ctx_new(m),
         Helper::CopyElems { elem } => copy_elems(elem, m),
@@ -1528,8 +1512,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::MapFind { entry, ops } => map::find(m, entry, ops),
         Helper::MapPut { entry, ops } => map::put(m, entry, ops),
         Helper::MapGrow { entry } => map::grow(entry, m),
-        Helper::MapUnique { entry } => map::unique(entry, m),
-        Helper::MapClone { entry } => map::clone(m, entry),
+        Helper::MapUnique { entry } => map::unique(entry, m, false),
+        Helper::MapClone { entry } => map::unique(entry, m, true),
         Helper::MapSlotNext => map::slot_next(m),
         Helper::DynSlot {
             target,
@@ -1612,7 +1596,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
     #[cfg(feature = "checked-report")]
     match h {
         Helper::ListBuf { .. } | Helper::MapTable { .. } => checked_kind(&mut f, m, 5),
-        Helper::ListHeader { .. } | Helper::ListHeaderAs => checked_kind(&mut f, m, 6),
         _ => {}
     }
     f
@@ -2481,19 +2464,15 @@ fn release_ref(m: &Module, known: bool) -> Func {
     f
 }
 
-/// [`Helper::ListHeader`].
-/// [`Helper::ListCopy`]: a new header over the same buffer, which counts
-/// one more owner. A pinned list's buffer has one owner, so its copy is a
-/// copy of the buffer (`ref.elem.pin`); an unpinned list whose buffer
+/// [`Helper::CollCopy`]: one more count on the buffer of a list or a map,
+/// which counts its holders. A pinned collection's buffer has one holder,
+/// so its copy is a clone (`ref.elem.pin`); an unpinned one whose buffer
 /// still has an owner word gives the word up, as the buffer is shared now.
 /// Exposed ancestors stay unshared even without a direct pin: their
 /// recursively copied elements may contain a still-pinned descendant.
-fn list_copy(m: &Module) -> Func {
-    let mut f = m.func("rt:list_copy", vec![Val::I32], vec![Val::I32]);
-    let (b, own) = (f.local(Val::I32), f.local(Val::I32));
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.set(b);
+fn coll_copy(m: &Module) -> Func {
+    let mut f = m.func("rt:coll_copy", vec![Val::I32], vec![Val::I32]);
+    let (b, own) = (0, f.local(Val::I32));
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
     f.set(own);
@@ -2510,7 +2489,7 @@ fn list_copy(m: &Module) -> Func {
     f.op(Instruction::I32And);
     f.op(Instruction::I32Or);
     f.op(Instruction::If(BlockType::Empty));
-    f.get(0);
+    f.get(b);
     f.get(own);
     f.u32(!LIST_EXPOSED);
     f.op(Instruction::I32And);
@@ -2525,26 +2504,14 @@ fn list_copy(m: &Module) -> Func {
     f.op(Instruction::End);
     f.get(b);
     f.helper(Helper::RetainKnown);
-    // The copy takes part in cycle collection as its original does, read
-    // at run time, so that no constant makes a program look cycle-capable.
     f.get(b);
-    f.get(0);
-    f.u32(HEADER);
-    f.op(Instruction::I32Sub);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.u32(CYCLIC);
-    f.op(Instruction::I32And);
-    f.helper(Helper::ListHeaderAs);
     f
 }
 
 /// [`Helper::ListPinned`].
 fn list_pinned(m: &Module) -> Func {
     let mut f = m.func("rt:list_pinned", vec![Val::I32], vec![Val::I32]);
-    let b = f.local(Val::I32);
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.set(b);
+    let b = 0;
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
     f.i32(0);
@@ -2562,10 +2529,7 @@ fn list_pinned(m: &Module) -> Func {
 /// [`Helper::ListClone`].
 fn list_clone(m: &Module, elem: &Elem) -> Func {
     let mut f = m.func("rt:list_clone", vec![Val::I32], vec![Val::I32]);
-    let (b, n, nb) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.set(b);
+    let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.set(n);
@@ -2596,40 +2560,6 @@ fn list_clone(m: &Module, elem: &Elem) -> Func {
         f.helper(Helper::CopyElems { elem: elem.clone() });
     }
     f.get(nb);
-    f.helper(Helper::ListHeader {
-        cyclic: elem.cyclic,
-    });
-    f
-}
-
-/// [`Helper::ListHeaderAs`].
-fn list_header_as(m: &Module) -> Func {
-    let mut f = m.func("rt:list_header_as", vec![Val::I32; 2], vec![Val::I32]);
-    let h = f.local(Val::I32);
-    f.i32(4);
-    push_desc(&mut f, Some(Sym::Helper(Helper::ListHeaderDrop)), false);
-    f.get(1);
-    f.op(Instruction::I32Or);
-    f.helper(Helper::New);
-    f.set(h);
-    f.get(h);
-    f.get(0);
-    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    f.get(h);
-    f
-}
-
-fn list_header(m: &Module, cyclic: bool) -> Func {
-    let mut f = m.func("rt:list_header", vec![Val::I32], vec![Val::I32]);
-    let h = f.local(Val::I32);
-    f.i32(4);
-    push_desc(&mut f, Some(Sym::Helper(Helper::ListHeaderDrop)), cyclic);
-    f.helper(Helper::New);
-    f.set(h);
-    f.get(h);
-    f.get(0);
-    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    f.get(h);
     f
 }
 
@@ -2799,12 +2729,11 @@ fn type_id(parts: &TypeIdParts, params: Vec<Val>, m: &mut Module) -> Func {
 
 /// [`Helper::ListTruncate`].
 fn list_truncate(m: &Module, elem: &Elem) -> Func {
-    let mut f = m.func("rt:list_truncate", vec![Val::I32, Val::I32], vec![]);
-    let (b, at, n) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
-    f.get(0);
+    let mut f = m.func("rt:list_truncate", vec![Val::I32, Val::I32], vec![Val::I32]);
+    let (b, at, n) = (0, f.local(Val::I32), f.local(Val::I32));
+    f.get(b);
     f.helper(Helper::ListPinned);
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.get(1);
     f.op(Instruction::I32Ne);
@@ -2814,10 +2743,8 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
         "collection-pinned: list length changed while pinned".into(),
     ));
     f.op(Instruction::End);
-    f.get(0);
+    f.get(b);
     f.helper(Helper::ListUnique { elem: elem.clone() });
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.set(b);
     if let Some(walk) = &elem.walk {
         f.get(b);
@@ -2844,6 +2771,7 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
     f.get(b);
     f.get(1);
     f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    f.get(b);
     f
 }
 
@@ -2900,7 +2828,7 @@ fn copy_elems(elem: &Elem, m: &Module) -> Func {
             let l = elem.leaves[*c as usize];
             f.get(0);
             f.get(ls[*c as usize]);
-            f.helper(Helper::ListCopy);
+            f.helper(Helper::CollCopy);
             f.op(Instruction::I32Store(mem(HEAP, u64::from(l.offset), 2)));
         }
     });
@@ -2908,36 +2836,26 @@ fn copy_elems(elem: &Elem, m: &Module) -> Func {
 }
 
 /// [`Helper::ListUnique`]: a shared buffer is copied at its length; its
-/// elements take their own counts and the old buffer one owner less.
+/// elements take their own counts and the old buffer one holder less.
 fn list_unique(elem: &Elem, m: &Module) -> Func {
-    let mut f = m.func("rt:list_unique", vec![Val::I32], vec![]);
-    let (b, n, shared, nb) = (
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-    );
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.set(b);
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
-    f.set(n);
+    let mut f = m.func("rt:list_unique", vec![Val::I32], vec![Val::I32]);
+    let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
     f.get(b);
     f.u32(HEADER);
     f.op(Instruction::I32Sub);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.i32(1);
     f.op(Instruction::I32Ne);
-    // A buffer with an owner word has one header holding it; the other
-    // counts are element references, which see the change in place.
+    // A buffer with an owner word has one holder; the other counts are
+    // element references, which see the change in place.
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
     f.op(Instruction::I32Eqz);
     f.op(Instruction::I32And);
-    f.set(shared);
-    f.get(shared);
     f.op(Instruction::If(BlockType::Empty));
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.set(n);
     f.get(n);
     f.helper(Helper::ListBuf { elem: elem.clone() });
     f.set(nb);
@@ -2957,8 +2875,6 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
         src_mem: HEAP,
         dst_mem: HEAP,
     });
-    f.get(shared);
-    f.op(Instruction::If(BlockType::Empty));
     if elem.counts() {
         f.get(nb);
         f.u32(LIST_ELEMS);
@@ -2968,30 +2884,20 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
     }
     f.get(b);
     f.helper(Helper::ReleaseKnown);
-    f.op(Instruction::Else);
-    if let Some(r) = m.runtime {
-        f.get(b);
-        f.u32(HEADER);
-        f.op(Instruction::I32Sub);
-        f.call(Sym::Inst(r.free));
-    }
-    f.op(Instruction::End);
-    f.get(0);
     f.get(nb);
-    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.set(b);
     f.op(Instruction::End);
+    f.get(b);
     f
 }
 
 /// [`Helper::ListGrow`]: a full buffer moves to one of twice its length
-/// plus 4, and its old block is freed with no release, since its elements
-/// moved. The list owns the buffer: no other holder shares it.
+/// plus 4, and the old one, its elements moved and its length 0, loses
+/// the count the list held: an outlined change's thunk holds one more
+/// until it returns (`emit/erased.rs`).
 fn list_grow(elem: &Elem, m: &Module) -> Func {
-    let mut f = m.func("rt:list_grow", vec![Val::I32], vec![]);
-    let (b, n, nb) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.set(b);
+    let mut f = m.func("rt:list_grow", vec![Val::I32], vec![Val::I32]);
+    let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.set(n);
@@ -3028,26 +2934,22 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
     f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
-    if let Some(r) = m.runtime {
-        f.get(b);
-        f.u32(HEADER);
-        f.op(Instruction::I32Sub);
-        f.call(Sym::Inst(r.free));
-    }
-    f.get(0);
+    f.get(b);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    f.get(b);
+    f.helper(Helper::ReleaseKnown);
     f.get(nb);
-    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.set(b);
     f.op(Instruction::End);
+    f.get(b);
     f
 }
 
 /// [`Helper::StrFromBytes`]: no bytes is the static empty string.
 fn str_from_bytes(m: &Module) -> Func {
     let mut f = m.func("rt:str_from_bytes", vec![Val::I32], vec![Val::I32; 2]);
-    let (b, n, s) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.set(b);
+    let (b, n, s) = (0, f.local(Val::I32), f.local(Val::I32));
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.set(n);
@@ -3086,7 +2988,6 @@ fn concat_all(m: &Module) -> Func {
     );
     let start = |f: &mut Func| {
         f.get(0);
-        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
         f.set(at);
         f.get(at);
         f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));

@@ -437,9 +437,10 @@ pub trait Iterable[T]:
 # or advances a referenced cursor directly (spec/lang/06-control-flow.md#r-flow.for.iterator.iterable-not-implied,
 # spec/lang/06-control-flow.md#r-flow.for.iterator.owned-source).
 
-# A list cursor holds its source place and length; a map cursor keeps a
-# step closure. Both track their own position and check invalidation even
-# after exhaustion (spec/lang/06-control-flow.md#iterator-invalidation).
+# A list cursor holds a copy of its list; a map cursor keeps a step
+# closure over a copy of its map. Both track their own position and
+# iterate the collection as `iter` found it
+# (spec/lang/06-control-flow.md#r-flow.for.cursor.snapshot).
 # `map_steps(entries)(at)` is the first entry from entry number `at` on,
 # with its number, or `.None` past the last.
 @intrinsic("map_steps")
@@ -449,15 +450,12 @@ fn map_steps[K < Eq & Hash, V](entries: Map[K, V]) -> fn(usize) -> (usize, (K, V
 ## The cursor of a list's `iter`: its elements in order.
 ## See [std-iter.cursor.list](../../spec/std/iter.md#r-std-iter.cursor.list).
 pub struct ListIter[T]:
-    items: &List[T]
-    len: usize
+    items: List[T]
     at: usize
 
 impl[T] Iterator[T] for ListIter[T]:
     fn next(&mut self) -> T?:
-        if self.items.len() != self.len:
-            panic_with("iterator-invalidated", "list changed during iteration")
-        if self.at >= self.len:
+        if self.at >= self.items.len():
             return .None
         item := self.items[self.at]
         self.at = self.at + 1
@@ -480,13 +478,9 @@ impl[K < Eq & Hash, V] Iterator[(K, V)] for MapEntries[K, V]:
 impl[T] Iterable[T] for List[T]:
     type IntoIter = ListIter[T]
     fn iter(self) -> ListIter[T]:
-        ListIter { items: &self, len: self.len(), at: 0 }
+        ListIter { items: self, at: 0 }
 
 impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]:
     type IntoIter = MapEntries[K, V]
     fn iter(self) -> MapEntries[K, V]:
         MapEntries { step: map_steps(self), at: 0 }
-
-@intrinsic("panic")
-fn panic_with(category: string, message: string) -> void:
-    panic("intrinsic")

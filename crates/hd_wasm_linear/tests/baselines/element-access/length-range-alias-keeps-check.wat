@@ -3,7 +3,7 @@
   (import "fixture" "impl [ T ] List [ T ].pop[i32]" (func $"impl [ T ] List [ T ].pop[i32]" (param i32) (result i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $xs i32) (param $other i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $sum i32) (local $t3 i32) (local $t4 i32) (local $i i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+  (func $total (param $xs i32) (param $other i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $sum i32) (local $t3 i32) (local $t4 i32) (local $i i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32)
     block
     ;; 5 |     n := xs.len()
       local.get $xs
@@ -15,7 +15,6 @@
         local.set $t1
       end
       local.get $t1
-      i32.load $heap
       i32.load $heap offset=4
       local.set $t2
     ;; 6 |     let sum = +0
@@ -58,12 +57,9 @@
             i32.load $heap
             local.set $t7
           end
-          local.get $t7
-          i32.load $heap
-          local.set $t8
           local.get $t6
-          local.tee $t9
-          local.get $t8
+          local.tee $t8
+          local.get $t7
           i32.load $heap offset=4
           i32.ge_u
           if
@@ -71,8 +67,8 @@
             unreachable
           end
           local.get $t5
+          local.get $t7
           local.get $t8
-          local.get $t9
           i32.const 4
           i32.mul
           i32.add

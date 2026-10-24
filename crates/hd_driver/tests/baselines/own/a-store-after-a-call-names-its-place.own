@@ -56,13 +56,13 @@ fn put[T](xs: &mut List[T], k: usize, v: T) -> void:
 >   local $0 xs: Ref[mut List[T]] [param read]
 >   local $1 k: usize [param read]
 >   local $2 v: T [param read]
->   %0 = Read borrow [$0] : Ref[mut List[T]]
->   %1 = Read copy [*%0] : List[T]
->   %2 = Read copy [$1] : usize
->   %3 = Read copy [$2] : T
->   %4 = IsUnique [*$0] : ()
->   %5 = Store [%1 [%2]] %3 : ()
->   %6 = Drop [%1] : ()
+>   %0 = Read copy [$0] : Ref[mut List[T]]
+>   %1 = Read copy [$1] : usize
+>   %2 = Read copy [$2] : T
+>   %3 = IsUnique [*$0] : ()
+>   %4 = Read borrow [$0] : Ref[mut List[T]]
+>   %5 = Store [*%4 [%1]] %2 : ()
+>   %6 = Drop [%0] : ()
 >   %13 = Block - : ()
     xs.push(v)
 >   %7 = Read borrow [$0] : Ref[mut List[T]]

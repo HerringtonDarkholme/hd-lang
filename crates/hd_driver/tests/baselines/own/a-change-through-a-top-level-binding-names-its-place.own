@@ -30,31 +30,33 @@ fn add(i: usize, n: i64) -> void:
 > app/main/add
 >   local $0 i: usize [param read]
 >   local $1 n: i64 [param read]
->   %0 = IsUnique [@app/main/saved] : ()
->   %1 = Read borrow [@app/main/saved] : List[i64]
->   %2 = Read copy [$1] : i64
->   %3 = Intrinsic ListPush [%1 %2] : ()
->   %24 = Block - : ()
+>   %0 = Read borrow [@app/main/saved] : List[i64]
+>   %1 = Read copy [$1] : i64
+>   %2 = IsUnique [@app/main/saved] : ()
+>   %3 = Read borrow [@app/main/saved] : List[i64]
+>   %4 = Intrinsic ListPush [%3 %1] : ()
+>   %26 = Block - : ()
     saved.push(twice(n))
->   %4 = Read borrow [@app/main/saved] : List[i64]
->   %5 = Read copy [$1] : i64
->   %6 = Call app/main/twice[] (%5) : i64
->   %7 = IsUnique [@app/main/saved] : ()
->   %8 = Read borrow [@app/main/saved] : List[i64]
->   %9 = Intrinsic ListPush [%8 %6] : ()
+>   %5 = Read borrow [@app/main/saved] : List[i64]
+>   %6 = Read copy [$1] : i64
+>   %7 = Call app/main/twice[] (%6) : i64
+>   %8 = IsUnique [@app/main/saved] : ()
+>   %9 = Read borrow [@app/main/saved] : List[i64]
+>   %10 = Intrinsic ListPush [%9 %7] : ()
     bags[i].items.push(n)
->   %10 = Read copy [$0] : usize
->   %11 = IsUnique [@app/main/bags] : ()
->   %12 = IsUnique [@app/main/bags [%10] .items] : ()
->   %13 = Read borrow [@app/main/bags [%10] .items] : List[i64]
->   %14 = Read copy [$1] : i64
->   %15 = Intrinsic ListPush [%13 %14] : ()
+>   %11 = Read copy [$0] : usize
+>   %12 = Read borrow [@app/main/bags [%11] .items] : List[i64]
+>   %13 = Read copy [$1] : i64
+>   %14 = IsUnique [@app/main/bags] : ()
+>   %15 = IsUnique [@app/main/bags [%11] .items] : ()
+>   %16 = Read borrow [@app/main/bags [%11] .items] : List[i64]
+>   %17 = Intrinsic ListPush [%16 %13] : ()
     bags[i].items.push(twice(n))
->   %16 = Read copy [$0] : usize
->   %17 = Read borrow [@app/main/bags [%16] .items] : List[i64]
->   %18 = Read copy [$1] : i64
->   %19 = Call app/main/twice[] (%18) : i64
->   %20 = IsUnique [@app/main/bags] : ()
->   %21 = IsUnique [@app/main/bags [%16] .items] : ()
->   %22 = Read borrow [@app/main/bags [%16] .items] : List[i64]
->   %23 = Intrinsic ListPush [%22 %19] : ()
+>   %18 = Read copy [$0] : usize
+>   %19 = Read borrow [@app/main/bags [%18] .items] : List[i64]
+>   %20 = Read copy [$1] : i64
+>   %21 = Call app/main/twice[] (%20) : i64
+>   %22 = IsUnique [@app/main/bags] : ()
+>   %23 = IsUnique [@app/main/bags [%18] .items] : ()
+>   %24 = Read borrow [@app/main/bags [%18] .items] : List[i64]
+>   %25 = Intrinsic ListPush [%24 %21] : ()

@@ -40,9 +40,9 @@ fn evens(values: List[i32]) -> List[i32]:
     cursor.filter(fn(value): value % 2 == 0).collect()
 ```
 
-1. r[std-iter.cursor.list] `std.iter` declares `ListIter[T]`, whose `next` yields the list's elements in order, each read from the list when it is reached.
+1. r[std-iter.cursor.list] `std.iter` declares `ListIter[T]`, whose `next` yields the list's elements in order, as the list held them when `iter` ran.
 2. r[std-iter.cursor.map] `std.iter` declares `MapEntries[K < Eq & Hash, V]`, whose `next` yields the map's entries as `(K, V)` tuples in the map's iteration order.
-3. r[std-iter.cursor.private] Both have private fields, so only `iter` makes one, and both follow [Iterator Invalidation](../lang/06-control-flow.md#iterator-invalidation).
+3. r[std-iter.cursor.private] Both have private fields, so only `iter` makes one, and both iterate a snapshot ([Iterator Snapshots](../lang/06-control-flow.md#iterator-snapshots)).
 
 ## Optional Cursors
 

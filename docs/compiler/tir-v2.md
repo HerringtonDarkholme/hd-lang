@@ -4033,12 +4033,109 @@ alternated run by run, under a load average of 16 to 24: sieve 240 to
 within noise. The web compiler's gzip grows 198 B (1,905,641 to
 1,905,839, both built here).
 
+Two commits land before 3f, each under headers. The first captures a
+`let mut` collection that a change reaches in place as `Shared`
+(`fn.capture.cell.writes`): the checker chose `Copy` unless the local was
+assigned, which only header sharing made right. The second makes a store,
+a reference or a change through a base read that folding kept name the
+read's place: folding still folds a store and a reference when only a
+statement between stops it (`xs[i] = f(i)` stores into `[$xs [%i]]`), and
+insertion grafts the checks of one left value-rooted (a reference of an
+open type) onto the place the chain of reads starts at, reads the place
+again after them, and keeps the local live to the store; the verifier
+rejects an `IsUnique` rooted at a value that reads such a place.
+
+3f makes a list or a map value its buffer's or table's address, for both
+kinds at once. The header kernels go, `Em::header` and `Em::buffer` are one
+`Em::buffer`, and `rt:list_copy` is `rt:coll_copy`: a retain, or a clone
+through the owner word's slot when pinned or exposed, the word given up
+otherwise. `rt:list_unique`, `rt:list_grow`, `rt:list_truncate`,
+`rt:map_unique`, `rt:map_grow` and `rt:map_put` take the buffer and return
+the one the place holds after them; the call gives up one count of the old
+buffer and the result's count is the place's. So the store back is raw. An
+`IsUnique` stores where its own walk found the place in memory, and only
+when the check replaced the buffer: an unconditional store there cost nbody
+7% (V8, 31 interleaved runs), the hoisted check before each inner loop
+storing into `*bodies` 5.75 million times. Any other place is walked again
+(`Em::put_buffer`): a local's Wasm local, a cell, a value's locals, a
+binding's static slot or Wasm global, an element slot, a referent at a
+thin reference's address. A push stores the buffer growth leaves into the
+place its `borrow` operand names, and a map put the table; `list_truncate`
+stores through its reference, through a representation view's setter when
+the reference is one (the getter's copy is the one the truncation's unique
+copy replaces). Growth now zeroes the old buffer's length (a table's
+written count) and releases it where it freed it: an outlined change in an
+erased body runs in a thunk that holds a count of its operand, and returns
+the buffer it leaves for the erased body to store
+(`emit/erased.rs`, `outlined_change`). `rt:map_clone` is
+`rt:map_unique` with a forced copy that starts with no owner word, so the
+set-aside stopgap goes. The static empty buffer's count word is 0, a
+static object's: with buffer values its count of 2 reached 1 under the
+inline release fast path and was freed (`list-counts`).
+
+A change reads its place again after its arguments unless the operand read
+stands right before it: the read is then the change's `borrow` operand,
+since a drop that ends an argument's last use would stand between a borrow
+and its change (the verifier's borrow spans), and a copy would count the
+buffer twice. Place folding stops at a call in a map value's index no more
+when the map is a local's own value that nothing between names and no
+closure or reference reaches (`m["k$n"].push(twice(n))` names
+`[$0 [%13]]`, which the push looks up again after its argument). A read
+through memory behind another value folds into its stores
+(`list_of(...)[i] = v` stores into `[*%6 [%i]]`), and a change through such
+a chain keeps that value live to the change. The walk lowers a value-rooted
+place with two memory steps.
+
+`flow.for.cursor.snapshot` (owner, 2026-10-24, on #667): a cursor that
+`iter()` returns iterates the collection as `iter()` found it. Under headers
+the cursor shared the header, so a later push or a removal invalidated it;
+with buffer values `ListIter` holds the list itself and `MapEntries`' step
+closure the table, each a count that copy-on-write keeps, and the
+`iterator-invalidated` checks of both go. The category stays for views
+(`std-collections.view.invalid-use`). Chapter 06 retires `flow.for.length`,
+`flow.for.invalidate`, `.map-rebuild`, `.panic`, `flow.for.replace` and
+`.observed`, adds `flow.for.cursor.snapshot` and rewrites
+`flow.for.collection-cursor.copy`; eight `runtime/panic` cases become two
+snapshot cases, and four valid ones flip their replacement assertions.
+
+3f adds 399 Rust code lines and deletes 386, against the stop line of 400
+(`emit/refs.rs` +106/−12, `own/insert.rs` +42/−19, `map.rs` +42/−86,
+`emit/list.rs` +36/−74, `rt.rs` +35/−128, `ir/root.rs` +30/−5,
+`emit/erased.rs` +28/−2, `ir/owned.rs` +22/−6, `emit.rs` +20/−6,
+`emit/count.rs` +19/−6, the rest +19/−42), the write-back's walk and its
+erased and view paths being most of the overrun over the share of 165. The
+known failure `runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy`
+passes and its row goes; the new case
+`a-push-through-a-map-value-with-a-computed-key-keeps-every-element` grows
+the inner lists several times. Release `.wasm` on node against main
+(424c34c44): hello, binary_trees and mandelbrot byte-identical; sieve
+8,592 to 8,336 (−3.0%), nbody 13,331 to 12,998 (−2.5%), points −2.7%,
+fannkuch_redux −2.6%, spectral_norm −1.8%, closures −1.5%, map_count −1.4%,
+string_build −1.2%, json 168,734 to 168,344 (−0.2%), dyn_iter −0.2%. Study
+times on V8, `--quick`, 21 runs each alternated run by run, under a load
+average of 9 to 14: sieve 241 to 239 ms (CPU 241 to 239), fannkuch_redux 92
+to 90 (93 to 92), nbody 98 to 97 (100 to 99), spectral_norm 186 to 182
+(185 to 183), json 117 to 104 (159 to 142, −10%), map_count 182 to 179 (188
+to 187), string_build 206 to 205 (259 to 260). Cold build CPU, medians of 5
+alternated release builds with an empty cache and the dev-profile
+compiler: json 0.266 s to 0.265 s,
+nbody 0.210 s to 0.211 s. The web compiler's gzip grows 1,590 B
+(1,920,776 to 1,922,366, both built here), where the plan expected it to
+shrink 0.4 KB: the walk-based store back, the erased thunks' result and the
+view path in `list_truncate` add more than the header kernels give back.
+
+Left open: a change of a collection through a representation view other
+than `list_truncate` (a push or an `IsUnique` through a view's referent)
+panics `internal: a collection changed through a reference view`, which no
+conformance case reaches; a collection changed in an erased cell is
+supported only when the cell holds it as one address.
+
 No commit carries two copy paths: through 3e both kinds copy by
 `ListCopy` (a new header over the same buffer), 3f moves both to the
 buffer copy glue at once, and 3g removes the header copies of both.
-Copy-out (3b, 3c) lands before the buffer address: under headers it
-changes nothing observable, and once it is in, a callee that grows a
-buffer cannot lose its change.
+No call changes a caller's collection in place since copy-out went (a
+`mut self` receiver is the method's own copy), so only the changes
+within a body store a new buffer back.
 
 **Stop for the owner** when a commit's added lines pass its stop line;
 when 3g deletes under two thirds of its 1,143 lines, or the component's

@@ -34,16 +34,17 @@ fn add(mut bags: List[Bag], i: usize, n: i64) -> List[Bag]:
 >   %8 = IsUnique [$0 [%3] .items] : ()
 >   %9 = Read borrow [$0 [%3] .items] : List[i64]
 >   %10 = Intrinsic ListPush [%9 %6] : ()
->   %20 = Block %18 : List[Bag]
+>   %21 = Block %19 : List[Bag]
     bags[i].items.push(n)
 >   %11 = Read copy [$1] : usize
->   %12 = IsUnique [$0] : ()
->   %13 = IsUnique [$0 [%11] .items] : ()
->   %14 = Read borrow [$0 [%11] .items] : List[i64]
->   %15 = Read copy [$2] : i64
->   %16 = Intrinsic ListPush [%14 %15] : ()
+>   %12 = Read borrow [$0 [%11] .items] : List[i64]
+>   %13 = Read copy [$2] : i64
+>   %14 = IsUnique [$0] : ()
+>   %15 = IsUnique [$0 [%11] .items] : ()
+>   %16 = Read borrow [$0 [%11] .items] : List[i64]
+>   %17 = Intrinsic ListPush [%16 %13] : ()
     bags
->   %17 = Read move [$0] : List[Bag]
->   %18 = Intrinsic ValueCopy [%17] : List[Bag]
->   %19 = Drop [%17] : ()
+>   %18 = Read move [$0] : List[Bag]
+>   %19 = Intrinsic ValueCopy [%18] : List[Bag]
+>   %20 = Drop [%18] : ()
 >   exit sub 0 drops [$0]
