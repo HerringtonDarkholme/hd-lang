@@ -176,27 +176,36 @@ const beginConnect = ({ host, port, address }, done) => {
 
 const ops = {
   wait_start: ({ h, kind, ...request }) => {
-    if (!["read", "accept", "receive"].includes(kind)) throw new Error("unknown socket wait");
+    if (
+      !["read", "accept", "receive", "lookup", "listen", "bind_udp", "write", "send_to"].includes(
+        kind,
+      )
+    )
+      throw new Error("unknown socket wait");
     const id = nextWait++;
     const state = { h, result: null, undo: null, controller: new AbortController() };
     waits.set(id, state);
     const retain = (undo) => {
-      state.undo = undo;
+      if (state.controller.signal.aborted) undo();
+      else state.undo = undo;
     };
-    ops[kind]({ ...request, h, signal: state.controller.signal, retain }).then(
-      (result) => {
-        if (!state.controller.signal.aborted) state.result = result;
-      },
-      (error) => {
-        if (!state.controller.signal.aborted) state.result = failure(error, "", "");
-      },
-    );
+    Promise.resolve()
+      .then(() => ops[kind]({ ...request, h, signal: state.controller.signal, retain }))
+      .then(
+        (result) => {
+          if (!state.controller.signal.aborted) state.result = result;
+        },
+        (error) => {
+          if (!state.controller.signal.aborted)
+            state.result = failure(error, request.address ?? "", request.host ?? "");
+        },
+      );
     return { ok: id };
   },
   wait_poll: ({ operation }) => {
     const state = waits.get(operation);
     if (state === undefined) throw new Error("unknown socket wait");
-    if (state.h.closed) {
+    if (state.h?.closed) {
       state.undo?.();
       state.undo = null;
       return { disposed: true };
@@ -206,11 +215,11 @@ const ops = {
   wait_finish: ({ operation }) => {
     const state = waits.get(operation);
     if (state === undefined) throw new Error("unknown socket wait");
-    if (state.result === null && !state.h.closed) throw new Error("unfinished socket wait");
-    if (state.h.closed) state.undo?.();
+    if (state.result === null && !state.h?.closed) throw new Error("unfinished socket wait");
+    if (state.h?.closed) state.undo?.();
     state.undo = null;
     waits.delete(operation);
-    return state.h.closed ? { disposed: true } : { ok: null };
+    return state.h?.closed ? { disposed: true } : { ok: null };
   },
   wait_abort: ({ operation }) => {
     const state = waits.get(operation);
@@ -255,28 +264,102 @@ const ops = {
     connects.delete(operation);
     return { ok: null };
   },
-  listen: ({ host, port, address }) =>
+  listen: ({ host, port, address, signal, retain }) =>
     new Promise((done) => {
       const server = net.createServer({ pauseOnConnect: false });
       const inbox = new Inbox();
-      server.on("connection", (s) => inbox.push(s));
-      server.once("error", (e) => done(failure(e, address, host)));
+      let stopped = false;
+      let settled = false;
+      const close = () => {
+        stopped = true;
+        server.close(() => {});
+        for (const item of inbox.items) item.value.destroy();
+        inbox.items = [];
+      };
+      const settle = (result) => {
+        if (settled) return;
+        settled = true;
+        signal?.removeEventListener("abort", abort);
+        done(result);
+      };
+      const abort = () => {
+        close();
+        settle({ cancelled: true });
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) {
+        abort();
+        return;
+      }
+      server.on("connection", (socket) => (stopped ? socket.destroy() : inbox.push(socket)));
+      server.on("error", (error) => {
+        if (!settled) {
+          close();
+          settle(failure(error, address, host));
+        } else inbox.finish({ error });
+      });
       server.listen(port, host, () => {
-        server.removeAllListeners("error");
-        server.on("error", (e) => inbox.finish({ error: e }));
-        done({ ok: open({ kind: "listener", server, inbox, closed: false, timeout: null }) });
+        if (stopped || signal?.aborted) {
+          abort();
+          return;
+        }
+        const handle = open({ kind: "listener", server, inbox, closed: false, timeout: null });
+        retain?.(() => {
+          close();
+          handles.delete(handle);
+        });
+        settle({ ok: handle });
       });
     }),
-  bind_udp: ({ host, port, address }) =>
+  bind_udp: ({ host, port, address, signal, retain }) =>
     new Promise((done) => {
       const socket = dgram.createSocket(net.isIPv6(host) ? "udp6" : "udp4");
       const inbox = new Inbox();
-      socket.on("message", (msg, rinfo) => inbox.push({ msg, rinfo }));
-      socket.once("error", (e) => done(failure(e, address, host)));
+      let stopped = false;
+      let settled = false;
+      const close = () => {
+        stopped = true;
+        try {
+          socket.close();
+        } catch (error) {
+          if (error.code !== "ERR_SOCKET_DGRAM_NOT_RUNNING") throw error;
+        }
+      };
+      const settle = (result) => {
+        if (settled) return;
+        settled = true;
+        signal?.removeEventListener("abort", abort);
+        done(result);
+      };
+      const abort = () => {
+        close();
+        settle({ cancelled: true });
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) {
+        abort();
+        return;
+      }
+      socket.on("message", (msg, rinfo) => {
+        if (!stopped) inbox.push({ msg, rinfo });
+      });
+      socket.on("error", (error) => {
+        if (!settled) {
+          close();
+          settle(failure(error, address, host));
+        } else inbox.finish({ error });
+      });
       socket.bind(port, host, () => {
-        socket.removeAllListeners("error");
-        socket.on("error", (e) => inbox.finish({ error: e }));
-        done({ ok: open({ kind: "udp", socket, inbox, closed: false, timeout: null }) });
+        if (stopped || signal?.aborted) {
+          abort();
+          return;
+        }
+        const handle = open({ kind: "udp", socket, inbox, closed: false, timeout: null });
+        retain?.(() => {
+          close();
+          handles.delete(handle);
+        });
+        settle({ ok: handle });
       });
     }),
   // std-net.read: at least one byte, at most `max`; empty at the end.
@@ -304,10 +387,31 @@ const ops = {
     return { ok: chunk };
   },
   // std-net.write: once every byte is written.
-  write: ({ h, bytes }) =>
-    new Promise((done) => {
-      h.socket.write(Buffer.from(bytes), (e) => done(e ? failure(e, "", "") : { ok: null }));
-    }),
+  write: async ({ h, bytes, signal }) => {
+    const buffer = Buffer.from(bytes);
+    // Limit queued data so cancellation stops submitting further chunks,
+    // leaving the stream open and only already accepted bytes in flight.
+    for (let offset = 0; offset < buffer.length; offset += 65536) {
+      if (signal?.aborted) return { cancelled: true };
+      if (h.closed) return { disposed: true };
+      const result = await new Promise((done) => {
+        let settled = false;
+        const settle = (result) => {
+          if (settled) return;
+          settled = true;
+          signal?.removeEventListener("abort", abort);
+          done(result);
+        };
+        const abort = () => settle({ cancelled: true });
+        signal?.addEventListener("abort", abort, { once: true });
+        h.socket.write(buffer.subarray(offset, offset + 65536), (error) =>
+          settle(error ? failure(error, "", "") : { ok: null }),
+        );
+      });
+      if (result.error || result.cancelled) return result;
+    }
+    return { ok: null };
+  },
   // std-net.accept: the next connection's stream.
   accept: async ({ h, signal, retain }) => {
     const item = await h.inbox.next(h.timeout, signal);
@@ -327,12 +431,28 @@ const ops = {
     return { ok: handle };
   },
   // std-net.send-to: one datagram.
-  send_to: ({ h, host, port, address, bytes }) =>
-    new Promise((done) => {
-      h.socket.send(Buffer.from(bytes), port, host, (e) =>
-        done(e ? failure(e, address, host) : { ok: null }),
-      );
-    }),
+  send_to: async ({ h, host, port, address, bytes, signal }) => {
+    try {
+      // Resolve before queuing the datagram so an aborted name lookup does
+      // not send a packet later. Numeric destinations need no resolver wait.
+      const destination = net.isIP(host)
+        ? host
+        : (
+            await dns.lookup(host, {
+              family: h.socket.type === "udp6" ? 6 : 4,
+            })
+          ).address;
+      if (signal?.aborted) return { cancelled: true };
+      if (h.closed) return { disposed: true };
+      return await new Promise((done) => {
+        h.socket.send(Buffer.from(bytes), port, destination, (error) =>
+          done(error ? failure(error, address, host) : { ok: null }),
+        );
+      });
+    } catch (error) {
+      return failure(error, address, host);
+    }
+  },
   // std-net.receive: one datagram, at most `max` of its bytes.
   receive: async ({ h, max: signed, signal, retain }) => {
     const max = signed >>> 0;

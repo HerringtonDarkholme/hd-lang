@@ -1,0 +1,46 @@
+use std.net.{Net, NetError, TcpStream, connect, listen, lookup}
+use std.task.all
+use std.testing.{assert, assert_equal}
+use std.time.{Clock, ms, sleep}
+
+struct State:
+    finished: bool = false
+
+fn send!(stream: &mut dyn TcpStream, bytes: List[u8], state: &mut State) -> Result[void, NetError]:
+    stream.write!(bytes)?
+    state.finished = true
+    .Ok(())
+
+fn drain!(stream: &mut dyn TcpStream, expected: List[u8]) -> Result[usize, NetError] $ Clock:
+    # Leave the peer unread while the other children start and make progress.
+    sleep!(ms(200))
+    let mut received: List[u8] = []
+    while received.len() < expected.len():
+        chunk := stream.read!(65536)?
+        assert(!chunk.is_empty(), reason="the writer does not close early")
+        received.extend(chunk)
+    assert(received == expected, reason="every byte arrives in order")
+    .Ok(received.len())
+
+fn ticker!(state: &State) -> usize $ Clock:
+    let ticks = 0
+    while !state.finished:
+        sleep!(ms(10))
+        ticks += 1
+    ticks
+
+pub fn main!() -> Result[void, NetError] $ Net + Clock + Console:
+    assert_equal(lookup!("127.0.0.1")?, ["127.0.0.1"], reason="lookup keeps its exact result")
+    using listener = listen!("127.0.0.1", 0)?
+    address := listener.local_address()?
+    pair := all!(listener.accept(), connect("127.0.0.1", address._1))
+    using reader = pair._0?
+    using writer = pair._1?
+    bytes := "abcdefg".repeat(2400000).to_utf8()
+    state := &mut State {}
+    let (sent, received, ticks) = all!(send(writer, bytes, state), drain(reader, bytes), ticker(state))
+    sent?
+    assert_equal(received?, bytes.len(), reason="the whole payload is drained")
+    assert(ticks > 0, reason="a backpressured write yields to its siblings")
+    println("write yielded and all bytes arrived")
+    .Ok(())

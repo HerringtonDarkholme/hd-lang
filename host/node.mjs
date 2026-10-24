@@ -516,35 +516,35 @@ function netProvider({ grant, netClient }) {
     if (!grant.coversHost("Net", host, port)) return { error: ["NotGranted", address] };
     return netClient.call({ op, host, port, address, ...more });
   };
-  const opened = (op) => (host, port) => netResult(netAt(op, host, port));
+  const waitFor = (started, resultOf) => {
+    if (started.ok === undefined) return resultOf(started);
+    const operation = started.ok;
+    let result = null;
+    const poll = () => {
+      const outcome = netClient.call({ op: "wait_poll", operation });
+      if (outcome.pending) return false;
+      result = outcome;
+      return true;
+    };
+    const finish = () => {
+      const committed = netClient.call({ op: "wait_finish", operation });
+      if (committed.disposed) return resultOf(committed);
+    };
+    if (poll()) return finish() ?? resultOf(result);
+    return pendingOperation(
+      poll,
+      () => resultOf(result),
+      () => netClient.cancel({ op: "wait_abort", operation }),
+      finish,
+    );
+  };
+  const opened = (kind) => (host, port) =>
+    waitFor(netAt("wait_start", host, port, { kind }), netResult);
   const handleOp = (op) => (h, more) => handleResult(netClient.call({ op, handle: h, ...more }));
   const waitOn =
     (kind) =>
-    (h, more = {}) => {
-      const started = netClient.call({ op: "wait_start", handle: h, kind, ...more });
-      if (started.ok === undefined) return handleResult(started);
-      const operation = started.ok;
-      let result = null;
-      const poll = () => {
-        const outcome = netClient.call({ op: "wait_poll", operation });
-        if (outcome.pending) return false;
-        result = outcome;
-        return true;
-      };
-      const finish = () => {
-        const committed = netClient.call({ op: "wait_finish", operation });
-        if (committed.disposed) return handleResult(committed);
-      };
-      if (poll()) {
-        return finish() ?? handleResult(result);
-      }
-      return pendingOperation(
-        poll,
-        () => handleResult(result),
-        () => netClient.cancel({ op: "wait_abort", operation }),
-        finish,
-      );
-    };
+    (h, more = {}) =>
+      waitFor(netClient.call({ op: "wait_start", handle: h, kind, ...more }), handleResult);
   // std-net.timeout.set: the `Duration?` crosses to the client thread as
   // milliseconds, or `null` for no bound.
   const setBound = (h, timeout) =>
@@ -563,14 +563,11 @@ function netProvider({ grant, netClient }) {
   };
   return {
     // cli.cap.scope.net.lookup: an entry covers a lookup of its host.
-    lookup: (host) =>
-      netResult(
-        !validHost(host)
-          ? { error: ["InvalidAddress", host] }
-          : grant.coversHostName("Net", host)
-            ? netClient.call({ op: "lookup", host })
-            : { error: ["NotGranted", host] },
-      ),
+    lookup: (host) => {
+      if (!validHost(host)) return netResult({ error: ["InvalidAddress", host] });
+      if (!grant.coversHostName("Net", host)) return netResult({ error: ["NotGranted", host] });
+      return waitFor(netClient.call({ op: "wait_start", kind: "lookup", host }), netResult);
+    },
     connect: (host, port) => {
       const started = netAt("connect_start", host, port);
       if (started.error) return netResult(started);
@@ -599,7 +596,7 @@ function netProvider({ grant, netClient }) {
     listen: opened("listen"),
     bind_udp: opened("bind_udp"),
     "TcpStream.read": (h, max) => waitOn("read")(h, { max }),
-    "TcpStream.write": (h, bytes) => handleOp("write")(h, { bytes }),
+    "TcpStream.write": (h, bytes) => waitOn("write")(h, { bytes }),
     "TcpStream.set_timeout": setBound,
     "TcpStream.set_nodelay": setNoDelay,
     "TcpStream.set_keepalive": setKeepAlive,
@@ -617,7 +614,10 @@ function netProvider({ grant, netClient }) {
       const checked = netClient.call({ op: "check", handle: h });
       if (checked.unknown || checked.disposed) return handleResult(checked);
       // Each live send still checks its destination grant.
-      return handleResult(netAt("send_to", host, port, { handle: h, bytes }));
+      return waitFor(
+        netAt("wait_start", host, port, { kind: "send_to", handle: h, bytes }),
+        handleResult,
+      );
     },
     "UdpSocket.receive": (h, max) => waitOn("receive")(h, { max }),
     "UdpSocket.set_timeout": setBound,
