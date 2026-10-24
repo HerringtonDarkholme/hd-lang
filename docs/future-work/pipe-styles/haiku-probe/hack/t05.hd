@@ -1,0 +1,4 @@
+pub fn main!() -> void $ Console + FsRead:
+    names := read_text!("users.csv") |> lines(_) |> map(_, fn(l: string) -> List[string]: split(l, ",")) |> filter(_, fn(row: List[string]) -> bool: trim(at(row, 2).unwrap_or("")) == "yes") |> map(_, fn(row: List[string]) -> string: at(row, 0).unwrap_or(""))
+    for name in names:
+        println(name)

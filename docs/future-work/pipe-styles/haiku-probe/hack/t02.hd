@@ -1,0 +1,3 @@
+pub fn main() -> void $ Console + Args:
+    total := args() |> map(_, fn(a: string) -> i64?: parse_i64(a)) |> keep_some(_) |> sum(_)
+    println("$total")

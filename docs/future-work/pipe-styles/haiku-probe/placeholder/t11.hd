@@ -1,0 +1,4 @@
+pub fn main!() -> void $ FsRead + Console:
+    longest := read_text!("app.log") |> lines |> max_by(_, length)
+    line := longest.unwrap_or("")
+    println("${length(line)}: $line")

@@ -1,0 +1,3 @@
+pub fn main!() -> void $ Console + FsRead:
+    remaining := read_text!("data.txt") |> words(_) |> filter(_, fn(w: string) -> bool: length(w) >= 4) |> map(_, fn(w: string) -> string: lower(w)) |> unique(_) |> count(_)
+    println("$remaining")

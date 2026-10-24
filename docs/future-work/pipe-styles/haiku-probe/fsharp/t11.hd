@@ -1,0 +1,5 @@
+pub fn main!() -> void $ FsRead + Console:
+    longest := read_text!("app.log") |> lines |> max_by(length)
+    match longest:
+        .Some(line) => println("${length(line)}: $line")
+        .None => println("empty log")

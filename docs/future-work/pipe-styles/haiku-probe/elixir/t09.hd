@@ -1,0 +1,4 @@
+pub fn main() -> void $ FsRead + Console:
+    paths := files() |> filter(fn(p: string) -> bool: ends_with(p, ".hd")) |> sort
+    for p in paths:
+        println(p)

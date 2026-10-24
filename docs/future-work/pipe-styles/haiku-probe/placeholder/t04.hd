@@ -1,0 +1,4 @@
+pub fn main!() -> void $ FsRead + Console:
+    top := read_text!("words.txt") |> lines |> sort_by(_, length) |> reverse |> take(_, 3)
+    for word in top:
+        println(word)

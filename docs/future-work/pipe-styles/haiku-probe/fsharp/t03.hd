@@ -1,0 +1,3 @@
+pub fn main!() -> void $ FsRead + Console:
+    names := read_text!("names.txt") |> lines |> map(trim) |> filter(fn(s: string) -> bool: s != "") |> join(", ")
+    println(names)

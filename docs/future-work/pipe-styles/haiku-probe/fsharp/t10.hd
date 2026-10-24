@@ -1,0 +1,4 @@
+pub fn main!() -> void $ ConsoleInput + Console:
+    rows := read_stdin!() |> lines |> map(reverse_text) |> reverse
+    for row in rows:
+        println(row)

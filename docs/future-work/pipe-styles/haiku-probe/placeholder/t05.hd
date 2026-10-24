@@ -1,0 +1,5 @@
+pub fn main!() -> void $ FsRead + Console:
+    rows := read_text!("users.csv") |> lines |> map(_, fn(l: string) -> List[string]: split(l, ","))
+    active := rows |> filter(_, fn(row: List[string]) -> bool: at(row, 2).unwrap_or("") == "yes")
+    for row in active:
+        println(at(row, 0).unwrap_or(""))

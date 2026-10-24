@@ -1,0 +1,4 @@
+pub fn main() -> void $ Args + Console:
+    padded := args() |> map(upper) |> map(pad(10))
+    for item in padded:
+        println(item)
