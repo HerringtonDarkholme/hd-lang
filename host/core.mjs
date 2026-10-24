@@ -295,6 +295,8 @@ function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, un
       for (;;) {
         const n = complete();
         if (n) return n;
+        if (st.readyOnly)
+          throw new HostContract("a synchronous host wait is pending in a synchronous step driver");
         const d = nextDeadline();
         if (d === null) deadlock();
         flush();
@@ -569,6 +571,78 @@ export function httpProvider(send) {
   };
 }
 
+function initialState(env) {
+  return {
+    memory: null,
+    // The labels of the facts bodies running, innermost last (`hd:rt`
+    // `fact`): a panic report names the innermost.
+    facts: [],
+    reported: false,
+    // The panic report being written or written, after its `panic: `.
+    panic: null,
+    timeoutMs: null,
+    baseDeadline: env.deadline == null ? null : env.deadline - performance.timeOrigin,
+    deadline: env.deadline == null ? null : env.deadline - performance.timeOrigin,
+    snapshots: 0,
+    tempMade: false,
+    nextHandle: 1,
+    out: [],
+    ops: new Map(),
+    noticed: new Set(),
+    payload: null,
+    readyOnly: false,
+    drivingMode: null,
+    closed: false,
+  };
+}
+
+// Request-scoped callers own their event loop. A turn polls once and
+// publishes ready host completions without retaining a Promise or timer.
+function createStepDriver(instance, init, poll, { st, prime, complete, flush }) {
+  if (st.closed) throw new HostContract("instance is closed");
+  if (st.drivingMode !== null) throw new HostContract("the host already has a driver");
+  const ex = instance.exports;
+  if (![init, poll, "hd.wake"].every((name) => typeof ex[name] === "function"))
+    throw new HostContract("the instance is missing root driver exports");
+  st.drivingMode = "sync";
+  st.readyOnly = true;
+  prime(instance);
+  let started = false,
+    busy = false,
+    failed = false,
+    status = -1;
+  return {
+    step() {
+      if (st.closed) throw new HostContract("instance is closed");
+      if (busy) throw new HostContract("reentrant instance poll");
+      if (failed) throw new HostContract("the driver has failed");
+      if (started && status !== -1) return { status, wakes: 0 };
+      busy = true;
+      try {
+        try {
+          if (!started) {
+            started = true;
+            ex[init]();
+          }
+          status = ex[poll](0);
+          if (typeof status !== "number" || (status | 0) !== status)
+            throw new HostContract("root poll returned an invalid status");
+          const wakes = status === -1 ? complete() : 0;
+          if (wakes) ex["hd.wake"](wakes);
+          return { status, wakes };
+        } finally {
+          flush();
+        }
+      } catch (error) {
+        failed = true;
+        throw error;
+      } finally {
+        busy = false;
+      }
+    },
+  };
+}
+
 // One host per instance: `sink.out(text)` and `sink.err(text)` receive the
 // program's standard output and standard error. `env` holds what the
 // providers hand out: `args` and `program` for `Args`, `grants` for the
@@ -593,25 +667,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // The instance's mutable state, shared with the provider functions
   // below: the exchange memory, trap reporting, the test timeout, case
   // files, pending operations, output, and noticed names.
-  const st = {
-    memory: null,
-    // The labels of the facts bodies running, innermost last (`hd:rt`
-    // `fact`): a panic report names the innermost.
-    facts: [],
-    reported: false,
-    // The panic report being written or written, after its `panic: `.
-    panic: null,
-    timeoutMs: null,
-    baseDeadline: env.deadline == null ? null : env.deadline - performance.timeOrigin,
-    deadline: env.deadline == null ? null : env.deadline - performance.timeOrigin,
-    snapshots: 0,
-    tempMade: false,
-    nextHandle: 1,
-    out: [],
-    ops: new Map(),
-    noticed: new Set(),
-    payload: null,
-  };
+  const st = initialState(env);
   const view = (len) => new Uint8Array(st.memory.buffer, 0, len);
   const text = (len) => decodeUtf8(view(len));
   // Writes an encoded result (or its bytes) at offset 0, growing the
@@ -780,6 +836,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
     st.facts = [];
   };
 
+  const createDriver = (instance, init = "hd.init", poll = "hd.poll") =>
+    createStepDriver(instance, init, poll, { st, prime, complete, flush });
+
   // Runs `init`, then polls `poll` to completion. Returns the status (3
   // for a trap), whether the instance trapped, and a Wasm trap's frames.
   // The run is one driver, context 0: a scenario's further drivers poll
@@ -801,6 +860,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // whoever cancelled it, ends the run with `cancelled` on standard error
   // and status 130 (cli.cancel.end).
   const run = async (instance, init, poll, driver = null, cancel = null) => {
+    if (st.drivingMode === "sync")
+      throw new HostContract("the host already has a synchronous driver");
+    st.drivingMode = "async";
     prime(instance);
     const ex = instance.exports;
     let status = 0;
@@ -923,6 +985,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // Releases what the platform layer holds (its client threads, its
   // scratch directory).
   const close = () => {
+    st.closed = true;
     try {
       clearOperations(st);
     } finally {
@@ -945,6 +1008,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   return {
     imports,
     run,
+    createDriver,
     prime,
     close,
     leaks,

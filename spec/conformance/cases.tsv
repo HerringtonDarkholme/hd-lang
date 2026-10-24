@@ -38,6 +38,7 @@ runtime/valid/cli-documentation-help.hd	runtime	accept	std/cli.md#r-std-cli.type
 runtime/valid/cli-enum-values.hd	runtime	accept	std/cli.md#enum-value-sets
 runtime/valid/cli-positional-fact.hd	runtime	accept	std/cli.md#positional-field-facts
 runtime/valid/cli-short-fact.hd	runtime	accept	std/cli.md#short-field-facts
+runtime/valid/host-driver-turns.hd	runtime	accept	std/time.md#clock
 runtime/valid/impl-trait-associated-and-nested.hd	runtime	accept	lang/04-type-system.md#opaque-result-types
 runtime/valid/impl-trait-functions.hd	runtime	accept	lang/07-functions.md#opaque-results
 runtime/valid/impl-trait-iterator-filter.hd	runtime	accept	std/iter.md#iterator-adapters

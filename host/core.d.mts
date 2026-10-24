@@ -65,6 +65,8 @@ export interface RunResult {
 export interface Host {
   imports: WebAssembly.Imports;
   run(instance: WebAssembly.Instance, init: string, poll: string): Promise<RunResult>;
+  /** Select synchronous, ready-only driving for this host; creates no Promise or timer. */
+  createDriver(instance: WebAssembly.Instance, init?: string, poll?: string): StepDriver;
   prime(instance: WebAssembly.Instance): void;
   close(): void;
   /** The host handles still open, as nonzero `[kind, count]` pairs. */
@@ -74,6 +76,11 @@ export interface Host {
   grant: unknown;
   seed: number | null;
   tempDir?: () => string;
+}
+
+export interface StepDriver {
+  /** Poll once, then publish ready wakes. A nonzero wake count calls for another turn. */
+  step(): { status: number; wakes: number };
 }
 
 export class Deadlock extends Error {}

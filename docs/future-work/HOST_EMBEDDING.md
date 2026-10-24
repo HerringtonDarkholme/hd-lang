@@ -297,6 +297,16 @@ Its final argument supplies `signal` for the operation and `instanceSignal` for 
 Aborting discards undelivered results and signals cancellation; a later Promise completion cannot revive a consumed operation ID.
 The provider remains responsible for stopping its external work.
 
+For a retained instance on a request-scoped host, use
+`host.createDriver(instance)` and call its synchronous `step()` from the
+owning request's turns. Each step polls once, publishes ready wakes, and
+returns `{status, wakes}`; a nonzero wake count calls for another turn.
+The driver retains no Promise or timer, and refuses a genuinely pending
+synchronous host wait. A caller supplies readiness notifications and
+owns termination, trap recovery and platform deadlines.
+The [synchronous driver contract](../../spec/cli/command-line.md#synchronous-host-driver)
+keeps this path separate from the CLI's asynchronous `host.run` loop.
+
 ### Generated Glue For JS Hosts
 
 `crates/hd_host_abi/src/javascript.rs` generates `bind(runtime, implementations)` from checked signatures.

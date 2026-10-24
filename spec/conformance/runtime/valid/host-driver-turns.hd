@@ -1,0 +1,9 @@
+# test: a root resumes its timed host wait before producing its final output
+# expect-stdout: before
+# expect-stdout: after
+use std.time.{Clock, sleep, ms}
+
+pub fn main!() -> void $ Clock + Console:
+    println("before")
+    sleep!(ms(1))
+    println("after")
