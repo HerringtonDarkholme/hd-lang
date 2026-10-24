@@ -1,9 +1,15 @@
 # Rust's Memory Model For hd: Design Study
 
-hd is garbage-collected. Every composite value is a reference on the
+Status: decided (#163). hd does not adopt Rust's ownership. Objects live in
+linear memory under reference counting with cycle detection
+([Refcount Runtime](REFCOUNT_RUNTIME.md)), values copy by default, and
+opt-in lifetimes are parked ([Object Model, Tier 2](OBJECT_MODEL_TIER2.md)).
+The study below prices Rust's model against the Wasm GC design of
+2026-10-18; its measurements stay as reference.
+
+The study assumes that design: every composite value is a reference on the
 Wasm GC heap, `mut` is an access permission that any number of aliases
-may hold, and the engine's collector frees what nothing reaches
-([Composite Values And Access Permission](../../spec/lang/04-type-system.md#value-types)).
+may hold, and the engine's collector frees what nothing reaches.
 The owner asked on 2026-10-18 whether hd should instead adopt Rust's
 model: owned values, moves, borrows with lifetimes and destructors, no
 tracing collector, with hd's requirement rows, providers, suspension,
@@ -16,7 +22,7 @@ code size, compile time and checker complexity, and writes three
 realistic programs three ways, counting what an agent would write and
 the errors it would likely hit.
 
-**The answer in short.** Keep the collector as hd's default. Rust's
+**The answer in short.** Do not adopt Rust's model. Rust's
 model would buy three real things: shared-memory threads on Wasm today,
 SIMD and zero-copy host I/O over bytes, and allocation-free records on
 a stack. It would cost a second language's worth of spec, std and
@@ -40,11 +46,10 @@ Jobs R1 to R3 removed the opt-in ownership prototype on 2026-10-18;
 prototype layered ownership on the collector, so it bought resource
 tracking, which `Disposable` and `using` now give at run time. Rust's
 model removes the collector as the default and moves owned values off
-the GC heap. Four pressures make it worth pricing:
+the GC heap. Three pressures make it worth pricing:
 
 - **Parallelism.** Wasm GC cannot share a reference between threads
-  until shared-everything threads mature; that proposal is at phase 1
-  ([Parallelism And Locality](PARALLELISM_AND_LOCALITY.md) §4.3).
+  until shared-everything threads mature; that proposal is at phase 1.
   Shared linear memory with atomics has shipped. A language whose
   values live in linear memory can share them across threads today.
 - **Speed.** No compiler pass removes an allocation today, and
@@ -52,8 +57,6 @@ the GC heap. Four pressures make it worth pricing:
   ([Performance Roadmap](PERFORMANCE_ROADMAP.md) §1). SIMD cannot load
   from a GC byte array, so scans stay a byte at a time
   ([SIMD Byte-Scan Primitives](SIMD_PRIMITIVES.md) §3).
-- **A native backend.** A collector is the riskiest part of one
-  ([Native Backend](NATIVE_BACKEND.md) §5 and §9).
 - **Cleanup.** Use after close and a forgotten handle are runtime
   reports today, not compile errors.
 
@@ -77,7 +80,7 @@ the value is dropped, and its type's `Drop` runs. Threads share only
 `Sync` values, and only `Send` values cross to a thread.
 
 ```text
-data Order:
+struct Order:
     id: u64
     lines: List[Line]                             # owned: the list dies with the order
 
@@ -181,8 +184,8 @@ design work. If `Drop` replaces `Disposable`, every scope exit becomes
 a possible suspension point, a value whose drop suspends can be owned
 only in a `!` body, generic code needs a bound saying whether `T`'s
 drop may suspend, and a synchronous `cancel()` cannot wait for it (the
-open [Cancelling A Using Binding](OPEN_ISSUES.md#cancelling-a-using-binding)
-issue, now on every owned value). The simpler choice keeps `Drop`
+suspending `cancel!()` of
+[Cancellation](../../spec/lang/11-requirements-and-suspension.md#cancellation) waits for a dispose). The simpler choice keeps `Drop`
 synchronous and memory-only, with `using` and `Disposable` for handles;
 then ownership buys handles no compile-time cleanup either.
 
@@ -315,8 +318,7 @@ the equivalent." It follows that:
   That costs a table write per store and an indirection per read, and
   owned code still never sees the address.
 - **A `Gc` object cannot own a linear-memory value.** Freeing that
-  value when the object dies needs a finalizer, which hd has ruled out
-  ([Native Backend](NATIVE_BACKEND.md) §5.1). So a `Gc` object's
+  value when the object dies needs a finalizer, which hd has ruled out. So a `Gc` object's
   contents must be managed through and through: scalars, managed
   strings, managed lists and maps, and other `Gc` references.
 - **So there are two worlds.** Owned types live in linear memory under
@@ -331,7 +333,7 @@ The other implementations avoid the split at a price. A tracing
 `Gc[T]` in linear memory, as `rust-gc` builds it, can hold owned values,
 but Wasm has no stack scanning, so every `Gc` handle in a local must be
 registered as a root, every such program carries a collector (estimate:
-2k to 3k lines, [Native Backend](NATIVE_BACKEND.md) §5.2), and its
+2k to 3k lines, estimate), and its
 contents need `GcCell` flags. Counting with cycle collection pays a
 count per copy, and a drop that runs when the count hits zero is a
 finalizer whenever it does more than free memory.
@@ -395,8 +397,7 @@ is rewritten.
 
 ### 4.4 Native Later
 
-On a native backend, Rust's model needs no collector, which removes the
-riskiest part of the native plan; a `Gc[T]` on native needs one again.
+A native backend is not planned (#188 closed).
 
 ## 5. Three Programs, Three Ways
 
@@ -418,7 +419,7 @@ use std.task.{retry, timeout}
 use std.time.{Clock, s}
 
 @derive(Deserialize, Serialize)
-data Release:
+struct Release:
     tag_name: string
     draft: bool
 
@@ -462,7 +463,7 @@ collect failures, in one stats record that every task updates.
 use std.http.{Http, get}
 use std.task.map_all
 
-data Stats:
+struct Stats:
     done: mut Map[string, usize]
     failed: mut List[string]
 
@@ -470,11 +471,11 @@ impl Stats:
     fn record(mut self, host: string) -> void:
         self.done[host] = self.done.get(host).unwrap_or(0) + 1
 
-data Job:
+struct Job:
     url: string
     host: string
 
-data Outcome:
+struct Outcome:
     url: string
     bytes: usize
 
@@ -534,13 +535,13 @@ and everything that depends on it dirty, and building runs the dirty
 targets in dependency order.
 
 ```hd
-data Target:
+struct Target:
     name: string
     deps: mut List[mut Target]
     dependents: mut List[mut Target]
     dirty: bool
 
-data Graph:
+struct Graph:
     nodes: mut Map[string, mut Target]
 
 impl Graph:
@@ -583,13 +584,13 @@ the target and the map (`use-after-move`). None has a local fix. The
 idiomatic answer is an arena with indices:
 
 ```text
-data Target:
+struct Target:
     name: string
     deps: List[usize]                             # indices into Graph.targets
     dependents: List[usize]
     dirty: bool
 
-data Graph:
+struct Graph:
     targets: List[Target]
     index: Map[string, usize]
 
@@ -625,13 +626,13 @@ impl Graph:
 With `Gc[T]`, the original shape comes back:
 
 ```text
-data Target:                                      # a managed type
+struct Target:                                      # a managed type
     name: string
     deps: List[Gc[mut Target]]
     dependents: List[Gc[mut Target]]
     dirty: bool
 
-data Graph:
+struct Graph:
     nodes: Map[string, Gc[mut Target]]            # a table slot per entry if `Graph` is owned
 
 impl Graph:
@@ -713,7 +714,7 @@ Lines counted on 2026-10-18; the share that changes is an estimate.
 | `hd_check` | 31,227 Rust | a borrow checker, move checking, drop elaboration, closure kinds: 10k to 15k new |
 | `hd_types` | 8,925 | lifetimes in the type pool, variance over them, `Copy` and `Send` solving: 2k to 4k new |
 | `hd_tir`, `hd_mono`, `hd_structure` | 9,644 | places and moves, drop glue, move-correct derivations: 3k to 5k changed |
-| `hd_wasm` | 19,629 | linear-memory layouts, allocator, shadow stack, drop glue, and with `Gc` the table slots and two layouts: 12k to 18k new or rewritten |
+| `hd_wasm` (the Wasm GC backend) | 19,629 | linear-memory layouts, allocator, shadow stack, drop glue, and with `Gc` the table slots and two layouts: 12k to 18k new or rewritten |
 | Host codecs (`host/*.mjs`, `hd_run_wasmtime`) | 5,178 and about 2,500 | read and write linear memory instead of GC arrays: 3k to 5k changed |
 | Conformance fixtures | 3,744 files, 64,834 lines | 687 files use `mut`; 1,291 runtime fixtures depend on aliasing or cleanup order: a third to a half edited |
 | Guide, tour, playground examples | 2,861 | rewritten |
@@ -950,18 +951,12 @@ narrower routes.**
 3. **Allocation.** Inlining, escape analysis and scalar replacement in
    the optimized pipeline remove per-element allocation with no
    language mark ([Performance Roadmap](PERFORMANCE_ROADMAP.md),
-   steps 20 to 24). A native backend can then use stack allocation
-   for values that do not escape.
+   steps 20 to 24).
 4. **Cleanup** stays `Disposable` and `using`. Ownership would not
    improve it without a suspending drop, which Rust has not designed.
 
-**Revisit when** phase 0 of the native study measures Wasm GC's layout
-costs as large, or the owner wants shared-memory parallelism before
-shared-everything threads. Ownership adopted then should be **Rust's
-model plus `Gc[T]` on Wasm GC** with managed contents (section 3.4),
-which keeps providers, graphs, caches and observers in today's shape
-with no `RefCell`; not `Rc<RefCell<T>>`, and not a linear-memory
-tracing collector, which needs root registration and `GcCell` flags.
+Ownership is parked (#163 closed). The tier 2 study keeps the opt-in
+lifetime design.
 
 ## 10. Questions For The Owner
 

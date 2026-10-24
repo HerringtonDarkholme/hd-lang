@@ -1,6 +1,7 @@
 # Object Model, Tier 2: Design Study
 
-Status: proposal (#426). The spec and the compiler are unchanged.
+Status: parked proposal (#426, #163). Adoption is parked (owner, 2026-10-18); the
+lifetime prototype was built and removed. The spec and the compiler are unchanged.
 
 Tier 1 ([OBJECT_MODEL_TIER1.md](OBJECT_MODEL_TIER1.md)) gives hd Go's
 object model on counted linear memory: structs are values, sharing comes

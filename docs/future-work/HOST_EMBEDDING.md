@@ -1,9 +1,9 @@
 # Host Embedding
 
-Design proposal, 2026-10-23; nothing proposed here is accepted behavior or
-implemented by this note. It addresses [#51](https://github.com/HerringtonDarkholme/hd-lang/issues/51)
-under the [current work order](https://github.com/HerringtonDarkholme/hd-lang/issues/58#issuecomment-6367238331).
-The owner reviews the proposal before implementation or specification edits.
+Status: parked proposal, 2026-10-23. Package host capabilities are designed
+in [#51](https://github.com/HerringtonDarkholme/hd-lang/issues/51), which
+supersedes the embedding framing below; nothing here is accepted behavior or
+implemented by this note.
 
 ## Contents
 

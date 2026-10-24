@@ -1,9 +1,10 @@
 # HTTP Handler Controls
 
-These are research controls for [the proposal](../../HTTP_SERVER.md), not a shipped server or handler ABI.
+These are research controls for [the design record](../../HTTP_SERVER.md), not a shipped server or handler ABI.
+They exercise today's typed code and measure hosts; the decided design uses an ordinary `main!` and an SDK capability, not the handler entry the `gap` package declares.
 The hd program calls an ordinary typed handler from `main!`.
 The JS bridge supplies a JSON envelope through Args and reads one Console line.
-Application logging would corrupt that bridge; production must use the proposed typed exchange instead.
+Application logging would corrupt that bridge; production uses the SDK capability instead.
 
 Run from the repository root, with a dev `hd` binary supporting both engines.
 Keep `HD_CACHE`, `TMPDIR`, and results inside the isolated worktree.
@@ -48,7 +49,7 @@ Stop the server after the test.
 For the JSPI feature check, serve `features.capnp` instead and request `http://127.0.0.1:18766`.
 A successful suspended call returns `result: 7`, not merely function names.
 
-The `gap` package deliberately declares the proposed `kind = "handler"`.
+The `gap` package deliberately declares the rejected `kind = "handler"` key.
 Today, checking or building it warns `unknown-manifest-key`, then builds an empty script rather than a handler.
 The ordinary `handle!` declaration parses and checks; it is not an entry export.
 

@@ -1350,7 +1350,4 @@ The fourteen warning codes were checked against the current registry and their a
 The deleted analysis and three comparison helpers were read from their pinned source versions and counted literally.
 The source audit also distinguished uncoded browser-opening and cache-write messages from the fourteen registered program warnings.
 
-Current commands, diagnostics, source hashes and probes are preserved under
-`/private/tmp/muse-651-warning-crate-1792815904683811000`.
 The inherited mut-type example's exact compiler error and correction are appended to the writing log.
-Earlier evidence in `/private/tmp/muse-651-rewrite-1792782846927866000` remains historical, including the measured Go reference bytes.

@@ -1036,7 +1036,7 @@ references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
 ### 23.21 Suspension Frames And Wakers
 
 Suspending code uses §14's state machine, waker, entry driver
-and cancellation (docs/future-work/CANCELLATION_AND_CLEANUP.md) over
+and cancellation (spec/lang/11-requirements-and-suspension.md, Cancellation) over
 counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
 
 - **The frame.** A frame is a counted object. Its payload starts with

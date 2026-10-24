@@ -1,13 +1,14 @@
 # Server Applications
 
-Status: design proposal, 2026-10-23; domains: stdlib, CLI and tooling, runtime and host; not accepted.
+Status: design record, 2026-10-23; domains: stdlib, CLI and tooling, runtime and host. Direction A is approved (#806, owner, 2026-10-23); the package/SDK boundary, deployment profile, and lifecycle and resource policies are not.
 This answers [#806](https://github.com/HerringtonDarkholme/hd-lang/issues/806), including its [broader application scope](https://github.com/HerringtonDarkholme/hd-lang/issues/806#issuecomment-6377000423).
 The linked prototypes are experiments, not a production server SDK.
 No compiler, standard-library or specification change accompanies this proposal.
 
 The records under review are [entry points](../../spec/lang/10-modules.md#entry-point), [instances](../../spec/lang/10-modules.md#instances-and-threads), [scheduling](../../spec/lang/11-requirements-and-suspension.md#r-req.schedule.yield-points), [Task](../../spec/std/task.md), [Net](../../spec/std/net.md), [Host](../../spec/std/host.md), and [CLI cancellation](../../spec/cli/command-line.md#cancelling-a-run).
 [HTTP_SERVER.md](HTTP_SERVER.md) contributes measurements and an adapter experiment.
-Its handler entry, fresh-request state, limits and grants remain unapproved; this proposal does not inherit them as decisions.
+It records the decided HTTP shape: an ordinary `main!`, one retained instance, an SDK-owned `HttpServer` capability, and SDK packaging tasks (#266).
+Its limits and grants remain unapproved.
 [Policy Composition](POLICY_COMPOSITION.md) also remains a proposal.
 
 ## Contents
@@ -58,21 +59,12 @@ Both engines print `admitted=2 completed=2 queued=1 workers=2`.
 The [live transport](server-applications/prototypes/transport/src/lib.hd) keeps two Net connections in one application instance.
 It receives framed work repeatedly instead of starting a process per message.
 
-### A Current Node Host Prerequisite
+### Node Net Waits
 
 A bang call is a possible yield point; it does not guarantee that its host implementation returns Pending.
-Current Node Net reads, accepts and datagram receives wait inside their start calls.
-The [host source](../../host/net.mjs) states this explicitly; [the provider](../../host/node.mjs) uses its synchronous worker client.
-Connect already has a separate pending-operation path.
-
-The [minimal two-client program](server-applications/prototypes/read-concurrency/src/main.hd) writes `ready`, then waits for one byte in each child of `all!`.
-Its peer replies after both announcements.
-Wasmtime prints `1 1`; Node announces only one client before its one-second limit ends it.
-Node's exact runtime diagnostic is `panic: time-limit: the program exceeded its time limit`.
-
-[#810](https://github.com/HerringtonDarkholme/hd-lang/issues/810) tracks this prerequisite for the proposed concurrent Node profile.
-A host implementation must make those waits cooperative and preserve unread bytes across cancellation.
-Polling with a mandatory Clock would add a dependency and periodic work; it is not assumed here.
+Node Net reads, accepts and datagram receives return Pending and preserve unread bytes across cancellation ([#810](https://github.com/HerringtonDarkholme/hd-lang/issues/810), done).
+The [minimal two-client program](server-applications/prototypes/read-concurrency/src/main.hd) writes `ready`, then waits for one byte in each child of `all!`, and exercises that path.
+Polling with a mandatory Clock would add a dependency and periodic work; it is not used.
 Long blocking Process and filesystem calls also need isolation or an explicit cooperative-provider contract.
 
 ### An Entry Convention Does Not Exist Yet
@@ -187,7 +179,7 @@ A package can hide framing boilerplate without making `main!` special.
 
 A production SDK must authenticate its private transport, bound queued data, handle deadlines and manage process groups.
 The checked-in controller is a trusted local experiment, not that completed SDK.
-Node additionally needs the cooperative Net prerequisite before the same worker arrangement supports concurrent input.
+Node Net waits are cooperative (#810), so the same worker arrangement supports concurrent input.
 These are explicit costs of A, despite its lack of new compiler entry forms.
 
 ### B: Registered Application Hooks
@@ -237,7 +229,7 @@ This is evidence for C's fresh-state limitation, not a long-lived server impleme
 A avoids new language and entry mechanisms.
 B removes some source boilerplate but introduces a host-owned application runtime.
 C is operationally simple for isolated work and gives up reusable guest state.
-The recommendation is A, conditional on repairing its measured host prerequisite and implementing a production-quality SDK.
+The recommendation is A, conditional on a production-quality SDK.
 
 ## Entry Point And Lifecycle
 
@@ -636,7 +628,7 @@ Tests are budgeted separately because security and cancellation coverage outweig
 | Focused tests and launch fixtures | 0 / 0 | 700 mixed | 200 framing/session, 180 cancellation/drain, 160 adapters, 160 failure/platform controls. |
 
 The subtotal is 560 HD implementation lines, 920 SDK implementation lines and 700 focused test lines.
-The Node prerequisite #810 has its own host implementation budget and is not hidden in that subtotal.
+The Node Net work of #810 is done and is not part of that subtotal.
 No shared compiler mechanism is removed; option B would additionally need checker, export glue and multi-root driver budgets.
 Its main shim measures none of those additions, so B's production compiler cost remains unmeasured.
 
@@ -707,7 +699,7 @@ The unimplemented adversarial cases receive *unproved*, rather than a passing ve
 
 | Rank / borrowed pattern or attack | HD translation and observation | A / B / C consequence |
 | --- | --- | --- |
-| 1: concurrent stream waits, as in Go or axum connections | [read-concurrency](server-applications/prototypes/read-concurrency/src/main.hd): Wasmtime prints `1 1`; Node times out after one ready message. | A needs #810; B needs the same cooperative providers; C isolates jobs but still needs correct providers inside each job. |
+| 1: concurrent stream waits, as in Go or axum connections | [read-concurrency](server-applications/prototypes/read-concurrency/src/main.hd): Wasmtime prints `1 1`; Node times out after one ready message. | #810 now makes Node waits cooperative; B needs the same cooperative providers; C isolates jobs but still needs correct providers inside each job. |
 | 2: cancellation during a fragmented protocol read | The checked [transport](server-applications/prototypes/transport/src/lib.hd) stores partial data locally; cancelling that suspension would discard consumed header bytes. No cancellation experiment certifies recovery. | A needs persistent reader state and generation checks; B needs equivalent host ABI guarantees; C can discard the entire process. |
 | 3: queue commit before acknowledgement, following broker consumers | [instance-state](server-applications/prototypes/instance-state/src/main.hd) commits ID 7 independently in two states. [isolated-job](server-applications/prototypes/isolated-job/src/main.hd) repeats it in separate processes. | None provides durable exactly-once effects; external idempotency or transactions remain required. |
 | 4: Express shutdown with work active | [workers](server-applications/prototypes/workers/src/main.hd) and the live `signal` mode finish two admitted jobs and leave one queued; the SDK receives a real SIGTERM. | A passes natively; B's body shim passes without proving registration; C's manager must wait for admitted processes. |
@@ -743,11 +735,11 @@ The prototype's two workers, 64 KiB frame and short sleeps are test parameters, 
 
 Each slice targets roughly one hour and lands independently green after owner approval.
 Split a slice rather than expanding its scope into a compiler or runtime rewrite.
-No implementation phase is authorized by this document; #810 is a separate queued issue.
+No implementation phase is authorized by this document.
 
 | Slice | Scope and proving test |
 | --- | --- |
-| 0 | #810 cooperative Node Net. Two-child barrier and cancellation preserve unread bytes on both engines. |
+| 0 | Done (#810): cooperative Node Net. Two-child barrier and cancellation preserve unread bytes on both engines. |
 | 1 | Package frame reader and writer. All header/body split points, EOF, invalid UTF-8 and oversize lengths; linear copied-byte counts. |
 | 2 | Authenticated bootstrap and versioned envelopes. Reject wrong nonce/version/generation before Ready; no token in errors or logs. |
 | 3 | Ordinary fixed worker group and typed facade. Four input kinds share one state; concrete error mapper and a no-Clock handler both check. |
@@ -767,15 +759,14 @@ Browsers lack this process/loopback deployment profile; wasi:http and edge platf
 
 ## Recommendation And Approvals
 
-**Recommendation:** retain an ordinary `main!`, put application orchestration in a package, and use explicit deployment SDKs for incoming protocols and supervision.
+**Decided (owner, 2026-10-23):** direction A.
+Retain an ordinary `main!`, put application orchestration in a package, and use explicit deployment SDKs for incoming protocols and supervision.
 This reuses structured worker groups and avoids a new application entry mechanism.
-The next-best option is a registered hook runtime when deployment constraints justify its additional roots and ABI.
-A command per job remains the smallest option for isolated work with external state.
+Options B (registered hooks) and C (a command per job) are not chosen.
 
-Approval is needed for the package/SDK boundary, the supported deployment profile, and the proposed lifecycle and resource policies.
-The cooperative Node I/O prerequisite #810 must be implemented or the concurrent Node profile must remain unsupported.
+Approval is still needed for the package/SDK boundary, the supported deployment profile, and the proposed lifecycle and resource policies.
 Component adapters, Windows supervision and production protocol security require their own completed work before deployment claims.
-None of those approvals is assumed from #266 or from this proposal.
+None of those approvals is assumed from #266.
 
 ## Sources, Prototypes And Parse Log
 

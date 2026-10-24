@@ -1,7 +1,7 @@
 # Standard Library Calls
 
 Every standard-library design choice that the owner did not decide
-explicitly is recorded here, so the stdlib audit (task #239) can review
+explicitly is recorded here, so the stdlib audit (#350) can review
 them in one place.
 
 Since 2026-10-03 the owner has delegated stdlib API design. The agents
@@ -50,7 +50,7 @@ when the owner reviews it.
 | Pass | Call | Why | Status |
 | --- | --- | --- | --- |
 | 77 (#229) | `char` classification uses Unicode 17.0 tables stored as sorted ranges and binary-searched. | It is compact, and the spec named no Unicode version before. | own |
-| 77 (#229) | `Utf8Error` is `InvalidSequence(position)` or `Truncated`. Display gives "invalid UTF-8 sequence at byte N" or "incomplete UTF-8 sequence at the end of the bytes". | Rust's `Utf8Error`, simplified. | own; audit #239 says revisit (`Truncated(position)`), not yet applied |
+| 77 (#229) | `Utf8Error` is `InvalidSequence(position)` or `Truncated`. Display gives "invalid UTF-8 sequence at byte N" or "incomplete UTF-8 sequence at the end of the bytes". | Rust's `Utf8Error`, simplified. | own; the stdlib audit (#350) says revisit (`Truncated(position)`), not yet applied |
 | 78 (#234) | `count("")` gives the number of chars plus one. | Python's `str.count`. | own |
 | 78 (#234) | `split_once` with an empty separator matches at index 0. | Rust's `split_once`. | own |
 | 78 (#234) | Pad widths count chars (scalar values). | Width means text length. | confirmed |
@@ -194,7 +194,7 @@ Pass 82 (#238) applied the owner's batch 76 decision that every size is a
 
 ## Audit Pass 89
 
-Pass 89 (#246) applied the stdlib audit (task #239); its open gaps are in [Open Issues](OPEN_ISSUES.md#library-and-host-design-work).
+Pass 89 (#246) applied the stdlib audit (#350); its open gaps are in [Open Issues](OPEN_ISSUES.md#library-and-host-design-work).
 
 | Pass | Call | Why | Status |
 | --- | --- | --- | --- |
@@ -222,7 +222,7 @@ Pass 89 (#246) applied the stdlib audit (task #239); its open gaps are in [Open 
 ## Process And Pass 90
 
 Pass 90 (#247) applied batch 80's PROCESS-RESULT and the pass-89
-leftovers of the stdlib audit (task #239).
+leftovers of the stdlib audit (#350).
 
 | Pass | Call | Why | Status |
 | --- | --- | --- | --- |
@@ -465,8 +465,8 @@ their `tests:` blocks need the implementation to run.
 
 | Pass | Call | Why | Status |
 | --- | --- | --- | --- |
-| #259 | A timeout is a per-socket setting for the calls that wait for the peer, plus one connect method. Each handle (`TcpStream`, `TcpListener`, `UdpSocket`) gets `set_timeout(mut self, timeout: Duration?) -> Result[void, ResourceError[NetError]]`. A `.Some(d)` bounds each later `read!`, `accept!`, or `receive!` call to `d`; `.None` removes the bound, and a new handle starts at `.None`, as today. | A read runs in a loop, so one setting beats an argument on every call site (Rust `set_read_timeout`, Java `setSoTimeout`, Go `SetReadDeadline`). `Http` puts the timeout on the request because a request is one call; a socket is many calls. `.None` as the default keeps every existing program unchanged. | own |
-| #259 | `Net` gets one required method, `connect_timeout!(mut self, host: string, port: u16, timeout: Duration) -> Result[mut dyn TcpStream, NetError]`. `connect!` is unchanged and waits without a bound. The timeout covers the whole connect, every address tried, as `std-http.send.timeout.whole` covers every redirect. | A connect has no handle yet, so it cannot be a handle setting. A second method leaves every `connect!` caller and the `Net` provider call shape alone. A default body cannot do it: a trait default sees only the trait (`r[trait.default.visible]`) and has no `Clock` to race. Rust has `TcpStream::connect_timeout` beside `connect`. The cost: each hand-written `Net` provider (such as `NoNetwork` in Net Providers) adds one method. | own |
+| #259 | A timeout is a per-socket setting for the calls that wait for the peer, plus one connect method. Each handle (`TcpStream`, `TcpListener`, `UdpSocket`) gets `set_timeout(&mut self, timeout: Duration?) -> Result[void, ResourceError[NetError]]`. A `.Some(d)` bounds each later `read!`, `accept!`, or `receive!` call to `d`; `.None` removes the bound, and a new handle starts at `.None`, as today. | A read runs in a loop, so one setting beats an argument on every call site (Rust `set_read_timeout`, Java `setSoTimeout`, Go `SetReadDeadline`). `Http` puts the timeout on the request because a request is one call; a socket is many calls. `.None` as the default keeps every existing program unchanged. | own |
+| #259 | `Net` has no `connect_timeout!`: it was removed (#446). `timeout!` around `connect!` bounds a connect. | A connect has no handle yet, and a second trait method would add work to every hand-written `Net` provider for what `timeout!` already does. | own |
 | #259 | `write!` and `send_to!` have no timeout. A program that must bound them wraps the call in `race!` with `sleep!`. | A timed-out `write!` leaves an unknown number of bytes sent, so the stream is unusable after it. A read that times out loses nothing (next row), so it can be retried. UDP sends do not wait on the peer. | own |
 | #259 | The error is a new bare variant, `NetError.Timeout`, as `HttpError.Timeout` is bare. A timed-out `read!`, `accept!`, or `receive!` returns `.Err(.Operation(.Timeout))`; a timed-out `connect_timeout!` returns `.Err(.Timeout)`. `Display` is `the net operation timed out`. `Eq`, `Debug`, `Display`, and `Error` follow the other variants. | The two chapters then read alike. An address would repeat what the caller passed. `Other(message)` would make a program match on text. | own |
 | #259 | A timeout does not close or poison the handle. The bytes `read!` or `receive!` had not returned stay for the next call, as `r[std-net.cancel.read]` keeps them after a cancel. A timed-out `connect_timeout!` opens no socket. | Retrying a slow read is the usual reaction; closing would make it impossible. The cancel rule already exists, so both exits from a wait behave the same. | own |
@@ -732,8 +732,8 @@ its own issue.
   output carries the program name, stdout, stderr and status; the error's
   message names the program, status and final stderr line, never arguments
   (`std-process.helper.run-checked`, `std-process.error.display.exited-output`).
-- **One-off errors.** `std.error.message(text) -> dyn Error` and
-  `Option.context(text) -> Result[T, dyn Error]`. Applied in #366.
+- **One-off errors.** `std.error.message(text) -> &dyn Error` and
+  `Option.context(text) -> Result[T, &dyn Error]`. Applied in #366.
 - **Directory walking.** `std.fs.walk!(root)` and `glob!(pattern)`. Applied
   in #367: `walk!` returns `List[Entry]` depth first, each directory in path
   order, directories before their contents, symlinks reported and not

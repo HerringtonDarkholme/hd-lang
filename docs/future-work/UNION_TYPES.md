@@ -716,8 +716,6 @@ The repository inventory and 59 local links were checked; no complete test suite
 
 Tools are dev-profile frozen binaries whose compiler/std/host sources match this job’s base `5d8c1d92d`.
 The base differs only in documentation from their compiler source revision `424c34c44`.
-Exact commands, source hashes, formatted controls, negative outputs, inventory and gate logs are retained at
-`/private/tmp/muse-804-union-1792821231924001000`.
 
 ## Owner Questions
 

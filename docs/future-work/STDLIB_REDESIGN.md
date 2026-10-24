@@ -1,6 +1,10 @@
 # Standard Library Redesign
 
-This is a proposal, not a decision. It reviews the public surface of
+Status: design record. Every owner question below is answered, and the
+`std.http`, `std.net` and builder changes are in `lib/std`; the exit-status
+and `EnvConfig` decisions under
+[Decisions From The Follow-Up Studies](#decisions-from-the-follow-up-studies)
+are not in `lib/std` yet. It reviews the public surface of
 `lib/std` against the owner's bar for #350, after the owner rejected the
 first audit's shortcuts (`get_text!`, `post_json!`, `process.output!`) as
 neither composable nor small. Job 1 covers I/O and the host; jobs 2 and 3
@@ -37,8 +41,8 @@ Every module in this document follows one shape:
 - **Builder.** A plain data value that does no I/O. It starts from a
   constructor, `Type::new(...)`, or a named constructor such as
   `Request::get(url)`. Its setters are bare nouns (`header`, `arg`,
-  `timeout`), take `mut self`, change the value in place, and return it,
-  so calls chain. There is no `with_` or `set_` prefix on a builder.
+  `timeout`), take `&mut self`, change the value in place, and return it as
+  `&mut Type`, so calls chain. There is no `with_` or `set_` prefix on a builder.
   `with_x` names a copy of an immutable value with one part replaced
   (`Path.with_extension`). `set_x` is only for a live handle's setting
   (`TcpStream.set_timeout`).
@@ -93,26 +97,26 @@ The proposal follows reqwest's `RequestBuilder` and `Client`, Go's
 which carries the response.
 
 ```text
-pub data Request:
+pub struct Request:
     pub method: Method = Method.Get
     pub url: string
-    pub query: mut List[(string, string)] = []
-    pub headers: mut List[(string, string)] = []
+    pub query: List[(string, string)] = []
+    pub headers: List[(string, string)] = []
     pub body: List[u8] = []
     pub timeout: Duration? = .None
     pub redirects: usize = 10
 
 impl Request:
-    pub fn get(url: string) -> mut Request
-    pub fn post(url: string) -> mut Request
-    pub fn new(method: Method, url: string) -> mut Request
-    pub fn header(mut self, name: string, value: string) -> mut Request
-    pub fn query[T < Display](mut self, name: string, value: T) -> mut Request
-    pub fn body(mut self, bytes: List[u8]) -> mut Request
-    pub fn json[T < Serialize](mut self, value: T) -> mut Request
-    pub fn form[T < Serialize](mut self, value: T) -> mut Request
-    pub fn timeout(mut self, limit: Duration) -> mut Request
-    pub fn redirects(mut self, max: usize) -> mut Request
+    pub fn get(url: string) -> &mut Request
+    pub fn post(url: string) -> &mut Request
+    pub fn new(method: Method, url: string) -> &mut Request
+    pub fn header(&mut self, name: string, value: string) -> &mut Request
+    pub fn query[T < Display](&mut self, name: string, value: T) -> &mut Request
+    pub fn body(&mut self, bytes: List[u8]) -> &mut Request
+    pub fn json[T < Serialize](&mut self, value: T) -> &mut Request
+    pub fn form[T < Serialize](&mut self, value: T) -> &mut Request
+    pub fn timeout(&mut self, limit: Duration) -> &mut Request
+    pub fn redirects(&mut self, max: usize) -> &mut Request
     pub fn send!(self) -> Result[Response, HttpError] $ Http
 
 impl Response:                                # fields as today; headers and body default to []
@@ -120,22 +124,22 @@ impl Response:                                # fields as today; headers and bod
     pub fn text(self) -> string
     pub fn json[T < Deserialize](self) -> Result[T, HttpError]
 
-pub data Client: ...                         # private fields: defaults and the cookie jar
+pub struct Client: ...                         # private fields: defaults and the cookie jar
 
 impl Client:
-    pub fn new() -> mut Client
-    pub fn base_url(mut self, url: string) -> mut Client
-    pub fn header(mut self, name: string, value: string) -> mut Client
-    pub fn timeout(mut self, limit: Duration) -> mut Client
-    pub fn send!(mut self, request: Request) -> Result[Response, HttpError] $ Http
+    pub fn new() -> &mut Client
+    pub fn base_url(&mut self, url: string) -> &mut Client
+    pub fn header(&mut self, name: string, value: string) -> &mut Client
+    pub fn timeout(&mut self, limit: Duration) -> &mut Client
+    pub fn send!(&mut self, request: Request) -> Result[Response, HttpError] $ Http
     pub fn cookie(self, url: string, name: string) -> string?
 
 impl HttpError:
     pub fn is_transient(self) -> bool         # Timeout, Connect, or Status 408, 429, 500, 502, 503, 504
 
 impl ScriptedHttp:
-    pub fn new() -> mut ScriptedHttp
-    pub fn reply(mut self, url: string, result: Result[Response, HttpError]) -> void
+    pub fn new() -> &mut ScriptedHttp
+    pub fn reply(&mut self, url: string, result: Result[Response, HttpError]) -> void
     pub fn received(self) -> List[Request]
 ```
 
@@ -209,9 +213,9 @@ with no free helpers.
 
 ```text
 pub fn lookup!(host: string) -> Result[List[string], NetError] $ Net
-pub fn connect!(host: string, port: u16) -> Result[mut dyn TcpStream, NetError] $ Net
-pub fn listen!(host: string, port: u16) -> Result[mut dyn TcpListener, NetError] $ Net
-pub fn bind_udp!(host: string, port: u16) -> Result[mut dyn UdpSocket, NetError] $ Net
+pub fn connect!(host: string, port: u16) -> Result[&mut dyn TcpStream, NetError] $ Net
+pub fn listen!(host: string, port: u16) -> Result[&mut dyn TcpListener, NetError] $ Net
+pub fn bind_udp!(host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError] $ Net
 
 attempt := timeout!(3s):              # replaces connect_timeout!(host, 25, 3s)
     connect!(host, 25)
@@ -292,20 +296,20 @@ The proposal is Rust's `Command`, with the error shape of Go's
 `run(check=True)`:
 
 ```text
-pub data Command:
+pub struct Command:
     pub program: string
-    pub args: mut List[string] = []
-    pub env: mut List[(string, string)] = []
+    pub args: List[string] = []
+    pub env: List[(string, string)] = []
     pub current_dir: Path? = .None
     pub stdin: string = ""
 
 impl Command:
-    pub fn new(program: string) -> mut Command
-    pub fn arg(mut self, value: string) -> mut Command
-    pub fn args(mut self, values: List[string]) -> mut Command
-    pub fn env(mut self, name: string, value: string) -> mut Command
-    pub fn current_dir(mut self, dir: Path) -> mut Command
-    pub fn stdin(mut self, text: string) -> mut Command
+    pub fn new(program: string) -> &mut Command
+    pub fn arg(&mut self, value: string) -> &mut Command
+    pub fn args(&mut self, values: List[string]) -> &mut Command
+    pub fn env(&mut self, name: string, value: string) -> &mut Command
+    pub fn current_dir(&mut self, dir: Path) -> &mut Command
+    pub fn stdin(&mut self, text: string) -> &mut Command
     pub fn run!(self) -> Result[ProcessOutput, ProcessError] $ Process
 
 pub enum ProcessError:
@@ -313,11 +317,11 @@ pub enum ProcessError:
     Exited(output: ProcessOutput)              # was Exited(status, stderr)
 
 pub trait Process:                             # language tier: owner
-    fn run!(mut self, command: Command) -> Result[ProcessOutput, ProcessError]
+    fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]
 
 impl ScriptedProcess:
-    pub fn new() -> mut ScriptedProcess
-    pub fn reply(mut self, program: string, result: Result[ProcessOutput, ProcessError]) -> void
+    pub fn new() -> &mut ScriptedProcess
+    pub fn reply(&mut self, program: string, result: Result[ProcessOutput, ProcessError]) -> void
     pub fn received(self) -> List[Command]
 ```
 
@@ -347,13 +351,13 @@ and a prompt cannot print without a newline.
 
 ```text
 pub trait ConsoleInput:
-    fn read_line!(mut self) -> Result[string?, ConsoleError]
-    fn read_all!(mut self) -> Result[string, ConsoleError]: ...   # default body joins read_line!
+    fn read_line!(&mut self) -> Result[string?, ConsoleError]
+    fn read_all!(&mut self) -> Result[string, ConsoleError]: ...   # default body joins read_line!
 
 pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput
 
 pub trait Console:                                                 # language tier: owner
-    fn write!(mut self, text: string) -> Result[void, ConsoleError]
+    fn write!(&mut self, text: string) -> Result[void, ConsoleError]
     ...
 pub fn print[T < Display](value: T) -> void $ Console
 ```
@@ -407,14 +411,14 @@ pub trait EnvConfig:
     fn load() -> Result[Self, EnvError] $ Env
 
 @annotate::[F](.Field)
-pub data EnvName[F]:
+pub struct EnvName[F]:
     pub name: string
 pub fn env_name[F](name: string) -> EnvName[F]
 ```
 
 ```text
 @derive(EnvConfig)
-data Settings:
+struct Settings:
     deploy_token: string            # DEPLOY_TOKEN, required
     port: u16 = 8080                # PORT, the default when unset
     proxy: string?                  # HTTP_PROXY, .None when unset
@@ -490,7 +494,7 @@ sits on its `Command` builder.
 ```text
 ## Pack files into a release archive.
 @derive(Cli)
-data Pack:
+struct Pack:
     ## Print each file as it is added.
     @short('v')
     verbose: bool
@@ -544,14 +548,14 @@ ignored flag.
 
 ```text
 pub trait Cli:
-    fn declare(parser: mut ArgParser, arg: Arg) -> void
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void
     fn read(parsed: Parsed, arg: Arg) -> Result[Self, CliError]
-    fn parser() -> mut ArgParser: ...                              # the type's declaration, built once per call
+    fn parser() -> &mut ArgParser: ...                              # the type's declaration, built once per call
     fn parse(arguments: List[string]) -> Result[Self, CliError]: ...   # parser().parse, then read
     fn parse_args() -> Result[Self, CliError] $ Args: ...              # the host's arguments
 
 @annotate::[F](.Field)
-pub data Short[F < Cli]:
+pub struct Short[F < Cli]:
     pub letter: char
 pub fn short[F < Cli](letter: char) -> Short[F]
 ...                                       # Positional with positional()
@@ -571,7 +575,7 @@ untyped builder, and its `read` builds the value from `Parsed`:
 
 ```text
 impl[T] Cli for T by Structure:
-    fn declare(parser: mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
         let mut describer = CliDescriber::[T] { parser: parser, arg: arg, commands: [], choices: [] }
         _ := T::describe(describer)
         describer.finish()        # a value set becomes one Arg with choices
@@ -582,32 +586,32 @@ impl[T] Cli for T by Structure:
 
 impl[S] Describer[S] for CliDescriber[S]:
     type Error = never
-    fn variant(mut self, v: Variant[S]) -> Result[void, never]:
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         self.start(v.info)        # a data type: its about line; an enum: a choice, or a command's parser
         .Ok(())
-    fn member[F < Cli](mut self, h: Field[S, F]) -> Result[void, never]:
+    fn member[F < Cli](&mut self, h: Field[S, F]) -> Result[void, never]:
         F::declare(self.current(), arg_for(h))     # name, doc, facts, and required = !h.has_default()
         .Ok(())
 
 impl[S] Source[S] for CliSource[S]:
     type Error = CliError
-    fn variant(mut self, choices: List[Variant[S]]) -> Result[Variant[S], CliError]:
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], CliError]:
         self.choose(choices)      # by the value's name, or by parsed.command()
-    fn next(mut self, members: Members[S]) -> Result[Key[S], CliError]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], CliError]:
         self.next_in_order(members)
-    fn member[F < Cli](mut self, h: Field[S, F], previous: F?) -> Result[F, CliError]:
+    fn member[F < Cli](&mut self, h: Field[S, F], previous: F?) -> Result[F, CliError]:
         arg := arg_for(h)
         if h.has_default() && !self.parsed.has(arg.name):
             return .Ok(h.default().expect("a declared default"))
         F::read(self.parsed, arg)
-    fn missing[F](mut self, h: Field[S, F]) -> Result[F, CliError]:
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, CliError]:
         panic("std.cli: the source names every member")
 
 impl[T < Cli] Cli for List[T]:
-    fn declare(parser: mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
         T::declare(parser, Arg { ...arg, repeated: true, required: false })
     fn read(parsed: Parsed, arg: Arg) -> Result[List[T], CliError]:
-        let found: mut List[T] = []
+        let mut found: List[T] = []
         for index in 0..parsed.values(arg.name).len():
             found.push(T::read(parsed.nth(arg.name, index), arg)?)
         .Ok(found)
@@ -622,12 +626,12 @@ compiler supplies only the traversals it already supplies for serde.
 ### The Untyped Layer
 
 The builder is renamed `ArgParser`, Dart's and Python's name for it,
-because the derive takes the name `Cli`. It becomes a `mut` builder, and
+because the derive takes the name `Cli`. It becomes a `&mut` builder, and
 one declaration record, `Arg`, replaces `flag`, `option` and
 `positional`, as clap's `Arg` does:
 
 ```text
-pub data Arg:
+pub struct Arg:
     pub name: string
     pub kind: ArgKind = ArgKind.Option        # Flag, Option, Positional
     pub short: char? = .None
@@ -637,9 +641,9 @@ pub data Arg:
     pub required: bool = false
 
 impl ArgParser:
-    pub fn new(program: string, about: string = "") -> mut ArgParser
-    pub fn arg(mut self, arg: Arg) -> mut ArgParser
-    pub fn command(mut self, name: string, parser: ArgParser) -> mut ArgParser
+    pub fn new(program: string, about: string = "") -> &mut ArgParser
+    pub fn arg(&mut self, arg: Arg) -> &mut ArgParser
+    pub fn command(&mut self, name: string, parser: ArgParser) -> &mut ArgParser
     pub fn parse(self, arguments: List[string]) -> Result[Parsed, CliError]
     pub fn parse_args(self) -> Result[Parsed, CliError] $ Args
     pub fn usage(self) -> string
@@ -688,7 +692,7 @@ A command line known only at run time uses the builder directly. Here a
 task runner reads its tasks from a file:
 
 ```text
-fn task_parser(task: Task) -> mut ArgParser:
+fn task_parser(task: Task) -> &mut ArgParser:
     let mut parser = ArgParser::new("run ${task.name}", about=task.description)
     for param in task.params:
         parser.arg(Arg { name: param.name, help: param.help, required: param.default.is_none() })
@@ -757,22 +761,22 @@ use std.time.{Clock, ms, s}
 use std.error.Error
 
 @derive(Deserialize)
-data Issue:
+struct Issue:
     number: u32
     title: string
 
 fn transient(error: HttpError) -> bool:
     error.is_transient()
 
-fn github(token: string) -> mut Client:
+fn github(token: string) -> &mut Client:
     let mut api = Client::new().base_url("https://api.github.com").timeout(10s)
     api.header("Authorization", "Bearer $token")
     api.header("Accept", "application/vnd.github+json")
     api
 
-fn open_issues!(api: mut Client, repo: string) -> Result[List[Issue], HttpError] $ Http + Clock:
+fn open_issues!(api: &mut Client, repo: string) -> Result[List[Issue], HttpError] $ Http + Clock:
     policy := Backoff { attempts: 4, initial: 200ms, factor: 2, max: 5s }
-    let found: mut List[Issue] = []
+    let mut found: List[Issue] = []
     let page: u32 = 1
     while true:
         request := Request::get("/repos/$repo/issues").query("state", "open").query("page", page)
@@ -785,7 +789,7 @@ fn open_issues!(api: mut Client, repo: string) -> Result[List[Issue], HttpError]
         page = page + 1
     .Ok(found)
 
-pub fn main!() -> Result[void, dyn Error] $ Console + Env + Http + Clock:
+pub fn main!() -> Result[void, &dyn Error] $ Console + Env + Http + Clock:
     token := env("GITHUB_TOKEN").context("GITHUB_TOKEN is not set")?
     let mut api = github(token)
     for issue in open_issues!(api, "hd-lang/hd")?:
@@ -826,16 +830,16 @@ use std.time.s
 use std.error.{Error, message}
 
 @derive(Serialize)
-data Login:
+struct Login:
     username: string
     password: string
     csrfmiddlewaretoken: string
 
 @derive(Serialize)
-data Profile:
+struct Profile:
     display_name: string
 
-fn rename!(user: string, password: string, name: string) -> Result[void, dyn Error] $ Http:
+fn rename!(user: string, password: string, name: string) -> Result[void, &dyn Error] $ Http:
     let mut site = Client::new().base_url("https://shop.example").timeout(15s)
     _ := site.send!(Request::get("/login"))?
     csrf := site.cookie("/login", "csrftoken").context("the login page set no CSRF cookie")?
@@ -866,7 +870,7 @@ fn has_changes!(repo: Path) -> Result[bool, ProcessError] $ Process:
         .Err(.Exited(output)) if output.status == 1 => .Ok(true)
         .Err(error) => .Err(error)
 
-pub fn main!() -> Result[void, dyn Error] $ Console + Process + Clock:
+pub fn main!() -> Result[void, &dyn Error] $ Console + Process + Clock:
     repo := Path("crates/app")
     if has_changes!(repo)?:
         return .Err(message("commit or stash your changes first"))
@@ -907,7 +911,7 @@ use std.error.Error
 
 ## Build a static site from Markdown notes.
 @derive(Cli)
-data Notes:
+struct Notes:
     ## Print each file as it is converted.
     @short('v')
     verbose: bool
@@ -921,7 +925,7 @@ enum NotesCommand:
     Clean(CleanOptions)
 
 @derive(Cli)
-data BuildOptions:
+struct BuildOptions:
     ## Skip paths that contain this text; repeatable.
     @short('x')
     exclude: List[string]
@@ -933,7 +937,7 @@ data BuildOptions:
     pattern: string
 
 @derive(Cli)
-data CleanOptions:
+struct CleanOptions:
     ## The output directory.
     @short('o')
     out: Path = Path("site")
@@ -951,7 +955,7 @@ fn build!(options: BuildOptions, verbose: bool) -> Result[usize, FsError] $ Cons
         count = count + 1
     .Ok(count)
 
-pub fn main!() -> Result[void, dyn Error] $ Console + Args + Env + FsRead + FsWrite:
+pub fn main!() -> Result[void, &dyn Error] $ Console + Args + Env + FsRead + FsWrite:
     notes := Notes::parse_args()?
     match notes.command:
         .Build(options) =>
@@ -989,11 +993,11 @@ use std.serde.Deserialize
 use std.error.Error
 
 @derive(Deserialize)
-data Order:
+struct Order:
     id: string
     cents: i64
 
-pub fn main!() -> Result[void, dyn Error] $ Console + ConsoleInput:
+pub fn main!() -> Result[void, &dyn Error] $ Console + ConsoleInput:
     orders := decode::[List[Order]](read_all!()?)?
     total := orders.iter().map(fn(order: Order) -> i64: order.cents).sum()
     println("${orders.len()} orders, $total cents")
@@ -1016,7 +1020,7 @@ use std.time.{Duration, min}
 use std.error.Error
 
 ## A label as key=value.
-data Label:
+struct Label:
     key: string
     value: string
 
@@ -1029,7 +1033,7 @@ impl Parse for Label:
 
 # A type with its own Parse reads as one value, through the untyped layer.
 impl Cli for Label:
-    fn declare(parser: mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
         parser.arg(arg)
     fn read(parsed: Parsed, arg: Arg) -> Result[Label, CliError]:
         match parsed.value_as::[Label](arg.name)?:
@@ -1038,7 +1042,7 @@ impl Cli for Label:
 
 ## Deploy one service to one or more regions.
 @derive(Cli)
-data Deploy:
+struct Deploy:
     ## The API token; DEPLOY_TOKEN when the option is absent.
     token: string? = .None
     ## A region to deploy to; repeatable; every region when absent.
@@ -1057,22 +1061,22 @@ data Deploy:
 
 ## The variables the tool reads.
 @derive(EnvConfig)
-data DeployEnv:
+struct DeployEnv:
     deploy_token: string?
 
 @derive(Serialize)
-data Release:
+struct Release:
     service: string
     region: string
     labels: Map[string, string]
 
-pub fn main!() -> Result[void, dyn Error] $ Console + Args + Env + Http:
+pub fn main!() -> Result[void, &dyn Error] $ Console + Args + Env + Http:
     deploy := Deploy::parse_args()?
     env := DeployEnv::load()?
     token := deploy.token.or(env.deploy_token).context("set --token or DEPLOY_TOKEN")?
     let mut api = Client::new().base_url("https://deploy.example").timeout(deploy.timeout)
     api.header("Authorization", "Bearer $token")
-    let labels: mut Map[string, string] = {}
+    let mut labels: Map[string, string] = {}
     for label in deploy.label:
         labels[label.key] = label.value
     regions := if deploy.region.is_empty(): ["eu-west", "us-east"] else: deploy.region
@@ -1139,7 +1143,7 @@ enum SortKey:
 
 ## Turn an orders CSV into a sorted report.
 @derive(Cli)
-data Report:
+struct Report:
     ## The output format.
     @short('f')
     format: Format
@@ -1156,13 +1160,13 @@ data Report:
     output: Path
 
 @derive(Serialize)
-data Order:
+struct Order:
     date: string
     customer: string
     cents: i64
 
-fn read_orders(text: string) -> Result[List[Order], dyn Error]:
-    let orders: mut List[Order] = []
+fn read_orders(text: string) -> Result[List[Order], &dyn Error]:
+    let mut orders: List[Order] = []
     for (index, line) in text.lines().iter().enumerate():
         fields := line.split(",")
         if fields.len() != 3:
@@ -1175,13 +1179,13 @@ fn render(orders: List[Order], format: Format) -> string:
     match format:
         .Json => encode(orders)
         .Markdown =>
-            let out: mut StringBuilder = StringBuilder::new()
+            let mut out: StringBuilder = StringBuilder::new()
             out.push("| date | customer | cents |\n| --- | --- | ---: |\n")
             for order in orders:
                 out.push("| ${order.date} | ${order.customer} | ${order.cents} |\n")
             out.build()
 
-pub fn main!() -> Result[void, dyn Error] $ Args + Env + FsRead + FsWrite:
+pub fn main!() -> Result[void, &dyn Error] $ Args + Env + FsRead + FsWrite:
     report := Report::parse_args()?
     let orders = read_orders(read_text!(report.input)?)?
     match report.min_cents:
@@ -1314,7 +1318,7 @@ key takes the member's default. The real gap is naming: real APIs write
 
 ```text
 impl JsonObject:
-    pub fn remove(mut self, key: string) -> Json?     # new; the other members keep their order
+    pub fn remove(&mut self, key: string) -> Json?     # new; the other members keep their order
 ```
 
 - Removed: `Json.as_number()`. `as_i64`, `as_u64` and `as_f64` read a
@@ -1348,7 +1352,7 @@ typed path that every format reads. Two gaps stop real programs:
 ```text
 @serde(rename_all="camelCase")           # hypothetical syntax: the planned facts
 @derive(Serialize, Deserialize)
-data Order:
+struct Order:
     order_id: string                     # "orderId"
     @serde(rename="total")               # hypothetical syntax
     total_cents: i64
@@ -1372,7 +1376,7 @@ Rust's `FromStr` is.
 
 ```text
 impl StringBuilder:
-    pub fn push_char(mut self, c: char) -> void        # new
+    pub fn push_char(&mut self, c: char) -> void        # new
 
 pub enum Utf8Error:
     InvalidSequence(position: usize)
@@ -1502,19 +1506,19 @@ as BLAKE3's `Hasher::new_keyed` does. A digest compares in constant
 time, as Go's `hmac.Equal` does.
 
 ```text
-pub data Digest:
+pub struct Digest:
     pub bytes: List[u8]
 
 impl Digest:
     pub fn to_hex(self) -> string
 impl Eq for Digest                       # constant time over the bytes
 
-pub data Sha256: ...                     # private: state, the partial block, length
+pub struct Sha256: ...                     # private: state, the partial block, length
 
 impl Sha256:
-    pub fn new() -> mut Sha256
-    pub fn hmac(key: List[u8]) -> mut Sha256        # finish gives HMAC-SHA256 under key
-    pub fn update(mut self, bytes: List[u8]) -> mut Sha256
+    pub fn new() -> &mut Sha256
+    pub fn hmac(key: List[u8]) -> &mut Sha256        # finish gives HMAC-SHA256 under key
+    pub fn update(&mut self, bytes: List[u8]) -> &mut Sha256
     pub fn finish(self) -> Digest
 
 pub fn sha256(bytes: List[u8]) -> Digest
@@ -1537,7 +1541,7 @@ FNV-1a, and `hash_of` is the one-call path. No public name changes.
 **Cost.** The `Hasher` trait has only `write(bytes: List[u8])`, so
 hashing an integer allocates a list for its bytes and hashing a string
 copies its bytes first (question 3). Each write is also an indirect call
-through `dyn Hasher`.
+through `&dyn Hasher`.
 
 ## std.random
 
@@ -1624,14 +1628,14 @@ use std.error.{Error, message}
 
 @serde(rename_all="camelCase")              # hypothetical syntax: question 1
 @derive(Deserialize)
-data OrderPaid:
+struct OrderPaid:
     order_id: string
     total_cents: i64
     currency: string
     coupon: string?
     created_at: Timestamp
 
-fn verify(secret: string, body: string, header: string) -> Result[void, dyn Error]:
+fn verify(secret: string, body: string, header: string) -> Result[void, &dyn Error]:
     hex := header.strip_prefix("sha256=").context("the signature has no sha256= prefix")?
     sent := Digest { bytes: hex_decode(hex)? }
     expected := Sha256::hmac(secret.to_utf8()).update(body.to_utf8()).finish()
@@ -1639,7 +1643,7 @@ fn verify(secret: string, body: string, header: string) -> Result[void, dyn Erro
         return .Err(message("the signature does not match"))
     .Ok(())
 
-pub fn on_order_paid(secret: string, body: string, header: string) -> Result[OrderPaid, dyn Error]:
+pub fn on_order_paid(secret: string, body: string, header: string) -> Result[OrderPaid, &dyn Error]:
     verify(secret, body, header)?
     .Ok(decode::[OrderPaid](body)?)
 
@@ -1669,7 +1673,7 @@ use std.text.r
 use std.error.{Error, message}
 
 @derive(Deserialize)
-data Hit:
+struct Hit:
     ip: string
     method: string
     path: string
@@ -1681,9 +1685,9 @@ data Hit:
 fn pattern() -> string:
     r"^(?P<ip>\S+) \S+ \S+ \[[^\]]+\] \"(?P<method>[A-Z]+) (?P<path>\S+) [^\"]*\" (?P<status>\d{3}) (?P<bytes>\d+) (?P<seconds>\d+\.\d+)(?: \"(?P<referrer>[^\"]*)\")?$"
 
-fn read_hits(log: string) -> Result[(List[Hit], usize), dyn Error]:
+fn read_hits(log: string) -> Result[(List[Hit], usize), &dyn Error]:
     line := Regex::new(pattern())?
-    let hits: mut List[Hit] = []
+    let mut hits: List[Hit] = []
     let skipped: usize = 0
     for (index, text) in log.lines().iter().enumerate():
         match line.decode::[Hit](text):
@@ -1695,7 +1699,7 @@ fn read_hits(log: string) -> Result[(List[Hit], usize), dyn Error]:
 fn by_count(a: (string, usize), b: (string, usize)) -> Ordering:
     b._1.cmp(a._1).then(a._0.cmp(b._0))
 
-pub fn main!() -> Result[void, dyn Error] $ Console + FsRead:
+pub fn main!() -> Result[void, &dyn Error] $ Console + FsRead:
     let (hits, skipped) = read_hits(read_text!(Path("access.log"))?)?
     failed := hits.iter().filter(fn(hit: Hit) -> bool: hit.status >= 500).count()
     paths := counts(hits.map(fn(hit: Hit) -> string: hit.path))
@@ -1761,13 +1765,13 @@ hex IDs, money with two decimals, and CSV quoting with a builder.
 use std.text.StringBuilder
 use std.error.{Error, message}
 
-data Line:
+struct Line:
     sku: u32
     name: string
     quantity: u32
     cents: i64
 
-fn read_line(row: string) -> Result[Line, dyn Error]:
+fn read_line(row: string) -> Result[Line, &dyn Error]:
     fields := row.split(",")
     if fields.len() != 4:
         return .Err(message("expected sku,name,quantity,cents: $row"))
@@ -1779,7 +1783,7 @@ fn read_line(row: string) -> Result[Line, dyn Error]:
 fn quoted(text: string) -> string:
     if !text.contains(",") && !text.contains("\"") && !text.contains("\n"):
         return text
-    let out: mut StringBuilder = StringBuilder::new()
+    let mut out: StringBuilder = StringBuilder::new()
     out.push_char('"')
     for c in text.chars():
         if c == '"':
@@ -1788,8 +1792,8 @@ fn quoted(text: string) -> string:
     out.push_char('"')
     out.build()
 
-pub fn export(rows: List[string]) -> Result[string, dyn Error]:
-    let out: mut StringBuilder = StringBuilder::new()
+pub fn export(rows: List[string]) -> Result[string, &dyn Error]:
+    let mut out: StringBuilder = StringBuilder::new()
     out.push("sku,name,quantity,total\n")
     for row in rows:
         line := read_line(row)?
@@ -1827,7 +1831,7 @@ combination (`sha256_hex`, `token_hex`), or a type folded into another
 
 ## Data Questions For The Owner
 
-**Answered by the owner, 2026-10-17:** all five approved: (1) the serde naming facts `rename`, `skip`, `rename_all` and `skip_none`; (2) `Display` writes into a builder (`write(self, out: mut StringBuilder)` with a default body over `to_string()`, called by interpolation); (3) `Hasher.write_u64` and `write_str` with default bodies; (4) `u64` conversions on the sealed `Integer` so `Rng.int` is generic; (5) regex decoding through `Deserialize`.
+**Answered by the owner, 2026-10-17:** all five approved: (1) the serde naming facts `rename`, `skip`, `rename_all` and `skip_none`; (2) `Display` writes into a builder (`write(self, out: &mut StringBuilder)` with a default body over `to_string()`, called by interpolation); (3) `Hasher.write_u64` and `write_str` with default bodies; (4) `u64` conversions on the sealed `Integer` so `Rng.int` is generic; (5) regex decoding through `Deserialize`.
 
 1. **Serde naming facts.** Apply the planned `@serde(rename=...)` and
    `@serde(skip)`, and add serde's type-level `rename_all` and a
@@ -1837,7 +1841,7 @@ combination (`sha256_hex`, `token_hex`), or a type folded into another
 2. **`Display` writes into a builder.** `to_string` makes a new string
    per value, so nested `Display` copies text once per level. Rust's
    `Display` writes into a `Formatter`; Go's `String()` returns a string
-   and accepts the copy. Recommendation: add `write(self, out: mut
+   and accepts the copy. Recommendation: add `write(self, out: &mut
    StringBuilder) -> void` with a default body that pushes `to_string()`,
    and have interpolation call `write`. No existing impl changes.
 3. **`Hasher` width methods.** Add `write_u64(value)` and
@@ -1926,7 +1930,7 @@ one impl:
 ```text
 impl[T] Iterable[T] for T?                       # new impl: zero or one item
 impl[T] Iterator[T]:
-    pub fn flat_map[U, I < Iterable[U]](mut self, transform: fn(T) -> I) -> mut Iterator[U]
+    pub fn flat_map[U, I < Iterable[U]](&mut self, transform: fn(T) -> I) -> &mut Iterator[U]
 ```
 
 - `text.lines().iter().flat_map(parse)`, with `parse(line) -> Hit?`,
@@ -1974,7 +1978,7 @@ caller's choice, and `match` is the lazy form.
 
 **Verdict: meets the bar, with two cuts.** `@error` with `@from` and
 `@source` is thiserror. `context` and `message` are anyhow's `context`
-and `anyhow!`. `dyn Error` with `chain`, `root_cause` and `find::[T]()`
+and `anyhow!`. `&dyn Error` with `chain`, `root_cause` and `find::[T]()`
 reads a cause chain by type, as Go's `errors.As` does. `report_of` makes
 the boundary-safe `ErrorReport`.
 
@@ -1998,7 +2002,7 @@ structured suspension: cancelling a call cancels its children. Two names
 are redundant.
 
 ```text
-pub data Backoff:
+pub struct Backoff:
     pub attempts: usize = 3
     pub initial: Duration = 100ms
     pub factor: u32 = 2                      # was i32, and no field had a default
@@ -2042,8 +2046,8 @@ what Go's `testing`, Rust's proptest and insta, and pytest give.
 pub fn hd_run!(command: Command) -> ProcessOutput $ Process       # was (name, args, stdin) -> RunOutput
 
 impl Choices:
-    pub fn int[N < Integer](mut self, range: Range[N]) -> N        # was (lo, hi)
-    pub fn float[F < Float](mut self, range: Range[F]) -> F        # was (lo, hi)
+    pub fn int[N < Integer](&mut self, range: Range[N]) -> N        # was (lo, hi)
+    pub fn float[F < Float](&mut self, range: Range[F]) -> F        # was (lo, hi)
 ```
 
 - `hd_run!` takes job 1's `Command`, as Rust's `assert_cmd` builds a
@@ -2072,7 +2076,7 @@ plain hd over them. The facts and the downcasts need no change.
 
 ```text
 pub trait Source[S]:
-    fn next(mut self, members: Members[S]) -> Result[Key[S]?, Self::Error]   # .None ends; was an end key
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, Self::Error]   # .None ends; was an end key
 
 impl[HdS] Members[HdS]:
     pub fn at(self, position: usize) -> Key[HdS]?                            # was i32, giving the end key
@@ -2143,7 +2147,7 @@ use std.task.{Backoff, map_all, retry, timeout}
 use std.time.{Clock, ms, s}
 use std.error.Error
 
-data Link:
+struct Link:
     url: string
     status: u16 = 0                        # 0 when no response came back
     problem: string? = .None
@@ -2156,7 +2160,7 @@ fn hrefs(page: string, site: string) -> List[string]:
     paths := pieces.flat_map(fn(piece: string) -> string?: piece.split_once("\"").map(fn(pair: (string, string)) -> string: pair._0))
     paths.filter(fn(path: string) -> bool: path.starts_with("/")).map(fn(path: string) -> string: "$site$path").collect()
 
-fn visit!(client: mut Client, url: string) -> (Link, string) $ Http + Clock:
+fn visit!(client: &mut Client, url: string) -> (Link, string) $ Http + Clock:
     outcome := timeout!(20s):
         retry!(Backoff { attempts: 3, initial: 200ms }, when=transient):
             client.send!(Request::get(url))
@@ -2166,14 +2170,14 @@ fn visit!(client: mut Client, url: string) -> (Link, string) $ Http + Clock:
         .Ok(.Err(error)) => (Link { url: url, problem: .Some("$error") }, "")
         .Err(late) => (Link { url: url, problem: .Some("$late") }, "")
 
-pub fn crawl!(client: mut Client, site: string, limit: usize) -> List[Link] $ Http + Clock:
-    let seen: mut Set[string] = Set::new()
-    let queue: mut Deque[string] = Deque::new()
+pub fn crawl!(client: &mut Client, site: string, limit: usize) -> List[Link] $ Http + Clock:
+    let mut seen: Set[string] = Set::new()
+    let mut queue: Deque[string] = Deque::new()
     queue.push_back("$site/")
     seen.insert("$site/")
-    let found: mut List[Link] = []
+    let mut found: List[Link] = []
     while !queue.is_empty() && found.len() < limit:
-        let batch: mut List[string] = []
+        let mut batch: List[string] = []
         while batch.len() < 32:
             match queue.pop_front():
                 .Some(url) => batch.push(url)
@@ -2185,7 +2189,7 @@ pub fn crawl!(client: mut Client, site: string, limit: usize) -> List[Link] $ Ht
                     queue.push_back(next)
     found
 
-pub fn main!() -> Result[void, dyn Error] $ Console + Http + Clock:
+pub fn main!() -> Result[void, &dyn Error] $ Console + Http + Clock:
     let mut client = Client::new().header("User-Agent", "linkcheck/1.0")
     links := crawl!(client, "https://docs.example.com", 2000)
     for (status, count) in counts(links.map(fn(link: Link) -> u16: link.status)).most_common(5):
@@ -2211,7 +2215,7 @@ use std.error.{Error, message}
 
 ## Summarize an access log: who visits most, and where traffic spikes.
 @derive(Cli)
-data Report:
+struct Report:
     ## Requests per minute that count as a spike; SPIKE_RPM when absent.
     spike: u32?
     ## How many users to list.
@@ -2220,7 +2224,7 @@ data Report:
     @positional
     log: Path
 
-data Hit:
+struct Hit:
     minute: u32
     user: string
     path: string
@@ -2234,7 +2238,7 @@ fn parse_hit(line: string) -> Hit?:
     millis := fields[3].parse::[u32]().ok()?
     .Some(Hit { minute: minute, user: fields[1], path: fields[2], millis: millis })
 
-pub fn main!() -> Result[void, dyn Error] $ Console + Args + Env + FsRead:
+pub fn main!() -> Result[void, &dyn Error] $ Console + Args + Env + FsRead:
     report := Report::parse_args()?
     spike := usize(report.spike.or(env_as::[u32]("SPIKE_RPM")?).unwrap_or(600))
     hits := read_text!(report.log)?.lines().iter().flat_map(parse_hit).collect()
@@ -2274,7 +2278,7 @@ use std.error.{Error, message}
 pub fn slug(title: string, separator: string) -> string:
     title.lower().split_whitespace().join(separator)
 
-pub fn main!() -> Result[void, dyn Error] $ Console + ConsoleInput + Args + Env:
+pub fn main!() -> Result[void, &dyn Error] $ Console + ConsoleInput + Args + Env:
     if !args().is_empty():
         return .Err(message("slug takes no arguments; it reads standard input"))
     separator := env("SLUG_SEPARATOR").unwrap_or("-")
@@ -2286,10 +2290,10 @@ tests:
     use std.testing.{Arbitrary, Choices, arbitrary, assert_equal, it_each, it_prop}
 
     @derive(Arbitrary, Debug)
-    data Title:
-        @arbitrary.with(fn(c: mut Choices) -> List[string]: c.list(4, fn(d: mut Choices) -> string: d.choose(["Tea", "Ünïcode", "a1", ""])))
+    struct Title:
+        @arbitrary.with(fn(c: &mut Choices) -> List[string]: c.list(4, fn(d: &mut Choices) -> string: d.choose(["Tea", "Ünïcode", "a1", ""])))
         words: List[string]
-        @arbitrary.with(fn(c: mut Choices) -> usize: c.int(1..=3))
+        @arbitrary.with(fn(c: &mut Choices) -> usize: c.int(1..=3))
         gap: usize
 
     it_each("slugs", [("Hello World", "hello-world"), ("  Trim  me ", "trim-me"), ("", "")], body=fn!(row: (string, string)):
@@ -2350,7 +2354,7 @@ can read (`ContextError`), and a sentinel (`Members.end`).
 ## Across The Three Groups
 
 The three groups agree on the main shapes. A builder is plain data with
-bare-noun setters that take `mut self` (`Request`, `Client`, `Command`,
+bare-noun setters that take `&mut self` (`Request`, `Client`, `Command`,
 `ArgParser`), and its terminal is one bang call (`send!`, `run!`). A
 policy is a literal with defaults (`Backoff`). Text reads into a type
 through `Parse`, `Deserialize` or `Cli`, and the string-keyed layer stays
@@ -2366,7 +2370,7 @@ a rule:
    `Sha256.update` return the value, but `StringBuilder.push` and
    `push_char` return `void`, though each feeds a value to one terminal
    (`build`, `finish`). Recommendation: one rule, "a value with a
-   terminal call chains", so `push` returns `mut StringBuilder`, as Java's
+   terminal call chains", so `push` returns `&mut StringBuilder`, as Java's
    `append` does. Containers keep theirs (`List.push`, `Set.insert`).
    Statements are unaffected: only a `Result`, a `T?` or a suspension
    must be used.

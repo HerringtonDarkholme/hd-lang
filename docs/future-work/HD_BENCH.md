@@ -1162,10 +1162,6 @@ parser SHA-256 `714ee363867f02fd4819ed64599a7be7143c1c0630c0b5e14c6264b5cb846271
 | Sampling/comparison pseudo-code | Proposed Rust-like interfaces, not current compiled exports. |
 | Statistical controls | Deterministic Python executed; synthetic data and raw resamples retained, not workload performance. |
 
-Raw commands, source/tool hashes, exact programs, failed construction attempts,
-statistical datasets, reference source files and final gates are preserved in
-`/private/tmp/muse-184-rewrite-1792783924512568000`.
-
 Thirteen actual construction diagnostics are logged verbatim. The deliberate
 missing-module probe is not counted as an accidental writing mistake.
 No compiler, std, spec, fixture, ad-hoc runner or sorting implementation is edited.

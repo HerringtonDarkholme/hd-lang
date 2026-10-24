@@ -47,7 +47,7 @@ checking.
   `hd run`, `hd test` and the REPL, and an optimized pipeline for
   `--release`. Optimizations run in the optimized pipeline only.
 - The first release targets Wasm only, run on wasmtime inside `hd` or on
-  V8. A native backend with its own GC: not built yet; see #188.
+  V8. No native backend is planned (#188 closed).
 - The compiler process has no memory cap. The shared cache defaults to
   10 GB with LRU eviction.
 - Release builds omit the standard `name` section and keep the compact

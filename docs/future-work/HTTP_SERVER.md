@@ -1,28 +1,32 @@
 # HTTP Server Handlers
 
-Status: design proposal, 2026-10-23; domains: stdlib, CLI and tooling, runtime and host.
-Nothing here is accepted behavior or a specification change.
-This answers [#266](https://github.com/HerringtonDarkholme/hd-lang/issues/266) under its [revised scope](https://github.com/HerringtonDarkholme/hd-lang/issues/266#issuecomment-6375211580).
+Status: design record, 2026-10-24. The direction is decided; the SDK and its host capability are not built.
+This answers [#266](https://github.com/HerringtonDarkholme/hd-lang/issues/266) under its [revised scope](https://github.com/HerringtonDarkholme/hd-lang/issues/266#issuecomment-6375211580), with the owner's decisions of 2026-10-24 on that issue.
 It continues the unreviewed [research notes at 187e5a93e](https://github.com/HerringtonDarkholme/hd-lang/blob/187e5a93e/docs/future-work/http-server/NOTES.md).
 
+**Decided design.**
+An application is an ordinary `main!`, with no HTTP-specific entry ([#806](https://github.com/HerringtonDarkholme/hd-lang/issues/806), direction A).
+One Wasm instance is retained per adapter; request state lives in one explicit state object.
+`HttpServer` is a capability owned by a server SDK package and delivered through package-declared host capabilities, which [#51](https://github.com/HerringtonDarkholme/hd-lang/issues/51) designs.
+Packaging is done by SDK tasks such as `hd run deploy-cloudflare` and `hd run deploy-vercel`; there is no `hd build` flag.
+The order is #51's minimum first, then the adapters of #266.
+
 The records under review are [Http](../../spec/std/http.md), [Task](../../spec/std/task.md), [entry points](../../spec/lang/10-modules.md#entry-point), and [program instances](../../spec/lang/10-modules.md#instances-and-threads).
-[CLI executable selection](../../spec/cli/command-line.md#executables) also needs extension.
-General embedding [#51](https://github.com/HerringtonDarkholme/hd-lang/issues/51) stays deferred.
-The larger application model [#806](https://github.com/HerringtonDarkholme/hd-lang/issues/806) remains open beyond the minimal lifetime described here.
+The application model [#806](https://github.com/HerringtonDarkholme/hd-lang/issues/806) is closed with direction A; the SDK boundary, deployment profile, and lifecycle policies stay open there.
 
 ## Contents
 
 - [Problem And Fixed Use Cases](#problem-and-fixed-use-cases)
-- [What Works Today And The Registration Gap](#what-works-today-and-the-registration-gap)
+- [What Works Today](#what-works-today)
 - [Prior Art](#prior-art)
 - [Platform Limits And JSPI](#platform-limits-and-jspi)
-- [Options On The Same Use Cases](#options-on-the-same-use-cases)
-- [A Handler Entry](#a-handler-entry)
+- [Options](#options)
+- [Application Entry](#application-entry)
 - [Bodies And HTTP Mapping](#bodies-and-http-mapping)
 - [Concurrency, Cancellation, And State](#concurrency-cancellation-and-state)
 - [Capabilities And Grants](#capabilities-and-grants)
-- [Architecture And Core-Wasm ABI](#architecture-and-core-wasm-abi)
-- [CLI And Deployment Workflows](#cli-and-deployment-workflows)
+- [Architecture](#architecture)
+- [Packaging And Deployment](#packaging-and-deployment)
 - [Semantics And Counterexamples](#semantics-and-counterexamples)
 - [Cost And Measurements](#cost-and-measurements)
 - [Stress Test](#stress-test)
@@ -54,48 +58,24 @@ Routing is ordinary hd code over `Request` for v1.
 There is one registered handler per executable, not a router registration language.
 Cron, queues, WebSockets, durable objects, TLS termination, and application startup hooks remain outside this job.
 
-## What Works Today And The Registration Gap
+## What Works Today
 
-The ordinary signature already checks:
+A public function named `handle!` is an ordinary function.
+[Entry rules](../../spec/lang/10-modules.md#entry-point) recognize parameterless `main` or `main!`, and the design adds no other entry.
+The single runtime root runs one `main!`, which can join several worker loops with `all!`.
 
-```text
-use std.http.{Request, Response}
+The [runnable control](http-server/prototype/app/src/main.hd) calls an ordinary typed `handle!` from `main!`.
+It exchanges a JSON envelope through Args and Console, solely to exercise today's typed code and runtime.
+Application logging would corrupt that bridge, and production uses the SDK capability instead.
+The prototype `gap` package declares a `kind = "handler"` manifest key that the design rejects; the checker ignores it with `unknown-manifest-key`.
 
-pub fn handle!(request: Request) -> Response:
-    Response { status: 200, body: request.url.to_utf8() }
-```
-
-A public function named `handle!` is currently an ordinary function.
-[Entry rules](../../spec/lang/10-modules.md#entry-point) recognize parameterless `main` or `main!`.
-The backend's [Entry enum](../../crates/hd_wasm_linear/src/lib.rs) likewise describes existing program, script, test, and session entry forms.
-The single runtime root cannot represent overlapping handlers in one instance.
-
-The [minimal gap package](http-server/prototype/gap/hd.toml) supplies this proposed manifest:
-
-```toml
-[package]
-name = "handler-gap"
-
-[[executable]]
-name = "handler"
-module = "handler"
-kind = "handler" # proposed key; ignored today
-```
-
-The current checker and builder both report this exact warning:
-
-```console
-unknown-manifest-key: `executable.0.kind` has no meaning in `hd.toml`, so it is ignored
-```
-
-Building succeeds as an empty script: 402 bytes, no imports, exports `hd.init`, `hd.poll`, and `hd.x`.
-There is no handler export and no request delivered to the ordinary function.
-Successful checking is therefore not evidence that handler registration works.
-
-The [runnable control](http-server/prototype/app/src/main.hd) calls `handle!` from `main!` instead.
-It exchanges a JSON envelope through Args and Console, solely to exercise today's typed handler and runtime.
-Production uses the typed ABI below; application logging must never be interpreted as a response.
-No compiler, stdlib, host, or spec implementation changes accompany this proposal.
+Current-compiler controls on Node and workerd 1.20261023.1 show the retained-instance shape working.
+An ordinary `main!` with four joined worker loops and one state object serves sequential requests that count 1, 2, 3.
+Four overlapping outgoing requests reach peak upstream concurrency four.
+One request may start its second fetch while another request causes the poll, so each request needs its own I/O scope.
+The SDK gives each request a lease-scoped I/O dispatcher, and an adversarial ordering then passes on both hosts.
+These controls use a private Console bridge, not the public capability.
+Disconnect and deadline cleanup, body limits, packaging, Vercel and hosted deployment are not yet proven.
 
 ## Prior Art
 
@@ -129,8 +109,7 @@ Cancellation is cooperative, while runaway work needs a host backstop.
 The current HTTP ingress requires WASI P3 rather than hd's core-Wasm ABI.
 
 The useful lesson is the separation of request handlers from stateful application services.
-A root table would move hd toward the latter, including its trap and shared-state obligations.
-That is a valid later #806 design, not an unavoidable prerequisite for stateless handlers.
+The chosen design is the latter: one retained instance with a lease per request, including its trap and shared-state obligations.
 Copying only the shared instance while omitting supervision would copy its costs without its protections.
 
 ### Fastly Compute: A Request Is A Program Invocation
@@ -212,82 +191,32 @@ Its [Request documentation](https://developers.cloudflare.com/workers/runtime-ap
 A portable provider must implement hd's redirect policy using manual redirects and recheck each destination's grant.
 The control instead refuses redirect fixtures and makes no full Http-provider conformance claim.
 
-## Options On The Same Use Cases
+## Options
 
-### Smallest: One Instance And A Queue
-
-Keep the single root and admit one request at a time.
-This reuses current runtime ownership and allows warm state, but one slow U3 request delays unrelated U1/U2 requests.
-A CPU loop also blocks cancellation and the entire queue.
-It cannot provide useful overlapping request handling on an isolate.
-
-This is a useful control, not the recommended server.
-A queue still needs bounded length, deadlines measured before admission, and a defined overload response.
-Removing a root table does not remove those server obligations.
-
-### Fresh Instance Per Request, Shared Compiled Module
-
-Compile or statically import one module, then instantiate it separately for each admitted request.
-Each instance retains the existing single root and its own host-operation table.
-Its memories have explicit profile maxima; request isolation does not provide process or isolate isolation.
-
-U1/U2 need the same typed handler; U3 awaits platform fetch; U4 cancels only its own instance.
-No request can retain an hd reference into another request's heap.
-
-This repeats initialization and allocates memories per request.
-It deliberately provides no warm hd globals or connection pool shared between requests.
-The host may cache immutable compiled code and configuration, while durable data lives in an external service.
-Admission and body limits bound concurrent memory rather than hoping the isolate limit is sufficient.
-
-### One Reusable Instance With A Root Table
-
-Add request handles to root ownership, poll, wake, cancel, result storage, and cleanup.
-Every request operation needs association with its root; a trapped instance invalidates every active request.
-U1–U4 can then share application caches and overlap I/O with less per-request initialization.
-That is attractive when actual workload measurements justify it.
-
-It also creates shared mutable hd state across suspension points.
-An async interleaving can invalidate a read-modify-write sequence even without threads.
-The design must prevent stale handles, cross-request cancellation, retained secret data, and reentrant entry while another root is active.
-Those costs belong in #806 before this becomes the default.
-
-| Case | Single queued instance | Fresh instance | Shared roots |
-| --- | --- | --- | --- |
-| U1/U2 JSON | Works; later requests queue. | Works; state starts fresh. | Works; shared-state policy required. |
-| U3 outgoing HTTP | Serial bottleneck during upstream waits. | Concurrent requests demonstrated in controls. | Concurrent roots need new runtime machinery. |
-| U4 timeout/disconnect | Cancels current request; queue policy still needed. | Current single-root cleanup applies independently. | Must address exactly one root; trap affects siblings. |
-| Across-request state | Warm but not durable. | No hd sharing; external state explicit. | Warm but not durable; supervision required. |
-| Costliest new mechanism | Entry registration. | Entry registration. | Entry registration plus runtime root ownership. |
+- **Chosen: one retained instance per adapter.** An ordinary `main!` joins worker loops over one state object; the SDK scopes each request's I/O to a lease.
+- **Rejected: a single instance with a queue.** One slow upstream call delays unrelated requests, so it cannot overlap I/O.
+- **Rejected: a fresh instance per request.** It repeats initialization and gives no warm state, and the owner chose one retained instance.
+- **Rejected: a root table with request handles.** It adds runtime root ownership that the ordinary-`main!` shape does not need.
 
 No option needs new hd syntax or the Component Model.
-The fresh-instance option adds fewer mechanisms than shared roots while satisfying the four fixed cases.
-Its memory and initialization costs must still pass the measured acceptance conditions below.
 
-## A Handler Entry
+## Application Entry
 
-**Proposed complete application signature:** `pub fn handle!(request: Request) -> Response $ Http + Clock`.
-The application explicitly declares its concrete row; it has no generic row parameter.
-There are no generic parameters, borrowed boundary values, extra arguments, implicit context object, or overloads.
-The selected entry must be public, top-level, named `handle!`, and return exactly `std.http.Response`.
+The entry is an ordinary `main!`, such as `pub fn main!() -> void $ HttpServer + Clock`; the application declares its concrete row.
+There is no `handle!` entry, no manifest `kind = "handler"`, and no HTTP-specific compiler entry convention.
+The compiler and the entry rules are unchanged.
 
-The manifest's proposed `kind = "handler"` selects this convention for one executable module.
-Omitting `kind` preserves existing executable behavior.
-The handler module has no executable `main`; an explicit handler selection determines its entry.
-Unknown or inconsistent entry declarations produce a diagnostic before output is written.
+The SDK package supplies `HttpServer`, a capability trait whose requests and responses are boundary-safe `Request` and `Response` values.
+Package-declared host capabilities deliver it ([#51](https://github.com/HerringtonDarkholme/hd-lang/issues/51)); the capability's exact signature belongs to that design.
+Routing is ordinary hd code over `Request`.
 
 Return application errors as ordinary responses.
 A handler may use `Result` internally and map its own validation error to 400, or its upstream failure to 502.
-The entry itself returns `Response`, avoiding a new server error hierarchy or conflating errors with client `HttpError`.
 Uncaught panic or trap becomes a generic host 500 and a private diagnostic event.
 
 Reusing `Request` and `Response` needs no new std builder or convenience combination.
 Their public field constructors are the atoms; existing JSON encode/decode and body APIs cover common handlers.
-The 80% path is one function plus one manifest entry.
 Streaming types wait until the whole-body boundary is implemented and measured.
-
-The compiler necessarily knows this entry convention.
-Future entry typing and registration rules belong in the language tier; executable selection and artifacts belong in the CLI tier.
-Any ordinary server library added later belongs in the stdlib tier if it passes the tier test.
 This document adds or retires no rule IDs.
 
 ## Bodies And HTTP Mapping
@@ -325,10 +254,11 @@ A future trusted-proxy option must specify that trust boundary explicitly.
 
 ## Concurrency, Cancellation, And State
 
-An admitted request owns one instance, one driver, one operation table, and one cancellation controller.
-Its children continue to use ordinary `all!`, `race!`, `timeout!`, and cleanup semantics.
+One instance is retained and runs one `main!` whose children are worker loops.
+Each admitted request has a lease: its ID, deadline, cancellation controller, and the outgoing operations it owns.
+Children use ordinary `all!`, `race!`, `timeout!`, and cleanup semantics.
 JavaScript schedules requests concurrently at suspension boundaries; this does not add shared-memory threads to hd.
-A slot is released only after response bytes are copied out and cleanup finishes or is abandoned.
+A lease is released only after response bytes are copied out and cleanup finishes or is abandoned.
 
 **Proposed host deadline:** 20 seconds from admission, with a 100 ms cleanup bound.
 A handler's shorter `timeout!` remains an ordinary library operation whose error the handler can map to a response.
@@ -337,7 +267,8 @@ The platform may terminate sooner; cleanup is best effort under an external hard
 
 Disconnect requests graceful cancellation once, then abandonment at the cleanup deadline.
 Each outstanding fetch owns an AbortController; cancellation or disposal releases it even if the Promise has completed but its result was not consumed.
-Late Promise callbacks inspect the closed request generation and cannot wake a replacement request.
+Late Promise callbacks inspect the closed lease generation and cannot wake a later request.
+The SDK dispatches each outgoing operation to the coroutine of the request that owns it, even when another request caused the poll.
 No request starts detached background work or relies on `waitUntil` in this first version.
 
 The admission limit is eight active requests; there is no unbounded waiting queue.
@@ -345,14 +276,14 @@ Additional requests receive 503 with Retry-After and an overload event.
 This avoids retaining whole untrusted request bodies while waiting for memory.
 A later configurable limit must still respect the host's aggregate memory budget.
 
-Top-level bindings and references exist for one request only.
-No application cache or counter survives by promise across requests; even a reusable host isolate is not durable storage.
-The compiled module and immutable grant configuration may survive in JavaScript.
+Application state lives in one explicit state object that the worker loops share.
+It lasts as long as the retained instance and is not durable: a restart or an isolate eviction loses it.
+Interleaving at suspension points can invalidate a read-modify-write sequence, so the state object must be written without a suspension in between.
 Use a granted external HTTP service for persistent data until platform storage capabilities receive their own design.
 
 A CPU loop never returns to JavaScript, so a timer cannot preempt it inside the same isolate.
 Node local hosting uses a bounded worker pool, one active request per worker, to enforce a hard deadline; edge hosting relies on platform CPU limits.
-Workers reuse compiled modules but create fresh instances; terminate and replace a worker that misses its hard deadline.
+Each worker keeps one retained instance; terminate and replace a worker that misses its hard deadline.
 Worker startup and dispatch overhead are not measured by the sub-millisecond instantiation control.
 
 Do not advertise the 20-second cooperative deadline as a bound on arbitrary non-yielding edge guest code.
@@ -390,133 +321,48 @@ Do not serialize deployment environment values into generated JavaScript, caches
 Expose string bindings only; Cloudflare service objects and storage bindings need separately typed capabilities later.
 Destination checking must cover scheme, host, redirects, ports, and literal/local addresses consistently with the selected profile.
 
-## Architecture And Core-Wasm ABI
+## Architecture
 
-The request ABI reuses [structured-value encoding](../../crates/hd_run_wasmtime/DESIGN.md#174-encoding-structured-values), not JSON.
-Request and Response are boundary-safe values; no reference, suspension, or host object crosses the boundary.
+The request crosses the host boundary as a [structured value](../../crates/hd_run_wasmtime/DESIGN.md#174-encoding-structured-values), not JSON.
+`Request` and `Response` are boundary-safe values; no reference, suspension, or host object crosses.
 The exchange buffer is copied before another export or callback can overwrite it.
-A frame owns the decoded Request and the eventual Response under ordinary value and RC rules.
+The exact exports and descriptors come from the package host capability design of #51; this record fixes only the shape.
 
-| Proposed export | Contract |
-| --- | --- |
-| `hd.init()` | Existing module initialization; exactly once for the fresh request instance. |
-| `hd.serve.start(request_len: i32)` | Decode one Request from `hd.x`; create its cold root; reject repeated start. |
-| `hd.poll(ctx: i32) -> i32` | Existing pending/completed/cancelled status protocol; context zero belongs to this request. |
-| `hd.wake(count: i32)` | Existing completion-handle delivery within this instance. |
-| `hd.cancel()` / `hd.abandon()` | Existing root cleanup protocol. |
-| `hd.serve.finish() -> i32` | After successful completion, encode Response into `hd.x`, release the guest result, return length; exactly once. |
-| `hd.x` | Existing exchange memory; no host pointers or shared heap. |
+At runtime: the adapter admits a request, reads its body within the limits, creates a lease, and hands the request to the `HttpServer` capability.
+A worker loop in the retained instance takes it, runs the handler, and returns the `Response`.
+The adapter copies the response out, closes the lease's operations and timers, and answers the platform.
 
-The descriptor version is an explicit `hd.server` custom section containing ABI version 1 and the handler's capability row.
-The adapter validates it before accepting requests.
-Versioning avoids interpreting a command module as a handler because a few export names happen to match.
-Inputs are length-checked before allocation; malformed encoded values are host contract failures, not hd application errors.
+Cancellation, deadlines and cleanup use the existing root protocol (`poll`, `wake`, `cancel`, `abandon`) per lease.
+The SDK is the extension point for platform bindings: new bindings need typed capabilities and grant checks before hd code sees them.
 
-### Components And Data Structures
+A trap ends the retained instance and every active request on it.
+The adapter answers each with a generic 500, and the SDK supervisor starts a new instance.
+A panic in one handler is contained by the handler's own `Result` mapping or by the supervisor, not by instance isolation.
+A platform hard kill can bypass hd cleanup; neither RC nor the lease makes an external effect transactional.
 
-| Component | Fields / reused facts |
-| --- | --- |
-| `Entry::Handler` | Handler DefId and instance key, init keys, Request decoder and Response encoder keys; reuse existing entry lowering. |
-| `HandlerDescriptor` | ABI version, row trait IDs, module digest; derives from checked signature and manifest selection. |
-| `ServerConfig` | Target, executable, allowed destinations and Env names, body/header limits, concurrency, deadline, cleanup bound. |
-| `RequestLease` | Request ID, generation, instance, host, signal listener, slot token, deadline timer, closed flag. |
-| `PendingFetch` | Operation handle, AbortController, ready flag, result/error, owning lease generation. |
-| `ModuleCache` | Immutable compiled module by source/build digest and profile; no instance or request value retained. |
+The build cache key includes compiler, source and dependency digests, target profile, and relevant grant-name configuration.
+Secret values never enter it, so changing only deployment secrets does not recompile Wasm.
 
-Flow: select executable → validate typed entry → monomorphize its ordinary body → emit entry wrappers and descriptor → package adapter.
-At runtime: admit → bounded body read → instantiate → initialize → encode/start → poll/wake → copy result → close lease → platform response.
-No root table, shared heap, new scheduler, or new std task primitive is introduced.
-Fresh instances preserve the existing cancellation tree rather than adding a second task system.
+## Packaging And Deployment
 
-### Driver Pseudocode
-
-```rust
-async fn serve(platform_request, module, config) -> PlatformResponse {
-    let slot = match config.slots.try_acquire() {
-        Some(slot) => slot,
-        None => return overload_response(),
-    };
-    let mut lease = RequestLease::new(slot, platform_request.signal(), config);
-    let result = async {
-        let request = read_bounded_request(platform_request, lease.deadline).await?;
-        let host = portable_host(config.grants, lease.generation);
-        let instance = instantiate(module, host.imports());
-        lease.attach(instance, host);
-        lease.call_init().await?;
-        lease.copy_request_into_exchange(request)?;
-        lease.call_start().await?;
-        loop {
-            match lease.call_poll(0).await? {
-                Complete => break,
-                Cancelled | Abandoned => return Err(RequestCancelled),
-                Pending => {
-                    match lease.wait_for_ready_or_cancel().await {
-                        Ready(handles) => lease.call_wake(handles).await?,
-                        Stop => lease.call_cancel_once().await?,
-                        CleanupExpired => lease.call_abandon_once().await?,
-                    }
-                }
-            }
-        }
-        let length = lease.call_finish().await?;
-        let response = lease.copy_response_from_exchange(length)?;
-        validate_downstream_response(response, config)
-    }.await;
-    lease.close_all_operations_and_timers();
-    lease.release_instance_and_slot();
-    map_result_to_platform_response(result)
-}
-```
-
-The calls are asynchronous wrappers even when a normal export completes synchronously.
-That permits an optional JSPI implementation without changing the HTTP mapping or application signature.
-The no-JSPI wrapper completes ready `rt.block` operations and refuses only a truly pending synchronous wait.
-It must not retain a stale exchange-buffer view across memory growth or suspension.
-
-### Cache, Extensions, And Failure Isolation
-
-The build cache key includes compiler, source/dependency digests, target profile, ABI version, and relevant grant-name configuration.
-Secret values never enter it.
-Changing only deployment secrets does not recompile Wasm; changing a row or adapter ABI does.
-Package and workspace selection reuse existing executable selection rather than scanning arbitrary modules for public handlers.
-
-A panic or trap discards one instance and aborts its host operations.
-The compiled module remains reusable; another request does not inherit partially mutated globals.
-Catchable allocation failures and invalid responses produce generic 500s with private request-associated events.
-A platform hard kill can bypass hd cleanup; neither RC nor a fresh instance makes an external effect transactional.
-
-The first extension seam is the platform adapter, not user-provided arbitrary imports.
-New platform bindings need typed capabilities and grant checks before being exposed to hd.
-A future streaming boundary may add host handles and resource lifetime rules under a new ABI version.
-A future stateful service may choose shared roots after #806, without changing stateless handlers' guarantees silently.
-
-## CLI And Deployment Workflows
-
-These are proposed commands and generated files, not commands available today.
-Keep deployment as an explicit platform-tool step; `hd build` does not upload or request account credentials.
+The server SDK package ships its own packaging tasks; hd's core stays platform-neutral and gains no `hd build` flag.
+Each task takes the built `build/<profile>/NAME.wasm` and emits the platform wrapper, the Wasm asset, host modules and platform config.
+If a JS wrapper or host module the SDK needs is missing from the CLI's embedded host files, report the exact gap.
+Deployment stays an explicit platform-tool step; a packaging task does not upload or request account credentials.
 
 | Use case | Commands and observable result |
 | --- | --- |
-| U1 | Declare handler executable; `hd build api --target cloudflare`; validate with Wrangler dry-run; deploy generated Worker; POST JSON; receive typed JSON or 400. |
-| U2 Node | Same source; `hd build api --target vercel-node`; inspect `.vercel/output`; `vercel deploy --prebuilt`; send the same JSON request. |
-| U2 Edge | `hd build api --target vercel-edge`; inspect static Wasm import and Edge config; platform dry-run/build; deploy prebuilt output. |
-| U3 | `hd run api --listen 127.0.0.1:3000 --cap Http=example.test`; listener prints URL; request awaits upstream; denied destinations return the existing Http error to hd. |
+| U1 | `hd build`; `hd run deploy-cloudflare`; validate with a Wrangler dry run; deploy; POST JSON; receive typed JSON or 400. |
+| U2 Node | Same source; `hd run deploy-vercel` emits `.vercel/output`; `vercel deploy --prebuilt`; send the same JSON request. |
+| U2 Edge | The same task with an Edge option emits the static Wasm import and Edge config; platform dry run; deploy prebuilt output. |
+| U3 | `hd run` of the application starts the local Node listener; a request awaits an upstream call; denied destinations return the existing Http error to hd. |
 | U4 | Call `/timeout`; read 504; inspect timeout and cleanup events; disconnect a slow request and confirm its fetch is aborted. |
 
-The proposed `--target` values select an artifact profile, not an hd language target or Component Model world.
-Existing executable `--engine` behavior remains unchanged for command programs.
-A handler defaults to the Node development server; requesting a native Wasmtime listener in v1 is an explicit unsupported selection.
-Native tests still exercise the typed handler, codecs, and cancellation through a test driver.
-
-**Configuration precedence:** existing manifest grants, then explicit local `--cap`; build target from explicit `--target` or a handler's configured default.
-Reject mutually exclusive output targets and a handler combined with command-only stdin/argument options.
-Use the selected package's executable in a workspace; require explicit selection when ambiguous.
-The listener flag is local only and never changes production platform routing.
-
-Initial operational limits above are profile constants, recorded in emitted metadata.
-Do not add an unbounded list of tunables before measuring them.
+Grants come from existing package configuration and explicit local CLI overrides.
+The listener is local only and never changes production platform routing.
+A native Wasmtime listener is not part of v1; native tests exercise the typed handler and cancellation through a test driver.
 Build artifacts are written under the selected output directory with atomic replacement after successful validation.
-Never write above the selected package or overwrite unrelated platform files silently.
+A task never writes above the selected package or overwrites unrelated platform files silently.
 
 | Artifact | Contents |
 | --- | --- |
@@ -528,58 +374,36 @@ Never write above the selected package or overwrite unrelated platform files sil
 The [Build Output API's function primitives](https://vercel.com/docs/build-output-api/primitives) distinguish runtime and entrypoint configuration.
 Generated Edge packaging must be tested with Vercel's actual Wasm-module handling before shipping that target.
 A local VM test does not establish that a raw static import will be bundled correctly by the hosted build pipeline.
-Platform build validation is an explicit acceptance gate for the implementation slice.
+Platform build validation is an explicit acceptance gate for the packaging slices.
 
-### Output And Exit Statuses
-
-Human output reports the selected executable, target, output directory, size, and local listener URL where applicable.
-JSON mode emits one record per build or server event; it never mixes application response bodies into that stream.
-Preserve existing diagnostic records and final build summaries.
-
-```json
-{"kind":"server-listening","executable":"api","url":"http://127.0.0.1:3000"}
-{"kind":"server-request","id":"17","status":504,"duration_ms":12,"outcome":"handler-response"}
-{"kind":"server-error","id":"18","reason":"unsupported-sync-wait","message":"pending block_on requires JSPI on this host"}
-```
-
-Event fields are versioned CLI output, not an application logging schema.
-Request IDs, status, elapsed time, cancellation/abandonment, and sanitized source frames are useful by default.
+Server events are versioned SDK output, not an application logging schema.
+Request IDs, status, elapsed time, cancellation or abandonment, and sanitized source frames are useful by default.
 Headers, bodies, Env values, and upstream credentials are excluded from default events.
-Console output carries the request ID and remains separate from transport response data.
-
-Build success exits 0; invalid source/configuration uses existing failure status 101.
-A listener startup or bind failure reports a diagnostic and exits 101.
-An individual 400/500/504 response does not terminate the local server.
-Graceful process termination stops admission, cancels active requests, applies the cleanup bound, then closes the listener.
-
 Generated files must work on macOS, Linux, and Windows without shell-specific execution.
-Node's local hard-timeout supervisor and platform adapters receive separate focused tests.
-No native-host behavior is inferred from a Node-only pass.
-The absence of a native production listener is explicit v1 scope, not implied engine parity.
 
 ## Semantics And Counterexamples
 
 | Existing rule area | Required handling | A naive implementation fails when… |
 | --- | --- | --- |
 | [Value/reference semantics](../../spec/lang/13-values-and-references.md) | Copy boundary values; no cross-instance references. | A Response stores a pointer into a discarded request heap. |
-| [Entry points](../../spec/lang/10-modules.md#entry-point) | Add one explicit entry kind. | A checked public `handle!` is assumed to be an exported request handler. |
-| [Program instances](../../spec/lang/10-modules.md#instances-and-threads) | Separate mutable globals and drivers. | A second request overwrites the first instance's single root. |
-| [Initialization](../../spec/lang/10-modules.md#initialization-order) | Initialize each instance once under existing requirement restrictions. | A top-level cache is advertised as persistent but is rebuilt for every request. |
+| [Entry points](../../spec/lang/10-modules.md#entry-point) | Keep `main!` as the only entry. | A checked public `handle!` is assumed to be an exported request handler. |
+| [Program instances](../../spec/lang/10-modules.md#instances-and-threads) | One retained instance with one root; per-request state lives in the lease. | A second request overwrites the first request's lease state. |
+| [Initialization](../../spec/lang/10-modules.md#initialization-order) | Initialize the retained instance once under existing requirement restrictions. | A state object is advertised as durable but is lost on restart. |
 | [Boundary-safe values](../../spec/lang/10-modules.md#boundary-safe-values) | Use the existing Request/Response value encoding. | A platform Request object or mutable reference is passed as if it were an hd value. |
 | [Requirement rows](../../spec/lang/10-modules.md#entry-point) | Explicit row; validate every imported capability against the profile. | Local Process access succeeds although a deployment cannot bind it. |
 | [Http query semantics](../../spec/std/http.md#request-builder) | Preserve the full URL and leave incoming query pairs empty. | Forwarding appends the original query twice. |
 | [Cancellation](../../spec/std/task.md) | Cancel the request root; bound cleanup; abandon only after the bound. | Disconnect drops the instance before `defer` or dispose runs. |
-| [Panics](../../spec/lang/06-control-flow.md) | Fail one request and abort its operations. | A poisoned shared instance serves another request with partially mutated state. |
+| [Panics](../../spec/lang/06-control-flow.md) | A trap ends the instance and answers every active request with 500; the supervisor restarts it. | A poisoned instance keeps serving with partially mutated state. |
 | [Header pairs](../../spec/std/http.md#requests-and-responses) | Preserve exposed multiplicity and host framing. | Combining Set-Cookie values changes cookie meaning. |
 
-Generics remain ordinary body-level generics; the registered boundary itself is monomorphic.
-Closures and their captures remain inside a request instance.
-Suspension does not extend a request beyond its host lifetime, and copied `&mut` references are not exclusive locks.
+Generics remain ordinary body-level generics; the host boundary itself is monomorphic.
+Closures and their captures remain inside the instance.
+Suspension does not extend a request beyond its lease, and copied `&mut` references are not exclusive locks.
 Trait providers chosen through `$.with` retain normal lexical/dynamic behavior within that request.
 
 The concrete counterexamples are also executable controls where today's surface permits them.
-The gap package demonstrates registration; the query and invalid-UTF-8 tests demonstrate mapping; the blocking route demonstrates event-loop waiting.
-Shared-reference and cross-root behavior cannot be demonstrated through a nonexistent server ABI and is not claimed as implemented.
+The gap package demonstrates that no registration exists; the query and invalid-UTF-8 tests demonstrate mapping; the blocking route demonstrates event-loop waiting.
+Lease and cross-request behavior of the SDK is not claimed as implemented.
 The future codec and multi-request fixtures must test those boundaries directly.
 
 ## Cost And Measurements
@@ -603,48 +427,23 @@ Measurements must be repeated on the actual generated handler artifact before ac
 | Concurrent fetch | Eight active upstream requests observed on Node, workerd, and the Edge VM; Node control completed the group in about 40 ms. |
 
 The 64 KiB heap figure covers a small request, not an upper bound after memory growth.
-Fresh instances reserve memories and hold copied bodies while active.
+Active requests hold copied bodies.
 At eight requests and one MiB bodies, multiple input/output/exchange copies can dominate the initial one MiB of aggregate memory.
 The implementation needs an aggregate byte budget, not merely a per-body check.
 
-The proposed server profile caps guest heap memory at four MiB and exchange memory at two MiB per instance.
-Reserve another four MiB per slot for retained input/output and provider-side copies, giving ten MiB per slot and eighty MiB for eight.
-Enforce these maxima in the handler module's memory declarations and bounded host readers, including outgoing Http responses.
-A guest allocation failure fails that request; exceeding an isolate-wide platform limit can still fail sibling requests.
+The SDK profile sets the memory maxima of the retained instance and the bounded host readers, including outgoing Http responses.
+A guest allocation failure ends the instance; exceeding an isolate-wide platform limit can also fail sibling requests.
 
 The remaining platform memory headroom must cover JavaScript objects, compiled code, engine overhead, and transient read chunks.
 These are proposed limits, not a measured proof of Cloudflare's peak memory use.
-Profile maximum-sized bodies with eight requests before acceptance; lower admission or body limits if peak isolate usage exceeds 100 MiB.
+Profile maximum-sized bodies with eight overlapping requests before acceptance; lower admission or body limits if peak isolate usage exceeds 100 MiB.
 A runtime that cannot enforce or measure the required quota must not advertise the portable server profile.
 
 ### Bottom-Up Implementation Budget
 
-Exact source sizes below are `wc -l` physical lines at base `adaeaea81b15d6ec6c94ba436cab33f913b4a122`.
-They identify existing machinery; they are not claimed deletions.
-No existing host module is replaced wholesale.
-Added lines are planning budgets, split into independently reviewable pieces.
-
-| Component | Existing code and exact file lines | Replaced lines | Proposed added lines |
-| --- | --- | --- | --- |
-| Selection/validation | `hd_project/src/manifest.rs`: 867; driver `lib.rs`: 10,626 | 0 | 35 manifest + 65 typed entry/row validation. |
-| Entry lowering | backend `lib.rs`: 603; `task.rs`: 2,121 | 0 | 25 entry metadata + 120 start/result wrappers + 10 memory-limit emission; reuse root poll/cancel. |
-| Typed boundary | `host/wire.mjs`: 211; generated `abi.mjs`: 531 | 0 | 65 Rust ABI metadata + 65 generated JS codec/descriptor lines. |
-| Portable request driver | `host/core.mjs`: 1,307 | 0 | 100 lease/admission/cleanup + 45 ready-only block/optional async call hooks. |
-| Fetch provider | `host/http.mjs`: 231, currently Node-oriented | 0 | 150 fetch/redirect/grant/error/body adaptation. |
-| Node listener | `host/node.mjs`: 1,046, retained for commands | 0 | 100 HTTP mapping + 80 supervision/shutdown. |
-| CLI/artifacts | CLI `main.rs`: 1,327; `engine.rs`: 957; `node.rs`: 850 | 0 | 85 selection/output + 120 platform packaging. |
-| Platform shims | Browser `host/web.mjs`: 133, unchanged | 0 | 25 Workers + 35 Vercel Node + 35 Vercel Edge. |
-| Focused tests/docs | New cases for this boundary | 0 | 200 fixtures/driver tests + 100 adapter tests; prose counted separately. |
-
-Budget totals are 525 implementation Rust/metadata lines and 635 implementation JavaScript lines, plus 300 test lines.
-These are estimates grounded in the current bridge and existing machinery, not a measured reference implementation of the missing ABI.
-No new core task scheduler or root table is budgeted.
-If entry lowering requires broader ownership/runtime changes, stop and rescope rather than charging them to a small adapter row.
-
+The budget for the withdrawn handler entry, with its compiler entry lowering and per-request instances, no longer applies.
+The SDK package, its host capability under #51, and the adapters are budgeted bottom-up in their own issues, before code.
 Each component stops for review above 1.5 times its allocated added-line budget.
-Count nonblank code separately in implementation reports, with generated files distinguished from hand-written source.
-Also stop if fresh-instance initialization exceeds one millisecond median for this control, or the representative artifact exceeds 512 KiB gzip.
-Those are proposed review thresholds, not claims of general service latency.
 
 ### Compile Time, Runtime, And Compiler Footprint
 
@@ -653,15 +452,15 @@ It does not measure a new compiler path's compile-time overhead because that pat
 An implementation must compare interleaved baseline/candidate builds for hello and this handler, keeping all trials and source hashes.
 Report parse/check/mono/emit time, total time, Wasm functions/code bytes, and request initialization separately.
 
-Command hello must pay zero handler exports, helper functions, or imports when no handler entry is selected.
+Command hello must pay zero handler exports, helper functions, or imports when no HTTP SDK is linked.
 This proposal changes no executable compiler bytes and makes no new hello size claim.
-The implementation's web compiler gzip gate remains a hard two MB cap; added handler support must be measured against it.
+The implementation's web compiler gzip gate remains a hard two MB cap; added server support must be measured against it.
 The much smaller deployable application bundle is a different artifact and a different limit.
 
 ## Stress Test
 
 This applies the [stress-test method](../../.agents/skills/stress-test/SKILL.md) to the proposed boundary.
-The surface under test is the monomorphic handler, fresh-instance lifetime, whole-body limits, explicit grants, and existing task cleanup.
+The surface under test is the monomorphic handler, the retained instance with request leases, whole-body limits, explicit grants, and existing task cleanup.
 Translations are small behavioral ports, not compatibility implementations of the named libraries.
 “Control” means executed today; “required” means a test for the missing implementation, not a green result.
 
@@ -679,8 +478,8 @@ Translations are small behavioral ports, not compatibility implementations of th
 | S10: Express cookie responses | Return two Set-Cookie pairs, including an Expires comma. | Required adapter test; never split a combined string on commas. |
 | S11: net/http large upload | Chunked body crosses one MiB despite a smaller or absent declared length. | Required bounded-reader test; whole-body `arrayBuffer()` alone fails this case. |
 | S12: HEAD and no-content response | Handler returns bytes with HEAD/204; host emits no body and correct framing. | Required mapping test; direct Fetch Response construction can throw for bodyless statuses. |
-| S13: shared cache / counter | Top-level mutable reference increments across requests. | Deliberately no persistence; friction compared with a reusable service; document external state. |
-| S14: CPU loop and panic | Non-yielding loop or trap during handling. | Trap isolation and Node supervision required; edge cooperative timer alone cannot bound CPU loops. |
+| S13: shared cache / counter | One explicit state object increments across requests. | Control passes on Node and workerd (counts 1, 2, 3); the state is not durable. |
+| S14: CPU loop and panic | Non-yielding loop or trap during handling. | A trap ends every active request on the instance; supervision and Node hard timeouts required; the edge cooperative timer cannot bound CPU loops. |
 | S15: redirect to denied service | Allowed upstream redirects to metadata/local address. | Required manual-redirect grant test; platform auto-follow would bypass the intended check. |
 | S16: wake after disposal | Fetch completes after timeout/abandon and after its slot is reused. | Required generation test; late wake must not touch another instance. |
 
@@ -691,50 +490,45 @@ Each maps to a proposed implementation fixture below.
 
 The highest-risk failures are unbounded buffering, delayed cancellation, and capability bypass on redirects.
 They can silently affect resources or authority despite correct handler typing.
-Fresh instances remove cross-request hd aliases and single-root conflicts, but do not solve those host problems.
-A shared-root implementation adds more failure modes before addressing these three.
+The retained instance and its leases do not solve those host problems.
+The lease keeps one request's outgoing operations from running in another request's platform context.
 
 ## Phasing
 
 Each slice targets roughly one hour and leaves existing command behavior green.
 A slice that needs protected compiler/runtime files first receives explicit scope approval on its implementation issue.
-The design commit itself changes only documentation and runnable research controls.
+The slices follow the owner's order: #51's minimum, then the adapters.
 
 | Slice | Deliverable | Focused acceptance evidence |
 | --- | --- | --- |
-| 1 | Handler manifest selection and signature/row validation, descriptor. | Unknown/missing/private/wrong/generic entry diagnostics; existing command selection unchanged; fmt/clippy. |
-| 2 | Typed single-request start/finish wrappers. | Node/native codec round-trip, malformed lengths, one-shot start/finish, existing command hello byte identity. |
-| 3 | Portable driver and lease cleanup. | Pending/wake/cancel/abandon, late completion, trap, no operation leaks; no-JSPI ready and pending block distinction. |
-| 4 | Fetch provider over platform APIs. | Existing Http cases for redirects, grants, methods, errors and body preservation on Node/workerd/Edge VM. |
-| 5 | Bounded request/response adapter and admission. | Chunked limit, header limit, cookies, HEAD/204/205/304, overload and byte accounting, eight concurrent requests. |
-| 6 | Node development listener and supervision. | Local U3/U4, disconnect, process shutdown, CPU-loop termination; Windows/macOS/Linux targeted coverage. |
-| 7 | Cloudflare packaging. | Static Wasm dry-run bundle, local workerd U1–U4, request-signal compatibility, measured size/startup/memory. |
-| 8 | Vercel Node packaging. | Build Output validation, local function adapter U1–U4, payload cap and deadline/error behavior. |
-| 9 | Vercel Edge packaging. | Actual platform build validation plus Edge VM U1–U4 without JSPI; sanitized pending-sync-wait error. |
-| 10 | Optional JSPI hd driver. | workerd pending `block_on` fetch success, cancellation during suspension, ready calls, traps, fallback host without JSPI. |
-| 11 | Final spec and examples with the responsible implementation slices. | Numbered new IDs per changed meaning, related conformance cases, rewrite summary, web compiler under hard gzip cap. |
+| 0 | #51's minimum: package-declared host capabilities. | Owned by #51; the SDK's `HttpServer` capability builds on it. |
+| 1 | `HttpServer` capability and SDK worker loops over an ordinary `main!`. | Typed request/response round trip; malformed lengths; one retained instance serves sequential requests. |
+| 2 | Lease-scoped I/O dispatcher and cleanup. | Pending/wake/cancel/abandon, late completion, trap, no operation leaks; adversarial request interleaving. |
+| 3 | Fetch provider over platform APIs. | Existing Http cases for redirects, grants, methods, errors and body preservation on Node/workerd/Edge VM. |
+| 4 | Bounded request/response adapter and admission. | Chunked limit, header limit, cookies, HEAD/204/205/304, overload and byte accounting, eight concurrent requests. |
+| 5 | Node development listener and supervision. | Local U3/U4, disconnect, process shutdown, CPU-loop termination; Windows/macOS/Linux targeted coverage. |
+| 6 | `deploy-cloudflare` task. | Static Wasm dry-run bundle, local workerd U1-U4, request-signal compatibility, measured size/startup/memory. |
+| 7 | `deploy-vercel` task, Node. | Build Output validation, local function adapter U1-U4, payload cap and deadline/error behavior. |
+| 8 | `deploy-vercel` task, Edge. | Actual platform build validation plus Edge VM U1-U4 without JSPI; sanitized pending-sync-wait error. |
+| 9 | Optional JSPI hd driver. | workerd pending `block_on` fetch success, cancellation during suspension, ready calls, traps, fallback host without JSPI. |
 
 Spec rules and fixtures ship with the implementing code, not in a detached final semantics-only pass.
-Slice 11 audits their combined coverage and removes obsolete examples; it does not postpone that requirement.
-No full local test suite is required by this proposal; each implementing issue names its focused gates under the current Muse guide.
+No full local test suite is required by this record; each implementing issue names its focused gates.
 CI and the owner verify integration on current main.
 
 ## Recommendation And Approval
 
-**Recommendation:** implement the typed handler entry with a fresh Wasm instance per admitted request and one shared compiled module.
-Use whole bodies with explicit admission and byte budgets, common capability grants, and the existing single-root cleanup model.
-Make the normal async path independent of JSPI; add optional JSPI support as a separately tested host feature.
-Keep shared-root, warm hd state, streaming, and platform-specific services in later designs.
+**Decided (owner, 2026-10-24).** An application is an ordinary `main!`.
+One Wasm instance is retained per adapter, with one explicit state object and a lease per request.
+`HttpServer` is owned by the server SDK and delivered through package-declared host capabilities (#51), which come first.
+Packaging is SDK tasks such as `hd run deploy-cloudflare` and `hd run deploy-vercel`, with no `hd build` flag.
 
-The next best option is a shared-root service when measurements show repeated initialization or external state is the limiting cost.
-That option needs #806's supervision and shared-state answers before it can preserve predictable request isolation.
-The queued single-instance option is smaller but fails the intended concurrency requirement under slow upstream calls.
-The current controls make fresh instances a concrete alternative to the notes' assumed root table.
+Whole bodies with explicit admission and byte budgets, common capability grants, and the existing single-root cleanup model stay as proposed.
+The normal async path is independent of JSPI; optional JSPI support is a separately tested host feature.
+Streaming and platform-specific services stay in later designs.
 
-Approval is needed for the handler convention/manifest extension, fresh-state lifetime, explicit limits and overload policy, server-profile grants, and pending-sync-wait behavior.
-The owner also needs to approve the versioned request ABI and platform artifact workflows before their implementation issues are filed.
-These choices are recommendations here, not silently applied changes to language or CLI behavior.
-The local VM/workerd results do not substitute for platform build validation or deployed acceptance tests.
+Open approvals: the SDK boundary, the deployment profile, the lifecycle and resource policies (#806), the explicit limits and overload policy, the server-profile grants, and the pending-sync-wait behavior.
+The local VM and workerd results do not substitute for platform build validation or deployed acceptance tests.
 
 ## Prototype And Parse Log
 
@@ -764,21 +558,21 @@ Those eight successful runs verify the typed program under existing hosts, not a
 
 | Issue item or checklist | Section / explicit scope |
 | --- | --- |
-| One handler, existing Request/Response, limited registration | A Handler Entry; Architecture And Core-Wasm ABI. |
-| Node local server; Workers; Vercel Node and Edge | CLI And Deployment Workflows; Platform Limits And JSPI. |
+| One handler, existing Request/Response, limited registration | Application Entry; Architecture. |
+| Node local server; Workers; Vercel Node and Edge | Packaging And Deployment; Platform Limits And JSPI. |
 | Bundle limits and static Wasm | Platform Limits And JSPI; Cost And Measurements; packaging acceptance slices. |
 | Request concurrency, cancellation, state, minimal #806 | Concurrency, Cancellation, And State; Options On The Same Use Cases. |
 | Whole bodies; streaming requirement | Bodies And HTTP Mapping; streaming explicitly deferred for the fixed cases. |
 | Capability rows and platform grants | Capabilities And Grants. |
-| Core-Wasm stays, no Component Model reversal | Architecture And Core-Wasm ABI; Prior Art distinguishes incompatible host models. |
+| Core-Wasm stays, no Component Model reversal | Architecture; Prior Art distinguishes incompatible host models. |
 | Library/glue before language changes | Options; no new syntax or std combinator; one compiler-known entry convention. |
 | Four fixed end-to-end scenarios | Problem And Fixed Use Cases; workflows; controls and missing packaging gates. |
 | Spin, wasmCloud, Fastly, Rust worker prior art | Four dedicated Prior Art sections with design/interface/coverage/limits. |
 | workerd / Vercel Edge JSPI | Platform Limits And JSPI; actual local runtime probes and production uncertainty separated. |
-| Data, algorithm, cache, tests | Architecture And Core-Wasm ABI; driver pseudocode, cache keys, lease fields, Phasing. |
-| Stdlib API shape, rows, error types, receivers, bounds | A Handler Entry; value parameter/return, monomorphic boundary, explicit row, response errors; existing atoms reused. |
+| Data, algorithm, cache, tests | Architecture; driver pseudocode, cache keys, lease fields, Phasing. |
+| Stdlib API shape, rows, error types, receivers, bounds | Application Entry; value parameter/return, monomorphic boundary, explicit row, response errors; existing atoms reused. |
 | Stdlib performance/security/prior art | Cost And Measurements; Capabilities And Grants; Prior Art and Stress Test. |
-| CLI commands/output/schema/status/config/scope/platforms | CLI And Deployment Workflows; explicit unsupported native listener and platform build gate. |
+| CLI commands/output/schema/status/config/scope/platforms | Packaging And Deployment; explicit unsupported native listener and platform build gate. |
 | Runtime memory/RC/ABI/cleanup/parity | Architecture; Concurrency; Cost; Node/native wrapper tests in slice 2; production JS-only scope explicit. |
 | Runtime failure, observability, grants, footprint | Cache/Failure; Output; Capabilities; measurements and future hello identity check. |
 | Stress cases from real libraries and adversarial inputs | Stress Test; executed controls distinguished from required future tests. |

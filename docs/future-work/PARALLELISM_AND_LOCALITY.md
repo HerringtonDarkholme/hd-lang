@@ -1,83 +1,42 @@
 # Parallelism And Locality: Design Study
 
-hd wants three things that a garbage-collected language does not give
-for free: escape analysis that each function can check on its own,
-closures passed to `map` or `retry!` that need no heap environment, and
-real parallelism. Resources are handled separately, by `Disposable` and
-`using` ([Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)).
+Status: Stage A is proposed and needs the owner's approval before a spec
+pass. Stage C is parked (#163 closed). Resources are handled separately,
+by `Disposable` and `using`
+([Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)).
 
-Real parallelism comes in stages. Stage A runs on engines that ship
-today: separate instances, copied boundary-safe messages and shared byte
-buffers, with the existing boundary-safe rule as the only rule for what
-may cross (section 4). Stage C, sharing garbage-collected data between
-threads, waits until Wasm's shared-everything-threads proposal reaches
-phase 3.
+This study asks how hd gets real parallelism. Stage A runs on engines that
+ship today: separate instances, copied boundary-safe messages and shared
+byte buffers, with the existing boundary-safe rule as the only rule for
+what may cross (section 3). Stage C, structured parallel children that
+read frozen data in place, waits for the language design of what may be
+shared between threads.
 
-The first two needs led to a local mode, `^T`, a value that stays in
-the call that received it (section 3). On Wasm GC it does not pay for
-itself, so it is parked. Wasm GC cannot place an object on the stack,
-so an allocation disappears only when the callee is inlined and the
-object's fields become locals, and once a callee is inlined, escape
-analysis needs only that one body and no annotation. The same holds for
-a closure's environment. The local mode would pay on a native backend,
-where a non-escaping value or closure environment can live on the stack
-as in Go. One more use could revive non-escaping closures: letting
-`return` and `?` inside a trailing block, such as `timeout!(5s): ...`,
-leave the enclosing function, as Kotlin's inline lambdas do; that is
-only sound when the block cannot escape. Section 7 says what of the
-earlier ownership prototype goes, and section 8 the work that remains.
+There is no local `^` mode and no ownership mode. Escape analysis and
+scalar replacement are optimizer work after inlining, with no language
+mark ([Performance Roadmap](PERFORMANCE_ROADMAP.md)).
 
 hd code in `text` blocks is proposed syntax that no compiler checks yet,
 and names are placeholders.
 
 - [1. Motivation](#1-motivation)
 - [2. The Model On One Page](#2-the-model-on-one-page)
-- [3. Local Values](#3-local-values)
-- [4. Sharing Data Between Threads](#4-sharing-data-between-threads)
-- [5. A Tour](#5-a-tour)
-- [6. The Rules In Plain Words](#6-the-rules-in-plain-words)
-- [7. The Ownership Prototype: Keep Or Remove](#7-the-ownership-prototype-keep-or-remove)
-- [8. Re-Plan](#8-re-plan)
+- [3. Sharing Data Between Threads](#3-sharing-data-between-threads)
+- [4. A Tour](#4-a-tour)
+- [5. The Rules In Plain Words](#5-the-rules-in-plain-words)
 - [Sources](#sources)
-
 
 ## 1. Motivation
 
-Resources are `Disposable` values bound with `using`: a handle is a plain
-value, a call after disposal is the runtime `Closed` error, and a
-forgotten handle is a runtime report. Three needs remain that resources
-do not cover:
-
-1. **Modular escape analysis.** Whether a value can outlive a call should
-   be checkable one function at a time, from signatures only, so bodies
-   check in parallel and a body edit never rechecks its callers. Hd
-   already writes every visible signature for this reason
-   ([Functions](../../spec/lang/07-functions.md)).
-2. **How threads share data.** Today one instance runs on one thread,
-   and instances exchange only boundary-safe values
-   ([Instances And Threads](../../spec/lang/10-modules.md#instances-and-threads)).
-   Real parallelism needs a rule for what threads may share.
-3. **Local closures.** A closure passed to `map`, `sorted_by`, `retry!` or
-   `timeout!` is called during the call and then dropped. It should be
-   inlined or kept out of the heap, and the language should guarantee it.
-
-Needs 1 and 3 are met by a local mode with no lifetimes. Need 2 is met by
-isolation now and deep immutability later.
+Today one instance runs on one thread, and instances exchange only
+boundary-safe values
+([Instances And Threads](../../spec/lang/10-modules.md#instances-and-threads)).
+Real parallelism needs a rule for what threads may share. Isolation covers
+it now; deep immutability would cover it later.
 
 ## 2. The Model On One Page
 
-**Local values.** A parameter, receiver or local written `^T` holds a
-value that cannot outlive the current call. It may be read and passed to
-other `^` parameters. It cannot be returned, stored in a field, a
-collection or a top-level binding, passed to a plain parameter, or
-captured by a closure that could outlive the call. `^mut T` is the same,
-with a `mut` view; like any plain `mut` value it may be aliased. A closure that captures a `^` value is itself local.
-There are no lifetime names, no `^` results, no `^` fields and no `^`
-type arguments. Every value is still plain and garbage-collected;
-`^` changes only where a value may go. The mode is checked per function
-body against signatures, in one linear pass.
-
-**Parallelism, in three stages.**
+**Parallelism, in two stages.**
 
 - **Stage A, Wasm today.** A worker is a separate Wasm instance of the
   same build: a Web Worker in a browser, a thread with its own `Store`
@@ -87,194 +46,16 @@ body against signatures, in one linear pass.
   passed by handle, and is synchronized with atomics or handed over by
   transfer. The "Sendable" rule is the existing boundary-safe rule; no
   new trait is needed.
-- **Stage B, now, single thread.** `^` lets cooperative children of
-  `all!`, `map_all!`, `retry!` and `timeout!` borrow their parent's
-  locals safely, and gives the optimizer guaranteed closure inlining.
-- **Stage C, when engines share GC objects.** Structured parallel
-  children may read the parent's data without copying when it is
-  `Frozen` (deeply immutable), and write only what they allocate. This
-  waits for the shared-everything-threads proposal, which is at phase 1.
+- **Stage C, parked.** Structured parallel children may read the parent's
+  data without copying when it is `Frozen` (deeply immutable), and write
+  only what they allocate.
 
-The idea in one sentence: **`^` says a value stays in this call; copies
-and frozen data say how it crosses threads.**
+The idea in one sentence: **copies and frozen data say how a value crosses
+threads.**
 
-## 3. Local Values
+## 3. Sharing Data Between Threads
 
-### 3.1 What `^` Means
-
-`^` keeps the landed spelling and the landed lending rules: any value of
-type `T` may be passed where `^T` is expected, and `^mut T` needs a `mut`
-view (the `mutable-upgrade` rule). No mark appears at the call site. What
-changes is the meaning: a `^` value has no lifetime that travels, only
-the promise that it stays inside the call.
-
-```text
-data Order:
-    id: u64
-    total: i64
-    lines: List[Line]
-
-fn subtotal(o: ^Order) -> i64:
-    let sum: i64 = 0
-    for line in o.lines:              # the list read through `^` is a plain readonly view
-        sum = sum + line.price
-    sum
-
-fn audit(o: ^Order, log: mut List[Order]) -> void:
-    log.push(o)                       # error: local-escapes: `o` is local to this call
-```
-
-A field read through `^` gives a plain readonly value, and through
-`^mut` a plain `mut` view of a `mut` field. This is shallow on purpose:
-the collector keeps every part alive, so a part can escape safely, and a
-getter such as `fn address(u: ^User) -> Address` keeps working. OxCaml
-chose the other default, where parts of a local record are local unless a
-field is marked `global_`, because it allocates parts on the stack. Hd's
-first gain is the outer object and the closure, so shallow costs nothing
-it needs (question 2).
-
-### 3.2 Local Closures
-
-A closure literal that captures a `^` value is local. So is a closure
-passed where a `^fn` is expected. A local closure can be called any
-number of times and passed to other `^fn` parameters; it cannot be stored
-or returned.
-
-```text
-pub fn sorted_by(self, compare: ^fn(T, T) -> Ordering) -> List[T]
-pub fn retry![T, E, $R](times: usize, when: ^fn(E) -> bool, attempt: ^fn!() -> Result[T, E] $ R) -> Result[T, E] $ R
-pub fn map_all![T, U, $R](items: List[T], limit: usize, work: ^fn!(T) -> U $ R) -> List[U] $ R
-```
-
-There is one local closure mode, `^fn`. A local closure may capture
-plain values, `^` values and `^mut` values, and a plain `fn` is accepted
-wherever a `^fn` is expected. A function type says only where the
-closure may go, never whether calling it changes something: changes are
-marked where they happen, on the `mut` value and its `mut` method.
-Several calls of one closure may be in flight at once, as in `map_all!`.
-That is safe for the same reasons plain code is: tasks are cooperative
-on one thread, a handle serves one read and one write at a time in call
-order, and a stage C parallel child reads only frozen data, so a closure
-holding a `^mut` capture never reaches one.
-
-```text
-fn sync!(conn: ^mut Conn, rows: List[Row]) -> Result[void, NetError]:
-    retry!(3, attempt = fn!() -> Result[void, NetError]: conn.send!(encode(rows)))
-    # the closure captures `conn`, so it is local: a `^fn!`, which `retry!` accepts
-
-fn fan!(conn: ^mut Conn, ids: List[u64]) -> List[Row]:
-    map_all!(ids, 4, fn!(id: u64) -> Row: conn.get!(id))
-    # four calls may wait on `conn` at once; the handle serves them in call order
-
-fn keep(conn: ^mut Conn) -> fn() -> void:
-    fn() -> void: conn.ping()   # error: local-escapes: a closure capturing `conn` is returned
-```
-
-### 3.3 What It Buys
-
-**Checking (need 1).** The body of `subtotal` is checked against its own
-signature only. A caller checks against `subtotal`'s signature only.
-Nothing is inferred across functions, so every body checks in parallel,
-and a body edit rechecks only that body. Go shows the alternative: its
-compiler infers escape facts per function and exports them as tags, so
-callers in other packages use them without annotations. That is modular
-too, but inferred: a callee's body edit changes its tags and invalidates
-its callers' code. Hd's interface hash covers written signatures only,
-so a written mark fits the cache and an inferred tag does not.
-
-**The Wasm GC backend (need 3).** Wasm GC has no stack allocation:
-every `struct.new` is a heap object. The gains are therefore of two
-kinds.
-
-- *Closure literals at `^fn` parameters.* `hd_opt` already specializes a
-  callee for a known closure literal (`closure_spec`), but it must still
-  build the closure's environment when the callee might store the
-  closure. With `^fn`, the callee cannot store it, so the specialized
-  instance takes the captures as extra parameters and no environment is
-  built. `xs.map(fn(x): x * k)` allocates the result list and nothing
-  else. A `fn!` closure still runs inside a heap frame, since every
-  suspending body has one; `^` saves only its environment.
-- *Scalar replacement after inlining.* A data value built in a body and
-  passed only to `^` parameters never escapes. When those callees are
-  inlined, its fields become Wasm locals and the `struct.new` disappears.
-  Without inlining, Wasm GC still needs a reference to pass, so the
-  object stays. `hd_opt` declares `escape` and `scalar_replace` and has
-  not built them; `^` gives them a fact they would otherwise have to
-  infer.
-
-**A future native backend.** A value passed only to `^` positions can
-live on the stack, and a local closure's environment too. This is
-OxCaml's main use of `local`.
-
-**Concurrency in one thread (stage B).** A child of `all!` or
-`map_all!` may take its parent's locals as `^` arguments, because a
-child finishes or is cancelled before the combinator returns. Children
-run cooperatively on one thread, so they may share a `^mut` value as
-plain code shares a `mut` one.
-
-### 3.4 What It Costs
-
-**Checker cost.** One forward pass per body marks each value local or
-not and rejects a local value at a return, a store, a plain argument or
-a capture by a non-local closure. There is no borrow checking:
-`^` values alias as plain values do. Priced with the cost model:
-
-| Dimension | Cost |
-| --- | --- |
-| Granularity | per body, inline with today's body check |
-| Contention | none: reads only callee signatures |
-| Locality | one walk over the body's TIR |
-| Allocation | one bit per value |
-| Superlinear risk | none: one linear walk |
-| I/O | none |
-| Incremental | `^` is in the interface hash; a body edit rechecks only that body |
-
-**What programs can no longer write.**
-
-- *A borrowed view inside a struct.* Rust's `Parser<'a>` holding `&'a
-  str`, or a `Cursor` holding `^mut Buffer`, has no form. The struct
-  holds a plain field instead, which the collector keeps alive, and loses
-  the promise that the view does not escape. Or each method takes the
-  document as a `^` parameter.
-- *A function returning a borrow.* `fn first(xs: ^List[T]) -> ^T` has no
-  form. Since parts read through `^` are plain, `-> T` works and costs
-  nothing at run time.
-- *A reader owning its stream.* Rust's `BufReader` owns its inner reader
-  by value. In hd a `LineReader` holds a plain stream field and implements
-  `Disposable` by disposing it. This is the same shape as Rust's, with a
-  runtime `Closed` in place of a move error if the stream is used after
-  the reader takes it. Nothing is lost that the owner's decision did not
-  already give up.
-- *A lazy iterator over a local closure.* `xs.iter().map(f)` stores `f`
-  inside the iterator, so `Iterator.map` keeps a plain `fn` and its
-  closure is allocated. Rust removes that cost by monomorphizing and
-  inlining, not by escape modes; hd's optimizer can do the same later.
-- *std's own `map_all!`.* Its body captures `work` in closures that it
-  pushes onto a `List` before calling `all_list!`. With `work: ^fn!`,
-  that list holds local closures, which the rules forbid. `map_all!`
-  needs a different body, for example a fixed number of worker calls
-  passed straight to an `all!`-style intrinsic that accepts local
-  children. Every std function that takes `^fn` must be checked for this.
-
-**Migration.** `^` is opt-in, so no user program changes. A std
-signature that moves from `fn` to `^fn` breaks no caller, because every
-`fn` value is accepted. It breaks only a std body that stores the
-closure, as `map_all!` does. The prototype's `own`, move and drop
-fixtures are removed (section 7).
-
-### 3.5 Prior Art
-
-| Language | Mechanism | What hd takes |
-| --- | --- | --- |
-| OxCaml | `local` mode on parameters and values; checked per function; inferred inside a file, written in `.mli`; local values go on the stack; local closures too | the whole model, minus deep locality of parts and minus `exclave_` (local results) |
-| Swift | closure parameters are non-escaping by default, `@escaping` to store; `borrowing`/`consuming` parameter modifiers; `~Escapable` types with lifetime dependence | non-escaping closure parameters; not the default (question 3); not `~Escapable`, which needs lifetimes |
-| Kotlin | `inline` functions inline their lambda arguments; a lambda that is stored must be `noinline` | the guarantee that a literal at such a parameter is inlined, without making the callee itself inline |
-| Hylo (Val) | second-class references: a `let` or `inout` parameter cannot be stored or returned, so no lifetimes are needed | the core claim: projections that never escape need no lifetime names |
-| Go | escape analysis inferred per package, exported as tags; no annotations | the reason to write the mark: inferred facts change with bodies |
-
-## 4. Sharing Data Between Threads
-
-### 4.1 What scriptc Does
+### 3.1 What scriptc Does
 
 scriptc compiles TypeScript to native code with one reference-counted
 heap per thread. Its model, from its documentation:
@@ -298,21 +79,21 @@ heap per thread. Its model, from its documentation:
 
 What scriptc gets right is the split: mutable data is copied, immutable
 data is shared, bytes are shared with atomics, and nothing else crosses.
-It relies on a native heap where any object can become shared in place.
-Hd on Wasm does not have that heap, which is why the stages below exist.
+It relies on a heap where any object can become shared in place. Hd on
+Wasm does not have that heap, which is why the stages below exist.
 
-### 4.2 Stage A: Hd On Wasm Today
+### 3.2 Stage A: Hd On Wasm Today
 
 | scriptc | Hd on Wasm today | Cost |
 | --- | --- | --- |
-| a worker thread with its own heap | a separate instance of the same module: a Web Worker in a browser, a thread with its own `Store` in wasmtime | an instance per worker, with its own GC heap and globals; start-up is instantiation plus module init |
+| a worker thread with its own heap | a separate instance of the same module: a Web Worker in a browser, a thread with its own `Store` in wasmtime | an instance per worker, with its own heap and globals; start-up is instantiation plus module init |
 | a structured clone per message | a boundary-safe value, encoded by its `Serialize` and decoded by its `Deserialize` through the host boundary codecs | one encode, one copy, one decode per message: linear in size |
 | a transfer list | a `SharedBytes` handle that the send marks closed in the sender; later use is the runtime `Closed` error | constant |
 | `SharedArrayBuffer` + `Atomics` | a block of shared linear memory (Wasm threads: `memory.atomic.*`, `wait`, `notify`), imported by every instance and reached through a `SharedBytes` handle | no copy; plain loads and stores, atomic ones where asked |
-| `publish` of an immutable graph | none without copying: GC objects cannot cross instances | a copy per worker, or an encoded image in shared memory (example 5.3) |
+| `publish` of an immutable graph | none without copying: objects cannot cross instances | a copy per worker, or an encoded image in shared memory (example 4.3) |
 
 The message rule is the boundary-safe rule that the spec already has:
-primitives, strings, tuples, lists, maps, data and enums whose parts are
+primitives, strings, tuples, lists, maps, structs and enums whose parts are
 boundary-safe; never mutable types, closures, trait values or live
 handles. Issue #166's `Boundary` bound states it in a generic signature,
 and its `Portable[fn]` closures, whose captures are boundary-safe, are
@@ -323,64 +104,51 @@ length and a generation into shared memory.
 
 Wasm threads are at phase 4 and shipped in every major browser, which
 enable shared memory only on cross-origin-isolated pages; wasmtime
-supports them at tier 2. A module can use Wasm GC for its
-managed values and a shared linear memory beside it, so stage A needs no
-new engine feature. It needs host work (spawning instances, queues) and
+supports them at tier 2. A module can use a shared linear memory beside
+its own, so stage A needs no new engine feature. It needs host work (spawning instances, queues) and
 a std module, both of which need the owner's approval before a spec
 pass.
 
-### 4.3 What Waits For Shared-Everything Threads
+### 3.3 Sharing Objects Between Threads
 
-Sharing a GC object between threads needs the shared-everything-threads
-proposal. It is at phase 1, its overview warns of frequent and
-significant changes, and wasmtime lists it at tier 3 with nothing
-implemented (tracking issue 9466). It adds `shared` struct, array and
-function types, thread-local globals, atomic access to shared GC fields
-and managed waiter queues.
+Objects live in counted linear memory, so stage A instances share none and
+every count is non-atomic. Sharing an object between threads would put it
+in a shared region, where only those objects need atomic counts. A frozen
+graph published once could be made immortal for the life of its region, so
+readers do no count updates
+([Refcount Runtime](REFCOUNT_RUNTIME.md) §9.5). Wasm threads have shipped,
+so this does not wait for an engine feature. It waits for the language
+design of what may be shared, and is parked.
 
-One rule in it shapes hd's design: shared and unshared types are never
-subtypes of one another, and a shared object can point only to shared
-objects. So hd cannot freeze an ordinary object in place and hand it to
-another thread, as scriptc's `publish` does. A value becomes shareable
-only by being allocated as `shared` from the start, or by one deep copy
-into `shared` types. Either way the compiler must know the type at
-allocation, which favors an explicit `freeze` that copies.
-
-### 4.4 Stage C: Structured Parallel Children
+### 3.4 Stage C: Structured Parallel Children
 
 The later step is a parallel combinator whose children finish before the
 parent continues, as Rust's `thread::scope` and OxCaml's `fork_join`
-do. It is tempting to say that `^` makes this safe, since a child cannot
-keep a borrow past the call. On a garbage-collected heap that is not the
-hazard. A child that keeps a reference keeps the object alive; nothing
-dangles. The hazard is a data race, and it comes from aliasing:
+do. The hazard is a data race, and it comes from aliasing:
 
-- a `^List[Loan]` lent to four children is safe only if nobody writes
-  the list or a loan while they run. Plain values alias freely, so some
-  other plain path may hold a `mut` view of the same loan.
+- a `List[Loan]` lent to four children is safe only if nobody writes the
+  list or a loan while they run. Plain values alias freely, so some other
+  path may hold a `mut` view of the same loan.
 - the parent's own thread keeps running its other cooperative tasks while
   the parent waits, and those tasks may hold such a path.
-- two `^mut` chunks of one list are disjoint slots, but two slots may
-  point to the same object.
+- two chunks of one list are disjoint slots, but two slots may point to
+  the same object.
 
-`^` and `^mut` cannot see any of this, because plain aliases are
-untracked by design. So the stage C rule is about mutation, as OxCaml's
-`contended` mode is: a parallel child may read the parent's data only
-through `Frozen` values (deeply immutable), may write only data it
-allocates, and returns its results. `^` still matters for a native
-backend, where a child may read the parent's stack, and because a local
-closure, whatever it captures, is never sent to a parallel child.
+So the stage C rule is about mutation, as OxCaml's `contended` mode is: a
+parallel child may read the parent's data only through `Frozen` values
+(deeply immutable), may write only data it allocates, and returns its
+results.
 
 One more problem waits for stage C: top-level mutable `let` bindings.
 Today each instance has its own, so stage A has no issue. With one
-shared heap, a child that calls a function writing a top-level `let`
+shared region, a child that calls a function writing a top-level `let`
 races with its siblings. The choices are thread-local globals (as
 scriptc's per-thread module state; a child's write is then invisible to
 the parent) or a rule that a child's code never writes a global, which
 needs a fact about whole call graphs. That choice is left for when the
 proposal matures.
 
-### 4.5 A Sendable Rule In Hd
+### 3.5 A Sendable Rule In Hd
 
 - **For copying (stage A):** the boundary-safe rule that exists, spelled
   `Boundary` in a generic bound (#166). It is Swift's `Sendable` for
@@ -397,10 +165,9 @@ proposal matures.
   `publish`, checked statically, and freed by the collector instead of
   being immortal.
 - **No `Sync`-style trait for mutable shared state.** Shared mutable
-  state is bytes with atomics, or a host service. A mutex-protected GC
-  object waits for stage C and a separate study.
+  state is bytes with atomics, or a host service. A mutex-protected object waits for stage C and a separate study.
 
-### 4.6 How Others Share Data
+### 3.6 How Others Share Data
 
 | System | Isolation | Sharing without copying | Static rule |
 | --- | --- | --- | --- |
@@ -411,15 +178,15 @@ proposal matures.
 | Swift | actors own their state | `Sendable` values; `sending` moves a disconnected region | `Sendable` conformance; region analysis per function |
 | OxCaml | none: one shared heap | `portable` functions, `contended` values; immutable data crosses both modes | modes checked per function; `fork_join` needs portable children |
 | Hd, stage A | instance per worker; messages copied | `SharedBytes` + atomics | boundary-safe messages |
-| Hd, stage C | one shared heap | `Frozen` values; children allocate their own writes | `Frozen` for shared reads; `^` only bounds where values go |
+| Hd, stage C | one shared region | `Frozen` values; children allocate their own writes | `Frozen` for shared reads |
 
-## 5. A Tour
+## 4. A Tour
 
 Each example gives its cost on today's Wasm (stage A) and, where it
 changes, under stage C. `Workers`, `Sender`, `Receiver`, `SharedBytes`,
 `SharedSlot`, `Frozen` and `freeze` are placeholders.
 
-### 5.1 A Parallel Map Over A Large List
+### 4.1 A Parallel Map Over A Large List
 
 A bank scores a million loans against one risk model. Scoring is pure
 and takes about a microsecond per loan.
@@ -427,12 +194,12 @@ and takes about a microsecond per loan.
 ```text
 use std.remote.{Portable, RemoteError, portable}
 
-pub data Loan:
+pub struct Loan:
     pub id: u64
     pub principal: i64
     pub rate_bp: i32
 
-pub data RiskModel:
+pub struct RiskModel:
     pub weights: List[f64]
 
 pub fn score(loan: Loan, model: RiskModel) -> f64:
@@ -462,18 +229,18 @@ them in place and only the scores are allocated. The encode, copy and
 decode disappear; `freeze` costs one copy, once, which a long-lived
 data set pays back over many runs.
 
-### 5.2 A Worker Pool Processing Jobs
+### 4.2 A Worker Pool Processing Jobs
 
 An image service resizes uploads. Each job carries its bytes and a
 target size; workers keep a decoder cache of their own.
 
 ```text
-pub data Job:
+pub struct Job:
     pub id: u64
     pub image: SharedBytes
     pub width: u32
 
-pub data Done:
+pub struct Done:
     pub id: u64
     pub image: SharedBytes
 
@@ -496,7 +263,7 @@ fn serve!(jobs: Receiver[Job], done: Sender[Done]) -> void $ Workers:
 - **State.** Each worker's decoder cache lives in its own instance, so it
   needs no lock and is not shared. This is Erlang's process model.
 
-### 5.3 A Shared Read-Mostly Cache
+### 4.3 A Shared Read-Mostly Cache
 
 A pricing service looks up exchange rates on every request, from four
 workers. Rates change once a minute.
@@ -510,27 +277,27 @@ Stage A gives three options:
 | an encoded image in shared memory | the writer encodes the table into a `SharedBytes` block and publishes its handle; readers decode the entry they need | lookups read bytes in place and decode one entry; a refresh writes a new block and swaps the handle atomically; freeing the old block needs a reader count or an epoch |
 
 ```text
-fn refresh!(rates: Map[string, f64], current: ^mut SharedSlot) -> void:
+fn refresh!(rates: Map[string, f64], current: &mut SharedSlot) -> void:
     image := SharedBytes::encode(rates)       # one encode, into shared memory
     current.swap(image)                       # an atomic store of the handle
 
-fn price(amount: i64, currency: string, current: ^SharedSlot) -> f64:
+fn price(amount: i64, currency: string, current: &SharedSlot) -> f64:
     rate := current.load().lookup::[f64](currency).unwrap_or(1.0)   # decodes one entry
     f64(amount) * rate
 ```
 
 The image option is how scriptc's `InternTable` would look without a
-shared GC heap: bytes are shared, values are decoded on read. Under
+shared heap: bytes are shared, values are decoded on read. Under
 stage C, the table becomes `Frozen[Map[string, f64]]` behind an atomic
 reference, and lookups read it directly.
 
-### 5.4 A Large Byte Buffer Handed Between Threads
+### 4.4 A Large Byte Buffer Handed Between Threads
 
 A log shipper reads 64 MB chunks, and a compressor on another worker
 compresses them.
 
 ```text
-fn ship!(source: ^mut FileReader, to: Sender[SharedBytes]) -> Result[void, FsError] $ FsRead:
+fn ship!(source: &mut FileReader, to: Sender[SharedBytes]) -> Result[void, FsError] $ FsRead:
     while true:
         using chunk = SharedBytes::alloc(64 * 1024 * 1024)
         n := source.read_into!(chunk)?
@@ -543,7 +310,7 @@ fn ship!(source: ^mut FileReader, to: Sender[SharedBytes]) -> Result[void, FsErr
 - **Copies.** The read fills shared memory directly from the host. The
   send copies a 12-byte handle. The compressor reads the same bytes.
 - **Allocations.** One block per chunk from the shared allocator; none
-  in either GC heap.
+  in either instance heap.
 - **Synchronization.** One queue operation per chunk. After the send,
   the sender's handle is closed, so a later use is the runtime `Closed`
   error, as for a disposed handle. Two workers that both write one block
@@ -552,116 +319,27 @@ fn ship!(source: ^mut FileReader, to: Sender[SharedBytes]) -> Result[void, FsErr
   after a transfer. The receiver disposes the block when done; a block
   left undisposed is a leak report, as for any handle.
 
-## 6. The Rules In Plain Words
+## 5. The Rules In Plain Words
 
-**Local values**
-
-1. `^T` and `^mut T` may be written on a parameter, a receiver, a local
-   binding and a function type. They may not be written on a result, a
-   field, a type argument or a top-level binding.
-2. Any value of type `T` may be passed where `^T` is expected. `^mut T`
-   needs a `mut` view.
-3. A local value may be read, called, matched, iterated, and passed to a
-   `^` parameter.
-4. A local value may not be returned, stored into a field, a collection,
-   a top-level binding or a binding with a plain type, or passed to a
-   plain parameter. A `:=` binding of a local value is local.
-5. A part read through `^T` is a plain readonly value; through `^mut T`,
-   a `mut` field gives a plain `mut` view.
-6. A closure literal that captures a local value is local. A local
-   closure may be called any number of times.
-7. A function type carries no mark for changing captured state; `^fn`
-   only says the closure stays in the call.
-8. A plain call of a suspending function with a local argument builds a
-   local suspension, which may only be awaited or passed to a combinator
-   that accepts local children.
-9. A local value is not boundary-safe and is never a provider.
-
-**Threads, stage A**
-
-10. Each worker is a separate instance; instances share no GC values.
-11. A message is a boundary-safe value, copied.
-12. A `SharedBytes` handle is boundary-safe; sending it with transfer
-    closes the sender's handle.
-13. Shared memory is reached only through `SharedBytes`, with atomic
-    operations where they are asked for.
-
-## 7. The Ownership Prototype: Keep Or Remove
-
-Slices 1 to 10 of the ownership prototype plan (deleted; git history keeps it) are
-committed. Slice 11 (loans inside a body) was never committed and is not
-needed: `^` values alias as plain values do.
-
-| Part | Where | Verdict | Why |
-| --- | --- | --- | --- |
-| `^T`, `^mut T`, `^self`, `^mut self` syntax | `hd_syntax` types and items | keep | the local mode's spelling |
-| `own T`, `let own`, `own self`, `own fn` syntax | `hd_syntax`, `hd_fmt` | remove | no owned mode |
-| lifetime syntax `^{x}`, `data P[^a]`, `[^]` | `hd_syntax`, `hd_resolve` lower | remove | no lifetimes |
-| `T < own Any` bounds | `hd_syntax`, `hd_types` | remove | no owned type arguments |
-| `TyData::Borrow` | `hd_types` pool | keep, without its lifetime list | the local mode's type form |
-| `TyData::Own` | `hd_types` pool, wire | remove | |
-| header rules: `own-on-value`, `own-on-type-parameter`, `missing-lifetime`, `ambiguous-lifetime`, `misplaced-lifetime` | `hd_check` header, own.rs | remove | |
-| header rule for where `^` may appear | `hd_check` header | rewrite | rule 1 of section 6; replaces `not-in-ownership-prototype` for top-level and result borrows |
-| `OwnOnly`, `DropOwn`, `drop` | `lib/std/ownership.hd`, `hd_resolve` known names | remove | `Disposable` replaces them |
-| ownership by structure, the classifier | `hd_check` own.rs (`Classify`) | remove | |
-| freshness, `own-upgrade`, `own-to-plain` | `hd_check` modes.rs | remove | |
-| lending, `mutable-upgrade`, field reads through a borrow | `hd_check` modes.rs | keep; field reads become plain (section 3.1) | |
-| `Lend`, `LendMut` coercions | `hd_tir` | keep | they mark where a value is passed as local |
-| move checking, `use-after-move`, `partial-move`, the `moves` column | `hd_check` moves.rs, `hd_tir` | remove | no moves |
-| `DropLocal` in the scope list and the exit ladder | `hd_tir`, `hd_wasm` emit/drops.rs | keep the ladder for `using`; remove flags and `drop_mode` | `using` disposes at scope end in reverse order, which is the same registration |
-| `DropTemp`, temporaries | `hd_check` temps.rs, `hd_tir` | remove | `using` names its value |
-| drop glue | `hd_mono` drops.rs, `hd_structure` drop.rs, `hd_wasm` glue bodies | remove | `dispose` is one ordinary method call |
-| loans inside a body | slice 11, never committed | do not build | `^` values alias as plain values do |
-| `provider-not-plain`, `not-boundary-safe` for borrowed types | `hd_check` | keep the borrowed half | rule 10 |
-| prototype limits (`not-in-ownership-prototype`) | `hd_check` init.rs, modes.rs | remove; the cold-call limit becomes rule 9 | |
-| spec chapter | `spec/lang/13-ownership.md` | rewrite as a short chapter on local values | |
-| conformance fixtures | `spec/conformance/*/ownership/` | keep the lending cases; remove loan, owned, move, drop and lifetime cases; turn the drop-order runtime cases into `using` cases when `using` lands | |
-
-## 8. Re-Plan
-
-The ownership prototype's remaining slices are not built, and neither
-is the local mode while it is parked. What remains is removal, each job
-about an hour, with its spec rules and fixtures:
-
-| Job | Work | Done check |
-| --- | --- | --- |
-| R1 | Remove the owned mode: `own` syntax, `TyData::Own`, freshness, `own-upgrade`, `own-to-plain`, moves and their fixtures and spec sections | no `own` in syntax, types or spec; hello unchanged |
-| R2 | Remove drops: `OwnOnly`, `DropOwn`, `drop`, the classifier, drop glue, `DropTemp`, drop flags; keep the exit ladder that `using` uses | std interface hash changes once; tiny-program footprint byte-identical |
-| R3 | Remove lifetimes: `^{x}`, lifetime parameters and arguments, their header rules | lifetime fixtures gone; parse snapshots updated |
-
-Escape analysis and scalar replacement stay planned as optimizer work
-after inlining, with no language mark ([Performance Roadmap](PERFORMANCE_ROADMAP.md),
-steps 20 to 24).
-
-`using` and `Disposable` are a separate design job, already decided by
-the owner; R2 leaves the exit ladder for it. Stage A (workers, messages,
-`SharedBytes`) is std and host work that needs its own proposal and the
-owner's approval; it does not depend on the L jobs. Stage C is a parked
-issue until shared-everything threads reach phase 3.
+1. Each worker is a separate instance; instances share no objects.
+2. A message is a boundary-safe value, copied.
+3. A `SharedBytes` handle is boundary-safe; sending it with transfer
+   closes the sender's handle.
+4. Shared memory is reached only through `SharedBytes`, with atomic
+   operations where they are asked for.
 
 ## Sources
 
 - scriptc documentation index: <https://scriptc.dev/llms.txt>; sharing
   data between workers: <https://scriptc.dev/docs/threads>
-- OxCaml stack allocation (locality): <https://oxcaml.org/documentation/stack-allocation/intro/>
 - OxCaml parallelism tutorial (portable, contended, `fork_join2`):
   <https://oxcaml.org/documentation/tutorials/intro-to-parallelism-part-1/>
-- Swift closures, escaping closures:
-  <https://docs.swift.org/swift-book/documentation/the-swift-programming-language/closures/>
-- Swift SE-0377, `borrowing` and `consuming`:
-  <https://github.com/swiftlang/swift-evolution/blob/main/proposals/0377-parameter-ownership-modifiers.md>
-- Swift SE-0446, non-escapable types:
-  <https://github.com/swiftlang/swift-evolution/blob/main/proposals/0446-non-escapable.md>
 - Swift SE-0302, `Sendable`:
   <https://github.com/swiftlang/swift-evolution/blob/main/proposals/0302-concurrent-value-and-concurrent-closures.md>
 - Swift SE-0414, region-based isolation:
   <https://github.com/swiftlang/swift-evolution/blob/main/proposals/0414-region-based-isolation.md>;
   SE-0430, `sending`:
   <https://github.com/swiftlang/swift-evolution/blob/main/proposals/0430-transferring-parameters-and-results.md>
-- Kotlin inline functions: <https://kotlinlang.org/docs/inline-functions.html>
-- Hylo: <https://hylo-lang.org/>; Racordon et al., "Implementation
-  Strategies for Mutable Value Semantics", JOT 2022:
-  <https://www.jot.fm/issues/issue_2022_02/article2.pdf>
 - Go, sharing by communicating: <https://go.dev/doc/effective_go>
 - Erlang binary handling: <https://www.erlang.org/doc/system/binaryhandling.html>
 - Rust scoped threads: <https://doc.rust-lang.org/std/thread/fn.scope.html>

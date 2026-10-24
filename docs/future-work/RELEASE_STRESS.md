@@ -93,7 +93,7 @@ Repeated source fragments and ordinary formatting passes are not counted as addi
 | C12 | Added default to an existing parameter | works | Compatible new call form; stored arity unchanged |
 | C13 | Removed Eq derive | works | Generated-impl loss breaks an operator client |
 | C14 | Changed default value, unchanged type | friction | Typed API is patch; observed behavior changes |
-| C15 | Prereleases, minimum versions and 0.x | breaks | Conflicting same-core rules and a misleading absolute minimum |
+| C15 | Prereleases, minimum versions and 0.x | works | Every version is compared with the last stable release |
 | C16 | Workspace member, directory prefix and ancestry | works | Ignore unrelated prefixes and disconnected higher tags |
 | C17 | First release versus a bad baseline | works | No default baseline differs from an invalid explicit baseline |
 | C18 | Dirty reader, writer and dry run | works | Read pinned blobs; writer modes refuse dirty states |
@@ -658,38 +658,26 @@ The design correctly assigns no typed API break, but that is not proof of a patc
 Its source fingerprint should produce a review note, with `behavior_assessed: false` still visible.
 **Verdict: friction; signatures alone cannot set the author's complete SemVer obligation.**
 
-### C15. Prerelease rules and “smallest version” disagree
+### C15. Prerelease rules and the suggested minimum
 
 This case reuses C1's compatible addition and C2's breaking return change under different tag histories.
 [SemVer precedence](https://semver.org/spec/v2.0.0.html) orders a prerelease below the corresponding final version.
-The [proposal's arithmetic](RELEASE.md#bump-arithmetic) contains two different same-core directions:
+The [arithmetic](RELEASE.md#bump-arithmetic) compares every version, prerelease or final, with the last stable release.
+With stable `1.4.2`, the versions `1.5.0-rc.1`, `1.5.0-rc.2` and `1.5.0` are each compared with `1.4.2`.
+Prereleases of one core may add or change API freely among themselves.
 
-| Baseline / change | Target | “Same core only for patch” reading | “Later prerelease may carry additions” reading |
-| --- | --- | --- | --- |
-| `1.4.2-rc.1`, minor | `1.4.2-rc.2` | refuse | accept |
-| `1.4.2-rc.1`, minor | `1.4.2` | refuse | refuse; the exception only names a later prerelease |
-| `1.4.2-rc.1`, patch | `1.4.2` | accept | accept |
-| `1.4.2-rc.1`, major | `1.4.2-rc.2` | refuse | refuse |
-
-The earlier Python model accepts the second row because it permits every non-major same-core change after a prerelease.
-Executing that exact old helper reproduces the counterexample.
-This report supersedes its earlier all-green arithmetic claim for that case, without changing the proposal's decisions.
-The new model deliberately retains both readings of the first row rather than choosing one.
-
-There is another distinction between a minimum core and an absolute minimum version.
-After stable `1.4.2`, a break suggests `2.0.0`, while an author-written `2.0.0-rc.1` is also accepted by the proposal.
-The latter is strictly smaller under SemVer precedence.
-The bare report should identify which sense of “smallest” it means.
+The suggestion names the smallest stable core.
+After stable `1.4.2`, a break suggests `2.0.0`, and an author-written `2.0.0-rc.1` also passes, though it sorts below `2.0.0`.
 
 Major-zero arithmetic is separately consistent with hd's [compatibility lines](../../spec/lang/10-modules.md#r-module.version.line).
 A break at `0.4.2` requires `0.5.0`; an addition can use `0.4.3`.
 The line of `0.0.2` is `0.0`, so the proposal also requires `0.1.0` for a break there.
 That differs from tools that deliberately relax all pre-1.0 breaking-change checks.
 
-The 33 recorded arithmetic observations contain 24 agreed version decisions, six malformed-version rejections and three counterexample/disagreement observations.
+The 33 recorded arithmetic observations were taken before the stable-baseline rule; the 24 agreed version decisions and six malformed-version rejections still hold.
 They include numeric `rc.9`/`rc.10` ordering, numeric minor ordering and rejected metadata.
 These are models of the prose, not a release implementation.
-**Verdict: breaks until same-core policy and minimum-report wording are made consistent.**
+**Verdict: works.**
 
 ### C16. A workspace member uses its directory, not its manifest name
 
@@ -865,31 +853,9 @@ Coordinated workspace dependency rewriting is a larger feature and remains outsi
 
 | Rank | ID | Problem | Severity | Cases |
 | --- | --- | --- | --- | --- |
-| 1 | REL1 | Conflicting prerelease arithmetic, including an overpermissive earlier model | Blocks one deterministic version validator | C15 |
-| 2 | REL2 | “Smallest version” is used for a minimum stable core that admits smaller prereleases | Misleading version-adequacy report | C2, C15 |
-| 3 | REL3 | Typed compatibility does not certify behavior or every configured build | Silent limit unless prominently reported | C1, C2, C14; all assessments |
-| 4 | REL4 | Conservative impl classification trades false positives for soundness | Review and release churn | C6, C7, C10, C13 |
-| 5 | REL5 | Passing component probes do not establish an end-to-end release transaction | Implementation verification gap | C16–C19 |
-
-### REL1. Prerelease arithmetic
-
-**Effect.** C15 cannot classify a same-core prerelease addition consistently from the current prose.
-The earlier model also accepts a same-core final addition that neither written reading permits.
-That is a model bug, not support for accepting the version.
-
-**Candidates.** Should all same-core transitions require patch API magnitude?
-Should a later prerelease additionally permit compatible additions, while final promotion still requires patch magnitude?
-Either answer needs matching prose and a regression for `1.4.2-rc.1` to `1.4.2` with a minor addition.
-
-### REL2. Minimum core versus minimum version
-
-**Effect.** C2's breaking change can accept an author-written `2.0.0-rc.1` even when the bare report suggests `2.0.0`.
-The suggestion is therefore not a literal lower bound in total SemVer order.
-Suffixes are author-selected, so the tool should not invent a next prerelease identifier.
-
-**Candidates.** Should the report call this the minimum stable core and separately state the accepted prerelease policy?
-Should its JSON instead expose a version constraint with the same stable suggestion as one valid example?
-Neither answer requires another command or automatic tag selection.
+| 1 | REL3 | Typed compatibility does not certify behavior or every configured build | Silent limit unless prominently reported | C1, C2, C14; all assessments |
+| 2 | REL4 | Conservative impl classification trades false positives for soundness | Review and release churn | C6, C7, C10, C13 |
+| 3 | REL5 | Passing component probes do not establish an end-to-end release transaction | Implementation verification gap | C16–C19 |
 
 ### REL3. Typed findings versus release compatibility
 
@@ -980,7 +946,7 @@ C14 deliberately differs across versions: 1 becomes 2 while each engine pair agr
 Formatting, parsing, package checking and execution account for **208 expected-outcome source activities**.
 
 The separate models record **33 arithmetic observations** and **12 disposable-Git scenarios**.
-The arithmetic observations retain the prerelease disagreement and earlier-model counterexample; they do not resolve owner policy.
+The arithmetic observations predate the stable-baseline rule for prereleases.
 Git scenarios cover eight ref-transaction states plus prefix/ancestry, baseline validity, dirty states and a read-only dry-run model.
 These models do not prove a future release CLI, snapshot extractor, Windows integration or physical crash behavior.
 
@@ -990,18 +956,12 @@ No full test suite ran.
 
 Current-source CLI provenance is pinned to `59682131d2cb7da3fb916eda01f9b72a9454797b`, built in the dev profile.
 The parser source is unchanged from its recorded frozen build; the CLI was rebuilt because current main had compiler changes.
-Exact commands, source hashes, runtime outputs, version counterexamples and Git transcripts are retained at
-`/private/tmp/muse-28-stress-1792822421707129000`.
 
 ## Owner Questions
 
-1. **C15 has two same-core answers.** Should compatible additions be allowed between later prereleases of the same core, or should every same-core transition require patch magnitude?
-   The final `1.4.2-rc.1` to `1.4.2` minor-addition transition is refused under both currently written readings.
-2. **The suggestion is not an absolute minimum.** Should bare output say “minimum stable core”, or expose a constraint plus a stable example?
-   `2.0.0-rc.1` can satisfy a breaking change while sorting below the suggested `2.0.0`.
-3. **Passing type checks does not certify changed output.** Should every success summary retain explicit behavior/configuration limits and specific default/body review notes?
+1. **Passing type checks does not certify changed output.** Should every success summary retain explicit behavior/configuration limits and specific default/body review notes?
    C14's identical signatures print 1 and 2.
-4. **Potential findings can cause release churn.** Should the initial implementation keep the conservative rules and defer any waiver mechanism until real users report false positives?
+2. **Potential findings can cause release churn.** Should the initial implementation keep the conservative rules and defer any waiver mechanism until real users report false positives?
    C6 adds an impl and makes an old inference site ambiguous.
-5. **The component probes are not an implemented command.** Should enabling the tag writer require end-to-end fixtures across all three modes and platforms?
+3. **The component probes are not an implemented command.** Should enabling the tag writer require end-to-end fixtures across all three modes and platforms?
    C19's same-commit retagging cases distinguish exact ref-object guards from weaker commit-only checks.

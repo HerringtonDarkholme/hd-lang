@@ -764,8 +764,6 @@ Four additional positive controls check/run on both engines, giving **16 success
 The intentional missing-module probe rejects with the documented diagnostic; the public-entry build has the recorded actual exports.
 The four dev module sizes match their final source hashes and fresh package builds.
 
-Exact commands, frozen tools, provenance, source hashes, outputs and module sections are retained at `/private/tmp/muse-807-gui-1792819546001215000`.
-
 Parsing is distinct from checking and execution.
 Short option excerpts depend on the types in their linked complete source; the whole sources check and run.
 The two current-gap probes deliberately demonstrate missing module/export behavior.

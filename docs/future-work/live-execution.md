@@ -2,11 +2,11 @@
 
 Part of the [compiler design](../compiler/ARCHITECTURE.md).
 
-Status: Design, not decided, 2026-10-07. Corrected 2026-10-12 to the owner's
-decisions in [REPL Decisions](#repl-decisions-2026-10-12-and-2026-10-13) (Q8): marked
-**[Decided 2026-10-12]** in place. Where an unmarked section still says
-"shadowing", the marked note wins: the spec now forbids redefinition
-([`cli.repl.redeclare.*`](../../spec/cli/command-line.md)).
+Status: the REPL, journal, rebuild and `:reload` are built (#17); resume,
+`--record` and `--replay`, and hot reload are Later. Sections 2 to 5 and 7
+to 9 describe the shipped design, and the code cites them. Where an unmarked
+section still says "shadowing", the marked note wins: the spec forbids
+redefinition ([`cli.repl.redeclare.*`](../../spec/cli/command-line.md)).
 
 ## Summary
 
@@ -200,12 +200,9 @@ repl#3.wasm       imports prices, Map.insert instance
 repl#4.wasm       imports price, dbg_text[u32]
 ```
 
-- **Wasm GC types canonicalize across modules** (iso-recursive rec
-  groups), so a value built in input 1 flows into input 4 unchanged.
-  The emitter's canonical type order (crates/hd_wasm_linear/DESIGN.md §15.3) makes the
-  same hd layout give the same rec group in every module. Implementation
-  differs: neither the canonical type order nor module-local literal
-  numbers is built as written (one getter per literal, #258).
+- **One `Store` links every input**, so a value built in input 1 flows
+  into input 4 unchanged. The same hd layout is the same in every module
+  (crates/hd_wasm_linear/DESIGN.md §15.1).
 - ~~**Runtime type ids** (for `dyn Any` and type witnesses,
   crates/hd_wasm_linear/DESIGN.md §15.2) are assigned session-wide and append-only, so a
   shadowed type and its replacement get different ids.~~ **[Decided
@@ -593,8 +590,7 @@ release, can later name which handles are safe to reopen.
 ### 6.5 Checkpoints (Later Still)
 
 Replay from the start costs the whole history. A checkpoint would save
-the program's state. But neither wasmtime nor V8 can serialize a Wasm GC
-heap, and the first release has no serializable closures. So the
+the program's state, and the first release has no serializable closures. So the
 pattern for long executions is the program's own: save explicit state
 through a capability and start a new execution from it (Temporal's
 continue-as-new).

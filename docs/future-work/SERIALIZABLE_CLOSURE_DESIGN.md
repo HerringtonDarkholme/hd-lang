@@ -5,7 +5,7 @@ yet. Spellings, std names, and diagnostic names not listed under
 [Decisions So Far](#decisions-so-far) are placeholders. It builds on the boundary rules of
 [Modules](../../spec/lang/10-modules.md), the requirement rows of
 [Requirements And Suspension](../../spec/lang/11-requirements-and-suspension.md),
-and the local `^` values of
+and the worker model of
 [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md).
 
 - [Decisions So Far](#decisions-so-far)
@@ -104,7 +104,7 @@ a place when the place's profile binds every key of its row.
 ```text
 use std.remote.{Caller, Remote, remote}
 
-pub data Message:
+pub struct Message:
     pub author: string
     pub text: string
 
@@ -178,7 +178,7 @@ the types. Here it is one function and one call.
 ```text
 use std.remote.{Caller, Remote, remote}
 
-pub data Profile:
+pub struct Profile:
     pub name: string
     pub recent: List[OrderLine]
 
@@ -225,10 +225,10 @@ client sends the current version and defeats the check.
 ```text
 use std.remote.{Opaque, OpaqueStore, opaque}
 
-pub data DocVersion:
+pub struct DocVersion:
     pub value: i64
 
-pub data Draft:
+pub struct Draft:
     pub title: string
     pub seen: Opaque[DocVersion]         # the browser carries it but cannot read or change it
 
@@ -293,7 +293,7 @@ what it captured:
 ```text
 use std.remote.{Caller, Portable, Remote, portable, remote}
 
-pub data Page:
+pub struct Page:
     pub title: string
     pub publish: Portable[fn!() -> Result[void, PublishError] $ Docs + Caller]
 
@@ -393,7 +393,7 @@ and a worker loop that dispatches on a job name.
 ```text
 use std.remote.{Portable, RemoteError, portable}
 
-pub data Weights:
+pub struct Weights:
     pub size: f64
     pub bias: f64
 
@@ -416,8 +416,8 @@ trusted, so nothing is made opaque.
 If the request is cancelled midway, the provider aborts the items
 still running. The captures were copies, so no worker has state to undo.
 
-A capture must be plain boundary-safe data, never a borrow (`^`) or an
-owned (`own`) value. A connection is owned, so it cannot ride along:
+A capture must be plain boundary-safe data, never a reference (`&` or `&mut`). A
+connection is a live handle, so it cannot ride along:
 
 ```text
 fn warm!(urls: List[string]) -> Result[List[bool], RemoteError] $ Workers + Net:
@@ -745,8 +745,8 @@ This section states each rule from the tour once, grouped by piece.
    of 4.3 with `F`'s row and routes by the module of the literal that
    made `p`. Draft: a plain call `p(args)` runs in process and needs the
    caller's row to cover `F`'s row.
-4. Every capture is plain boundary-safe data, never a borrow or an owned
-   value. Otherwise it is `portable-capture-not-boundary-safe`.
+4. Every capture is plain boundary-safe data, never a reference or a live
+   handle. Otherwise it is `portable-capture-not-boundary-safe`.
 5. A portable closure captures no provider; its keys go in its row. One
    that assigns to or mutates a capture is `portable-capture-mutable`.
 6. A literal whose type or captures mention an enclosing type parameter
