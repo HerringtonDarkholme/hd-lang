@@ -96,7 +96,7 @@ through the approved primitives.
 | `0b1429b47` (#317) | `StringBuilder` and string equality after `concat_all` | Node startup inside each figure |
 | #426 comments | the redesign's unmeasured findings; keyed hash costs | |
 | #376, #377, #357 | piece push cost, derived metadata, integer text | |
-| [SIMD_PRIMITIVES.md section 10](SIMD_PRIMITIVES.md#10-probe-results-2026-10-17) | scans and copies over `(array i8)` and `(array v128)` on both engines | hand-written kernels, not hd output |
+| The SIMD probe of 2026-10-17 ([3.9](#39-simd-byte-scans-428)) | scans and copies on both engines | hand-written kernels over the old Wasm GC layout, not hd output |
 | [crates/hd_opt/DESIGN.md](../../crates/hd_opt/DESIGN.md) sections 7 and 8, #65 | closure call cost per engine | #65's layer cost predates closure specialization |
 
 ### 2.2 The failing runtime rows, then and now
@@ -163,20 +163,15 @@ Later records:
 
 ### 2.4 What the SIMD probe settled
 
-The probe (SIMD_PRIMITIVES.md section 10) answers where scans and copies
-stand:
+Hand-written kernels (2026-10-17, Apple M3 Max) showed a byte scan of
+1 MiB gaining 22x on V8 and 41x on wasmtime with 16-byte SIMD steps, and
+a 64-byte scan 6x to 10x. Copies already run at memory speed, because
+both engines lower bulk copies to a native memmove. The probe ran on the
+old Wasm GC `(array i8)` layout; strings are now views over linear
+memory, so SIMD128 loads from them directly with no layout change.
 
-- A byte scan gains 22x on V8 and 41x on wasmtime at 1 MiB, but only with
-  a `(array v128)` string layout. Native loops over today's `(array i8)`
-  gain almost nothing on V8 and about 10% on wasmtime.
-- `array.copy` on `(array i8)` already lowers to a native memmove on both
-  engines, so concatenation and `concat_all` copy at memory speed. Their
-  cost is per piece, not per byte.
-- The wider layout makes byte reads 1.2x to 1.8x slower and short strings
-  4 to 12 bytes larger. The owner kept `(array i8)`.
-
-So scanning is not where the time goes now. Allocation, per-piece work
-and calls per element are.
+Scanning is still not where most time goes: allocation, per-piece work
+and calls per element are. SIMD is step 29 ([3.9](#39-simd-byte-scans-428)).
 
 ### 2.5 Memory
 
@@ -368,6 +363,34 @@ case builds a fresh host and instance.
 | **One `realpath` per host file call** (review fix 24) | `list_dir!` 41 to about 25 µs, `read_text!` 32 to about 20 µs | `host/node.mjs`, the wasmtime host | low; a `realpath` cache would be unsafe | nothing |
 | **A size report**, then targeted cuts | finds what fills 17 KB per 1,000 lines | the planned `hd build --size-report` | low | nothing |
 
+### 3.9 SIMD byte scans (#428)
+
+Every byte scan in `lib/std` is an hd loop over `bytes_at`, about 15 Wasm
+instructions per byte. The owner approved SIMD128 intrinsics after TIR
+v2 stage 3 (2026-10-22). Five std primitives, each a plain hd
+declaration whose body the compiler supplies; each returns a byte
+offset, `bytes_len(text)` when nothing is found, and its hd reference
+body defines the result:
+
+| Primitive | Callers |
+| --- | --- |
+| `bytes_index(text, from, byte)` | one-byte `find`, `split`, `count`, `replace`, `lines`; regex `find_literal`; JSON pointer `/` scan |
+| `bytes_index_pair(text, from, first, last, gap)` | the prefilter before the Two-Way check for longer needles |
+| `bytes_index_json(text, from)` | `push_escaped` (encode), the parser's `string` and `escaped` (decode) |
+| `bytes_mismatch(left, right)` | `string_equal`, `string_compare`, `bytes_match`, the runtime `StrEq` loop |
+| `utf8_valid_len(bytes)` | `string::from_utf8`, and through it `Response.text()`, file reads and `std.encoding` |
+
+Left out on purpose: counting a byte, a general byte-set search,
+skipping JSON whitespace, and base64/hex (transforms, with cheaper fixes
+first). The bodies use only finished SIMD128 instructions, on by
+default in V8 and wasmtime, so no feature gate is needed. Each primitive
+is one helper linked only when reached, so a program that never scans
+pays nothing. Testing: one `it_prop` per primitive against its
+reference body, over lengths around every 16-byte edge, view starts 0
+to 31, matches at each edge and none, byte values 0, 31, 32, 127, 128
+and 255, and the UTF-8 error cases, on both engines. #428's done check
+is 4x on 1 MB inputs on both engines.
+
 ## 4. Ranked Steps
 
 Each step is about an hour of agent work and names the measurement it
@@ -402,7 +425,7 @@ tests. It waits on question 1.
 
 ## 5. What Stays Parked
 
-- **SIMD for byte scans** is step 29 (#428), after TIR v2 stage 3.
+- **SIMD for byte scans** is step 29 (#428), after TIR v2 stage 3 ([3.9](#39-simd-byte-scans-428)).
 - **A lazy DFA for regex.** The Pike VM with a prefilter is linear; a DFA
   is a larger design for a row at 0.16x. Text and JSON come first.
 - **`Map` in hd** (#180). Not a speed item. `Set` without its `bool`

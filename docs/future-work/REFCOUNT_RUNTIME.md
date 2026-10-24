@@ -675,7 +675,7 @@ Moving from Wasm GC to linear memory changes every row of the layout table: memo
 segments, the runtime in the module, count updates and release glue,
 a shadow stack for borrowed locals, monomorphized layouts with no
 `eqref` casts, new host codecs. In exchange, SIMD over bytes becomes
-possible ([SIMD_PRIMITIVES.md](SIMD_PRIMITIVES.md)). A native backend
+possible ([Performance Roadmap 3.9](PERFORMANCE_ROADMAP.md#39-simd-byte-scans-428)). A native backend
 is not planned (#188 closed).
 
 ## 10. Recommendation And Plan
