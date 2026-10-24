@@ -1404,3 +1404,182 @@ fn filesystem_remove_nonempty_directory_keeps_native_context() {
     assert_native_program(p);
     assert_eq!(fs::read(dir.join("child")).unwrap(), b"keep");
 }
+
+/// The writer cannot open the FIFO until the guest's sibling prints.
+/// A host call that blocks the polling thread therefore fails this test,
+/// even if it eventually returns the right bytes after the watchdog release.
+#[cfg(unix)]
+#[test]
+fn filesystem_fifo_read_keeps_a_sibling_running_on_both_engines() {
+    use hd_driver::{Executor, Goal, Host, NoClock};
+    use hd_project::MemorySources;
+    use hd_run::{Grants, HostSetup, Limits, Outcome};
+    use hd_run_wasmtime::{EngineConfig, HostIo};
+    use hd_sched::SerialOrder;
+    use std::io::Read;
+    use std::process::{Command, Stdio};
+    use std::sync::{Arc, Mutex, mpsc};
+    use std::time::Duration;
+
+    #[derive(Clone)]
+    struct ReleaseOnTick {
+        bytes: Arc<Mutex<Vec<u8>>>,
+        release: Arc<Mutex<Option<mpsc::Sender<()>>>>,
+    }
+    impl std::io::Write for ReleaseOnTick {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            let mut output = self.bytes.lock().unwrap();
+            output.extend_from_slice(bytes);
+            if output.windows(5).any(|part| part == b"tick\n")
+                && let Some(release) = self.release.lock().unwrap().take()
+            {
+                let _ = release.send(());
+            }
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let template =
+        fs::read_to_string(root.join("spec/conformance/cli/fs-pending-special/src/external.hd"))
+            .unwrap();
+    // Direct Node, supervised Node, then native, each with its own FIFO.
+    for mode in 0..3 {
+        let scratch = Scratch::new();
+        let fifo = scratch.at("fifo");
+        assert!(
+            Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let (release, released) = mpsc::channel();
+        let fifo_path = fifo.clone();
+        let peer = std::thread::spawn(move || {
+            // Release even a regressed host so it cannot leave this test
+            // binary stuck in a blocking OS read. The boolean proves order.
+            let sibling_ran = released.recv_timeout(Duration::from_secs(5)).is_ok();
+            let until = std::time::Instant::now() + Duration::from_secs(20);
+            loop {
+                match rustix::fs::open(
+                    fifo_path.as_path(),
+                    rustix::fs::OFlags::WRONLY
+                        | rustix::fs::OFlags::NONBLOCK
+                        | rustix::fs::OFlags::CLOEXEC,
+                    rustix::fs::Mode::empty(),
+                ) {
+                    Ok(fd) => {
+                        let mut file = fs::File::from(fd);
+                        std::io::Write::write_all(&mut file, b"fifo contents").unwrap();
+                        break;
+                    }
+                    Err(rustix::io::Errno::NXIO) if std::time::Instant::now() < until => {
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("FIFO reader did not open: {error}"),
+                }
+            }
+            sibling_ran
+        });
+        let source = format!(
+            "{template}\npub fn main!() -> Result[void, FsError] $ FsRead + Clock + Console:\n    exercise!({:?})\n",
+            path(&fifo),
+        );
+        let mut sources = MemorySources::default();
+        sources.insert("main.hd", &source);
+        let store = hd_cache::MemoryStore::default();
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+        };
+        let built = hd_driver::build(
+            &host,
+            "pending-fifo",
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(built.diags.is_empty(), "{}", built.render());
+        let wasm = built.wasm.unwrap();
+        let output = ReleaseOnTick {
+            bytes: Arc::default(),
+            release: Arc::new(Mutex::new(Some(release))),
+        };
+        if mode == 2 {
+            let setup = HostSetup {
+                providers: vec![],
+                grants: Grants::default(),
+                limits: Limits {
+                    wall_ms: Some(20_000),
+                    ..Limits::default()
+                },
+                args: vec![],
+                program: String::new(),
+            };
+            let outcome = hd_run_wasmtime::run(
+                EngineConfig::default(),
+                &wasm,
+                &setup,
+                HostIo {
+                    out: Box::new(output.clone()),
+                    err: Box::new(Vec::<u8>::new()),
+                    input: None,
+                },
+            )
+            .unwrap();
+            assert_eq!(outcome, Outcome::Exit(0));
+        } else {
+            let file = scratch.at("pending-fifo.wasm");
+            fs::write(&file, wasm).unwrap();
+            let config = scratch.at("run.json");
+            fs::write(
+                &config,
+                if mode == 0 {
+                    "{}"
+                } else {
+                    "{\"timeLimitMs\":20000}"
+                },
+            )
+            .unwrap();
+            let mut node = Command::new("node")
+                .arg(root.join("host/run.mjs"))
+                .arg(file)
+                .arg(config)
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut stdout = node.stdout.take().unwrap();
+            let mut stderr = node.stderr.take().unwrap();
+            let mut sink = output.clone();
+            let out = std::thread::spawn(move || std::io::copy(&mut stdout, &mut sink).unwrap());
+            let err = std::thread::spawn(move || {
+                let mut bytes = Vec::new();
+                stderr.read_to_end(&mut bytes).unwrap();
+                bytes
+            });
+            let status = node.wait().unwrap();
+            out.join().unwrap();
+            let errors = err.join().unwrap();
+            assert_eq!(
+                status.code(),
+                Some(0),
+                "Node mode {mode}: {}",
+                String::from_utf8_lossy(&errors)
+            );
+            assert!(errors.is_empty());
+        }
+        assert!(
+            peer.join().unwrap(),
+            "mode {mode}: sibling must run before the FIFO writer opens"
+        );
+        assert_eq!(*output.bytes.lock().unwrap(), b"tick\nfifo contents\n");
+    }
+}

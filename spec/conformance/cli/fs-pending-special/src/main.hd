@@ -1,0 +1,6 @@
+use pkg.external.exercise
+use std.fs.{FsError, FsRead}
+use std.time.Clock
+
+pub fn main!() -> Result[void, FsError] $ FsRead + Clock + Console:
+    exercise!("input.txt")
