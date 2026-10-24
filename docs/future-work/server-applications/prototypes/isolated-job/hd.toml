@@ -1,0 +1,5 @@
+[package]
+name = "server_isolated_job"
+
+[dependencies]
+model = { path = "../model" }

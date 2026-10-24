@@ -1,0 +1,21 @@
+use dep.model.{Event, Reply, State, cases, handle, start, stop}
+use std.host.{Args, args}
+use std.json.encode
+use std.time.Clock
+
+# Ordinary hooks; the main shim emulates a driver, not compiler registration.
+pub fn initialize!() -> &mut State:
+    start()
+
+pub fn dispatch!(state: &mut State, event: Event) -> Reply $ Clock:
+    handle!(event, state)
+
+pub fn shutdown!(state: &mut State) -> void:
+    stop(state)
+
+pub fn main!() -> void $ Args + Clock + Console:
+    state := initialize!()
+    for event in cases(args()[0]):
+        println(encode(dispatch!(state, event)))
+    shutdown!(state)
+    println("count=${state.count} stopped=${state.stopped}")
