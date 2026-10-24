@@ -67,8 +67,8 @@ use super::splice;
 use super::{Loc, Operand, OwnCx, Role, Tri, consumes, fill, operands, tracked};
 
 use crate::ir::{
-    Body, CaptureMode, NONE, ReadMode, Ref, Tag, for_blocks, is_suspension, local_flags, place,
-    ref_word, u32_of,
+    Body, CaptureMode, NONE, ReadMode, Ref, Tag, Topology, for_blocks, is_suspension, local_flags,
+    place, ref_word, u32_of,
 };
 
 /// Known-null's dense tables, reused across bodies.
@@ -106,10 +106,6 @@ pub(crate) struct Tables {
     /// Per value: a `borrow` read with a `Drop` (a kept drop, which an
     /// instance may make release).
     dropped: Vec<bool>,
-    /// Each block's owner, and whether it is a sub-body's root.
-    owner: Vec<u32>,
-    is_root: Vec<bool>,
-    label_of: Vec<u32>,
     /// Per label: the arena offset of the state its `Break`s (or
     /// `Continue`s) carry, and whether one reached it.
     brk: Vec<(u32, bool)>,
@@ -126,8 +122,6 @@ pub(crate) struct Tables {
     /// one it reached where its place may hold a count.
     seen: Vec<bool>,
     needed: Vec<bool>,
-    /// Each statement's block, as the walk reached it.
-    blk_of: Vec<u32>,
     /// Per instruction: its suspension state's offset in `susp`, or `NONE`;
     /// the suspension points reached.
     susp_at: Vec<u32>,
@@ -153,7 +147,13 @@ pub(crate) struct Tables {
 /// Runs known-null over `b` with the earlier passes' edits in `edits`,
 /// adding its deletions there, and fills `b.unwind_drops` and
 /// `b.full_cells` and trims `b.exit_drops`.
-pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
+pub(crate) fn run(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) {
     let n = b.len();
     b.unwind_drops.clear();
     b.full_cells.clear();
@@ -166,7 +166,6 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut spli
     let k = edits.len();
     fill(&mut t.seen, n + k, false);
     fill(&mut t.needed, n + k, false);
-    fill(&mut t.blk_of, n, NONE);
     fill(&mut t.susp_at, n, NONE);
     fill(&mut t.brk, b.label_inst.len(), (NONE, false));
     fill(&mut t.cont, b.label_inst.len(), (NONE, false));
@@ -193,8 +192,8 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut spli
         for c in 0..u32_of(t.clocs.len()) {
             t.set(st, t.cfirst + c);
         }
-        if t.block(b, cx, edits, root, st) {
-            t.tail(b, cx, root, st);
+        if t.block(b, topo, cx, edits, root, st) {
+            t.tail(b, topo, cx, root, st);
             t.union(t.exit, st);
         }
         for (k, &(sub, l)) in b.exit_drops.iter().enumerate() {
@@ -208,7 +207,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut spli
     // Rule 1: the drops no path reaches with a count.
     for x in 0..n {
         if t.seen[x] && !t.needed[x] {
-            edits.remove(t.blk_of[x], u32_of(x));
+            edits.remove(u32_of(x));
         }
     }
     for e in 0..k {
@@ -262,9 +261,6 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &splice::Tables) -> b
     fill(&mut t.pin_v, n, false);
     fill(&mut t.entry, locals, false);
     fill(&mut t.dropped, n, false);
-    fill(&mut t.owner, n, NONE);
-    fill(&mut t.is_root, n, false);
-    fill(&mut t.label_of, n, NONE);
     t.locs.clear();
     t.vals.clear();
     t.sticky.clear();
@@ -284,28 +280,11 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &splice::Tables) -> b
             Tag::Drop if !t.pending.dead[i] => mark_dropped(b, t, a),
             _ => {}
         }
-        let defer = b.tags[i] == Tag::Defer;
-        let owner = &mut t.owner;
-        for_blocks(b, i, |x| {
-            if !(defer && owner[x as usize] != NONE) {
-                owner[x as usize] = u32_of(i);
-            }
-        });
     }
     for e in 0..edits.len() {
         let (_, _, tag, [word, _], _) = edits.get(u32_of(e));
         if tag == Tag::Drop && !edits.is_cancelled(u32_of(e)) {
             mark_dropped(b, t, word);
-        }
-    }
-    for &r in &b.sub_root {
-        if let Some(x) = t.is_root.get_mut(r as usize) {
-            *x = true;
-        }
-    }
-    for (l, &x) in b.label_inst.iter().enumerate() {
-        if let Some(slot) = t.label_of.get_mut(x as usize) {
-            *slot = u32_of(l);
         }
     }
     for (l, flags) in b.local_flags.iter().enumerate() {
@@ -745,6 +724,7 @@ impl Tables {
     fn block(
         &mut self,
         b: &Body,
+        topo: &Topology,
         cx: &dyn OwnCx,
         edits: &splice::Tables,
         blk: u32,
@@ -754,7 +734,7 @@ impl Tables {
             return true;
         }
         let n = b.len();
-        let label = self.label_of[blk as usize];
+        let label = topo.label_of[blk as usize];
         let saved = (label != NONE).then(|| self.brk[label as usize]);
         let slot = self.arena.len();
         if label != NONE {
@@ -786,8 +766,7 @@ impl Tables {
             if self.pending.dead[m as usize] || b.tags[m as usize] == Tag::Block {
                 continue;
             }
-            self.blk_of[m as usize] = blk;
-            falls = self.inst(b, cx, edits, m, st);
+            falls = self.inst(b, topo, cx, edits, m, st);
         }
         if let Some(old) = saved {
             let (at, reached) = self.brk[label as usize];
@@ -804,21 +783,22 @@ impl Tables {
     fn valued(
         &mut self,
         b: &Body,
+        topo: &Topology,
         cx: &dyn OwnCx,
         edits: &splice::Tables,
         blk: u32,
         st: usize,
     ) -> bool {
-        let falls = self.block(b, cx, edits, blk, st);
+        let falls = self.block(b, topo, cx, edits, blk, st);
         if falls && b.tags.get(blk as usize) == Some(&Tag::Block) {
-            self.tail(b, cx, blk, st);
+            self.tail(b, topo, cx, blk, st);
         }
         falls
     }
 
     /// Block `blk`'s tail, which its owner's value takes when the owner
     /// uses it.
-    fn tail(&mut self, b: &Body, cx: &dyn OwnCx, blk: u32, st: usize) {
+    fn tail(&mut self, b: &Body, topo: &Topology, cx: &dyn OwnCx, blk: u32, st: usize) {
         let w = b.data[blk as usize][1];
         if w == NONE || Ref(w).as_inst().is_none() || w as usize >= b.len() {
             return;
@@ -827,10 +807,10 @@ impl Tables {
         if bit == NONE {
             return;
         }
-        let owner = if self.is_root[blk as usize] {
+        let owner = if topo.is_root[blk as usize] {
             NONE
         } else {
-            self.owner[blk as usize]
+            topo.owner[blk as usize]
         };
         let op = Operand {
             value: w,
@@ -867,6 +847,7 @@ impl Tables {
     fn inst(
         &mut self,
         b: &Body,
+        topo: &Topology,
         cx: &dyn OwnCx,
         edits: &splice::Tables,
         x: u32,
@@ -879,8 +860,8 @@ impl Tables {
                 let r = b.record(w);
                 let (then, els) = (r.first().copied(), r.get(1).copied());
                 let other = self.alloc(Some(st));
-                let t = then.is_none_or(|blk| self.valued(b, cx, edits, blk, other));
-                let e = els.is_none_or(|blk| self.valued(b, cx, edits, blk, st));
+                let t = then.is_none_or(|blk| self.valued(b, topo, cx, edits, blk, other));
+                let e = els.is_none_or(|blk| self.valued(b, topo, cx, edits, blk, st));
                 let falls = match (t, e) {
                     (true, true) => {
                         self.union(st, other);
@@ -901,7 +882,7 @@ impl Tables {
             Tag::And | Tag::Or => {
                 self.uses_only(b, cx, x, st);
                 let right = self.alloc(Some(st));
-                if self.valued(b, cx, edits, w, right) {
+                if self.valued(b, topo, cx, edits, w, right) {
                     self.union(st, right);
                 }
                 self.free(right);
@@ -910,14 +891,14 @@ impl Tables {
             }
             Tag::With => {
                 self.uses_only(b, cx, x, st);
-                let falls = self.valued(b, cx, edits, w, st);
+                let falls = self.valued(b, topo, cx, edits, w, st);
                 if falls {
                     self.defined(x, st);
                 }
                 falls
             }
             Tag::RefDyn => {
-                let falls = self.valued(b, cx, edits, a, st);
+                let falls = self.valued(b, topo, cx, edits, a, st);
                 if falls {
                     self.defined(x, st);
                 }
@@ -927,7 +908,7 @@ impl Tables {
                 for c in 0..self.clocs.len() {
                     self.cell_visit(x, self.clocs[c], st);
                 }
-                let falls = self.repeat(b, cx, edits, x, st);
+                let falls = self.repeat(b, topo, cx, edits, x, st);
                 if falls {
                     self.defined(x, st);
                 }
@@ -935,7 +916,7 @@ impl Tables {
             }
             Tag::Match => {
                 self.uses_only(b, cx, x, st);
-                let falls = self.decide(b, cx, edits, x, st);
+                let falls = self.decide(b, topo, cx, edits, x, st);
                 if falls {
                     self.defined(x, st);
                 }
@@ -953,7 +934,7 @@ impl Tables {
                         continue;
                     }
                     self.copy(s, inp);
-                    if self.valued(b, cx, edits, blk, s) {
+                    if self.valued(b, topo, cx, edits, blk, s) {
                         self.join(st, &mut any, s);
                     }
                 }
@@ -964,7 +945,7 @@ impl Tables {
                 any
             }
             Tag::Guard => {
-                if !self.valued(b, cx, edits, a, st) {
+                if !self.valued(b, topo, cx, edits, a, st) {
                     return false;
                 }
                 let inp = self.alloc(Some(st));
@@ -972,7 +953,7 @@ impl Tables {
                 let mut any = false;
                 for &blk in b.record(w) {
                     self.copy(s, inp);
-                    if self.block(b, cx, edits, blk, s) {
+                    if self.block(b, topo, cx, edits, blk, s) {
                         self.join(st, &mut any, s);
                     }
                 }
@@ -980,7 +961,7 @@ impl Tables {
                 any
             }
             Tag::Scope => {
-                if !self.valued(b, cx, edits, a, st) {
+                if !self.valued(b, topo, cx, edits, a, st) {
                     return false;
                 }
                 if w != NONE {
@@ -989,7 +970,7 @@ impl Tables {
                     self.suites += 1;
                     for &suite in b.record(w) {
                         self.copy(s, inp);
-                        if self.block(b, cx, edits, suite, s) {
+                        if self.block(b, topo, cx, edits, suite, s) {
                             self.union(st, s);
                         }
                     }
@@ -1141,13 +1122,14 @@ impl Tables {
     fn repeat(
         &mut self,
         b: &Body,
+        topo: &Topology,
         cx: &dyn OwnCx,
         edits: &splice::Tables,
         x: u32,
         st: usize,
     ) -> bool {
         let body = b.data[x as usize][0];
-        let label = self.label_of[x as usize];
+        let label = topo.label_of[x as usize];
         let head = self.alloc(Some(st));
         let brk = self.alloc(None);
         let cont = self.alloc(None);
@@ -1162,7 +1144,7 @@ impl Tables {
             }
             self.copy(end, head);
             let mut grew = false;
-            if self.block(b, cx, edits, body, end) {
+            if self.block(b, topo, cx, edits, body, end) {
                 grew |= self.union(head, end);
             }
             if label != NONE && self.cont[label as usize].1 {
@@ -1189,6 +1171,7 @@ impl Tables {
     fn decide(
         &mut self,
         b: &Body,
+        topo: &Topology,
         cx: &dyn OwnCx,
         edits: &splice::Tables,
         x: u32,
@@ -1198,7 +1181,7 @@ impl Tables {
         let Some((&decision, arms)) = r.split_first() else {
             return true;
         };
-        let label = self.label_of[x as usize];
+        let label = topo.label_of[x as usize];
         let saved = (label != NONE).then(|| self.brk[label as usize]);
         let first = self.arena.len();
         if label != NONE {
@@ -1212,7 +1195,7 @@ impl Tables {
         let h = u32_of(self.hit.len());
         self.hit.resize(self.hit.len() + arms.len(), false);
         self.arms.push((u32_of(arms_at), u32_of(arms.len()), h));
-        let _ = self.block(b, cx, edits, decision, st);
+        let _ = self.block(b, topo, cx, edits, decision, st);
         self.arms.pop();
         let mut falls = false;
         for (k, &arm) in arms.iter().enumerate() {
@@ -1220,7 +1203,7 @@ impl Tables {
                 continue;
             }
             let at = arms_at + k * self.words;
-            if self.valued(b, cx, edits, arm, at) {
+            if self.valued(b, topo, cx, edits, arm, at) {
                 self.join(st, &mut falls, at);
             }
         }

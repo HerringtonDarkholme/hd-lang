@@ -96,7 +96,7 @@ use hd_types::Ty;
 
 use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, operands, splice};
 use crate::ir::{
-    Body, BodyKind, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, for_blocks, is_suspension,
+    Body, BodyKind, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, Topology, is_suspension,
     local_flags, place, u32_of,
 };
 
@@ -167,13 +167,6 @@ struct Chain {
 /// The borrow pass's dense tables, reused across bodies.
 #[derive(Default)]
 pub(crate) struct Tables {
-    /// Each instruction's block, each block's owner, and each
-    /// instruction's first instruction (its own index, or the first of the
-    /// blocks it runs, which precede it).
-    blk: Vec<u32>,
-    pos: Vec<u32>,
-    owner: Vec<u32>,
-    first: Vec<u32>,
     /// Per value: its uses, whether a use keeps it (rule 1), the `Store`
     /// that takes it, its last `Drop` of all of it.
     uses: Vec<u32>,
@@ -310,10 +303,6 @@ fn kinds(b: &Body, from: u32, to: u32) -> (u32, bool) {
 
 impl Tables {
     fn reset(&mut self, n: usize, locals: usize) {
-        fill(&mut self.blk, n, NONE);
-        fill(&mut self.pos, n, 0);
-        fill(&mut self.owner, n, NONE);
-        fill(&mut self.first, n, 0);
         fill(&mut self.uses, n, 0);
         fill(&mut self.keeps, n, false);
         fill(&mut self.stored, n, NONE);
@@ -506,7 +495,13 @@ fn any_in(list: &[u32], lo: u32, hi: u32) -> bool {
 
 /// Runs the borrow pass over every sub-body of `b`; the `Drop`s it deletes
 /// go to `edits`, which the pipeline applies after the move pass.
-pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
+pub(crate) fn run(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) {
     edits.clear();
     let n = b.len();
     let locals = b.local_ty.len();
@@ -526,7 +521,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut spli
     index_writes(b, cx, t);
     lent_params(b, cx, t, edits);
     for r in 0..n {
-        decide(b, cx, t, edits, r);
+        decide(b, topo, cx, t, edits, r);
     }
     lent_refs(b, t);
     if t.unowned.iter().any(|&u| u) {
@@ -542,29 +537,6 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     for i in 0..n {
         let [a, w] = b.data[i];
         let tag = b.tags[i];
-        let mut f = u32_of(i);
-        if tag == Tag::Block {
-            for (p, &m) in b.record(a).iter().enumerate() {
-                if (m as usize) < n {
-                    t.blk[m as usize] = u32_of(i);
-                    t.pos[m as usize] = u32_of(p);
-                    f = f.min(t.first[m as usize]);
-                }
-            }
-        }
-        // A cleanup scope owns its suites, not the `Defer` that registers
-        // one.
-        let defer = tag == Tag::Defer;
-        let (owner, first) = (&mut t.owner, &t.first);
-        for_blocks(b, i, |blk| {
-            if (blk as usize) < i {
-                f = f.min(first[blk as usize]);
-            }
-            if !(defer && owner[blk as usize] != NONE) {
-                owner[blk as usize] = u32_of(i);
-            }
-        });
-        t.first[i] = f;
         match tag {
             Tag::Drop => match root_of(b, a) {
                 (Root::Value(v), from, to) if from == to => t.last_drop[v as usize] = u32_of(i),
@@ -807,7 +779,14 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
 }
 
 /// Decides read `r`: whether it borrows, and if so, its edits.
-fn decide(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables, r: usize) {
+fn decide(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+    r: usize,
+) {
     if b.tags[r] != Tag::Read || b.data[r][1] != ReadMode::Copy as u32 || t.keeps[r] {
         return;
     }
@@ -838,14 +817,14 @@ fn decide(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tabl
     // match's arms precede its decision tree, a guard's condition may
     // precede the bindings before it), so the span's instructions are a
     // range from the first instruction of any of those statements.
-    let h = t.blk[end as usize];
-    let Some(s) = statement(b, t, x, h) else {
+    let h = topo.blk[end as usize];
+    let Some(s) = statement(b, topo, x, h) else {
         return;
     };
     let members = b.record(b.data[h as usize][0]);
-    let lo = members[t.pos[s as usize] as usize..=t.pos[end as usize] as usize]
+    let lo = members[topo.pos[s as usize] as usize..=topo.pos[end as usize] as usize]
         .iter()
-        .map(|&m| t.first[m as usize])
+        .map(|&m| topo.first[m as usize])
         .min()
         .unwrap_or(x);
     if bind != NONE
@@ -866,7 +845,7 @@ fn decide(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tabl
                 let d = t.rows[k as usize].at;
                 if is_whole_drop(b, d, Root::Value(x)) {
                     t.gone[d as usize] = true;
-                    edits.remove(t.blk[d as usize], d);
+                    edits.remove(d);
                 }
             }
         }
@@ -883,7 +862,7 @@ fn decide(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tabl
             let d = t.rows[k as usize].at;
             if is_whole_drop(b, d, Root::Local(bind)) {
                 t.gone[d as usize] = true;
-                edits.remove(t.blk[d as usize], d);
+                edits.remove(d);
             }
         }
     }
@@ -950,7 +929,7 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
             let d = t.rows[x as usize].at;
             if is_whole_drop(b, d, Root::Local(u32_of(l))) {
                 t.gone[d as usize] = true;
-                edits.remove(t.blk[d as usize], d);
+                edits.remove(d);
             }
         }
     }
@@ -1029,16 +1008,16 @@ fn binding(b: &Body, t: &Tables, s: u32) -> Option<u32> {
 
 /// The statement of block `h` that holds instruction `x`, or `None` when
 /// `h` is not around it.
-fn statement(b: &Body, t: &Tables, mut x: u32, h: u32) -> Option<u32> {
+fn statement(b: &Body, topo: &Topology, mut x: u32, h: u32) -> Option<u32> {
     for _ in 0..b.len() {
         if b.tags[x as usize] == Tag::Block {
-            x = t.owner[x as usize];
+            x = topo.owner[x as usize];
             if x == NONE {
                 return None;
             }
             continue;
         }
-        let p = t.blk[x as usize];
+        let p = topo.blk[x as usize];
         if p == NONE {
             return None;
         }

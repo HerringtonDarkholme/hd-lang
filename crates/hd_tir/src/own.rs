@@ -529,6 +529,9 @@ pub fn consumers(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<u32>) 
 /// the whole run (`docs/compiler/tir-v2.md`, "Data layout of the passes").
 #[derive(Default)]
 pub struct OwnScratch {
+    /// The block structure of the body the passes run over: before
+    /// insertion's edits, then after them for the passes that follow.
+    pub(crate) topo: Topology,
     pub(crate) borrow: borrow::Tables,
     pub(crate) hoist: hoist::Tables,
     pub(crate) insert: insert::Tables,
@@ -545,25 +548,15 @@ pub struct OwnScratch {
 /// refused, with what stopped them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
     insert::run(b, cx, scratch)?;
-    borrow::run(b, cx, &mut scratch.borrow, &mut scratch.splice);
-    moves::run(b, cx, &mut scratch.moves, &mut scratch.splice);
-    pairs::write_backs(
-        b,
-        cx,
-        &scratch.moves,
-        &mut scratch.pairs,
-        &mut scratch.splice,
-    );
-    pairs::run(
-        b,
-        cx,
-        &mut scratch.moves,
-        &mut scratch.pairs,
-        &mut scratch.splice,
-    );
-    known::run(b, cx, &mut scratch.known, &mut scratch.splice);
-    hoist::run(b, cx, &mut scratch.hoist, &mut scratch.splice);
-    splice::apply(b, &mut scratch.splice)
+    scratch.topo.build(b);
+    let (topo, edits) = (&scratch.topo, &mut scratch.splice);
+    borrow::run(b, topo, cx, &mut scratch.borrow, edits);
+    moves::run(b, topo, cx, &mut scratch.moves, edits);
+    pairs::write_backs(b, topo, cx, &scratch.moves, &mut scratch.pairs, edits);
+    pairs::run(b, topo, cx, &mut scratch.moves, &mut scratch.pairs, edits);
+    known::run(b, topo, cx, &mut scratch.known, edits);
+    hoist::run(b, topo, cx, &mut scratch.hoist, edits);
+    splice::apply(b, topo, edits)
 }
 
 #[cfg(test)]

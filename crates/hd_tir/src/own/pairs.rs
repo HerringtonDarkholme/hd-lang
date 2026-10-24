@@ -48,7 +48,7 @@
 use super::moves::{self, Root, in_place, root_of};
 use super::splice;
 use super::{Loc, Operand, OwnCx, Tri, operands};
-use crate::ir::{Body, NONE, ReadMode, Tag, for_blocks, is_suspension, place, u32_of};
+use crate::ir::{Body, NONE, ReadMode, Tag, Topology, for_blocks, is_suspension, place, u32_of};
 
 /// The nearest later touch seen so far: the straight line it is in, its
 /// order in the walk (a larger number is nearer), and the instruction or
@@ -148,6 +148,7 @@ impl Tables {
 /// in `edits`, adding its own.
 pub(crate) fn run(
     b: &mut Body,
+    topo: &Topology,
     cx: &dyn OwnCx,
     mt: &mut moves::Tables,
     t: &mut Tables,
@@ -198,7 +199,7 @@ pub(crate) fn run(
     t.time = 0;
     for blk in 0..n {
         if b.tags[blk] == Tag::Block {
-            block(b, cx, mt, t, edits, u32_of(blk));
+            block(b, topo, cx, mt, t, edits, u32_of(blk));
         }
     }
 }
@@ -226,6 +227,7 @@ fn candidate(mt: &moves::Tables, b: &Body, word: u32) -> Option<u32> {
 /// Block `blk`'s statements and edits, backward.
 fn block(
     b: &mut Body,
+    topo: &Topology,
     cx: &dyn OwnCx,
     mt: &mut moves::Tables,
     t: &mut Tables,
@@ -241,7 +243,7 @@ fn block(
         if p < len {
             let m = b.extra[rec + 1 + p];
             if !t.pending.dead[m as usize] {
-                statement(b, cx, mt, t, edits, m);
+                statement(b, topo, cx, mt, t, edits, m);
             }
         }
         // The edits before position `p`, backward.
@@ -279,6 +281,7 @@ fn edit(b: &Body, mt: &moves::Tables, t: &mut Tables, edits: &splice::Tables, e:
 /// nearest later touch of its base; then its touches.
 fn statement(
     b: &mut Body,
+    topo: &Topology,
     cx: &dyn OwnCx,
     mt: &mut moves::Tables,
     t: &mut Tables,
@@ -308,7 +311,7 @@ fn statement(
     t.time += 1;
     let [a, w] = b.data[i];
     if tag == Tag::Read && w == ReadMode::Copy as u32 {
-        pair(b, cx, mt, t, edits, m);
+        pair(b, topo, cx, mt, t, edits, m);
     }
     // The touches: the place's root, then what its operands and a binding
     // local at its root live on, as all of a base.
@@ -383,6 +386,7 @@ fn whole(t: &mut Tables, m: u32) {
 /// module), the read moves and the drop goes or splits.
 fn pair(
     b: &mut Body,
+    topo: &Topology,
     cx: &dyn OwnCx,
     mt: &mut moves::Tables,
     t: &mut Tables,
@@ -421,8 +425,8 @@ fn pair(
         }
         (
             b.data[d as usize][0],
-            mt.blk[d as usize],
-            mt.pos[d as usize],
+            topo.blk[d as usize],
+            topo.pos[d as usize],
             b.syn[d as usize],
         )
     } else {
@@ -461,7 +465,7 @@ fn pair(
         return;
     }
     if d < n {
-        edits.remove(blk, d);
+        edits.remove(d);
     } else {
         edits.cancel(d - n);
     }
@@ -507,6 +511,7 @@ fn pair(
 /// leaves the exit set, as the borrow pass's binding locals do.
 pub(super) fn write_backs(
     b: &mut Body,
+    topo: &Topology,
     cx: &dyn OwnCx,
     mt: &moves::Tables,
     t: &mut Tables,
@@ -524,13 +529,13 @@ pub(super) fn write_backs(
         let (Some(pb), w) = (b.ptr_target(i), b.data[i][1]) else {
             continue;
         };
-        let (Some(v), blk) = (read_of(b, w), mt.blk[i]) else {
+        let (Some(v), blk) = (read_of(b, w), topo.blk[i]) else {
             continue;
         };
         let vi = v as usize;
         let moved = b.data[w as usize][1] == ReadMode::Move as u32;
         if blk == NONE
-            || mt.blk[w as usize] != blk
+            || topo.blk[w as usize] != blk
             || b.local_flags[vi] & local_flags::PARAM != 0
             || mt.addr[vi]
             || b.cap_local.iter().any(|c| c.raw() == v)
@@ -542,7 +547,7 @@ pub(super) fn write_backs(
         let stmts = b.record(b.data[blk as usize][0]).to_vec();
         let p = read_of(b, pb);
         let mut found = None;
-        for &x in stmts[..mt.pos[i] as usize].iter().rev() {
+        for &x in stmts[..topo.pos[i] as usize].iter().rev() {
             let xi = x as usize;
             if t.pending.dead[xi] || x == w || x == pb {
                 continue;
@@ -580,7 +585,7 @@ pub(super) fn write_backs(
         let same = |b: &Body, x: u32| x == pb || (p.is_some() && read_of(b, x) == p);
         if b.ptr_target(r as usize).is_none_or(|pa| !same(b, pa))
             || b.data[r as usize][1] != ReadMode::Move as u32
-            || mt.blk[r as usize] != blk
+            || topo.blk[r as usize] != blk
         {
             continue;
         }
@@ -614,18 +619,18 @@ pub(super) fn write_backs(
         } else {
             ReadMode::Copy
         } as u32;
-        edits.remove(blk, u32_of(i));
-        edits.remove(blk, w);
+        edits.remove(u32_of(i));
+        edits.remove(w);
         t.pending.dead[i] = true;
         t.pending.dead[w as usize] = true;
-        if p.is_some() && mt.blk[pb as usize] == blk {
+        if p.is_some() && topo.blk[pb as usize] == blk {
             let mut uses = 0;
             for x in 0..n {
                 super::operands(b, x, &mut ops);
                 uses += ops.iter().filter(|o| o.value == pb).count();
             }
             if uses == 1 {
-                edits.remove(blk, pb);
+                edits.remove(pb);
                 t.pending.dead[pb as usize] = true;
             }
         }

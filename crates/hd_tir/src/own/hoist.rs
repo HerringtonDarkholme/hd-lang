@@ -63,7 +63,7 @@ use hd_types::Ty;
 use super::splice;
 use super::{Operand, OwnCx, Role, Tri, fill, operands};
 use crate::ir::{
-    Body, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, for_blocks, is_suspension, local_flags,
+    Body, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, Topology, is_suspension, local_flags,
     place, u32_of, unique_word,
 };
 
@@ -176,12 +176,6 @@ struct Cand {
 #[derive(Default)]
 pub(crate) struct Tables {
     pending: splice::Pending,
-    /// Each instruction's block and position, its first instruction (its
-    /// own index, or the first of the blocks it runs), and per label its
-    /// target.
-    blk: Vec<u32>,
-    pos: Vec<u32>,
-    first: Vec<u32>,
     /// The loops, outermost first.
     loops: Vec<(u32, u32)>,
     /// Per local: a `Ref` roots at it; a closure captures it; a parameter;
@@ -426,59 +420,34 @@ fn aliases(b: &Body, user: u32, role: Role) -> bool {
 }
 
 /// Runs hoisting over `b`, as the pending edits leave it, adding its own.
-pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
+pub(crate) fn run(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) {
     b.stable_lists.clear();
     let n = b.len();
     if !b.tags.contains(&Tag::Loop) {
         return;
     }
     t.pending.build(n, edits);
-    structure(b, t);
-    facts(b, t);
-    fill(&mut t.gone, n, false);
-    for k in 0..t.loops.len() {
-        let l = t.loops[k].1;
-        hoist_loop(b, cx, t, edits, l);
-    }
-    b.stable_lists.sort_unstable();
-    b.stable_lists.dedup();
-}
-
-/// Each instruction's block, position and first instruction; the loops,
-/// outermost first.
-fn structure(b: &Body, t: &mut Tables) {
-    let n = b.len();
-    fill(&mut t.blk, n, NONE);
-    fill(&mut t.pos, n, 0);
-    fill(&mut t.first, n, 0);
     t.loops.clear();
-    for i in 0..n {
-        let mut f = u32_of(i);
-        if b.tags[i] == Tag::Block {
-            for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
-                if (m as usize) < n {
-                    t.blk[m as usize] = u32_of(i);
-                    t.pos[m as usize] = u32_of(p);
-                    if (m as usize) < i {
-                        f = f.min(t.first[m as usize]);
-                    }
-                }
-            }
-        }
-        let first = &t.first;
-        for_blocks(b, i, |blk| {
-            if (blk as usize) < i {
-                f = f.min(first[blk as usize]);
-            }
-        });
-        t.first[i] = f;
-        if b.tags[i] == Tag::Loop {
-            t.loops.push((f, u32_of(i)));
-        }
+    for i in (0..n).filter(|&i| b.tags[i] == Tag::Loop) {
+        t.loops.push((topo.first[i], u32_of(i)));
     }
     // Outermost first: an outer loop starts no later and ends later.
     t.loops
         .sort_unstable_by_key(|&(f, l)| (f, std::cmp::Reverse(l)));
+    facts(b, t);
+    fill(&mut t.gone, n, false);
+    for k in 0..t.loops.len() {
+        let l = t.loops[k].1;
+        hoist_loop(b, topo, cx, t, edits, l);
+    }
+    b.stable_lists.sort_unstable();
+    b.stable_lists.dedup();
 }
 
 /// The per-local facts and the uses of every value.
@@ -702,8 +671,15 @@ fn unique_header(b: &Body, word: u32) -> Option<u32> {
     }
 }
 
-fn hoist_loop(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables, l: u32) {
-    let lo = t.first[l as usize];
+fn hoist_loop(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+    l: u32,
+) {
+    let lo = topo.first[l as usize];
     t.cands.clear();
     t.csteps.clear();
     t.hits.clear();
@@ -807,7 +783,7 @@ fn hoist_loop(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::
             }
         }
     }
-    let at = (t.blk[l as usize], t.pos[l as usize]);
+    let at = (topo.blk[l as usize], topo.pos[l as usize]);
     for k in 0..t.cands.len() {
         let c = t.cands[k];
         if !c.ok {
@@ -837,7 +813,7 @@ fn hoist_loop(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::
                 if deref {
                     b.data[x as usize][1] = unique_word::COVERED;
                 } else {
-                    edits.remove(t.blk[x as usize], x);
+                    edits.remove(x);
                 }
             }
         }

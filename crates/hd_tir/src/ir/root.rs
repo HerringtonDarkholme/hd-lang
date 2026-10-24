@@ -46,14 +46,13 @@
 
 use hd_types::Ty;
 
-use super::{Body, IntrinsicOp, NONE, Tag, place, u32_of};
+use super::{Body, IntrinsicOp, NONE, Tag, Topology, place, u32_of};
 use crate::own::{Loc, operands};
 
 /// The tables of [`root_places`], reused across bodies.
 #[derive(Default)]
 pub struct RootTables {
-    blk: Vec<u32>,
-    pos: Vec<u32>,
+    topo: Topology,
     /// The uses of each value, in compressed rows by value: the
     /// instruction, and whether the use is the root of its place.
     start: Vec<u32>,
@@ -181,24 +180,11 @@ fn unreached(b: &Body, l: u32, v: usize, last: usize, mark: &[u32]) -> bool {
 /// says whether a type names a type parameter or an associated type.
 pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) {
     let n = b.len();
-    t.blk.clear();
-    t.blk.resize(n, NONE);
-    t.pos.clear();
-    t.pos.resize(n, 0);
+    t.topo.build(b);
     t.gone.clear();
     t.gone.resize(n, false);
     t.mark.clear();
     t.mark.resize(n, NONE);
-    for i in 0..n {
-        if b.tags[i] == Tag::Block {
-            for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
-                if (m as usize) < n {
-                    t.blk[m as usize] = u32_of(i);
-                    t.pos[m as usize] = u32_of(p);
-                }
-            }
-        }
-    }
     // Every use of each value, and whether it is its place's root.
     t.start.clear();
     t.start.resize(n + 1, 0);
@@ -232,7 +218,9 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
     }
     t.ops = ops;
     for v in 0..n {
-        if b.tags[v] != Tag::Read || b.data[v][1] != super::ReadMode::Use as u32 || t.blk[v] == NONE
+        if b.tags[v] != Tag::Read
+            || b.data[v][1] != super::ReadMode::Use as u32
+            || t.topo.blk[v] == NONE
         {
             continue;
         }
@@ -257,8 +245,8 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
         if lo == hi || !valued && roots == 2 && open(b.local_ty[root[1] as usize]) {
             continue;
         }
-        let blk = t.blk[v];
-        let mut last = t.pos[v];
+        let blk = t.topo.blk[v];
+        let mut last = t.topo.pos[v];
         let (mut ok, mut kept) = (true, false);
         for &(u, root) in &t.uses[lo..hi] {
             let entry = !root
@@ -275,21 +263,21 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
                 has_mem(b, w + 3, w + 1 + n)
             };
             if !(root || entry)
-                || t.blk[u as usize] != blk
-                || t.pos[u as usize] <= t.pos[v]
+                || t.topo.blk[u as usize] != blk
+                || t.topo.pos[u as usize] <= t.topo.pos[v]
                 || (root && b.tags[u as usize] != Tag::Read && !through(b))
             {
                 ok = false;
                 break;
             }
-            last = last.max(t.pos[u as usize]);
+            last = last.max(t.topo.pos[u as usize]);
             t.mark[u as usize] = u32_of(v);
         }
         let mut quiet = ok && !valued;
         if ok {
             let elem = has_elem(b, from, to);
             let members = b.record(b.data[blk as usize][0]);
-            let between = &members[t.pos[v] as usize + 1..last as usize];
+            let between = &members[t.topo.pos[v] as usize + 1..last as usize];
             let calm = !valued
                 && roots == 2
                 && !has_mem(b, from, to)
@@ -335,12 +323,12 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
         }
         if !kept {
             t.gone[v] = true;
-            t.edits.remove(blk, u32_of(v));
+            t.edits.remove(u32_of(v));
         }
     }
     if t.gone.iter().any(|g| *g) {
         // A folded read has no use left, so the rebuild only drops it.
-        crate::own::splice::apply(b, &mut t.edits).expect("a rebuild that only deletes");
+        crate::own::splice::apply(b, &t.topo, &mut t.edits).expect("a rebuild that only deletes");
     }
     t.edits.clear();
 }

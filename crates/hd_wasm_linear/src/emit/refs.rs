@@ -415,12 +415,10 @@ impl Em<'_, '_, '_> {
     /// (read as copies), or more than one field left, which the whole
     /// value's glue releases in one call.
     pub(super) fn own_drop_rest(&mut self, i: u32, r: u32) -> StageResult<bool> {
-        let Some(&(blk, pos)) = self.own_at.get(i as usize) else {
+        let Some(&blk) = self.topo.blk.get(i as usize).filter(|&&blk| blk != NONE) else {
             return Ok(false);
         };
-        if blk == NONE {
-            return Ok(false);
-        }
+        let pos = self.topo.pos[i as usize];
         // The fields taken: one level below the value, of one variant.
         let mut variant = None;
         let mut taken = Vec::new();

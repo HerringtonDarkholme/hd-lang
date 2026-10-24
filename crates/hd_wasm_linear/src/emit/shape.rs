@@ -1,79 +1,35 @@
-//! Shapes of a body that emission reads: its block tree ([`Tree`]), and
+//! Shapes of a body that emission reads: its block tree (`Em::topo`), and
 //! what a store, a read or a reference names (a local, a list, a
 //! projection, a read through a reference). Nothing here decides a count:
 //! the ownership passes did (`docs/compiler/tir-v2.md`, "Stage 2").
 
 use hd_tir::ir::{Body, NONE, Op, PlaceRoot, Proj, Ref, Tag};
 
-/// The block structure of a body: each instruction's block and position,
-/// and each block's owning instruction.
-pub(super) struct Tree {
-    /// The block whose list holds each instruction, and its position.
-    parent: Vec<(u32, usize)>,
-    /// The instruction that runs each block (an `If`, a `Loop`, ...).
-    owner: Vec<u32>,
-}
+use super::Em;
 
-impl Tree {
-    pub(super) fn new(b: &Body) -> Tree {
-        let n = b.len();
-        let mut parent = vec![(NONE, 0); n];
-        let mut owner = vec![NONE; n];
-        for i in 0..n {
-            let [a, w] = b.data[i];
-            let tag = b.tags[i];
-            if tag == Tag::Block {
-                for (p, &c) in b.record(a).iter().enumerate() {
-                    if let Some(x) = parent.get_mut(c as usize) {
-                        *x = (u32::try_from(i).expect("insts"), p);
-                    }
-                }
-                continue;
-            }
-            let mut blocks = Vec::new();
-            for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
-                match op {
-                    Op::Block => blocks.push(word),
-                    Op::Blocks if word != NONE => blocks.extend_from_slice(b.record(word)),
-                    _ => {}
-                }
-            }
-            if matches!(
-                tag,
-                Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr
-            ) {
-                blocks.extend(b.record(w).iter().skip(1).take(2));
-            }
-            for blk in blocks {
-                if b.tags.get(blk as usize) == Some(&Tag::Block) {
-                    owner[blk as usize] = u32::try_from(i).expect("insts");
-                }
-            }
-        }
-        Tree { parent, owner }
-    }
-
+impl Em<'_, '_, '_> {
     /// The blocks around instruction `x`, innermost first, each with the
     /// position of the statement in it that holds `x`; `None` when the
     /// chain does not reach a sub-body's root (a closure's own body).
-    pub(super) fn path(&self, b: &Body, mut x: u32) -> Option<Vec<(u32, usize)>> {
+    pub(super) fn block_path(&self, mut x: u32) -> Option<Vec<(u32, usize)>> {
+        let t = &self.topo;
         let mut out = Vec::new();
         loop {
-            if b.tags[x as usize] == Tag::Block {
-                if b.sub_root.contains(&x) {
+            if self.b.tags[x as usize] == Tag::Block {
+                if t.is_root[x as usize] {
                     return Some(out);
                 }
-                x = self.owner[x as usize];
+                x = t.owner[x as usize];
                 if x == NONE {
                     return None;
                 }
                 continue;
             }
-            let (blk, p) = self.parent[x as usize];
+            let blk = t.blk[x as usize];
             if blk == NONE {
                 return None;
             }
-            out.push((blk, p));
+            out.push((blk, t.pos[x as usize] as usize));
             x = blk;
         }
     }
@@ -83,20 +39,23 @@ impl Tree {
     /// around `j`, before the statement that holds `j`. Blocks are entered
     /// only at their start (a resumed suspending body is the exception,
     /// `susp.rs`), so reaching that statement ran `d`.
-    pub(super) fn dominates(&self, b: &Body, d: u32, j: u32) -> bool {
-        let (blk, p) = self.parent[d as usize];
+    pub(super) fn dominates(&self, d: u32, j: u32) -> bool {
+        let (blk, p) = (
+            self.topo.blk[d as usize],
+            self.topo.pos[d as usize] as usize,
+        );
         blk != NONE
             && self
-                .path(b, j)
+                .block_path(j)
                 .is_some_and(|path| path.iter().any(|&(k, q)| k == blk && q > p))
     }
 
     /// Whether `i` belongs to this loop, including its nested control
     /// blocks but excluding separately invoked closure bodies.
-    pub(super) fn in_loop(&self, b: &Body, i: u32, loop_inst: u32) -> bool {
-        self.path(b, i).is_some_and(|path| {
+    pub(super) fn in_loop(&self, i: u32, loop_inst: u32) -> bool {
+        self.block_path(i).is_some_and(|path| {
             path.iter()
-                .any(|(blk, _)| self.owner[*blk as usize] == loop_inst)
+                .any(|(blk, _)| self.topo.owner[*blk as usize] == loop_inst)
         })
     }
 }

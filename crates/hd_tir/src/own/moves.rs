@@ -51,7 +51,7 @@ use hd_types::Ty;
 
 use super::{Operand, OwnCx, Role, Tri, fill, operands, splice, tracked};
 use crate::ir::{
-    Body, CaptureMode, NONE, ReadMode, Ref, Tag, for_blocks, is_suspension, place, u32_of,
+    Body, CaptureMode, NONE, ReadMode, Ref, Tag, Topology, for_blocks, is_suspension, place, u32_of,
 };
 
 /// A decision of [`Tables::decide`].
@@ -65,9 +65,6 @@ const TAKE: u8 = 3;
 /// The move pass's dense tables, reused across bodies.
 #[derive(Default)]
 pub(crate) struct Tables {
-    /// Each instruction's block and position in it, or `NONE`.
-    pub(super) blk: Vec<u32>,
-    pub(super) pos: Vec<u32>,
     /// Each local's and each value's bit among the candidates, or `NONE`.
     pub(super) lnum: Vec<u32>,
     pub(super) vnum: Vec<u32>,
@@ -85,10 +82,6 @@ pub(crate) struct Tables {
     /// Per sub-body: whether it holds a suspension point (known-null's
     /// points, `is_suspension`).
     susp_sub: Vec<bool>,
-    /// Per instruction: the sub-body it is the root block of, or `NONE`.
-    root_sub: Vec<u32>,
-    /// Each instruction's label, as a target of `Break` and `Continue`.
-    label_of: Vec<u32>,
     /// Per label, the arena offset of the state a `Break` and a
     /// `Continue` to it carry, while its target is walked.
     brk: Vec<u32>,
@@ -112,9 +105,6 @@ pub(crate) struct Tables {
     stack: Vec<u32>,
     parts: Vec<Ty>,
     pub(super) drops: Vec<u32>,
-    /// Each instruction's first instruction: its own index, or the first
-    /// of the blocks it runs, which precede it.
-    first: Vec<u32>,
     /// A sunk drop's pending edits: drops to insert as (block, position,
     /// place), statements to delete, reads that become moves.
     sink_ins: Vec<(u32, u32, u32)>,
@@ -161,8 +151,6 @@ pub(super) fn in_place(b: &Body, from: u32, to: u32) -> bool {
 
 impl Tables {
     fn reset(&mut self, n: usize, locals: usize, labels: usize) {
-        fill(&mut self.blk, n, NONE);
-        fill(&mut self.pos, n, 0);
         fill(&mut self.lnum, locals, NONE);
         fill(&mut self.vnum, n, NONE);
         fill(&mut self.keep_l, locals, false);
@@ -170,11 +158,9 @@ impl Tables {
         fill(&mut self.addr, locals, false);
         fill(&mut self.holds, locals, NONE);
         fill(&mut self.owns, locals, false);
-        fill(&mut self.label_of, n, NONE);
         fill(&mut self.brk, labels, NONE);
         fill(&mut self.cont, labels, NONE);
         fill(&mut self.decide, n, UNSEEN);
-        fill(&mut self.first, n, 0);
         self.arms.clear();
         self.arena.clear();
         self.touch.clear();
@@ -309,11 +295,16 @@ fn deps(b: &Body, lnum: &[u32], vnum: &[u32], holds: &[u32], v: u32, f: &mut imp
 /// The edits go to `edits` beside the borrow pass's, which still stand in
 /// the body: it reads a deleted `Drop` of a borrowed value or of a binding
 /// local as a statement that touches no candidate.
-pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
+pub(crate) fn run(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) {
     let n = b.len();
     t.reset(n, b.local_ty.len(), b.label_inst.len());
-    structure(b, t);
-    if !candidates(b, cx, t) {
+    if !candidates(b, topo, cx, t) {
         return;
     }
     touches(b, t);
@@ -323,54 +314,17 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut spli
             continue;
         }
         let live = t.alloc(None);
-        block(b, t, root, live);
+        block(b, topo, t, root, live);
         t.free(live);
     }
-    apply(b, cx, t, edits);
-}
-
-/// Each instruction's block and position, and each label's target.
-fn structure(b: &Body, t: &mut Tables) {
-    let n = b.len();
-    for i in 0..n {
-        if b.tags[i] == Tag::Block {
-            for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
-                if (m as usize) < n {
-                    t.blk[m as usize] = u32_of(i);
-                    t.pos[m as usize] = u32_of(p);
-                }
-            }
-        }
-    }
-    for (l, &x) in b.label_inst.iter().enumerate() {
-        if let Some(slot) = t.label_of.get_mut(x as usize) {
-            *slot = u32_of(l);
-        }
-    }
-    for i in 0..n {
-        let mut f = u32_of(i);
-        if b.tags[i] == Tag::Block {
-            for &m in b.record(b.data[i][0]) {
-                if (m as usize) < i {
-                    f = f.min(t.first[m as usize]);
-                }
-            }
-        }
-        let first = &t.first;
-        for_blocks(b, i, |blk| {
-            if (blk as usize) < i {
-                f = f.min(first[blk as usize]);
-            }
-        });
-        t.first[i] = f;
-    }
+    apply(b, topo, cx, t, edits);
 }
 
 /// Numbers the candidates: the counted locals no reference, shared
 /// capture or cleanup suite reaches and that hold no borrowed value, and
 /// the tracked values a `copy` read reads a part of, or all of, in place.
 /// Whether there is any.
-fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
+fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     let n = b.len();
     for i in 0..n {
         let [a, w] = b.data[i];
@@ -425,7 +379,7 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     // sub-body suspends when it holds a suspension point, the instructions
     // known-null gives unwind sets (`is_suspension`); an owned local's
     // sub-body is its exit row's.
-    suspending_subs(b, t);
+    suspending_subs(b, topo, t);
     for &(s, l) in &b.exit_drops {
         if t.susp_sub[s.idx()] && t.addr[l.idx()] {
             t.keep_l[l.idx()] = true;
@@ -459,27 +413,15 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
 }
 
 /// Marks each sub-body that holds a suspension point: from each point,
-/// up through the blocks that hold it (`t.blk`) to a sub-body's root (a
-/// closure's root is listed in its parent's block too, so the climb stops
-/// at the first root).
-fn suspending_subs(b: &Body, t: &mut Tables) {
+/// up through the blocks that hold it to a sub-body's root (a closure's
+/// root is listed in its parent's block too, so the climb stops at the
+/// first root).
+fn suspending_subs(b: &Body, topo: &Topology, t: &mut Tables) {
     fill(&mut t.susp_sub, b.sub_root.len(), false);
-    fill(&mut t.root_sub, b.len(), NONE);
-    for (s, &r) in b.sub_root.iter().enumerate() {
-        if let Some(x) = t.root_sub.get_mut(r as usize) {
-            *x = u32_of(s);
-        }
-    }
-    for i in 0..b.len() {
-        if !is_suspension(b.tags[i]) {
-            continue;
-        }
-        let mut x = i;
-        while t.root_sub[x] == NONE && t.blk[x] != NONE {
-            x = t.blk[x] as usize;
-        }
-        if let Some(s) = t.susp_sub.get_mut(t.root_sub[x] as usize) {
-            *s = true;
+    for i in (0..u32_of(b.len())).filter(|&i| is_suspension(b.tags[i as usize])) {
+        let x = topo.enclosing(i).last().unwrap_or(i) as usize;
+        if topo.is_root[x] {
+            t.susp_sub[topo.sub[x] as usize] = true;
         }
     }
 }
@@ -595,12 +537,12 @@ fn touches(b: &Body, t: &mut Tables) {
 
 /// Walks block `blk` backward: state `live`, what is live after the
 /// block, becomes what is live at its start.
-fn block(b: &Body, t: &mut Tables, blk: u32, live: usize) {
+fn block(b: &Body, topo: &Topology, t: &mut Tables, blk: u32, live: usize) {
     if b.tags.get(blk as usize) != Some(&Tag::Block) {
         return;
     }
     // A `Break` to a labeled block continues after it.
-    let label = t.label_of[blk as usize];
+    let label = topo.label_of[blk as usize];
     let saved = (label != NONE).then(|| t.brk[label as usize]);
     if label != NONE {
         let at = t.alloc(Some(live));
@@ -618,7 +560,7 @@ fn block(b: &Body, t: &mut Tables, blk: u32, live: usize) {
         // A block in the list runs where the instruction that owns it
         // runs it.
         if b.tags[x as usize] != Tag::Block {
-            inst(b, t, x, live);
+            inst(b, topo, t, x, live);
         }
     }
     if let Some(old) = saved {
@@ -659,7 +601,7 @@ fn gen_operands(b: &Body, t: &mut Tables, x: u32, live: usize) {
 }
 
 /// Instruction `x` backward over state `live`.
-fn inst(b: &Body, t: &mut Tables, x: u32, live: usize) {
+fn inst(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
     let i = x as usize;
     let [a, w] = b.data[i];
     // Its own value is made here: dead before.
@@ -727,32 +669,32 @@ fn inst(b: &Body, t: &mut Tables, x: u32, live: usize) {
             let (then, els) = (r.first().copied(), r.get(1).copied());
             let other = t.alloc(Some(live));
             if let Some(then) = then {
-                block(b, t, then, other);
+                block(b, topo, t, then, other);
             }
             if let Some(els) = els {
-                block(b, t, els, live);
+                block(b, topo, t, els, live);
             }
             t.union(live, other);
             t.free(other);
         }
         Tag::And | Tag::Or => {
             let right = t.alloc(Some(live));
-            block(b, t, w, right);
+            block(b, topo, t, w, right);
             t.union(live, right);
             t.free(right);
         }
-        Tag::With => block(b, t, w, live),
-        Tag::RefDyn => block(b, t, a, live),
-        Tag::Scope => block(b, t, a, live),
-        Tag::Loop => repeat(b, t, x, live),
-        Tag::Match => decide(b, t, x, live),
+        Tag::With => block(b, topo, t, w, live),
+        Tag::RefDyn => block(b, topo, t, a, live),
+        Tag::Scope => block(b, topo, t, a, live),
+        Tag::Loop => repeat(b, topo, t, x, live),
+        Tag::Match => decide(b, topo, t, x, live),
         Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
             let r = b.record(w);
             let (cases, default) = r.split_at(r.len().saturating_sub(1));
             let acc = t.alloc(None);
             for &blk in cases.iter().skip(1).step_by(2).chain(default) {
                 let s = t.alloc(Some(live));
-                block(b, t, blk, s);
+                block(b, topo, t, blk, s);
                 t.union(acc, s);
                 t.free(s);
             }
@@ -763,13 +705,13 @@ fn inst(b: &Body, t: &mut Tables, x: u32, live: usize) {
             let acc = t.alloc(None);
             for &blk in b.record(w) {
                 let s = t.alloc(Some(live));
-                block(b, t, blk, s);
+                block(b, topo, t, blk, s);
                 t.union(acc, s);
                 t.free(s);
             }
             t.copy(live, acc);
             t.free(acc);
-            block(b, t, a, live);
+            block(b, topo, t, a, live);
         }
         Tag::ToArm => {
             match t.arms.last() {
@@ -797,9 +739,9 @@ fn inst(b: &Body, t: &mut Tables, x: u32, live: usize) {
 /// Loop `x` backward: its head, from which the body runs, to a fixed
 /// point; the body's end and a `Continue` go back to the head, a `Break`
 /// to after the loop.
-fn repeat(b: &Body, t: &mut Tables, x: u32, live: usize) {
+fn repeat(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
     let body = b.data[x as usize][0];
-    let label = t.label_of[x as usize];
+    let label = topo.label_of[x as usize];
     let brk = t.alloc(Some(live));
     let head = t.alloc(None);
     let cont = t.alloc(Some(head));
@@ -812,7 +754,7 @@ fn repeat(b: &Body, t: &mut Tables, x: u32, live: usize) {
     for _ in 0..rounds {
         t.copy(cont, head);
         let end = t.alloc(Some(head));
-        block(b, t, body, end);
+        block(b, topo, t, body, end);
         let grew = t.union(head, end);
         t.free(end);
         if !grew {
@@ -829,12 +771,12 @@ fn repeat(b: &Body, t: &mut Tables, x: u32, live: usize) {
 
 /// Match `x` backward: each arm from after the match, then the decision
 /// tree, whose every path ends in a `ToArm` or `Unreachable`.
-fn decide(b: &Body, t: &mut Tables, x: u32, live: usize) {
+fn decide(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
     let r = b.record(b.data[x as usize][1]);
     let Some((&decision, arms)) = r.split_first() else {
         return;
     };
-    let label = t.label_of[x as usize];
+    let label = topo.label_of[x as usize];
     let saved = (label != NONE).then(|| t.brk[label as usize]);
     let first = t.arena.len();
     if label != NONE {
@@ -846,11 +788,11 @@ fn decide(b: &Body, t: &mut Tables, x: u32, live: usize) {
         t.alloc(Some(live));
     }
     for (k, &arm) in arms.iter().enumerate() {
-        block(b, t, arm, arms_at + k * t.words);
+        block(b, topo, t, arm, arms_at + k * t.words);
     }
     t.arms.push((u32_of(arms_at), u32_of(arms.len())));
     let tree = t.alloc(None);
-    block(b, t, decision, tree);
+    block(b, topo, t, decision, tree);
     t.arms.pop();
     t.copy(live, tree);
     if let Some(old) = saved {
@@ -861,13 +803,19 @@ fn decide(b: &Body, t: &mut Tables, x: u32, live: usize) {
 
 /// Turns each read the walk proved last into a `move`, and deletes or
 /// splits the `Drop` of its place that follows it in its block.
-fn apply(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
+fn apply(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+) {
     for i in 0..b.len() {
-        if t.decide[i] == TAKE && t.blk[i] != NONE {
-            take(b, t, edits, i);
+        if t.decide[i] == TAKE && topo.blk[i] != NONE {
+            take(b, topo, t, edits, i);
             continue;
         }
-        if t.decide[i] != MOVE || t.blk[i] == NONE {
+        if t.decide[i] != MOVE || topo.blk[i] == NONE {
             continue;
         }
         let x = u32_of(i);
@@ -879,7 +827,7 @@ fn apply(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Table
         // The drop of the whole place right after the read, in its block.
         let drop = t.next_touch(bit, x).filter(|&d| {
             let d = d as usize;
-            if b.tags[d] != Tag::Drop || t.blk[d] != t.blk[i] {
+            if b.tags[d] != Tag::Drop || topo.blk[d] != topo.blk[i] {
                 return false;
             }
             let dw = b.data[d][0];
@@ -899,7 +847,7 @@ fn apply(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Table
             }
             b.data[i][1] = ReadMode::Move as u32;
             if let Some(d) = drop {
-                edits.remove(t.blk[d as usize], d);
+                edits.remove(d);
             }
             continue;
         }
@@ -918,8 +866,12 @@ fn apply(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Table
             Root::Other => continue,
         };
         if rest(b, cx, t, base, (from, from, to)) {
-            let (blk, pos, syn) = (t.blk[d as usize], t.pos[d as usize], b.syn[d as usize]);
-            edits.remove(blk, d);
+            let (blk, pos, syn) = (
+                topo.blk[d as usize],
+                topo.pos[d as usize],
+                b.syn[d as usize],
+            );
+            edits.remove(d);
             for k in 0..t.drops.len() {
                 let at = t.drops[k];
                 edits.insert(blk, pos, Tag::Drop, [at, NONE], Ty::VOID, syn);
@@ -928,7 +880,7 @@ fn apply(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Table
     }
     for v in 0..b.len() {
         if t.vnum[v] != NONE {
-            sink(b, cx, t, edits, u32_of(v));
+            sink(b, topo, cx, t, edits, u32_of(v));
         }
     }
 }
@@ -950,7 +902,14 @@ fn drops_whole(b: &Body, d: u32, v: u32) -> bool {
 /// `v` but its drops before their jumps, which go. Done only when it adds
 /// no more drops than it deletes, and never through a `Guard`, a loop or
 /// a nested match, whose paths leave the decision tree's shape.
-fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables, v: u32) {
+fn sink(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    edits: &mut splice::Tables,
+    v: u32,
+) {
     let bit = t.vnum[v as usize];
     let (lo, hi) = (
         t.start[bit as usize] as usize,
@@ -960,11 +919,11 @@ fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables
         return;
     }
     let d = t.touch[hi - 1];
-    if !drops_whole(b, d, v) || t.blk[d as usize] == NONE {
+    if !drops_whole(b, d, v) || topo.blk[d as usize] == NONE {
         return;
     }
     // The statement before the drop, past other statements' drops.
-    let (h, pd) = (t.blk[d as usize], t.pos[d as usize]);
+    let (h, pd) = (topo.blk[d as usize], topo.pos[d as usize]);
     let members = b.record(b.data[h as usize][0]);
     let Some(&x) = members[..pd as usize]
         .iter()
@@ -974,7 +933,7 @@ fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables
         return;
     };
     let prev = t.touch[hi - 2];
-    if prev < t.first[x as usize] || prev > x || b.ty[x as usize] == Ty::NEVER {
+    if prev < topo.first[x as usize] || prev > x || b.ty[x as usize] == Ty::NEVER {
         return;
     }
     t.sink_ins.clear();
@@ -986,7 +945,7 @@ fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables
             let r = b.record(w);
             r.len() == 2 && {
                 let (then, els) = (r[0], r[1]);
-                sink_block(b, cx, t, v, then) && sink_block(b, cx, t, v, els)
+                sink_block(b, topo, cx, t, v, then) && sink_block(b, topo, cx, t, v, els)
             }
         }
         Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
@@ -997,16 +956,16 @@ fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables
                 .skip(1)
                 .step_by(2)
                 .chain(default)
-                .all(|&blk| sink_block(b, cx, t, v, blk))
+                .all(|&blk| sink_block(b, topo, cx, t, v, blk))
         }
         Tag::Match => {
             let r = b.record(w).to_vec();
             let Some((&decision, arms)) = r.split_first() else {
                 return;
             };
-            sink_block(b, cx, t, v, decision)
+            sink_block(b, topo, cx, t, v, decision)
                 && arms.iter().all(|&arm| {
-                    let (a0, a1) = (t.first[arm as usize] as usize, arm as usize);
+                    let (a0, a1) = (topo.first[arm as usize] as usize, arm as usize);
                     t.touch[lo..hi]
                         .iter()
                         .filter(|&&u| (a0..=a1).contains(&(u as usize)))
@@ -1024,9 +983,9 @@ fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables
     if !ok || t.sink_ins.len() > 1 + t.sink_rm.len() {
         return;
     }
-    edits.remove(h, d);
+    edits.remove(d);
     for &u in &t.sink_rm {
-        edits.remove(t.blk[u as usize], u);
+        edits.remove(u);
     }
     for &(blk, pos, at) in &t.sink_ins {
         edits.insert(blk, pos, Tag::Drop, [at, NONE], Ty::VOID, b.syn[d as usize]);
@@ -1038,7 +997,14 @@ fn sink(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables
 
 /// The drops of temporary `v` at the end of block `blk`'s paths, into
 /// `t.sink_*`: false when the block's shape is not one [`sink`] handles.
-fn sink_block(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, v: u32, blk: u32) -> bool {
+fn sink_block(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    v: u32,
+    blk: u32,
+) -> bool {
     if b.tags.get(blk as usize) != Some(&Tag::Block) || b.data[blk as usize][1] == v {
         return false;
     }
@@ -1076,7 +1042,7 @@ fn sink_block(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, v: u32, blk: u32) ->
     };
     for p in (0..end).rev() {
         let m = b.extra[rec + 1 + p as usize];
-        if !t.touched(bit, t.first[m as usize], m) {
+        if !t.touched(bit, topo.first[m as usize], m) {
             continue;
         }
         // The block's end is never reached: only the statement that ends
@@ -1116,7 +1082,7 @@ fn sink_block(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, v: u32, blk: u32) ->
                     whole(b, t);
                     return true;
                 }
-                return sink_block(b, cx, t, v, r[0]) && sink_block(b, cx, t, v, r[1]);
+                return sink_block(b, topo, cx, t, v, r[0]) && sink_block(b, topo, cx, t, v, r[1]);
             }
             Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
                 let r = b.record(w).to_vec();
@@ -1126,7 +1092,7 @@ fn sink_block(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, v: u32, blk: u32) ->
                     .skip(1)
                     .step_by(2)
                     .chain(default)
-                    .all(|&c| sink_block(b, cx, t, v, c));
+                    .all(|&c| sink_block(b, topo, cx, t, v, c));
             }
             Tag::Guard
             | Tag::Match
@@ -1157,17 +1123,17 @@ fn sink_block(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, v: u32, blk: u32) ->
 /// Rule 4: `Ref` `i` of a whole local at its last access takes the
 /// local's count of its cell, and the local's `Drop` right after it in its
 /// block goes.
-fn take(b: &mut Body, t: &Tables, edits: &mut splice::Tables, i: usize) {
+fn take(b: &mut Body, topo: &Topology, t: &Tables, edits: &mut splice::Tables, i: usize) {
     let (Root::Local(l), _, _) = root_of(b, b.data[i][0]) else {
         return;
     };
     b.data[i][1] |= crate::ir::ref_word::TAKES;
     if let Some(d) = t.next_touch(t.lnum[l as usize], u32_of(i))
         && b.tags[d as usize] == Tag::Drop
-        && t.blk[d as usize] == t.blk[i]
+        && topo.blk[d as usize] == topo.blk[i]
         && b.data[d as usize][0] == l | place::BARE_LOCAL
     {
-        edits.remove(t.blk[d as usize], d);
+        edits.remove(d);
     }
 }
 

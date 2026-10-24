@@ -1,9 +1,9 @@
-//! A body's block structure, built once per body and shared by reference
-//! by the verifier and the backend (`docs/compiler/tir-v2.md`, "Data
-//! layout of the passes"): which block lists each instruction, which
-//! instruction runs each block, and what follows from the two. A block's
-//! members and an instruction's blocks come before it, so each column
-//! takes one pass.
+//! A body's block structure, built again only when its blocks change and
+//! shared by reference by the ownership passes, the verifier and the
+//! backend (`docs/compiler/tir-v2.md`, "Data layout of the passes"):
+//! which block lists each instruction, which instruction runs each
+//! block, and what follows from the two. A block's members and an
+//! instruction's blocks come before it, so each column takes one pass.
 
 use super::{Body, NONE, Op, Tag, u32_of};
 use crate::own::fill;
@@ -106,6 +106,17 @@ impl Topology {
                     self.loop_of[p]
                 };
         }
+    }
+
+    /// The statement that holds block `blk`: its owner's block and
+    /// position, or `None` at a sub-body's root.
+    #[must_use]
+    pub fn up(&self, blk: u32) -> Option<(u32, u32)> {
+        let o = self.owner[blk as usize];
+        if self.is_root[blk as usize] || o == NONE || self.blk[o as usize] == NONE {
+            return None;
+        }
+        Some((self.blk[o as usize], self.pos[o as usize]))
     }
 
     /// The blocks that enclose instruction `i` in its own sub-body,

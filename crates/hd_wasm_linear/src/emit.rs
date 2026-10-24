@@ -978,9 +978,8 @@ struct Em<'i, 'a, 'm> {
     /// A consumer that cannot move the count in takes a count of its own,
     /// and the value is released after it ([`Em::release_untaken`]).
     consumer: Vec<u32>,
-    /// In an owned body, each instruction's block and position in it, or
-    /// `NONE` (`Em::own_drop_rest`).
-    own_at: Vec<(u32, u32)>,
+    /// The body's block structure.
+    topo: hd_tir::ir::Topology,
     own_ops: Vec<hd_tir::own::Operand>,
     /// The hoisted `IsUnique`s met before the loop that follows them
     /// (`docs/compiler/tir-v2.md`, "Hoisting"), which run at that loop
@@ -1074,7 +1073,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             owned: false,
             sub_id: 0,
             consumer: Vec::new(),
-            own_at: Vec::new(),
+            topo: hd_tir::ir::Topology::new(b),
             own_ops: Vec::new(),
             hoisted: Vec::new(),
             deref_physical: false,
@@ -1348,7 +1347,7 @@ impl Em<'_, '_, '_> {
             return unsupported("a block operand that is not a block");
         }
         let [list, tail] = self.b.data[blk as usize];
-        let labelled = self.b.label_inst.contains(&blk);
+        let labelled = self.topo.label_of[blk as usize] != NONE;
         if labelled {
             self.open(Ctl::Brk(blk));
         }
@@ -1374,7 +1373,7 @@ impl Em<'_, '_, '_> {
         } else if tail != NONE
             && self.owned
             && self.consumer.get(tail as usize) == Some(&blk)
-            && !self.b.sub_root.contains(&blk)
+            && !self.topo.is_root[blk as usize]
         {
             // A tail the passes gave to a block whose value no one reads;
             // a sub-body's root's is its result, which `body_func` takes.

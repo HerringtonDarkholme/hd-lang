@@ -239,7 +239,7 @@ impl Em<'_, '_, '_> {
 
     /// Follow immutable scalar aliases and fields of a just-built range.
     /// A changed or addressable binding never supplies a range fact.
-    fn range_source(&self, mut r: u32, sets: &[Vec<(u32, u32)>], tree: &super::shape::Tree) -> u32 {
+    fn range_source(&self, mut r: u32, sets: &[Vec<(u32, u32)>]) -> u32 {
         for _ in 0..32 {
             let Some(i) = Ref(r).as_inst() else { break };
             let [a, w] = self.b.data[i.0 as usize];
@@ -255,7 +255,7 @@ impl Em<'_, '_, '_> {
                     let [(set, value)] = sets[l].as_slice() else {
                         break;
                     };
-                    if !tree.dominates(self.b, *set, r) {
+                    if !self.dominates(*set, r) {
                         break;
                     }
                     r = *value;
@@ -269,7 +269,7 @@ impl Em<'_, '_, '_> {
                         && let Some((_, Step::Field(k) | Step::DerefField(k))) =
                             self.b.read_step(i.0 as usize) =>
                 {
-                    let base = self.range_source(from, sets, tree);
+                    let base = self.range_source(from, sets);
                     let Some(bi) = Ref(base).as_inst() else { break };
                     if self.b.tags[bi.0 as usize] != Tag::NewStruct {
                         break;
@@ -288,13 +288,7 @@ impl Em<'_, '_, '_> {
 
     /// Exact usize induction from zero to an unchanged list length.
     /// This is a body-local proof; no callee summaries or unchecked TIR.
-    fn range_indices(
-        &self,
-        loop_inst: u32,
-        test: u32,
-        tree: &super::shape::Tree,
-        body: &[u32],
-    ) -> Vec<u32> {
+    fn range_indices(&self, loop_inst: u32, test: u32, body: &[u32]) -> Vec<u32> {
         // Every store into a local or a field of it, with the value of a
         // store into all of it (`NONE` for a field's).
         let mut sets = vec![Vec::new(); self.b.local_ty.len()];
@@ -335,15 +329,15 @@ impl Em<'_, '_, '_> {
         let [a, b] = sets[current].as_slice() else {
             return Vec::new();
         };
-        let (init, step) = if tree.in_loop(self.b, a.0, loop_inst) {
+        let (init, step) = if self.in_loop(a.0, loop_inst) {
             (*b, *a)
         } else {
             (*a, *b)
         };
-        if tree.in_loop(self.b, init.0, loop_inst)
-            || !tree.in_loop(self.b, step.0, loop_inst)
-            || !tree.dominates(self.b, init.0, loop_inst)
-            || self.const_u32(self.range_source(init.1, &sets, tree)) != Some(0)
+        if self.in_loop(init.0, loop_inst)
+            || !self.in_loop(step.0, loop_inst)
+            || !self.dominates(init.0, loop_inst)
+            || self.const_u32(self.range_source(init.1, &sets)) != Some(0)
             || Ref(step.1).as_inst().is_none()
             || self.b.tags[step.1 as usize] != Tag::Prim
             || self.b.data[step.1 as usize][0] != PrimOp::Add as u32
@@ -362,17 +356,17 @@ impl Em<'_, '_, '_> {
         let [(bound_set, value)] = sets[bound].as_slice() else {
             return Vec::new();
         };
-        if !tree.dominates(self.b, *bound_set, loop_inst) {
+        if !self.dominates(*bound_set, loop_inst) {
             return Vec::new();
         }
-        let len = self.range_source(*value, &sets, tree);
+        let len = self.range_source(*value, &sets);
         let Some(li) = Ref(len).as_inst() else {
             return Vec::new();
         };
         let [op, rec] = self.b.data[li.0 as usize];
         if self.b.tags[li.0 as usize] != Tag::Intrinsic
             || op != IntrinsicOp::ListLen as u32
-            || !tree.dominates(self.b, len, loop_inst)
+            || !self.dominates(len, loop_inst)
         {
             return Vec::new();
         }
@@ -389,9 +383,9 @@ impl Em<'_, '_, '_> {
         // Length observation and loop entry can be separated by arbitrary
         // statements. A pop there invalidates the fact just as one in the
         // loop does. Include nested statements of that prelude.
-        let (blk, start) = tree.path(self.b, len).expect("dominating length")[0];
-        let Some(finish) = tree
-            .path(self.b, loop_inst)
+        let (blk, start) = self.block_path(len).expect("dominating length")[0];
+        let Some(finish) = self
+            .block_path(loop_inst)
             .and_then(|p| p.into_iter().find(|(k, _)| *k == blk))
             .map(|(_, p)| p)
         else {
@@ -400,7 +394,7 @@ impl Em<'_, '_, '_> {
         let prelude: Vec<_> = (0..self.b.len())
             .map(|i| u32::try_from(i).expect("insts"))
             .filter(|&x| {
-                tree.path(self.b, x).is_some_and(|p| {
+                self.block_path(x).is_some_and(|p| {
                     p.iter()
                         .any(|(k, at)| *k == blk && start < *at && *at <= finish)
                 })
@@ -424,11 +418,11 @@ impl Em<'_, '_, '_> {
                 if list != Some(root) || self.ty_of(index) != Ty::prim(hd_types::Prim::Usize) {
                     return false;
                 }
-                let index = self.range_source(index, &sets, tree);
+                let index = self.range_source(index, &sets);
                 super::shape::read_local(self.b, index) == Some(current)
-                    && tree.dominates(self.b, cond, index)
-                    && tree.dominates(self.b, index, step.0)
-                    && tree.dominates(self.b, index, x)
+                    && self.dominates(cond, index)
+                    && self.dominates(index, step.0)
+                    && self.dominates(index, x)
             })
             .collect()
     }
@@ -717,13 +711,12 @@ impl Em<'_, '_, '_> {
         if self.susp.is_some() {
             return Ok(Vec::new());
         }
-        let tree = super::shape::Tree::new(self.b);
         let body: Vec<u32> = (0..self.b.len())
             .map(|i| u32::try_from(i).expect("insts"))
-            .filter(|x| tree.in_loop(self.b, *x, loop_inst))
+            .filter(|x| self.in_loop(*x, loop_inst))
             .collect();
         if let Some((test, false)) = self.list_loop_guard(loop_inst, block) {
-            let proven = self.range_indices(loop_inst, test, &tree, &body);
+            let proven = self.range_indices(loop_inst, test, &body);
             self.proven_list_indices.extend(proven);
         }
         self.own_list_caches(loop_inst)
