@@ -86,7 +86,6 @@ through the approved primitives.
 
 | Source | What it measured | Caveat |
 | --- | --- | --- |
-| [docs/audit/metrics-2026-10-17.md](../audit/metrics-2026-10-17.md) | the goal metrics, all four pillars, at `493f95da4` | taken at a load of 4 to 15; predates the eight fixes below |
 | Standard library implementation review, `git show 2816e1f48:docs/audit/stdlib-impl-review-2026-10-17.md` | 40 micro-benchmarks against Node, with V8 CPU profiles, at `caa69d93a` | V8 only; scripts in `target/stdlib-b/`, not committed |
 | Commit messages of the fixes | before and after on each fixed case: `79abfba8b` (#352), `a66c3c1c8` (#356), `813bb1f15` (#358), `b9e0256df` (#359), `7c95d1eb7` (#360), `7cfa0bc1c` (#354), `b2b264f22` (#355), `8d8240a8f` and `2a274b8ad` (#353, #511) | each measures its own case, not the metric suite |
 | `0b1429b47` (#317) | `StringBuilder` and string equality after `concat_all` | Node startup inside each figure |

@@ -56,7 +56,7 @@ The scans that matter are few:
   (`starts_with`, `ends_with`, the searcher's verification) and the
   runtime's `StrEq` helper behind `==`, `match` on strings, and map keys.
 
-The current numbers (docs/audit/metrics-2026-10-17.md, release builds):
+The current numbers (release builds, 2026-10-17):
 `split` runs at 461 MB/s (0.90x Node), JSON encode at 26 MB/s (0.05x)
 and JSON decode at 22 MB/s (0.08x). The JSON gap is mostly allocation,
 not scanning: #426 lists `decode` building a whole tree and walking it,
