@@ -1,0 +1,4 @@
+run: hd run --time-limit 20s
+stdout: first
+stdout: last
+stderr: middle

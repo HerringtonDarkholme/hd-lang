@@ -79,9 +79,9 @@ impl Net {
     /// Waits until pending operation `h` completes.
     pub(crate) fn wait_for(&mut self, h: i32) {
         let until = Instant::now() + Duration::from_secs(20);
-        let mut out = Vec::new();
+
         loop {
-            self.completed.extend(self.reactor.due(&mut out));
+            self.completed.extend(self.reactor.due());
             if self.completed.contains(&h) {
                 return;
             }

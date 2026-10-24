@@ -1111,6 +1111,7 @@ async function heldLookupHost(t) {
   for (const name of [
     "node.mjs",
     "core.mjs",
+    "output.mjs",
     "checked-report.mjs",
     "float.mjs",
     "journal.mjs",
@@ -1681,4 +1682,50 @@ test("Console unreadable input reports Closed", async (t) => {
   const operation = call({ op: "wait_start", kind: "line", fd: -1 }).ok;
   assert.deepEqual(call({ op: "wait_poll", operation }), { closed: true });
   call({ op: "wait_finish", operation });
+});
+
+// #816: the same queue orders guest writes and untracked panic/session
+// frames. Aborting a wait must keep every byte the writer accepted.
+test("Output full socket keeps control replies live and drains accepted bytes after abort", async (t) => {
+  const server = net.createServer();
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+  const accepted = once(server, "connection");
+  const writer = net.connect(server.address().port, "127.0.0.1");
+  await once(writer, "connect");
+  const [reader] = await accepted;
+  reader.pause();
+  t.after(() => {
+    writer.destroy();
+    reader.destroy();
+  });
+  const call = netWorker(t, {
+    url: new URL("./output.mjs", import.meta.url),
+    data: { output: true },
+  });
+  const text = "abcdefg".repeat(2400000);
+  const { ok: operation } = call({ op: "wait_start", fd: writer._handle.fd, text });
+  for (let i = 0; i < 5; i++) {
+    assert.deepEqual(call({ op: "wait_poll", operation }), { pending: true });
+    assert.deepEqual(call({ op: "idle" }), { ok: false });
+  }
+  call({ op: "wait_abort", operation });
+  const suffix = '\nerr\t"panic after output"\nran\tcomplete\n';
+  call({ op: "enqueue", fd: writer._handle.fd, text: suffix });
+  const chunks = [];
+  let count = 0;
+  reader.on("data", (bytes) => {
+    chunks.push(bytes);
+    count += bytes.length;
+  });
+  reader.resume();
+  await t.waitFor(
+    () => {
+      assert.equal(count, Buffer.byteLength(text + suffix));
+      assert.deepEqual(call({ op: "idle" }), { ok: true });
+    },
+    { timeout: 10000 },
+  );
+  assert.equal(Buffer.concat(chunks).toString(), text + suffix);
 });
