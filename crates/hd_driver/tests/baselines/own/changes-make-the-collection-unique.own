@@ -31,7 +31,7 @@ fn change(mut rows: List[List[i32]], mut bags: List[Bag], mut m: Map[string, Lis
 >   %12 = Read borrow [$0 [%9]] : List[i32]
 >   %13 = Intrinsic ListPush [%12 1:i32] : ()
 >   %14 = Drop [$0] : ()
->   %35 = Block - : ()
+>   %36 = Block - : ()
     bags[i].count = 2
 >   %15 = Read copy [$3] : usize
 >   %16 = IsUnique [$1] : ()
@@ -46,14 +46,15 @@ fn change(mut rows: List[List[i32]], mut bags: List[Bag], mut m: Map[string, Lis
     m["a"] = []
 >   %24 = Read borrow [$2] : Map[string, List[i32]]
 >   %25 = NewList - [] : List[i32]
->   %26 = IsUnique [%24] : ()
->   %27 = Intrinsic MapSet [%24 "a" %25] : ()
+>   %26 = IsUnique [$2] : ()
+>   %27 = Read borrow [$2] : Map[string, List[i32]]
+>   %28 = Intrinsic MapSet [%27 "a" %25] : ()
     m["a"].push(4)
->   %28 = Read borrow [$2] : Map[string, List[i32]]
->   %29 = Intrinsic MapEntry [%28 "a"] : usize
->   %30 = IsUnique [$2] : ()
->   %31 = IsUnique [$2 [%29]] : ()
->   %32 = Read borrow [$2 [%29]] : List[i32]
->   %33 = Intrinsic ListPush [%32 4:i32] : ()
->   %34 = Drop [$2] : ()
+>   %29 = Read borrow [$2] : Map[string, List[i32]]
+>   %30 = Intrinsic MapEntry [%29 "a"] : usize
+>   %31 = IsUnique [$2] : ()
+>   %32 = IsUnique [$2 [%30]] : ()
+>   %33 = Read borrow [$2 [%30]] : List[i32]
+>   %34 = Intrinsic ListPush [%33 4:i32] : ()
+>   %35 = Drop [$2] : ()
 >   exit sub 0 drops [$0 $1 $2]

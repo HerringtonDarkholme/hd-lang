@@ -585,7 +585,10 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   of the header at their place: a local's or a value's, then struct
   fields, elements, bounds-checked, and dereferences, a view's included
   (`Em::place_header`, which walks the place as a rooted one, below).
-  Since the passes put an `IsUnique` before every change of a collection
+  A `copy` or `borrow` read of the same place, through a step, right
+  after a plain `IsUnique` in its block, which is how a change reads its
+  operand, takes the header the check found, so the place is walked
+  once (`Em::read_walked`). Since the passes put an `IsUnique` before every change of a collection
   place, a body's intrinsics and its thunks'
   check no uniqueness themselves: an element store, `MapSet` and
   `MapRemove` skip it, and `ListPush` only moves a full

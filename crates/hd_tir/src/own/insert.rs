@@ -40,11 +40,14 @@
 //!    `Read [$xs [%i]]` read): each list on such a read's path gets an
 //!    `IsUnique` before that read, outermost first, so the read sees the
 //!    buffer the change will reach; the walk stops at a read through a
-//!    dereference, whose change reaches the referent. A push's list or an
-//!    in-place argument read from a place rooted at a local names that
-//!    place instead: the `IsUnique` is of the place, and the change reads
-//!    the place after it, again where an argument may write ([`changes`]).
-//!    The backend's intrinsics then check nothing themselves.
+//!    dereference, whose change reaches the referent. A push's list, a map
+//!    store's or removal's map, or an in-place argument read from a place
+//!    rooted at a local or a top-level binding names that place instead:
+//!    the `IsUnique` is of the place, and the change reads the place right
+//!    after it, again where an argument may write, looking each map value
+//!    step's entry up again with its key, since growth renumbers entries
+//!    ([`changes`]). The backend's intrinsics then check nothing
+//!    themselves.
 //! 6. **Pins.** A `Ref` of an element place gets an `IsUnique` and a `Pin`
 //!    of each list on its path, and of each list on the path of a read its
 //!    root was made from, outermost first. The reference holds a count of
@@ -140,8 +143,12 @@ pub(crate) struct Tables {
     /// on its path have their `IsUnique` before it (bit 1) and their `Pin`
     /// (bit 2), so a read two changes go through gets them once.
     walked: Vec<u8>,
-    /// The list changes' operands ([`changes`]).
+    /// The collection changes' operands ([`changes`]), and as (key,
+    /// change) each key a change looks a map entry up with again.
     changes: Vec<Change>,
+    relook: Vec<(u32, u32)>,
+    /// Per read: the change that reads its place again, or `NONE`.
+    reread: Vec<u32>,
     /// The element projections of one place: the `extra` position of each
     /// element word.
     elems: Vec<u32>,
@@ -188,8 +195,10 @@ impl Tables {
         fill(&mut self.local_stamp, locals, NONE);
         fill(&mut self.value_stamp, n, NONE);
         fill(&mut self.walked, n, 0);
+        fill(&mut self.reread, n, NONE);
         self.elems.clear();
         self.changes.clear();
+        self.relook.clear();
         self.after.clear();
         self.uses.clear();
         self.hcopy.clear();
@@ -469,6 +478,10 @@ fn values(
         let mut stray = None;
         for k in lo..hi {
             let (u, op) = t.uses[k];
+            // A change that reads its place again no longer uses it.
+            if u == t.reread[v] {
+                continue;
+            }
             // An argument's header copy stands right after the value
             // (rule 7), which is where the value's use ends.
             let at = if early_copy(b, t, v, k) {
@@ -491,6 +504,16 @@ fn values(
                     t.levels.push(met);
                 }
                 None => stray = Some(u),
+            }
+        }
+        // A key is used again where its change looks its entry up.
+        for x in 0..t.relook.len() {
+            let u = t.relook[x].1 as usize;
+            if t.relook[x].0 == u32_of(v)
+                && let Some(met) = t.meet(t.blk[u], t.pos[u])
+            {
+                home = home.max(met.0);
+                t.levels.push(met);
             }
         }
         let (h, first) = t.chain[home as usize];
@@ -532,6 +555,9 @@ fn values(
         let mut late_copy = None;
         for k in lo..hi {
             let (u, op) = t.uses[k];
+            if u == t.reread[v] {
+                continue;
+            }
             let consumed = consumes(b, cx, u as usize, &op, t.tail_owner(u, &op));
             let (blk, pos) = match op.role {
                 Role::Tail => (u, block_len(b, u)),
@@ -959,7 +985,7 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
         if t.blk[i] == NONE {
             continue;
         }
-        let [a, w] = b.data[i];
+        let a = b.data[i][0];
         let (blk, pos, syn) = (t.blk[i], t.pos[i], b.syn[i]);
         match b.tags[i] {
             Tag::Store | Tag::Ref => {
@@ -978,22 +1004,6 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                     through(b, t, edits, root, pin);
                 }
             }
-            Tag::Intrinsic
-                if matches!(
-                    IntrinsicOp::from_u32(a),
-                    Some(IntrinsicOp::MapSet | IntrinsicOp::MapRemove)
-                ) =>
-            {
-                let Some(&coll) = b.record(w).first() else {
-                    continue;
-                };
-                if Ref(coll).as_inst().is_none() {
-                    continue;
-                }
-                through(b, t, edits, coll, false);
-                let word = value_place(b, coll);
-                edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
-            }
             _ => {}
         }
     }
@@ -1004,31 +1014,21 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
 
 type Change = (u32, u32, u32, Option<bool>);
 
-/// The list changes of instruction `i` into `t.changes`, as (change,
-/// `extra` word, operand, quiet): a push's list and each in-place argument
-/// ([`Pass::InPlace`]). Quiet is `None` for an operand that reads no place
-/// rooted at a local or a top-level binding, and else whether nothing
-/// between that read and the change may write. A change whose operand
-/// reads a place is an access of the local the place is rooted at, if
-/// any, and an operand read again at the change owns nothing.
+/// The collection changes of instruction `i` into `t.changes`, as
+/// (change, `extra` word, operand, quiet): a push's list, a map store's
+/// or removal's map, and each in-place argument ([`Pass::InPlace`]). Quiet
+/// is `None` for an operand that reads no place rooted at a local or a
+/// top-level binding, and else whether nothing between that read and the
+/// change may write. A change whose operand reads a place is an access of
+/// the local the place is rooted at, if any, and an operand read again at
+/// the change owns nothing; its map value steps look their entries up
+/// again there, with their keys ([`Tables::relook`]).
 fn changes(b: &Body, cx: &dyn OwnCx, t: &mut Tables, i: usize) {
-    let [a, w] = b.data[i];
-    let push =
-        b.tags[i] == Tag::Intrinsic && IntrinsicOp::from_u32(a) == Some(IntrinsicOp::ListPush);
-    let call = matches!(b.tags[i], Tag::Call | Tag::Await);
-    let callee = call
-        .then(|| crate::ir::Callee::from_words(b.record(a)))
-        .flatten();
-    if t.blk[i] == NONE || !push && callee.is_none() {
+    if t.blk[i] == NONE {
         return;
     }
-    let n = b.record(w).len().saturating_sub(if push { 0 } else { 3 });
-    for k in 0..n {
-        let v = b.record(w)[k];
-        let change = callee
-            .as_ref()
-            .map_or(push && k == 0, |c| cx.pass(c, k, n) == Pass::InPlace);
-        let Some(r) = Ref(v).as_inst().map(|r| r.0 as usize).filter(|_| change) else {
+    for (at, v) in super::changed(b, cx, i) {
+        let Some(r) = Ref(v).as_inst().map(|r| r.0 as usize) else {
             continue;
         };
         // `NONE` for a place rooted at a top-level binding, which has no
@@ -1036,27 +1036,37 @@ fn changes(b: &Body, cx: &dyn OwnCx, t: &mut Tables, i: usize) {
         let root = (b.tags[r] == Tag::Read && t.blk[r] != NONE)
             .then(|| root_local(b, b.data[r][0]).or(global_root(b, b.data[r][0])))
             .flatten();
-        let still = t.blk[r] == t.blk[i] && (r + 1..i).all(|x| quiet(b, x));
-        // A write between may renumber a map's entries.
-        let rooted = root.is_some()
-            && t.start[r + 1] - t.start[r] == 1
-            && (still || !map_step(b, t, b.data[r][0]));
-        t.tracked[r] &= still || !rooted;
-        let kind = rooted.then_some(still);
-        t.changes.push((u32_of(i), w + 1 + u32_of(k), v, kind));
-        if let Some(l) = root.filter(|&l| rooted && l != NONE) {
+        let once = t.start[r + 1] - t.start[r] == 1;
+        let still = once && t.blk[r] == t.blk[i] && (r + 1..i).all(|x| quiet(b, x));
+        let kind = root.is_some().then_some(still);
+        // A read used again keeps its count; the change's use moves on.
+        t.tracked[r] &= kind != Some(false) || !once;
+        t.changes.push((u32_of(i), at, v, kind));
+        if let Some(l) = root.filter(|&l| l != NONE) {
             t.acc.push((t.sub[i], l, u32_of(i)));
+        }
+        if kind == Some(false) {
+            t.reread[r] = u32_of(i);
+            path_lists(b, t, b.data[r][0]);
+            for x in 0..t.elems.len() {
+                if let Some(e) = entry(b, b.extra[t.elems[x] as usize + 1]) {
+                    t.relook.push((b.record(b.data[e][1])[1], u32_of(i)));
+                }
+            }
         }
     }
 }
 
-/// Rule 5 for a list change ([`changes`]). An operand read from a place is
-/// not made unique itself: the `IsUnique` names the place, and the change
-/// reads the place after it, so a buffer the check or the change replaces
-/// can be stored back there (`docs/compiler/tir-v2.md`, "Settling the
-/// biggest risk"). A quiet operand is that read, after the `IsUnique`s;
-/// any other only evaluates the receiver, first, and the change takes a
-/// new `borrow` read, after `IsUnique`s that stand right before it.
+/// Rule 5 for a collection change ([`changes`]). An operand read from a
+/// place is not made unique itself: the `IsUnique` names the place, and
+/// the change reads the place after it, so a buffer the check or the
+/// change replaces can be stored back there (`docs/compiler/tir-v2.md`,
+/// "Settling the biggest risk"). A quiet operand is that read, after the
+/// `IsUnique`s; any other only evaluates the receiver, first, and the
+/// change takes a new `borrow` read, after `IsUnique`s that stand right
+/// before it. Since a write between may grow a map on the path, and
+/// growth renumbers entries, that read's map value steps take new
+/// `MapEntry`s, each after its map's `IsUnique`.
 fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change) {
     let (i, r, quiet) = (c.0 as usize, c.2 as usize, c.3);
     let s = if quiet == Some(true) { r } else { i };
@@ -1067,37 +1077,48 @@ fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change
         edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
         return;
     }
-    let whole = |b: &mut Body| match word & place::BARE_LOCAL {
+    let whole = |b: &mut Body, word: u32| match word & place::BARE_LOCAL {
         0 => prefix(b, word, word + 1 + b.extra[word as usize]),
         _ => word,
     };
+    let (n, mode) = (u32_of(b.len()), ReadMode::Borrow as u32);
+    // The re-read's own place, whose entries the new lookups replace.
+    let word = if quiet == Some(false) {
+        whole(b, word)
+    } else {
+        word
+    };
     path_lists(b, t, word);
     for k in 0..t.elems.len() {
+        let x = t.elems[k] as usize + 1;
         let p = prefix(b, word, t.elems[k]);
         edits.insert(blk, pos, Tag::IsUnique, [p, 0], Ty::VOID, syn);
+        if let Some(e) = entry(b, b.extra[x]).filter(|_| quiet == Some(false)) {
+            let [map, key] = [b.record(b.data[e][1])[0], b.record(b.data[e][1])[1]];
+            let m = edits.insert(blk, pos, Tag::Read, [p, mode], b.ty[map as usize], syn);
+            let rec = u32_of(b.extra.len());
+            b.extra.extend([2, n + m, key]);
+            let data = [IntrinsicOp::MapEntry as u32, rec];
+            b.extra[x] = n + edits.insert(blk, pos, Tag::Intrinsic, data, b.ty[e], syn);
+        }
     }
-    let p = whole(b);
+    let p = whole(b, word);
     edits.insert(blk, pos, Tag::IsUnique, [p, 0], Ty::VOID, syn);
     if quiet == Some(false) {
-        let mode = ReadMode::Borrow as u32;
         b.data[r][1] = mode;
-        let p = whole(b);
-        let e = edits.insert(blk, pos, Tag::Read, [p, mode], b.ty[r], syn);
+        let e = edits.insert(blk, pos, Tag::Read, [word, mode], b.ty[r], syn);
         edits.rewrite(c.0, super::Loc::Extra(c.1), e);
     }
 }
 
-/// Whether the place at `word` has a map value step: an element step at a
-/// `MapEntry`'s number.
-fn map_step(b: &Body, t: &mut Tables, word: u32) -> bool {
-    path_lists(b, t, word);
-    t.elems.iter().any(|&x| {
-        Ref(b.extra[x as usize + 1]).as_inst().is_some_and(|e| {
-            let e = e.0 as usize;
-            b.tags[e] == Tag::Intrinsic
-                && IntrinsicOp::from_u32(b.data[e][0]) == Some(IntrinsicOp::MapEntry)
-        })
-    })
+/// The `MapEntry` instruction an element step's index is, if any: the
+/// step is a map value's.
+fn entry(b: &Body, ix: u32) -> Option<usize> {
+    let e = Ref(ix).as_inst()?.0 as usize;
+    (e < b.len()
+        && b.tags[e] == Tag::Intrinsic
+        && IntrinsicOp::from_u32(b.data[e][0]) == Some(IntrinsicOp::MapEntry))
+    .then_some(e)
 }
 
 /// Whether instruction `x` can neither write a place nor call: a read, an

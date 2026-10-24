@@ -1,0 +1,16 @@
+# @dump: own
+# A map store and a removal name their map's place as a push does: the
+# `IsUnique` is of `[$0]`, and the change reads `[$0]` right after it, in
+# place of the read it was given when nothing between may write, or
+# again when something may (`[n]` allocates). `m[k] += 1` reads the map
+# for its entry, for the value and for the store: that read keeps its
+# own count for the first two, and the store reads the place again.
+fn put(mut m: Map[string, List[i64]], k: string, n: i64) -> Map[string, List[i64]]:
+    m[k] = []
+    m[k] = [n]
+    _ := m.remove(k)
+    m
+
+fn tally(mut counts: Map[string, i64], k: string) -> Map[string, i64]:
+    counts[k] += 1
+    counts

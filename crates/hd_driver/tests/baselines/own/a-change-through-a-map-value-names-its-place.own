@@ -4,8 +4,11 @@
 # element does: `m[k]` reads `[$m [%e]]` at the entry `MapEntry` found,
 # the `IsUnique`s are of the map and of the value's place, and the push
 # reads the place after them. Where an argument may write (a call), the
-# map may grow, and growth renumbers entries, so the push keeps the value
-# its receiver read and the check on that value.
+# map may grow, and growth renumbers entries, so after the call the push
+# looks its entry up again with the same key, after the map's `IsUnique`,
+# and reads the value's place at the new entry; the receiver's read only
+# finds the entry first. The key keeps its value and lives to the push,
+# even where the call changes the local it was read from.
 fn twice(n: i64) -> i64:
     n * 2
 > app/main/twice
@@ -29,19 +32,58 @@ fn add(mut m: Map[string, List[i64]], n: i64) -> Map[string, List[i64]]:
 >   %7 = Read borrow [$0 [%4]] : List[i64]
 >   %8 = Read copy [$1] : i64
 >   %9 = Intrinsic ListPush [%7 %8] : ()
->   %22 = Block %20 : Map[string, List[i64]]
+>   %24 = Block %22 : Map[string, List[i64]]
     m["a"].push(twice(n))
 >   %10 = Read borrow [$0] : Map[string, List[i64]]
 >   %11 = Intrinsic MapEntry [%10 "a"] : usize
->   %12 = IsUnique [$0] : ()
->   %13 = Read copy [$0 [%11]] : List[i64]
->   %14 = Read copy [$1] : i64
->   %15 = Call app/main/twice[] (%14) : i64
->   %16 = IsUnique [%13] : ()
->   %17 = Intrinsic ListPush [%13 %15] : ()
->   %18 = Drop [%13] : ()
+>   %12 = Read borrow [$0 [%11]] : List[i64]
+>   %13 = Read copy [$1] : i64
+>   %14 = Call app/main/twice[] (%13) : i64
+>   %15 = IsUnique [$0] : ()
+>   %16 = Read borrow [$0] : Map[string, List[i64]]
+>   %17 = Intrinsic MapEntry [%16 "a"] : usize
+>   %18 = IsUnique [$0 [%17]] : ()
+>   %19 = Read borrow [$0 [%17]] : List[i64]
+>   %20 = Intrinsic ListPush [%19 %14] : ()
     m
->   %19 = Read move [$0] : Map[string, List[i64]]
->   %20 = Intrinsic ValueCopy [%19] : Map[string, List[i64]]
->   %21 = Drop [%19] : ()
+>   %21 = Read move [$0] : Map[string, List[i64]]
+>   %22 = Intrinsic ValueCopy [%21] : Map[string, List[i64]]
+>   %23 = Drop [%21] : ()
 >   exit sub 0 drops [$0]
+
+fn next(k: &mut string) -> i64:
+    *k = "b"
+> app/main/next
+>   local $0 k: Ref[mut string] [param read]
+>   %0 = Store [*$0] "b" : ()
+>   %1 = Block 1:i64 : i64
+    1
+
+fn add_at(mut m: Map[string, List[i64]], mut k: string) -> Map[string, List[i64]]:
+> app/main/add_at
+>   local $0 m: Map[string, List[i64]] [param read]
+>   local $1 k: string [param read assigned captured captured-assigned]
+>   %0 = Read borrow [$0] : Map[string, List[i64]]
+>   %1 = Intrinsic ValueCopy [%0] : Map[string, List[i64]]
+>   %2 = Store [$0] %1 : ()
+    m[k].push(next(&mut k))
+>   %3 = Read borrow [$0] : Map[string, List[i64]]
+>   %4 = Read copy [$1] : string
+>   %5 = Intrinsic MapEntry [%3 %4] : usize
+>   %6 = Read borrow [$0 [%5]] : List[i64]
+>   %7 = Ref take mut [$1] : Ref[mut string]
+>   %8 = Call app/main/next[] (%7) : i64
+>   %9 = Drop [%7] : ()
+>   %10 = IsUnique [$0] : ()
+>   %11 = Read borrow [$0] : Map[string, List[i64]]
+>   %12 = Intrinsic MapEntry [%11 %4] : usize
+>   %13 = IsUnique [$0 [%12]] : ()
+>   %14 = Read borrow [$0 [%12]] : List[i64]
+>   %15 = Intrinsic ListPush [%14 %8] : ()
+>   %16 = Drop [%4] : ()
+>   %20 = Block %18 : Map[string, List[i64]]
+    m
+>   %17 = Read move [$0] : Map[string, List[i64]]
+>   %18 = Intrinsic ValueCopy [%17] : Map[string, List[i64]]
+>   %19 = Drop [%17] : ()
+>   exit sub 0 drops [$0 $1]

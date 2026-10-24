@@ -406,6 +406,37 @@ pub(crate) fn owner_takes_tail(b: &Body, owner: u32, blk: u32) -> bool {
     }
 }
 
+/// The collection operands instruction `i` changes in place, as (`extra`
+/// position, value): a push's list, a map store's or removal's map, and
+/// each in-place argument of a call ([`Pass::InPlace`]).
+pub(crate) fn changed<'b>(
+    b: &'b Body,
+    cx: &'b dyn OwnCx,
+    i: usize,
+) -> impl Iterator<Item = (u32, u32)> + 'b {
+    use IntrinsicOp::{ListPush, MapRemove, MapSet};
+    let [a, w] = b.data[i];
+    let direct = b.tags[i] == Tag::Intrinsic
+        && matches!(
+            IntrinsicOp::from_u32(a),
+            Some(ListPush | MapSet | MapRemove)
+        );
+    let callee = matches!(b.tags[i], Tag::Call | Tag::Await)
+        .then(|| Callee::from_words(b.record(a)))
+        .flatten();
+    let n = match &callee {
+        Some(_) => b.record(w).len().saturating_sub(3),
+        None => usize::from(direct),
+    };
+    (0..n)
+        .filter(move |&k| {
+            callee
+                .as_ref()
+                .is_none_or(|c| cx.pass(c, k, n) == Pass::InPlace)
+        })
+        .map(move |k| (w + 1 + u32::try_from(k).expect("operands"), b.record(w)[k]))
+}
+
 /// Whether instruction `i`'s value is one the passes track: an owned
 /// value that may hold a counted leaf. A block's value is its owner's, and
 /// a statement has none; a switch has one outside a decision tree. A
@@ -1089,6 +1120,47 @@ pub(crate) mod tests {
             "{:?}",
             verify_owned(&body, &Cx)
         );
+    }
+
+    /// The verifier wants a change's operand to read its place right after
+    /// the place's `IsUnique`, with nothing that may write between that
+    /// read and the change.
+    #[test]
+    fn the_verifier_wants_a_change_to_read_its_place_after_its_check() {
+        use crate::ir::IntrinsicOp;
+        let n = NodeIdx::from_raw(1);
+        let build = |unique: bool, call_between: bool| {
+            let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+            let blk = b.open_block();
+            let a = b.local(LIST, Symbol::from_raw(0), local_flags::PARAM, n);
+            let word = a.raw() | crate::ir::place::BARE_LOCAL;
+            let s = call(&mut b, 7, &[], Ty::STRING);
+            if unique {
+                b.emit(Tag::IsUnique, word, 0, Ty::VOID, n);
+            }
+            let h = b.emit(Tag::Read, word, ReadMode::Borrow as u32, LIST, n);
+            if call_between {
+                call(&mut b, 8, &[], Ty::VOID);
+            }
+            let rec = b.refs_record(&[h, s]);
+            b.emit(
+                Tag::Intrinsic,
+                IntrinsicOp::ListPush as u32,
+                rec,
+                Ty::VOID,
+                n,
+            );
+            let root = b.close_block(blk, None, Ty::VOID, n);
+            b.finish_tolerating(root, &[], &[22]).expect("valid")
+        };
+        let found = |body: &Body| {
+            verify_owned(body, &Cx)
+                .iter()
+                .any(|e| e.what.contains("no read of its place"))
+        };
+        assert!(!found(&build(true, false)));
+        assert!(found(&build(false, false)));
+        assert!(found(&build(true, true)));
     }
 
     /// A part taken by a move read lets more parts or a drop of the rest
