@@ -18,8 +18,7 @@ action at a distance.
 - [HTTP Server Handlers](HTTP_SERVER.md): proposed core-Wasm handler entry, fresh request instances, Cloudflare/Vercel adapters, portable async controls, and explicit deployment gaps (#266).
 
 - [TLS Streams](TLS_STREAMS.md): client TLS boundary options, host-stream transfer, aliases and buffered bytes, trust roots, and Net grants (#265).
-- [Policy Composition](POLICY_COMPOSITION.md): two complete proposed shapes, runnable block/combinator ports, static error alternatives, and the policy-value row-inference gap (#783); supersedes Composing Work.
-- [Policy Composition](POLICY_COMPOSITION.md): three shapes for composing timeout, retry, fallback, breaker and hedging, each on the same three programs with measured cost; recommends one bang function per policy plus a plain call that builds re-runnable work (#783).
+- [Policy Composition](POLICY_COMPOSITION.md): lean policy values, tuple composition and one apply block; runnable ports, measured costs, typed errors and the fixed apply-row prerequisite (#783).
 - [hd bench](HD_BENCH.md): proposed ordinary suite registration, batched real-clock measurement, explicit optimization resistance and baseline reports (#184).
 - [Durable Resume](DURABLE_RESUME.md): proposed durable host-call replay, strict identity, interrupted-effect retries, resource restrictions and journal growth policy (#18).
 - [Module Hot Reload](MODULE_HOT_RELOAD.md): proposed compatible body updates, retained active code, explicit restart boundaries, and unchanged REPL reload (#182).

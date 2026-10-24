@@ -1,8 +1,9 @@
 # Composing Time And Failure Policies
 
-Status: design proposal, 2026-10-23; domain: standard library API (std.task) and one language feature (spec/lang/11); not accepted.
+Status: design proposal, 2026-10-24; domain: standard library API (std.task); not accepted.
 It answers [#783](https://github.com/HerringtonDarkholme/hd-lang/issues/783) and replaces the earlier version of this file and Composing Work.
-Nothing here is accepted behavior or specification.
+The owner selected policy values, pipes and one apply block on 2026-10-23.
+The public API below remains a proposal; no language change is proposed.
 Under review: [`std.task`](../../spec/std/task.md) (`timeout!`, `with_timeout!`, `retry!`) and [suspending functions](../../spec/lang/11-requirements-and-suspension.md#suspending-functions).
 
 ## Contents
@@ -47,57 +48,62 @@ Every shape below is judged on the same six use cases.
 Today hd has `timeout!`, `with_timeout!` and `retry!` as bang functions that take the work last ([std.task](../../spec/std/task.md#timeout)).
 A trailing block supplies the work, so U1 is a staircase of three nested blocks.
 That runs, and the owner accepted it as the interim shape on 2026-10-22.
-There is no fallback, breaker or hedge in std, and no way to build composed work for a pipe.
+There is no fallback, breaker or hedge in std.
+Policy values run today using generic trait implementations and tuples.
+The separately approved inferred-apply correction is merged; the proposed public library surface still needs approval.
 
 ## State of the art
 
-Every resilience library answers the same eight questions.
-The table lists them; the prose after it says how the leading libraries answer each.
-Each item is covered by the designs below or excluded with a reason.
+The comparison fixes eight responsibilities: repeatable work, composition order, typed errors, cancellation, persistent state, retry selection, capability requirements and extension.
+Bulkheads and rate limiting need a semaphore or queue beyond this proposal.
+They can later use the same Layer interface, rather than gaining a separate composition system.
 
-| Question | Covered by |
-| --- | --- |
-| What is the unit of work, and can it run again? | a re-runnable `fn!() -> Result[T, E] $ R` in every shape |
-| How do policies compose, and who sets the order? | shape-specific; order is always explicit |
-| Where does a timeout's error go? | `E < From[TimedOut]`, as `with_timeout!` does; Either weighed separately |
-| How are deadlines and cancellation propagated? | `race!` cancels losers and waits for their cleanup |
-| Where does policy state live (breaker, rate limit)? | a `&mut` state value the caller owns |
-| How does retry decide what is transient? | a `when: fn(E) -> bool` predicate |
-| How are time and other services supplied? | requirement rows; `Clock` only where time is used |
-| Bulkheads and rate limiting | excluded: they need a semaphore type std does not have; they are user policies here |
+**Effect v4.** An Effect describes an operation, with result, failure and service types.
+`request.pipe(Effect.retry(schedule), Effect.timeout(duration))` describes retries inside one deadline.
+A Schedule decides when another attempt starts and when attempts stop; it does not persist executions.
+The [schedule cookbook](https://effect.website/docs/v4/scheduling/cookbook) distinguishes limiting retries from interrupting an already running attempt.
 
-**Effect (TypeScript).** An `Effect<A, E, R>` is a description of work, so `Effect.retry` can run it again ([retrying](https://effect.website/docs/error-management/retrying/)).
-Policies are operators from effect to effect, composed in a `pipe`; order of the pipe is order of wrapping.
-`Effect.timeout` widens the error with a `TimeoutException`, and `timeoutFail` substitutes a user error ([timing out](https://effect.website/docs/error-management/timing-out/)).
-That widening is a union, which hd does not have; `timeoutFail` is the closest relative of hd's `From[TimedOut]`.
+[Retrying](https://effect.website/docs/v4/error-management/retrying) supports conditions and schedules; [timeouts](https://effect.website/docs/v4/error-management/timing-out) interrupt the operation and add a timeout failure.
+The implementation's [dual](https://github.com/Effect-TS/effect-smol/blob/main/packages/effect/src/Function.ts) dispatches data-first and data-last forms by arity or a predicate.
+That dispatch cannot solve hd's problem alone: a bang function runs now, and its plain call builds a one-shot suspension.
+We take explicit order and independent policy values, while keeping hd's existing static From conversions and visible Clock requirement.
 
-Effect gets data-first and pipeable forms from one definition with `dual` ([Function.ts](https://github.com/Effect-TS/effect/blob/main/packages/effect/src/Function.ts)).
-`dual` checks the argument count, or a predicate, at each call and returns a curried function when `self` is missing.
-It solves argument placement only, because every Effect call already returns a description.
-hd's problem is different: `f!(x)` runs now, so the combinator form must also defer.
+**Tower.** A [Layer](https://docs.rs/tower/latest/tower/trait.Layer.html) turns a service into an associated Service type.
+The generic implementation remains reusable for different input services, as hd's Layer implementations remain reusable for different work types.
+Tower supports tuple layers too, so a separately named Stack is unnecessary here.
 
-Effect's limits are the erased-at-runtime union error and services such as `Clock` that are defaults rather than visible in `R`.
-Both conflict with the issue's constraints.
-Its strength, operators that are plain functions anyone can write, is what shape 2 keeps.
+[ServiceBuilder](https://docs.rs/tower/latest/tower/builder/struct.ServiceBuilder.html#order) adds the first listed layer outermost.
+This proposal instead defines each pipe wrapper as outermost; the difference must be visible in examples.
+Tower services also have readiness and request protocols; a zero-argument hd work closure has neither.
+We borrow the associated-type mechanism, without importing readiness, boxed errors or a new service protocol.
 
-**Tower (Rust).** Work is a `Service<Request>`; a `Layer` maps one service to another ([Layer](https://docs.rs/tower/latest/tower/trait.Layer.html)).
-`ServiceBuilder` stacks layers, and "layers that are added first will be called with the request first" ([ServiceBuilder](https://docs.rs/tower/latest/tower/builder/struct.ServiceBuilder.html)).
-Its types are static: each layer's output is an associated type, which is shape 1's model.
-Its limit is that work must be a service with one request type; errors are usually boxed (`BoxError`) once layers mix error types.
+**Polly and resilience4j.** Polly separates reusable [pipeline configuration](https://www.pollydocs.org/pipelines/) from executing a callback.
+The first strategy added is outermost, and context state can be supplied without allocating a capturing lambda.
+That separation motivates storing a breaker reference in configuration and applying it repeatedly.
+It does not supply hd's typed error or row rules: Polly operates through its own outcome and exception model.
 
-**Polly (.NET) and resilience4j (Java).** Polly builds a `ResiliencePipeline` with `AddRetry`, `AddTimeout` and others ([pipelines](https://www.pollydocs.org/pipelines/)).
-The first strategy added is the outer one, so a timeout added before retries is "overarching all retry attempts".
-resilience4j chains `Decorators.ofSupplier(supplier).withCircuitBreaker(cb).withRetry(retry).decorate()` ([getting started](https://resilience4j.readme.io/docs/getting-started)).
-Both are value pipelines applied to work later, like shape 1, and both report errors as exceptions, which hd rules out.
+[resilience4j](https://resilience4j.readme.io/docs/getting-started) decorates ordinary functions with retries, breakers and other policies.
+Its composition can be user-defined rather than selected from one fixed retry/timeout record.
+Its Java functional interfaces and exceptions also avoid hd's varying error and requirement-row types.
+We keep extensible decoration, but cannot copy an exception-based signature into Result-based hd.
 
-**Kotlin, tokio, Go and MoonBit.** Kotlin's `withTimeout` runs a suspending block now and cancels it with `TimeoutCancellationException` ([withTimeout](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/with-timeout.html)).
-tokio's `timeout` wraps one future and returns `Result<T, Elapsed>`; the future is consumed, so it cannot be retried ([timeout](https://docs.rs/tokio/latest/tokio/time/fn.timeout.html)).
-Go passes a `context.Context` whose deadline cancels every derived context; `ctx.Err()` is `DeadlineExceeded` ([context](https://pkg.go.dev/context)).
-MoonBit's `with_timeout(time, f, error?)` and `retry(strategy, max_retry?, fatal_error?, f)` take the work last, like hd today ([moonbitlang/async](https://mooncakes.io/docs/moonbitlang/async)).
+**Kotlin and tokio.** Kotlin's [withTimeout](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/with-timeout.html) executes a suspending block and cancels it on expiry.
+Its cancellation exception is not a Result error.
+Tokio's [timeout](https://docs.rs/tokio/latest/tokio/time/fn.timeout.html) wraps one future, returning its value or Elapsed.
+Dropping the timeout cancels that future; it cannot make an already consumed future repeatable.
 
-The lesson from tokio is the one that matters most for hd.
-A cold future, like hd's plain call, runs once; retrying needs something that builds a fresh attempt each time.
-Kotlin and MoonBit are hd's block form; Effect, Polly and Tower are the combinator and value forms.
+hd therefore retains `fn!() -> Result[T, E] $ R` as repeatable work.
+It builds fresh cold suspensions only inside each execution, as race and timeout already require.
+Neither a stored Suspend nor a new plain-call rule is needed.
+
+**Go and MoonBit.** Go's [context](https://pkg.go.dev/context) propagates scope cancellation and deadlines through derived contexts.
+A context is not a generic decorator of one expression and does not encode errors in a static sum.
+It informs the cancellation boundary, rather than the public composition syntax.
+
+[MoonBit async](https://mooncakes.io/docs/moonbitlang/async) provides callback-based timeout and retry functions, including retry conditions and bounded retry counts.
+Those are close implementation atoms for hd's existing timeout and retry functions.
+Our builders instead return configuration, allowing one block around several independently configured policies.
+Retries still need application knowledge of idempotency; no library can infer that from a work closure.
 
 ## Semantics the shapes rely on
 
@@ -121,12 +127,13 @@ So one generic method cannot carry `E < From[TimedOut]` for one policy and no bo
 **Calls and pipes.** A trailing block supplies only the last parameter ([`fn.trailing.one`](../../spec/lang/07-functions.md#r-fn.trailing.one)).
 A pipe step's `_` is a value bound before the step runs ([`expr.pipe.slot.meaning`](../../spec/lang/05-expressions.md#r-expr.pipe.slot.meaning)).
 `_` inside a closure in a step is an error ([`expr.pipe.slot.closure`](../../spec/lang/05-expressions.md#r-expr.pipe.slot.closure)), and `f(_, a)` is not a partial application ([`expr.pipe.no-partial`](../../spec/lang/05-expressions.md#r-expr.pipe.no-partial)).
-A positional `_` fills the next positional parameter, including a defaulted one, so `with_timeout(ms(50), _)` puts the work in `cleanup`.
+The current bang with_timeout has a defaulted cleanup parameter before work.
+The proposed plain builder instead takes inner second, so `with_timeout(ms(50), _)` places the policy correctly.
 
 **Concurrency and cleanup.** `race!` returns the first child's value and cancels the losers, waiting for their disposes ([`req.combinator.race-losers-disposed`](../../spec/lang/11-requirements-and-suspension.md#r-req.combinator.race-losers-disposed)).
 `timeout!` races the work against a sleep, work first, so work that finishes on its first poll wins a tie ([std.task timeout](../../spec/std/task.md#timeout)).
 `retry!` sleeps only before another allowed attempt and requires `Clock` ([`std-task.retry.policy.clock`](../../spec/std/task.md#r-std-task.retry.policy.clock)).
-Every shape builds its policies from these three, so cancellation behaves the same in all of them.
+The recommended policy implementations reuse these atoms privately, preserving their cancellation semantics.
 
 **Ownership.** Values copy; `&mut` references are shared and not exclusive.
 A breaker state passed as `&mut Breaker` keeps its counts across calls, and hedged copies share the caller's `&mut` state.
@@ -134,154 +141,123 @@ A copied policy configuration never shares state unless it holds a reference.
 
 ## Shape 1: policy values and one apply block
 
+The owner selected this mechanism, after rejecting the verbose Policy/then/Stack version.
+A policy is a configuration value implementing `Layer[W]`.
+Ordinary tuples compose layers, plain functions construct their configurations, and one apply block supplies the operation.
+No provider is captured merely by constructing a timeout or retry policy.
+
 ### Std API signatures
 
-A policy is a value whose type implements `Layer[W]` for the work types it accepts.
-`Policy` is a one-method trait that gives every policy `then`, the composition form.
-`a.then(b)` runs `a` inside `b`, so a chain reads from the work outward, as Polly and Tower order theirs.
-This is the complete proposed surface of shape 1 in `std.task`.
+The complete reference implementation is [policy-values.hd](composing-work/policy-values.hd).
+These are its mechanism definitions, with bodies rather than non-parsing standalone signatures:
 
 ```text
-pub trait Policy:
-    fn then[O](self, outer: O) -> Stack[Self, O]:
-        Stack { inner: self, outer: outer }
-
-pub trait Layer[W] < Policy:
+trait Layer[W]:
     type Wrapped
     fn wrap(self, work: W) -> Self::Wrapped
 
-pub struct Stack[I, O]:
-    inner: I
-    outer: O
+impl[W, I < Layer[W], O < Layer[I::Wrapped]] Layer[W] for (I, O):
+    type Wrapped = O::Wrapped
+    fn wrap(self, work: W) -> O::Wrapped:
+        self._1.wrap(self._0.wrap(work))
 
-impl[I, O] Policy for Stack[I, O]
-impl[W, I < Layer[W], O < Layer[I::Wrapped]] Layer[W] for Stack[I, O]
-
-pub fn apply![T, U, $R, $S, P < Layer[fn!() -> T $ R, Wrapped = fn!() -> U $ S]](policy: P, work: fn!() -> T $ R) -> U $ S
-
-pub struct TimeLimit:
-    pub limit: Duration
-    pub cleanup: Duration? = .None
-
-pub struct Retry[E]:
-    pub backoff: Backoff
-    pub when: fn(E) -> bool
-
-pub struct Fallback[F]:
-    pub other: F
-
-pub struct CircuitOpen: pass
-
-pub struct Breaker:
-    pub failures: usize
-    pub limit: usize
-    pub calls: usize
-
-pub struct Guard:
-    pub state: &mut Breaker
-
-pub struct Hedge:
-    pub delay: Duration
+fn apply![T, U, $R, $S, P < Layer[fn!() -> T $ R, Wrapped = fn!() -> U $ S]](policy: P, work: fn!() -> T $ R) -> U $ S:
+    wrapped := policy.wrap(work)
+    wrapped!()
 ```
 
-Each policy struct has `impl Policy` and one generic `Layer` impl.
+All proposed public signatures appear below; W denotes an ordinary type parameter, including a function type.
+The table is signature notation, not a second source file.
+The linked implementation supplies every body.
 
-| Policy | Layer impl | `Wrapped` |
-| --- | --- | --- |
-| `TimeLimit` | `impl[T, E < From[TimedOut], $R] Layer[fn!() -> Result[T, E] $ R]` | `fn!() -> Result[T, E] $ R + Clock` |
-| `Retry[E]` | `impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R]` | `fn!() -> Result[T, E] $ R + Clock` |
-| `Fallback[fn!() -> Result[T, E] $ S]` | `impl[T, E, $R, $S] Layer[fn!() -> Result[T, E] $ R]` | `fn!() -> Result[T, E] $ R + S` |
-| `Guard` | `impl[T, E < From[CircuitOpen], $R] Layer[fn!() -> Result[T, E] $ R]` | `fn!() -> Result[T, E] $ R` |
-| `Hedge` | `impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R]` | `fn!() -> Result[T, E] $ R + Clock` |
+| Item | Complete signature or fields |
+| --- | --- |
+| Layer | `pub trait Layer[W]`, associated `type Wrapped`, `fn wrap(self, work: W) -> Self::Wrapped` |
+| unit Layer | `impl[W] Layer[W] for ()`, with `Wrapped = W`, preserving the work |
+| tuple Layer | the generic `(I, O)` implementation above; inner wraps first, outer wraps second |
+| apply | `pub fn apply![T, U, $R, $S, P < Layer[fn!() -> T $ R, Wrapped = fn!() -> U $ S]](policy: P, work: fn!() -> T $ R) -> U $ S` |
+| TimeLimit | fields `limit: Duration`, `cleanup: Duration?` |
+| timeout | `pub fn timeout(limit: Duration, cleanup: Duration? = .None) -> TimeLimit` |
+| with_timeout | `pub fn with_timeout[I](limit: Duration, inner: I, cleanup: Duration? = .None) -> (I, TimeLimit)` |
+| Retry | field `backoff: Backoff` |
+| retry | `pub fn retry(backoff: Backoff) -> Retry` |
+| Retry.when | `pub fn when[E](self, predicate: fn(E) -> bool) -> SelectiveRetry[E]` |
+| SelectiveRetry[E] | fields `backoff: Backoff`, `when: fn(E) -> bool` |
+| Fallback[F] | field `other: F`, retaining its concrete function type and row |
+| fallback | `pub fn fallback[F, I](other: F, inner: I) -> (I, Fallback[F])` |
+| Breaker | fields `failures: usize`, `limit: usize`, `calls: usize`; mutable caller-owned state |
+| CircuitOpen | `pub struct CircuitOpen: pass` |
+| Guard | field `state: &mut Breaker` |
+| guarded | `pub fn guarded(state: &mut Breaker) -> Guard` |
+| Hedge | field `delay: Duration` |
+| hedged | `pub fn hedged(delay: Duration) -> Hedge` |
 
-`apply!` takes `U` apart from `T`, so a policy may change the result type, as the Either variant below does.
-`Fallback` stores its backup as `F` because a struct cannot declare `$S`.
-`Retry[E]` fixes `E` through its predicate, while `T` and `R` stay open, so one `Retry` value serves every result type with that error.
+Configuration fields are private in the proposed public API, except Breaker's observable state.
+The local prototype omits pub on these names because it is a single-file program.
+The zero-argument function type inside F is not a row parameter on a data declaration.
+Builders are requirement-free ordinary functions.
 
-`then` lives on its own trait. As a default method of `Layer[W]`, the call `TimeLimit { ... }.then(...)` cannot pick one instantiation.
-That fails with `unsatisfied-trait-bound`.
+| Layer implementation | Wrapped type and bound |
+| --- | --- |
+| TimeLimit | `fn!() -> Result[T, E] $ R + Clock`, with `E < From[TimedOut]` |
+| Retry | `fn!() -> Result[T, E] $ R + Clock`, retry every Err up to Backoff.attempts |
+| SelectiveRetry[E] | same result and row, but retry only when its typed predicate accepts E |
+| Fallback[fn!() -> Result[T, E] $ S] | `fn!() -> Result[T, E] $ R + S` |
+| Guard | `fn!() -> Result[T, E] $ R`, with `E < From[CircuitOpen]` |
+| Hedge | `fn!() -> Result[T, E] $ R + Clock` |
 
-An operator was tried and rejected.
-`impl[P < Policy, O] Add[O] for P` is `bare-parameter-impl-target` ([`trait.target.bare-parameter`](../../spec/lang/09-traits.md#r-trait.target.bare-parameter)).
-An operator would need a per-policy `impl Add`, which every user policy would repeat.
-`then` costs a user policy one line, `impl Policy for Trace`.
+Retry's error type is fixed only when a predicate is supplied or work is applied.
+Thus `retry(backoff)` remains reusable across result and error types.
+The `.when` builder captures a concrete `fn(E) -> bool`; it does not require polymorphic closures.
+
+The exact requested pipe form has one apply block:
+
+```text
+policy := retry(backoff) |> with_timeout(ms(50), _) |> fallback(backup, _)
+response := apply!(policy):
+    fetch!(url)
+```
+
+Here the timeout surrounds all retries, and fallback surrounds the timeout.
+A per-attempt deadline has the opposite first pair: `(timeout(ms(50)), retry(backoff))`, then the same fallback step.
+A tuple is the composition atom, so a user policy joins any composition without registration or another trait.
+This also exposes ordering when there is no dedicated wrapper builder.
+
+A single timeout uses `apply!(timeout(ms(50))):`, with the same trailing work block.
+There is no proposed public timeout bang function alongside it.
+The implementation keeps today's timeout/retry algorithms as private building blocks, renamed internally where their names conflict with builders.
+The prototype calls today's public `task.with_timeout!` and `task.retry!` only because std is not changed in this design job.
 
 ### Prototypes
 
-[shape1.hd](composing-work/shape1.hd) holds the whole surface, a user policy and the three programs written with `apply!(policy):` blocks.
-It passes `hd check`, and `hd FILE` traps in `apply!`:
-
-```console
-internal error: unreachable
-    shape1.hd:39 shape1.apply
-    shape1.hd:198 shape1.traced
-    shape1.hd:202 shape1.main
-```
-
-[shape1-controls.hd](composing-work/shape1-controls.hd) is the same file with `apply!`'s two lines written at each call site, where every type is concrete.
-It runs and prints the same results as shape 2 below, so every policy, `then`, `Stack` and the row typing work today.
-That file is a test of the gap, not the proposed user code.
+The lean source is policy-values.hd.
+It ports the timed HTTP request with retry and fallback, the stateful breaker, and the hedged request.
+Additional controls and measured artifacts are listed in the final parse log.
 
 #### The compiler gap
 
-This is a bug in today's use-site row inference, not a missing language feature.
-[shape1-gap.hd](composing-work/shape1-gap.hd) reduces it to 17 lines, with no policy, suspension or generic impl:
+The inferred associated-output row bug was fixed in [1f9668271](https://github.com/HerringtonDarkholme/hd-lang/commit/1f9668271fcdd12bfa767fb786b825dbf389cf81), before this rewrite.
+At the old baseline, `shape1-gap.hd` passed checking but both engines trapped at invocation with `internal error: unreachable`.
+Binding checks now solve nested function rows and compare them invariantly before unresolved call rows default to empty.
+The correction changed eight production Rust lines; its thirteen benchmark modules stayed byte-identical, totaling 332,211 bytes.
 
-```text
-trait Make:
-    type Out
-    fn make(self) -> Self::Out
+The current reduced repro prints `hello` on both engines.
+The complete lean port now runs with inferred `apply!(policy):`; its explicit-row sibling remains a diagnostic control.
+The original evidence and the focused compiler regression are linked in [the prerequisite report](https://github.com/HerringtonDarkholme/hd-lang/issues/783#issuecomment-6379809640).
 
-struct Hello: pass
-
-impl Make for Hello:
-    type Out = fn() -> void $ Console
-    fn make(self) -> (fn() -> void $ Console):
-        fn() -> void $ Console: println("hello")
-
-fn call[$S, P < Make[Out = fn() -> void $ S]](maker: P) -> void $ S:
-    f := maker.make()
-    f()
-
-pub fn main() -> void $ Console:
-    call(Hello {})
-```
-
-`hd check` passes, and `hd FILE` reports:
-
-```console
-internal error: unreachable
-    shape1-gap.hd:20 shape1-gap.call
-    shape1-gap.hd:23 shape1-gap.main
-```
-
-Four controls locate it.
-
-| Change to the repro | Result |
-| --- | --- |
-| explicit row at the call, `call::[$ Console, Hello](Hello {})` | prints `hello` |
-| empty row, `Out = fn() -> void` | runs |
-| a type parameter fixed the same way, `Out = fn() -> T`, returning `T` | prints the value |
-| a `get` that returns `f`, which `main` calls at its concrete type | still traps |
-
-So `S` is solved while checking, through the binding `Out = fn() -> void $ S`, but the call's instantiation does not carry it.
-The likely mechanism is [`req.poly.one-body`](../../spec/lang/11-requirements-and-suspension.md#r-req.poly.one-body): the caller passes `S`'s providers as one bundle, and that bundle lacks `Console`.
-
-The fix belongs in the checker's call instantiation.
-A row solved through an associated-type binding must reach the call's row arguments, as a type parameter already does.
-Its test is shape1-gap.hd as a runtime conformance case, plus the four controls.
-The trait-solver fix da5a1f75a repaired the same kind of loss for row parameters in impl heads.
+The runtime regression uses inferred calls, rather than substituting explicit row arguments.
+No new language rule was necessary.
+The separate returned-function row-inference gap found by #818 is described below; it does not block these configuration builders.
 
 ### A user-defined policy
 
-A user policy is a struct, `impl Policy`, and one `Layer` impl, ten lines in all.
-The impl names what it adds to the row; here that is `Console` and nothing else.
+Trace is one configuration struct and one Layer implementation.
+It has no Policy marker, registration, then method or operator implementation.
+It adds Console and no Clock:
 
 ```text
 struct Trace:
     label: string
-
-impl Policy for Trace
 
 impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for Trace:
     type Wrapped = fn!() -> Result[T, E] $ R + Console
@@ -290,302 +266,138 @@ impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for Trace:
             result := work!()
             println("trace ${self.label}: ${if result.is_ok(): "ok" else: "failed"}")
             result
-
-fn traced!() -> Result[usize, string] $ Console:
-    apply!(Trace { label: "pure" }):
-        count!()
 ```
 
-`traced!` checks with `$ Console` alone, which is U5.
-A policy that needs a bound states it on its impl, as `Guard` states `E < From[CircuitOpen]`.
+Trace is **9 nonblank, noncomment lines**, or **11 literal lines** from struct through impl.
+The source keeps no marker trait, registration, wrapper method, or extra composition type.
+Its verbosity comes from the configuration field, Layer projection, written function types, and repeatable closure body.
+
+The tuple `(policy, Trace { label: "request" })` applies tracing outside policy.
+That construction works for a policy std did not anticipate.
+A pure work function under Trace requires Console alone; capability checks must reject accidental Clock use there.
 
 ### How errors and rows type-check
 
-The U1 pipeline is the worked example: `fetch!` returns `Result[string, Failure] $ Http`.
+Fix `fetch!: fn!(string) -> Result[string, Failure] $ Http` and a backup with the same error and row.
+For the per-attempt tuple, the input is `W0 = fn!() -> Result[string, Failure] $ Http`.
+TimeLimit requires `Failure < From[TimedOut]` and produces W1 with Http + Clock.
 
-```text
-backup := fn!() -> Result[string, Failure] $ Http: fetch!("http://backup/item")
-policy := TimeLimit { limit: ms(50) }
-    .then(Retry { backoff: Backoff { attempts: 2, initial: ms(1) }, when: transient })
-    .then(Fallback { other: backup })
-response := apply!(policy):
-    fetch!("http://primary/item")
-```
+Retry's Layer implementation accepts W1, producing W2 with Http + Clock + Clock, which is the set Http + Clock.
+Fallback's function adds Http, leaving W3 with Http + Clock.
+Apply solves U as Result[string, Failure] and S as Http + Clock through Layer.Wrapped.
+The containing function must provide those requirements; builders themselves require none.
 
-1. `policy` has type `Stack[Stack[TimeLimit, Retry[Failure]], Fallback[fn!() -> Result[string, Failure] $ Http]]`. `Retry`'s `E` is `Failure` from `transient: fn(Failure) -> bool`.
-2. The trailing block is the work `W0 = fn!() -> Result[string, Failure] $ Http`, so `T = Result[string, Failure]` and `R = Http`.
-3. `apply!` needs `P < Layer[W0, Wrapped = fn!() -> U $ S]`. The outer `Stack` impl needs the inner `Stack < Layer[W0]`, which needs `TimeLimit < Layer[W0]`.
-4. `TimeLimit`'s impl matches with `T = string`, `E = Failure`, `R = Http`, and requires `Failure < From[TimedOut]`, which the program implements. `W1 = fn!() -> Result[string, Failure] $ Http + Clock`.
-5. `Retry[Failure] < Layer[W1]` matches with `R = Http + Clock`. Its `Wrapped` is `$ Http + Clock + Clock`, which is the set `$ Http + Clock`. That is `W2`.
-6. `Fallback[fn!() -> Result[string, Failure] $ Http] < Layer[W2]` matches with `R = Http + Clock`, `S = Http`. `W3 = fn!() -> Result[string, Failure] $ Http + Clock`.
-7. So `U = Result[string, Failure]` and `S = Http + Clock`. The enclosing `main!` has `$ Console + Clock` and an `Http` provider scope, so the call checks.
+A guard adds the bound `Failure < From[CircuitOpen]` but no row.
+An HTTP error reaches Failure through its explicit From[HttpError] implementation.
+No union, any Error channel, type-name dispatch or implicit error erasure is used.
 
-Without `impl From[TimedOut] for Failure`, step 4 fails, but the report is worse than shape 2's.
-The checker says `TimeLimit does not implement Layer[fn!() -> Result[usize, Plain]]`, plus two `cannot-infer-type` errors, and never names `From[TimedOut]`.
-Shape 2 reports `Plain does not implement From[TimedOut]` alone.
+A policy that changes the output type can choose another Wrapped result, because apply has separate T and U.
+A fallback returning a different error needs an explicit conversion before it can satisfy this implementation.
+A missing From bound is a checked error, even if the current diagnostic names an unsatisfied Layer rather than the underlying bound.
 
 ### Cost per run
 
-Measured allocations and Wasm function entries per run are in [Cost](#cost).
-Shape 1 runs there as the controls do (wrap, then call), because `apply!` traps.
-`apply!` adds one call frame and nothing else, so the control is its cost less one frame per application.
-A composed `then` chain is a struct of structs, built with no allocation; each `wrap` allocates one closure per layer.
+Construction copies configuration and references; apply recursively builds the Layer closures, then starts the final work once.
+Retry invokes its inner work afresh; hedge starts two fresh children when the first has not completed.
+The measured complete sequence below includes ten apply operations, provider setup, output formatting, and cancellation.
+It is not a count of allocations intrinsic to one Layer or one application.
 
 ### The three programs
 
-All three are in shape1.hd, written with `apply!`; each prints the expected line in shape1-controls.hd.
+The HTTP program makes two deadline-limited primary attempts and then one backup call.
+It asserts three recorded requests and zero completed slow replies, so a late successful response cannot masquerade as cancellation.
+The fallback runs outside retry, once after the retrying operation fails.
 
-```text
-let mut breaker = Breaker { failures: 0, limit: 2, calls: 0 }
-guard := Guard { state: &mut breaker }
-for i in 0..4:
-    outcome := apply!(guard):
-        fetch!("http://down/item")
-    println("breaker $i ${debug(outcome)}")
+The breaker retains `&mut Breaker` across four applications.
+Its first two operations fail, then two are refused without calling Http.
+It is a deliberately minimal consecutive-failure breaker; timed reopening and half-open probing are not implemented or claimed.
 
-let mut state = Replicas { started: 0, finished: 0, closed: 0 }
-result := apply!(Hedge { delay: ms(10) }):
-    replica!(&mut state)
-```
-
-A total budget around per-attempt deadlines (U6) is one more `then`; this composition was checked and run in the control form.
-
-```text
-policy := TimeLimit { limit: ms(50) }
-    .then(Retry { backoff: Backoff { attempts: 3, initial: ms(1) }, when: transient })
-    .then(TimeLimit { limit: ms(200) })
-    .then(Trace { label: "budget" })
-```
-
-Shape 1 has one cost the others lack under "one way to do each thing".
-`TimeLimit` and `Retry` are written over `with_timeout!` and `retry!`, which stay in std.
-Either those become private, and every one-off timeout becomes `apply!(TimeLimit { limit: ms(50) }):`, or std keeps two spellings of each policy.
+The hedge starts one operation, then another after its configured delay.
+The fast replica wins; the source asserts two starts, one completion and two defer executions.
+Cancellation and cleanup use race's existing structured behavior, rather than a detached task.
 
 ## Shape 2: one bang function, run now or built as work
 
+This heading remains for existing links, but this option is rejected.
+The owner rejected both the new plain-call rule and the nested-block substitute on 2026-10-23.
+The former changed language semantics; the latter added indentation for every policy.
+Neither is a fallback recommendation when apply's compiler bug is inconvenient.
+
 ### Std API signatures
 
-Each policy is one bang function that takes the work last, named `work`.
-`with_timeout!` and `retry!` already have this form; shape 2 adds three functions and renames one parameter.
-This is the complete surface of shape 2 in `std.task`.
-
-```text
-pub fn timeout![T, $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> T $ R) -> Result[T, TimedOut] $ R + Clock
-pub fn with_timeout![T, E < From[TimedOut], $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock
-pub fn retry![T, E, $R](policy: Backoff, when: fn(E) -> bool = fn(error: E): true, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock
-pub fn fallback![T, E, $R, $S](other: fn!() -> Result[T, E] $ S, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + S
-pub fn guarded![T, E < From[CircuitOpen], $R](breaker: &mut Breaker, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R
-pub fn hedged![T, E, $R](delay: Duration, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock
-
-pub struct CircuitOpen: pass
-
-pub struct Breaker:
-    pub failures: usize
-    pub limit: usize
-    pub calls: usize
-```
-
-`retry!`'s last parameter is `attempt` today; the rename to `work` gives every pipe step the same `work=_`.
-No file in lib, spec or website passes `attempt=` today, so the rename touches only the signature and the spec text.
-`fallback!` joins the two rows; `guarded!` adds no row; `hedged!` adds `Clock` for its delay.
-
-The two forms come from that one definition.
-The block form is the bang call, and runs now: `with_timeout!(ms(50)):` with the work below.
-The combinator form is the plain call in a pipe step: `with_timeout(ms(50), work=_)`, which returns work.
-There is no `timed`, `retried` or `deferred` function, and no second definition to keep in step.
+The historical bang functions took repeatable work last.
+Their full definitions remain in [shape2.hd](composing-work/shape2.hd), as evidence for the rejected option.
+They are not a second proposed public policy surface.
 
 ### Prototypes
 
-[shape2.hd](composing-work/shape2.hd) holds the additions, a user policy and the three programs in block form.
-It runs today and prints:
-
-```console
-trace pure: ok
-pure Result.Ok(9)
-http Result.Ok("200") requests=3
-breaker 0 Result.Err(Failure.Http(HttpError.Connect(message="down")))
-breaker 1 Result.Err(Failure.Http(HttpError.Connect(message="down")))
-breaker 2 Result.Err(Failure.Open)
-breaker 3 Result.Err(Failure.Open)
-breaker calls=2 failures=2
-hedge Result.Ok("replica 2") started=2 finished=1 closed=2
-```
-
-The program asserts the counts as well: two primary replies cancelled before they finish, two breaker calls, one hedge completion and two closed scopes.
+shape2.hd is historical nested-block code.
+[shape2-pipe.hd](composing-work/shape2-pipe.hd) writes plain calls that today's language does not turn into repeatable work.
 
 #### The missing feature
 
-The combinator form needs one language change: **a plain call of a bang function builds re-runnable work.**
-Today it builds a one-shot cold `mut Suspend[T]`, which a policy cannot run twice.
-[shape2-gap.hd](composing-work/shape2-gap.hd) is the minimal repro; under the proposed rule it prints `hello` twice.
-
-```text
-fn twice![T, $R](work: fn!() -> T $ R) -> T $ R:
-    work!()
-    work!()
-
-fn hello!() -> void $ Console: println("hello")
-
-pub fn main!() -> void $ Console:
-    twice!(hello())
-```
-
-```console
-error: shape2-gap.hd:13:12: type-mismatch: in argument: expected fn!() -> ?, found mut Suspend[()]
-```
-
-[shape2-pipe.hd](composing-work/shape2-pipe.hd) writes the three programs in combinator form, with shape2.hd's functions unchanged.
-`hd check` reports eight errors, and each is this feature.
-Seven are the same `type-mismatch` at a plain call; the eighth, `not-writable` at `call!()`, is the readonly `Suspend` that `call := ...` binds today.
-
-The proposed rule, in full:
-
-1. A plain call `f(args)` of a suspending function or function value has type `fn!() -> T $ R`, where `T` and `R` are the bang call's result and row.
-2. Its arguments, defaults included, are evaluated once, left to right, when the call is evaluated; each call of the work runs `f!` with them.
-3. Building the work needs no provider; calling it resolves the row at that call, as for any closure ([`req.with.dynamic`](../../spec/lang/11-requirements-and-suspension.md#r-req.with.dynamic)).
-4. Where `mut Suspend[T]` or `Suspend[T]` is expected, the plain call builds the cold suspension as today, with construction-time binding. This covers `let s: mut Suspend[T] = f()`, `race!` arguments, `all!` and `block_on`.
-5. A plain call that would capture a `mut Suspend` argument as work is an error, because the work could not run twice. Error: `one-shot-capture`.
-6. Work that is built and never used keeps today's `discarded-must-use-value` error.
-
-The no-feature alternatives were tried and set aside.
-A closure in a step, `|> fn!(): with_timeout!(ms(50), work=_)`, is `pipe-placeholder-in-closure`.
-A bound closure works, but spells every step's full type and is a thunk, not the policy's combinator form.
-A generic `deferred(f, args...)` adapter works too; the last version of this design used it, and the owner rejected it.
+[shape2-gap.hd](composing-work/shape2-gap.hd) asks twice to take `hello()`, whose actual type is a cold Suspend.
+The type mismatch is correct under today's language.
+No compiler change is requested for it, and no deferred thunk adapter is presented as the rejected combinator form.
 
 ### A user-defined policy
 
-A user policy is one bang function, four lines, with nothing else to implement.
-Both forms follow from it: `trace!("pure"):` runs now, and `trace("pure", work=_)` builds work.
-
-```text
-fn trace![T, E, $R](label: string, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Console:
-    result := work!()
-    println("trace $label: ${if result.is_ok(): "ok" else: "failed"}")
-    result
-
-fn traced!() -> Result[usize, string] $ Console:
-    trace!("pure"):
-        count!()
-
-fn traced_later!() -> Result[usize, string] $ Console:
-    count() |> trace("pure", work=_) |> _!()
-```
-
-`traced!` runs today; `traced_later!` needs the plain-call rule.
-Both check with `$ Console` alone, which is U5.
+A bang function taking work last is small, but it does not become a pipeable policy by omitting the bang.
+An explicit closure can defer it, at the cost the owner rejected.
 
 ### How errors and rows type-check
 
-The U1 pipeline in combinator form, with the proposed rule:
-
-```text
-response := fetch("http://primary/item")
-    |> with_timeout(ms(50), work=_)
-    |> retry(Backoff { attempts: 2, initial: ms(1) }, when=transient, work=_)
-    |> fallback(fetch("http://backup/item"), work=_)
-    |> _!()
-```
-
-1. `fetch("http://primary/item")` is work `W0 = fn!() -> Result[string, Failure] $ Http` by rule 1.
-2. `with_timeout(ms(50), work=_)` binds `work: fn!() -> Result[T, E] $ R` to `W0`: `T = string`, `E = Failure`, `R = Http`. Its bound `Failure < From[TimedOut]` holds. By rule 1 the step is `W1 = fn!() -> Result[string, Failure] $ Http + Clock`.
-3. `retry(...)` binds `E = Failure` from both `when` and `W1`, and `R = Http + Clock`. Its result row `$ Http + Clock + Clock` is the set `$ Http + Clock`: `W2`.
-4. `fallback(fetch("http://backup/item"), work=_)`: `other` is `fn!() -> Result[string, Failure] $ Http`, so `S = Http`; `work` is `W2`, so `R = Http + Clock`. `W3 = fn!() -> Result[string, Failure] $ Http + Clock`.
-5. `_!()` calls `W3`, which needs `$ Http + Clock` at that point; the enclosing scope provides both.
-
-The block form types the same way, inside out, because each trailing block is the `work` argument of the call around it.
-No step names a type or a row, and every inference is use-site inference.
-A missing `From[TimedOut]` reports `Failure does not implement From[TimedOut]` at the `with_timeout` step.
+The existing bang functions preserve Result and grow rows explicitly.
+That typing remains useful for private implementation atoms in shape 1.
+It does not establish that a cold suspension is reusable work.
 
 ### Cost per run
 
-Measured in [Cost](#cost), for the block form and for the closures the plain-call rule builds.
-The block form allocates one closure per trailing block, as today.
-The combinator form allocates one closure per plain call when the pipeline is built; a pipeline built once and run many times pays that once.
+Historical shape-2 allocation numbers predate the current compiler and do not select the mechanism.
+New measurements below describe only the exact current artifacts they exercise.
 
 ### The three programs
 
-U1 in block form runs today (shape2.hd), and in combinator form needs the rule (shape2-pipe.hd):
-
-```text
-backup := fn!() -> Result[string, Failure] $ Http: fetch!("http://backup/item")
-response := fallback!(backup):
-    retry!(Backoff { attempts: 2, initial: ms(1) }, when=transient):
-        with_timeout!(ms(50)):
-            fetch!("http://primary/item")
-```
-
-With the rule, the block form's `backup` closure becomes `fallback!(fetch("http://backup/item")):` too.
-U2 and U3 in combinator form; the breaker builds one work value and calls it four times:
-
-```text
-let mut breaker = Breaker { failures: 0, limit: 2, calls: 0 }
-call := fetch("http://down/item") |> guarded(&mut breaker, work=_)
-for i in 0..4:
-    println("breaker $i ${debug(call!())}")
-
-let mut state = Replicas { started: 0, finished: 0, closed: 0 }
-result := replica(&mut state) |> hedged(ms(10), work=_) |> _!()
-```
-
-U6 is one more step after `retry`: `|> with_timeout(ms(200), work=_)`.
-The block form nests one block per line, each the `work` of the call around it; no shape needs stacked blocks such as `retry!(…), timeout!(…):`.
+Nested timeout/retry/fallback, a breaker function and a hedging function were runnable evidence for this alternative.
+They do not meet the single-block requirement.
+The recommended ports use policy configurations and one apply block instead.
 
 ## Shape 3: policies as provider middleware
 
+The owner ruled this out as the operation-level composition mechanism.
+A requirement is injected per scope; a different strategy for one call needs a scope around that call.
+Provider middleware remains useful for default strategies, and only that use is retained.
+
 ### Std API signatures
 
-Tower's model in hd is a provider that wraps another provider of the same trait.
-Each policy is an `Http` implementation holding the provider it wraps, plus the providers it uses itself.
-A builder function per policy captures `Clock` where the stack is built ([`req.with.lexical`](../../spec/lang/11-requirements-and-suspension.md#r-req.with.lexical)).
-
-```text
-pub fn timed(inner: &mut dyn Http, limit: Duration) -> &mut dyn Http $ Clock
-pub fn retried(inner: &mut dyn Http, backoff: Backoff) -> &mut dyn Http $ Clock
-pub fn falls_back(inner: &mut dyn Http, from: string, to: string) -> &mut dyn Http
-pub fn broken_by(inner: &mut dyn Http, state: &mut Breaker) -> &mut dyn Http
-pub fn hedged(inner: &mut dyn Http, delay: Duration) -> &mut dyn Http $ Clock
-```
-
-The same five functions are needed again for `Net`, `Process`, `Fs` and every other provider trait.
-The `Http` trait fixes the error type, so the breaker spells an open circuit as `HttpError.Other("circuit open")`.
+There is no proposed std surface for shape 3.
+[shape3.hd](composing-work/shape3.hd) preserves the historical Http wrappers, with Clock captured where needed.
 
 ### Prototypes
 
-[shape3.hd](composing-work/shape3.hd) runs today and prints the U1, U2 and U3 results, with the same assertions.
-A pipe composes the stack, and one `$.with` block applies it:
-
-```text
-stack := &mut delayed_http
-    |> timed(_, ms(50))
-    |> retried(_, Backoff { attempts: 2, initial: ms(1) })
-    |> falls_back(_, "http://primary/", "http://backup/")
-$.with(Http=stack):
-    response := fetch!("http://primary/item")
-```
+The historical source demonstrates configuration for all Http calls under one provider scope.
+It does not demonstrate attaching a policy value to an arbitrary operation.
 
 ### A user-defined policy
 
-A user policy is a struct and an `impl Http`, about twelve lines, for each provider trait it applies to.
-A tracer for `Http` and `Net` is two such impls.
-It cannot wrap work that is not a provider call, such as a function that reads a file and then sends a request.
+A provider wrapper implements the relevant provider trait for each protocol it supports.
+That is more duplication than one generic Layer implementation, and does not cover work without provider calls.
 
 ### How errors and rows type-check
 
-`fetch!` keeps `$ Http`, and no policy appears in its row or its error type.
-`timed`'s own row has `Clock`, at the place that builds the stack, so `Clock` appears only where time is configured.
-Errors cannot grow: a timeout must already be an `HttpError` (it is, `HttpError.Timeout`), and a breaker has no static error of its own.
-Rows cannot grow either, so a policy that needs `Console` must capture it lexically like `Clock`.
+Http fixes HttpError at its boundary, so an open breaker must be translated into that domain error.
+A wrapper's captured Clock is a provider reference, unlike the requirement-free policy configuration recommended here.
 
 ### Cost per run
 
-Measured in [Cost](#cost).
-Each request through the stack makes one `&mut dyn Http` call per layer, enters one `$.with` per timed layer, and copies the `Request` value.
+Its historical measurements are archived, not current selection evidence.
+The missing operation-level boundary decides its rejection regardless of allocation counts.
 
 ### The three programs
 
-All three run in shape3.hd.
-The hedge sends the same request twice; the breaker's refusals print as `HttpError.Other(message="circuit open")`.
-Per-call policies need a different stack and another `$.with`, so a total budget around one call is a second nested block.
+The provider prototypes apply their strategy to every matching request in a scope.
+They cannot independently decorate two arbitrary operations in that scope.
+The second operation needs another scope or a different application mechanism.
 
 ## Either instead of From
 
@@ -608,327 +420,293 @@ A two-policy error is `.Err(.Left(.Left(.Connect(_))))` for the original failure
 Either removes the glue but moves the cost to every caller and every reorder.
 From keeps one named error through a long chain, which is what a reviewer reads.
 Recommendation: keep `From`, as the constraint states; Either is not proposed for std.
-Both work with every shape: `apply!` already separates `T` and `U`, and shape 2's functions may return any error type.
+Apply already separates T and U, so an explicitly written Layer could return Either too.
+That does not change the current From constraint or require union types.
 
 ## The three shapes on the fixed programs
 
-| | Shape 1 | Shape 2 | Shape 3 |
-| --- | --- | --- | --- |
-| U1 timeout, retry, fallback | `then` chain, one `apply!` | nested blocks, or a pipe | provider stack |
-| U2 breaker | `apply!(guard):` | `guarded!(&mut b):`, or reusable work | provider; error is a string case |
-| U3 hedge | `apply!(Hedge {...}):` | `hedged!(ms(10)):` | provider; same request twice |
-| U4 user policy | struct, `impl Policy`, `impl Layer` (10 lines) | one bang function (4 lines) | struct and `impl Http` per trait (about 12 lines each) |
-| U5 no Clock without time | yes | yes | yes |
-| U6 total budget | one more `then` | one more step or block | another `$.with` |
-| runs today | checks; `apply!` traps (compiler bug) | block form yes; combinator form needs the rule | yes |
-| language change | none (a bug fix) | plain call builds work | none |
-| one definition per policy | no: struct beside `with_timeout!`, or the bang functions go private | yes | no: one per provider trait |
+The fixed programs expose the difference in mechanisms.
+Policy values apply to one chosen operation, with one block and persistent configuration reusable across work types.
+Bang functions need nested blocks, while provider middleware changes a scope rather than that chosen operation.
 
-The table summarizes the sections above; the argument for each row is there.
+| Requirement | Lean policy values | Rejected bang/plain-call design | Provider defaults |
+| --- | --- | --- | --- |
+| one block for any number of policies | yes | no with today's language | one provider scope, not an operation boundary |
+| new language rule | none | required for automatic repeatable work | none |
+| custom policy | struct plus Layer impl | bang function plus explicit work closure | provider-specific impl |
+| U1 timed HTTP retry and fallback | one configured tuple tree | nested blocks | per-scope Http strategy |
+| U2 breaker with typed refusal | From[CircuitOpen] | From[CircuitOpen] | must fit provider error |
+| U3 hedge including defer cleanup | existing race atom | existing race atom | provider call only |
+| untimed work has no Clock | yes | yes | provider-specific |
 
 ## Architecture of the recommended design
 
-The recommendation is shape 2 with the plain-call rule, so this section is that rule's implementation.
+The public implementation belongs in ordinary hd in std.task, with rules in the stdlib tier.
+It needs no parser syntax, checker intrinsic, new TIR instruction, host ABI or compiler cache.
+The associated-type row prerequisite has already been fixed and tested separately.
 
-**Where it lives.** The checker's two plain-call sites in `crates/hd_check/src/call.rs`.
-One is `emit_call` for a call of a known item, and one is the function-value path that emits `Tag::CallValue` for a cold call.
-Both already know the callee suspends, the instantiated result `T`, the row `R` and the expected type.
-No new TIR instruction, mono rule or backend change is needed.
+**Data structures.** TimeLimit stores duration and optional cleanup duration.
+Retry stores Backoff; SelectiveRetry stores Backoff and a typed predicate.
+Fallback stores its concrete backup closure; Guard stores a shared mutable Breaker reference; Hedge stores its delay.
+A tuple stores two configurations; it has no runtime policy tag or heterogeneous List.
 
-**Data.** No new data structure.
-The checker reads the expected type it already has (`want`) and the argument refs it already built, defaults included.
+**Data flow.** Plain builders evaluate configuration once, in ordinary expression order.
+Apply receives the trailing block as work, recursively wraps it through the tuple, then calls the final closure once.
+Retry and hedge call that repeatable work again when their algorithms require it.
+Each execution constructs fresh suspension frames and resolves the requirements at execution.
 
-**Data flow.**
-
-1. Check the callee and arguments as today.
-2. If the call is a bang call, or the callee does not suspend, stop: today's path.
-3. If the expected type is `Suspend[_]` or `mut Suspend[_]`, or the call is an argument of `all!`, emit the cold suspension: today's path.
-4. Otherwise, report `one-shot-capture` for any argument of type `mut Suspend[_]`.
-5. Emit work: a call of the std helper `std.function.deferred(f, args...)`, which returns `fn!() -> T $ R`. `f` is the callee as a function value, with a method's receiver as its first argument.
-6. Record the result type `fn!() -> T $ R`; do not check `R` against the caller's row ([`req.bind.caller`](../../spec/lang/11-requirements-and-suspension.md#r-req.bind.caller) no longer applies to work).
-
-The helper is three lines of hd, already proven in the last version's prototype with full use-site inference.
-It stays private to std: users never write it, and its name does not appear in diagnostics.
-
-```text
-fn deferred[Args < Tuple, O, $R](f: SuspendFn[Args, O, $ R], args...: Args) -> (fn!() -> O $ R):
-    fn!() -> O $ R:
-        f!(args...)
-```
-
-**Pseudo-code** for the branch, in the checker's style:
+The implementation algorithm is ordinary hd; the full file is authoritative.
+This outline names the distinct phases, including the cancellation boundary:
 
 ```rust
-fn plain_suspending_call(&mut self, c: &Callee, refs: &[Ref], ret: Ty, row: Row, want: Option<Ty>, n: Node) -> (Ref, Ty) {
-    // Rule 4: a Suspend slot keeps the cold suspension and its binding.
-    if want.is_some_and(|w| self.is_suspend_type(w)) || self.in_all_argument {
-        return self.emit_cold_call(c, refs, ret, n); // today's code
+fn construct_limit(limit, cleanup) { TimeLimit { limit, cleanup } }
+fn construct_retry(backoff) { Retry { backoff } }
+fn construct_fallback(other, inner) { (inner, Fallback { other }) }
+fn wrap_pair((inner, outer), work) {
+    let first = inner.wrap(work);
+    outer.wrap(first)
+}
+fn wrap_timeout(config, work) {
+    // Return work, not a started task or a captured Clock provider.
+    move || async {
+        // The private existing timeout atom creates a fresh child.
+        // It races the child with a sleep, then waits for loser cleanup.
+        private_with_timeout(config.limit, config.cleanup, work).await
     }
-    // Rule 5: work runs again, so it cannot hold a one-shot argument.
-    for (i, r) in refs.iter().enumerate() {
-        if self.is_suspend_type(self.ty_of(*r)) {
-            self.err(n, "one-shot-capture",
-                format!("argument {} is a one-shot suspension; work built from this call could not run twice", i + 1));
+}
+fn wrap_retry(config, work) {
+    move || async { private_retry(config.backoff, work).await }
+}
+fn wrap_fallback(config, work) {
+    move || async {
+        match work().await {
+            Ok(value) => Ok(value),
+            Err(_) => config.other().await,
         }
     }
-    // Rule 1-3: the callee as a value, then `deferred(f, args...)`.
-    let f = self.callee_value(c, n);           // fn item, closure, or method with receiver first
-    let work_ty = self.pool().suspend_fn(&[], ret, row); // fn!() -> T $ R
-    let helper = self.std_item("std.function.deferred");
-    let call = self.emit_item_call(helper, &[f].iter().chain(refs).copied().collect::<Vec<_>>(), work_ty, n);
-    // Rule 6: must-use stays on the value.
-    self.mark_must_use(call);
-    (call, work_ty)
 }
+async fn apply(config, work) { config.wrap(work)().await }
 ```
 
-**Caching and incremental behaviour.** None of its own: the branch is local to one call expression.
+The Rust-like pseudo-code does not specify Rust's moves or async runtime for hd.
+The hd reference uses value copies, fn! closures, requirements and existing bang atoms.
+There is no cache of an operation's result: reusing configuration must not memoize work or an error.
+Compiler incremental behavior remains ordinary signatures, implementation bodies and mono instantiations.
 
-**Testing.** Conformance cases, each a runtime fixture:
-
-| Case | Shows |
-| --- | --- |
-| `twice!(hello())` prints twice | rule 1, 2 |
-| a plain call under a `$.with` that the call site does not cover, called inside one | rule 3 |
-| `let s: mut Suspend[i32] = $.with(...): read()` keeps the construction provider | rule 4 (the existing construction-provider-capture fixture) |
-| `race!(work(), other())` unchanged | rule 4 |
-| `twice!(consume(job))` with `job: mut Suspend[i32]` | rule 5, `one-shot-capture` |
-| `pending := work()` unused | rule 6, `discarded-must-use-value` |
+Testing follows observable operations: actual timeout cancellation, refused breaker calls, completed hedge requests and closed scopes.
+Compile-negative controls check missing From and missing capabilities.
+The inferred apply call must run before the API can ship; an explicitly typed control cannot satisfy that test.
 
 ## Extension points
 
-Users extend shape 2 by writing a bang function that takes `work` last, as `trace!` does.
-Its bounds and its row are ordinary signature text, so a reader sees what a policy needs from the declaration alone.
-There is no registration, trait or capability involved, so a user policy has no more authority than its row grants.
+A user supplies one configuration type and one Layer implementation for its accepted work types.
+Its Wrapped associated type declares new result and row requirements.
+Tuples compose it with std or another user's layer, without registration, a Policy marker or a blanket operator impl.
 
-A policy that needs state takes a `&mut` state parameter, as `guarded!` takes `&mut Breaker`.
-A policy over a provider trait is still possible as middleware (shape 3), and std's test providers may document it.
-That pattern adds no std mechanism, and it is not a second way to compose policies around work.
+References inside configuration intentionally share state; ordinary copied configuration values do not imply shared state.
+A breaker copied by value would reset state between applications, so its constructor requires a reference.
+A user layer can inspect or transform work only with the authority visible in its signature and captured references.
+
+The minimal breaker is not a full half-open circuit-breaker framework.
+Later state machines, jitter, tracing spans and rate limiting need their own focused API decisions.
+They can retain this composition mechanism; no new language extension point is needed.
 
 ## Checklists for the recommended design
 
-The recommended design touches two domains: a language feature in spec/lang/11 and std.task API.
-
 ### Language feature
 
-| Item | Answer |
-| --- | --- |
-| Grammar | none: `f(args)` already parses everywhere; the formatter is unchanged |
-| Static semantics | rules 1 to 6; the work's type is the bang call's result and row; use-site inference only |
-| Dynamic semantics | arguments evaluate once, left to right, at the plain call; a panic there happens before any run |
-| Soundness | below |
-| Diagnostics | `one-shot-capture` (new); `discarded-must-use-value` and `type-mismatch` as today |
-| Agent writing and reading | `!` means run now, no `!` means work; a `Suspend` slot is the only exception, and it is written as a type |
-| Spec and tests | the four retired and six new rules in spec/lang/11; the five cases in the testing table |
-| No-feature alternative | blocks only, as today; or bound closures; or a public `deferred`, which the owner rejected |
+There is no proposed language feature and no rule ID retirement.
+Existing rules cover tuple fields, generic impls, associated outputs, use-site inference, pipes, trailing blocks and cancellation.
+The plain-call and call-operator ideas remain rejected or explicitly postponed.
 
-The interactions that could go wrong, each with the program that shows it:
+Each pipe step still needs `_`, under `expr.pipe.bare.needs-placeholder`.
+Writing `policy!:` would need a call-operator trait or generic function values.
+Both are possible future rules recorded as gaps from the ideal, not proposals in this job.
 
-| Feature | Program | Behaviour under the rule |
-| --- | --- | --- |
-| captures and `&mut` | `call := fetch(url) \|> guarded(&mut breaker, work=_)` | the reference is captured; state persists across runs, as with a closure |
-| provider scopes | `w := fetch(url)` outside a `$.with(Http=...)`, then `w!()` inside | the provider at the call is used (rule 3) |
-| construction binding | `let s: mut Suspend[i32] = $.with(Counter=a): read()` | today's binding to `a` (rule 4) |
-| `race!` and `all!` | `race!(work(), late_copy(work, d))` | cold suspensions, unchanged (rule 4) |
-| one-shot arguments | `twice!(consume(job))` with `job: mut Suspend[i32]` | `one-shot-capture` (rule 5) |
-| must-use | `fetch(url)` as a statement | `discarded-must-use-value`, as today |
-| generics | `id(fetch(url))` with `fn id[T](x: T) -> T` | `T` is the work type; no `Suspend` is expected, so it is work |
-| methods | `client.send(request) \|> retry(b, work=_)` | the receiver is captured like an argument |
-| `defer` and cleanup | a work whose body has `defer:` | runs on every run of the work, as for any bang call |
-| ownership passes and the inliner | `deferred`'s closure | an ordinary closure; no new instruction reaches them |
+The [#818 stress test](https://github.com/HerringtonDarkholme/hd-lang/blob/b5fe14a15ae610d0e91a4bf4428c027aae101444/docs/future-work/PIPE_STEPS.md) checks a possible zero-placeholder value-step rule separately.
+Its curried factories infer inner configuration types and run all three ports through the expected unary function type.
+The fixed bodies save three placeholders and no lines; the two factory implementations add two lines.
+The uniform rule also changes existing method/default semantics and needs a final-fn! weakening guard.
 
-Soundness: a plain call either builds today's cold suspension or an ordinary closure that calls `f!`.
-Both are existing, checked constructs, so the rule adds no new runtime state.
-Rule 5 keeps a one-shot value out of anything that runs twice.
-Rule 3 keeps rows honest: the work's type carries `R`, and every run is checked where it happens.
+This rewrite therefore keeps today's explicit `_` spelling; adopting #818 would be a later owner-approved language change.
+It is not an excuse to alter the selected policy mechanism now.
+The separate nested nonempty returned-function row gap does not affect these configuration-only builders.
+
+The soundness condition is ordinary type soundness: a Layer must return its declared Wrapped type and row.
+An accepted inferred apply call must receive every provider required by its associated output.
+That invariant is the compiler gap's regression target.
 
 ### Standard library API
 
-| Item | Answer |
-| --- | --- |
-| Layer | plain hd in lib/std/task.hd; no intrinsic; `deferred` is private hd in std.function |
-| Design bar (#350) | one function per policy, composed freely; no combined `resilient!` shortcut; strongly typed errors through `From` |
-| Signatures | complete in shape 2's API section, with bounds, rows, receivers and bang suspension |
-| Naming | verb or participle names like `retry!` and `with_timeout!`; the work parameter is `work` everywhere |
-| Performance | measured in Cost; one closure per built step; no per-run allocation beyond the policy's own frames |
-| Security | building work needs no provider; running it needs its row; a policy gains no capability it does not name |
-| Tests | spec/std/task.md fixtures per rule, plus the three programs as runtime cases |
-| Prior art | State of the art; Effect's operators and MoonBit's work-last functions are the closest |
+The layer is plain hd, not an intrinsic.
+The ergonomic path is builders, pipe and one apply block; tuples and Layer are the extension atoms.
+There is no fixed Policy record enumerating accepted combinations, and no resilient shortcut hiding policy order.
+
+Errors remain statically named, with explicit From conversions.
+Receivers take configurations by value; persistent mutable state is referenced explicitly.
+Apply is the one terminal operation, and former public timeout bang functions become private building blocks.
+
+The implementation must retain work-first timeout ties, capped backoff, at-least-one retry attempt and loser cleanup.
+Native and Node tests must agree with the spec, rather than treating either host as semantic authority.
+Capabilities remain visible in Wrapped and the apply call, and a builder acquires none implicitly.
 
 ## Cost
 
 ### Measured per run
 
-[measure.mjs](composing-work/measure.mjs) builds [cost.hd](composing-work/cost.hd) with `hd build --release --engine node` and rewrites the module.
-Every defined function gets an exported counter that its first instruction increments.
-The allocator's block total, at offset 244 of its metadata (`GIVEN` in [alloc.hd](../../lib/std/rt/alloc.hd)), is read after the run.
-Each variant runs in a fresh instance 4, 20 and 36 times; the per-run cost is the slope, and the two intervals agree within 2%.
+The exact inferred-call reference package was built in the dev profile for Node at source baseline `6c0dc2a31`.
+The compiler sources match the frozen `424c34c44` compiler; only documentation changed between those bases.
+The unmodified module is **569,376 bytes**, with **862 defined functions**.
+Its measurement-only instrumented copy is **593,453 bytes**; that size is not a shipped-code claim.
 
-The fake `Http` provider answers at once and records nothing, so its cost is constant.
-The `fail` path refuses two primary attempts 1 ms apart, then the backup answers: three requests.
-The `ok` path succeeds on the first attempt: one request.
-Engine: Node 24 (V8), compiler at 2b0db8db4; wasmtime is not in this build.
-
-U1, the `fail` path:
-
-| Variant | Allocations | Function entries | Entries outside the allocator and RC runtime |
+| Complete port-sequence repetitions | Guest allocation calls | Defined Wasm function entries | Runtime entries, subset |
 | --- | --- | --- | --- |
-| the work alone (three requests, one sleep, no policy) | 32 | 1666 | 61 |
-| shape 1, wrapped per application | 61 | 3780 | 130 |
-| shape 1, wrapped once, run many times | 56 | 3658 | 118 |
-| shape 2, blocks | 60 | 3423 | 122 |
-| shape 2, pipe built per run | 61 | 3808 | 126 |
-| shape 2, pipe built once | 57 | 3699 | 125 |
-| shape 3, provider stack | 76 | 5461 | 153 |
+| 0 | 4 | 268 | 255 |
+| 1 | 473 | 35,218 | 34,207 |
+| 5 | 2,286 | 171,631 | 166,532 |
+| 9 | 4,099 | 307,991 | 298,804 |
 
-U1, the `ok` path:
+The extra sequences have **453.25 allocation calls per sequence** on both the 1→5 and 5→9 intervals.
+Defined-function entries average **34,103.25** and **34,090.00** per sequence on those intervals.
+Fractional slopes describe several executions, not a fraction of one allocation.
+Timers can change poll counts; these function-entry counts are observations, not semantic constants or latency measurements.
 
-| Variant | Allocations | Function entries | Entries outside the allocator and RC runtime |
-| --- | --- | --- | --- |
-| the work alone | 13 | 629 | 21 |
-| shape 1, wrapped per application | 31 | 1553 | 62 |
-| shape 1, wrapped once | 27 | 1368 | 52 |
-| shape 2, blocks | 28 | 1337 | 52 |
-| shape 2, pipe built per run | 31 | 1477 | 56 |
-| shape 2, pipe built once | 27 | 1361 | 55 |
-| shape 3, provider stack | 36 | 2181 | 57 |
+[measure-values.mjs](composing-work/measure-values.mjs) exports a counter for every defined function and the existing allocator metadata address.
+It reads allocation-call total at heap-metadata offset 244, verified against the current `note_allocation` emitter.
+It does not count imported host calls, host allocations, Wasm instructions, or maximum live bytes.
+Every count uses a fresh instance; the zero-repetition run exposes fixed startup work.
+Instrumentation adds globals and entry increments without changing function indices; its output matches the original asserted program.
 
-U2 and U3, the `ok` path (the breaker closed; the first hedge copy answers at once):
+The command is `node docs/future-work/composing-work/measure-values.mjs PATH_TO_HD WORK_PACKAGE`.
+Set `HD_CACHE` and `TMPDIR` inside the isolated worktree; the script uses no release build.
+The complete port sequence covers U1–U5, policy reuse and a total retry budget.
+Native execution validates the uninstrumented behavior; the allocation/function-entry observations above use Node only.
 
-| Variant | Allocations | Function entries |
-| --- | --- | --- |
-| the work alone | 13 | 580 |
-| breaker, shape 1 | 19 | 857 |
-| breaker, shape 2 blocks | 16 | 738 |
-| breaker, shape 2 work built once | 17 | 816 |
-| breaker, shape 3 | 14 | 735 |
-| hedge, shape 1 | 24 | 1034 |
-| hedge, shape 2 blocks | 20 | 884 |
-| hedge, shape 3 | 18 | 967 |
-
-The allocator and reference counting make about 96% of all entries, so allocations decide the call count.
-The three U1 policies cost 15 allocations on the `ok` path in block form.
-Shapes 1 and 2 differ by at most three allocations per run.
-
-Building a composition once removes four allocations per run in both shapes.
-Shape 3 costs most on U1 but least on U2 and U3.
-
-The measured shape-2 pipe is the closures the rule builds, written by hand in cost.hd.
-The implementation through `deferred` must not exceed those counts; phase 2's test checks it.
-None of this is a latency claim: one real request costs far more than 1500 function entries.
+Old tables from compiler 2b0db8db4 are superseded rather than copied as current measurements.
+No latency or speed claim follows from counting allocations and function entries.
+Performance does not decide the chosen composition form.
 
 ### Bottom-up budget
 
-| Component | Replaces | Adds | Basis |
-| --- | --- | --- | --- |
-| spec/lang/11, plain call | 4 rules (`req.suspend.type.plain-call`, `req.suspend.type.readonly-binding`, `req.bind.caller` scope, `req.suspend.cold`) | 6 rules, one error code | the rule list above |
-| checker branch | 0 | 60 to 100 Rust lines in call.rs | two call sites, the pseudo-code above (about 30 lines each), a diagnostic |
-| std helper `deferred` | 0 | 3 hd lines | the earlier prototype, measured |
-| conformance | edits to 2 fixtures (unused-cold-suspension, stored-suspension-single-drive) | 5 runtime cases | the testing table |
-| std.task additions | 0 | 21 hd lines (`fallback!`, `guarded!`, `hedged!`, `Breaker`, `CircuitOpen`) | shape2.hd part 1, counted |
-| spec/std/task.md | `attempt` in 6 retry rules | about 15 rules for three functions | one rule per sentence, as the timeout section |
-| shape-1 bug fix (independent) | 0 | 20 to 80 Rust lines and one runtime case | the comparable solver fix da5a1f75a changed 77 Rust lines |
+Counts are taken from the complete current [policy-values.hd](composing-work/policy-values.hd), not from a projected rewrite.
+“Code” excludes blank and comment-only lines; literal spans retain internal blanks/comments and exclude separators after the component.
+The whole prototype is **275 literal lines / 203 code lines**, including imports, the fake provider, assertions and examples.
 
-Compile time: the branch is constant work per plain call, with no superlinear step.
-Emitted Wasm: a program pays only for the policies it calls; `deferred` is one small generic body per instantiation.
-The web compiler's gzip size is not measured here; a 100-line checker branch is far below the 2 MB cap, and phase 2 measures it.
-Stop rule: a commit that runs past 1.5 times its line share stops for review.
+| Component | Measured code lines | Literal span | Existing algorithm replaced | Implementation allowance |
+| --- | --- | --- | --- | --- |
+| Layer, unit, tuple, apply | 13 | 17 | 0; existing timeout/retry/race atoms reused | 13 code lines |
+| TimeLimit | 8 | 11 | 0; existing timeout/retry/race atoms reused | 8 code lines |
+| Retry and predicate | 18 | 25 | 0; existing timeout/retry/race atoms reused | 18 code lines |
+| Fallback | 9 | 12 | 0; existing timeout/retry/race atoms reused | 9 code lines |
+| Breaker and Guard | 17 | 23 | 0; existing timeout/retry/race atoms reused | 17 code lines |
+| Hedge | 10 | 14 | 0; existing timeout/retry/race atoms reused | 10 code lines |
+| Builders | 9 | 10 | 0; existing timeout/retry/race atoms reused | 9 code lines |
+| Trace | 9 | 11 | 0; existing timeout/retry/race atoms reused | documentation/example only |
+| Port support and bodies | 105 | 130 | 0; existing timeout/retry/race atoms reused | documentation/example only |
 
-For comparison, shape 1's std surface is 74 hd lines beside the existing bang functions, and shape 3's is 74 lines for `Http` alone.
+The proposed library mechanism and policy components total **84 code lines**; the user Trace example adds nine.
+This is a reference-derived implementation allowance, excluding documentation and tests, rather than a Rust compiler budget.
+The first migration changes three public bang declaration headers to private atom names and updates their existing callers.
+It retains their algorithms; it does not delete the cancellation implementation to meet a line target.
+Caller count and migration edits must be inventoried on the implementation base before that slice starts.
+
+No new compiler code or web compiler payload is required for the library design.
+The prerequisite compiler fix separately measured web Wasm at **5,700,644 raw / 1,908,698 gzip bytes** on its pinned revision.
+That is historical prerequisite evidence, not a fresh current-web measurement or proof about a future std migration.
+The current user-program module size is measured above; compile-time and latency deltas remain unmeasured because no production implementation changed.
+
+No production Rust or web compiler is changed by the proposal.
+The separately merged compiler correction already passed its web build and smoke gates.
+The 2 MB web gzip cap cannot be inferred from a Rust line estimate.
+Stop each implementation slice if its additions exceed 1.5 times the corresponding measured prototype component.
 
 ## Stress test
 
-Each case was run or checked on today's compiler unless it needs the proposed rule.
+The six fixed use cases are exercised by the full ports and the clock-free Trace control.
+Eleven additional focused programs check boundaries and extension behavior; six are positive controls and five are intentional rejections.
 
-1. **One policy value, two result types (shape 1).** `TimeLimit {...}.then(Retry {...})` wrapped a `Result[string, Failure]` and a `Result[usize, Failure]` work; both ran. The generic impl, not a closure, makes this work.
-2. **A missing `From` (shape 1).** The checker names `Layer`, not `From[TimedOut]`, and adds two `cannot-infer-type` errors. Shape 2 names the bound. If shape 1 is chosen, an unmet impl bound must be reported by name.
-3. **A positional `_` (shape 2).** `with_timeout(ms(50), _)` puts the work in `cleanup` and reports `argument-count`. The answer is `work=_` and the rename of `retry!`'s `attempt`.
-4. **Operator composition (shape 1).** A blanket `impl[P < Policy, O] Add[O] for P` is `bare-parameter-impl-target`. The answer is `then`.
-5. **`then` on `Layer[W]` (shape 1).** `unsatisfied-trait-bound`, because the receiver implements `Layer` at infinitely many instantiations. The answer is the separate `Policy` trait.
-6. **A deadline that must cancel a pending reply.** The fake provider holds primary replies for 500 ms. Every shape reports zero finished primary replies, so the timeout cancels rather than waits.
-7. **The hedge loser's cleanup.** `closed=2` in every shape: `race!` waits for the loser's `defer`.
-8. **Order mistakes.** `retry` outside `with_timeout` is a deadline per attempt; inside is one budget. Both type-check; only order tells them apart, as in Polly. This is documented, not checked.
-9. **Retrying non-idempotent work.** No shape can tell a POST from a GET. The `when` predicate and the caller decide; this matches Effect, Polly and MoonBit.
-10. **A one-shot argument under the rule.** `twice!(consume(job))` with `job: mut Suspend[i32]` would drive `job` twice; rule 5 rejects it at the plain call.
-11. **A plain call that must stay a suspension.** `race!(work(), late_copy(work, d))` inside `hedged!` and `timeout!`'s `let job: mut Suspend[T] = work()` are Suspend slots, so rule 4 keeps them.
-12. **Shape 3 on non-provider work.** A unit of work that reads a file and then sends a request cannot be wrapped; only its `send!` can.
-13. **Real library code.** Effect's `getTodo` (timeout, exponential retry, `catchTag` fallback) maps onto the U1 pipeline step for step. resilience4j's bulkhead and rate limiter have no std counterpart and stay user policies.
+| Focused case | Verdict | Current evidence |
+| --- | --- | --- |
+| `pure-no-clock` | works | Only Console; both engines print a successful traced result. |
+| `unit-policy` | works | The unit Layer leaves work unchanged; both engines return Ok(9). |
+| `from-required` | friction | Missing From[TimedOut] rejects the TimeLimit Layer bound. |
+| `clock-required` | works | The missing Clock provider is a checked missing-requirement error. |
+| `console-required` | works | Trace cannot be applied without its Console requirement. |
+| `cold-not-work` | works | A cold Suspend fails the repeatable fn! parameter; secondary diagnostics remain noisy. |
+| `plain-result-boundary` | friction | TimeLimit currently accepts Result-returning work, not a plain usize body. |
+| `policy-output-transform` | works | A user Layer changes Result work to string output; both engines print rendered. |
+| `fallback-unit` | works | fallback(backup, ()) works as the first or only policy. |
+| `copied-breaker` | works | Copied Guard values share referenced state; only one underlying call runs. |
+| `nested-budgets` | works | A 5 ms total budget surrounds retries of 50 ms attempts; both engines cancel the first slow attempt and return the backup. |
 
-Cases 2 and 3 changed the design: the rename of `attempt`, and the diagnostic requirement if shape 1 were chosen.
+The plain-value boundary is deliberate in the proposed surface: wrap a plain result in a typed `Result` when timing it.
+A blanket TimeLimit implementation for every work type would overlap the Result-specific implementation; this proposal does not add specialization.
+An initial fallback uses the unit Layer as its inner configuration; no duplicate standalone fallback API is necessary.
+Output-changing user layers work because apply has separate input and output type parameters.
+
+The nested-budget control combines a per-attempt deadline and an outer total deadline, rather than testing those only separately.
+It asserts one cancelled primary attempt, one backup request and no completed slow response.
+The counters test cooperative timeout cancellation and hedge disposal, not a synchronous host call that never yields.
+A complete production fixture set still needs cleanup-bound zero/expiry cases and work-first timeout ties from the existing task suite.
+Those existing behaviors must survive the private-atom migration; this documentation job does not declare them newly tested.
+
+The library does not promise cancellation of a synchronous host call that never yields.
+It preserves the existing cooperative suspension boundary.
+Retries of non-idempotent work remain the caller's responsibility; transient error selection cannot make an operation idempotent.
 
 ## Phasing
 
-Each step is green on its own and about one hour of agent work.
+Each slice targets about an hour of agent work and has a concrete observable test.
+The prerequisite associated-output row correction is already merged, with inferred-call, explicit, empty-row and invariant-rejection coverage.
+Keep that runtime regression in both-engine focused checks; do not reopen the compiler fix as a library phase.
 
-1. **Spec the plain-call rule.** Edit spec/lang/11 as listed, add the error code, add the five runtime cases. Test: `bash spec/check.sh`; the cases are known failures until step 2.
-2. **Checker branch.** Implement the pseudo-code and the private `deferred`. Test: the five cases pass, shape2-gap.hd prints twice, shape2-pipe.hd checks and prints shape2.hd's output; cost.hd's pipe counts do not grow.
-3. **std.task additions.** `fallback!`, `guarded!`, `Breaker`, `CircuitOpen`, `hedged!`, and `attempt` renamed to `work`, with spec/std/task.md rules and fixtures. Test: shape2.hd and shape2-pipe.hd run with the std versions.
-4. **Guide and examples.** The three programs in the std.task guide, block and pipe forms. Test: the website build.
+Second, introduce Layer, tuple composition and apply with stdlib rules and fixtures after API approval.
+The test applies a user layer to two result types and proves an untimed policy needs no Clock.
+Third, expose the timeout/retry builders while making their bang implementations private and migrating every existing caller.
 
-Independently, the shape-1 compiler bug goes to the compiler lane, with shape1-gap.hd as its runtime case.
-It is a bug whatever shape is chosen.
+Fourth, add fallback, the minimal breaker and hedging with their typed errors and complete signatures.
+Their tests are U1 through U3, including actual cancellation counters and loser defer execution.
+Finally, update guides and add measured allocation/call guardrails from the current prototype, without making historical counts semantic requirements.
+
+No phase changes the meaning of plain calls or adds an operator trait.
+Each production slice must ship its stdlib rules and conformance cases with the implementation.
 
 ## Recommendation and approvals
 
-**Recommendation:** shape 2, with the plain-call rule.
-Each policy is one bang function; `policy!(...):` runs now and `policy(..., work=_)` builds work.
+**Recommendation:** the owner's lean policy-value mechanism, using Layer, tuples, plain builders and one apply block.
+It gives up the four-line bang-only custom policy, because automatic reusable plain calls and nested application blocks were rejected.
+It also gives up provider middleware as an operation-level mechanism; providers may still carry a default strategy.
 
-It gives a four-line user policy, the clearest error reports and the lowest measured cost in block form.
-No policy has a second definition.
-It gives up shape 1's reusable policy values: a composition is reused as built work, not as a configuration applied to different work.
+Approval is needed for the proposed std.task surface and migration of public bang timeout/retry APIs into private implementation atoms.
+The source and exact signatures above make that review concrete.
+From[TimedOut] remains the current constraint; adopting Either or unions is not requested.
 
-The next best is shape 1, which needs no language change, only the row-inference bug fixed.
-It costs a second spelling of every policy, ten lines per user policy, and a diagnostic fix for unmet impl bounds.
-Shape 3 is a pattern for provider-backed operations, not a composition mechanism for std.
-
-What needs the owner's approval:
-
-1. **The language change.** A plain call of a bang function builds re-runnable work `fn!() -> T $ R`, except where a `Suspend` is expected. That is rules 1 to 6 above, with the error `one-shot-capture`. Cost: six spec rules, a 60 to 100 line checker branch, two fixture edits.
-2. **The std.task additions.** `fallback!`, `guarded!` with `Breaker` and `CircuitOpen`, and `hedged!`, with the signatures above.
-3. **The rename** of `retry!`'s `attempt` parameter to `work`.
-
-Keeping `From[TimedOut]` over Either follows the existing constraint and needs no new decision.
-The shape-1 bug fix needs no approval: it makes the compiler accept what the spec already allows.
+The inferred apply correction is complete under existing rules, rather than an API limitation to normalize.
+No approval for a new plain-call rule, policy call syntax, generic function value or bare pipe step is sought.
+Ask about the public API as one next decision; later migration details follow that answer.
 
 ## Prototypes, sources and parse log
 
-Prototypes, run with `hd FILE` (Node engine) from the repository root at 2b0db8db4:
+| Source | Parse | Check | Execution |
+| --- | --- | --- | --- |
+| `policy-values.hd` | clean | clean, zero warnings | Node and Wasmtime pass |
+| `policy-values-controls.hd` | clean | clean, zero warnings | Node and Wasmtime pass |
+| `policy-values-cost.hd` | clean | clean, zero warnings | Node and Wasmtime pass |
+| `shape2.hd` | clean | clean, zero warnings | Node and Wasmtime pass |
+| `shape2-pipe.hd` | clean | expected rejection of cold Suspend as work | not run after intended rejection |
+| `shape2-gap.hd` | clean | expected rejection of cold Suspend as work | not run after intended rejection |
+| `shape3.hd` | clean | clean, zero warnings | Node and Wasmtime pass |
+| `either-errors.hd` | clean | clean, zero warnings | Node and Wasmtime pass |
 
-| File | Expected result |
-| --- | --- |
-| [shape1.hd](composing-work/shape1.hd) | `hd check` passes; `hd FILE` traps `internal error: unreachable` in `apply!` (the compiler gap) |
-| [shape1-gap.hd](composing-work/shape1-gap.hd) | the gap's minimal repro: traps the same way |
-| [shape1-controls.hd](composing-work/shape1-controls.hd) | runs; the three programs with `apply!` written at the call site |
-| [shape2.hd](composing-work/shape2.hd) | runs; the three programs in block form |
-| [shape2-pipe.hd](composing-work/shape2-pipe.hd) | the missing feature: `hd check` reports eight errors, all at plain calls |
-| [shape2-gap.hd](composing-work/shape2-gap.hd) | the missing feature's minimal repro: one `type-mismatch` |
-| [shape3.hd](composing-work/shape3.hd) | runs; the three programs as provider middleware |
-| [either-errors.hd](composing-work/either-errors.hd) | runs; U1 with Either errors |
-| [cost.hd](composing-work/cost.hd) | runs, for example `hd cost.hd -- http-s2-block fail 3` |
-| [measure.mjs](composing-work/measure.mjs) | `node docs/future-work/composing-work/measure.mjs target/debug/hd` prints the cost tables |
+The three embedded hd blocks parse cleanly; they are mechanism definitions, the user spelling, and the Trace implementation.
+The linked complete policy-values program supplies the missing context for those excerpts.
+All eleven focused stress programs parse; six check and run on both engines, while five reject for the documented boundary.
+The resulting **24 successful ordinary engine runs** have exact Node/native stdout parity per source.
+Four additional instrumented Node executions cover 0, 1, 5 and 9 full sequences, retaining all counts and stdout.
 
-Parse log: each `text` block was parsed with `scripts/hd-conformance.sh parse` on 2026-10-23.
-Parsing checks syntax only; the type-checking claims come from the prototype files above.
+The final frozen tools, source hashes, complete outputs and measurements are retained at `/private/tmp/muse-783-docs-1792818831600015000`.
+No full test suite or production compiler/std change is part of this rewrite.
 
-| Block | Content | Result |
-| --- | --- | --- |
-| 1 | shape 1 std surface | `syntax-error` at `apply!`: a signature without a body; the full definitions parse in shape1.hd |
-| 2 | the shape-1 gap repro | parses |
-| 3 | `Trace` user policy | parses |
-| 4 | U1 with `apply!` | parses |
-| 5 | U2 and U3 with `apply!` | parses |
-| 6 | U6 total budget | parses |
-| 7 | shape 2 signatures | `syntax-error` per line: signatures without bodies; the bodies are in lib/std/task.hd and shape2.hd |
-| 8 | the shape-2 missing-feature repro | parses |
-| 9 | `trace!` user policy | parses |
-| 10 | U1 pipe | parses (it needs the rule to type-check) |
-| 11 | U1 blocks | parses |
-| 12 | U2 and U3 pipes | parses (they need the rule to type-check) |
-| 13 | shape 3 signatures | `syntax-error` per line: signatures without bodies; the bodies are in shape3.hd |
-| 14 | shape 3 stack | parses |
-| 15 | `deferred` | parses |
-
-The `rust` block is pseudo-code and is not compiled.
-
-Sources: the links in [State of the art](#state-of-the-art), read on 2026-10-23.
-The issue comments on #783 hold the owner's review of the earlier version and the compiler update this one relies on.
+Sources are the primary links in State of the art, rechecked on 2026-10-24.
+The owner's final direction is the 2026-10-24 03:30 UTC reply on #783.
+Earlier shape-2 approvals in the historical version of this file are superseded.
