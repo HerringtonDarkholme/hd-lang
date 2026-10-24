@@ -62,13 +62,12 @@
 
 use hd_types::Ty;
 
-use super::moves::{Root, in_place, root_of};
 use super::splice;
-use super::{Loc, Operand, OwnCx, Role, Tri, consumes, fill, operands, tracked};
+use super::{Loc, Operand, OwnCx, Role, Tri, consumes, fill, operands, suite_touches, tracked};
 
 use crate::ir::{
-    Body, CaptureMode, NONE, ReadMode, Ref, Tag, Topology, for_blocks, is_suspension, local_flags,
-    place, ref_word, u32_of,
+    Body, CaptureMode, NONE, ReadMode, Ref, Root, Tag, Topology, is_suspension, local_flags, place,
+    ref_word, u32_of,
 };
 
 /// Known-null's dense tables, reused across bodies.
@@ -267,16 +266,8 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &splice::Tables) -> b
     for i in 0..n {
         let [a, w] = b.data[i];
         match b.tags[i] {
-            Tag::Scope if w != NONE => {
-                t.stack.clear();
-                t.stack.extend_from_slice(b.record(w));
-                pin_suites(b, t);
-            }
-            Tag::Defer => {
-                t.stack.clear();
-                t.stack.push(a);
-                pin_suites(b, t);
-            }
+            Tag::Scope if w != NONE => pin_suites(b, t, b.record(w)),
+            Tag::Defer => pin_suites(b, t, &[a]),
             Tag::Drop if !t.pending.dead[i] => mark_dropped(b, t, a),
             _ => {}
         }
@@ -372,9 +363,8 @@ fn number_parts(b: &Body, t: &mut Tables, edits: &splice::Tables) -> u32 {
     fill(&mut t.slot_of, n + k, NONE);
     t.takes.clear();
     let part = |t: &Tables, word: u32| -> Option<u32> {
-        let (_, from, to) = root_of(b, word);
         match t.root_bit(b, word) {
-            Some((bit, false)) if in_place(b, from, to) => Some(bit),
+            Some((bit, false)) if b.view(word).in_place(b) => Some(bit),
             _ => None,
         }
     };
@@ -406,8 +396,8 @@ fn number_parts(b: &Body, t: &mut Tables, edits: &splice::Tables) -> u32 {
         }
     };
     let proj = |item: u32| {
-        let (_, from, to) = root_of(b, word_of(item));
-        &b.extra[from as usize..to as usize]
+        let p = b.view(word_of(item));
+        &b.extra[p.from as usize..p.to as usize]
     };
     t.takes
         .sort_unstable_by(|p, q| p.0.cmp(&q.0).then_with(|| proj(p.1).cmp(proj(q.1))));
@@ -431,49 +421,21 @@ fn number_parts(b: &Body, t: &mut Tables, edits: &splice::Tables) -> u32 {
 
 /// Marks the value a `Drop` of all of place `word` drops, if it is one.
 fn mark_dropped(b: &Body, t: &mut Tables, word: u32) {
-    if let (Root::Value(v), from, to) = root_of(b, word)
-        && from == to
-    {
+    let p = b.view(word);
+    if let Some(v) = p.value().filter(|_| p.whole()) {
         t.dropped[v as usize] = true;
     }
 }
 
-/// Marks every local and value the blocks on `t.stack` touch, with every
-/// block they run: a cleanup suite runs at its scope's exits, which the
-/// walk does not follow.
-fn pin_suites(b: &Body, t: &mut Tables) {
-    let mut ops = std::mem::take(&mut t.ops);
-    while let Some(x) = t.stack.pop() {
-        let i = x as usize;
-        if i >= b.len() {
-            continue;
-        }
-        if b.tags[i] == Tag::Block {
-            t.stack.extend_from_slice(b.record(b.data[i][0]));
-        }
-        let stack = &mut t.stack;
-        for_blocks(b, i, |blk| stack.push(blk));
-        match b.tags[i] {
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin => {
-                if let (Root::Local(l), _, _) = root_of(b, b.data[i][0]) {
-                    t.pin_l[l as usize] = true;
-                }
-            }
-            Tag::Closure => {
-                let rec = b.record(b.data[i][1]);
-                for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
-                    t.pin_l[b.cap_local[c].idx()] = true;
-                }
-            }
-            _ => {}
-        }
-        operands(b, i, &mut ops);
-        for op in &ops {
-            t.pin_v[op.value as usize] = true;
-        }
-        t.pin_v[i] = true;
-    }
-    t.ops = ops;
+/// Pins every local and value the cleanup suites `roots` touch, and each
+/// value they compute ([`suite_touches`]).
+fn pin_suites(b: &Body, t: &mut Tables, roots: &[u32]) {
+    let (pin_l, pin_v) = (&mut t.pin_l, &mut t.pin_v);
+    let (local, value) = (
+        |l: u32| pin_l[l as usize] = true,
+        |v: u32| pin_v[v as usize] = true,
+    );
+    suite_touches(b, roots, &mut t.stack, &mut t.ops, true, local, value);
 }
 
 impl Tables {
@@ -571,20 +533,20 @@ impl Tables {
     /// The bit of the root of place `word`, and whether the place is all
     /// of it.
     fn root_bit(&self, b: &Body, word: u32) -> Option<(u32, bool)> {
-        let (root, from, to) = root_of(b, word);
-        let bit = match root {
+        let p = b.view(word);
+        let bit = match p.root {
             Root::Local(l) => self.lbit[l as usize],
             Root::Value(v) => self.vbit[v as usize],
-            Root::Other => NONE,
+            _ => NONE,
         };
-        (bit != NONE).then_some((bit, from == to))
+        (bit != NONE).then_some((bit, p.whole()))
     }
 
     /// A `Drop` item (an instruction, or `n + edit`) of place `word`: it
     /// is needed where its root may hold a count; it empties all of it, or
     /// takes a part.
     fn drop_item(&mut self, b: &Body, cx: &dyn OwnCx, item: usize, word: u32, st: usize) {
-        if let (Root::Local(l), _, _) = root_of(b, word) {
+        if let Some(l) = b.view(word).local() {
             self.cell_mark(l, st, true);
         }
         let Some((bit, whole)) = self.root_bit(b, word) else {
@@ -619,8 +581,8 @@ impl Tables {
         let first = self.nl + self.nv;
         for s in self.slot_start[bit as usize]..self.slot_start[bit as usize + 1] {
             if self.get(st, first + s) {
-                let (_, from, to) = root_of(b, self.slot_word[s as usize]);
-                self.paths.push((from, to));
+                let p = b.view(self.slot_word[s as usize]);
+                self.paths.push((p.from, p.to));
             }
         }
         self.tys.clear();
@@ -1040,7 +1002,7 @@ impl Tables {
         if !self.clocs.is_empty() {
             match tag {
                 Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Pin => {
-                    if let (Root::Local(l), _, _) = root_of(b, a) {
+                    if let Some(l) = b.view(a).local() {
                         self.cell_visit(x, l, st);
                         match tag {
                             Tag::Store if b.local_in_place(a).is_some() => {
@@ -1063,10 +1025,10 @@ impl Tables {
         }
         // A `move` of all of a value consumes it.
         let moved = match tag {
-            Tag::Read if w == ReadMode::Move as u32 => match root_of(b, a) {
-                (Root::Value(v), from, to) if from == to => v,
-                _ => NONE,
-            },
+            Tag::Read if w == ReadMode::Move as u32 => {
+                let p = b.view(a);
+                p.value().filter(|_| p.whole()).unwrap_or(NONE)
+            }
             _ => NONE,
         };
         let mut ops = std::mem::take(&mut self.ops);
@@ -1090,7 +1052,7 @@ impl Tables {
         if matches!(tag, Tag::Read | Tag::Store | Tag::Ref)
             && let Some((bit, whole)) = self.root_bit(b, a)
         {
-            let local = matches!(root_of(b, a).0, Root::Local(_));
+            let local = b.view(a).local().is_some();
             match tag {
                 Tag::Read if !whole && w == ReadMode::Move as u32 => self.take(b, cx, i, bit, st),
                 // A store through the local, into what it refers to, leaves

@@ -45,10 +45,12 @@
 //! tables indexed by the move pass's candidate bits, stamped per straight
 //! line. The edits join the pipeline's last rebuild.
 
-use super::moves::{self, Root, in_place, root_of};
+use super::moves;
 use super::splice;
 use super::{Loc, Operand, OwnCx, Tri, operands};
-use crate::ir::{Body, NONE, ReadMode, Tag, Topology, for_blocks, is_suspension, place, u32_of};
+use crate::ir::{
+    Body, NONE, PlaceView, ReadMode, Root, Tag, Topology, for_blocks, is_suspension, place, u32_of,
+};
 
 /// The nearest later touch seen so far: the straight line it is in, its
 /// order in the walk (a larger number is nearer), and the instruction or
@@ -85,24 +87,6 @@ pub(crate) struct Tables {
     bits: Vec<u32>,
     stamp: u32,
     time: u32,
-}
-
-/// The first-level part a place's projection words `from..to` name: the
-/// field of its first step (after a variant), or `None` for all of the
-/// base or a step that is no part of it.
-fn first_part(b: &Body, from: u32, to: u32) -> Option<u32> {
-    if from >= to {
-        return None;
-    }
-    let w = b.extra[from as usize];
-    match w & place::PROJ_KIND {
-        place::PROJ_FIELD => Some(w & place::PROJ_INDEX),
-        place::PROJ_VARIANT if from + 1 < to => {
-            let f = b.extra[from as usize + 1];
-            (f & place::PROJ_KIND == place::PROJ_FIELD).then_some(f & place::PROJ_INDEX)
-        }
-        _ => None,
-    }
 }
 
 /// One touch of a candidate base by an item.
@@ -165,12 +149,11 @@ pub(crate) fn run(
     t.width.clear();
     t.width.resize(bits, 0);
     let widen = |t: &mut Tables, word: u32| {
-        if let Some(bit) = candidate(mt, b, word) {
-            let (_, from, to) = root_of(b, word);
-            if let Some(f) = first_part(b, from, to) {
-                let w = &mut t.width[bit as usize];
-                *w = (*w).max(f + 1);
-            }
+        if let Some(bit) = candidate(mt, b, word)
+            && let Some(f) = b.view(word).first_part(b)
+        {
+            let w = &mut t.width[bit as usize];
+            *w = (*w).max(f + 1);
         }
     };
     for i in 0..n {
@@ -215,11 +198,11 @@ fn is_place(tag: Tag) -> bool {
 /// a reference addresses lives in a cell, whose other holders may read
 /// it: it is no candidate here, as no read of it moves.
 fn candidate(mt: &moves::Tables, b: &Body, word: u32) -> Option<u32> {
-    let x = match root_of(b, word).0 {
+    let x = match b.view(word).root {
         Root::Local(l) if mt.addr[l as usize] => NONE,
         Root::Local(l) => mt.lnum[l as usize],
         Root::Value(v) => mt.vnum[v as usize],
-        Root::Other => NONE,
+        _ => NONE,
     };
     (x != NONE).then_some(x)
 }
@@ -266,10 +249,9 @@ fn edit(b: &Body, mt: &moves::Tables, t: &mut Tables, edits: &splice::Tables, e:
     }
     t.time += 1;
     if let Some(bit) = candidate(mt, b, word) {
-        let (_, from, to) = root_of(b, word);
         let touch = Touch {
             bit,
-            part: first_part(b, from, to),
+            part: b.view(word).first_part(b),
             takes: true,
         };
         t.record(n + e, touch, true);
@@ -318,20 +300,16 @@ fn statement(
     let [a, w] = [a, b.data[i][1]];
     let mut root_value = NONE;
     if is_place(tag) {
-        let (root, from, to) = root_of(b, a);
-        if let Root::Value(v) = root {
+        let p = b.view(a);
+        if let Root::Value(v) = p.root {
             root_value = v;
         }
         if let Some(bit) = candidate(mt, b, a) {
             let takes = tag == Tag::Drop || (tag == Tag::Read && w == ReadMode::Move as u32);
-            let part = if in_place(b, from, to) {
-                first_part(b, from, to)
-            } else {
-                None
-            };
+            let part = p.first_part(b).filter(|_| p.in_place(b));
             t.record(m, Touch { bit, part, takes }, tag == Tag::Drop);
         }
-        if let Root::Local(l) = root
+        if let Root::Local(l) = p.root
             && mt.holds[l as usize] != NONE
         {
             t.bits.clear();
@@ -397,11 +375,12 @@ fn pair(
     let Some(bit) = candidate(mt, b, word) else {
         return;
     };
-    let (root, from, to) = root_of(b, word);
-    if !in_place(b, from, to) || cx.counted(b.ty[r as usize]) == Tri::No {
+    let p = b.view(word);
+    let PlaceView { root, from, to } = p;
+    if !p.in_place(b) || cx.counted(b.ty[r as usize]) == Tri::No {
         return;
     }
-    let Some(key) = first_part(b, from, to) else {
+    let Some(key) = p.first_part(b) else {
         return;
     };
     let n = u32_of(b.len());
@@ -436,7 +415,11 @@ fn pair(
         }
         (w, blk, pos, syn)
     };
-    let (droot, qfrom, qto) = root_of(b, dword);
+    let PlaceView {
+        root: droot,
+        from: qfrom,
+        to: qto,
+    } = b.view(dword);
     let qlen = qto - qfrom;
     // The drop's place holds the read's: the same root, a prefix of its
     // steps, ending at a whole step.
@@ -450,7 +433,7 @@ fn pair(
     let base = match root {
         Root::Local(l) => b.local_ty[l as usize],
         Root::Value(v) => b.ty[v as usize],
-        Root::Other => return,
+        _ => return,
     };
     let exact = qlen == to - from;
     let split = moves::rest(b, cx, mt, base, (from, from + qlen, to));
@@ -483,8 +466,11 @@ fn pair(
         if t.prev.len() <= item as usize {
             t.prev.resize(item as usize + 1, EMPTY);
         }
-        let (_, f, z) = root_of(b, at);
-        let Some(k) = first_part(b, f, z).filter(|&k| k < t.width[bit as usize]) else {
+        let Some(k) = b
+            .view(at)
+            .first_part(b)
+            .filter(|&k| k < t.width[bit as usize])
+        else {
             continue;
         };
         let x = (t.off[bit as usize] + k) as usize;
@@ -554,11 +540,8 @@ pub(super) fn write_backs(
             }
             let [a, d] = b.data[xi];
             let tag = b.tags[xi];
-            let root = matches!(tag, Tag::Store | Tag::Drop).then(|| root_of(b, a));
-            let local = match root {
-                Some((Root::Local(l), f, z)) if in_place(b, f, z) => Some(l),
-                _ => None,
-            };
+            let root = matches!(tag, Tag::Store | Tag::Drop).then(|| b.view(a));
+            let local = root.and_then(|p| p.local().filter(|_| p.in_place(b)));
             if tag == Tag::Store && local == Some(v) {
                 found = Some((x, d));
                 break;
@@ -566,7 +549,7 @@ pub(super) fn write_backs(
             let ok = match tag {
                 Tag::Read => b.ptr_target(xi).is_none(),
                 Tag::Store => local.is_some_and(|l| l != v && Some(l) != p && !mt.addr[l as usize]),
-                Tag::Drop => root.is_some_and(|r| r.0 != Root::Local(v)),
+                Tag::Drop => root.is_some_and(|r| r.root != Root::Local(v)),
                 Tag::Prim | Tag::Coerce | Tag::NewStruct | Tag::NewVariant | Tag::NewTuple => true,
                 Tag::Intrinsic => matches!(
                     Op::from_u32(a),
@@ -596,7 +579,7 @@ pub(super) fn write_backs(
         for x in 0..n {
             let [a, d] = b.data[x];
             let at_v = matches!(b.tags[x], Tag::Read | Tag::Store | Tag::Drop)
-                && root_of(b, a).0 == Root::Local(v);
+                && b.view(a).root == Root::Local(v);
             if !at_v || t.pending.dead[x] || x == w as usize || x == store as usize {
                 continue;
             }

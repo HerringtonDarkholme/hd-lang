@@ -49,9 +49,10 @@
 
 use hd_types::Ty;
 
-use super::{Operand, OwnCx, Role, Tri, fill, operands, splice, tracked};
+use super::{Operand, OwnCx, Role, Tri, fill, operands, splice, suite_touches, tracked};
 use crate::ir::{
-    Body, CaptureMode, NONE, ReadMode, Ref, Tag, Topology, for_blocks, is_suspension, place, u32_of,
+    Body, CaptureMode, NONE, PlaceView, ReadMode, Ref, Root, Tag, Topology, for_blocks,
+    is_suspension, place, u32_of,
 };
 
 /// A decision of [`Tables::decide`].
@@ -110,43 +111,6 @@ pub(crate) struct Tables {
     sink_ins: Vec<(u32, u32, u32)>,
     sink_rm: Vec<u32>,
     sink_mv: Vec<u32>,
-}
-
-/// What a place word starts at.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum Root {
-    Local(u32),
-    Value(u32),
-    Other,
-}
-
-/// The root of the place at `word`, and the `extra` range of its
-/// projection words (empty for a bare local).
-pub(super) fn root_of(b: &Body, word: u32) -> (Root, u32, u32) {
-    if word & place::BARE_LOCAL != 0 {
-        return (Root::Local(word & !place::BARE_LOCAL), 0, 0);
-    }
-    let at = word as usize;
-    let Some(&n) = b.extra.get(at) else {
-        return (Root::Other, 0, 0);
-    };
-    let end = word + 1 + n;
-    match b.extra.get(at + 1..at + 3) {
-        Some(&[place::ROOT_LOCAL, l]) => (Root::Local(l), word + 3, end),
-        Some(&[place::ROOT_VALUE, v]) if Ref(v).as_inst().is_some() => {
-            (Root::Value(v), word + 3, end)
-        }
-        _ => (Root::Other, 0, 0),
-    }
-}
-
-/// Whether the projection words `from..to` are all field and variant
-/// steps, which name a part of the value at the root itself.
-pub(super) fn in_place(b: &Body, from: u32, to: u32) -> bool {
-    b.extra[from as usize..to as usize].iter().all(|&w| {
-        let kind = w & place::PROJ_KIND;
-        kind == place::PROJ_FIELD || kind == place::PROJ_VARIANT
-    })
 }
 
 impl Tables {
@@ -223,7 +187,7 @@ impl Tables {
     /// [`deps`] of what the place at `word` reads through its root: the
     /// read a binding local at the root holds.
     fn place_deps(&self, b: &Body, word: u32, f: &mut impl FnMut(u32)) {
-        if let (Root::Local(l), _, _) = root_of(b, word)
+        if let Some(l) = b.view(word).local()
             && self.holds[l as usize] != NONE
         {
             self.deps(b, self.holds[l as usize], f);
@@ -232,10 +196,10 @@ impl Tables {
 
     /// The candidate bit of the root of place `word`, if it has one.
     fn bit(&self, b: &Body, word: u32) -> Option<u32> {
-        let x = match root_of(b, word).0 {
+        let x = match b.view(word).root {
             Root::Local(l) => self.lnum.get(l as usize).copied()?,
             Root::Value(v) => self.vnum.get(v as usize).copied()?,
-            Root::Other => NONE,
+            _ => NONE,
         };
         (x != NONE).then_some(x)
     }
@@ -269,7 +233,7 @@ fn deps(b: &Body, lnum: &[u32], vnum: &[u32], holds: &[u32], v: u32, f: &mut imp
         if !b.is_borrow(x) {
             return;
         }
-        match root_of(b, b.data[i][0]).0 {
+        match b.view(b.data[i][0]).root {
             Root::Local(l) => {
                 let li = l as usize;
                 if lnum[li] != NONE {
@@ -286,7 +250,7 @@ fn deps(b: &Body, lnum: &[u32], vnum: &[u32], holds: &[u32], v: u32, f: &mut imp
                 }
                 x = u;
             }
-            Root::Other => return,
+            _ => return,
         }
     }
 }
@@ -336,9 +300,8 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
             }
             // A binding local holds a borrowed value: it owns no count.
             Tag::Store if b.is_borrow(w) => {
-                if let (Root::Local(l), from, to) = root_of(b, a)
-                    && from == to
-                {
+                let p = b.view(a);
+                if let Some(l) = p.local().filter(|_| p.whole()) {
                     t.keep_l[l as usize] = true;
                     t.holds[l as usize] = w;
                 }
@@ -346,21 +309,12 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
             // A pinned collection's copy is a clone (`ref.elem.copy`), so
             // a read of its local copies even at its last use.
             Tag::Pin => {
-                if let (Root::Local(l), _, _) = root_of(b, a) {
+                if let Some(l) = b.view(a).local() {
                     t.keep_l[l as usize] = true;
                 }
             }
-            Tag::Scope if w != NONE => {
-                let suites = b.record(w);
-                t.stack.clear();
-                t.stack.extend_from_slice(suites);
-                keep_suites(b, t);
-            }
-            Tag::Defer => {
-                t.stack.clear();
-                t.stack.push(a);
-                keep_suites(b, t);
-            }
+            Tag::Scope if w != NONE => keep_suites(b, t, b.record(w)),
+            Tag::Defer => keep_suites(b, t, &[a]),
             _ => {}
         }
     }
@@ -398,12 +352,11 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
         if b.tags[i] != Tag::Read || w != ReadMode::Copy as u32 {
             continue;
         }
-        let (Root::Value(v), from, to) = root_of(b, a) else {
+        let p = b.view(a);
+        let Some(v) = p.value().map(|v| v as usize) else {
             continue;
         };
-        let v = v as usize;
-        if v < n && t.vnum[v] == NONE && !t.keep_v[v] && in_place(b, from, to) && tracked(b, cx, v)
-        {
+        if t.vnum[v] == NONE && !t.keep_v[v] && p.in_place(b) && tracked(b, cx, v) {
             t.vnum[v] = k;
             k += 1;
         }
@@ -426,41 +379,15 @@ fn suspending_subs(b: &Body, topo: &Topology, t: &mut Tables) {
     }
 }
 
-/// Marks every local and value the blocks on `t.stack` touch, with every
-/// block they run: a cleanup suite runs at its scope's exits, which the
-/// walk does not model.
-fn keep_suites(b: &Body, t: &mut Tables) {
-    let mut ops = std::mem::take(&mut t.ops);
-    while let Some(x) = t.stack.pop() {
-        let i = x as usize;
-        if i >= b.len() {
-            continue;
-        }
-        if b.tags[i] == Tag::Block {
-            t.stack.extend_from_slice(b.record(b.data[i][0]));
-        }
-        let stack = &mut t.stack;
-        for_blocks(b, i, |blk| stack.push(blk));
-        match b.tags[i] {
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin => {
-                if let (Root::Local(l), _, _) = root_of(b, b.data[i][0]) {
-                    t.keep_l[l as usize] = true;
-                }
-            }
-            Tag::Closure => {
-                let rec = b.record(b.data[i][1]);
-                for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
-                    t.keep_l[b.cap_local[c].idx()] = true;
-                }
-            }
-            _ => {}
-        }
-        operands(b, i, &mut ops);
-        for op in &ops {
-            t.keep_v[op.value as usize] = true;
-        }
-    }
-    t.ops = ops;
+/// Keeps out every local and value the cleanup suites `roots` touch
+/// ([`suite_touches`]).
+fn keep_suites(b: &Body, t: &mut Tables, roots: &[u32]) {
+    let (keep_l, keep_v) = (&mut t.keep_l, &mut t.keep_v);
+    let (local, value) = (
+        |l: u32| keep_l[l as usize] = true,
+        |v: u32| keep_v[v as usize] = true,
+    );
+    suite_touches(b, roots, &mut t.stack, &mut t.ops, false, local, value);
 }
 
 /// The instructions that touch each candidate, by bit, in index order.
@@ -488,7 +415,7 @@ fn touches(b: &Body, t: &mut Tables) {
             };
             match b.tags[i] {
                 Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin => {
-                    if let (Root::Local(l), _, _) = root_of(b, b.data[i][0])
+                    if let Some(l) = b.view(b.data[i][0]).local()
                         && t.lnum[l as usize] != NONE
                     {
                         hit(t, t.lnum[l as usize]);
@@ -618,7 +545,7 @@ fn inst(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
                 arena,
                 ..
             } = t;
-            if let (Root::Local(l), _, _) = root_of(b, a)
+            if let Some(l) = b.view(a).local()
                 && holds[l as usize] != NONE
             {
                 deps(b, lnum, vnum, holds, holds[l as usize], &mut |bit| {
@@ -626,18 +553,14 @@ fn inst(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
                 });
             }
             if let Some(bit) = t.bit(b, a) {
-                let (root, from, to) = root_of(b, a);
-                let addr = matches!(root, Root::Local(l) if t.addr[l as usize]);
+                let p = b.view(a);
+                let addr = matches!(p.root, Root::Local(l) if t.addr[l as usize]);
                 let last = if t.get(live, bit) { KEEP } else { MOVE };
                 match b.tags[i] {
-                    Tag::Read
-                        if w == ReadMode::Copy as u32
-                            && !addr
-                            && (from == to || in_place(b, from, to)) =>
-                    {
+                    Tag::Read if w == ReadMode::Copy as u32 && !addr && p.in_place(b) => {
                         t.decide[i] = last;
                     }
-                    Tag::Ref if addr && from == to => {
+                    Tag::Ref if addr && p.whole() => {
                         t.decide[i] = if last == MOVE { TAKE } else { KEEP };
                     }
                     _ => {}
@@ -646,13 +569,14 @@ fn inst(b: &Body, topo: &Topology, t: &mut Tables, x: u32, live: usize) {
             }
         }
         Tag::Store => {
-            if let (Root::Local(l), from, to) = root_of(b, a)
+            let p = b.view(a);
+            if let Some(l) = p.local()
                 && t.lnum[l as usize] != NONE
             {
                 // A store into all of the local replaces it; into a part,
                 // it keeps the rest. A store into a cell writes through
                 // the cell the local holds.
-                t.set(live, t.lnum[l as usize], from != to || t.addr[l as usize]);
+                t.set(live, t.lnum[l as usize], !p.whole() || t.addr[l as usize]);
             }
         }
         Tag::Closure => {
@@ -820,7 +744,7 @@ fn apply(
         }
         let x = u32_of(i);
         let word = b.data[i][0];
-        let (root, from, to) = root_of(b, word);
+        let PlaceView { root, from, to } = b.view(word);
         let Some(bit) = t.bit(b, word) else {
             continue;
         };
@@ -833,10 +757,8 @@ fn apply(
             let dw = b.data[d][0];
             match root {
                 Root::Local(l) => dw == l | place::BARE_LOCAL,
-                Root::Value(v) => {
-                    b.extra.get(dw as usize..dw as usize + 3) == Some(&[2, place::ROOT_VALUE, v])
-                }
-                Root::Other => false,
+                Root::Value(v) => drops_whole(b, u32_of(d), v),
+                _ => false,
             }
         });
         if from == to {
@@ -863,7 +785,7 @@ fn apply(
         let base = match root {
             Root::Local(l) => b.local_ty[l as usize],
             Root::Value(v) => b.ty[v as usize],
-            Root::Other => continue,
+            _ => continue,
         };
         if rest(b, cx, t, base, (from, from, to)) {
             let (blk, pos, syn) = (
@@ -887,9 +809,8 @@ fn apply(
 
 /// Whether instruction `d` is a `Drop` of all of value `v`.
 fn drops_whole(b: &Body, d: u32, v: u32) -> bool {
-    let w = b.data[d as usize][0];
-    b.tags[d as usize] == Tag::Drop
-        && b.extra.get(w as usize..w as usize + 3) == Some(&[2, place::ROOT_VALUE, v])
+    let p = b.view(b.data[d as usize][0]);
+    b.tags[d as usize] == Tag::Drop && p.whole() && p.root == Root::Value(v)
 }
 
 /// Rule 3 across branches: temporary `v`'s `Drop` right after the `If`,
@@ -1052,8 +973,8 @@ fn sink_block(
         }
         let [a, w] = b.data[m as usize];
         match b.tags[m as usize] {
-            Tag::Read if root_of(b, a).0 == Root::Value(v) => {
-                let (_, from, to) = root_of(b, a);
+            Tag::Read if b.view(a).root == Root::Value(v) => {
+                let PlaceView { from, to, .. } = b.view(a);
                 if from == to {
                     // A whole copy at the path's end moves, as a copy with
                     // its drop right after it does.
@@ -1124,7 +1045,7 @@ fn sink_block(
 /// local's count of its cell, and the local's `Drop` right after it in its
 /// block goes.
 fn take(b: &mut Body, topo: &Topology, t: &Tables, edits: &mut splice::Tables, i: usize) {
-    let (Root::Local(l), _, _) = root_of(b, b.data[i][0]) else {
+    let Some(l) = b.view(b.data[i][0]).local() else {
         return;
     };
     b.data[i][1] |= crate::ir::ref_word::TAKES;

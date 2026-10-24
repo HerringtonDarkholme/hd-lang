@@ -63,15 +63,9 @@ use hd_types::Ty;
 use super::splice;
 use super::{Operand, OwnCx, Role, Tri, fill, operands};
 use crate::ir::{
-    Body, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, Topology, is_suspension, local_flags,
-    place, u32_of, unique_word,
+    Body, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceView, Proj, ReadMode, Ref, Root, Tag,
+    Topology, VARIANT, is_suspension, local_flags, place, u32_of, unique_word,
 };
-
-/// A projection step's code: a field (its index), an element, a
-/// dereference, a variant (its index with [`VARIANT`]).
-pub(crate) const ELEM: u32 = NONE - 1;
-pub(crate) const DEREF: u32 = NONE - 2;
-const VARIANT: u32 = 1 << 30;
 
 /// The longest chain of reads a place is resolved through.
 const DEPTH: usize = 8;
@@ -206,51 +200,6 @@ pub(crate) struct Tables {
     ops: Vec<Operand>,
 }
 
-/// The steps of the projection words `from..to`, appended to `out` as
-/// codes; whether one goes into memory (an element or a dereference).
-fn push_steps(b: &Body, from: u32, to: u32, out: &mut Vec<u32>) -> bool {
-    let mut memory = false;
-    let mut x = from;
-    while x < to {
-        let w = b.extra[x as usize];
-        out.push(match w & place::PROJ_KIND {
-            place::PROJ_FIELD => w & place::PROJ_INDEX,
-            place::PROJ_VARIANT => VARIANT | (w & place::PROJ_INDEX),
-            place::PROJ_DEREF => {
-                memory = true;
-                DEREF
-            }
-            _ => {
-                memory = true;
-                x += 1;
-                ELEM
-            }
-        });
-        x += 1;
-    }
-    memory
-}
-
-/// The root of the place at `word`: a local (`Some(true, l)`), a value
-/// (`Some(false, v)`), or neither; and the `extra` range of its steps.
-fn root(b: &Body, word: u32) -> (Option<(bool, u32)>, u32, u32) {
-    if word & place::BARE_LOCAL != 0 {
-        return (Some((true, word & !place::BARE_LOCAL)), 0, 0);
-    }
-    let at = word as usize;
-    let Some(&n) = b.extra.get(at) else {
-        return (None, 0, 0);
-    };
-    let end = word + 1 + n;
-    match b.extra.get(at + 1..at + 3) {
-        Some(&[place::ROOT_LOCAL, l]) => (Some((true, l)), word + 3, end),
-        Some(&[place::ROOT_VALUE, v]) if Ref(v).as_inst().is_some() && (v as usize) < b.len() => {
-            (Some((false, v)), word + 3, end)
-        }
-        _ => (None, 0, 0),
-    }
-}
-
 /// Resolves the place at `word` through the reads its value roots come
 /// from (`%h = Read [$xs]` makes `[%h [%i]]` the place `[$xs [%i]]`): its
 /// local root, or `NONE`, with every step into `out`. Also whether the
@@ -259,24 +208,24 @@ fn root(b: &Body, word: u32) -> (Option<(bool, u32)>, u32, u32) {
 pub(crate) fn resolve(b: &Body, word: u32, out: &mut Vec<u32>, raw: &mut Vec<u32>) -> (u32, bool) {
     out.clear();
     raw.clear();
-    let mut ranges = [(0u32, 0u32); DEPTH];
+    let mut views = [b.view(word); DEPTH];
     let mut depth = 0;
     let mut word = word;
     let mut temp = false;
     let local = loop {
-        let (r, from, to) = root(b, word);
+        let p = b.view(word);
         if depth < DEPTH {
-            ranges[depth] = (from, to);
+            views[depth] = p;
         }
         depth += 1;
-        if depth == 1 {
-            raw.clear();
-            let memory = push_steps(b, from, to, raw);
-            temp = matches!(r, Some((false, _))) && !memory;
+        // Hoisting tracks only a local's and a value's steps.
+        if depth == 1 && matches!(p.root, Root::Local(_) | Root::Value(_)) {
+            let memory = p.push_steps(b, raw) != (0, false);
+            temp = p.value().is_some() && !memory;
         }
-        match r {
-            Some((true, l)) => break l,
-            Some((false, v)) if depth < DEPTH && b.tags[v as usize] == Tag::Read => {
+        match p.root {
+            Root::Local(l) => break l,
+            Root::Value(v) if depth < DEPTH && b.tags[v as usize] == Tag::Read => {
                 word = b.data[v as usize][0];
             }
             _ => break NONE,
@@ -285,8 +234,8 @@ pub(crate) fn resolve(b: &Body, word: u32, out: &mut Vec<u32>, raw: &mut Vec<u32
     if depth > DEPTH || local == NONE {
         return (NONE, temp);
     }
-    for &(from, to) in ranges[..depth].iter().rev() {
-        push_steps(b, from, to, out);
+    for p in views[..depth].iter().rev() {
+        p.push_steps(b, out);
     }
     (local, temp)
 }
@@ -352,10 +301,7 @@ fn pure(b: &Body, cx: &dyn OwnCx, x: u32, budget: &mut usize) -> bool {
         }
         // A borrow's kept drop, which releases what an instance's view
         // made fresh.
-        Tag::Drop => match root(b, a) {
-            (Some((false, v)), from, to) if from == to => b.is_borrow(v),
-            _ => false,
-        },
+        Tag::Drop => unique_header(b, a).is_some_and(|v| b.is_borrow(v)),
         Tag::Prim => true,
         Tag::Coerce => scalar,
         Tag::Intrinsic => matches!(
@@ -525,9 +471,8 @@ fn facts(b: &Body, t: &mut Tables) {
                 }
             }
             Tag::Store => {
-                if let (Some((true, l)), from, to) = root(b, a)
-                    && from == to
-                {
+                let p = b.view(a);
+                if let Some(l) = p.local().filter(|_| p.whole()) {
                     let fresh = Ref(w).as_inst().is_none_or(|_| {
                         matches!(
                             b.tags.get(w as usize),
@@ -630,25 +575,15 @@ fn header_place(b: &Body, cx: &dyn OwnCx, t: &mut Tables, header: u32) -> Option
 /// `[*$0]`); without, all of the place (an `IsUnique`'s). Into `t.steps`;
 /// its local.
 fn rooted_place(b: &Body, t: &mut Tables, word: u32, elem: bool) -> Option<u32> {
-    let (Some((true, l)), from, to) = root(b, word) else {
-        return None;
-    };
-    let end = if elem {
-        let mut x = from;
-        loop {
-            if x >= to {
-                return None;
-            }
-            match b.extra[x as usize] & place::PROJ_KIND {
-                place::PROJ_ELEM => break x,
-                _ => x += 1,
-            }
-        }
+    let p = b.view(word);
+    let l = p.local()?;
+    let to = if elem {
+        (p.from..p.to).find(|&x| b.extra[x as usize] & place::PROJ_KIND == place::PROJ_ELEM)?
     } else {
-        to
+        p.to
     };
     t.steps.clear();
-    if push_steps(b, from, end, &mut t.steps) && t.steps.contains(&ELEM) {
+    if (PlaceView { to, ..p }).push_steps(b, &mut t.steps).1 {
         return None;
     }
     if !hoistable(&t.steps) {
@@ -665,10 +600,8 @@ fn rooted_place(b: &Body, t: &mut Tables, word: u32, elem: bool) -> Option<u32> 
 /// is its own header (none here: the forms come from reads), a value's is
 /// the value.
 fn unique_header(b: &Body, word: u32) -> Option<u32> {
-    match root(b, word) {
-        (Some((false, v)), from, to) if from == to => Some(v),
-        _ => None,
-    }
+    let p = b.view(word);
+    p.value().filter(|_| p.whole())
 }
 
 fn hoist_loop(
@@ -722,15 +655,12 @@ fn hoist_loop(
             continue;
         }
         let header = match b.tags[i] {
-            Tag::Read | Tag::Store => match root(b, b.data[i][0]) {
-                (Some((false, v)), from, to)
-                    if from < to
-                        && b.extra[from as usize] & place::PROJ_KIND == place::PROJ_ELEM =>
-                {
-                    Some(v)
-                }
+            Tag::Read | Tag::Store => match b.view(b.data[i][0]) {
+                p if p.value().is_some() => p
+                    .value()
+                    .filter(|_| matches!(p.first(b), Some(Proj::Elem(_)))),
                 // An element of a list a place rooted at a local names.
-                (Some((true, _)), _, _) => {
+                p if p.local().is_some() => {
                     if let Some(local) = rooted_place(b, t, b.data[i][0], true) {
                         candidate(t, local, false);
                     }

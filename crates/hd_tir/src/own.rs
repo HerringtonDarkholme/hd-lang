@@ -37,7 +37,7 @@
 
 use hd_types::Ty;
 
-use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, Topology, place, u32_of};
+use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, Topology, inside, place, u32_of};
 
 pub use hoist::{EntryTest, entry_test};
 
@@ -298,6 +298,44 @@ pub fn operands(b: &Body, i: usize, out: &mut Vec<Operand>) {
             }
         }
     }
+}
+
+/// Marks what the cleanup suites `roots` touch, as [`inside`] walks
+/// them: each place's root local and each captured local with `local`,
+/// each operand with `value`, and with `own` each instruction's own value
+/// too. A suite runs at its scope's exits, which the passes' walks do not
+/// follow.
+pub(crate) fn suite_touches(
+    b: &Body,
+    roots: &[u32],
+    stack: &mut Vec<u32>,
+    ops: &mut Vec<Operand>,
+    own: bool,
+    mut local: impl FnMut(u32),
+    mut value: impl FnMut(u32),
+) {
+    inside(b, roots, stack, |i| {
+        match b.tags[i] {
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin => {
+                if let Some(l) = b.view(b.data[i][0]).local() {
+                    local(l);
+                }
+            }
+            Tag::Closure => {
+                let rec = b.record(b.data[i][1]);
+                (rec[0]..rec[0] + rec[1]).for_each(|c| local(b.cap_local[c as usize].raw()));
+            }
+            _ => {}
+        }
+        operands(b, i, ops);
+        for op in ops.iter() {
+            value(op.value);
+        }
+        if own {
+            value(u32_of(i));
+        }
+        true
+    });
 }
 
 /// Each word of the record at `at`, as a value operand.

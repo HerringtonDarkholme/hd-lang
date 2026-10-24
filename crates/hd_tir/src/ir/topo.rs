@@ -163,3 +163,26 @@ pub(crate) fn for_blocks(b: &Body, i: usize, mut f: impl FnMut(u32)) {
         _ => {}
     }
 }
+
+/// Walks every instruction the blocks `roots` hold, nested blocks
+/// included, depth first through `stack`: calls `f` on each, and goes into
+/// its blocks when `f` returns true.
+pub(crate) fn inside(
+    b: &Body,
+    roots: &[u32],
+    stack: &mut Vec<u32>,
+    mut f: impl FnMut(usize) -> bool,
+) {
+    stack.clear();
+    stack.extend_from_slice(roots);
+    while let Some(x) = stack.pop() {
+        let i = x as usize;
+        if i >= b.len() || !f(i) {
+            continue;
+        }
+        if b.tags[i] == Tag::Block {
+            stack.extend_from_slice(b.record(b.data[i][0]));
+        }
+        for_blocks(b, i, |blk| stack.push(blk));
+    }
+}

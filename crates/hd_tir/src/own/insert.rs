@@ -62,11 +62,12 @@ use hd_base::{LocalId, NodeIdx, SubId};
 use hd_types::Ty;
 
 use super::{
-    Loc, Operand, OwnCx, OwnScratch, Role, Tri, consumes, fill, operands, splice, tracked,
+    Loc, Operand, OwnCx, OwnScratch, Role, Tri, consumes, fill, operands, splice, suite_touches,
+    tracked,
 };
 use crate::ir::{
-    Body, CaptureMode, IntrinsicOp, NONE, ReadMode, Ref, Tag, Topology, for_blocks, local_flags,
-    place, u32_of,
+    Body, CaptureMode, IntrinsicOp, NONE, PlaceView, ReadMode, Ref, Root, Tag, Topology,
+    local_flags, place, u32_of,
 };
 
 /// A place a jump may need to drop: a value or a local (bit 31 set),
@@ -236,21 +237,13 @@ fn block_len(b: &Body, blk: u32) -> u32 {
         .unwrap_or(0)
 }
 
-/// The root local of a place word, if it has one.
-fn root_local(b: &Body, word: u32) -> Option<u32> {
-    if word & place::BARE_LOCAL != 0 {
-        return Some(word & !place::BARE_LOCAL);
-    }
-    match b.extra.get(word as usize + 1..word as usize + 3)? {
-        [place::ROOT_LOCAL, l] => Some(*l),
+/// The root local of a place word, or `NONE` for a top-level binding.
+fn named_root(b: &Body, word: u32) -> Option<u32> {
+    match b.view(word).root {
+        Root::Local(l) => Some(l),
+        Root::Global(..) => Some(NONE),
         _ => None,
     }
-}
-
-/// `Some(NONE)` for a place word rooted at a top-level binding.
-fn global_root(b: &Body, word: u32) -> Option<u32> {
-    (word & place::BARE_LOCAL == 0 && b.extra.get(word as usize + 1) == Some(&place::ROOT_GLOBAL))
-        .then_some(NONE)
 }
 
 /// The syntax node of statement `pos` of block `blk`, for a statement the
@@ -517,7 +510,7 @@ fn locals(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables, edits: &mut
         let [a, w] = b.data[i];
         match b.tags[i] {
             Tag::Read | Tag::Store | Tag::Ref => {
-                if let Some(l) = root_local(b, a) {
+                if let Some(l) = b.view(a).local() {
                     t.acc.push((topo.sub[i], l, u32_of(i)));
                     // A reference to the local's own storage puts it in a
                     // cell; one through it, to a referent or an element,
@@ -744,44 +737,16 @@ fn jumps(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tabl
     }
 }
 
-/// Stamps every local and value the suites of cleanup scope `scope` read.
+/// Stamps every local and value the suites of cleanup scope `scope` read
+/// ([`suite_touches`]).
 fn mark_suites(b: &Body, t: &mut Tables, scope: u32, stamp: u32) {
-    t.stack.clear();
-    t.stack
-        .extend_from_slice(b.record(b.data[scope as usize][1]));
-    let mut ops = std::mem::take(&mut t.ops);
-    while let Some(x) = t.stack.pop() {
-        let i = x as usize;
-        if i >= b.len() {
-            continue;
-        }
-        if b.tags[i] == Tag::Block {
-            t.stack.extend_from_slice(b.record(b.data[i][0]));
-        }
-        let stack = &mut t.stack;
-        for_blocks(b, i, |blk| stack.push(blk));
-        match b.tags[i] {
-            Tag::Read | Tag::Store | Tag::Ref => {
-                if let Some(l) = root_local(b, b.data[i][0]) {
-                    t.local_stamp[l as usize] = stamp;
-                }
-            }
-            Tag::Closure => {
-                let rec = b.record(b.data[i][1]);
-                for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
-                    t.local_stamp[b.cap_local[c].idx()] = stamp;
-                }
-            }
-            _ => {}
-        }
-        operands(b, i, &mut ops);
-        for op in &ops {
-            if Ref(op.value).as_inst().is_some() {
-                t.value_stamp[op.value as usize] = stamp;
-            }
-        }
-    }
-    t.ops = ops;
+    let (ls, vs) = (&mut t.local_stamp, &mut t.value_stamp);
+    let (local, value) = (
+        |l: u32| ls[l as usize] = stamp,
+        |v: u32| vs[v as usize] = stamp,
+    );
+    let roots = b.record(b.data[scope as usize][1]);
+    suite_touches(b, roots, &mut t.stack, &mut t.ops, false, local, value);
 }
 
 /// Rules 5 and 6: an `IsUnique` before each in-place change of a list or
@@ -803,7 +768,7 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
                 // place, which folding kept (a reference of an open type):
                 // its checks name that place, and it reads the place again
                 // after them, as a change does.
-                let root = value_root(b, a);
+                let root = b.view(a).value();
                 let base = root.and_then(|v| read_place(b, topo, v));
                 for k in 0..t.elems.len() {
                     let word = match base {
@@ -858,7 +823,9 @@ fn changes(b: &Body, topo: &Topology, t: &mut Tables, i: usize) {
     // A store or a reference through a read of a local's place names
     // that place in its checks ([`uniqueness`]): an access of the local.
     if matches!(b.tags[i], Tag::Store | Tag::Ref)
-        && let Some(l) = value_root(b, b.data[i][0])
+        && let Some(l) = b
+            .view(b.data[i][0])
+            .value()
             .and_then(|v| read_root(b, topo, v))
             .filter(|&l| l != NONE)
     {
@@ -871,7 +838,7 @@ fn changes(b: &Body, topo: &Topology, t: &mut Tables, i: usize) {
         // `NONE` for a place rooted at a top-level binding, which has no
         // local access to record.
         let root = (b.tags[r] == Tag::Read && topo.blk[r] != NONE)
-            .then(|| root_local(b, b.data[r][0]).or(global_root(b, b.data[r][0])))
+            .then(|| named_root(b, b.data[r][0]))
             .flatten();
         // An operand through reads of a local's place, which folding kept,
         // names that place and reads it again, as one rooted there does.
@@ -907,7 +874,7 @@ fn changes(b: &Body, topo: &Topology, t: &mut Tables, i: usize) {
                         t.relook.push((b.record(b.data[e][1])[1], u32_of(i)));
                     }
                 }
-                let Some(u) = value_root(b, b.data[x as usize][0]) else {
+                let Some(u) = b.view(b.data[x as usize][0]).value() else {
                     break;
                 };
                 x = u;
@@ -947,7 +914,7 @@ fn own_place(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::
     // The re-read's own place, whose entries the new lookups replace,
     // rooted where its reads start.
     let word = match (quiet, read_place(b, topo, c.2)) {
-        (Some(false), Some(w)) if value_root(b, word).is_some() => w,
+        (Some(false), Some(w)) if b.view(word).value().is_some() => w,
         (Some(false), _) => whole(b, word),
         _ => word,
     };
@@ -988,11 +955,7 @@ fn own_place(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::
 /// Whether the place at `word` goes into memory: through an element or
 /// a dereference.
 fn in_memory(b: &Body, word: u32) -> bool {
-    b.decode_place(word).is_some_and(|p| {
-        p.proj
-            .iter()
-            .any(|s| matches!(s, crate::ir::Proj::Elem(_) | crate::ir::Proj::Deref))
-    })
+    b.view(word).kinds(b) != (0, false)
 }
 
 /// The local the chain of reads ending at value `v` starts at, through
@@ -1007,11 +970,11 @@ fn read_root(b: &Body, topo: &Topology, mut v: u32) -> Option<u32> {
             return memory.then_some(NONE);
         }
         let w = b.data[i][0];
-        if let Some(l) = root_local(b, w).or(global_root(b, w)) {
+        if let Some(l) = named_root(b, w) {
             return Some(l);
         }
         memory |= in_memory(b, w);
-        v = value_root(b, w)?;
+        v = b.view(w).value()?;
     }
     None
 }
@@ -1024,10 +987,10 @@ fn read_place(b: &mut Body, topo: &Topology, v: u32) -> Option<u32> {
         return None;
     }
     let w = b.data[i][0];
-    if root_local(b, w).or(global_root(b, w)).is_some() {
+    if named_root(b, w).is_some() {
         return Some(w);
     }
-    let u = value_root(b, w)?;
+    let u = b.view(w).value()?;
     match read_place(b, topo, u) {
         Some(base) => Some(graft(b, base, w, w + 1 + b.extra[w as usize])),
         // A chain from another value names a place once it goes into
@@ -1065,17 +1028,6 @@ fn entry(b: &Body, ix: u32) -> Option<usize> {
     .then_some(e)
 }
 
-/// The value a place word is rooted at, if it is rooted at one.
-fn value_root(b: &Body, word: u32) -> Option<u32> {
-    if word & place::BARE_LOCAL != 0 {
-        return None;
-    }
-    match b.extra.get(word as usize + 1..word as usize + 3)? {
-        [place::ROOT_VALUE, v] if Ref(*v).as_inst().is_some() => Some(*v),
-        _ => None,
-    }
-}
-
 /// The reads a change through value `v` goes through, from `v` back to
 /// a read of a local, a global, a dereference or no read at all: for each,
 /// an `IsUnique` (and a `Pin`, for a reference) of every list on its path,
@@ -1104,7 +1056,7 @@ fn through(
                 let done = t.walked[i];
                 if done & need != need {
                     let (blk, pos, syn) = (topo.blk[i], topo.pos[i], b.syn[i]);
-                    let base = value_root(b, word).and_then(|u| read_place(b, topo, u));
+                    let base = b.view(word).value().and_then(|u| read_place(b, topo, u));
                     for k in 0..t.elems.len() {
                         let place = match base {
                             Some(w) => graft(b, w, word, t.elems[k]),
@@ -1119,7 +1071,7 @@ fn through(
                     }
                     t.walked[i] = done | need;
                 }
-                match value_root(b, word) {
+                match b.view(word).value() {
                     Some(root) if !deref => cur = root,
                     _ => return,
                 }
@@ -1134,18 +1086,11 @@ fn through(
 /// dereference.
 fn path_lists(b: &Body, t: &mut Tables, word: u32) -> bool {
     t.elems.clear();
-    if word & place::BARE_LOCAL != 0 {
-        return false;
-    }
-    let rec = word + 1;
-    let end = rec + b.extra[word as usize];
-    let mut x = rec
-        + match b.extra[rec as usize] {
-            place::ROOT_GLOBAL => 3,
-            _ => 2,
-        };
+    let PlaceView {
+        from: mut x, to, ..
+    } = b.view(word);
     let mut deref = false;
-    while x < end {
+    while x < to {
         match b.extra[x as usize] & place::PROJ_KIND {
             place::PROJ_ELEM => {
                 t.elems.push(x);
@@ -1165,12 +1110,11 @@ fn path_lists(b: &Body, t: &mut Tables, word: u32) -> bool {
 /// the projection word at `end`: the list an element projection indexes.
 fn prefix(b: &mut Body, word: u32, end: u32) -> u32 {
     let rec = word + 1;
-    let roots = match b.extra[rec as usize] {
-        place::ROOT_GLOBAL => 3,
-        _ => 2,
-    };
-    if b.extra[rec as usize] == place::ROOT_LOCAL && end == rec + roots {
-        return b.extra[rec as usize + 1] | place::BARE_LOCAL;
+    let p = b.view(word);
+    if let Root::Local(l) = p.root
+        && end == p.from
+    {
+        return l | place::BARE_LOCAL;
     }
     let at = u32_of(b.extra.len());
     b.extra.push(end - rec);

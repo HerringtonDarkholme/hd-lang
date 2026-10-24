@@ -59,8 +59,8 @@
 //! maps.
 
 use super::{
-    Body, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Tag, Topology, VerifyError,
-    is_suspension, local_flags, place, u32_of, verify_structure,
+    Body, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Root, Tag, Topology,
+    VerifyError, is_suspension, local_flags, place, u32_of, verify_structure,
 };
 use crate::own::{OwnCx, Role, consumes, operands, tracked};
 
@@ -1647,11 +1647,13 @@ impl<'a> Balance<'a> {
         let [a, w] = b.data[x as usize];
         // The value at the root of a move read's or a drop's place, and
         // whether the place is a part of it.
+        let p = b.view(a);
         let taken = match b.tags[x as usize] {
-            Tag::Read if w == ReadMode::Move as u32 => value_root(b, a),
-            Tag::Drop => value_root(b, a).filter(|&(_, part)| part),
+            Tag::Read if w == ReadMode::Move as u32 => p.value(),
+            Tag::Drop => p.value().filter(|_| !p.whole()),
             _ => None,
-        };
+        }
+        .map(|v| (v, !p.whole()));
         let mut ops = std::mem::take(&mut self.ops);
         operands(b, x as usize, &mut ops);
         for op in &ops {
@@ -1688,15 +1690,7 @@ impl<'a> Balance<'a> {
             }
         }
         self.ops = ops;
-        let local = |word: u32| -> Option<usize> {
-            if word & place::BARE_LOCAL != 0 {
-                return Some((word & !place::BARE_LOCAL) as usize);
-            }
-            match b.extra.get(word as usize + 1..word as usize + 3)? {
-                [place::ROOT_LOCAL, l] => Some(*l as usize),
-                _ => None,
-            }
-        };
+        let local = |word: u32| b.view(word).local().map(|l| l as usize);
         match b.tags[x as usize] {
             // A local a borrow is stored into holds no count. A store
             // refills what parts were taken.
@@ -1714,7 +1708,8 @@ impl<'a> Balance<'a> {
             // A `move` read or a `Drop` of a part of a local takes it.
             Tag::Read | Tag::Drop
                 if (b.tags[x as usize] == Tag::Drop || w == ReadMode::Move as u32)
-                    && let Some((l, true)) = local_root(b, a) =>
+                    && !b.view(a).whole()
+                    && let Some(l) = local(a) =>
             {
                 self.local_part(x, l, st);
             }
@@ -2124,37 +2119,6 @@ impl<'a> Balance<'a> {
     }
 }
 
-/// The local at the root of the place at `word`, and whether the place is
-/// a part of it; `None` for a place with another root.
-fn local_root(b: &Body, word: u32) -> Option<(usize, bool)> {
-    if word & place::BARE_LOCAL != 0 {
-        return Some(((word & !place::BARE_LOCAL) as usize, false));
-    }
-    let at = word as usize;
-    let n = *b.extra.get(at)?;
-    match b.extra.get(at + 1..at + 3)? {
-        &[place::ROOT_LOCAL, l] if (l as usize) < b.local_ty.len() => Some((l as usize, n > 2)),
-        _ => None,
-    }
-}
-
-/// The instruction value at the root of the place at `word`, and whether
-/// the place is a part of it (a projection follows); `None` for a place
-/// with another root.
-fn value_root(b: &Body, word: u32) -> Option<(u32, bool)> {
-    if word & place::BARE_LOCAL != 0 {
-        return None;
-    }
-    let at = word as usize;
-    let n = *b.extra.get(at)?;
-    match b.extra.get(at + 1..at + 3)? {
-        &[place::ROOT_VALUE, v] if Ref(v).as_inst().is_some() && (v as usize) < b.len() => {
-            Some((v, n > 2))
-        }
-        _ => None,
-    }
-}
-
 /// The part takes of values (a `move` read or a `Drop` of a part): each
 /// instruction's slot, one per distinct place of a value; each value's
 /// slots, in compressed rows by value; and a place word of each slot.
@@ -2171,10 +2135,12 @@ fn part_slots(b: &Body) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
         if !take {
             continue;
         }
-        if let Some((v, true)) = value_root(b, a) {
-            takes.push((v, u32_of(i)));
-        } else if let Some((l, true)) = local_root(b, a) {
-            takes.push((u32_of(n + l), u32_of(i)));
+        let p = b.view(a);
+        match p.root {
+            _ if p.whole() => {}
+            Root::Value(v) => takes.push((v, u32_of(i))),
+            Root::Local(l) => takes.push((u32_of(n) + l, u32_of(i))),
+            _ => {}
         }
     }
     let rec = |x: u32| {
