@@ -21,6 +21,7 @@ The earlier proposal is evidence and one option, not an approved implementation 
 - [Runtime checkpoints](#runtime-checkpoints)
 - [Comparison on the fixed use cases](#comparison-on-the-fixed-use-cases)
 - [Direction](#direction-host-call-replay-with-activities)
+- [Private record/replay implementation plan](#private-recordreplay-implementation-plan)
 - [Approval and implementation proof](#approval-and-implementation-proof)
 - [Sources and example validation](#example-validation)
 
@@ -507,6 +508,379 @@ This gives up changed-code resume, persistent handles outside activities, bounde
 The first durable proof targets process-crash recovery on supported local storage, with a documented acknowledgement contract.
 Power-loss guarantees need separately verified platform flush and directory-publication behaviour; ordinary append tests do not establish them.
 There is no measured durable-sync latency or storage-cost claim here.
+
+## Private record/replay implementation plan
+
+Status: implementation proposal, 2026-10-24; requires owner review before scoped implementation issues.
+This section follows the [owner's record/replay-first order](https://github.com/HerringtonDarkholme/hd-lang/issues/18#issuecomment-6377411557).
+It adds neither public flags nor an activity API, and does not change the chosen durable-execution direction.
+Record executes providers normally; replay has no transition to live execution.
+
+### Boundary and first deliverable
+
+The first deliverable is a **private test hook**, not `hd run --record`, `--replay`, `--journal` or `--resume`.
+A completed diagnostic recording can reproduce one whole ordinary program run in a fresh instance.
+It serves recorded host replies and scheduling deliveries without reading external resources or repeating writes.
+It either reaches the matching terminal outcome or stops at the first divergence.
+
+| Fixed workload | Record | Replay and proof |
+| --- | --- | --- |
+| Two writes | Perform each write once and retain both requests/replies | Deny every live provider; validate both requests without repeating writes |
+| Read then send | Capture read bytes and the complete outgoing request/reply | Change the original file and remove network access; replay still sees recorded bytes |
+| Concurrent requests and timer | Capture pending handles, completion bytes and delivery order | Deliberately alter provider timing; replay uses its virtual pending table and recorded deliveries |
+| Guest panic / graceful cancellation | Capture the guest panic category or boundary-delivered cancel and cleanup events | Reproduce the same normalized end; do not compare engine-specific stack wording |
+| Damaged, wrong or incomplete log | Recording may leave an unpublished temporary file | Refuse before guest initialization; never recover a usable prefix as a complete run |
+
+This stage makes no durable-acknowledgement or crash-resume promise.
+A recorder may write its event only after a provider returns, as the current REPL does.
+A missing complete terminal record makes the file ineligible for replay.
+Intent barriers, retrying unfinished effects, activity boundaries and the live recovery frontier belong to a later durable format.
+
+Persistent handles remain excluded until the activity API is designed.
+This restriction follows the chosen direction; it does not substitute virtual sockets for activities.
+Whole-value effects such as HTTP and process execution remain useful before that API exists.
+An operation handle for an unfinished asynchronous call is virtualizable control state, not a restored TCP connection.
+
+### Existing machinery and exact gaps
+
+The current-source observations here are pinned to `bcb7e3b9e8e5d7b6a6c73a58902c9f989db6671b`.
+The existing [Rust recorder](../../crates/hd_run/src/journal.rs), [Rust replay cursor](../../crates/hd_run/src/replay.rs)
+and [JS equivalents](../../host/journal.mjs) supply framing, scalar/reply values, method dictionaries, poll counts and event matching.
+[Node's session wrapper](../../host/core.mjs) and [Wasmtime's import wrapper](../../crates/hd_run_wasmtime/src/host/link.rs) intercept at the actual ABI call sites.
+
+| Existing fact | Reuse | Required difference for a completed diagnostic run |
+| --- | --- | --- |
+| Format 1 rows have indexes and CRC-32 framing | Framing implementation and golden vectors | Strict file reader consumes every byte and requires a terminal footer |
+| Requests above eight bytes keep a length and 64-bit digest | Scalar/exchange-buffer extraction | New diagnostic event schema keeps exact request bytes for comparison |
+| Replies retain scalar bits and result bytes | Reply codecs and buffer copying | Validate scalar shape, status and payload length before guest delivery |
+| Replay cursors keep the first divergence message | Matching logic and latched error concept | A stopped run rejects every later dispatch; the caller cannot continue after catching a mismatch |
+| REPL recovery may retain a valid prefix | Preserve existing REPL behavior | No prefix acceptance, input dropping or automatic live continuation in this mode |
+| REPL cap overflow drops its in-memory journal | Existing cap accounting helpers | Diagnostic recording fails explicitly and never publishes a complete file |
+| Host record classification is duplicated in JS and native code | Existing call/finish/block/abort categories | One generated coverage table, with no default “safe to skip” for a new import |
+
+Eight focused JS observations confirm the legacy behavior on this base.
+They cover complete input decoding, digest-only long requests, exact divergence wording, a latched first error, torn/corrupt tails and cap overflow.
+They are observations of format 1, not tests of the proposed format or new native integration.
+The existing [cross-host REPL test](../../crates/hd_run_wasmtime/src/session_parity_tests.rs) remains a regression guard, not proof of whole-run replay.
+
+### Log format and versioning
+
+Keep REPL format 1 unchanged.
+Use a separate diagnostic file envelope, version 1, whose event payload schema is version 2.
+The file identifies both versions explicitly; a reader never guesses from filenames or row shapes.
+Format 2 is needed because exact request bytes cannot be silently substituted for format 1's digest representation.
+
+```rust
+// Proposed wire fields; this is a schema sketch, not existing Rust types.
+struct RunManifest {
+    file_version: u32,             // 1
+    event_schema: u32,             // 2: exact requests
+    execution_id: [u8; 16],
+    module_bytes: Vec<u8>,         // exact compiled program, stored once
+    entry: String,
+    arguments: Vec<String>,
+    runtime_revision: String,      // shared packaged host/runtime revision
+    abi_contract: Vec<u8>,         // canonical descriptors and import signatures
+    profile: ProfileManifest,     // limits, panic mode, semantic options
+    recorded_grants: GrantManifest,
+}
+struct CompleteRun {
+    manifest: RunManifest,
+    events: Vec<RunEvent>,         // framed, indexed, bounded
+    end: RunEnd,                   // normalized guest outcome and cancellation
+    footer: Footer,               // counts, final checksum, complete marker
+}
+```
+
+The eight-byte magic is `HDREC\0\r\n`, followed by little-endian version fields and a length-delimited manifest.
+Rows reuse `kind:u8`, unsigned-LEB index/length, payload and little-endian CRC-32 framing.
+A final footer commits the event count, byte count and rolling CRC of every preceding file byte.
+The footer itself also has normal row framing and CRC protection.
+There must be exactly one manifest, one terminal outcome and one final footer, with no trailing data.
+
+The manifest retains the exact Wasm bytes rather than relying on a short hash as a proof of program equality.
+A fingerprint may accelerate rejection, but supplied program bytes are compared exactly before execution.
+A replay runs that artifact; recompiling the source for another engine and ignoring its different module hash is forbidden.
+Producer engine/version information can be retained as diagnostic metadata without changing the captured guest inputs.
+Profile equivalence also covers primitive semantics and Unicode/float-conversion revisions.
+A shared source revision alone does not prove those implementations equivalent across hosts.
+
+Every call record stores its method identity, scalar argument encodings, exact exchange-buffer request bytes, reply value and result bytes.
+Integers and floating values retain their declared ABI widths and raw bits, including signed zero.
+Requests are never compared after decoding and re-encoding through a lossy display representation.
+The complete log contains run data; divergence diagnostics report offsets and lengths, not request or reply contents.
+
+Manifest fields follow their declared order using the existing wire conventions: length-prefixed UTF-8/bytes/lists and tagged optional values.
+Versions and CRC fields use their explicitly stated fixed little-endian widths; other nonnegative counts use unsigned LEB128.
+Profile fields include memory/stack limits, panic mode, primitive-semantics revision and semantic driver options.
+Grant entries are sorted by capability key and retain their resolved scope values; no ambient replay-machine configuration replaces them.
+
+| Event tag | Diagnostic schema-2 payload |
+| --- | --- |
+| 2, Call | Method dictionary ID; module/name on first use; exact canonical request bytes; existing scalar/result-byte reply codec |
+| 3, Finish | Pending handle/generation; reply codec; its originating method is checked through the pending table |
+| 4, Wake | Poll ordinal; ordered handle/generation batch |
+| 5, Block | Ordered returned handle/generation batch |
+| 6, Abort | Guest/driver origin; handle/generation, checked against its pending operation |
+| 7, Cancel | Poll ordinal for graceful boundary delivery |
+| 8, End | Exit/panic/cancel kind; exit status or normalized guest panic category/message |
+| 9, Footer | Event count, preceding byte count, rolling checksum and complete marker |
+
+Tags 0 and 1 remain reserved for legacy header/input meanings and are refused in this whole-run stream.
+Call identity is the execution ID plus its row index, without another independently mutable counter.
+The first schema slice fixes these payload vectors in shared golden files before either host integrates them.
+
+
+Assign a logical call ordinal before provider dispatch, combined with the execution ID.
+The completed call event is appended after its initial result, with later `Finish` rows referring to its pending-operation generation.
+This identity is useful preparation for later durable operations, but does not itself make an uncertain effect retryable.
+That later format must add explicit intent/outcome semantics and its own version change.
+
+Start with an internal 64 MiB whole-file limit, including the embedded artifact, manifest and inline outcomes.
+Check arithmetic and lengths before allocation; a row may consume only the remaining admitted budget.
+No compression or blob directory is needed for this diagnostic stage.
+A large result or storage failure can occur after its effect; recording failure cannot undo that effect.
+
+Write an exclusively created temporary file and publish the complete file only after its footer and close succeed.
+Refuse an existing destination rather than overwriting it.
+A failed run of the recorder leaves no file labeled complete; partial temporary evidence is never replayable.
+This publication rule makes no power-loss/fsync durability promise.
+
+An unknown envelope version, event schema, mandatory record kind or incompatible ABI is refused before instantiation.
+No best-effort unknown-row skipping is allowed, because it could omit an effect or scheduling input.
+No migration from a REPL journal to a whole-run capture is implicit.
+Future durable logs get a distinct version even if they reuse these codecs.
+
+### Host-call coverage on Node and Wasmtime
+
+Both hosts use the same classification generated from [the ABI model](../../crates/hd_host_abi/src/lib.rs)
+and its [checked descriptor data](../../host/gen/abi.json).
+The current inventory has 34 capability methods, 18 persistent-handle methods and seven runner-only methods.
+The initial ordinary-run subset admits 31 capability methods and refuses the three handle-opening Net methods.
+The generated classification is checked against every actual module import before guest initialization.
+
+| Imports / logical methods | Record behavior in both hosts | Replay behavior in both hosts |
+| --- | --- | --- |
+| `Console.write`, `write_error` | Exact text request, status and typed failure | Compare request and serve reply; no terminal or file output |
+| `ConsoleInput.read_line`, `read_all` | Complete input/EOF/failure and pending status | Serve bytes and EOF without opening stdin |
+| `Clock.now`, `monotonic`, `sleep` | Clock results, pending sleep and its completion | Serve time values and virtual sleep; do not consult live time |
+| `FsRead.read_bytes`, `read_text`, `list_dir`, `stat` | Whole returned values or typed errors | No filesystem provider calls, including for paths now missing |
+| `FsWrite.write_bytes`, `write_text`, `append_text`, `create_dir_all`, `remove`, `rename`, `copy` | Exact request and result | Validate bytes and serve result; never repeat mutation |
+| `Random.next_u64`, `fill` | Scalar bits and filled bytes | No randomness provider calls |
+| `Http.send` | Request plus whole response/error and asynchronous events | No DNS, socket, TLS or HTTP provider calls |
+| `Net.lookup` | Whole address list/error | No resolver calls |
+| `Process.run` | Request, pending state and whole process output/status/error | No child creation or process signaling |
+| `Sys.os`, `arch`, `hostname`, `cpu_count` | Returned values/errors | Serve recorded values rather than query the replay machine |
+| `Env.get`, `names` | Returned optional values/list and logical grant outcome | Never inspect the replay process environment |
+| `Args.program`, `list` | Recorded entry values, consistent with manifest | Serve the recorded arguments |
+| `Net.connect`, `listen`, `bind_udp`; all `TcpStream.*`, `TcpListener.*`, `UdpSocket.*` | Refuse before any effect in this initial mode | Refuse; activities and handle result boundaries are not implemented |
+| `TestRunner.*`, `PropertyRunner.*`, test fixture profiles, `hd:hook` | Outside the ordinary-run hook; refuse | Refuse rather than accidentally execute harness effects |
+
+A waiting method records its `.start` response and every `.finish` response, including repeated pending answers.
+`Wake`, `Block`, `Abort`, boundary-delivered `Cancel` and poll counts retain their actual observed ordering.
+Replay maintains a **virtual pending table**, keyed by recorded handle and generation.
+It supplies wake batches and completion bytes from the log, without allocating live provider operations.
+
+| Runtime import / computation | Policy |
+| --- | --- |
+| `hd:rt.hash_seed` | Record and serve; a fresh seed can otherwise change map iteration |
+| `hd:rt.stdout`, `stderr` | Compare recorded bytes; collect a diagnostic transcript internally without external output |
+| `hd:rt.panic` | Match its event and update local panic bookkeeping; do not invoke a live output provider |
+| `hd:rt.fact` | Recompute the local facts label marker; it does not obtain an external input |
+| `hd:rt.block`, `abort` | Serve/match recorded control events against the virtual pending table |
+| Float formatting, fixed formatting, Unicode case conversion and float parsing in `hd:prim` | Recompute the explicitly audited argument-only operations under the pinned runtime revision |
+| `hd:prim.snapshot_update` | Refuse in the ordinary-run subset; it reads test configuration rather than being an ordinary pure formatting primitive |
+| Allocation, GC and internal scheduler bookkeeping | Recompute; do not log memory addresses or infer observable weak-reference timing |
+
+The treatment of `panic` separates local runtime state from external output; suppressing both would lose the correct terminal report.
+A wire-level `.Err` is a normal recorded reply, not a failed recording.
+Unexpected host implementation exceptions or forced interruption inside computation leave an incomplete recording, which replay refuses.
+Only graceful boundary-delivered cancellation with completed cleanup is admitted initially; abandoned cleanup leaves an incomplete recording.
+A separate safety watchdog can stop the test harness, but cannot synthesize a successful recorded event history.
+
+### Serving outcomes and stopping at divergence
+
+The first implementation reuses event matching, not REPL prefix recovery.
+Read, bound-check and validate the complete file before constructing providers or entering Wasm initialization.
+Check exact artifact bytes, entry/arguments, ABI and the declared runtime profile against the requested run.
+A caller cannot override those inputs while keeping the recording's successful status.
+
+Recorded logical grants remain part of the captured configuration.
+Replay's physical authority is empty: every effectful provider entry is a failing sentinel.
+Construct only virtual/pure imports, never the normal Node platform layer or native live provider state.
+Reading the recording file is tooling I/O, outside guest provider dispatch.
+A recorded success can therefore replay while the sentinel denies all live effects, without acquiring the original authority.
+Admission checks still require every import to belong to the closed recorded/pure/local-control set.
+
+```rust
+// Proposed control flow, not a currently exported API.
+fn replay(request: ReplayRequest) -> Result<RunEnd, ReplayError> {
+    let complete = read_strict(request.file, request.limits)?;
+    validate_manifest(&complete.manifest, &request)?;
+    validate_events_and_handles(&complete)?;
+    let mut state = TraceState::replaying(complete);
+    let mut instance = instantiate_with_sites(|call| {
+        if let Some(first) = state.stopped() { return Err(first.clone()); }
+        match classify(call.import())? {
+            Pure => return audited_pure(call),
+            LocalMarker => return local_marker(call),
+            Forbidden => return Err(state.stop(unsupported(call.import()))),
+            Recorded => {}
+        }
+        let asked = canonical_request(call)?;
+        let expected = state.peek()?;
+        if !matches_exactly(expected, &asked) {
+            return Err(state.stop(divergence(state.index(), expected, &asked)));
+        }
+        let reply = state.consume_reply()?;
+        state.virtual_pending.apply(&asked, &reply)?;
+        apply_local_runtime_bookkeeping(call, &reply)?;
+        write_checked_result_buffer(call, &reply)?;
+        Ok(reply.scalars)
+    })?;
+    loop {
+        state.begin_poll();
+        match instance.poll()? {
+            Done(end) => return state.finish_exact(end),
+            Pending => {
+                let delivery = state.consume_driver_delivery()?;
+                state.virtual_pending.validate(&delivery)?;
+                instance.deliver(delivery)?;
+            }
+        }
+    }
+}
+```
+
+`matches_exactly` compares method, kind, scalar encoding and all request bytes.
+Driver matching additionally checks event origin, poll ordinal, handle generation, order and batch contents.
+Structural corruption is rejected before instantiation; state-dependent buffer or handle violations stop before their delivery.
+The terminal check requires the same normalized exit/panic/cancel state and no unexplained remaining event.
+No branch invokes the live provider or continues after an exhausted record.
+Helper failures enter the same stopped state; the pseudocode's `?` returns never authorize another dispatch.
+Host-driven cleanup aborts are recorded before End and drained virtually before the terminal comparison.
+
+The proposed diagnostic code is `replay-diverged`; it is not added to the current diagnostic inventory by this document.
+For method mismatch, the exact text template is:
+
+```console
+error: replay-diverged: event 7: expected call hd:Clock.now; observed call hd:Random.next_u64; no live call was made
+```
+
+For a same-method argument difference, the exact text template is:
+
+```console
+error: replay-diverged: event 7: call hd:Http.send.start: request bytes differ at offset 34 (recorded length 81, observed length 81); no live call was made
+```
+
+Use the actual event ordinal, method, first differing offset and lengths in these templates.
+A driver mismatch names `wake`, `block`, `abort`, `cancel` or terminal outcome with its expected/observed poll or handle metadata.
+End-of-record is spelled `end of record`; an early guest end is spelled `guest ended before event N`.
+The first diagnostic is latched, emitted once and returned with tool status 101; it is not a guest panic.
+
+Private text and JSON reporting share that message and `code: "replay-diverged"`.
+Malformed files use proposed `replay-log-invalid`, input identity differences use `replay-identity-mismatch`, and recording exhaustion uses `record-log-limit`.
+Those are separate failure classes, rather than misleading divergences after partial replay.
+A later approved implementation issue must register user-facing diagnostic codes when it enables them.
+
+### Keeping the entry private
+
+Use a crate-private trace mode and the existing test-harness approach first.
+Rust unit tests construct an ordinary run with `TraceMode::Record` or `TraceMode::Replay`; a dedicated Node parity script receives equivalent internal test jobs.
+The production CLI argument parser, help, completion and manifest keys acquire no new flags.
+No unstable `-Z` spelling is required merely to exercise these APIs.
+
+The shared hook has `Off`, `Record` and `Replay` states, with an explicit stopped state after the first failure.
+Ordinary runs keep `Off` and their existing dispatch path.
+The private recorder is not a public Rust API, hd API or stable file interchange promise.
+A future owner decision can expose an unstable CLI after the closed replay path has passed its proofs.
+
+The test hook does not bypass validation, ABI checks, limits or profile checks.
+It does not allow public `--resume`, a live continuation, resource handles outside activities or automatic log-version migration.
+An activity's syntax and plain-data result restrictions remain a separate design task.
+These boundaries keep the record/replay work useful without pre-deciding the durable API.
+
+### Parity and validation matrix
+
+Use the **same exact core-Wasm artifact** on Node and Wasmtime, under an explicitly compatible semantic runtime profile.
+Run Node→Node, Node→Wasmtime, Wasmtime→Node and Wasmtime→Wasmtime record/replay pairs.
+The recording is not permitted to normalize away a different compiled module, as a REPL rebuild may do.
+If a common artifact/profile cannot run on both hosts, that test is refused rather than counted as parity.
+
+| Test family | Required proof |
+| --- | --- |
+| Manifest and codec goldens | Rust and JS encode/decode the same bytes; every truncation, CRC mutation, invalid index, oversized length and unknown mandatory kind fails strictly |
+| Exact requests and replies | Requests of 0, 8, 9 and large lengths; byte mismatch beyond the old digest threshold; integer widths, signed zero, byte payloads and typed `.Err` replies |
+| Effects and changed environment | Writes do not repeat; changed/deleted input files, absent network and different environment cannot affect served outcomes |
+| Concurrency | Two pending requests finish in reverse order; timer wake, repeated pending finish, cancel and loser cleanup reproduce the recorded sequence |
+| Virtual handles | Unknown/stale handles, wrong originating finish method, duplicate finish, wrong wake generation and unexplained pending state fail without touching a provider |
+| Runtime state | Hash iteration seed, panic metadata, stderr/stdout suppression and facts markers retain their distinct policies |
+| First divergence | Method, request, finish, wake poll, abort, cancel, early end and extra tail each produce one stable diagnostic; provider-call count stays zero |
+| Completion and storage | Partial record, cap overflow, close failure, existing destination and unknown schema never publish an eligible complete recording |
+| Existing behavior | Format 1 golden bytes and REPL cross-host/prefix behavior remain unchanged; ordinary trace-off runs preserve results and overhead measurements |
+
+For replay tests, provider factories increment a counter and immediately fail if called.
+The expected count is zero, including on invalid files and divergence paths.
+Control tests prove that record mode does call the intended provider and cannot pass through an accidental all-stub path.
+Capture guest output internally for assertions; reporting the tool's own diagnostic is separate from repeating the guest's effects.
+
+### One-hour implementation slices
+
+These are proposed file scopes for later issues, not permission to edit them in this docs-only job.
+Each row should fit approximately one hour and remain independently green.
+Test names below are proposed focused tests; none is claimed to exist or have run yet.
+Full suites remain CI work under the owner's focused-test policy.
+
+| Slice | Proposed scope and change | Focused proof before its commit |
+| --- | --- | --- |
+| 1 | `hd_host_abi` replay classification and generated host descriptors; close the import set | `trace_classification_covers_every_import`: all 34 capability, 18 handle, seven runner and runtime/primitive imports have one explicit class |
+| 2 | `hd_run` diagnostic row/request schema, leaving REPL format 1 untouched | `trace_v2_exact_requests_and_replies`: width/byte round trips plus legacy golden-byte equality |
+| 3 | JS schema mirror and canonical manifest fields | Node `trace-format.test.mjs`: shared golden vectors match Rust, including 9-byte requests |
+| 4 | Strict bounded container reader and terminal/footer validation | `trace_reader_rejects_incomplete`: exhaustive truncation and single-byte CRC corruption; no valid-prefix success |
+| 5 | Native and JS manifest/eligibility validators | `trace_preflight_before_init`: wrong artifact/profile/ABI, handle-opening import and runner import fail with zero guest/provider entries |
+| 6 | Node ordinary-run recording hook at import call sites | `trace_node_records_value_effects`: real controlled write/read/HTTP/process providers produce complete events, including typed errors |
+| 7 | Native ordinary-run recording hook | `trace_native_records_value_effects`: equivalent controlled providers produce the same event contract |
+| 8 | Node replay cursor, exact requests and virtual pending table | `trace_node_replay_has_no_live_calls`: changed input file and denied providers, plus first method/argument mismatch |
+| 9 | Native replay cursor and local runtime bookkeeping | `trace_native_replay_has_no_live_calls`: matching outcome, panic state, hash seed and output suppression; sentinels never fire |
+| 10 | Driver poll/wake/block/abort/cancel integration in both hosts | `trace_async_order_and_cancel`: reverse finishes, timer, repeated pending response, cleanup, stale generation and wrong poll |
+| 11 | Private complete-file writer and internal parity runner | `trace_publish_complete_only`: cap/close/existing-path failures leave no eligible log; no public CLI flags appear |
+| 12 | Full cross-host fixture matrix and diagnostic golden messages | `trace_cross_host_closed_replay`: four host directions over identical Wasm, plus early/extra terminal events and zero-live-call assertions |
+| 13 | Regression/cost evidence and owner review packet | Focused REPL parity and trace-off controls; record file growth and host overhead; verify byte-identical guest output artifacts |
+
+A slice that needs a broader compiler change stops for a newly scoped issue.
+Do not edit ownership, optimization or std APIs merely to construct a record/replay hook.
+Snapshot-update/test-runner coverage and activities remain excluded rather than silently expanding a slice.
+The final packet requests owner review before flags, durable barriers or a resume frontier are added.
+
+### Cost and acceptance boundary
+
+Current literal source sizes are journal.rs 705 lines, replay.rs 287, journal.mjs 883 and core.mjs 1,315.
+The native import wrapper has 304 lines and import-kind classification 214.
+These counts include comments/blanks and describe existing code, not lines this plan deletes.
+The first slices replace zero existing record-format lines; format 1 and its REPL consumers remain supported.
+
+| Added component | Production-line allowance, Rust / JS | Basis |
+| --- | --- | --- |
+| Classification and canonical profile/ABI metadata | 70 / 30 | Explicit classes and generated coverage, not two handwritten allowlists |
+| Exact-request event schema and strict envelope | 180 / 150 | Reuse row/reply codecs; add manifest, bounds and footer checks |
+| Ordinary-run recorder integration | 90 / 90 | Existing import wrappers supply argument/reply extraction |
+| Replay dispatch and virtual pending/control state | 170 / 160 | Reuse cursor matching; add closed mode, strict terminal state and driver integration |
+| Private file publication and harness integration | 120 / 60 | One complete-file path and internal test jobs; no public parser/flag work |
+| Total production allowance | **630 / 490** | 1,120 combined lines, excluding focused tests and generated descriptor data |
+
+Allow another 450 Rust/JS test lines, chiefly shared vectors and adversarial driver fixtures.
+These are bottom-up allowances, not measurements of an implementation or a time-to-completion guarantee.
+A component exceeding 1.5 times its allowance stops for review before its scope grows.
+The existing source counts and focused legacy observations are evidence; new throughput and file-size claims must wait for the implementation.
+
+No guest language rule, compiler lowering or emitted Wasm change is expected; byte-identical builds must verify that expectation.
+Trace-off host throughput and record/replay throughput need separate before/after measurements.
+Full request bytes trade additional file/memory size for exact comparisons, bounded by the internal cap.
+The web compiler dependency graph stays unchanged; browser persistence and a web trace UI are outside this initial private host work.
+
+The owner reviews the envelope/schema, exact-request policy, closed import subset, private hook, diagnostics and phase scopes before implementation.
+The chosen durable direction remains host-call replay, retry of unknown intents with stable identity, and handles only inside activities.
+This plan deliberately delivers the smaller prerequisite first without claiming those durable guarantees.
 
 ## Approval and implementation proof
 
