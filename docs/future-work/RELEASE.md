@@ -972,9 +972,11 @@ A budget violation or extraction coverage gap falls back to a smaller checked ta
 
 ## Stress test
 
-The [2026-10-24 release stress report](RELEASE_STRESS.md) tests the single-command design against real library histories and typed clients.
-It also exercises Git/version edge cases.
-Its prerelease finding is settled by the rule in Bump arithmetic.
+A stress test translated real release histories (Rand, logr, Lodash) and typed clients into hd and ran them against this design, plus Git and version edge cases. Its prerelease finding is settled by the rule in Bump arithmetic. Three limits remain:
+
+- **Typed checks do not certify behavior.** A changed default value or body prints different output with identical signatures. The writer's summary says "typed API checks passed; behavior not assessed" and lists changed defaults and bodies as review notes, never "compatible release". Unassessed extraction coverage is still a failure.
+- **Impl changes are classified conservatively.** An added impl can make an old inference site ambiguous, and a removed impl or derive removes a usable obligation, so some changes a maintainer thinks harmless need a larger bump. The report keeps definite and potential findings apart and shows a witness when it has one. A waiver mechanism waits for real false-positive reports.
+- **The pieces were probed, not the command.** Enabling the tag writer requires end-to-end CLI fixtures for the bare, `--dry-run` and writing forms, including a ref that changes during the run, on every platform CI covers.
 
 The ten old-library/new-library/client pairs above are executable translations of practical API hazards.
 The embedding client ports the `Point`/extra-field witness in Go apidiff's README to hd embedding.

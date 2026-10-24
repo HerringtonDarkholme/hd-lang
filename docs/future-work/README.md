@@ -40,7 +40,6 @@ the design stays.
 
 - [hd lint](HD_LINT.md): proposed command, shared diagnostics, package allow/deny policy, and a first lint for lost temporary-receiver writes (#651).
 - [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes; every version is compared with the last stable release (#28).
-- [Release Stress Test](RELEASE_STRESS.md): real release histories, typed API hazards, command-by-command prior art and version/tag edge cases (#28).
 - [hd bench](HD_BENCH.md): parked proposal for ordinary suite registration, batched real-clock measurement and baseline reports (#184, deferred until real users).
 - [Program Database](PROGRAM_DATABASE.md): parked proposal for versioned source-fact snapshots and queries without an editor protocol (#181, deferred until real users).
 - [Live Execution](live-execution.md): the REPL session model, journal and rebuild, which are built, and resume, which is Later (#17, #18).
