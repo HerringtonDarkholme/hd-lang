@@ -151,9 +151,8 @@ first release has no serializable closures. The decision above waits
 until after it.
 
 **Design study (#166, 2026-10-15).** Reopened under the owner's goals of
-remote calls, data fetching, security, caching, and a minimal wire. The
-design record, [Serializable Closures And Remote Calls](SERIALIZABLE_CLOSURE_DESIGN.md),
-now holds the options and the open questions; continue there.
+remote calls, data fetching, security, caching, and a minimal wire. The design
+is parked; its record and open questions are in #166.
 
 ### Observability Hooks
 
