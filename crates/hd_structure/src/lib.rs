@@ -46,7 +46,9 @@
 
 mod dbg;
 
-pub use dbg::{show_body as dbg_show_body, values_body as dbg_values_body};
+pub use dbg::{
+    printer_body as dbg_printer_body, target as dbg_target, values_body as dbg_values_body,
+};
 
 use hd_base::{DefId, LocalId, NodeIdx, NotImplemented, Stage, StageResult};
 use hd_intern::PathKind;

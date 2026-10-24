@@ -1,0 +1,2 @@
+# test: dbg printer selection remains private to std
+use std.format.dbg_printer  # diagnostic: private-import

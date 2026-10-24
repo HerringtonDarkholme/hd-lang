@@ -3606,6 +3606,7 @@ typing/invalid/script-test-init-requirement.hd	type	reject:missing-requirement	l
 typing/valid/temp-dir-integration.hd	type	accept	std/testing.md#r-std-testing.temp-dir.fresh
 runtime/valid/unit-test-manual-clock.hd	runtime	accept	std/testing.md#unit-test-providers
 typing/invalid/unit-test-real-clock.hd	type	reject:missing-requirement	std/testing.md#r-std-testing.unit.hint
+typing/invalid/dbg-printer-private.hd	type	reject:private-import	lang/10-modules.md#r-module.dbg.printer.declaration
 runtime/valid/dbg-prints-void.hd	runtime	accept	lang/10-modules.md#r-module.dbg.body.print
 runtime/valid/dbg-without-requirement.hd	runtime	accept	lang/10-modules.md#r-module.dbg.no-requirement
 typing/invalid/dbg-void-binding.hd	type	reject:type-mismatch	lang/10-modules.md#r-module.dbg.signature

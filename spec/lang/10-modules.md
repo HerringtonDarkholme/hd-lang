@@ -866,6 +866,10 @@ fn check_order(id: i32, count: i32) -> bool:
 6. r[module.dbg.body.value] A `dbg` used as a function value, as in `let show: fn((i32, string)) -> void = dbg`, has no call site. So its body prints each element of its one tuple argument on a line of its own, with no location.
 7. r[module.dbg.no-requirement] A `dbg` call needs no requirement and adds none to a row. It is valid in a pure function, in a [unit test](#r-module.testing.unit-row.anywhere), and in generic code.
 8. r[module.dbg.not-behavior] What `dbg` prints is diagnostic output, not program behavior. It is not an effect, a replay does not record it, and tools that judge a program's output ignore it.
+9. r[module.dbg.printer.declaration] `std.format` privately declares `@intrinsic fn dbg_printer[T]() -> fn(T, &mut DebugWriter) -> void`, with only its body compiler-supplied.
+10. r[module.dbg.printer.selection] `dbg_printer[T]()` selects an ordinary hd printer for `T` according to [Debug Values](#debug-values).
+11. r[module.dbg.printer.structure] A selected structural printer uses the `Structure` derivation machinery without adding public trait implementations to `T`.
+12. r[module.dbg.printer.algorithms] The selected printers perform traversal, labeling, delimiter rendering, and composite iteration in ordinary hd.
 
 ```text
 fn total(prices: List[i32]) -> i32:

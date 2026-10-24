@@ -235,9 +235,12 @@ impl DebugStruct:
     ## Adds one named field.
     ## See [std-format.debug.builder.struct](../../spec/std/format.md#r-std-format.debug.builder.struct).
     pub fn field[T < Debug](&mut self, name: string, value: T) -> &mut DebugStruct:
+        self.part(name, value, dbg_nested::[T])
+
+    fn part[T](&mut self, name: string, value: T, show: fn(T, &mut DebugWriter) -> void) -> &mut DebugStruct:
         if self.shown:
             self.out.struct_item(name, self.count)
-            value.debug(self.out)
+            show(value, self.out)
             self.out.end_item()
         self.count = self.count + 1
         self
@@ -261,9 +264,12 @@ impl DebugTuple:
     ## Adds one positional field.
     ## See [std-format.debug.builder.tuple](../../spec/std/format.md#r-std-format.debug.builder.tuple).
     pub fn field[T < Debug](&mut self, value: T) -> &mut DebugTuple:
+        self.part(value, dbg_nested::[T])
+
+    fn part[T](&mut self, value: T, show: fn(T, &mut DebugWriter) -> void) -> &mut DebugTuple:
         if self.shown:
             self.out.tuple_item(self.count)
-            value.debug(self.out)
+            show(value, self.out)
             self.out.end_item()
         self.count = self.count + 1
         self
@@ -273,9 +279,12 @@ impl DebugTuple:
     ## Adds a named argument `name=value` after the positional fields.
     ## See [std-format.debug.builder.named-field](../../spec/std/format.md#r-std-format.debug.builder.named-field).
     pub fn named_field[T < Debug](&mut self, name: string, value: T) -> &mut DebugTuple:
+        self.named_part(name, value, dbg_nested::[T])
+
+    fn named_part[T](&mut self, name: string, value: T, show: fn(T, &mut DebugWriter) -> void) -> &mut DebugTuple:
         if self.shown:
             self.out.named_item(name, self.count)
-            value.debug(self.out)
+            show(value, self.out)
             self.out.end_item()
         self.count = self.count + 1
         self
@@ -658,13 +667,6 @@ pub fn debug[T < Debug](value: T) -> string:
 pub fn dbg[Args < Tuple](values...: Args) -> void:
     panic("intrinsic")
 
-# The REPL's value display (spec/cli/command-line.md#r-cli.repl.value): the
-# text of `value` as `dbg` prints it, after `width` columns of its line. The
-# checker rewrites a call as it rewrites a `dbg` call.
-@intrinsic("dbg_text")
-fn dbg_text[T](value: T, width: usize) -> string:
-    panic("intrinsic")
-
 # Writes one `dbg` line to the program's debug output, which is no effect and
 # needs no requirement (spec/lang/10-modules.md#r-module.dbg.no-requirement).
 @intrinsic("dbg_write")
@@ -743,17 +745,39 @@ fn repl_value(text: string, ty: string) -> void:
 fn dbg_nested[T < Debug](value: T, out: &mut DebugWriter) -> void:
     value.debug(out)
 
-# Writes `value` into `out` the way `dbg` prints a part (r-module.dbg.value.debug,
-# r-module.dbg.value.structural):
-# through `Debug` when its static type implements it, else structurally, each
-# part by these same rules. The compiler supplies the body at each concrete
-# type, since it needs the type's declaration.
-@intrinsic("dbg_show")
-fn dbg_show[T](value: T, out: &mut DebugWriter) -> void:
+# Select an ordinary hd printer. Only this private body's type-directed
+# selection is compiler supplied; it never renders or traverses a value.
+@intrinsic("dbg_printer")
+fn dbg_printer[T]() -> fn(T, &mut DebugWriter) -> void:
     panic("intrinsic")
 
-# The structural forms of the built-in composites, over `dbg_show`'s printer
-# for their parts. Each opens a part the way a builder does.
+fn dbg_option_printer[T](value: T?, out: &mut DebugWriter) -> void:
+    dbg_option(value, out, dbg_printer::[T]())
+
+fn dbg_result_printer[T, E](value: Result[T, E], out: &mut DebugWriter) -> void:
+    dbg_result(value, out, dbg_printer::[T](), dbg_printer::[E]())
+
+fn dbg_list_printer[T](value: List[T], out: &mut DebugWriter) -> void:
+    dbg_list(value, out, dbg_printer::[T]())
+
+fn dbg_map_printer[K < Eq & Hash, V](value: Map[K, V], out: &mut DebugWriter) -> void:
+    dbg_map(value, out, dbg_printer::[K](), dbg_printer::[V]())
+
+fn dbg_ref_printer[T](value: &T, out: &mut DebugWriter) -> void:
+    if out.enter(value):
+        dbg_printer::[T]()(*value, out)
+        out.leave()
+
+fn dbg_never[T](value: T, out: &mut DebugWriter) -> void:
+    out.write("never")
+
+fn dbg_handle[T](value: T, out: &mut DebugWriter) -> void:
+    out.write("<handle>")
+
+fn dbg_opaque_printer[T](name: string) -> fn(T, &mut DebugWriter) -> void:
+    fn(value: T, out: &mut DebugWriter) -> void: out.write("<$name>")
+
+# The built-in composites use selected printers for their parts.
 fn dbg_option[E](value: E?, out: &mut DebugWriter, show: fn(E, &mut DebugWriter) -> void) -> void:
     match value:
         .Some(inner) =>
@@ -816,6 +840,64 @@ fn dbg_render[T](width: usize, value: T, show: fn(T, &mut DebugWriter) -> void) 
 
 fn dbg_render_shown[T < Debug](width: usize, value: T) -> string:
     dbg_layout(width, value, fn(shown: T, out: &mut DebugWriter) -> void: shown.debug(out))
+
+# This private template is instantiated only by dbg_printer. Unlike Debug's
+# opt-in template, its members recursively select a printer without a bound.
+trait DbgStructural:
+    fn show(self, out: &mut DebugWriter) -> void
+
+impl[T] DbgStructural for T by Structure:
+    fn show(self, out: &mut DebugWriter) -> void:
+        let mut shape = DebugShape::[T] { name: "", of_data: false, members: 0, positional: 0 }
+        _ := Structure::walk(self, &mut shape)
+        if shape.of_data && shape.name != "" && shape.positional == 0:
+            let mut named = DbgNamed::[T] { fields: out.debug_struct(shape.name) }
+            _ := Structure::walk(self, &mut named)
+            named.fields.finish()
+            return
+        name := if shape.of_data: shape.name else: T::name() + "." + shape.name
+        if !shape.of_data && shape.members == 0:
+            out.write(name)
+            return
+        let mut fields = DbgFields::[T] { tuple: out.debug_tuple(name) }
+        _ := Structure::walk(self, &mut fields)
+        fields.tuple.finish()
+
+struct DbgNamed[S]:
+    pub fields: &mut DebugStruct
+
+impl[S] Walker[S] for DbgNamed[S]:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        _ := self.fields.part(h.info.name, value, dbg_printer::[F]())
+        .Ok(())
+
+struct DbgFields[S]:
+    pub tuple: &mut DebugTuple
+
+impl[S] Walker[S] for DbgFields[S]:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        show := dbg_printer::[F]()
+        if h.info.positional:
+            _ := self.tuple.part(value, show)
+        else:
+            _ := self.tuple.named_part(h.info.name, value, show)
+        .Ok(())
+
+    fn rest[I](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
+        show := dbg_printer::[I]()
+        for item in items:
+            _ := self.tuple.part(item, show)
+        .Ok(())
 
 # Derived `Debug` (spec/std/format.md#r-std-format.debug.derive-builders.source):
 # the value as hd source writes it. `debug_struct` for a data type, even a

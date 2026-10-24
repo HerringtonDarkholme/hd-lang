@@ -1,0 +1,18 @@
+# Structural fallback and custom Debug priority, including a mutable cycle.
+run: hd run
+stdout: done
+stderr: src/main.hd:27:5: Outer { plain: value, custom: Custom {} } = Outer {
+stderr:     plain: Plain {
+stderr:         x: 7,
+stderr:     },
+stderr:     custom: chosen,
+stderr: }
+stderr: src/main.hd:28:5: Choice.Empty = Choice.Empty
+stderr: src/main.hd:28:5: Choice.Named(value=value) = Choice.Named(value=Plain { x: 7 })
+stderr: src/main.hd:28:5: Wrapped(value) = Wrapped(Plain { x: 7 })
+stderr: src/main.hd:29:5: [value] = [Plain { x: 7 }]
+stderr: src/main.hd:29:5: {"p": value} = {"p": Plain { x: 7 }}
+stderr: src/main.hd:29:5: (value,) = (Plain { x: 7 },)
+stderr: src/main.hd:29:5: Option.Some(value) = Option.Some(Plain { x: 7 })
+stderr: src/main.hd:31:5: result = Result.Err(Plain { x: 7 })
+stderr: src/main.hd:34:5: ring = Ring { next: Option.Some(<cycle>) }

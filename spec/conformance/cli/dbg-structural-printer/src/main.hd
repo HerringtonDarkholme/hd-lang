@@ -1,0 +1,35 @@
+use std.format.DebugWriter
+
+struct Plain:
+    x: i32
+
+struct Custom: pass
+
+impl Debug for Custom:
+    fn debug(self, out: &mut DebugWriter) -> void:
+        out.write("chosen")
+
+struct Outer:
+    plain: Plain
+    custom: Custom
+
+enum Choice:
+    Empty
+    Named(value: Plain)
+
+type Wrapped(Plain)
+
+struct Ring:
+    next: &mut Ring?
+
+pub fn main() -> void $ Console:
+    value := Plain { x: +7 }
+    dbg(Outer { plain: value, custom: Custom {} })
+    dbg(Choice.Empty, Choice.Named(value=value), Wrapped(value))
+    dbg([value], {"p": value}, (value,), Option.Some(value))
+    let result: Result[Plain, Plain] = .Err(value)
+    dbg(result)
+    ring := &mut Ring { next: .None }
+    ring.next = .Some(ring)
+    dbg(ring)
+    println("done")
