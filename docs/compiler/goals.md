@@ -52,12 +52,9 @@ checking.
   10 GB with LRU eviction.
 - Release builds omit the standard `name` section and keep the compact
   `hd.names` for backtraces.
-- Resources use `Disposable` and `using`, not ownership. A local `^`
-  mode without lifetimes, for escape analysis and parallel children, is
-  parked as an option for a native backend in
-  [docs/future-work/PARALLELISM_AND_LOCALITY.md](../future-work/PARALLELISM_AND_LOCALITY.md)
-  (#163). `defer` stays, and a `defer` suite still cannot make a bang
-  call.
+- Resources use `Disposable` and `using`, not ownership. The local `^`
+  mode was removed (#163). `defer` stays, and a `defer` suite still
+  cannot make a bang call.
 - No serializable closures in the first release; see #166.
 - Suspension lowering reserves no-op observability and replay hook points
   (crates/hd_wasm_linear/DESIGN.md §14.7).
@@ -232,8 +229,7 @@ capability grants; symbolized backtraces in release builds.
   tracing, generated recording fakes, `hd test --coverage`, `hd lint`.
 - General inlining, escape analysis, profile-guided optimization, SIMD.
 - Data parallelism; until then the runtime keeps no global mutable state.
-- `hd bench`: not built yet; see #184.
-- A native backend with its own GC: not built yet; see #188.
+- `hd bench`: not built yet; deferred until real users (#184).
 
 **Dropped** (owner): `hd fuzz`; per-request arenas.
 

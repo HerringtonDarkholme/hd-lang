@@ -1,9 +1,8 @@
 # TIR v2: Places And Explicit Ownership
 
-Status: detailed design, 2026-10-21, for issue #667. Stage 1 is
-implemented (#718; its as-built notes are under [Commits](#commits));
-stages 2 and 3 are not, and the owner approves each before its
-implementation. The owner chose Direction 3 of
+Status: detailed design, 2026-10-21, for issue #667. Stages 1 and 2 are
+implemented, and stage 3 through 3h (3i to 3k are stopped; see #180).
+As-built notes are under [Commits](#commits). The owner chose Direction 3 of
 [tir-v2-directions.md](tir-v2-directions.md), which stays as the record
 of the alternatives. This document is the full design of that direction:
 the IR, what the checker emits, the ownership passes, the emitter, a
