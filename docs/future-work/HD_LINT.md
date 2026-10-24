@@ -1,13 +1,16 @@
 # hd lint
 
-Design proposal, 2026-10-23; not accepted. This revision addresses
+Design proposal, 2026-10-24; domain: CLI/tooling and compiler analysis; not accepted. This revision addresses
 [#651's review](https://github.com/HerringtonDarkholme/hd-lang/issues/651#issuecomment-6372359499)
 and the [fix-command correction](https://github.com/HerringtonDarkholme/hd-lang/issues/651#issuecomment-6372223224).
-It changes no specification, compiler, or accepted behavior.
+It incorporates the owner's [warning-only-under-lint direction](https://github.com/HerringtonDarkholme/hd-lang/issues/651#issuecomment-6379611164).
+Implementation details and the operational exceptions below remain proposals.
+This revision changes documentation only.
 
 ## Contents
 
 - [Purpose and current behavior](#purpose-and-current-behavior)
+- [Warning migration inventory](#warning-migration-inventory)
 - [Other tools](#other-tools)
 - [Semantics](#semantics)
 - [First lint](#first-lint)
@@ -47,11 +50,104 @@ Today `hd check` checks without running the program and reports
 Whether any fix command should remain is undecided in
 [#805](https://github.com/HerringtonDarkholme/hd-lang/issues/805).
 
-A fresh dev build at `a00c6b374358fb2992f046695ea0f6639b5ab542`
-listed `check` and `fix`, without `lint`.
-Invoking `hd lint` returned usage and status 101.
-Consequently all lint findings below are proposed judgments, never output
-from an existing lint implementation.
+The current command inventory still has no lint implementation.
+All proposed lint output below is a design judgment, not a claim that the command already ran.
+The baseline compiler still emits the warnings inventoried next; this proposal describes their migration.
+
+## Warning migration inventory
+
+The owner chose explicit linting: `hd check`, `hd build` and `hd test` report errors only.
+`hd lint` checks prerequisites, then runs its default warning set and requested opt-in rules.
+This is command policy, not permission to suppress type errors or discard must-use checks.
+
+The [diagnostic registry](../../spec/README.md#diagnostics) lists fourteen warning codes at base `aafe3fe7539a21f5ecc61bbe1ee7bae621d2238a`.
+Lost-write was removed before that inventory; it is an additional proposed lint, not one of the fourteen.
+The inventory below names actual current producers, including ones outside hd_check.
+“Move” means the diagnostic's decision and message live in hd_lint; producers expose semantic facts rather than prebuilt warning messages.
+
+| Current warning | Current producer | Migration and required facts |
+| --- | --- | --- |
+| `broken-doc-link` | [hd_cli/doc_cmd.rs](../../crates/hd_cli/src/doc_cmd.rs) | Move. Retain doc-link text, destination lookup outcome and source span. Extract reusable link resolution below the CLI, avoiding a lint-to-CLI dependency cycle. |
+| `dbg-in-dependency` | [hd_driver/lib.rs](../../crates/hd_driver/src/lib.rs), dbg_in_dependencies | Move. Read fetched-package identity and cached dbg-reference facts; deduplicate by package even on fully warm runs. Suppressing dependency debug output remains compiler/runtime policy. |
+| `derivation-line-drift` | [hd_resolve/decorators.rs](../../crates/hd_resolve/src/lower/decorators.rs) and driver cached derive facts | Move. Export configured member-line spans, selected derive targets and resolved impl identities. Join cold and cached paths before reporting once. |
+| `mixed-script-identifier` | [hd_syntax/lexer.rs](../../crates/hd_syntax/src/lexer.rs) | Move. Lint valid identifier tokens with the existing script classifier. Invalid tokens and non-NFC identifiers remain lexical errors; lint is not needed for validity. |
+| `private-main` | hd_driver entry selection | Move its advice. Export entry-module role, visibility, header span and competing public entry candidates. Recommend an ordinary missing-entry-point error when an execution request otherwise runs nothing; owner approval required. |
+| `redundant-let-mut` | [hd_check/refs.rs](../../crates/hd_check/src/refs.rs) | Move. Final binding facts record the written mut token, normalized type, annotation and whether mutable addressing occurred. The checker still validates write permissions. |
+| `unknown-manifest-key` | [hd_project/manifest.rs](../../crates/hd_project/src/manifest.rs) | Move its warning. Preserve Manifest.unknown key paths and lines. Recommend promoting this same stable code to an error during loading instead; this exception needs approval before behavior changes. |
+| `unreachable-code` | [hd_check/body.rs](../../crates/hd_check/src/body.rs) | Move. Expose source statement reachability from the completed flow analysis. Do not infer this from optimized-away instructions or execute dead branches. |
+| `unselected-main` | hd_driver executable selection | Move. Read source module role, public-main span and the requested executable graph. An actual request for a nonexistent executable remains an ordinary CLI error. |
+| `unsigned-comparison-always` | [hd_check/expr.rs](../../crates/hd_check/src/expr.rs) | Move first. Read checked operand types, source operator and literal spelling; preserve the current literal-zero predicate rather than broaden it to arbitrary constant evaluation. |
+| `unused-debug-text` | hd_check format-expression checking in body.rs | Move. Retain the discarded expression-statement span and resolved prelude debug identity. A local function named debug must not match; lowered string-building calls lose that distinction. |
+| `unused-derivation-fact` | hd_resolve/decorators.rs | Move. Read decorator occurrence, supported fact kind, target and consumed-fact identities. Invalid decorators remain resolver errors. |
+| `unused-local-binding` | hd_check body finalization | Move only advisory unused-binding selection. Export binding identity, scope, final type, use/capture state and source line. Unread must-use values remain discarded-must-use-value errors in hd_check. |
+| `variant-binding-name-mismatch` | [hd_check/pat.rs](../../crates/hd_check/src/pat.rs) | Move. Read the checked pattern's enum variant, field position, source binding name and any suppression conditions; no matching by text alone. |
+
+No warning must remain in hd_check merely because it currently reads private state.
+The proposed fact boundary must expose the needed semantic observation or explicitly delay that warning's migration.
+Until a row's facts and tests are ready, retain its existing implementation; do not silently delete its advice during an incomplete slice.
+Once moved, its ordinary-check cache contains no warning to resurrect later.
+
+### Operational exceptions needing approval
+
+Two stable warning codes can hide a failed user intention when their advice becomes opt-in.
+For `unknown-manifest-key`, recommend promoting its existing stable code to an error during loading, rather than a warning exception or disguised notice.
+A package typo then fails under every loading command; this changes acceptance and needs explicit approval.
+The alternative is lint-only advice while ordinary commands continue ignoring unknown keys.
+
+For `private-main`, recommend retaining lint advice on private functions, plus missing-entry-point when the selected run/build requires an exported entry.
+Check and library/test-module analysis may still accept an ordinary private main function.
+Running tests needs their test entries, not a public program main.
+Reject only when the selected execution path genuinely has no entry; do not reject harmless helper names or programs with script statements.
+
+Neither recommendation is an accepted exception yet.
+There is no general back door that sends warning-severity diagnostics through ordinary checking.
+For unselected-main, the normal executable-selection error already covers an actual unfulfillable run request; otherwise the advice can wait for lint.
+The remaining stable warning codes are advisory and move without an operational exception recommendation.
+
+The source audit also found an uncoded warning when `hd doc --open` cannot launch the browser, in doc_cmd.rs.
+It is an execution outcome, which static linting cannot predict.
+Recommend an ordinary command failure while preserving the already-written documentation path; approval is required for that status change.
+The CLI's separate cache-write warning is also operational, not a fifteenth stable program diagnostic.
+Recommend opt-in operational logging for an optional cache failure; do not rename program warnings as operational messages to bypass the lint boundary.
+
+### What users see
+
+An accepted program with a redundant `let mut` produces no warning under check, build or test after its migration.
+The same source under `hd lint` gets the stable redundant-let-mut code; deny changes lint's status, not program validity.
+Ill-typed source still produces its normal error under either command.
+The choice to run lint in CI is explicit rather than inherited from build.
+
+The REPL evaluates cells with errors only; automatic evaluation does not run lint.
+An explicit later lint action may analyze the active cell/module with original-cell source mapping, never synthetic-session names in findings.
+The existing playground compile/run path likewise shows errors only.
+Browser linting would be an explicit future action with a separately measured frontend; no lint engine is silently linked into hd_web.
+
+There is no shipped language-server behavior to change in this proposal.
+A future LSP or program-database client should publish compiler errors during checking and lint findings only on an explicit lint request or user opt-in.
+Diagnostic sources must distinguish the two and clear stale lint findings after edits or configuration changes.
+These UI integrations follow the command boundary; they are not prerequisites for the first CLI slice.
+
+### Spec placement and conformance
+
+Recommend rules under the existing CLI tier, `spec/cli/command-line.md`, with cli.lint rule IDs.
+This avoids introducing a fourth specification tier merely for one tool.
+The global stable-code registry remains [spec/README.md Diagnostics](../../spec/README.md#diagnostics), as AGENTS.md requires.
+Language chapters retain acceptance, permissions and control-flow rules; CLI lint rules describe optional advice over accepted code.
+
+Each migration needs new rule IDs where the old rule's command/severity meaning changes, with retired IDs named in that implementation commit.
+Preserve diagnostic code spellings and message/span expectations unless the issue explicitly approves a change.
+The registry must describe default lint severity and command-local deny escalation, rather than claim those warnings appear under check.
+This documentation revision does not edit or retire any rules itself.
+
+Use CLI conformance scenarios in spec/conformance/cli for `hd lint`, with text/JSON, allow/warn/deny and exit-status expectations.
+Existing language fixtures that expect the moved warning under check become accepted checks without that warning; their lint expectations move to those scenarios.
+Keep mixed-script lexical validity tests separate from its new lint invocation.
+Unknown-manifest and entry-point exception scenarios must follow the owner's choice, not an inferred exception.
+
+A scenario must alternate cold and warm check/lint/build/test invocations against the same cache.
+It proves lint-first cannot poison acceptance, check-first cannot lose findings, and a warning cannot reappear after a cache hit.
+A denied lint must not become a cached compiler error.
+Run the focused migrated cases through the ordinary conformance harness, without a new full-suite requirement or new exception-list entries.
 
 ## Other tools
 
@@ -261,20 +357,59 @@ The finding contains no edit and invents no variable name.
 
 Proposed code: `lost-write`, category likely-bug, default warning. The owner moved this check out of the compiler on 2026-10-23: the language spec no longer has `fn.param.mut.lost-write`, and the checker no longer reports it. It belongs here, because whether a change to a function's own copy is a mistake depends on the program, not on the rules.
 
-A `mut` parameter or a `mut self` receiver is the function's own copy (`fn.param.mut.copy`, `fn.method.receiver.mut-self`), so a change to it never reaches the caller. The lint reports a change whose copy is never observed afterwards. That covers whole reassignment, a struct field write, a `push`, a map store, an element store and a `&mut self` method call on the copy (#817).
+A `mut` parameter or a `mut self` receiver keeps the function's own value copy (`fn.param.mut.copy`, `fn.method.receiver.mut-self`).
+Changing that copy does not replace the caller's value; explicit references inside either copy still share their referents. The lint reports a change whose copy is never observed afterwards. That covers whole reassignment, a struct field write, a `push`, a map store, an element store and a `&mut self` method call on the copy (#817).
 
 It does not report a change that the function itself observes later. A read, a print, a return, a store, a pass to another call, or a capture by a closure or `defer` all count as observing it:
 
 ```text
-fn report_len(list: mut List[i32]) -> void $ Console:
+fn report_len(mut list: List[i32]) -> void $ Console:
     list.push(123)
     println(list.len())    # the copy is read: no finding
 
-fn add(list: mut List[i32]) -> void:
+fn add(mut list: List[i32]) -> void:
     list.push(123)         # finding: the copy is dropped unread
 ```
 
 The compiler's version judged only statements directly in the body and stayed silent when any later statement named the parameter. The lint keeps that conservative form first, and can widen to branches and loops later. The message names the parameter, and the help suggests `&mut T` or `&mut self` when the caller's value was meant to change. It offers no fix.
+
+### Porting the deleted analysis
+
+The baseline is [c60f0345f's parent value.rs](https://github.com/HerringtonDarkholme/hd-lang/blob/f54c7b322db0efa2540439b41fa629bae6d86fb1/crates/hd_check/src/value.rs), functions lost_writes, names_param and captures_param.
+Those functions total 65 literal source lines, including comments and blanks.
+The old algorithm considered writes directly in the body, skipped every write when a closure/defer captured the parameter, and skipped later name occurrences.
+A resolved-binding version can preserve that conservative boundary without conflating shadowed names.
+
+The linter consumes WriteFact and StatementFacts; no lost-write decision is restored inside value.rs.
+Whole reassignment, field/element/map stores and mutable receiver calls root their writes in the parameter's binding ID.
+A use of a returned value, an ordinary call argument, a capture or defer keeps the copy observable and suppresses advice conservatively.
+Unknown call effects or unresolved provenance skip the site rather than assert a proof.
+
+```rust
+fn lost_writes(facts) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    for write in facts.parameter_copy_writes() {
+        let binding = facts.binding(write.root_binding);
+        if !binding.is_by_value_mut_copy { continue; }
+        let Some(statement) = facts.direct_statement(write.statement) else { continue; };
+        if facts.any_capture_or_defer_mentions(binding.id) { continue; }
+        if facts.statements_after(statement).any(|s| s.observes(binding.id)) { continue; }
+        if write.result_is_observed || write.effects_unknown { continue; }
+        findings.push(Finding::lost_write(
+            write.span, binding.written_name, binding.is_self));
+    }
+    findings.sort_by_key(|f| (f.span, f.code));
+    findings.dedup_by_key(|f| (f.span, f.code));
+    findings
+}
+```
+
+This remains a likely-bug lint, not a dataflow proof that justifies deleting calls or changing reference signatures.
+A nested loop/branch write waits for later path analysis; v1 must not claim that widening is implemented.
+The regression matrix includes unread pushes/map stores, later len/print/return, captures, defer, shadowing and multiple writes to one parameter.
+A write through a stored reference is not a write to the parameter's own value.
+Root-place facts must stop at that dereference rather than attribute its observable side effect to a lost copy.
+No automatic fix changes a value parameter into a shared reference.
 
 ## Implementation choices
 
@@ -318,17 +453,23 @@ edit protected compiler files during this docs-only job.
 
 ### Placement and existing facts
 
-Add a CLI-only `hd_lint` crate and `lint_cmd.rs` for analysis and policy.
+Add a CLI-only `hd_lint` crate and `lint_cmd.rs` for every advisory warning analysis and policy.
 Keep checking authoritative: `hd_check` exposes an optional collection sink,
 not lint-specific diagnostics or allow/deny configuration.
 The sink is disabled for normal checking, builds, and the web compiler.
 
-Place neutral observation types in a feature-gated `hd_check::observations`
+Place checked-body observation types in a feature-gated `hd_check::observations`
 module, not in `hd_lint`. `hd_driver` returns their owned results to the
-CLI; only the CLI invokes `hd_lint`. This keeps the dependency direction
+CLI; only the CLI invokes `hd_lint`.
+Manifest and parse snapshots retain their own typed records; resolution/doc adapters return resolved symbol/link facts.
+No adapter returns a warning message, severity or allow/deny decision.
+Lexer, resolver, project and driver warning emitters migrate too, preventing a severity filter from becoming the architecture. This keeps the dependency direction
 `hd_cli → hd_driver/hd_lint → hd_check/hd_types`, without a checker-to-linter cycle.
 
-The checker request enables typed-call collection, not individual lint codes.
+The request enables neutral fact families, not individual lint codes.
+The linter reads immutable snapshots; it never mutates Ck, source, TIR or the program cache.
+Frontend adapters collect syntax, manifest, resolution and entry-selection facts alongside checked-body facts.
+A feature-disabled normal check has no lint sink, vectors or diagnostic policy.
 Origin is an explicit enum: ExistingPlace, ExistingReference,
 FreshAutomaticAddress, or Unknown. Statement and sub-body identities refer
 to source ownership, so nested closures cannot inherit declaration-site suppressions.
@@ -373,7 +514,11 @@ Do not put lint analysis after inlining, when source calls can disappear.
 | `TypeClassMemo` | `(normalized type, environment)` to Active/Clear/Observable/Unknown; explicit traversal fuel. |
 | `Finding` | Stable rule name, source span, actual method name, message arguments, related locations; optional future proof-backed edit, absent initially. |
 | `Policy` | Exact-name defaults and package/CLI overrides; resolved statement-local suppressions. |
-| Later `FlowFacts` | Binding IDs, reads/writes/escapes, capture edges, basic blocks, ordinary and cleanup/propagation/cancel/panic successors; no public guarantee initially. |
+| `FrontFacts` | Valid token spans/text, manifest unknown paths/lines, resolved decorator and doc-link occurrences, package/entry selection and dbg-reference facts; owners retained. |
+| `BindingFacts` | Source binding and owning body, parameter/copy permission, normalized type, written-mut token, reads/writes, mutable addresses, captures and statement reachability. |
+| `WriteFact` | Root binding ID, enclosing statement ID, write kind and span; assignment, field/element/map store or resolved mutable-receiver call. |
+| `StatementFacts` | Ordered direct-body statements and contained resolved binding uses/capture/defer uses; enough for conservative lost-write, not a general CFG proof. |
+| Later `FlowFacts` | Basic blocks and ordinary/cleanup/propagation/cancel/panic successors; a separate approval before path-sensitive lost-write. |
 
 The proposed flow is:
 
@@ -382,7 +527,9 @@ flowchart LR
   C[CLI selection] --> D[Driver: normal parse and interfaces]
   D --> T[Selected bodies: check with optional fact sink]
   T --> F[Finalize facts after inference]
-  F --> L[Built-in analyses]
+  D --> A[Immutable syntax, manifest and resolution facts]
+  A --> L[hd_lint read-only analyses]
+  F --> L
   L --> P[Policy and source suppressions]
   P --> R[Existing diagnostic reporter]
 ```
@@ -394,7 +541,7 @@ A sink-free normal run does not allocate candidate vectors.
 
 ### Driver pseudo-code
 
-The following 32-line sketch uses proposed APIs, not current Rust exports.
+The following sketch uses proposed APIs, not current Rust exports.
 It never compiles Wasm or executes the hd program.
 
 ```rust
@@ -404,6 +551,8 @@ fn lint(request, manifests, cli_policy) -> Report {
     let selected = check_selection(request)?;
     let mut findings = Vec::new();
     let mut errors = Vec::new();
+    let front = driver.read_frontend_facts(&selected)?;
+    findings.extend(hd_lint::frontend(&rules, &front));
     for module in selected.in_dependency_order() {
         let prerequisites = driver.interfaces_and_types(module)?;
         if !selected.reports(module) {
@@ -412,9 +561,11 @@ fn lint(request, manifests, cli_policy) -> Report {
         }
         let checked = driver.check_selected_with_sink(
             module, prerequisites, CacheMode::RecheckSelectedBodies);
-        errors.extend(checked.compiler_diagnostics());
+        errors.extend(checked.error_diagnostics());
         for body in checked.successful_body_results() {
             let facts = body.finalize_lint_facts()?;
+            findings.extend(hd_lint::migrated_body_warnings(&rules, &facts));
+            findings.extend(hd_lint::lost_writes(&rules, &facts));
             let mut memo = TypeClassMemo::with_fuel_limit();
             for call in &facts.calls {
                 if rules.contains(LOST_TEMPORARY_WRITE) {
@@ -483,6 +634,8 @@ V1 stores no lint result in a normal Check cache entry. Interface/type
 prerequisites remain reusable, but selected bodies recheck for lint facts.
 Policy changes rerun analysis/reporting without changing program acceptance.
 A denied lint can never poison a later `hd check` cache hit.
+Each producer migration changes the Check-cache revision so old warning-bearing entries cannot replay under the new compiler.
+Filtering old warning severities after deserialization is not a substitute for migrating their analyses or collecting missing facts.
 
 If measurements justify persistence, add a separate versioned entry keyed
 by toolchain, source content, dependency-interface closure, checking mode,
@@ -677,7 +830,7 @@ but the behavioral proof must precede it.
 
 These are implementation budgets, not measured code size or speedups.
 No Rust change is delivered by this revision. The literal line counts below
-include comments and blanks; they were measured with `wc -l` at the pinned base.
+include comments and blanks; they were measured with `wc -l` at the current revision base, aafe3fe7539a21f5ecc61bbe1ee7bae621d2238a.
 No existing file is proposed for wholesale replacement.
 
 | Existing component | Measured lines | Replaced/deleted by v1 |
@@ -686,8 +839,8 @@ No existing file is proposed for wholesale replacement.
 | `crates/hd_cli/src/report.rs` | 192 | 0; reuse diagnostic renderer |
 | `crates/hd_cli/src/fix_cmd.rs` | 526 | 0; fixing remains undecided |
 | `crates/hd_check/src/receiver.rs` | 604 | 0; add optional source-origin capture |
-| `crates/hd_check/src/call.rs` | 5005 | 0; hook successful resolution, not a second resolver |
-| `crates/hd_tir/src/ir.rs` | 3767 | 0; no lint fields in emitted TIR |
+| `crates/hd_check/src/call.rs` | 5082 | 0; hook successful resolution, not a second resolver |
+| `crates/hd_tir/src/ir.rs` | 3759 | 0; no lint fields in emitted TIR |
 
 As a scale reference, the downloaded Go `lostcancel.go` is 325 literal
 lines, SHA-256 `faf49017f32edefbc12d758f94656cb066121e8610efaa788ce52d759e84f119`.
@@ -705,7 +858,13 @@ was measured on 2026-10-23, with its exact bytes retained in the evidence.
 | Registry, first predicate and messages | 80 | One built-in lint without policy in checking |
 | Policy, comment ownership and reporter adapter | 140 | Scope-correct overrides and existing output dialect |
 | Opt-in concatenation report | 100 | Resolved binding/callee pattern; no fix or general CFG solver |
-| **Total initial production allowance** | **820** | Sum of components, excluding tests/spec/docs |
+| Existing first-lint allowance | 820 | Sum of the preceding components, excluding warning migration/tests/spec/docs |
+| Comparison facts plus first migrated warning | 100 | Reuse checked types and source literals; the measured existing predicate is isolated below |
+| Binding/pattern/flow/debug-text fact families | 240 | Four source families, at most 60 lines each; preserve use/capture and reachability identities |
+| Lexer/resolver/doc-link facts and adapters | 220 | Tokens, derivation facts and shared doc resolution; no CLI dependency in hd_lint |
+| Driver/manifest warning migration | 140 | Package/entry/unknown-key views, warm-cache paths and deduplication |
+| Conservative lost-write port and write/use facts | 140 | Deleted-analysis baseline plus binding-ID provenance; no general CFG engine |
+| **Total expanded production allowance** | **1660** | Sum of explicit components; actual deletions and transfers reported per slice |
 | Focused tests and CLI fixtures | 320 | Predicate matrix, cache-order permutations, scopes and output |
 | Later public fact schema/export | 260 | Separate approval/measurement phase, not hidden in v1 |
 
@@ -713,6 +872,12 @@ Each component stops for review above 1.5 times its allowance; moving lines
 into another crate does not evade that limit. If the optional collector
 requires compiler restructuring beyond these hooks, stop before implementation.
 These allowances must be replaced by actual per-component diffs as work lands.
+
+The expanded allowance does not estimate how many existing lines can be deleted.
+Warning-producing functions also perform checks and build facts that must remain.
+Each migration reports the actual transfer separately from new plumbing, and stops above 1.5 times its share.
+The first migration transfers 82 literal lines across zero_literal, unsigned_now and warn_unsigned_zero.
+Its 100-line plumbing allowance is additional to that explicit transfer, not a claim that the complete migrated pass costs 100 lines.
 
 A compact candidate with sixteen 32-bit words is 64 bytes before vector
 capacity and pointed-to data. Ten thousand calls therefore need 640,000
@@ -732,8 +897,8 @@ build comparisons after a real implementation; this is currently an architectura
 expectation, not an observed implementation result.
 
 Keep `hd_lint` CLI-only and the collector feature off in the web graph.
-The intended web compiler gzip delta is zero, but must be measured and
-the existing 2 MB gate must stay green. If the dependency graph pulls in
+Measure both the removal of warning analyses and any added neutral-fact plumbing; do not assume their net gzip delta is zero.
+The existing 2 MB web compiler gate must stay green. If the dependency graph pulls in
 lint policy or plugin machinery, stop rather than spending that budget silently.
 No speedup, Wasm delta or gzip measurement of an unimplemented lint is claimed.
 
@@ -1100,14 +1265,19 @@ scope estimate, rather than silently widening compiler work.
 
 | Slice | Deliverable and proving check |
 | --- | --- |
-| 1 | Exact-name registry and pure policy functions; tests for conflicting CLI/manifest/site settings and statement ownership. No compiler hook yet. |
-| 2 | Read-only CLI shell, help and selection using existing reporter; CLI text/JSON/exit tests with an empty registry. Ship approved CLI spec rules and fixtures together. |
-| 3 | Optional successful-call sink and source receiver origin; focused checker/driver tests prove no trial duplicates and no normal-check diagnostic changes. |
-| 4 | Finalization through normal, inferred-result and parallel body paths; cold/warm/order tests prove no candidate loss or cache contamination. |
-| 5 | Type classifier, memo and first predicate; the complete exclusion matrix plus recursive/fuel tests passes. Ship the approved rule/code and conformance cases. |
-| 6 | Statement suppression and full output locations; UTF-8 offsets, parentheses, closures, generated bodies, workspace roles and diagnostic limits pass. |
-| 7 | Opt-in resolved concatenation report; S9/S10 regression fixtures receive advice without edits; no general flow solver is promised. |
-| 8 | Measure selected-body lint overhead, normal check/build exact-byte output and web gzip; stop on budget failures before considering persistence. |
+| 1 | Create hd_lint, an exact-name registry and a minimal FILE lint CLI route; move unsigned-comparison-always. Export checked comparison type/operator/literal-span facts; remove only its warning emitter. Prove check quiet, lint warning/deny, signed comparisons quiet, operand side effects unchanged, and cold/warm parity. Run focused tests, Rust fmt/Clippy and web build/smoke with raw/gzip before and after. |
+| 2 | Extend workspace/test selection, manifest policy, shared reporting and registry validation; migrate unused-local-binding with its final-use facts. Prove unread must-use remains a check error and per-site allow never hides it. Ship CLI rules and scenarios. |
+| 3 | Move redundant-let-mut and variant-binding-name-mismatch with typed binding/pattern facts; test exact source spans, shadowing, mutable addressing and annotation cases. |
+| 4 | Move unreachable-code and unused-debug-text; test returns, never calls, nested bodies and formatting captures before lowering erases source intent. |
+| 5 | Move lexer/resolver warnings and doc links in separate small commits: mixed scripts, unused derivation facts and drift, broken links. Each commit proves error diagnostics unchanged and avoids a lint-to-CLI dependency cycle. |
+| 6 | Move driver/package warnings and implement only approved manifest/entry exceptions. Test fully cached builds, fetched dependencies, scripts, library/test modules and executable selection. |
+| 7 | Port lost-write's conservative direct-statement algorithm and its write/read/capture facts; test parameter, mut-self, collection and shadowing cases before any CFG expansion. |
+| 8 | Add lost-temporary-write's successful-call provenance, finalized formals, classifier and exclusions. Check trial rollback, inferred-result paths, recursive/fuel limits and the complete stress matrix. |
+| 9 | Add the opt-in concatenation report with no edits; then measure normal-build exact bytes, selected-body lint overhead and web gzip. Public export/plugins/fixes remain separate. |
+
+The slices form a staged migration, not an immediate claim that all ordinary commands are already warning-free.
+A slice moves its named producer and its tests; the final errors-only check/build/test contract is verified after the inventory is exhausted.
+Do not hide unmigrated warnings with a global severity filter.
 
 Compiler scopes listed here describe future implementation work needing
 explicit authorization. This revision edits documentation only.
@@ -1127,39 +1297,50 @@ measurements and real custom-rule demand justify its larger contract.
 For eventual custom rules, prefer explicit offline facts queries over native
 plugins or automatic execution of dependency code.
 
-The owner must approve the collector/driver boundary, initial lint policy,
-conditional message, performance candidate, implementation budgets and phasing.
-Fix-command existence and its observational proof contract remain open in #805.
-A public facts schema and plugin host remain separate approval gates.
-Nothing here settles language semantics or permits protected-file edits.
+The selected command boundary is errors-only checking and warnings only under explicit lint.
+No warning remains in hd_check merely because its current implementation has private state.
+The proposed facts must preserve that information without transporting already-decided warnings.
+
+The remaining approvals are short and independent:
+
+- Approve CLI-tier lint rules, stable-code preservation and the staged immutable fact boundary, starting with unsigned-comparison-always.
+- Decide operational handling: unknown keys as errors, entry-requiring execution without an entry, failed explicit browser opening and optional cache-write logging.
+- Approve the per-component budgets and hour-sized migrations; public facts export, plugins and any fix command remain later work.
+
+Nothing here permits protected-file edits during this documentation job.
 
 ## Evidence and parse log
 
-The fresh dev compiler and parser were built from the proposal base
-`a00c6b374358fb2992f046695ea0f6639b5ab542`, without the parked #407 patch.
-Compiler SHA-256 `c79c3325b16b441b3e68d5c1b618b1eb2b68b2c117309c9d0cc1da89f40958d8`;
-parser SHA-256 `714ee363867f02fd4819ed64599a7be7143c1c0630c0b5e14c6264b5cb846271`.
-All caches and temporary probe sources stayed inside the isolated worktree.
+The current revision was validated with a fresh dev compiler and parser at
+`aafe3fe7539a21f5ecc61bbe1ee7bae621d2238a`.
+Compiler SHA-256 `3eecbb293b7099434aee46437684623cb911c9164545b8d60792abe0a45d52f5`;
+parser SHA-256 `66570ebf32f9c6f4f224065083f9a8fec9598a33dd903f2163a9ea97cd5315fc`.
+HD_CACHE and TMPDIR stayed inside the isolated Muse worktree.
 
-| Complete hd block | Parse and check | Runtime evidence |
+| Current hd block | Parse, format and check | Runtime evidence |
 | --- | --- | --- |
-| 1: receivers | Parse clean; zero check errors/warnings | Node and Wasmtime `2/3` |
-| 2: escapes | Parse clean; zero check errors/warnings | Both `7/3` |
-| 3: types | Parse clean; zero check errors/warnings | Both `types` |
-| 4: captures/global | Parse clean; zero check errors/warnings | Both `7/1` |
-| 5: string observations | Parse clean; zero check errors/warnings | Both `ab/ab/a/ab` |
-| 6: control flow | Parse clean; zero check errors/warnings | Both `ab/a/none/ab,a,a` |
-| 7: suspension/cleanup | Parse clean; zero check errors/warnings | Both `true/deferred,disposed`; actual timeout cancellation |
-| 8: panic | Parse clean; zero check errors/warnings | Both expected explicit-panic, status 3 |
-| 9: rows/results | Parse clean; zero check errors/warnings | Both `logged` then `1` |
-| Proposed lint, fact export, configuration and edits | Not implemented | Not executed; no lint correctness or performance claim |
+| 1: lost-write definitions | Clean, zero errors/warnings; binding permission corrected to `mut list: List[i32]` | Definitions only; no main and no lint implementation claimed |
+| 2: receivers | Clean, zero errors/warnings | Both engines `2/3` |
+| 3: escapes | Clean, zero errors/warnings | Both `7/3` |
+| 4: types | Clean, zero errors/warnings | Both `types` |
+| 5: captures/global | Clean, zero errors/warnings | Both `7/1` |
+| 6: string observations | Clean, zero errors/warnings | Both `ab/ab/a/ab` |
+| 7: control flow | Clean, zero errors/warnings | Both `ab/a/none/ab,a,a` |
+| 8: suspension/cleanup | Clean, zero errors/warnings | Both `true/deferred,disposed`; actual timeout cancellation |
+| 9: panic | Clean, zero errors/warnings | Both explicit-panic, status 3, message `kept panic` |
+| 10: rows/results | Clean, zero errors/warnings | Both `logged/1` |
+| Proposed lint output, fact export, configuration and edits | Not implemented | Not executed; no lint correctness or performance claim |
 
-Rust driver/predicate blocks are pseudo-code over proposed internal APIs.
-The Python query consumes a hypothetical schema; it is not an existing
-integration. Original Rust shape examples are explanatory, not claimed Rust tests.
+Every text/hd block parses; parsing alone does not establish typing.
+The check and execution claims above come from ten checks and eighteen runtime observations, independently recorded.
+Rust driver/predicate/lost-write blocks are pseudo-code over proposed internal APIs.
+The Python query uses a hypothetical schema; it is not an existing integration.
 
-Raw commands, diagnostics, source hashes, exact prototypes, upstream reference
-bytes and final docs checks are preserved under
-`/private/tmp/muse-651-rewrite-1792782846927866000`.
-The five construction diagnostics are recorded verbatim in the writing log.
-Earlier 651 evidence remains historical, not a substitute for this fresh run.
+The fourteen warning codes were checked against the current registry and their actual producers.
+The deleted analysis and three comparison helpers were read from their pinned source versions and counted literally.
+The source audit also distinguished uncoded browser-opening and cache-write messages from the fourteen registered program warnings.
+
+Current commands, diagnostics, source hashes and probes are preserved under
+`/private/tmp/muse-651-warning-crate-1792815904683811000`.
+The inherited mut-type example's exact compiler error and correction are appended to the writing log.
+Earlier evidence in `/private/tmp/muse-651-rewrite-1792782846927866000` remains historical, including the measured Go reference bytes.
