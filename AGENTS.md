@@ -45,7 +45,7 @@ The language tier names a std item only when the compiler must know it: a
 lang item, an intrinsic, a prelude name, or the conformance harness (`it`,
 `assert`, `assert_equal`, `println`). Any other std API that the owner
 decides lives in `spec/std/`. Undecided std design goes to
-[docs/future-work/OPEN_ISSUES.md](docs/future-work/OPEN_ISSUES.md).
+[issue #833](https://github.com/HerringtonDarkholme/hd-lang/issues/833).
 
 **The tier test.** Could `lib/std` implement the item in ordinary hd, over
 language-tier items only, with no compiler knowledge of its name, and keep
@@ -61,9 +61,9 @@ it each mean no.
 | a std API that passes the tier test, such as an iterator adapter or `trim` | `spec/std/<module>.md`, rule IDs `std-<module>.*` |
 | what an `hd` command does, the `hd.toml` executables, or package tasks | `spec/cli/command-line.md`, rule IDs `cli.*` |
 | every diagnostic code, and every panic category | the language tier: README Diagnostics, and Control Flow |
-| what a spec pass applied | the commit message records it; OPEN_ISSUES holds only open questions |
+| what a spec pass applied | the commit message records it; GitHub issues hold the open questions |
 | a fixture | `spec/conformance/`; its tier is the tier of its `specification` column |
-| undecided std design, such as `Set` or a default hasher | docs/future-work/OPEN_ISSUES.md only |
+| undecided std design, such as `Set` or a default hasher | a GitHub issue only (parked ones in #833) |
 
 A stdlib chapter may cite any language rule. A language chapter links to
 `spec/std/` only from a Note or See also, never from a numbered rule. A

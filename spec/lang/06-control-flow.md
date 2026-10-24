@@ -1094,7 +1094,7 @@ fn demo() -> void:
 > **Why.** Core hd-lang has no panic unwinding.
 
 > **Note.** Ownership and alias-escape prevention remain
-> [open design work](../../docs/future-work/OPEN_ISSUES.md#resource-non-escape-and-cleanup-policy).
+> [open design work](https://github.com/HerringtonDarkholme/hd-lang/issues/833).
 
 ## Using Bindings
 

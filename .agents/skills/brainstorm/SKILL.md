@@ -17,7 +17,7 @@ recommendation is advice, labeled as such.
 
 ## When To Use
 
-- A question is open in `docs/future-work/OPEN_ISSUES.md`, a design record, or
+- A question is open in a GitHub issue, a design record, or
   the owner's message, and no decision exists yet.
 - A stress test or simplification review raised a problem whose candidate
   fixes need a fuller comparison.

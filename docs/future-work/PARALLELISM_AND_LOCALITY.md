@@ -161,7 +161,7 @@ proposal matures.
   argument at any depth, and never trusts a read-only view: in the old
   `mut T` model, a read-only `Reader { hole: Box[mut Reader] }` still
   reached a writable `Reader`. The parked deep-immutability idea in
-  [Open Issues](OPEN_ISSUES.md) describes the property. It is scriptc's
+  [the open-issues umbrella](https://github.com/HerringtonDarkholme/hd-lang/issues/833) describes the property. It is scriptc's
   `publish`, checked statically, and freed by the collector instead of
   being immortal.
 - **No `Sync`-style trait for mutable shared state.** Shared mutable

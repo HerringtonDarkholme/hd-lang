@@ -30,7 +30,7 @@ the spec, and it adds exactly what the decision says, no more.
    - the **Owner Decisions** section of a `docs/future-work/*.md` record;
    - the commit messages, the record of what is already applied
      (`git log --grep '<decision ID>'`). A decision a commit applied is
-     done; do not apply it twice. OPEN_ISSUES holds only open questions.
+     done; do not apply it twice. GitHub issues hold the open questions.
 
 ## Method
 
@@ -84,7 +84,7 @@ the spec, and it adds exactly what the decision says, no more.
    Diagnostics table and remove one the decision withdraws. A diagnostic
    stays in this table even when its rule is stdlib-tier. Add no history:
    the commit message records what a pass applied, per decision with its
-   tier and what changed for existing source; OPEN_ISSUES holds only open
+   tier and what changed for existing source; GitHub issues hold the open
    questions.
 6. **Update conformance.** Add or change fixtures under
    `spec/conformance/` in the format its README defines. Keep
@@ -125,7 +125,7 @@ the spec, and it adds exactly what the decision says, no more.
    case passes: the conformance tests fail on a listed case that passes.
    Never change the spec to match the compiler.
 9. **Clean up the issue list.** Remove the decision's question from
-   `docs/future-work/OPEN_ISSUES.md`.
+   a GitHub issue.
 10. **Update everything that shows the behavior.** Examples and prose in
    `website/guide/`, the website, the playground's examples, and `docs/future-work/`
    design records (mark the decision applied, with a spec link).
@@ -159,7 +159,7 @@ the spec, and it adds exactly what the decision says, no more.
 ## Hard Rules
 
 - Apply exactly the decision. A related improvement becomes an owner
-  question or an `OPEN_ISSUES.md` entry, not an edit.
+  question or a GitHub issue, not an edit.
 - Ambiguity goes back to the owner, never a guess.
 - No rule, diagnostic, or example disappears unless the decision removes
   it, and the inventory diff proves it.
@@ -170,7 +170,7 @@ the spec, and it adds exactly what the decision says, no more.
 ## Done When
 
 - The decision is in the spec, in the tier the tier test gives, with rule
-  IDs; named in the commit message; and out of `OPEN_ISSUES.md`.
+  IDs; named in the commit message; and out of the open issues.
 - Fixtures cover each new rule and diagnostic, and both indexes agree.
 - The compiler implements it, or a `KNOWN_FAILURES.tsv` row with an issue
   records the gap.

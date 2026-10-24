@@ -856,7 +856,7 @@ fn demo() -> void:
 
 Ownership, alias-escape prevention, automatic finalization, and asynchronous
 or fallible cleanup policy remain deferred in
-[Open Issues](../../docs/future-work/OPEN_ISSUES.md).
+[the open-issues umbrella](https://github.com/HerringtonDarkholme/hd-lang/issues/833).
 
 ## Typed Derivation Of Data And Enums
 

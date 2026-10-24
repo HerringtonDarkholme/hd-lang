@@ -29,7 +29,6 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 - [Pipe Steps Without Placeholders](PIPE_STEPS.md): stress-tests standalone unary function steps, compatibility, effects, inference, and all three policy ports; no semantics are accepted (#818).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
-- [Open Issues](OPEN_ISSUES.md): the open language and library design questions. It holds only open questions.
 
 ### Tooling
 

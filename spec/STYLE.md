@@ -173,8 +173,8 @@ together.
 4. A retired ID is never reused, and IDs are never renumbered.
 5. A retired ID is deleted from the specification, not listed. The
    commit message for the change names it, with its replacement when there
-   is one. The commit message records what a pass applied; OPEN_ISSUES
-   holds only open questions.
+   is one. The commit message records what a pass applied; GitHub
+   issues hold the open questions.
 
 ### Citing A Rule
 

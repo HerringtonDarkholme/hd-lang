@@ -653,7 +653,7 @@ enum Shape:
 > **Note.** A member omitted with `= pass` in a derivation block writes no
 > key, as [Omitted Members](../lang/14-annotations.md#omitted-members)
 > states. Renames and conditional skips are open, in
-> [Serialization Formats](../../docs/future-work/OPEN_ISSUES.md#serialization-formats).
+> [Serialization Formats](https://github.com/HerringtonDarkholme/hd-lang/issues/833).
 
 > **Why.** The externally tagged form is `serde`'s default. It needs no tag
 > key that could clash with a member's name.

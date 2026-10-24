@@ -159,7 +159,6 @@ fi
 
 if grep -R -n -E '(^|[^[:alnum:]_])(v1|MVP|provisional)([^[:alnum:]_]|$)' \
     "$spec_dir" \
-    "$repo_dir/docs/future-work/OPEN_ISSUES.md" \
     "$repo_dir/website/guide/OVERVIEW.md" \
     "$repo_dir/website/guide/WORKING_WITH_DATA.md" \
     "$repo_dir/website/guide/LEARN_IN_10_MINUTES.md" \

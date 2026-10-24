@@ -278,4 +278,4 @@ For the open literal variables of
   Worse: there, a symlink swapped between the check and the open escapes
   the grant (docs/audit/diagnostic-notes.md).
 - Runtime code loading: parked in
-  [Open Issues](../future-work/OPEN_ISSUES.md#library-and-host-design-work).
+  [the open-issues umbrella](https://github.com/HerringtonDarkholme/hd-lang/issues/833).
