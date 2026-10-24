@@ -1501,6 +1501,7 @@ runtime/valid/abandon-keeps-handle-open.hd	runtime	accept	lang/11-requirements-a
 runtime/valid/abandon-folded-cleanups.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.folded
 runtime/valid/a-chain-inside-a-suite-binds-in-that-suite.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
 runtime/valid/a-chain-runs-its-initializer-once.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
+runtime/valid/a-closure-changing-a-captured-collection-shares-it-with-its-scope.hd	runtime	accept	lang/07-functions.md#r-fn.capture.cell.writes
 runtime/valid/a-copy-assignment-copies-the-parts-of-the-part.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.embed.plain
 runtime/valid/a-copy-assignment-stores-through-a-promoted-part.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.embed.plain
 runtime/valid/a-copy-makes-its-own-embedded-parts-when-the-spread-runs.hd	runtime	accept	lang/08-data-and-enums.md#r-data.update.new-value

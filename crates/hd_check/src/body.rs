@@ -240,6 +240,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// The locals bound with `let mut`: a struct value in one changes in
     /// place (`types.value.writable-forms`).
     pub mut_locals: Vec<LocalId>,
+    /// The locals whose collection a change reaches in place (a push, an
+    /// element or map store), which a closure capturing them shares
+    /// (`fn.capture.cell.writes`).
+    pub changed_locals: Vec<LocalId>,
     /// The `mut` parameters (and `mut self`) whose value is the callee's own
     /// copy.
     pub mut_params: Vec<LocalId>,
@@ -538,6 +542,7 @@ pub(crate) fn new_ck<'a, 'c>(
         using_bind: false,
         using_locals: Vec::new(),
         mut_locals: Vec::new(),
+        changed_locals: Vec::new(),
         mut_params: Vec::new(),
         ref_taken: Vec::new(),
         prim_let_mut: Vec::new(),
@@ -4650,15 +4655,19 @@ impl Ck<'_, '_> {
             self.check_inferred_result(node, ret);
         }
         // Capture modes (`crates/hd_tir/DESIGN.md` "Data and closures"): `Copy`
-        // when no side assigns the local after its declaration, `Shared`
-        // otherwise. `Move` needs the liveness pass and is not chosen yet.
+        // when no side assigns the local after its declaration or changes
+        // its collection in place, `Shared` otherwise. `Move` needs the
+        // liveness pass and is not chosen yet.
         let modes: Vec<hd_tir::ir::CaptureMode> = {
+            let changed = std::mem::take(&mut self.changed_locals);
             let body = self.b.body_mut();
             body.cap_local
                 .iter()
                 .map(|l| {
                     let f = body.local_flags[l.idx()];
-                    if f & (local_flags::CAPTURED_ASSIGNED | local_flags::MUTATED) != 0 {
+                    if f & (local_flags::CAPTURED_ASSIGNED | local_flags::MUTATED) != 0
+                        || changed.contains(l)
+                    {
                         hd_tir::ir::CaptureMode::Shared
                     } else {
                         hd_tir::ir::CaptureMode::Copy

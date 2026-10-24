@@ -1,0 +1,42 @@
+# test: a closure that pushes to, stores into or sets a key of a captured `let mut` collection shares it with its scope, and each side sees the other's changes
+# Spec 07 Captures: fn.capture.cell, fn.capture.cell.writes.
+fn pushes() -> List[i64]:
+    let mut seen: List[i64] = []
+    add := fn(n: i64) -> void:
+        seen.push(n)
+    let n: i64 = 0
+    while n < 30:
+        add(n)
+        n += 1
+    seen
+
+fn outer_push_is_seen() -> usize:
+    let mut items: List[i64] = [1]
+    count := fn() -> usize:
+        items.len()
+    items.push(2)
+    items.push(3)
+    count()
+
+fn element_and_key_stores() -> (i64, i64):
+    let mut slots: List[i64] = [0, 0]
+    let mut names: Map[string, i64] = {}
+    set := fn(n: i64) -> void:
+        slots[1] = n
+        names["last"] = n
+    set(7)
+    (slots[1], names.get("last").unwrap_or(0))
+
+tests:
+    use std.testing.assert_equal
+
+    it("pushes in the closure reach the caller's list"):
+        seen := pushes()
+        assert_equal(seen.len(), 30, reason="every push of the closure reaches the scope's list")
+        assert_equal(seen[29], 29, reason="the last push after several growths is kept")
+
+    it("a push in the scope reaches the closure"):
+        assert_equal(outer_push_is_seen(), 3, reason="the closure reads the list the scope changed")
+
+    it("element and key stores in the closure reach the scope"):
+        assert_equal(element_and_key_stores(), (7, 7), reason="the closure's stores change the scope's list and map")
