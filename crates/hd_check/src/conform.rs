@@ -255,7 +255,17 @@ impl Ck<'_, '_> {
                 && (mname == "member" || (mname == "rest" && trait_ == known.walker));
         // A result left out is `missing-result-type` already.
         let omitted = hd_resolve::Src::type_child(node).is_none();
-        if let Some(why) = Self::sig_differs(pool, (tsig, sig), free_bounds, &inst)
+        let own_copy_receiver = self.is_struct_ty(self_ty)
+            && tsig
+                .params
+                .first()
+                .is_some_and(|p| self.cx.names.text(p.0) == "self")
+            && sig
+                .params
+                .first()
+                .is_some_and(|p| self.cx.names.text(p.0) == "self");
+        if let Some(why) =
+            Self::sig_differs(pool, (tsig, sig), free_bounds, own_copy_receiver, &inst)
             && !(omitted && why == "the result type")
         {
             let mut msg = format!(
@@ -313,6 +323,7 @@ impl Ck<'_, '_> {
         pool: Types<'_>,
         (want, got): (&FnSig, &FnSig),
         free_bounds: bool,
+        own_copy_receiver: bool,
         inst: &dyn Fn(Ty) -> Ty,
     ) -> Option<&'static str> {
         let same = |w: Ty, g: Ty| {
@@ -323,7 +334,14 @@ impl Ck<'_, '_> {
             return Some("the parameter count");
         }
         for (i, (w, g)) in want.params.iter().zip(&got.params).enumerate() {
-            if !same(w.1, g.1) {
+            // The trait head wraps abstract `mut self` in Mut(Self), while
+            // lowering a struct impl gives its own changeable copy plain Self.
+            // Normalize only that receiver; list/map and reference signatures
+            // still compare exactly, as do every non-receiver parameter.
+            let own_copy_matches = i == 0
+                && own_copy_receiver
+                && matches!(pool.get(inst(w.1)), TyData::Mut(inner) if inner == g.1);
+            if !same(w.1, g.1) && !own_copy_matches {
                 return Some(if i == 0 {
                     "a parameter or the receiver"
                 } else {

@@ -1,0 +1,10 @@
+# Normalizing a struct's own-copy receiver must not accept a reference.
+# Spec 07: fn.method.receiver.mut-self. Spec 09: trait.impl.signature.
+trait Bump:
+    fn bump(mut self) -> usize
+
+struct Counter:
+    n: usize
+
+impl Bump for Counter:
+    fn bump(&mut self) -> usize: self.n + 1  # diagnostic: trait-method-signature
