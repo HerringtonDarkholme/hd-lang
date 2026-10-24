@@ -33,6 +33,8 @@ const CASES: &str = include_str!("../../../host/cases.mjs");
 const HTTP: &str = include_str!("../../../host/http.mjs");
 /// The `Net` provider's client thread, which holds the sockets.
 const NET: &str = include_str!("../../../host/net.mjs");
+/// The `Process` provider's client thread, which owns child I/O.
+const PROCESS: &str = include_str!("../../../host/process.mjs");
 /// The float text of the host primitives (`core.mjs` imports it).
 const FLOAT: &str = include_str!("../../../host/float.mjs");
 /// A REPL session's journal of host calls (`core.mjs` imports it).
@@ -122,6 +124,7 @@ impl Scratch {
             ("cases.mjs", CASES),
             ("http.mjs", HTTP),
             ("net.mjs", NET),
+            ("process.mjs", PROCESS),
             ("float.mjs", FLOAT),
             ("journal.mjs", JOURNAL),
             ("wire.mjs", WIRE),

@@ -49,6 +49,26 @@ import {
 import { CANCEL_STATUS, entryCancel } from "./core.mjs";
 import { createHost, exitPast, PROGRAM_TIME_LIMIT, reportIn } from "./node.mjs";
 
+// Creating a Worker makes Node's pipe descriptors nonblocking on macOS.
+// A write can then be short, even when the receiver keeps draining it.
+// Preserve all bytes here; asynchronous output/backpressure is #816.
+const outputWaiter = new Int32Array(new SharedArrayBuffer(4));
+function writeOutput(fd, text) {
+  const bytes = Buffer.from(text);
+  let offset = 0;
+  while (offset < bytes.length) {
+    try {
+      const written = writeSync(fd, bytes, offset, bytes.length - offset);
+      offset += written;
+      if (written === 0) Atomics.wait(outputWaiter, 0, 0, 1);
+    } catch (error) {
+      if (error.code === "EINTR") continue;
+      if (error.code !== "EAGAIN" && error.code !== "EWOULDBLOCK") throw error;
+      Atomics.wait(outputWaiter, 0, 0, 1);
+    }
+  }
+}
+
 // How long past the deadline the main thread waits for the host to end
 // the run on its own before it stops the worker.
 const GRACE_MS = 50;
@@ -219,7 +239,7 @@ function supervise(module, config, args, limit) {
         });
       } else if (m.fd === undefined) status = m.status;
       else {
-        writeSync(m.fd, m.text);
+        writeOutput(m.fd, m.text);
         if (m.fd === 2 && m.text === reportIn(fact, PROGRAM_TIME_LIMIT)) reported = true;
       }
     };
@@ -246,7 +266,7 @@ function supervise(module, config, args, limit) {
       for (let m; status === null && (m = receiveMessageOnPort(port));) take(m.message);
       if (status !== null) return end(status);
       worker.terminate();
-      writeSync(2, "stopped\n");
+      writeOutput(2, "stopped\n");
       end(CANCEL_STATUS);
     };
     if (cell) process.on(signal, interrupt);
@@ -256,7 +276,7 @@ function supervise(module, config, args, limit) {
       for (let m; status === null && (m = receiveMessageOnPort(port));) take(m.message);
       if (status !== null) return end(status);
       worker.terminate();
-      if (!reported) writeSync(2, reportIn(fact, PROGRAM_TIME_LIMIT));
+      if (!reported) writeOutput(2, reportIn(fact, PROGRAM_TIME_LIMIT));
       end(3);
     }, limit + GRACE_MS);
     port.on("message", (m) => {
@@ -303,8 +323,8 @@ if (isMainThread) {
           config,
           args,
           {
-            out: (text) => writeSync(1, text),
-            err: (text) => writeSync(2, text),
+            out: (text) => writeOutput(1, text),
+            err: (text) => writeOutput(2, text),
           },
           null,
           undefined,

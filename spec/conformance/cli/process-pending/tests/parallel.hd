@@ -1,0 +1,25 @@
+use std.process.{Command, Process}
+use std.task.all
+use std.testing.{assert, assert_equal}
+use std.time.{Clock, ms, sleep}
+
+struct State:
+    finished: bool = false
+
+fn child!(state: &mut State) -> void $ Process:
+    output := Command::new("child").run!().expect("the child starts")
+    assert_equal(output.stdout, "child finished\n", reason="the complete child output")
+    assert_equal(output.status, 0, reason="the child succeeds")
+    state.finished = true
+
+fn ticker!(state: &State) -> usize $ Clock:
+    let ticks = 0
+    while !state.finished:
+        sleep!(ms(10))
+        ticks += 1
+    ticks
+
+it("a sibling advances while the child runs"):
+    state := &mut State {}
+    pair := all!(child(state), ticker(state))
+    assert(pair._1 > 0, reason="Process.run yields while waiting for the child")
