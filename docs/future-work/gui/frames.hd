@@ -1,0 +1,124 @@
+# Executable state/protocol model only: no DOM, toolkit or embedding SDK.
+# The host receives structural messages and serializes application updates.
+struct Row:
+    id: usize
+    title: string
+struct Model:
+    count: usize = 0
+    name: string = ""
+    error: string = ""
+    query: string = ""
+    request: usize = 0
+    epoch: usize = 1
+    mounted: bool = true
+    pending: bool = false
+    rows: List[Row] = []
+enum Msg:
+    Increment
+    NameEdited(string)
+    Search(string)
+    Reply(epoch: usize, request: usize, rows: List[Row])
+    Unmount
+enum Command:
+    Search(epoch: usize, request: usize, query: string)
+    Cancel(epoch: usize, request: usize)
+enum Kind:
+    Text
+    Input
+    Button
+    Row
+struct Widget:
+    key: string
+    kind: Kind
+    text: string
+
+fn update(mut model: Model, message: Msg) -> (Model, List[Command]):
+    if !model.mounted: return (model, [])
+    let mut commands: List[Command] = []
+    match message:
+        .Increment => model.count += 1
+        .NameEdited(name) =>
+            model.name = name
+            model.error = if name.trim().len() == 0: "name required" else: ""
+        .Search(query) =>
+            if model.pending:
+                commands.push(.Cancel(model.epoch, model.request))
+            model.query = query
+            model.request += 1
+            model.pending = true
+            commands.push(.Search(model.epoch, model.request, query))
+        .Reply(epoch, request, rows) =>
+            if epoch == model.epoch && request == model.request:
+                model.rows = rows
+                model.pending = false
+        .Unmount =>
+            if model.pending:
+                commands.push(.Cancel(model.epoch, model.request))
+            model.epoch += 1
+            model.mounted = false
+            model.pending = false
+    (model, commands)
+
+fn view(model: Model) -> List[Widget]:
+    if !model.mounted: return []
+    let mut widgets: List[Widget] = [
+        Widget { key: "counter", kind: .Text, text: "${model.count}" },
+        Widget { key: "increment", kind: .Button, text: "+1" },
+        Widget { key: "name", kind: .Input, text: model.name },
+        Widget { key: "name-error", kind: .Text, text: model.error },
+    ]
+    for row in model.rows:
+        widgets.push(Widget { key: "row-${row.id}", kind: .Row, text: row.title })
+    widgets
+
+fn scenario() -> List[Msg]:
+    [Msg.Increment, Msg.Increment, Msg.NameEdited(""), Msg.NameEdited("Ada"),
+        Msg.Search("a"), Msg.Search("ab"),
+        Msg.Reply(1, 2, [Row { id: 2, title: "new" }]),
+        Msg.Reply(1, 1, [Row { id: 1, title: "old" }]),
+        Msg.Unmount, Msg.Reply(1, 2, [Row { id: 3, title: "after unmount" }])]
+
+fn verify_step(model: Model, serial: usize) -> void:
+    if serial == 2 && model.count != 2: panic("two clicks were not committed")
+    if serial == 3 && model.error != "name required": panic("empty-name error is missing")
+    if serial == 4 && (model.name != "Ada" || model.error != ""): panic("valid name was rejected")
+    if (serial == 7 || serial == 8) && (model.rows.len() != 1 || model.rows[0].id != 2):
+        panic("the newest reply was not retained")
+    if serial >= 9 && model.mounted: panic("unmount was lost")
+
+fn verify(model: Model, commands: usize) -> void:
+    if model.count != 2 || model.name != "Ada" || model.error != "":
+        panic("counter or validation lost an update")
+    if model.rows.len() != 1 || model.rows[0].id != 2:
+        panic("a stale response replaced the current rows")
+    if model.mounted || model.epoch != 2 || model.pending || commands != 3:
+        panic("unmount or command accounting is wrong")
+
+# D: immediate frame input is consumed once, even if layout repaints.
+struct FrameState:
+    model: Model
+    consumed: usize = 0
+struct Frame:
+    state: FrameState
+    widgets: List[Widget]
+    commands: List[Command]
+fn frame(state: FrameState, serial: usize, message: Msg) -> Frame:
+    if serial <= state.consumed:
+        return Frame { state: state, widgets: view(state.model), commands: [] }
+    next := update(state.model, message)
+    Frame { state: FrameState { model: next._0, consumed: serial }, widgets: view(next._0), commands: next._1 }
+pub fn main() -> void $ Console:
+    let state = FrameState { model: Model {} }
+    let commands = 0
+    let serial = 0
+    for message in scenario():
+        serial += 1
+        next := frame(state, serial, message)
+        state = next.state
+        verify_step(state.model, serial)
+        commands += next.commands.len()
+        again := frame(state, serial, message)
+        if again.commands.len() != 0 || again.state.model.count != state.model.count:
+            panic("a layout repaint consumed an input twice")
+    verify(state.model, commands)
+    println("frames count=${state.model.count} name=${state.model.name} row=${state.model.rows[0].id} commands=$commands mounted=${state.model.mounted}")
