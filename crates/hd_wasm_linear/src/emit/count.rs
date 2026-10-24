@@ -692,7 +692,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// `IsUnique` `i`: the list's or map's buffer made the place's own
-    /// (`rt:list_unique`, `rt:map_unique`).
+    /// (`rt:list_unique`, `rt:map_unique`), and stored there.
     pub(super) fn own_unique(&mut self, i: u32) -> StageResult<()> {
         use hd_tir::ir::unique_word::{COVERED, HOISTED};
         match self.b.data[i as usize][1] {
@@ -702,7 +702,7 @@ impl Em<'_, '_, '_> {
                 return Ok(());
             }
             // The hoisted one before the loop covers it unless a reference
-            // view's getter may make its header fresh.
+            // view's getter may make its buffer fresh.
             COVERED => {
                 // The shape the link folds where no view is reachable.
                 self.f.helper(Helper::RefViewsAbsent);
@@ -719,29 +719,34 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// The uniqueness check of `IsUnique` `i`'s place, and the local that
-    /// holds the place's header.
+    /// The uniqueness check of `IsUnique` `i`'s place, which stores the
+    /// buffer it leaves there, and the local that holds that buffer.
     pub(super) fn unique_at(&mut self, i: u32) -> StageResult<u32> {
-        let (h, t) = self.place_header(self.b.data[i as usize][0])?;
+        let word = self.b.data[i as usize][0];
+        let (h, t, at) = self.place_header(word)?;
         if self.input.runtime.is_none() {
             return Ok(h);
         }
+        self.f.get(h);
         // A map's type has its key and value types; a list's, one.
         if let Ok((_, _, e)) = self.entry(t) {
-            self.f.get(h);
             self.f.helper(Helper::MapUnique { entry: e });
-            return Ok(h);
+        } else {
+            let (_, e) = self.elem(t)?;
+            self.f.helper(Helper::ListUnique { elem: e });
         }
-        let (_, e) = self.elem(t)?;
-        self.f.get(h);
-        self.f.helper(Helper::ListUnique { elem: e });
+        self.f.set(h);
+        match at {
+            Some(at) => self.put_at(&at, h)?,
+            None => self.put_buffer(word, h)?,
+        }
         Ok(h)
     }
 
     /// The `copy` or `borrow` read of `IsUnique` `i`'s place, through a
     /// step, that stands right after it in its block, outside an erased
-    /// body's thunk: the change's operand, which takes the header the
-    /// check's walk found ([`Em::read_walked`]).
+    /// body's thunk: the change's operand, which takes the buffer the
+    /// check left ([`Em::read_walked`]).
     fn read_after(&self, i: u32) -> Option<u32> {
         use hd_tir::ir::ReadMode::{Borrow, Copy};
         let &(blk, pos) = self.own_at.get(i as usize).filter(|at| at.0 != NONE)?;
@@ -759,7 +764,7 @@ impl Em<'_, '_, '_> {
         (Some(place) == self.b.decode_place(self.b.data[i as usize][0])).then_some(r)
     }
 
-    /// `Read` `i` of the place whose header the `IsUnique` right before it
+    /// `Read` `i` of the place whose buffer the `IsUnique` right before it
     /// left in local `h`: one walk for both. A view's loan holds nothing.
     pub(super) fn read_walked(&mut self, i: u32, h: u32) -> StageResult<()> {
         self.begin_view_loan(i)?;
@@ -767,11 +772,11 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `Pin` `i`: the list's header becomes its buffer's one owner while
+    /// `Pin` `i`: the list's place becomes its buffer's one holder while
     /// element references hold counts of the buffer, each its own
     /// (§23.20).
     pub(super) fn own_pin(&mut self, i: u32) -> StageResult<()> {
-        let (h, t) = self.place_header(self.b.data[i as usize][0])?;
+        let (h, t, _) = self.place_header(self.b.data[i as usize][0])?;
         if self.input.runtime.is_none() {
             return Ok(());
         }

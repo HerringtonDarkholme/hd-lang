@@ -1,14 +1,15 @@
 //! Lists (`crates/hd_wasm_linear/DESIGN.md` §23.7, §23.17, job 9). A list value
-//! is the address of a counted header that holds its buffer's address and
-//! its owner word (§23.20); the buffer is a counted object holding the
-//! capacity, the length and the elements inline. A header never moves, so
-//! a change through it reaches every place that holds the same list; a
-//! copy (`ValueCopy`) is a new header over the same buffer, whose count is
-//! its number of owners. The ownership passes' `IsUnique` makes the buffer
-//! the list's own before a change (`rt:list_unique`): a shared one is
-//! copied, and the copied elements' collections are copied in turn, so a
-//! nested write never reaches another list. A loop's stable lists keep
-//! their header, buffer and length in locals (`Em::own_list_caches`).
+//! is the address of its buffer, a counted object holding the capacity,
+//! the length, the owner word (§23.20) and the elements inline; a copy
+//! (`ValueCopy`, `rt:coll_copy`) counts one more holder of the same
+//! buffer. The ownership passes' `IsUnique` makes the buffer the list's
+//! own before a change (`rt:list_unique`): a shared one is copied, and the
+//! copied elements' collections are copied in turn, so a nested write
+//! never reaches another list. A check or a change that replaces the
+//! buffer stores the new one into the place it names
+//! (`docs/compiler/tir-v2.md`, "List and Map buffers", 3f). A loop's
+//! stable lists keep their buffer and length in locals
+//! (`Em::own_list_caches`).
 
 use crate::op::Op as I;
 use hd_base::StageResult;
@@ -26,7 +27,7 @@ use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_EXPOSED, LIST_LEN, LIST_OWN, empty_buffer};
 use crate::unsupported;
 
-/// A stable list header, directly in a local or behind a reference local.
+/// A stable list, directly in a local or behind a reference local.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct ListRoot {
     local: u32,
@@ -43,9 +44,8 @@ impl ListRoot {
 /// Borrowed physical projections for one proven loop interval.
 #[derive(Clone, Copy)]
 pub(super) struct ListCache {
-    pub(super) header: u32,
-    buffer: u32,
-    len: u32,
+    pub(super) buffer: u32,
+    pub(super) len: u32,
 }
 
 impl Em<'_, '_, '_> {
@@ -93,7 +93,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// Reaching aliases, including provider operands. Scalar observations
-    /// of the list are not aliases of its header. One flag per value, then
+    /// of the list are not aliases of it. One flag per value, then
     /// one per local: a local that holds the list too, whose places rooted
     /// at it reach the list ([`Em::rooted_elem`]).
     fn list_aliases(&self, root: ListRoot) -> Vec<bool> {
@@ -645,7 +645,7 @@ impl Em<'_, '_, '_> {
     /// The new path's loop caches: the stable list places the hoisting pass
     /// lists for loop `l` (`Body::stable_lists`), a local's list or the
     /// list a reference local refers to, with no counted leaf in its
-    /// elements, keep their header, buffer and length in locals for the
+    /// elements, keep their buffer and length in locals for the
     /// loop, where no reference view is reachable. Their uniqueness, if the
     /// loop changes them, was a hoisted `IsUnique`'s.
     fn own_list_caches(&mut self, l: u32) -> StageResult<Vec<ListRoot>> {
@@ -702,21 +702,13 @@ impl Em<'_, '_, '_> {
             if root.indirect {
                 self.f.op(I::I32Load(mem(HEAP, 0, 2)));
             }
-            let header = self.f.local(Val::I32);
-            self.f.set(header);
-            let buffer = self.buffer(header);
+            let buffer = self.f.local(Val::I32);
+            self.f.set(buffer);
             let len = self.f.local(Val::I32);
             self.f.get(buffer);
             self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
             self.f.set(len);
-            self.list_caches.push((
-                root,
-                ListCache {
-                    header,
-                    buffer,
-                    len,
-                },
-            ));
+            self.list_caches.push((root, ListCache { buffer, len }));
         }
         self.f.op(I::End);
         Ok(roots)
@@ -724,8 +716,8 @@ impl Em<'_, '_, '_> {
 
     /// Loop `loop_inst`, whose body is block `block`, is about to start:
     /// the hoisted `IsUnique`s waiting for it run, its exact range indices
-    /// are proven (§23.37), and its stable lists keep their header, buffer
-    /// and length in locals ([`Em::own_list_caches`]). The cached lists,
+    /// are proven (§23.37), and its stable lists keep their buffer and
+    /// length in locals ([`Em::own_list_caches`]). The cached lists,
     /// which the loop's exit drops from the cache.
     pub(super) fn begin_list_loop(
         &mut self,
@@ -770,9 +762,10 @@ impl Em<'_, '_, '_> {
         Ok((et, elem))
     }
 
-    /// A local holding list value `r`'s header.
-    pub(super) fn header(&mut self, r: u32) -> StageResult<u32> {
-        let h = self.f.local(Val::I32);
+    /// A local holding the buffer of list or map value `r`: a loop's cached
+    /// one where no reference view is reachable.
+    pub(super) fn buffer(&mut self, r: u32) -> StageResult<u32> {
+        let b = self.f.local(Val::I32);
         let cache = self
             .list_root(r)
             .and_then(|root| {
@@ -785,46 +778,16 @@ impl Em<'_, '_, '_> {
         if let Some(cache) = cache {
             self.f.helper(Helper::RefViewsAbsent);
             self.f.op(I::If(BlockType::Result(Val::I32.wasm())));
-            self.f.get(cache.header);
-            self.f.op(I::Else);
-            self.list_addr(r)?;
-            self.f.op(I::End);
-            self.cached_headers.push((h, cache));
-        } else {
-            self.list_addr(r)?;
-        }
-        self.f.set(h);
-        Ok(h)
-    }
-
-    /// Pushes the header address of list value `r`.
-    pub(super) fn list_addr(&mut self, r: u32) -> StageResult<()> {
-        self.comp(r, 0)
-    }
-
-    /// A local holding the buffer of the list header in local `h`.
-    pub(super) fn buffer(&mut self, h: u32) -> u32 {
-        let b = self.f.local(Val::I32);
-        if let Some(cache) = self
-            .cached_headers
-            .iter()
-            .find(|(key, _)| *key == h)
-            .map(|(_, cache)| *cache)
-        {
-            self.f.helper(Helper::RefViewsAbsent);
-            self.f.op(I::If(BlockType::Result(Val::I32.wasm())));
             self.f.get(cache.buffer);
             self.f.op(I::Else);
-            self.f.get(h);
-            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+            self.comp(r, 0)?;
             self.f.op(I::End);
             self.cached_buffers.push((b, cache.len));
         } else {
-            self.f.get(h);
-            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+            self.comp(r, 0)?;
         }
         self.f.set(b);
-        b
+        Ok(b)
     }
 
     fn buffer_len(&mut self, b: u32) {
@@ -982,7 +945,7 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::ReleaseRef);
             }
             self.f.get(ls[c as usize]);
-            self.f.helper(Helper::ListCopy);
+            self.f.helper(Helper::CollCopy);
             self.f.set(tmp);
             self.temps.push(tmp);
             ls[c as usize] = tmp;
@@ -992,8 +955,8 @@ impl Em<'_, '_, '_> {
 
     /// `NewList`: a buffer sized exactly for the items and the spreads
     /// (`expr.list.spread.insert`), each item stored and each spread's
-    /// elements copied in order, and a new header over it. An empty
-    /// literal shares the static empty buffer.
+    /// elements copied in order. An empty literal shares the static empty
+    /// buffer.
     pub(super) fn new_list(&mut self, i: u32, spreads: u32, items: u32) -> StageResult<()> {
         let (et, e) = self.elem(self.ty(i))?;
         let items = self.rec(items);
@@ -1016,8 +979,7 @@ impl Em<'_, '_, '_> {
                 if !is_spread(k) {
                     continue;
                 }
-                let h = self.header(*r)?;
-                let sb = self.buffer(h);
+                let sb = self.buffer(*r)?;
                 self.f.get(n);
                 self.f.get(sb);
                 self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
@@ -1083,15 +1045,13 @@ impl Em<'_, '_, '_> {
             }
             self.f.get(b);
         }
-        self.f.helper(Helper::ListHeader { cyclic: e.cyclic });
         self.store_owned(i)
     }
 
     /// `ListLen`.
     pub(super) fn list_len(&mut self, i: u32, list: u32) -> StageResult<()> {
         self.elem(self.ty_of(list))?;
-        let h = self.header(list)?;
-        let b = self.buffer(h);
+        let b = self.buffer(list)?;
         self.buffer_len(b);
         self.store(i)
     }
@@ -1101,8 +1061,8 @@ impl Em<'_, '_, '_> {
     pub(super) fn list_index(&mut self, i: u32, list: u32, index: u32) -> StageResult<()> {
         let t = self.ty_of(list);
         if self.is_map(t) {
-            let h = self.header(list)?;
-            let (vt, at) = self.map_value_at(h, t, index)?;
+            let m = self.buffer(list)?;
+            let (vt, at) = self.map_value_at(m, t, index)?;
             for l in mem_of(self.pool(), self.env(), vt)?.leaves {
                 self.f.get(at);
                 self.f.op(l.load(0));
@@ -1110,8 +1070,7 @@ impl Em<'_, '_, '_> {
             return self.store(i);
         }
         let (_, e) = self.elem(t)?;
-        let h = self.header(list)?;
-        let b = self.buffer(h);
+        let b = self.buffer(list)?;
         let ix = if self.proven_list_indices.contains(&i) {
             // Typed views keep the ordinary checked path. The linker
             // folds this guard away in programs without any views.
@@ -1137,14 +1096,14 @@ impl Em<'_, '_, '_> {
     }
 
     /// The element type of list type `t` and a local holding the address
-    /// of its slot `ix` in the buffer of the header in local `h`, the index
-    /// checked against the length; for a map type, of the value of entry
-    /// `ix`, a `MapEntry`'s number. Either address is `LIST_ELEMS` before
-    /// the value.
-    pub(super) fn elem_slot(&mut self, h: u32, t: Ty, ix: u32) -> StageResult<(Ty, u32)> {
+    /// of its slot `ix` in the buffer in local `b`, the index checked
+    /// against the length; for a map type, of the value of entry `ix`, a
+    /// `MapEntry`'s number. Either address is `LIST_ELEMS` before the
+    /// value.
+    pub(super) fn elem_slot(&mut self, b: u32, t: Ty, ix: u32) -> StageResult<(Ty, u32)> {
         if self.is_map(t) {
             // `LIST_ELEMS` before the value, as a list's slot is.
-            let (vt, at) = self.map_value_at(h, t, ix)?;
+            let (vt, at) = self.map_value_at(b, t, ix)?;
             let x = self.f.local(Val::I32);
             self.f.get(at);
             self.f.u32(LIST_ELEMS);
@@ -1153,7 +1112,6 @@ impl Em<'_, '_, '_> {
             return Ok((vt, x));
         }
         let (et, e) = self.elem(t)?;
-        let b = self.buffer(h);
         let ix = self.index(b, ix)?;
         Ok((et, self.slot_at(b, ix, e.size)))
     }
@@ -1173,16 +1131,15 @@ impl Em<'_, '_, '_> {
         v: u32,
     ) -> StageResult<()> {
         let t = self.ty_of(list);
-        let h = self.header(list)?;
+        let b = self.buffer(list)?;
         // The element's address, `off` bytes before it, and its leaves: a
         // list's slot after the bounds check, or a map's value at its
         // entry (`types.coll.map-value.place`).
         let (et, all, at, off) = if self.is_map(t) {
-            let (vt, at) = self.map_value_at(h, t, ix)?;
+            let (vt, at) = self.map_value_at(b, t, ix)?;
             (vt, mem_of(self.pool(), self.env(), vt)?.leaves, at, 0)
         } else {
             let (et, e) = self.elem(t)?;
-            let b = self.buffer(h);
             let ix = self.index(b, ix)?;
             (et, e.leaves, self.slot_at(b, ix, e.size), LIST_ELEMS)
         };
@@ -1228,18 +1185,20 @@ impl Em<'_, '_, '_> {
     /// `IsUnique` made the list's own, has room for it.
     pub(super) fn list_push(&mut self, args: &[u32]) -> StageResult<()> {
         let (et, e) = self.elem(self.ty_of(args[0]))?;
-        let h = self.header(args[0])?;
-        self.f.get(h);
+        let b = self.buffer(args[0])?;
+        self.f.get(b);
         self.f.helper(Helper::ListPinned);
         self.f.op(I::If(BlockType::Empty));
         self.f.helper(Helper::Panic(
             "collection-pinned: list length changed while pinned".into(),
         ));
         self.f.op(I::End);
-        // Only a full buffer moves (`rt:list_grow`).
-        self.f.get(h);
+        // Only a full buffer moves (`rt:list_grow`), into the operand's
+        // place.
+        self.f.get(b);
         self.f.helper(Helper::ListGrow { elem: e.clone() });
-        let b = self.buffer(h);
+        self.f.set(b);
+        self.put_back(args[0], b)?;
         let n = self.f.local(Val::I32);
         self.f.get(b);
         self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
@@ -1256,8 +1215,8 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// `ValueCopy`: each collection in the value becomes its copy, a new
-    /// header over the same buffer; a value holding none is itself.
+    /// `ValueCopy`: each collection in the value becomes its copy
+    /// (`rt:coll_copy`); a value holding none is itself.
     pub(super) fn value_copy(&mut self, i: u32, r: u32) -> StageResult<()> {
         // The copy's own type says what it copies. A list or a map copies
         // through its `mut` view, which only a `mut self` receiver has,
@@ -1280,7 +1239,7 @@ impl Em<'_, '_, '_> {
         }
         if self.vals(t)?.len() == 1 {
             self.comp(r, 0)?;
-            self.f.helper(Helper::ListCopy);
+            self.f.helper(Helper::CollCopy);
             return self.store_owned(i);
         }
         let s = self.copy_src(r, t)?;
@@ -1298,31 +1257,40 @@ impl Em<'_, '_, '_> {
             return unsupported("collections without std's allocator");
         }
         self.comp(coll, 0)?;
-        self.f.helper(Helper::ListCopy);
+        self.f.helper(Helper::CollCopy);
         self.store_owned(i)
     }
 
     /// `SnapEnd`: the loop over `snap` ended, so the snapshot gives up its
     /// buffer at once, and the collection's next change copies only if
-    /// something else still shares it.
+    /// something else still shares it. A snapshot read with a count gives
+    /// it up as any operand does; one only borrowed from its local leaves
+    /// the static empty buffer there.
     pub(super) fn snap_end(&mut self, snap: u32) -> StageResult<()> {
-        let h = self.header(snap)?;
-        let b = self.buffer(h);
+        let i = snap as usize;
+        if Ref(snap).as_inst().is_none()
+            || self.b.tags[i] != Tag::Read
+            || self.b.data[i][1] != hd_tir::ir::ReadMode::Borrow as u32
+        {
+            return Ok(());
+        }
+        let b = self.buffer(snap)?;
+        let empty = self.f.local(Val::I32);
         let at = empty_buffer(self.m);
-        self.f.get(h);
         self.f.static_addr(at);
-        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+        self.f.set(empty);
+        self.put_back(snap, empty)?;
         self.f.get(b);
         self.f.helper(Helper::ReleaseRef);
         Ok(())
     }
 
-    /// Gives the buffer of the list header in local `h`, of type `t`, its
-    /// owner word: the function-table slot of the list's clone glue plus
-    /// one, with bit 31 when its elements hold collections (§23.20).
-    pub(super) fn pin_owner(&mut self, h: u32, t: Ty) -> StageResult<()> {
-        // A map's header is a list's kind (`ref.elem.map`): its clone glue
-        // copies the table.
+    /// Gives the buffer in local `b` of a list or a map of type `t` its
+    /// owner word: the function-table slot of the collection's clone glue
+    /// plus one, with bit 31 when its elements hold collections (§23.20).
+    pub(super) fn pin_owner(&mut self, b: u32, t: Ty) -> StageResult<()> {
+        // A map's table holds its owner word where a list buffer does
+        // (`ref.elem.map`): its clone glue copies the table.
         let (clone, exposed) = if self.is_map(t) {
             let (_, _, entry) = self.entry(t)?;
             let exposed = !entry.colls.is_empty();
@@ -1332,8 +1300,7 @@ impl Em<'_, '_, '_> {
             let exposed = !e.colls.is_empty();
             (Helper::ListClone { elem: e }, exposed)
         };
-        self.f.get(h);
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f.get(b);
         self.f.table_slot(Sym::Helper(clone));
         self.f.i32(1);
         self.f.op(I::I32Add);

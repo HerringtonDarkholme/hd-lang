@@ -4036,9 +4036,9 @@ within noise. The web compiler's gzip grows 198 B (1,905,641 to
 No commit carries two copy paths: through 3e both kinds copy by
 `ListCopy` (a new header over the same buffer), 3f moves both to the
 buffer copy glue at once, and 3g removes the header copies of both.
-Copy-out (3b, 3c) lands before the buffer address: under headers it
-changes nothing observable, and once it is in, a callee that grows a
-buffer cannot lose its change.
+No call changes a caller's collection in place since copy-out went (a
+`mut self` receiver is the method's own copy), so only the changes
+within a body store a new buffer back.
 
 **Stop for the owner** when a commit's added lines pass its stop line;
 when 3g deletes under two thirds of its 1,143 lines, or the component's

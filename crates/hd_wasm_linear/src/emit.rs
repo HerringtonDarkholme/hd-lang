@@ -931,7 +931,6 @@ struct Em<'i, 'a, 'm> {
     /// The stable lists' loop caches ([`Em::own_list_caches`]), dropped at
     /// the loop's exit.
     list_caches: Vec<(list::ListRoot, list::ListCache)>,
-    cached_headers: Vec<(u32, list::ListCache)>,
     cached_buffers: Vec<(u32, u32)>,
     /// Exact range-index reads proven in bounds in this body's loops.
     proven_list_indices: Vec<u32>,
@@ -989,7 +988,7 @@ struct Em<'i, 'a, 'm> {
     /// the reference's address, in a module no reference view reaches.
     deref_physical: bool,
     /// The `Read` right after a plain `IsUnique` of its place, and the
-    /// local holding the header the check's walk found ([`Em::own_unique`]).
+    /// local holding the buffer the check left ([`Em::own_unique`]).
     walked: Option<(u32, u32)>,
 }
 
@@ -1054,7 +1053,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             view_loans: HashMap::default(),
             unowned_params: Vec::new(),
             list_caches: Vec::new(),
-            cached_headers: Vec::new(),
             cached_buffers: Vec::new(),
             proven_list_indices: Vec::new(),
             borrowed: hd_base::HashSet::default(),
@@ -2581,25 +2579,22 @@ impl Em<'_, '_, '_> {
                 Ok(())
             }
             // std's `list_truncate(list: &mut List[T], n)`: the list read
-            // through its reference, then truncated in place.
+            // through its reference, truncated, and its buffer stored back.
             "list_truncate" => {
                 let Some((lt, false)) = self.ref_target(self.ty_of(args[0])) else {
                     return unsupported("`list_truncate` of a value that is no reference");
                 };
                 let (_, e) = self.elem(lt)?;
-                // A field reference may be a representation view rather
-                // than an address holding the header directly.
-                let value = self.ref_layout(lt)?;
                 let at = self.f.local(Val::I32);
                 self.comp(args[0], 0)?;
                 self.f.set(at);
-                let [header] = crate::rt::ref_load(&mut self.f, at, &value)[..] else {
-                    return unsupported("a list that is not one address");
-                };
-                self.f.get(header);
+                self.no_view(at);
+                self.f.get(at);
+                self.f.get(at);
+                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
                 self.push(args[1])?;
                 self.f.helper(Helper::ListTruncate { elem: e });
-                self.release_open(header);
+                self.f.op(I::I32Store(mem(HEAP, 0, 2)));
                 Ok(())
             }
             // std's map cursor step closure (`emit/iter.rs`).

@@ -1493,6 +1493,7 @@ runtime/valid/a-mut-self-change-of-a-list-stays-in-the-methods-copy.hd	runtime	a
 runtime/valid/a-mut-self-call-needs-no-writable-binding.hd	runtime	accept	lang/04-type-system.md#r-types.coll.writable.call
 runtime/valid/a-mut-self-method-may-reassign-self.hd	runtime	accept	lang/07-functions.md#r-fn.param.mut.reassign
 runtime/valid/a-parenthesized-chain-is-a-value.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
+runtime/valid/a-push-through-a-map-value-with-a-computed-key-keeps-every-element.hd	runtime	accept	lang/04-type-system.md#r-types.coll.map-value.place
 runtime/valid/a-read-of-a-binding-during-its-mut-self-call-sees-the-unchanged-value.hd	runtime	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
 runtime/valid/a-spread-through-a-value-passes-each-element.hd	runtime	accept	lang/07-functions.md#function-types-and-values
 runtime/valid/a-three-link-chain-binds-every-name.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain

@@ -1,0 +1,32 @@
+# test: a push through a map value whose key a call computes reaches the list in the map, however often the list grows
+# Spec 04 Map Values: types.coll.map-value.place.
+fn twice(n: i64) -> i64:
+    n * 2
+
+fn fill(rounds: i64) -> Map[string, List[i64]]:
+    let mut m: Map[string, List[i64]] = {"k0": [], "k1": [], "k2": []}
+    let n: i64 = 0
+    while n < rounds:
+        m["k${n % 3}"].push(twice(n))
+        n += 1
+    m
+
+tests:
+    use std.testing.assert_equal
+
+    it("each list keeps every pushed element in order"):
+        m := fill(60)
+        assert_equal(m["k0"].len(), 20, reason="twenty pushes reach each key")
+        assert_equal(m["k1"][0], 2, reason="the first push to k1 is twice 1")
+        assert_equal(m["k1"][19], 116, reason="the last push to k1 is twice 58")
+        assert_equal(m["k2"][10], 64, reason="a push after several growths is kept")
+
+    it("a copy taken before the pushes keeps its own lists"):
+        let mut m: Map[string, List[i64]] = {"k0": [7]}
+        copy := m
+        let n: i64 = 0
+        while n < 30:
+            m["k${n * 0}"].push(n)
+            n += 1
+        assert_equal(m["k0"].len(), 31, reason="the map's list has every push")
+        assert_equal(copy["k0"], [7], reason="the copy's list is unchanged")

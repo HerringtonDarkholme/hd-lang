@@ -495,12 +495,14 @@ impl Em<'_, '_, '_> {
         Ok(true)
     }
 
-    /// The list or map header at the place `word` of an `IsUnique` or a
+    /// The list or map buffer at the place `word` of an `IsUnique` or a
     /// `Pin`, in a local, with the collection's type: the place resolved
     /// from its root's value ([`Em::walk_place`]), each element
-    /// bounds-checked. Nothing takes a count: the header is the one the
-    /// place holds, which a view's fresh value only shares.
-    pub(super) fn place_header(&mut self, word: u32) -> StageResult<(u32, Ty)> {
+    /// bounds-checked. Nothing takes a count: the buffer is the one the
+    /// place holds, which a view's fresh value only shares. Also where the
+    /// walk found it, when the place keeps it there: in memory, or in a
+    /// local's or a value's own Wasm local ([`Em::put_at`]).
+    pub(super) fn place_header(&mut self, word: u32) -> StageResult<(u32, Ty, Option<At>)> {
         let Some(p) = self.b.decode_place(word) else {
             return unsupported("a malformed place");
         };
@@ -508,7 +510,125 @@ impl Em<'_, '_, '_> {
         let (at, ty) = self.walk_place(NONE, &p, p.proj.len(), &mut fresh)?;
         let h = self.at_i32(&at)?;
         self.release_fresh(&fresh)?;
-        Ok((h, ty))
+        let kept = match (&at, p.root) {
+            (At::Vals(_), PlaceRoot::Local(l)) => {
+                !self.is_cell(l.idx()) && self.last_through(&p)?.is_none()
+            }
+            (At::Vals(_), PlaceRoot::Value(_)) => self.last_through(&p)?.is_none(),
+            (At::Vals(_), _) => false,
+            _ => true,
+        };
+        Ok((h, ty, kept.then_some(at)))
+    }
+
+    /// Stores the buffer in local `b` at `at`, where a walk found the
+    /// place's collection ([`Em::place_header`]).
+    pub(super) fn put_at(&mut self, at: &At, b: u32) -> StageResult<()> {
+        match at {
+            At::Vals(ls) if ls.len() == 1 => {
+                if ls[0] != b {
+                    self.f.get(b);
+                    self.f.set(ls[0]);
+                }
+            }
+            At::Mem(a, off) => {
+                self.f.get(*a);
+                self.f.get(b);
+                self.f.op(I::I32Store(mem(HEAP, u64::from(*off), 2)));
+            }
+            At::Leaves(a, lv) if lv.len() == 1 => {
+                self.f.get(*a);
+                self.f.get(b);
+                self.f.op(lv[0].store(0));
+            }
+            _ => return unsupported("a collection of several values"),
+        }
+        Ok(())
+    }
+
+    /// Stores the buffer in local `b`, which a change of its operand `r`
+    /// left, where `r` came from: into the place a `borrow` read `r` names
+    /// right after its `IsUnique`, else into `r`'s own value.
+    pub(super) fn put_back(&mut self, r: u32, b: u32) -> StageResult<()> {
+        use hd_tir::ir::ReadMode;
+        let i = r as usize;
+        if hd_tir::ir::Ref(r).as_inst().is_some()
+            && self.b.tags[i] == Tag::Read
+            && self.b.data[i][1] == ReadMode::Borrow as u32
+        {
+            return self.put_buffer(self.b.data[i][0], b);
+        }
+        let ls = self.local_value_of(r)?;
+        self.put_at(&At::Vals(ls), b)
+    }
+
+    /// Stops where the reference in local `r` is a view, whose referent
+    /// has no address of its own for a change to store a buffer at.
+    pub(super) fn no_view(&mut self, r: u32) {
+        self.f.get(r);
+        self.f.helper(Helper::RefIsView);
+        self.f.op(I::If(wasm_encoder::BlockType::Empty));
+        self.f.helper(Helper::Panic(
+            "internal: a collection changed through a reference view".into(),
+        ));
+        self.f.op(I::End);
+    }
+
+    /// Stores the buffer in local `b` into place `word`, raw: the change
+    /// that replaced the place's buffer gave up its count of the old one,
+    /// and the new one's count is the place's (`docs/compiler/tir-v2.md`,
+    /// "List and Map buffers", 3f). The walk goes to the place's last
+    /// element or dereference: an element's slot, or a reference's
+    /// referent at its address, past the fields that follow. A place with
+    /// neither is in its root: a local's Wasm locals or cell, a value's
+    /// locals, a top-level binding's static slot or Wasm globals.
+    pub(super) fn put_buffer(&mut self, word: u32, b: u32) -> StageResult<()> {
+        let Some(p) = self.b.decode_place(word) else {
+            return unsupported("a malformed place");
+        };
+        let mut fresh = Vec::new();
+        let (at, ty, from) = match self.last_through(&p)? {
+            Some((d, Some((target, false)))) => {
+                let (at, _) = self.walk_place(NONE, &p, d, &mut fresh)?;
+                let r = self.at_i32(&at)?;
+                self.no_view(r);
+                (At::Mem(r, 0), target, d + 1)
+            }
+            Some(_) => {
+                let (at, ty) = self.walk_place(NONE, &p, p.proj.len(), &mut fresh)?;
+                (at, ty, p.proj.len())
+            }
+            None => match p.root {
+                PlaceRoot::Local(l) if self.is_cell(l.idx()) => {
+                    if self.cell_converts(l.idx()) {
+                        return unsupported("a collection changed in an erased cell");
+                    }
+                    let c = self.cell_of(l.idx())?;
+                    (At::Mem(c, 0), self.start_ty(Start::Local(l.raw())), 0)
+                }
+                root => {
+                    let (at, ty) = self.at_root(root)?;
+                    (at, ty, 0)
+                }
+            },
+        };
+        let globals = match (&at, p.root) {
+            (At::Vals(ls), PlaceRoot::Global(def, _)) => Some((self.def_hash(def), ls.clone())),
+            _ => None,
+        };
+        let (at, _) = self.walk_steps(at, ty, &p.proj[from..], &mut fresh)?;
+        self.put_at(&at, b)?;
+        // A binding in Wasm globals takes its changed value back.
+        if let (Some((h, ls)), At::Vals(x)) = (globals, &at) {
+            let k = ls.iter().position(|l| x.first() == Some(l)).unwrap_or(0);
+            self.f.get(b);
+            self.f.global_set(crate::module::Global::Storage(
+                h,
+                u32::try_from(k).expect("k"),
+                Val::I32,
+            ));
+        }
+        self.release_fresh(&fresh)
     }
 
     /// `Ref` `i`: the place's address, or the trait value
@@ -609,10 +729,9 @@ impl Em<'_, '_, '_> {
             }
             (st, Head::Elem(ix)) => {
                 let (et, e) = self.elem(self.start_ty(st))?;
-                let h = self.start_values(st)?[0];
+                let b = self.start_values(st)?[0];
                 let at = self.f.local(Val::I32);
-                self.f.get(h);
-                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+                self.f.get(b);
                 // An element of no bytes lies at no address of its own;
                 // the length word keeps the address inside the buffer.
                 if e.size == 0 {
@@ -1335,7 +1454,7 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// A local holding the one 32-bit value at `at`: a list header, a
+    /// A local holding the one 32-bit value at `at`: a list buffer, a
     /// reference, a data object's or a boxed enum's address.
     pub(super) fn at_i32(&mut self, at: &At) -> StageResult<u32> {
         let (base, leaf) = match at {
@@ -1444,7 +1563,7 @@ impl Em<'_, '_, '_> {
     /// variant its payload field, a dereference of a data value the
     /// object's field, an element its slot in the buffer, bounds-checked
     /// (unchecked where the loop's range proof covers read `i`, and from the
-    /// loop's cached header where the list is a stable list of a local).
+    /// loop's cached buffer where the list is a stable list of a local).
     /// A dereference of a reference goes to its referent's address; where
     /// a reference view may be reached, a view's getter makes the referent
     /// fresh instead, the walk reads on in that value to the next step's
@@ -1464,7 +1583,7 @@ impl Em<'_, '_, '_> {
             PlaceRoot::Local(l) => Some(l.raw()),
             _ => None,
         };
-        // A stable list's header from the loop's cache: an element of the
+        // A stable list's buffer from the loop's cache: an element of the
         // local's list, or of the list the reference it holds refers to.
         let cached = |em: &Self, indirect: bool| {
             let root = super::list::ListRoot::new(local?, indirect);
@@ -1486,12 +1605,12 @@ impl Em<'_, '_, '_> {
         };
         let lead_cache = lead.and_then(|e| cached(self, e == 1).map(|c| (c, e)));
         if let Some((cache, elem)) = lead_cache {
-            // The cached header, where no view is reachable; else the walk.
+            // The cached buffer, where no view is reachable; else the walk.
             let h = self.f.local(Val::I32);
             self.f.helper(Helper::RefViewsAbsent);
             self.f
                 .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
-            self.f.get(cache.header);
+            self.f.get(cache.buffer);
             self.f.op(I::Else);
             let (a, t) = self.at_root(p.root)?;
             let (a, _) = self.walk_steps(a, t, &steps[..elem], fresh)?;
@@ -1499,7 +1618,7 @@ impl Em<'_, '_, '_> {
             self.f.get(x);
             self.f.op(I::End);
             self.f.set(h);
-            self.cached_headers.push((h, cache));
+            self.cached_buffers.push((h, cache.len));
             let (_, root_ty) = self.at_root_ty(p.root);
             ty = self.walk_ty(root_ty, &steps[..elem])?;
             at = At::Vals(vec![h]);
@@ -1527,8 +1646,7 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             let (et, e) = self.elem(ty)?;
-            let h = self.at_i32(&at)?;
-            let b = self.buffer(h);
+            let b = self.at_i32(&at)?;
             // The first element of a local's list, which a loop's range
             // proof may cover.
             let proven = lead == Some(k) && self.proven_list_indices.contains(&i);
@@ -1864,8 +1982,8 @@ impl Em<'_, '_, '_> {
         let mut rest = &p.proj[d + 1..];
         let (base, head_ty) = match (p.proj[d], through) {
             (Proj::Elem(ix), _) => {
-                let h = self.at_i32(&at)?;
-                let (et, slot) = self.elem_slot(h, ty, ix.0)?;
+                let b = self.at_i32(&at)?;
+                let (et, slot) = self.elem_slot(b, ty, ix.0)?;
                 (Base::At(self.offset_local(slot, LIST_ELEMS)), et)
             }
             (Proj::Deref, Some((target, f))) => {

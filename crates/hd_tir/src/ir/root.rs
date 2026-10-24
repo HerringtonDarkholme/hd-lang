@@ -24,7 +24,12 @@
 //!    so the local holds the same value at every use as at `%v`. When `P`
 //!    has an element step, which checks its index, only other uses of `%v`
 //!    and reads that check nothing (an index local's) may stand between,
-//!    so no other check runs before that one;
+//!    so no other check runs before that one. When `P` is a local's own
+//!    value or a field of it, with no element or dereference, any
+//!    statement may stand between, a call included, if nothing between
+//!    names the local and nothing can reach it: no reference to it and no
+//!    closure capture (`m["k$n"].push(v)`, whose key calls a formatter
+//!    between the map's read and its `MapEntry`);
 //! 3. the local's type names no type parameter or associated type: an
 //!    erased instance outlines an open read by its values
 //!    (`crates/hd_mono/DESIGN.md` §13.5.1), and a local is none.
@@ -156,6 +161,38 @@ fn unchecked(b: &Body, s: usize) -> bool {
     !has_elem(b, first, w + 1 + n)
 }
 
+/// Whether local `l` keeps its value from read `v` to its last use `last`
+/// whatever runs between: no instruction between but `v`'s own uses
+/// (marked in `mark`) names it, nothing in the body takes a reference to
+/// it, through reads of it or not, and no closure captures it.
+fn unreached(b: &Body, l: u32, v: usize, last: usize, mark: &[u32]) -> bool {
+    use super::local_flags::{CAPTURED, CAPTURED_ASSIGNED};
+    // The local a place word is rooted at, through the reads of values.
+    let rooted = |mut w: u32| {
+        for _ in 0..64 {
+            if w & place::BARE_LOCAL != 0 {
+                return Some(w & !place::BARE_LOCAL);
+            }
+            match b.extra.get(w as usize + 1..w as usize + 3)? {
+                [place::ROOT_LOCAL, x] => return Some(*x),
+                [place::ROOT_VALUE, r]
+                    if (*r as usize) < b.len() && b.tags[*r as usize] == Tag::Read =>
+                {
+                    w = b.data[*r as usize][0];
+                }
+                _ => return None,
+            }
+        }
+        None
+    };
+    let names = |x: usize| {
+        matches!(b.tags[x], Tag::Read | Tag::Store | Tag::Ref) && rooted(b.data[x][0]) == Some(l)
+    };
+    b.local_flags[l as usize] & (CAPTURED | CAPTURED_ASSIGNED) == 0
+        && !(0..b.len()).any(|x| b.tags[x] == Tag::Ref && names(x))
+        && !(v + 1..last).any(|x| mark[x] != u32_of(v) && names(x))
+}
+
 /// Folds every base read of a local's place into the places rooted at its
 /// value (the module docs' rules), and deletes the reads it folds. `open`
 /// says whether a type names a type parameter or an associated type.
@@ -255,10 +292,15 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
         if ok {
             let elem = has_elem(b, from, to);
             let members = b.record(b.data[blk as usize][0]);
-            for &s in &members[t.pos[v] as usize + 1..last as usize] {
+            let between = &members[t.pos[v] as usize + 1..last as usize];
+            let calm = roots == 2
+                && !has_mem(b, from, to)
+                && unreached(b, root[1], v, members[last as usize] as usize, &t.mark);
+            for &s in between {
                 let s = s as usize;
                 let fine = t.gone[s]
                     || t.mark[s] == u32_of(v)
+                    || calm
                     || if elem { unchecked(b, s) } else { inert(b, s) };
                 if !fine {
                     ok = false;

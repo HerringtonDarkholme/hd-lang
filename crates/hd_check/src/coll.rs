@@ -191,6 +191,9 @@ impl Ck<'_, '_> {
             return true;
         }
         if self.place_writable_quiet(recv) || self.is_fresh(recv) {
+            if let Some(l) = self.place_root_local(recv) {
+                self.changed_locals.push(l);
+            }
             return true;
         }
         let shown = self.show(rt);

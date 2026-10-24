@@ -1584,7 +1584,7 @@ fn pending_poll(m: &Module, results: &[Val]) -> Func {
     f
 }
 
-/// The list a race frame holds: its header's address at its first field.
+/// The list a race frame holds: its buffer's address at its first field.
 const RACE_LIST: u32 = F_SAVED;
 /// Where a race frame keeps its winner's value while losers settle.
 const RACE_WIN: u32 = F_SAVED + 8;
@@ -1636,7 +1636,6 @@ fn race_cold(m: &Module, results: &[Val], walk: Option<&Walk>) -> Func {
 fn race_task(f: &mut Func, i: u32) {
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(RACE_LIST), 2)));
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.get(i);
     f.i32(4);
     f.op(Instruction::I32Mul);
@@ -1651,7 +1650,6 @@ fn race_task(f: &mut Func, i: u32) {
 fn race_len(f: &mut Func) {
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(RACE_LIST), 2)));
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.op(Instruction::I32Load(mem(HEAP, crate::rt::LIST_LEN, 2)));
 }
 

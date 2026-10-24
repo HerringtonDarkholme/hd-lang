@@ -35,7 +35,7 @@ use hd_types::{InternPool, Ty, TyData};
 
 use crate::layout::{Kind, kind, strip, tuple_members, value_parts, variants};
 
-/// Whether an object of type `t` takes part: a list's header and buffer,
+/// Whether an object of type `t` takes part: a list's buffer,
 /// a map's table, a data value's object or a self-recursive enum's cell.
 pub fn object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     let t = strip(pool, env, t);
