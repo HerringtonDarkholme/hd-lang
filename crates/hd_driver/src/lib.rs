@@ -708,6 +708,7 @@ struct ProgramTables {
     /// Supplied tuple factories have no checked declaration. Their generic
     /// return templates serve collection and emission; bodies live in Collected.
     supplied_rets: Mutex<HashMap<DefId, Ty>>,
+    dbg_structure: OnceLock<Option<(DefId, DefId)>>,
     bodies: Bodies,
     /// Where each impl's row lives: its folder's table.
     impl_rows: HashMap<DefId, ImplRef>,
@@ -7510,6 +7511,7 @@ impl Run<'_> {
         let _ = self.program.set(ProgramTables {
             items,
             supplied_rets: Mutex::new(HashMap::default()),
+            dbg_structure: OnceLock::new(),
             bodies: Bodies {
                 all: bodies,
                 bad: std::sync::atomic::AtomicBool::new(false),
@@ -10242,10 +10244,17 @@ impl ProgramEnv for Env<'_> {
         self
     }
     fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Vec<Body>>> {
-        // A tuple's `Structure` (`crates/hd_mono/DESIGN.md` §13.6): the derivation
-        // generator over the tuple's member list.
+        // Reuse the ordinary derivation generator for tuples and the private
+        // dbg template's raw declaration metadata; no solver impl is added.
         let names = self.run.names();
-        let Some(target) = hd_structure::tuple_target(names.pool, self_ty) else {
+        let Some(target) = hd_structure::dbg_target(
+            &hd_structure::Cx {
+                names: &names,
+                items: self.p,
+                stage: Stage::Collect,
+            },
+            self_ty,
+        ) else {
             return Ok(None);
         };
         let cx = hd_structure::Cx {
@@ -10309,7 +10318,13 @@ impl ProgramEnv for Env<'_> {
             stage: Stage::Collect,
         };
         let body = match key {
-            "dbg_show" => hd_structure::dbg_show_body(&cx, item, ty, debug),
+            "dbg_printer" => hd_structure::dbg_printer_body(
+                &cx,
+                item,
+                ty,
+                debug,
+                self.dbg_structure().expect("private dbg template").0,
+            ),
             _ => hd_structure::dbg_values_body(&cx, item, ty),
         }?;
         self.owned_generated(body)
@@ -10319,6 +10334,25 @@ impl ProgramEnv for Env<'_> {
     }
     fn debug_trait(&self) -> DefId {
         self.run.known.debug
+    }
+    fn dbg_structure(&self) -> Option<(DefId, DefId)> {
+        *self.p.dbg_structure.get_or_init(|| {
+            let trait_def = self.run.names().item("std.format", "DbgStructural");
+            self.p.items.values().find_map(|item| {
+                let ItemData::Impl {
+                    trait_,
+                    methods,
+                    kind: hd_resolve::ImplKind::Template,
+                    ..
+                } = &item.data
+                else {
+                    return None;
+                };
+                (*trait_ == trait_def)
+                    .then(|| methods.first().map(|m| (m.1, self.run.known.structure)))
+                    .flatten()
+            })
+        })
     }
 }
 

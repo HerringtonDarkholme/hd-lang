@@ -149,15 +149,20 @@ pub trait ProgramEnv: LayoutEnv {
     /// The requested body first, followed by the cached helper bodies it calls.
     fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Vec<Body>>>;
     /// The body of one of the `dbg` functions the compiler supplies per
-    /// concrete argument (`dbg_show[ty]`, `dbg[args]`; spec/lang/10-modules.md
+    /// concrete argument (`dbg_printer[ty]`, `dbg[args]`; spec/lang/10-modules.md
     /// "Debug Printing"). `debug`: `ty` implements `Debug`.
     fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body>;
     /// `body`, which collection built (a function reference's call body,
     /// [`adapter_call_body`]), after the ownership passes, as the driver
     /// runs them over every body it supplies.
     fn own_generated(&self, body: Body) -> StageResult<Body>;
-    /// `std.format.Debug`, which `dbg_show` prints through where it holds.
+    /// `std.format.Debug`, whose printer is preferred by `dbg_printer`.
     fn debug_trait(&self) -> DefId;
+    /// Private template method and Structure trait; no public conformance is added.
+    fn dbg_structure(&self) -> Option<(DefId, DefId)> {
+        None
+    }
+
     /// The items a map key's hashing and equality call (`crates/hd_mono/DESIGN.md`
     /// §13.12): the `Eq` trait, its method (which has no vtable slot, as it
     /// names `Self`) and `std.hash.key_bucket_hash`, the keyed hash a map
@@ -1774,7 +1779,7 @@ impl Cx<'_> {
         if let Some(key) = self
             .env
             .intrinsic(def)
-            .filter(|k| matches!(k.as_str(), "dbg" | "dbg_show"))
+            .filter(|k| matches!(k.as_str(), "dbg" | "dbg_printer"))
         {
             return self.dbg_target(def, &key, args, parent);
         }
@@ -2148,7 +2153,7 @@ impl Cx<'_> {
         }))
     }
 
-    /// A call of `dbg_show` or `dbg`, whose body the compiler writes at the
+    /// A call of `dbg_printer` or `dbg`, whose body the compiler writes at the
     /// exact argument (`ProgramEnv::dbg_body`): an instance keyed like any
     /// other, with no A1 class, since the body reads the type's declaration.
     fn dbg_target(
@@ -2164,7 +2169,7 @@ impl Cx<'_> {
         if !self.out.supplied.contains_key(&(def, ty)) {
             // A class placeholder or a type parameter has no declaration to
             // print: its text is implementation-defined (`module.dbg.value.generic`).
-            let debug = key == "dbg_show" && self.implements_debug(ty);
+            let debug = key == "dbg_printer" && self.implements_debug(ty);
             let body = self.env.dbg_body(def, key, ty, debug)?;
             self.out.supplied.insert((def, ty), Arc::new(body));
         }
@@ -2863,7 +2868,13 @@ impl Cx<'_> {
                                 calls.insert(ix, Target::Dyn);
                                 continue;
                             }
+                            let private_structure = env
+                                .dbg_structure()
+                                .is_some_and(|(caller, tr)| caller == item && tr == trait_);
                             let supplied = match choice.0 {
+                                _ if private_structure => {
+                                    self.supplied_target(method, self_ty, &targs, id)?
+                                }
                                 ChoiceKind::Builtin => {
                                     self.supplied_target(method, self_ty, &targs, id)?
                                 }

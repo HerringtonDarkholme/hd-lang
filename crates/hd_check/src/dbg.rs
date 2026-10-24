@@ -3,11 +3,11 @@
 //! `dbg[Args < Tuple](values...: Args) -> void`; what no ordinary hd
 //! parameter can supply, the call's location and each argument's source
 //! text, the checker supplies by calling `std.format`'s support functions
-//! with them. Collection supplies `dbg_show` at each argument's concrete
-//! type, which prints through `Debug` or structurally.
+//! with them. Collection supplies `dbg_printer` at each argument's concrete
+//! type, selecting an ordinary hd printer through `Debug` or Structure.
 //!
 //! - A direct call with only positional arguments writes one line for each
-//!   argument, as `dbg_one(head, value, dbg_show)`, with the location and
+//!   argument, as `dbg_one(head, value, dbg_printer[T]())`, with the location and
 //!   the argument's text in `head` (`module.dbg.line`).
 //! - Any other direct call knows only the location: each element of the
 //!   collected tuple prints after it (`module.dbg.line.bare`).
@@ -84,9 +84,9 @@ impl Ck<'_, '_> {
             .join(" ")
     }
 
-    /// A reference to `dbg_show` at `ty`: the printer of a value, as a
+    /// A call of `dbg_printer` at `ty`: the printer of a value, as a
     /// function value.
-    fn dbg_show_ref(&mut self, ty: Ty, n: NodeRef<'_>) -> Ref {
+    fn dbg_printer_ref(&mut self, ty: Ty, n: NodeRef<'_>) -> Ref {
         let pool = self.pool();
         let writer = pool.intern_ty(&TyData::Adt {
             def: self.format_fn("DebugWriter"),
@@ -103,11 +103,7 @@ impl Ck<'_, '_> {
             suspends: false,
             inputs: hd_types::Inputs::Fixed,
         });
-        let show = self.format_fn("dbg_show");
-        let a = self.b.refs_record(&[Ref(show.raw())]);
-        let l = pool.list(&[ty]);
-        let bw = self.b.refs_record(&[Ref(l.0)]);
-        self.b.emit(Tag::ItemRef, a, bw, ft, n.index())
+        self.dbg_support("dbg_printer", &[ty], &[], ft, n)
     }
 
     /// A call of a `std.format` support function.
@@ -153,9 +149,9 @@ impl Ck<'_, '_> {
         ))
     }
 
-    /// `std.format.dbg_text(value, width)` written out: the text of `r`,
+    /// The text of `r`, rendered by ordinary std code,
     /// of type `t`, as `dbg` prints it after `width` columns of its line.
-    pub(crate) fn dbg_text(&mut self, r: Ref, t: Ty, width: usize, n: NodeRef<'_>) -> Ref {
+    pub(crate) fn dbg_render_value(&mut self, r: Ref, t: Ty, width: usize, n: NodeRef<'_>) -> Ref {
         if let Some(text) = self.function_text(r, t) {
             return self.b.const_str(&text);
         }
@@ -163,7 +159,7 @@ impl Ck<'_, '_> {
         let width = self
             .b
             .const_value(usize, u64::try_from(width).unwrap_or(u64::MAX));
-        let show = self.dbg_show_ref(t, n);
+        let show = self.dbg_printer_ref(t, n);
         self.dbg_support("dbg_layout", &[t], &[width, r, show], Ty::STRING, n)
     }
 
@@ -180,7 +176,7 @@ impl Ck<'_, '_> {
             return;
         }
         let ty = self.show(t);
-        let text = self.dbg_text(r, t, ty.chars().count() + 3, n);
+        let text = self.dbg_render_value(r, t, ty.chars().count() + 3, n);
         let ty = self.b.const_str(&ty);
         self.dbg_support("repl_value", &[], &[text, ty], Ty::VOID, n);
     }
@@ -205,7 +201,7 @@ impl Ck<'_, '_> {
                 let text = self.b.const_str(&text);
                 self.dbg_support("dbg_opaque", &[t], &[head, r, text], t, n)
             } else {
-                let show = self.dbg_show_ref(t, n);
+                let show = self.dbg_printer_ref(t, n);
                 self.dbg_support("dbg_one", &[t], &[head, r, show], t, n)
             };
             printed.push(line);
@@ -248,7 +244,7 @@ impl Ck<'_, '_> {
                 .b
                 .field(tuple, u32::try_from(k).unwrap_or(0), e, n.index());
             let head = self.b.const_str(&prefix);
-            let show = self.dbg_show_ref(e, n);
+            let show = self.dbg_printer_ref(e, n);
             last = Some(self.dbg_support("dbg_bare_one", &[e], &[head, v, show], Ty::VOID, n));
         }
         if last.is_none() {
