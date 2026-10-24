@@ -14,7 +14,7 @@ action at a distance.
 
 ## What Remains
 
-Parked designs are not kept here; each lives in its GitHub issue, which
+Parked designs are not kept here; each lives in its GitHub issue, indexed by #833, which
 stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Application and host
