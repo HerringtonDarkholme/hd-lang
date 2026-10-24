@@ -28,6 +28,7 @@ action at a distance.
 - [Host Embedding](HOST_EMBEDDING.md): proposed explicit library registration, generated core-Wasm adapters, application providers, and structured panic outcomes (#51).
 - [hd lint](HD_LINT.md): proposed command, shared diagnostics, package allow/deny policy, and a first lint for lost temporary-receiver writes (#651).
 - [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes (#28).
+- [Release Stress Test](RELEASE_STRESS.md): real release histories, typed API hazards, command-by-command prior art and version/tag edge cases; questions remain open (#28).
 - [Open Issues](OPEN_ISSUES.md): the open language and library design
   questions. It holds only open questions.
 - [Serializable Closure Design](SERIALIZABLE_CLOSURE_DESIGN.md): the design
