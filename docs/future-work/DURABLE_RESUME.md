@@ -1,6 +1,6 @@
 # Durable execution from a journal
 
-Status: design exploration, 2026-10-23; nothing here is decided or in the specification.
+Status: design exploration, 2026-10-23; direction chosen by the owner the same day (see [Direction](#direction-host-call-replay-with-activities)); nothing is in the specification yet.
 This answers [#18](https://github.com/HerringtonDarkholme/hd-lang/issues/18)
 and its [exploration review](https://github.com/HerringtonDarkholme/hd-lang/issues/18#issuecomment-6372711365).
 It revisits [Live Execution §6](live-execution.md#6-resume-durable-execution-later),
@@ -20,9 +20,8 @@ The earlier proposal is evidence and one option, not an approved implementation 
 - [Automatic host-call replay](#automatic-host-call-replay)
 - [Runtime checkpoints](#runtime-checkpoints)
 - [Comparison on the fixed use cases](#comparison-on-the-fixed-use-cases)
-- [Recommendation](#recommendation-strict-host-call-replay)
+- [Direction](#direction-host-call-replay-with-activities)
 - [Approval and implementation proof](#approval-and-implementation-proof)
-- [Questions for the owner](#questions-for-the-owner)
 - [Sources and example validation](#example-validation)
 
 ## The domain
@@ -483,22 +482,31 @@ The smallest option drops transparent resume; the checkpoint option adds the mos
 A library-first step API is cheaper in language mechanisms than a new syntax form, but does not make durable storage free.
 No option needs a new grammar form or compiler intrinsic by default.
 
-## Recommendation: strict host-call replay
+## Direction: host-call replay with activities
 
-**Recommendation:** choose automatic host-call replay as the direction for a bounded implementation proof.
-It matches #18's whole-program goal and reuses hd's existing deterministic capability boundary.
-Keep exact executable/profile identity and conservative resource-opening refusal initially.
-Treat unfinished effects as at-least-once attempts, with stable operation identity and explicit destination idempotency where available.
+The direction is automatic host-call replay, as #18 designed it from the start.
+The runtime records every host call, and recovery re-runs the unchanged program while serving the recorded outcomes, then continues live from the recovery frontier.
+Golem takes the same approach for Wasm components, because a Wasm guest reaches the world only through host calls.
 
-This gives up changed-code resume, generic persistent sockets, bounded replay cost, and universal exactly-once external effects.
-The next-best option is explicit application state when applications can express their own restart boundary cheaply.
-Explicit durable steps are useful if user-selected boundaries and a durable storage provider become the intended programming model.
-Runtime checkpoints remain a separate larger project rather than a prerequisite for the journal proof.
+An intent whose outcome is unknown is retried.
+Every unfinished effect therefore runs at least once, as in Temporal and Restate, and each request carries its stable logical-operation identity so that a destination can remove duplicates.
+Stopping for an operator, or admitting only destinations that remove duplicates themselves, would need a person at every crash or would reject ordinary programs such as one that calls `println`.
 
-The first proof should target process-crash recovery on supported local storage, with a clearly documented acknowledgement contract.
-Power-loss guarantees require separately verified platform flush and directory-publication behavior; ordinary append tests do not establish them.
+Long-lived handles live only inside activities, as in Temporal.
+An activity is a block that is retried as a whole: it may open files, sockets or connections, and only its result, plain data that can be saved, crosses back into the recorded program.
+A crash inside an activity re-runs it from its start, and the activity reopens what it needs, seeking from saved progress such as an offset when that matters.
+A program that opens a long-lived handle outside an activity is refused before any effect, by the classification in [Refuse resource-opening imports initially](#refuse-resource-opening-imports-initially).
+The activity's exact API is still to be designed.
+
+Nothing ships publicly yet: neither `--journal`/`--resume` nor a public `--record`/`--replay`.
+The first work is record and replay, because it has no live phase.
+A replay serves recorded outcomes, performs no live effect, and stops at the first divergence, so its log needs no durability barrier.
+It is useful on its own for reproducing a run exactly, and it is the base that journal and resume later extend with durable barriers, a single writer, identity checks and the live frontier.
+
+This gives up changed-code resume, persistent handles outside activities, bounded replay cost, and universal exactly-once external effects.
+The first durable proof targets process-crash recovery on supported local storage, with a documented acknowledgement contract.
+Power-loss guarantees need separately verified platform flush and directory-publication behaviour; ordinary append tests do not establish them.
 There is no measured durable-sync latency or storage-cost claim here.
-The direction remains subject to the questions below.
 
 ## Approval and implementation proof
 
@@ -516,37 +524,6 @@ A useful implementation proof must crash between append, durable acknowledgement
 It must test a changed file read, uncertain write, multiple pending requests, durable abandonment, and an overdue timer in fresh processes.
 Wrong identity, corrupt interior records, a torn tail, denied grants, concurrent writers, storage failures, and exhausted admission also need negative cases.
 Successful ordinary execution or a same-host replay is insufficient proof.
-
-## Questions for the owner
-
-1. **Which boundary should an initial implementation prove?**
-   Automatic host-call replay is recommended for unchanged whole programs; explicit durable steps expose retry units; explicit application state is the smallest alternative.
-   The checkpoint mechanism can remain deferred without blocking that decision.
-   For this source, the choice determines whether the runner, named steps, or the application cursor suppresses `first`:
-
-```text
-pub fn main() -> void $ Console:
-    println("first")
-    println("second")
-```
-
-2. **What should recovery do with an intent whose external outcome is unknown?**
-   Retrying the same logical operation is recommended, with an at-least-once contract; stopping for operator reconciliation avoids an automatic duplicate attempt.
-   Requiring destination idempotency would support fewer operations, but can give a stronger business guarantee.
-   `println("second")` is the small counterexample: stdout provides no general transaction or request-key deduplication.
-
-3. **How broad should the first automatic mode's resource eligibility be?**
-   Static refusal of every persistent-handle-opening import is recommended; allowing selected handles requires an explicit provider restore contract.
-   A promptly closed resource still appears in the import list, so this choice affects which otherwise ordinary programs qualify.
-   An integer returned by a custom `open() -> usize` contract does not establish a portable resource.
-
-4. **Which public command surface should be exposed first?**
-   Paired durable `--journal`/`--resume` flags are recommended after the crash proof; diagnostic `--record`/`--replay` could ship earlier under distinct guarantees.
-   Keeping both surfaces private until the recovery contract is established is the smallest exposure.
-   For the same two-write source, ordinary replay suppresses completed output, while resume may execute the unfinished second write live.
-
-Clock behavior, quota shape, and format details remain visible trade-offs above.
-If the owner chooses the journal direction, its implementation order must decide those contracts before code rather than silently treating this recommendation as approval.
 
 ## Example validation
 
