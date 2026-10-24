@@ -60,7 +60,7 @@
         i32.const 12
         i32.mul
         i32.add
-        i32.const 16
+        i32.const 24
         i32.add
         local.get $t9
         i32.const 16

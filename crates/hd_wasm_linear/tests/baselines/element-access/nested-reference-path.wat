@@ -26,7 +26,7 @@
         unreachable
       end
       local.get $t1
-      i32.load $heap offset=8
+      i32.load $heap offset=16
       i32.load $heap
       local.set $t2
       i32.const 0
@@ -38,7 +38,7 @@
         unreachable
       end
       local.get $t2
-      i32.const 8
+      i32.const 16
       i32.add
       local.tee $t3
       call $retain

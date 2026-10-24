@@ -24,7 +24,7 @@
         unreachable
       end
       local.get $t1
-      i32.load $heap offset=8
+      i32.load $heap offset=16
       local.set $t2
     end
     local.get $t2

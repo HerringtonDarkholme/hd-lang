@@ -17,7 +17,7 @@
       local.set $text.1
       local.get $t1
       local.get $t0
-      i32.const 96 ;; &" "
+      i32.const 104 ;; &" "
       i32.const 1
       call $"impl string.split"
       local.set $t2
@@ -55,9 +55,9 @@
           i32.mul
           i32.add
           local.tee $t9
-          i32.load $heap offset=8
+          i32.load $heap offset=16
           local.get $t9
-          i32.load $heap offset=12
+          i32.load $heap offset=20
           local.set $t10
           local.set $t11
           local.get $t5

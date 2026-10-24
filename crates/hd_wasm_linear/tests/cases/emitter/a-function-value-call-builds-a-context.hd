@@ -1,0 +1,10 @@
+# @dump: wat
+# A function value's code takes its providers in a context: a list
+# buffer whose entries start after its owner word, at payload offset 16,
+# each the key id, then the provider's data at 24 and its vtable at 28.
+trait Mailer:
+    fn send(&mut self, to: string) -> void
+
+fn notify(send: fn(string) -> void $ Mailer) -> void $ Mailer:
+    send("ada")
+    #^^^^^^^^^^

@@ -318,28 +318,25 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
   length 0, never counted, so a view one past a buffer's end can never
   reach the next object's count. Slicing to length zero yields it.
 - **A list** is the address of a counted header, which holds its buffer's
-  address and its owner word. The buffer is a counted object holding the
-  capacity, the length and then the elements inline at their layout's
+  address. The buffer is a counted object holding the capacity, the
+  length, the owner word and then the elements inline at their layout's
   size. While the owner word is 0, the buffer's count is its owner count,
   for copy-on-write: a change first checks it is 1 and copies the buffer
   otherwise (REFCOUNT_RUNTIME.md §9.1). Once an element reference pins
-  the list, the owner word is set and the header is the buffer's one
-  owner, so its other counts are pins, the second count of
+  the list, the owner word is set and one header holds the buffer, so
+  its other counts are pins, the second count of
   OBJECT_MODEL_TIER1.md §6.3 (§23.20).
 - **A map** is the same kind of header over its table, one counted block
   that holds the entries in the order they were added and a probing
-  index over them (§23.18).
-
-| Header payload offset | Size | Field |
-| --- | --- | --- |
-| 0 | 4 | the buffer's address |
-| 4 | 4 | the owner word: clone-glue table slot plus one once pinned (0 while shareable), with bit 31 recording transitive exposure |
+  index over them (§23.18), with the owner word at the offset a list
+  buffer has it, so one copy reads it the same way for either.
 
 | Buffer payload offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | capacity, in elements |
 | 4 | 4 | length |
-| 8 | capacity times the element size | the elements, inline |
+| 8 | 4 | the owner word: clone-glue table slot plus one once pinned (0 while shareable), with bit 31 recording transitive exposure; growth moves it to the new buffer |
+| 16 | capacity times the element size | the elements, inline |
 
 Why a header, and not the buffer's address as the value: the TIR changes
 a list through its value, not through the place that holds it (`push`,
@@ -581,7 +578,7 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   set holds every local that may hold a value at a suspension point
   (`release_unwound`).
 - **Uniqueness and pins.** `IsUnique` lowers to `rt:list_unique` or
-  `rt:map_unique`, and `Pin` to the header's owner word (§23.20),
+  `rt:map_unique`, and `Pin` to the buffer's owner word (§23.20),
   of the header at their place: a local's or a value's, then struct
   fields, elements, bounds-checked, and dereferences, a view's included
   (`Em::place_header`, which walks the place as a rooted one, below).
@@ -739,7 +736,7 @@ List kernels live in `emit/list.rs`, with buffer/header glue in
 - **Loops.** `SnapEnd` gives the snapshot's buffer back at once, so after
   the loop the list's next change copies only when something else still
   shares the buffer.
-- **Pins.** The passes' `Pin` gives the header its owner word while
+- **Pins.** The passes' `Pin` gives the buffer its owner word while
   element references hold counts of the buffer, and a `push` into a
   pinned list panics `collection-pinned`. Element
   references use the typed views of §23.20, preserving the header and
@@ -761,8 +758,8 @@ Each operation implements collection value semantics (§15.2;
 `crates/hd_mono/DESIGN.md` §13.12), using the table's count for copy-on-write.
 
 - **The table.** A map is a list's kind of header over one counted
-  block: the live and written entry counts, the rebuild count, the
-  capacity, then an index of entry numbers plus one (0 empty) twice the
+  block: the live and written entry counts, the owner word (at a list
+  buffer's offset), the capacity, the rebuild count, then an index of entry numbers plus one (0 empty) twice the
   capacity long, each entry's hash (-1 once removed), and the entries
   in the order they were added, each a `(K, V)` record laid out as a
   tuple. Probing is linear from the hash's low bits; the index is at
@@ -1002,9 +999,9 @@ references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
   the buffer. Insertion puts an `IsUnique` and a `Pin` of each list on
   the reference's path before it, outermost first (docs/compiler/tir-v2.md,
   "Insertion" rule 6). `IsUnique` makes the buffer the list's own, and
-  `Pin` gives the header its owner word (§23.7), with no count: the
+  `Pin` gives the buffer its owner word (§23.7), with no count: the
   function-table slot of the list's clone glue plus one. A buffer whose
-  header has an owner word has that header as its one owner, so every
+  owner word is set has one header holding it, so every
   count past the first is a reference's: the list is pinned while the
   buffer's count is over 1 (`rt:list_pinned`), and a `push` or a
   truncation then panics `collection-pinned` (`ref.elem.release.copies`).

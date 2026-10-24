@@ -61,7 +61,7 @@
           i32.const 8
           i32.mul
           i32.add
-          f64.load $heap offset=8
+          f64.load $heap offset=16
           f64.add
           local.set $sum
     ;; 10 |     for i in 0..n:

@@ -77,7 +77,7 @@
           i32.const 4
           i32.mul
           i32.add
-          i32.load $heap offset=8
+          i32.load $heap offset=16
           i32.add
           local.set $sum
     ;; 6 |     for i in 0..xs.len():

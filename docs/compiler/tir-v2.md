@@ -3990,6 +3990,49 @@ changes. The 13 release `.wasm` files are byte-identical to 3d's. The
 web compiler's gzip shrinks 4,081 B (1,909,705 to 1,905,624, both built
 here).
 
+3e moves the owner word from the header into the buffer, for lists and
+maps at once. `LIST_OWN` is now payload offset 8 of a list buffer and
+of a map table; list elements start at 16 (`LIST_ELEMS`), the map's
+`CAP` stays at 12, `GROWN` moves to 16 and `INDEX` to 24, the static
+empty buffer is 32 bytes, and a context's entries start at 16 with the
+provider's data at 24 and its vtable at 28. `Buffer[T].at` adds 16. A
+header holds only the buffer's address and shrinks to 4 bytes (the same
+16-byte allocation class). `rt:list_buf` and `rt:map_table` zero the
+word; `rt:list_copy`, `rt:list_pinned`, `rt:list_unique`,
+`rt:map_unique` and `Em::pin_owner` read or write it through the
+header's buffer, and `rt:list_truncate` reads it through
+`rt:list_pinned`. Growth (`rt:list_grow`, `rt:map_grow`) moves the word
+to the new buffer. The unique copy needs no code for it: it copies only
+a buffer whose word is 0, and the map's copies the whole table anyway.
+One piece the plan did not price: `rt:map_clone` made a second header
+over the table and relied on that header's word being 0 for
+`rt:map_unique` to copy; with the word in the shared table, the copy
+would be skipped, so the clone sets the word aside around the unique
+copy and puts it back, and the copy starts with none. 3f's
+`rt:map_clone` over a table replaces it.
+
+3e adds 33 Rust code lines and deletes 24 against 45, under the stop
+line of 70 (`rt.rs` +22/−18, `map.rs` +10/−6, `emit/list.rs` +1);
+std hd changes the one line of `Buffer[T].at` and its doc comment. 17
+wat baselines change, each only by the layout: element loads and
+stores at offset 16 where they were at 8 (20 for an element's second
+word), a map entry's address past `INDEX` at 24, and one static string
+8 bytes later behind the larger empty buffer. The new fixture
+`emitter/a-function-value-call-builds-a-context` shows a context's
+entry at 16, 24 and 28. Release `.wasm` on node against its parent,
+whose 13 files are 3d's bytes: hello,
+binary_trees and mandelbrot byte-identical; json 168,515 to 168,757
+(+0.14%), map_count 18,443 to 18,477 (+0.18%), fannkuch_redux 9,606 to
+9,630 (+0.25%), spectral_norm 10,593 to 10,617 (+0.23%), closures +24
+B, sieve, string_build and points +14 B, dyn_iter +8 B, nbody −2 B:
+the word's store in growth and the buffer load in `rt:list_pinned`,
+within the planned ±0.3%. Study times on V8, `--quick`, 21 runs each
+alternated run by run, under a load average of 16 to 24: sieve 240 to
+236 ms (CPU 239 to 234), fannkuch_redux 94 to 94 ms (94 to 94), json
+119 to 119 ms (161 to 161), map_count 178 to 174 ms (186 to 183), all
+within noise. The web compiler's gzip grows 198 B (1,905,641 to
+1,905,839, both built here).
+
 No commit carries two copy paths: through 3e both kinds copy by
 `ListCopy` (a new header over the same buffer), 3f moves both to the
 buffer copy glue at once, and 3g removes the header copies of both.

@@ -14,14 +14,15 @@ use crate::module::{Func, HEADER, HEAP, Module, Sym, Val, mem};
 use crate::rt::{Helper, LIST_OWN, OptVal, own_arg, retain_call, walk_code};
 
 /// A table's payload: the live entry count, the written entry count
-/// (removed ones included), how many times growth rebuilt the entries,
-/// the entry capacity (0 or a power of two), then the index, the hashes
-/// and the entries.
+/// (removed ones included), the owner word at a list buffer's
+/// ([`LIST_OWN`]), the entry capacity (0 or a power of two), how many
+/// times growth rebuilt the entries, then the index, the hashes and the
+/// entries.
 pub const LIVE: u64 = 0;
 pub const USED: u64 = 4;
-pub const GROWN: u64 = 8;
 pub const CAP: u64 = 12;
-pub const INDEX: u32 = 16;
+pub const GROWN: u64 = 16;
+pub const INDEX: u32 = 24;
 
 /// The panic of a change of a pinned map's length (`ref.elem.pinned.map`).
 pub const MAP_PINNED: &str = "collection-pinned: map length changed while pinned";
@@ -242,7 +243,7 @@ pub fn table(m: &Module, entry: &Entry) -> Func {
     descriptor(&mut f, entry);
     f.helper(Helper::New);
     f.set(t);
-    for at in [LIVE, USED, GROWN] {
+    for at in [LIVE, USED, LIST_OWN, GROWN] {
         store_u32(&mut f, t, at, &|f| f.i32(0));
     }
     store_u32(&mut f, t, CAP, &|f| f.get(0));
@@ -656,6 +657,8 @@ pub fn grow(entry: &Entry, m: &Module) -> Func {
         f.i32(1);
         f.op(I::I32Add);
     });
+    // An exposed map stays unshared after its pin ends, so the word moves.
+    store_u32(&mut f, nt, LIST_OWN, &|f| load_u32(f, t, LIST_OWN));
     if let Some(r) = m.runtime {
         f.get(t);
         f.u32(HEADER);
@@ -686,10 +689,9 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
     f.op(I::I32Load(mem(HEAP, 0, 2)));
     f.i32(1);
     f.op(I::I32Ne);
-    // A header with an owner word is its table's one owner; the other
+    // A table with an owner word has one header holding it; the other
     // counts are element references, which see the change in place.
-    f.get(0);
-    f.op(I::I32Load(mem(HEAP, LIST_OWN, 2)));
+    load_u32(&mut f, t, LIST_OWN);
     f.op(I::I32Eqz);
     f.op(I::I32And);
     f.op(I::If(BlockType::Empty));
@@ -736,12 +738,17 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
 
 /// [`Helper::MapClone`]: `(map) -> map`: a new header over the map's
 /// table, which takes one more count, then made unique, so the table is
-/// copied whole and the original keeps its own (`ref.elem.copy`).
+/// copied whole and the original keeps its own (`ref.elem.copy`). The
+/// owner word is set aside meanwhile, so the table reads as shared and
+/// the copy starts with none.
 pub fn clone(m: &Module, entry: &Entry) -> Func {
     let mut f = m.func("rt:map_clone", vec![Val::I32], vec![Val::I32]);
-    let (t, h) = (f.local(Val::I32), f.local(Val::I32));
+    let (t, h, own) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     load_u32(&mut f, 0, 0);
     f.set(t);
+    load_u32(&mut f, t, LIST_OWN);
+    f.set(own);
+    store_u32(&mut f, t, LIST_OWN, &|f| f.i32(0));
     f.get(t);
     f.helper(Helper::RetainKnown);
     f.get(t);
@@ -753,6 +760,7 @@ pub fn clone(m: &Module, entry: &Entry) -> Func {
     f.helper(Helper::MapUnique {
         entry: entry.clone(),
     });
+    store_u32(&mut f, t, LIST_OWN, &|f| f.get(own));
     f.get(h);
     f
 }
