@@ -1,0 +1,6 @@
+[package]
+name = "server_live_library"
+
+[dependencies]
+model = { path = "../model" }
+transport = { path = "../transport" }

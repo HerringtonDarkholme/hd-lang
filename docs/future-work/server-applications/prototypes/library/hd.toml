@@ -1,0 +1,5 @@
+[package]
+name = "server_library"
+
+[dependencies]
+model = { path = "../model" }

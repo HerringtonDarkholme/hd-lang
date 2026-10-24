@@ -1,0 +1,10 @@
+use dep.model.{Event, handle, start}
+use std.time.Clock
+
+pub fn main!() -> void $ Console + Clock:
+    a := start()
+    b := start()
+    _ := handle!(Event.Queue(+7), a)
+    _ := handle!(Event.Queue(+7), b)
+    duplicate := handle!(Event.Queue(+7), a)
+    println("a=${a.count} b=${b.count} duplicate=${duplicate.text}")

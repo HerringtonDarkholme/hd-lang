@@ -14,6 +14,7 @@ action at a distance.
 
 ## What Remains
 
+- [Server Applications](SERVER_APPLICATIONS.md): proposed ordinary-main application lifetime, typed handlers, shared state and deployment SDKs; compared with hooks and isolated jobs, with runnable controls and the Node #810 prerequisite (#806).
 - [HTTP Server Handlers](HTTP_SERVER.md): proposed core-Wasm handler entry, fresh request instances, Cloudflare/Vercel adapters, portable async controls, and explicit deployment gaps (#266).
 
 - [TLS Streams](TLS_STREAMS.md): client TLS boundary options, host-stream transfer, aliases and buffered bytes, trust roots, and Net grants (#265).

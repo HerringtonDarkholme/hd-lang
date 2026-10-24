@@ -1,0 +1,5 @@
+[package]
+name = "server_entry_control"
+
+[dependencies]
+model = { path = "../model" }
