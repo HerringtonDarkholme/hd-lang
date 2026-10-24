@@ -554,7 +554,8 @@ impl Em<'_, '_, '_> {
     /// (`hd_tir::own::consumers`).
     pub(super) fn own_consumers(&mut self) {
         let mut out = std::mem::take(&mut self.consumer);
-        hd_tir::own::consumers(self.b, self.input.own_cx, &mut out);
+        let topo = hd_tir::ir::Topology::new(self.b);
+        hd_tir::own::consumers(self.b, &topo, self.input.own_cx, &mut out);
         self.consumer = out;
         let mut at = std::mem::take(&mut self.own_at);
         at.clear();

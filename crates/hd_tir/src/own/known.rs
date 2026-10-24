@@ -63,12 +63,12 @@
 use hd_types::Ty;
 
 use super::moves::{Root, in_place, root_of};
-use super::splice::{self, for_blocks};
+use super::splice;
 use super::{Loc, Operand, OwnCx, Role, Tri, consumes, fill, operands, tracked};
 
 use crate::ir::{
-    Body, CaptureMode, NONE, ReadMode, Ref, Tag, is_suspension, local_flags, place, ref_word,
-    u32_of,
+    Body, CaptureMode, NONE, ReadMode, Ref, Tag, for_blocks, is_suspension, local_flags, place,
+    ref_word, u32_of,
 };
 
 /// Known-null's dense tables, reused across bodies.

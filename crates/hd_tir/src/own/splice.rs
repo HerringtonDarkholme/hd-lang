@@ -17,7 +17,7 @@ use hd_base::NodeIdx;
 use hd_types::Ty;
 
 use super::Loc;
-use crate::ir::{Body, NONE, Op, Ref, Tag, place, u32_of};
+use crate::ir::{Body, NONE, Op, Ref, Tag, for_blocks, place, u32_of};
 
 /// One new instruction: it stands in block `blk` before position `pos`
 /// (`pos` = the block's length: at its end).
@@ -333,38 +333,6 @@ pub(crate) fn permute_columns(b: &mut Body, order: &[u32]) {
 fn permute<T: Copy>(v: &mut Vec<T>, order: &[u32]) {
     let old = std::mem::take(v);
     v.extend(order.iter().map(|&o| old[o as usize]));
-}
-
-/// The blocks instruction `i` runs, without allocating: a block operand,
-/// a block list, a switch's two arms, a `Defer`'s suite.
-pub(crate) fn for_blocks(b: &Body, i: usize, mut f: impl FnMut(u32)) {
-    let [a, w] = b.data[i];
-    let tag = b.tags[i];
-    let mut visit = |x: u32| {
-        if b.tags.get(x as usize) == Some(&Tag::Block) {
-            f(x);
-        }
-    };
-    for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
-        match op {
-            Op::Block => visit(word),
-            Op::Blocks if word != NONE => {
-                for &x in b.record(word) {
-                    visit(x);
-                }
-            }
-            _ => {}
-        }
-    }
-    match tag {
-        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-            for &x in b.record(w).iter().skip(1).take(2) {
-                visit(x);
-            }
-        }
-        Tag::Defer => visit(a),
-        _ => {}
-    }
 }
 
 /// Renumbers every instruction word of `b` through `new_of`, and moves

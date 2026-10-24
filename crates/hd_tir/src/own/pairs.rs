@@ -46,9 +46,9 @@
 //! line. The edits join the pipeline's last rebuild.
 
 use super::moves::{self, Root, in_place, root_of};
-use super::splice::{self, for_blocks};
+use super::splice;
 use super::{Loc, Operand, OwnCx, Tri, operands};
-use crate::ir::{Body, NONE, ReadMode, Tag, is_suspension, place, u32_of};
+use crate::ir::{Body, NONE, ReadMode, Tag, for_blocks, is_suspension, place, u32_of};
 
 /// The nearest later touch seen so far: the straight line it is in, its
 /// order in the walk (a larger number is nearer), and the instruction or

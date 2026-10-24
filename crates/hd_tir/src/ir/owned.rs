@@ -59,8 +59,8 @@
 //! maps.
 
 use super::{
-    Body, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Tag, VerifyError,
-    is_suspension, local_flags, owned_blocks, place, u32_of, verify_structure,
+    Body, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Tag, Topology, VerifyError,
+    is_suspension, local_flags, place, u32_of, verify_structure,
 };
 use crate::own::{OwnCx, Role, consumes, operands, tracked};
 
@@ -69,7 +69,8 @@ use crate::own::{OwnCx, Role, consumes, operands, tracked};
 /// passes.
 #[must_use]
 pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
-    let mut errs = verify_structure(b);
+    let topo = Topology::new(b);
+    let mut errs = verify_structure(b, &topo);
     let places: Vec<Option<Place>> = (0..b.len())
         .map(|i| match b.tags[i].operands().0 {
             Op::Place => b.decode_place(b.data[i][0]),
@@ -96,18 +97,19 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     let own = cx;
     let cx = Cx {
         b,
+        topo: &topo,
         places: &places,
         addressed: &addressed,
     };
     decided(b, &mut errs);
-    takes_outside_suspension(b, &mut errs);
+    takes_outside_suspension(b, &topo, &mut errs);
     lent_refs(b, &mut errs);
-    change_places(b, &mut errs);
-    hoisted(b, own, &mut errs);
+    change_places(b, &topo, &mut errs);
+    hoisted(b, &topo, own, &mut errs);
     Empties::new(&cx).walk(&mut errs);
     borrow_spans(&cx, &mut errs);
     binding_locals(&cx, own, &mut errs);
-    Balance::new(b, own).walk(&mut errs);
+    Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
     errs
 }
@@ -189,12 +191,12 @@ fn err(errs: &mut Vec<VerifyError>, inst: u32, what: String) {
 /// No `Ref` takes its local's count of a cell in a sub-body that holds a
 /// suspension point: the frame saves the cell's local at each point, and
 /// a resume enters blocks in the middle (move's rule 4).
-fn takes_outside_suspension(b: &Body, errs: &mut Vec<VerifyError>) {
+fn takes_outside_suspension(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
     let takes = |i: usize| b.tags[i] == Tag::Ref && b.data[i][1] & super::ref_word::TAKES != 0;
     if !(0..b.len()).any(takes) {
         return;
     }
-    let subs = b.inst_subs();
+    let subs = &topo.sub;
     let mut suspends = vec![false; b.sub_root.len()];
     for (i, &tag) in b.tags.iter().enumerate() {
         if is_suspension(tag)
@@ -278,16 +280,8 @@ fn lent_refs(b: &Body, errs: &mut Vec<VerifyError>) {
 /// address, a check or a change can store the buffer it leaves only into
 /// the place it names, and one rooted at such a value would leave the
 /// place with the old one.
-fn change_places(b: &Body, errs: &mut Vec<VerifyError>) {
+fn change_places(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
     let n = b.len();
-    let mut at = vec![(usize::MAX, 0); n];
-    for i in (0..n).filter(|&i| b.tags[i] == Tag::Block) {
-        for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
-            if let Some(x) = at.get_mut(m as usize) {
-                *x = (i, p);
-            }
-        }
-    }
     let unique = |x: usize, p: &Place| {
         b.tags[x] == Tag::IsUnique && b.decode_place(b.data[x][0]).as_ref() == Some(p)
     };
@@ -363,11 +357,12 @@ fn change_places(b: &Body, errs: &mut Vec<VerifyError>) {
                 }
                 continue;
             };
-            let ((blk, pos), (cb, cp)) = (at[r], at[c]);
-            let list = if blk == usize::MAX {
+            let (blk, cb) = (topo.blk[r], topo.blk[c]);
+            let (pos, cp) = (topo.pos[r] as usize, topo.pos[c] as usize);
+            let list = if blk == NONE {
                 &[][..]
             } else {
-                b.record(b.data[blk][0])
+                b.record(b.data[blk as usize][0])
             };
             let checked = pos > 0 && unique(list[pos - 1] as usize, &p)
                 || (0..n).any(|x| unique(x, &p) && b.data[x][1] == super::unique_word::HOISTED);
@@ -382,7 +377,7 @@ fn change_places(b: &Body, errs: &mut Vec<VerifyError>) {
 
 /// Hoisting's `IsUnique`s and stable lists (`docs/compiler/tir-v2.md`,
 /// "Hoisting"): what the pass relies on, checked again.
-fn hoisted(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
+fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     use super::unique_word::{COVERED, HOISTED};
     use crate::own::hoist;
     let n = b.len();
@@ -390,30 +385,7 @@ fn hoisted(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     if !any && b.stable_lists.is_empty() {
         return;
     }
-    // Each statement's block and position; each instruction's first.
-    let mut blk = vec![NONE; n];
-    let mut pos = vec![0u32; n];
-    let mut first: Vec<u32> = (0..n).map(u32_of).collect();
-    for i in 0..n {
-        if b.tags[i] == Tag::Block {
-            for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
-                if (m as usize) < n {
-                    blk[m as usize] = u32_of(i);
-                    pos[m as usize] = u32_of(p);
-                    if (m as usize) < i {
-                        first[i] = first[i].min(first[m as usize]);
-                    }
-                }
-            }
-        }
-        let mut f = first[i];
-        crate::own::splice_for_blocks(b, i, |x| {
-            if (x as usize) < i {
-                f = f.min(first[x as usize]);
-            }
-        });
-        first[i] = f;
-    }
+    let (blk, pos, first) = (&topo.blk, &topo.pos, &topo.first);
     let mut addressed = vec![false; b.local_ty.len()];
     let mut captured = vec![false; b.local_ty.len()];
     for i in 0..n {
@@ -628,6 +600,7 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
 /// the locals a reference or a shared capture can reach.
 struct Cx<'a> {
     b: &'a Body,
+    topo: &'a Topology,
     places: &'a [Option<Place>],
     addressed: &'a [bool],
 }
@@ -710,9 +683,6 @@ struct Empties<'a> {
     /// rooted at an instruction's value, sorted: running that instruction
     /// again makes a new value, which refills the place.
     by_value: Vec<(u32, u32)>,
-    /// The label each `Loop` or labeled `Block` instruction is the target
-    /// of, or `NONE`.
-    label_of: Vec<u32>,
     /// Per label, the union of the states its `Break`s and `Continue`s
     /// carry, during the walk of its target.
     brk: Vec<Option<Set>>,
@@ -753,12 +723,6 @@ impl<'a> Empties<'a> {
                 at.push(u32_of(i));
             }
         }
-        let mut label_of = vec![NONE; b.len()];
-        for (l, &t) in b.label_inst.iter().enumerate() {
-            if let Some(x) = label_of.get_mut(t as usize) {
-                *x = u32_of(l);
-            }
-        }
         let mut by_value: Vec<(u32, u32)> = at
             .iter()
             .enumerate()
@@ -773,7 +737,6 @@ impl<'a> Empties<'a> {
             id,
             at,
             by_value,
-            label_of,
             brk: vec![None; b.label_inst.len()],
             cont: vec![None; b.label_inst.len()],
             arms: Vec::new(),
@@ -816,7 +779,7 @@ impl<'a> Empties<'a> {
             return Some(s);
         }
         let b = self.cx.b;
-        let label = self.label_of[blk as usize];
+        let label = self.cx.topo.label_of[blk as usize];
         if label != NONE {
             self.label_scopes[label as usize] = self.scopes.len();
         }
@@ -834,7 +797,7 @@ impl<'a> Empties<'a> {
                 self.inst(x, st)
             };
         }
-        let label = self.label_of[blk as usize];
+        let label = self.cx.topo.label_of[blk as usize];
         if label != NONE {
             cur = union(cur, self.brk[label as usize].take());
         }
@@ -936,7 +899,7 @@ impl<'a> Empties<'a> {
     fn repeat(&mut self, x: u32, s: Set) -> Option<Set> {
         let b = self.cx.b;
         let body = b.data[x as usize][0];
-        let label = self.label_of[x as usize] as usize;
+        let label = self.cx.topo.label_of[x as usize] as usize;
         let mut head = s;
         if let Some(x) = self.label_scopes.get_mut(label) {
             *x = self.scopes.len();
@@ -1200,18 +1163,11 @@ fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
             holds[l.idx()] = b.data[i][1];
         }
     }
-    let mut label_of = vec![NONE; n];
-    for (l, &t) in b.label_inst.iter().enumerate() {
-        if let Some(x) = label_of.get_mut(t as usize) {
-            *x = u32_of(l);
-        }
-    }
     let mut walk = Live {
         cx,
         bit,
         at,
         holds,
-        label_of,
         brk: vec![None; b.label_inst.len()],
         cont: vec![None; b.label_inst.len()],
         arms: Vec::new(),
@@ -1236,7 +1192,6 @@ struct Live<'a> {
     bit: Vec<u32>,
     at: Vec<u32>,
     holds: Vec<u32>,
-    label_of: Vec<u32>,
     /// While a target is walked: the state after it, for a `Break`, and at
     /// a loop's head, for a `Continue`.
     brk: Vec<Option<Set>>,
@@ -1281,7 +1236,7 @@ impl Live<'_> {
             return;
         }
         let b = self.cx.b;
-        let label = self.label_of[blk as usize];
+        let label = self.cx.topo.label_of[blk as usize];
         let saved = (label != NONE).then(|| self.brk[label as usize].replace(live.clone()));
         let tail = b.data[blk as usize][1];
         if tail != NONE && Ref(tail).as_inst().is_some() {
@@ -1444,7 +1399,7 @@ impl Live<'_> {
     fn repeat(&mut self, x: u32, live: &mut Set) {
         let b = self.cx.b;
         let body = b.data[x as usize][0];
-        let label = self.label_of[x as usize];
+        let label = self.cx.topo.label_of[x as usize];
         let after = live.clone();
         let mut head = vec![0; live.len()];
         let saved = (label != NONE).then(|| {
@@ -1478,7 +1433,7 @@ impl Live<'_> {
         let Some((&decision, arms)) = r.split_first() else {
             return;
         };
-        let label = self.label_of[x as usize];
+        let label = self.cx.topo.label_of[x as usize];
         let saved = (label != NONE).then(|| self.brk[label as usize].replace(live.clone()));
         let mut entries = Vec::with_capacity(arms.len());
         for &arm in arms {
@@ -1510,6 +1465,7 @@ impl Live<'_> {
 /// a path did not compute drops an empty place, which does nothing.
 struct Balance<'a> {
     b: &'a Body,
+    topo: &'a Topology,
     cx: &'a dyn OwnCx,
     /// Each tracked value's number among the tracked values, or `NONE`.
     num: Vec<u32>,
@@ -1525,13 +1481,6 @@ struct Balance<'a> {
     slot_start: Vec<u32>,
     slot_word: Vec<u32>,
     pwords: usize,
-    /// Each block's owner, a cleanup scope owning its suites; whether an
-    /// instruction is a sub-body's root; the innermost loop whose body
-    /// holds each instruction.
-    owner: Vec<u32>,
-    is_root: Vec<bool>,
-    loop_of: Vec<u32>,
-    label_of: Vec<u32>,
     brk: Vec<Option<Set>>,
     cont: Vec<Option<Set>>,
     arms: Vec<Vec<Option<Set>>>,
@@ -1545,7 +1494,7 @@ struct Balance<'a> {
 }
 
 impl<'a> Balance<'a> {
-    fn new(b: &'a Body, cx: &'a dyn OwnCx) -> Self {
+    fn new(b: &'a Body, topo: &'a Topology, cx: &'a dyn OwnCx) -> Self {
         let n = b.len();
         let mut num = vec![NONE; n];
         let mut k = 0u32;
@@ -1553,58 +1502,6 @@ impl<'a> Balance<'a> {
             if tracked(b, cx, i) {
                 *x = k;
                 k += 1;
-            }
-        }
-        let mut owner = vec![NONE; n];
-        for i in 0..n {
-            for blk in owned_blocks(b, i) {
-                if b.tags[i] == Tag::Defer && owner[blk as usize] != NONE {
-                    continue;
-                }
-                owner[blk as usize] = u32_of(i);
-            }
-        }
-        let mut is_root = vec![false; n];
-        for &r in &b.sub_root {
-            if let Some(x) = is_root.get_mut(r as usize) {
-                *x = true;
-            }
-        }
-        let mut parent = vec![NONE; n];
-        for i in 0..n {
-            if b.tags[i] == Tag::Block {
-                for &m in b.record(b.data[i][0]) {
-                    if let Some(p) = parent.get_mut(m as usize) {
-                        *p = u32_of(i);
-                    }
-                }
-            }
-        }
-        let mut loop_of = vec![NONE; n];
-        for i in (0..n).rev() {
-            if is_root[i] {
-                continue;
-            }
-            let p = if parent[i] == NONE {
-                owner[i]
-            } else {
-                parent[i]
-            };
-            if p == NONE || p as usize >= n {
-                continue;
-            }
-            let p = p as usize;
-            loop_of[i] =
-                if b.tags[i] == Tag::Block && b.tags[p] == Tag::Loop && b.data[p][0] == u32_of(i) {
-                    u32_of(p)
-                } else {
-                    loop_of[p]
-                };
-        }
-        let mut label_of = vec![NONE; n];
-        for (l, &t) in b.label_inst.iter().enumerate() {
-            if let Some(x) = label_of.get_mut(t as usize) {
-                *x = u32_of(l);
             }
         }
         let mut held: Vec<bool> = b
@@ -1632,6 +1529,7 @@ impl<'a> Balance<'a> {
         let pwords = slot_word.len().div_ceil(64);
         Balance {
             b,
+            topo,
             cx,
             num,
             words: (k as usize).div_ceil(64),
@@ -1640,10 +1538,6 @@ impl<'a> Balance<'a> {
             slot_start,
             slot_word,
             pwords,
-            owner,
-            is_root,
-            loop_of,
-            label_of,
             brk: vec![None; b.label_inst.len()],
             cont: vec![None; b.label_inst.len()],
             arms: Vec::new(),
@@ -1917,10 +1811,10 @@ impl<'a> Balance<'a> {
         if w == NONE || Ref(w).as_inst().is_none() || w as usize >= self.b.len() {
             return;
         }
-        let owner = if self.is_root[blk as usize] {
+        let owner = if self.topo.is_root[blk as usize] {
             NONE
         } else {
-            self.owner[blk as usize]
+            self.topo.owner[blk as usize]
         };
         let op = crate::own::Operand {
             value: w,
@@ -1995,14 +1889,14 @@ impl<'a> Balance<'a> {
             if k == NONE || !self.bit(st, 0, k) {
                 continue;
             }
-            let mut l = self.loop_of[v];
+            let mut l = self.topo.loop_of[v];
             while l != NONE {
                 if l == lp {
                     let what = format!("%{v} is still owned where loop %{lp} goes round at %{x}");
                     self.err(x, what);
                     return;
                 }
-                l = self.loop_of[l as usize];
+                l = self.topo.loop_of[l as usize];
             }
         }
     }
@@ -2029,7 +1923,7 @@ impl<'a> Balance<'a> {
                 self.inst(x, s)
             };
         }
-        let label = self.label_of[blk as usize];
+        let label = self.topo.label_of[blk as usize];
         if label != NONE {
             cur = union(cur, self.brk[label as usize].take());
         }
@@ -2181,7 +2075,7 @@ impl<'a> Balance<'a> {
     fn repeat(&mut self, x: u32, st: Set) -> Option<Set> {
         let b = self.b;
         let body = b.data[x as usize][0];
-        let label = self.label_of[x as usize] as usize;
+        let label = self.topo.label_of[x as usize] as usize;
         let mut head = st;
         let rounds = 3 * self.words * 64 + self.lwords * 64 + self.pwords * 64 + 2;
         for _ in 0..rounds {
@@ -2222,7 +2116,7 @@ impl<'a> Balance<'a> {
                 out = union(out, self.valued(arm, e));
             }
         }
-        let label = self.label_of[x as usize];
+        let label = self.topo.label_of[x as usize];
         if label != NONE {
             out = union(out, self.brk[label as usize].take());
         }

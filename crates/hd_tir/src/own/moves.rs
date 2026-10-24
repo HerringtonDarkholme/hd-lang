@@ -49,9 +49,10 @@
 
 use hd_types::Ty;
 
-use super::splice::for_blocks;
 use super::{Operand, OwnCx, Role, Tri, fill, operands, splice, tracked};
-use crate::ir::{Body, CaptureMode, NONE, ReadMode, Ref, Tag, is_suspension, place, u32_of};
+use crate::ir::{
+    Body, CaptureMode, NONE, ReadMode, Ref, Tag, for_blocks, is_suspension, place, u32_of,
+};
 
 /// A decision of [`Tables::decide`].
 const UNSEEN: u8 = 0;

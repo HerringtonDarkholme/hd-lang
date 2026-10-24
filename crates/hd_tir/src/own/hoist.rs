@@ -60,11 +60,11 @@
 
 use hd_types::Ty;
 
-use super::splice::{self, for_blocks};
+use super::splice;
 use super::{Operand, OwnCx, Role, Tri, fill, operands};
 use crate::ir::{
-    Body, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, is_suspension, local_flags, place, u32_of,
-    unique_word,
+    Body, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, for_blocks, is_suspension, local_flags,
+    place, u32_of, unique_word,
 };
 
 /// A projection step's code: a field (its index), an element, a

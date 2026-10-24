@@ -94,11 +94,10 @@
 
 use hd_types::Ty;
 
-use super::splice::for_blocks;
 use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, operands, splice};
 use crate::ir::{
-    Body, BodyKind, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, is_suspension, local_flags,
-    place, u32_of,
+    Body, BodyKind, Callee, IntrinsicOp, NONE, ReadMode, Ref, Tag, for_blocks, is_suspension,
+    local_flags, place, u32_of,
 };
 
 /// A projection step's code in a path: a field (its index), a variant

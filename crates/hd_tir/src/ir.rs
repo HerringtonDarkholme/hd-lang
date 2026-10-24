@@ -15,8 +15,11 @@ use hd_types::{Ty, TyList};
 
 mod owned;
 mod root;
+mod topo;
 pub use owned::verify_owned;
 pub use root::{RootTables, root_places};
+pub use topo::Topology;
+pub(crate) use topo::for_blocks;
 
 pub const NONE: u32 = u32::MAX;
 /// The bit of an anchor that names an inlined copy's instruction
@@ -981,40 +984,10 @@ impl Body {
         self.tags[i] == Tag::Closure && self.record(self.data[i][1]).len() == 4
     }
 
-    /// Each instruction's sub-body: the one whose root block holds it,
-    /// directly or through nested blocks. A block's members precede it,
-    /// so one backward pass settles every instruction.
+    /// Each instruction's sub-body ([`Topology::sub`]).
     #[must_use]
     pub fn inst_subs(&self) -> Vec<u32> {
-        let n = self.len();
-        let mut owner = vec![NONE; n];
-        for (i, tag) in self.tags.iter().enumerate() {
-            if *tag == Tag::Block {
-                for &c in self.record(self.data[i][0]) {
-                    if let Some(o) = owner.get_mut(c as usize) {
-                        *o = u32::try_from(i).expect("insts");
-                    }
-                }
-            }
-        }
-        let mut root_of = vec![NONE; n];
-        for (k, &r) in self.sub_root.iter().enumerate() {
-            if let Some(x) = root_of.get_mut(r as usize) {
-                *x = u32::try_from(k).expect("subs");
-            }
-        }
-        let mut out = vec![0; n];
-        for i in (0..n).rev() {
-            let o = owner[i] as usize;
-            out[i] = if root_of[i] != NONE {
-                root_of[i]
-            } else if o < n {
-                out[o]
-            } else {
-                0
-            };
-        }
-        out
+        Topology::new(self).sub
     }
 
     /// The value operands of instruction `i` that compute one result from
@@ -2010,30 +1983,6 @@ pub fn global_place_types(b: &Body) -> Vec<usize> {
     out
 }
 
-/// The blocks instruction `i` owns through its operands: a block
-/// operand, a block list, a switch's two arms, or a `Defer`'s suite.
-pub(crate) fn owned_blocks(b: &Body, i: usize) -> Vec<u32> {
-    let [a, w] = b.data[i];
-    let tag = b.tags[i];
-    let mut out = Vec::new();
-    for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
-        match op {
-            Op::Block => out.push(word),
-            Op::Blocks => out.extend_from_slice(b.record(word)),
-            _ => {}
-        }
-    }
-    match tag {
-        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-            out.extend(b.record(w).iter().skip(1).take(2));
-        }
-        Tag::Defer => out.push(a),
-        _ => {}
-    }
-    out.retain(|&x| b.tags.get(x as usize) == Some(&Tag::Block));
-    out
-}
-
 /// The instructions of a `defer` suite that invariant 6 forbids: a
 /// suspension point, a `Return`, or a `Break` or `Continue` whose loop
 /// is outside the suite. A closure inside the suite is its own body and
@@ -2060,7 +2009,7 @@ pub fn defer_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
         if b.tags[i as usize] == Tag::Block {
             stack.extend(b.record(b.data[i as usize][0]));
         }
-        stack.extend(owned_blocks(b, i as usize));
+        for_blocks(b, i as usize, |x| stack.push(x));
     }
     let mut in_suite = vec![false; b.len()];
     for &i in &inside {
@@ -2089,7 +2038,7 @@ pub fn defer_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
 /// after the ownership passes is verified with [`verify_owned`].
 #[must_use]
 pub fn verify(b: &Body) -> Vec<VerifyError> {
-    let mut errs = verify_structure(b);
+    let mut errs = verify_structure(b, &Topology::new(b));
     no_ownership(b, &mut errs);
     errs
 }
@@ -2145,7 +2094,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
 
 /// The invariants of every body, before or after the ownership passes:
 /// all of [`CHECKED_INVARIANTS`] but 22 and 23.
-pub(crate) fn verify_structure(b: &Body) -> Vec<VerifyError> {
+pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
     let mut errs = Vec::new();
     let n = u32::try_from(b.len()).expect("insts");
     let mut owner = vec![NONE; b.len()];
@@ -2301,9 +2250,8 @@ pub(crate) fn verify_structure(b: &Body) -> Vec<VerifyError> {
             });
         }
     }
-    let tree = Tree::new(b, owner);
     types_are_global(b, &mut errs);
-    suspension_scopes(b, &tree, &mut errs);
+    suspension_scopes(b, topo, &mut errs);
     constant_rows(b, &mut errs);
     errs
 }
@@ -2360,41 +2308,6 @@ fn place_errors(b: &Body, user: u32, word: u32) -> Vec<VerifyError> {
         }
     }
     out
-}
-
-/// Block ownership from the block lists, and the sub-body roots.
-struct Tree {
-    owner: Vec<u32>,
-    root: Vec<bool>,
-}
-
-impl Tree {
-    fn new(b: &Body, owner: Vec<u32>) -> Self {
-        let mut root = vec![false; b.len()];
-        for &r in &b.sub_root {
-            if let Some(x) = root.get_mut(r as usize) {
-                *x = true;
-            }
-        }
-        Self { owner, root }
-    }
-
-    /// The blocks that enclose instruction `i` in its own sub-body,
-    /// innermost first. A sub-body's root block ends the walk, so a
-    /// closure's instructions are never inside the blocks around it.
-    fn enclosing(&self, i: u32) -> Vec<u32> {
-        let mut out = Vec::new();
-        let mut cur = i as usize;
-        while cur < self.root.len() && !self.root[cur] && out.len() < self.owner.len() {
-            let o = self.owner[cur];
-            if o == NONE {
-                break;
-            }
-            out.push(o);
-            cur = o as usize;
-        }
-        out
-    }
 }
 
 /// A call's arguments: its value record without the three provider words.
@@ -2468,7 +2381,7 @@ fn types_are_global(b: &Body, errs: &mut Vec<VerifyError>) {
 /// list (words of `extra`) is the `Scope`s around that point, innermost
 /// first. A suspension point with no row is not checked: no body writes
 /// rows yet.
-fn suspension_scopes(b: &Body, tree: &Tree, errs: &mut Vec<VerifyError>) {
+fn suspension_scopes(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
     let n = b.len();
     let mut scope_of = vec![NONE; n];
     for (i, &tag) in b.tags.iter().enumerate() {
@@ -2490,9 +2403,8 @@ fn suspension_scopes(b: &Body, tree: &Tree, errs: &mut Vec<VerifyError>) {
             err("suspension row names no suspension point");
             continue;
         }
-        let want: Vec<u32> = tree
+        let want: Vec<u32> = topo
             .enclosing(row.inst)
-            .into_iter()
             .map(|blk| scope_of[blk as usize])
             .filter(|&s| s != NONE)
             .collect();

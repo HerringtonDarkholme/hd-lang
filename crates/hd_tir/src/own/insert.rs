@@ -61,12 +61,12 @@
 use hd_base::{LocalId, NodeIdx, SubId};
 use hd_types::Ty;
 
-use super::splice::for_blocks;
 use super::{
     Loc, Operand, OwnCx, OwnScratch, Role, Tri, consumes, fill, operands, splice, tracked,
 };
 use crate::ir::{
-    Body, CaptureMode, IntrinsicOp, NONE, ReadMode, Ref, Tag, local_flags, place, u32_of,
+    Body, CaptureMode, IntrinsicOp, NONE, ReadMode, Ref, Tag, for_blocks, local_flags, place,
+    u32_of,
 };
 
 /// A place a jump may need to drop: a value or a local (bit 31 set),

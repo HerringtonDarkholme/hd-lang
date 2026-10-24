@@ -37,10 +37,9 @@
 
 use hd_types::Ty;
 
-use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, place, u32_of};
+use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, Topology, place, u32_of};
 
 pub use hoist::{EntryTest, entry_test};
-pub(crate) use splice::for_blocks as splice_for_blocks;
 
 mod borrow;
 pub(crate) mod hoist;
@@ -386,7 +385,7 @@ pub(crate) fn changed(b: &Body, i: usize) -> impl Iterator<Item = (u32, u32)> + 
 
 /// Clears `v` and refills it with `n` copies of `x`, as a pass resets one
 /// of its tables.
-fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
+pub(crate) fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
     v.clear();
     v.resize(n, x);
 }
@@ -475,31 +474,14 @@ pub(crate) fn consumes(b: &Body, cx: &dyn OwnCx, i: usize, op: &Operand, owner: 
 /// is insertion's rule, which gives every other owned value a `Drop`
 /// instead; a backend that emits the body reads it from here, so the two
 /// always agree on which use takes a count.
-pub fn consumers(b: &Body, cx: &dyn OwnCx, out: &mut Vec<u32>) {
+pub fn consumers(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<u32>) {
     let n = b.len();
-    let mut blk = vec![NONE; n];
-    let mut owner = vec![NONE; n];
-    let mut is_root = vec![false; n];
-    for i in 0..n {
-        if b.tags[i] == Tag::Block {
-            for &m in b.record(b.data[i][0]) {
-                if let Some(x) = blk.get_mut(m as usize) {
-                    *x = u32::try_from(i).expect("insts");
-                }
-            }
-        }
-        let defer = b.tags[i] == Tag::Defer;
-        splice::for_blocks(b, i, |x| {
-            if !(defer && owner[x as usize] != NONE) {
-                owner[x as usize] = u32::try_from(i).expect("insts");
-            }
-        });
-    }
-    for &r in &b.sub_root {
-        if let Some(x) = is_root.get_mut(r as usize) {
-            *x = true;
-        }
-    }
+    let Topology {
+        blk,
+        owner,
+        is_root,
+        ..
+    } = topo;
     // Per value: how many uses, and the last one with its operand.
     let mut count = vec![0u32; n];
     let mut last = vec![(NONE, None::<Operand>); n];
