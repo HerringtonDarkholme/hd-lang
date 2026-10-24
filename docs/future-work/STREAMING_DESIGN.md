@@ -19,9 +19,9 @@ handle is a plain descriptor id that std wraps, as Rust's `File` wraps
 a file descriptor.
 
 This is the design for issue #350; nothing in it is implemented yet,
-and every name is a placeholder. It answers question 5 of
-[Standard Library Redesign](STDLIB_REDESIGN.md), which recommended one
-reader shape added beside the buffered terminals.
+and every name is a placeholder. It adds one
+reader shape beside the buffered terminals, as
+[the standard library convention](STDLIB.md) allows.
 
 ## 1. The Problem
 

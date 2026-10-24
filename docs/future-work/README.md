@@ -27,8 +27,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 - [Policy Composition](POLICY_COMPOSITION.md): decided design of lean policy values, tuple composition and one `apply!` block, the only public way to apply a policy; not yet implemented (#783).
 - [Pipe Steps Without Placeholders](PIPE_STEPS.md): stress-tests standalone unary function steps, compatibility, effects, inference, and all three policy ports; no semantics are accepted (#818).
-- [Standard Library Redesign](STDLIB_REDESIGN.md): the review of the public `lib/std` surface against the #350 bar; the owner questions are answered and most changes are in std.
-- [Standard Library Calls](STDLIB_CALLS.md): every stdlib design choice the owner did not make explicitly, kept for the stdlib audit (#350).
+- [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [SIMD Byte-Scan Primitives](SIMD_PRIMITIVES.md): five scan primitives; SIMD128 intrinsics are approved after TIR v2 stage 3 (#428).
 - [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
 - [Open Issues](OPEN_ISSUES.md): the open language and library design questions. It holds only open questions.
