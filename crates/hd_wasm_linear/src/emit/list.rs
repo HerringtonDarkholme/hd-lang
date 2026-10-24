@@ -14,15 +14,14 @@
 use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::StdKind;
-use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Step, Tag};
+use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PlaceRoot, PrimOp, Proj, Ref, Step, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
 use super::Em;
-use super::refs::{Head, Start};
 use super::shape::Through;
 use super::value::{Dst, Src};
-use crate::layout::{coll_kind, coll_leaves, mem as mem_of, strip};
+use crate::layout::{Kind, coll_kind, coll_leaves, mem as mem_of, strip};
 use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_EXPOSED, LIST_LEN, LIST_OWN, empty_buffer};
 use crate::unsupported;
@@ -109,9 +108,15 @@ impl Em<'_, '_, '_> {
                     Tag::Read if let Some(l) = self.b.local_read(i) => locals[l.idx()],
                     // A reference to the list local's own place, or to
                     // what the reference it holds refers to.
-                    Tag::Ref => self.spot(u32::try_from(i).expect("insts")).is_ok_and(|s| {
-                        matches!(s.head, Head::Direct | Head::Deref)
-                            && matches!(s.start, Start::Local(l) if locals[l as usize])
+                    // A data object's field is no such place.
+                    Tag::Ref => self.b.decode_place(a).is_some_and(|p| {
+                        let data = matches!(self.kind(self.at_root_ty(p.root)), Kind::Data(_));
+                        let rest = match p.proj.as_slice() {
+                            [Proj::Deref, rest @ ..] if !data || rest.is_empty() => rest,
+                            rest => rest,
+                        };
+                        matches!(p.root, PlaceRoot::Local(l) if locals[l.idx()])
+                            && rest.iter().all(|s| matches!(s, Proj::Field(_)))
                     }),
                     Tag::Read
                         if self.projection(i).is_none() && self.b.element_read(i).is_none() =>
@@ -617,7 +622,7 @@ impl Em<'_, '_, '_> {
                 [hd_tir::ir::Proj::Deref] => true,
                 _ => continue,
             };
-            let mut ty = self.start_ty(super::refs::Start::Local(local.raw()));
+            let mut ty = self.at_root_ty(p.root);
             if indirect {
                 match self.ref_target(ty) {
                     Some((target, false)) => ty = target,
@@ -905,45 +910,6 @@ impl Em<'_, '_, '_> {
         self.elem(self.ty_of(list))?;
         let b = self.buffer(list)?;
         self.buffer_len(b);
-        self.store(i)
-    }
-
-    /// An element read, `Read [%xs [%i]]`, of the list `list` at `index`,
-    /// or a map value's, `Read [%m [%e]]` at the number `%e` of its entry.
-    pub(super) fn list_index(&mut self, i: u32, list: u32, index: u32) -> StageResult<()> {
-        let t = self.ty_of(list);
-        if self.is_map(t) {
-            let m = self.buffer(list)?;
-            let (vt, at) = self.map_value_at(m, t, index)?;
-            for l in mem_of(self.pool(), self.env(), vt)?.leaves {
-                self.f.get(at);
-                self.f.op(l.load(0));
-            }
-            return self.store(i);
-        }
-        let (_, e) = self.elem(t)?;
-        let b = self.buffer(list)?;
-        let ix = if self.proven_list_indices.contains(&i) {
-            // Typed views keep the ordinary checked path. The linker
-            // folds this guard away in programs without any views.
-            let ix = self.f.local(Val::I32);
-            self.f.helper(Helper::RefViewsAbsent);
-            self.f.op(I::If(BlockType::Result(Val::I32.wasm())));
-            self.comp(index, 0)?;
-            self.f.op(I::Else);
-            let checked = self.index(b, index)?;
-            self.f.get(checked);
-            self.f.op(I::End);
-            self.f.set(ix);
-            ix
-        } else {
-            self.index(b, index)?
-        };
-        let at = self.slot_at(b, ix, e.size);
-        for l in &e.leaves {
-            self.f.get(at);
-            self.f.op(l.load(LIST_ELEMS));
-        }
         self.store(i)
     }
 

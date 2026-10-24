@@ -1304,8 +1304,8 @@ audit on the commits that touch the emitter).
     element is stored as a place, a map value with `MapSet`. `NewData`
     is `NewStruct` (it also builds a compiler-supplied data object) and
     `CopyData`, which copy-update literals still produce, `CopyStruct`.
-    The emitter's resolver reads only places: its `Spot` comes from a
-    place word, an element index is always a value, and `Store` no
+    The emitter's resolver reads only places: it decodes a place
+    word, an element index is always a value, and `Store` no
     longer has a reference-record form. `live.rs`'s `local_store` and
     `local_part_store` read `Body::stored_local`. `lowering-catalog.md`
     named none of the deleted forms. The `tir` baselines print
@@ -1494,7 +1494,7 @@ is worth deciding only if they are hot.
    intrinsic's three-word record, so no new record is made that a
    rollback could drop. `ListIndexMut` stays until insertion's `IsUnique`
    replaces its uniqueness check (commits 6 and 12). The emitter lowers the
-   read as before (`list_index`), and `live.rs`, `count.rs` and `list.rs`
+   read as before (`place_read`), and `live.rs`, `count.rs` and `list.rs`
    treat it where they treated the intrinsic: a loop element's loan
    (`loans::source`, `loop_read`, `prepare_loans`), the range proof and
    the loop caches, which find it by its place, and the list header
@@ -1505,8 +1505,8 @@ is worth deciding only if they are hot.
    `[*$r [%i]]`; element stores keep their separately read header too.
    The emitter's moves and loans key on that header read (the loop
    snapshot's source in `live::loans`, the header local's
-   `Moves::last_access`, `list_root`, the range proof), and `list_index`
-   takes the header as a value. A rooted read drops the header read and
+   `Moves::last_access`, `list_root`, the range proof), and the element
+   read takes the header as a value. A rooted read drops the header read and
    changes what those see, so its modules would not be byte-identical.
    Rooting waits with the other place folding for commit 12, when the
    checker stops inserting copies, and commit 13 checks it. Every
@@ -3690,7 +3690,7 @@ binding's static slot, or at its Wasm globals read into locals
 (`Em::at_root`). A place rooted at a binding takes the walk when it has
 a step other than a field, or when it is read through fields; a store
 into or a reference to a binding's fields keeps the old lowering
-(`store_start`, the static slot's address), which already writes
+(`place_start`, the static slot's address), which already writes
 it. `IsUnique` and `Pin` of a binding's place need nothing more, since
 `place_header` walks. No store writes a whole binding through the walk
 yet: under headers an `IsUnique` replaces nothing, so the write-back the
@@ -3789,7 +3789,7 @@ the value for the marker's store: one count leaked per call. The marker's store 
 or a map through such a place tests it (`Em::test_local`, and
 `Em::tested` after a read's store): a binding read whole (`global_read`,
 `slot_get`), a cell read whole or by a field (`cell_get`, `place_read`),
-a read through a dereference (`place_read`, `read_part`, `rooted_read`),
+a read through a dereference (`place_read`, `read_part`),
 the header before each element step of the walk (`walk_place`), and the
 header an `IsUnique` or a `Pin` names (`place_header`), so a push through
 the binding panics too. The test is `local.get x`, `call rt:marker_test`

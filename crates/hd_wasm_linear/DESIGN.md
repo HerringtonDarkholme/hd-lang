@@ -2057,7 +2057,7 @@ element address directly. Typed views use the ordinary checked path,
 selected by the same RefViewsAbsent guard as cached list projections;
 the linker folds it in programs without views. Other index expressions,
 wide indices, offset indices and unproved paths retain their checks.
-Only element reads in list_index use this fact; element writes keep
+Only element reads (`walk_place`) use this fact; element writes keep
 their existing checks and lowering for the parallel TIR rewrite.
 
 The focused WAT cases show the eliminated loop comparison and exact
