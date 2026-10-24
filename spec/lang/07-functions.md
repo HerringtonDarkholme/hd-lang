@@ -597,7 +597,7 @@ fn bumper(counter: &mut Counter) -> fn(i32) -> void:
 
 1. r[fn.ref.unbound] `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter, is an **unbound method reference**.
 2. r[fn.ref.unbound.receiver] For a method, the reference takes the receiver first, then the method's own parameters: `Counter::bump` has type `fn(&mut Counter, i32) -> void`.
-3. r[fn.ref.unbound.value-self] A `self` method gives a `Self` first parameter, and so does a struct's `mut self` method.
+3. r[fn.ref.unbound.value-self] A `self` method gives a `Self` first parameter, and so does the `mut self` method of a struct, a list or a map.
 4. r[fn.ref.unbound.ref-self] A `&self` method gives a `&Self` first parameter, and a `&mut self` method a `&mut Self` one.
 5. r[fn.ref.associated] For an associated function, the parameters are the function's own: `Counter::zero` has type `fn() -> Counter`.
 6. r[fn.ref.lookup] A reference resolves `name` as the qualified call `Owner::name(...)` does. That is inherent members of a type first, then its available traits, and a type parameter through its bounds.
@@ -1046,7 +1046,7 @@ label := user.tagged::[string]("admin")
 
 1. r[fn.method.receiver-forms] A function declared in an `impl` block is a method when its first parameter is a **receiver**, in one of the four forms of the table below.
 2. r[fn.method.no-long-form] A receiver has no long form, so `self: &mut Self` is an error. Error: `syntax-error`.
-3. r[fn.method.mut-self-struct] `mut self` is the method's own changeable copy of the receiver, a `mut` [parameter](#parameters) named `self`, for every receiver type, a list or a map included. The caller's value is unchanged unless the method returns the copy and the caller keeps it.
+3. r[fn.method.mut-self-struct] On a struct, a list or a map, `mut self` is the method's own changeable copy of the receiver, a `mut` [parameter](#parameters) named `self`. The caller's value is unchanged unless the method returns the copy and the caller keeps it.
 4. r[fn.method.no-ownership-receiver] There is no ownership-taking receiver form.
 5. r[fn.method.associated] Receiverless members are associated functions and are called with qualified `Type::function(...)` or `Trait::function(...)` syntax.
 6. r[fn.method.eval-order] Method-call syntax evaluates the receiver first and then ordinary arguments.
@@ -1056,7 +1056,7 @@ label := user.tagged::[string]("admin")
 | Receiver | Type of `self` | What the method gets |
 | --- | --- | --- |
 | r[fn.method.receiver.self] `self` | `Self` | the method's own copy of the receiver, which never changes |
-| r[fn.method.receiver.mut-self] `mut self` | `Self` | the method's own changeable copy of the receiver, a list or a map included |
+| r[fn.method.receiver.mut-self] `mut self` | `Self` | on a struct, a list or a map, the method's own changeable copy of the receiver |
 | r[fn.method.receiver.ref-self] `&self` | `&Self` | a read of the caller's value, with no copy |
 | r[fn.method.receiver.ref-mut-self] `&mut self` | `&mut Self` | the caller's value, changed in place |
 

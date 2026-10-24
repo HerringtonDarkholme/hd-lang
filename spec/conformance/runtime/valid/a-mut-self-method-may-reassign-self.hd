@@ -1,0 +1,42 @@
+# test: a mut self method on a list or a map may reassign self as a whole, and the caller keeps its value unless the method returns the copy
+# Spec 07 Parameters: fn.param.mut.reassign. Spec 07 Method Receivers: fn.method.mut-self-struct.
+trait Restart:
+    fn restarted(mut self) -> usize
+    fn replaced(mut self) -> Self
+
+impl Restart for List[i64]:
+    fn restarted(mut self) -> usize:
+        self = [1, 2, 3]
+        self.push(4)
+        self.len()
+
+    fn replaced(mut self) -> List[i64]:
+        self = [9]
+        self
+
+impl Restart for Map[string, i64]:
+    fn restarted(mut self) -> usize:
+        self = {"a": 1}
+        self["b"] = 2
+        self.len()
+
+    fn replaced(mut self) -> Map[string, i64]:
+        self = {"z": 0}
+        self
+
+tests:
+    use std.testing.assert_equal
+
+    it("a list's reassigned self is the method's own"):
+        let mut xs: List[i64] = [5]
+        assert_equal(xs.restarted(), 4, reason="the reassigned copy took the push")
+        assert_equal(xs, [5], reason="the caller's list is unchanged")
+        assert_equal(xs.replaced(), [9], reason="the returned copy is the new list")
+        assert_equal(xs, [5], reason="the caller's list is still unchanged")
+
+    it("a map's reassigned self is the method's own"):
+        let mut counts: Map[string, i64] = {}
+        assert_equal(counts.restarted(), 2, reason="the reassigned copy took the store")
+        assert_equal(counts.len(), 0, reason="the caller's map is unchanged")
+        assert_equal(counts.replaced().len(), 1, reason="the returned copy is the new map")
+        assert_equal(counts.len(), 0, reason="the caller's map is still unchanged")

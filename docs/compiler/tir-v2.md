@@ -3107,11 +3107,12 @@ new address must reach the place the list was read from.
   by value, so no call copies a value out and no read needs a
   `conflicting-access` test.
 - **Option B: `push`, `len` and indexing stay lowered** (owner,
-  2026-10-23). The same copy-out would hold for std's `push`, and with
-  today's inliner `push` would stay a call: its fast path is about 20
-  instructions over `Buffer`'s accessors, which are calls into `std.rt`,
-  which the inliner leaves alone, and which would stay calls inside the
-  copy, since nothing inlines into a copy; the limit is 8. So `push`,
+  2026-10-23). std's `push` is `&mut self` and takes no copy of the
+  receiver, and with today's inliner `push` would stay a call: its fast
+  path is about 20 instructions over `Buffer`'s accessors, which are calls
+  into `std.rt`, which the inliner leaves alone, and which would stay
+  calls inside the copy, since nothing inlines into a copy; the limit is
+  8. So `push`,
   `len` and indexing stay compiler-lowered over the buffer address, and
   only the slow paths (growth, the unique copy, truncation) become std
   hd. If that proves insufficient, the first option to consider is a
