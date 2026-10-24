@@ -62,6 +62,7 @@ use super::{
     Body, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Root, Tag, Topology,
     VerifyError, is_suspension, local_flags, place, u32_of, verify_structure,
 };
+use crate::own::flow::{Back, Backward, BitArena, backward};
 use crate::own::parts::Slots;
 use crate::own::{OwnCx, Role, consumes, operands, tracked};
 
@@ -1169,20 +1170,12 @@ fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
         bit,
         at,
         holds,
-        brk: vec![None; b.label_inst.len()],
-        cont: vec![None; b.label_inst.len()],
-        arms: Vec::new(),
-        ops: Vec::new(),
         reported: vec![false; n],
         errs: Vec::new(),
     };
-    let words = walk.at.len().div_ceil(64);
-    for &root in &b.sub_root {
-        if (root as usize) < n {
-            let mut live = vec![0u64; words];
-            walk.block(root, &mut live);
-        }
-    }
+    let mut back = Back::default();
+    back.arena.words = walk.at.len().div_ceil(64);
+    backward(b, cx.topo, &mut back, &mut walk);
     errs.append(&mut walk.errs);
 }
 
@@ -1193,192 +1186,18 @@ struct Live<'a> {
     bit: Vec<u32>,
     at: Vec<u32>,
     holds: Vec<u32>,
-    /// While a target is walked: the state after it, for a `Break`, and at
-    /// a loop's head, for a `Continue`.
-    brk: Vec<Option<Set>>,
-    cont: Vec<Option<Set>>,
-    /// The open matches' arm entry states.
-    arms: Vec<Vec<Set>>,
-    ops: Vec<crate::own::Operand>,
     reported: Vec<bool>,
     errs: Vec<VerifyError>,
 }
 
 impl Live<'_> {
-    fn is_block(&self, x: u32) -> bool {
-        self.cx.b.tags.get(x as usize) == Some(&Tag::Block)
-    }
-
-    /// A use of value `v`: it, and every borrow it lives on.
-    fn uses(&self, live: &mut Set, v: u32) {
-        let b = self.cx.b;
-        let mut x = v;
-        for _ in 0..b.len() {
-            let Some(&k) = self.bit.get(x as usize) else {
-                return;
-            };
-            if k == NONE {
-                return;
-            }
-            live[(k / 64) as usize] |= 1 << (k % 64);
-            match self.cx.places[x as usize].as_ref().map(|p| p.root) {
-                Some(PlaceRoot::Value(r)) if (r.0 as usize) < b.len() => x = r.0,
-                Some(PlaceRoot::Local(l)) if self.holds[l.idx()] != NONE => {
-                    x = self.holds[l.idx()];
-                }
-                _ => return,
-            }
-        }
-    }
-
-    /// Block `blk` backward: `live` after it becomes `live` at its start.
-    fn block(&mut self, blk: u32, live: &mut Set) {
-        if !self.is_block(blk) {
-            return;
-        }
-        let b = self.cx.b;
-        let label = self.cx.topo.label_of[blk as usize];
-        let saved = (label != NONE).then(|| self.brk[label as usize].replace(live.clone()));
-        let tail = b.data[blk as usize][1];
-        if tail != NONE && Ref(tail).as_inst().is_some() {
-            self.uses(live, tail);
-        }
-        let members = b.record(b.data[blk as usize][0]).to_vec();
-        for &x in members.iter().rev() {
-            if b.tags[x as usize] != Tag::Block {
-                self.inst(x, live);
-            }
-        }
-        if let Some(old) = saved {
-            self.brk[label as usize] = old;
-        }
-    }
-
-    fn union(to: &mut Set, from: &Set) -> bool {
-        let mut grew = false;
-        for (w, v) in to.iter_mut().zip(from) {
-            grew |= v & !*w != 0;
-            *w |= v;
-        }
-        grew
-    }
-
-    /// Instruction `x` backward.
-    fn inst(&mut self, x: u32, live: &mut Set) {
-        let b = self.cx.b;
-        let i = x as usize;
-        let [a, w] = b.data[i];
-        if self.bit[i] != NONE {
-            let k = self.bit[i];
-            live[(k / 64) as usize] &= !(1 << (k % 64));
-        }
-        let tag = b.tags[i];
-        let writes = match tag {
-            Tag::Store | Tag::Drop | Tag::IsUnique => true,
-            Tag::Read => w == ReadMode::Move as u32,
-            Tag::Ref => w & super::ref_word::MUT != 0,
-            _ => false,
-        };
-        // A write through a borrow's own value (into the buffer its list
-        // header names, or the referent its reference names) keeps that
-        // value as it is.
-        if writes && let Some(q) = &self.cx.places[i] {
-            self.check(x, live, |r, p| {
-                q.root != PlaceRoot::Value(Ref(r)) && self.cx.overlap(p, q)
-            });
-        }
-        match tag {
-            Tag::If => {
-                let r = b.record(w);
-                let (then, els) = (r.first().copied(), r.get(1).copied());
-                let mut other = live.clone();
-                if let Some(t) = then {
-                    self.block(t, &mut other);
-                }
-                if let Some(e) = els {
-                    self.block(e, live);
-                }
-                Self::union(live, &other);
-            }
-            Tag::And | Tag::Or => {
-                let mut right = live.clone();
-                self.block(w, &mut right);
-                Self::union(live, &right);
-            }
-            Tag::With => self.block(w, live),
-            Tag::RefDyn | Tag::Scope => self.block(a, live),
-            Tag::Loop => self.repeat(x, live),
-            Tag::Match => self.decide(x, live),
-            Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-                let r = b.record(w).to_vec();
-                let (cases, default) = r.split_at(r.len().saturating_sub(1));
-                let mut acc = vec![0; live.len()];
-                for &blk in cases.iter().skip(1).step_by(2).chain(default) {
-                    let mut s = live.clone();
-                    self.block(blk, &mut s);
-                    Self::union(&mut acc, &s);
-                }
-                *live = acc;
-            }
-            Tag::Guard => {
-                let mut acc = vec![0; live.len()];
-                for &blk in b.record(w) {
-                    let mut s = live.clone();
-                    self.block(blk, &mut s);
-                    Self::union(&mut acc, &s);
-                }
-                *live = acc;
-                self.block(a, live);
-            }
-            Tag::ToArm => {
-                match self.arms.last().and_then(|arms| arms.get(a as usize)) {
-                    Some(s) => live.clone_from(s),
-                    None => live.fill(0),
-                }
-                return;
-            }
-            Tag::Break => match self.brk.get(a as usize) {
-                Some(Some(s)) => live.clone_from(s),
-                _ => live.fill(0),
-            },
-            Tag::Continue => match self.cont.get(a as usize) {
-                Some(Some(s)) => live.clone_from(s),
-                _ => live.fill(0),
-            },
-            Tag::Return | Tag::Unreachable => live.fill(0),
-            _ => {}
-        }
-        let mut ops = std::mem::take(&mut self.ops);
-        operands(b, i, &mut ops);
-        // A borrow's own `Drop` releases only a value an instance made
-        // fresh, which lives on nothing: no use.
-        for op in &ops {
-            if op.role != Role::Tail && op.role != Role::Dropped {
-                self.uses(live, op.value);
-            }
-        }
-        self.ops = ops;
-        // A read through a binding local reads the borrow it holds.
-        if let Some(Place {
-            root: PlaceRoot::Local(l),
-            ..
-        }) = &self.cx.places[i]
-            && self.holds[l.idx()] != NONE
-        {
-            self.uses(live, self.holds[l.idx()]);
-        }
-        if is_suspension(tag) {
-            self.check(x, live, |_, _| true);
-        }
-    }
-
     /// An error at `x` for the first live borrow whose place `hit` names.
-    fn check(&mut self, x: u32, live: &Set, hit: impl Fn(u32, &Place) -> bool) {
+    fn check(&mut self, x: u32, s: &BitArena, live: usize, hit: impl Fn(u32, &Place) -> bool) {
         if self.reported[x as usize] {
             return;
         }
         for (k, &r) in self.at.iter().enumerate() {
-            if live[k / 64] & (1 << (k % 64)) == 0 || r == x {
+            if !s.get(live, u32_of(k)) || r == x {
                 continue;
             }
             let Some(p) = &self.cx.places[r as usize] else {
@@ -1395,60 +1214,68 @@ impl Live<'_> {
             }
         }
     }
+}
 
-    /// Loop `x` backward, from its head to a fixed point.
-    fn repeat(&mut self, x: u32, live: &mut Set) {
-        let b = self.cx.b;
-        let body = b.data[x as usize][0];
-        let label = self.cx.topo.label_of[x as usize];
-        let after = live.clone();
-        let mut head = vec![0; live.len()];
-        let saved = (label != NONE).then(|| {
-            (
-                self.brk[label as usize].replace(after.clone()),
-                self.cont[label as usize].take(),
-            )
-        });
-        for _ in 0..=self.at.len() + 1 {
-            if label != NONE {
-                self.cont[label as usize] = Some(head.clone());
-            }
-            let mut end = head.clone();
-            self.block(body, &mut end);
-            if !Self::union(&mut head, &end) {
-                break;
-            }
+impl Backward for Live<'_> {
+    fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, live: usize) {
+        let i = x as usize;
+        let w = b.data[i][1];
+        if self.bit[i] != NONE {
+            s.set(live, self.bit[i], false);
         }
-        if let Some((bs, cs)) = saved {
-            self.brk[label as usize] = bs;
-            self.cont[label as usize] = cs;
+        let writes = match b.tags[i] {
+            Tag::Store | Tag::Drop | Tag::IsUnique => true,
+            Tag::Read => w == ReadMode::Move as u32,
+            Tag::Ref => w & super::ref_word::MUT != 0,
+            _ => false,
+        };
+        // A write through a borrow's own value (into the buffer its list
+        // header names, or the referent its reference names) keeps that
+        // value as it is.
+        if writes && let Some(q) = &self.cx.places[i] {
+            self.check(x, s, live, |r, p| {
+                q.root != PlaceRoot::Value(Ref(r)) && self.cx.overlap(p, q)
+            });
         }
-        *live = head;
     }
 
-    /// Match `x` backward: each arm from after the match, then the decision
-    /// tree from the arms' entry states.
-    fn decide(&mut self, x: u32, live: &mut Set) {
-        let b = self.cx.b;
-        let r = b.record(b.data[x as usize][1]).to_vec();
-        let Some((&decision, arms)) = r.split_first() else {
-            return;
-        };
-        let label = self.cx.topo.label_of[x as usize];
-        let saved = (label != NONE).then(|| self.brk[label as usize].replace(live.clone()));
-        let mut entries = Vec::with_capacity(arms.len());
-        for &arm in arms {
-            let mut s = live.clone();
-            self.block(arm, &mut s);
-            entries.push(s);
+    /// Besides the operands (a borrow's own `Drop`, which the walk skips,
+    /// releases only a value an instance made fresh, which lives on
+    /// nothing): the borrow a binding local holds, and a suspension point.
+    fn reads(&mut self, b: &Body, x: u32, s: &mut BitArena, live: usize) {
+        let i = x as usize;
+        // A read through a binding local reads the borrow it holds.
+        if let Some(Place {
+            root: PlaceRoot::Local(l),
+            ..
+        }) = &self.cx.places[i]
+            && self.holds[l.idx()] != NONE
+        {
+            self.uses(b, self.holds[l.idx()], s, live);
         }
-        self.arms.push(entries);
-        let mut tree = vec![0; live.len()];
-        self.block(decision, &mut tree);
-        self.arms.pop();
-        *live = tree;
-        if let Some(old) = saved {
-            self.brk[label as usize] = old;
+        if is_suspension(b.tags[i]) {
+            self.check(x, s, live, |_, _| true);
+        }
+    }
+
+    /// A use of value `v`: it, and every borrow it lives on.
+    fn uses(&mut self, b: &Body, v: u32, s: &mut BitArena, live: usize) {
+        let mut x = v;
+        for _ in 0..b.len() {
+            let Some(&k) = self.bit.get(x as usize) else {
+                return;
+            };
+            if k == NONE {
+                return;
+            }
+            s.set(live, k, true);
+            match self.cx.places[x as usize].as_ref().map(|p| p.root) {
+                Some(PlaceRoot::Value(r)) if (r.0 as usize) < b.len() => x = r.0,
+                Some(PlaceRoot::Local(l)) if self.holds[l.idx()] != NONE => {
+                    x = self.holds[l.idx()];
+                }
+                _ => return,
+            }
         }
     }
 }

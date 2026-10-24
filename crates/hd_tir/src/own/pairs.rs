@@ -138,7 +138,7 @@ pub(crate) fn run(
     t: &mut Tables,
     edits: &mut splice::Tables,
 ) {
-    let bits = mt.arena.words * 64;
+    let bits = mt.back.arena.words * 64;
     if bits == 0 {
         return;
     }

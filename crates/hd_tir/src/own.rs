@@ -42,7 +42,7 @@ use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, Topology, inside,
 pub use hoist::{EntryTest, entry_test};
 
 mod borrow;
-mod flow;
+pub(crate) mod flow;
 pub(crate) mod hoist;
 mod insert;
 mod known;
