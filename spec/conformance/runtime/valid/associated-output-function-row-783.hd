@@ -1,0 +1,55 @@
+# test: associated output function rows reach inferred call instantiations
+# expect: test
+trait Tag:
+    fn read(&self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn read(&self) -> string: self.label
+
+trait Make:
+    type Out
+    fn make(self) -> Self::Out
+
+struct Reader: pass
+
+impl Make for Reader:
+    type Out = fn() -> string $ Tag
+    fn make(self) -> (fn() -> string $ Tag):
+        fn() -> string $ Tag: $.use(Tag).read()
+
+struct Pure: pass
+
+impl Make for Pure:
+    type Out = fn() -> string
+    fn make(self) -> (fn() -> string):
+        fn() -> string: "pure"
+
+struct Nested: pass
+
+impl Make for Nested:
+    type Out = (fn() -> string $ Tag,)
+    fn make(self) -> (fn() -> string $ Tag,):
+        (fn() -> string $ Tag: $.use(Tag).read(),)
+
+fn call[$S, P < Make[Out = fn() -> string $ S]](maker: P) -> string $ S:
+    callback := maker.make()
+    callback()
+
+fn nested[$S, P < Make[Out = (fn() -> string $ S,)]](maker: P) -> string $ S:
+    callback := maker.make()._0
+    callback()
+
+tests:
+    use std.testing.assert_equal
+
+    it("an associated output supplies a concrete requirement row"):
+        $.with(Tag=&Named { label: "live" }):
+            assert_equal(call(Reader {}), "live", reason="the inferred row passes its provider")
+            assert_equal(call::[$ Tag, _](Reader {}), "live", reason="explicit row control")
+            assert_equal(nested(Nested {}), "live", reason="a nested function row is retained")
+
+    it("an empty associated function row remains empty"):
+        assert_equal(call(Pure {}), "pure", reason="the empty row needs no provider")

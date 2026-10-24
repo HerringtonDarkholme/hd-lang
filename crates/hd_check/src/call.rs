@@ -4443,7 +4443,13 @@ impl Ck<'_, '_> {
                 continue;
             }
             let snap = self.infer.snapshot();
-            if self.infer.unify(pool, got, want).is_err() {
+            let unified = self.infer.unify(pool, got, want).is_ok();
+            if unified {
+                // An associated binding is type equality, including function
+                // rows: ordinary unification deliberately leaves rows alone.
+                self.solve_nested_rows(got, want, 1);
+            }
+            if !unified || !self.perm_fits(got, want, false, 1) {
                 self.infer.rollback(snap);
                 let msg = format!(
                     "{} does not satisfy {}: its `{}` is {}, not {}",
