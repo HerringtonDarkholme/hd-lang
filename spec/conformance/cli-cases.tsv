@@ -1,4 +1,6 @@
 case	rules
+net-concurrent-read	cli.host.default-profile.granted,cli.cap.scope.net
+net-pending-read-cancel	cli.host.default-profile.granted,cli.cap.scope.net
 exit-program-status	cli.file.run,cli.exit.success,cli.exit.program
 exit-test-failure	cli.exit.test-failure,cli.exit.success,cli.package.file,cli.package.whole
 exit-hd-failure	cli.exit.hd-failure,cli.package.file,cli.package.whole

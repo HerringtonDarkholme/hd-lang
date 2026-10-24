@@ -517,6 +517,33 @@ function netProvider({ grant, netClient }) {
   };
   const opened = (op) => (host, port) => netResult(netAt(op, host, port));
   const handleOp = (op) => (h, more) => handleResult(netClient.call({ op, handle: h, ...more }));
+  const waitOn =
+    (kind) =>
+    (h, more = {}) => {
+      const started = netClient.call({ op: "wait_start", handle: h, kind, ...more });
+      if (started.ok === undefined) return handleResult(started);
+      const operation = started.ok;
+      let result = null;
+      const poll = () => {
+        const outcome = netClient.call({ op: "wait_poll", operation });
+        if (outcome.pending) return false;
+        result = outcome;
+        return true;
+      };
+      const finish = () => {
+        const committed = netClient.call({ op: "wait_finish", operation });
+        if (committed.disposed) return handleResult(committed);
+      };
+      if (poll()) {
+        return finish() ?? handleResult(result);
+      }
+      return pendingOperation(
+        poll,
+        () => handleResult(result),
+        () => netClient.cancel({ op: "wait_abort", operation }),
+        finish,
+      );
+    };
   // std-net.timeout.set: the `Duration?` crosses to the client thread as
   // milliseconds, or `null` for no bound.
   const setBound = (h, timeout) =>
@@ -570,14 +597,14 @@ function netProvider({ grant, netClient }) {
     },
     listen: opened("listen"),
     bind_udp: opened("bind_udp"),
-    "TcpStream.read": (h, max) => handleOp("read")(h, { max }),
+    "TcpStream.read": (h, max) => waitOn("read")(h, { max }),
     "TcpStream.write": (h, bytes) => handleOp("write")(h, { bytes }),
     "TcpStream.set_timeout": setBound,
     "TcpStream.set_nodelay": setNoDelay,
     "TcpStream.set_keepalive": setKeepAlive,
     "TcpStream.close": close,
     "TcpStream.dispose": dispose,
-    "TcpListener.accept": (h) => handleOp("accept")(h),
+    "TcpListener.accept": waitOn("accept"),
     "TcpListener.set_timeout": setBound,
     "TcpListener.local_address": (h) => handleOp("local_address")(h, {}),
     "TcpListener.close": close,
@@ -591,7 +618,7 @@ function netProvider({ grant, netClient }) {
       // Each live send still checks its destination grant.
       return handleResult(netAt("send_to", host, port, { handle: h, bytes }));
     },
-    "UdpSocket.receive": (h, max) => handleOp("receive")(h, { max }),
+    "UdpSocket.receive": (h, max) => waitOn("receive")(h, { max }),
     "UdpSocket.set_timeout": setBound,
     "UdpSocket.local_address": (h) => handleOp("local_address")(h, {}),
     "UdpSocket.close": close,

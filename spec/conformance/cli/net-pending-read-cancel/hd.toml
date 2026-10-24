@@ -1,0 +1,5 @@
+[package]
+name = "net-pending-read-cancel"
+
+[capabilities]
+Net = ["127.0.0.1"]

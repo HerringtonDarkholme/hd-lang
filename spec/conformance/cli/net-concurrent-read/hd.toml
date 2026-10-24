@@ -1,0 +1,5 @@
+[package]
+name = "net-concurrent-read"
+
+[capabilities]
+Net = ["127.0.0.1"]

@@ -1,0 +1,2 @@
+run: hd run --time-limit 5s
+stdout: 1 1

@@ -4,11 +4,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import net from "node:net";
+import dgram from "node:dgram";
 import http from "node:http";
 import { once } from "node:events";
 import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_threads";
 import { createCoreHost, httpProvider, pendingOperation } from "./core.mjs";
-import { Enc, Ok } from "./wire.mjs";
+import { Dec, Enc, Ok } from "./wire.mjs";
 import { METHODS } from "./gen/abi.mjs";
 
 import { cgroupCpuCount, createHost } from "./node.mjs";
@@ -113,7 +114,7 @@ test("the walk stops at its cgroup mount", (t) => {
 });
 
 // #757: a provider may stay pending while the guest polls its deadline.
-function operationHost(ready, onDone, onAbort) {
+function operationHost(ready, onDone, onAbort, onFinish = null) {
   const host = createCoreHost(
     { out() {}, err() {} },
     {},
@@ -129,6 +130,7 @@ function operationHost(ready, onDone, onAbort) {
                   return Ok(undefined);
                 },
                 onAbort,
+                onFinish,
               ),
           },
         },
@@ -220,6 +222,49 @@ test("finish transfers an external result without calling abort", () => {
   host.imports["hd:Console"]["write.finish"](pending);
   host.close();
   assert.equal(aborted, 0);
+});
+
+test("the external finish hook runs only at a validated guest finish", () => {
+  let delivered = 0;
+  const { host, start } = operationHost(
+    () => true,
+    () => {},
+    () => {},
+    () => {
+      delivered++;
+    },
+  );
+  const [, operation] = start();
+  assert.throws(() => host.imports["hd:Console"]["write.finish"](operation));
+  assert.equal(delivered, 0, "an unfinished result cannot transfer ownership");
+  host.imports["hd:rt"].block();
+  assert.equal(delivered, 0, "completion is not guest delivery");
+  host.imports["hd:Console"]["write.finish"](operation);
+  assert.equal(delivered, 1);
+  assert.throws(() => host.imports["hd:Console"]["write.finish"](operation));
+  assert.equal(delivered, 1, "a stale finish cannot deliver twice");
+  host.close();
+});
+
+test("abort after completion does not run the external finish hook", () => {
+  let delivered = 0,
+    aborted = 0;
+  const { host, start } = operationHost(
+    () => true,
+    () => {},
+    () => {
+      aborted++;
+    },
+    () => {
+      delivered++;
+    },
+  );
+  const [, operation] = start();
+  host.imports["hd:rt"].block();
+  host.imports["hd:rt"].abort(operation);
+  assert.equal(delivered, 0);
+  assert.equal(aborted, 1);
+  host.close();
 });
 
 test("host close releases pending and completed untaken operations", () => {
@@ -320,6 +365,193 @@ async function loopback(t) {
   return { host: "127.0.0.1", port: server.address().port, address: "loopback" };
 }
 
+// Exercise the real provider through the ABI, including complete-before-finish.
+function netHost(t) {
+  const host = createHost({ out() {}, err() {} });
+  host.core.st.deadline = performance.now() + 5000;
+  t.after(() => host.close());
+  const memory = new WebAssembly.Memory({ initial: 1 });
+  host.prime({ exports: { "hd.x": memory } });
+  const imports = host.imports["hd:Net"];
+  const decode = (name, len) =>
+    METHODS["hd:Net"][name].result.dec(new Dec(new Uint8Array(memory.buffer, 0, len)));
+  const call = (name, ...args) => {
+    const method = METHODS["hd:Net"][name];
+    const encoded = new Enc(),
+      raw = [];
+    method.params.forEach((param, i) => {
+      if (typeof param === "string") raw.push(args[i]);
+      else param.enc(encoded, args[i]);
+    });
+    if (raw.length !== method.params.length) {
+      new Uint8Array(memory.buffer).set(encoded.done());
+      raw.push(encoded.len);
+    }
+    if (method.wait === "never") return { result: decode(name, imports[name](...raw)) };
+    const [status, value] = imports[`${name}.start`](...raw);
+    return status === 0 ? { result: decode(name, value) } : { operation: value };
+  };
+  const take = (name, started) => {
+    if (started.result) return started.result;
+    if (!host.core.st.ops.get(started.operation).completed) host.imports["hd:rt"].block();
+    return decode(name, imports[`${name}.finish`](started.operation));
+  };
+  return { host, call, take };
+}
+
+async function tcpHost(t) {
+  let connected;
+  const arrived = new Promise((resolve) => {
+    connected = resolve;
+  });
+  const server = net.createServer((socket) => connected(socket));
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const api = netHost(t);
+  const stream = api.take("connect", api.call("connect", "127.0.0.1", server.address().port));
+  assert(stream.ok);
+  const peer = await arrived;
+  t.after(() => peer.destroy());
+  return { ...api, handle: stream.value, peer };
+}
+
+for (const phase of ["pending", "completed before finish", "completed past deadline"]) {
+  test(`TCP abort ${phase} preserves input and byte order`, { timeout: 10000 }, async (t) => {
+    const { host, call, take, handle, peer } = await tcpHost(t);
+    const first = call("TcpStream.read", handle, 1);
+    assert.notEqual(first.operation, undefined);
+    if (phase !== "pending") {
+      peer.write("abc");
+      host.imports["hd:rt"].block();
+      assert(host.core.st.ops.get(first.operation).completed);
+      assert.throws(() => host.imports["hd:Net"]["TcpListener.accept.finish"](first.operation));
+    }
+    const deadline = host.core.st.deadline;
+    if (phase === "completed past deadline") host.core.st.deadline = performance.now() - 1;
+    host.imports["hd:rt"].abort(first.operation);
+    host.core.st.deadline = deadline;
+    if (phase === "pending") peer.write("abc");
+    for (const byte of ["a", "b", "c"]) {
+      const result = take("TcpStream.read", call("TcpStream.read", handle, 1));
+      assert(result.ok);
+      assert.equal(Buffer.from(result.value).toString(), byte);
+    }
+  });
+}
+
+for (const reversed of [false, true]) {
+  test(
+    `concurrent TCP aborts preserve arrival order (reverse=${reversed})`,
+    { timeout: 10000 },
+    async (t) => {
+      const { host, call, take, handle, peer } = await tcpHost(t);
+      const first = call("TcpStream.read", handle, 1);
+      const second = call("TcpStream.read", handle, 1);
+      peer.write("abc");
+      while (
+        !host.core.st.ops.get(first.operation).completed ||
+        !host.core.st.ops.get(second.operation).completed
+      ) {
+        host.imports["hd:rt"].block();
+      }
+      const operations = [first.operation, second.operation];
+      if (reversed) operations.reverse();
+      for (const operation of operations) host.imports["hd:rt"].abort(operation);
+      for (const byte of ["a", "b", "c"]) {
+        assert.equal(
+          Buffer.from(take("TcpStream.read", call("TcpStream.read", handle, 1)).value).toString(),
+          byte,
+        );
+      }
+    },
+  );
+}
+
+test("closing a stream completes a pending read as Closed", { timeout: 10000 }, async (t) => {
+  const { call, take, handle } = await tcpHost(t);
+  const read = call("TcpStream.read", handle, 1);
+  assert(call("TcpStream.close", handle).result.ok);
+  const result = take("TcpStream.read", read);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.tag, "Closed");
+});
+
+test(
+  "a completed read closed before guest finish returns Closed",
+  { timeout: 10000 },
+  async (t) => {
+    const { host, call, take, handle, peer } = await tcpHost(t);
+    const read = call("TcpStream.read", handle, 1);
+    peer.write("a");
+    host.imports["hd:rt"].block();
+    assert(host.core.st.ops.get(read.operation).completed);
+    assert(call("TcpStream.close", handle).result.ok);
+    const result = take("TcpStream.read", read);
+    assert.equal(result.ok, false);
+    assert.equal(result.error.tag, "Closed");
+  },
+);
+
+test(
+  "aborting a completed truncated UDP receive restores the whole datagram",
+  { timeout: 10000 },
+  async (t) => {
+    const { host, call, take } = netHost(t);
+    const bound = take("bind_udp", call("bind_udp", "127.0.0.1", 0));
+    assert(bound.ok);
+    const [, port] = call("UdpSocket.local_address", bound.value).result.value;
+    const receive = call("UdpSocket.receive", bound.value, 1);
+    assert.notEqual(receive.operation, undefined);
+    const peer = dgram.createSocket("udp4");
+    t.after(() => peer.close());
+    await new Promise((resolve, reject) =>
+      peer.send(Buffer.from("abc"), port, "127.0.0.1", (e) => (e ? reject(e) : resolve())),
+    );
+    host.imports["hd:rt"].block();
+    host.imports["hd:rt"].abort(receive.operation);
+    const result = take("UdpSocket.receive", call("UdpSocket.receive", bound.value, 3));
+    assert(result.ok);
+    assert.equal(Buffer.from(result.value.bytes).toString(), "abc");
+  },
+);
+
+test("aborting a completed accept closes its undelivered stream", { timeout: 10000 }, async (t) => {
+  const { host, call, take } = netHost(t);
+  const bound = take("listen", call("listen", "127.0.0.1", 0));
+  assert(bound.ok);
+  const [, port] = call("TcpListener.local_address", bound.value).result.value;
+  const accept = call("TcpListener.accept", bound.value);
+  assert.notEqual(accept.operation, undefined);
+  const peer = net.connect({ host: "127.0.0.1", port });
+  t.after(() => peer.destroy());
+  await once(peer, "connect");
+  host.imports["hd:rt"].block();
+  const closed = once(peer, "close");
+  host.imports["hd:rt"].abort(accept.operation);
+  await closed;
+});
+
+test(
+  "aborting a pending accept leaves the next connection for its successor",
+  { timeout: 10000 },
+  async (t) => {
+    const { host, call, take } = netHost(t);
+    const bound = take("listen", call("listen", "127.0.0.1", 0));
+    assert(bound.ok);
+    const [, port] = call("TcpListener.local_address", bound.value).result.value;
+    const abandoned = call("TcpListener.accept", bound.value);
+    assert.notEqual(abandoned.operation, undefined);
+    host.imports["hd:rt"].abort(abandoned.operation);
+    const next = call("TcpListener.accept", bound.value);
+    const peer = net.connect({ host: "127.0.0.1", port });
+    t.after(() => peer.destroy());
+    await once(peer, "connect");
+    const accepted = take("TcpListener.accept", next);
+    assert(accepted.ok);
+    assert(call("TcpStream.close", accepted.value).result.ok);
+  },
+);
+
 test("worker abort immediately releases the connect operation", async (t) => {
   const address = await loopback(t),
     call = netWorker(t);
@@ -335,7 +567,10 @@ test("worker abort releases a completed stream that was never delivered", async 
   const address = await loopback(t),
     call = netWorker(t);
   const { ok: operation } = call({ op: "connect_start", ...address });
-  await t.waitFor(() => call({ op: "open" }).ok.stream === 1, { interval: 1, timeout: 5000 });
+  await t.waitFor(() => assert.equal(call({ op: "open" }).ok.stream, 1), {
+    interval: 1,
+    timeout: 5000,
+  });
   assert.equal(call({ op: "open" }).ok.stream, 1);
   call({ op: "connect_abort", operation });
   assert.equal(call({ op: "open" }).ok.stream, 0);
@@ -345,7 +580,10 @@ test("worker result transfers one ready stream and close releases it", async (t)
   const address = await loopback(t),
     call = netWorker(t);
   const { ok: operation } = call({ op: "connect_start", ...address });
-  await t.waitFor(() => call({ op: "open" }).ok.stream === 1, { interval: 1, timeout: 5000 });
+  await t.waitFor(() => assert.equal(call({ op: "open" }).ok.stream, 1), {
+    interval: 1,
+    timeout: 5000,
+  });
   const result = call({ op: "connect_poll", operation });
   assert.equal(typeof result.ok, "number");
   assert.equal(call({ op: "open" }).ok.stream, 1);
