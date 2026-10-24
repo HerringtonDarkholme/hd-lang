@@ -1,6 +1,7 @@
 //! The bitset states of the ownership passes' dataflow walks (moves,
-//! known-null and the verifier), and the backward walk over the structured
-//! control flow that moves and the verifier's borrow walk run on.
+//! known-null and the verifier), and the walks over the structured control
+//! flow they run on: backward for moves and the verifier's borrow walk,
+//! forward for the verifier's read-after-move and one-consumer walks.
 
 use super::{Operand, Role, fill, operands};
 use crate::ir::{Body, NONE, Ref, Tag, Topology, u32_of};
@@ -90,19 +91,80 @@ impl BitArena {
     pub fn row(&self, at: usize) -> &[u64] {
         &self.cells[at..at + self.words]
     }
+
+    pub fn row_mut(&mut self, at: usize) -> &mut [u64] {
+        &mut self.cells[at..at + self.words]
+    }
 }
 
-/// A backward walk's states: the arena, and the states a jump to each open
-/// target carries.
+/// Bit `bit` of a state's words.
+pub(crate) fn get_bit(row: &[u64], bit: usize) -> bool {
+    row[bit / 64] & (1 << (bit % 64)) != 0
+}
+
+pub(crate) fn set_bit(row: &mut [u64], bit: usize, on: bool) {
+    if on {
+        row[bit / 64] |= 1 << (bit % 64);
+    } else {
+        row[bit / 64] &= !(1 << (bit % 64));
+    }
+}
+
+/// The states a `Break` and a `Continue` to a label carry.
+type Jumps = [(u32, bool); 2];
+
+/// A walk's states: the arena, and the states a jump to each open target
+/// carries.
 #[derive(Default)]
-pub(crate) struct Back {
+pub(crate) struct Flow {
     pub arena: BitArena,
-    /// Per label, the offsets of the states a `Break` and a `Continue` to
-    /// it carry while its target is walked, or `NONE`.
-    jumps: Vec<[u32; 2]>,
-    /// The open matches' arm states: the first arm's offset and the count.
+    /// Per label, while its target is walked, the offsets of the states a
+    /// `Break` and a `Continue` to it carry, or `NONE`, each with whether
+    /// a forward walk's jump reached it yet.
+    jumps: Vec<Jumps>,
+    /// The open matches' arm states: the first arm's offset and the count;
+    /// forward, whether a path reached each arm, innermost last.
     arms: Vec<(u32, u32)>,
+    hit: Vec<bool>,
+    /// Forward with [`Suites::FromExits`]: the open scopes' exit states,
+    /// innermost last, and per label how many were open when its target's
+    /// walk began.
+    scopes: Vec<u32>,
+    depth: Vec<u32>,
     ops: Vec<Operand>,
+}
+
+impl Flow {
+    fn reset(&mut self, b: &Body) {
+        fill(&mut self.jumps, b.label_inst.len(), [(NONE, false); 2]);
+        fill(&mut self.depth, b.label_inst.len(), 0);
+        self.arms.clear();
+        self.hit.clear();
+        self.scopes.clear();
+    }
+
+    /// Points a `Break` to `x`'s label, if it has one, at a new state, a
+    /// copy of `from` or empty, and a `Continue` at state `cont`; the
+    /// label's states before.
+    fn open(&mut self, topo: &Topology, x: u32, from: Option<usize>, cont: u32) -> Jumps {
+        let label = topo.label_of[x as usize] as usize;
+        if label >= self.jumps.len() {
+            return [(NONE, false); 2];
+        }
+        self.depth[label] = u32_of(self.scopes.len());
+        let at = u32_of(self.arena.alloc(from));
+        std::mem::replace(&mut self.jumps[label], [(at, false), (cont, false)])
+    }
+
+    /// Gives `x`'s label back its states `old` and frees the states from
+    /// `first` on.
+    fn restore(&mut self, topo: &Topology, x: u32, old: Jumps, first: usize) {
+        let label = topo.label_of[x as usize] as usize;
+        if label < self.jumps.len() {
+            self.jumps[label] = old;
+        }
+        self.arena.free(first);
+    }
 }
 
 /// A backward analysis over the structured control flow ([`backward`]):
@@ -122,9 +184,8 @@ pub(crate) trait Backward {
 
 /// Walks each sub-body of `b` backward, from nothing live at its end, with
 /// the states in `s`.
-pub(crate) fn backward<A: Backward>(b: &Body, topo: &Topology, s: &mut Back, a: &mut A) {
-    fill(&mut s.jumps, b.label_inst.len(), [NONE; 2]);
-    s.arms.clear();
+pub(crate) fn backward<A: Backward>(b: &Body, topo: &Topology, s: &mut Flow, a: &mut A) {
+    s.reset(b);
     s.arena.free(0);
     let mut walk = Walk { b, topo, s, a };
     for &root in b.sub_root.iter().filter(|&&r| (r as usize) < b.len()) {
@@ -137,7 +198,7 @@ pub(crate) fn backward<A: Backward>(b: &Body, topo: &Topology, s: &mut Back, a: 
 struct Walk<'a, A> {
     b: &'a Body,
     topo: &'a Topology,
-    s: &'a mut Back,
+    s: &'a mut Flow,
     a: &'a mut A,
 }
 
@@ -151,7 +212,7 @@ impl<A: Backward> Walk<'_, A> {
         }
         // A `Break` to a labeled block continues after it.
         let first = self.s.arena.top();
-        let saved = self.target(blk, live, NONE);
+        let saved = self.s.open(self.topo, blk, Some(live), NONE);
         // The tail is taken at the block's end.
         let tail = b.data[blk as usize][1];
         if tail != NONE && Ref(tail).as_inst().is_some() {
@@ -164,28 +225,7 @@ impl<A: Backward> Walk<'_, A> {
                 self.inst(x, live);
             }
         }
-        self.restore(blk, saved, first);
-    }
-
-    /// Points a `Break` to `x`'s label, if it has one, at a copy of
-    /// `live`, and a `Continue` at state `cont`; the label's states before.
-    fn target(&mut self, x: u32, live: usize, cont: u32) -> [u32; 2] {
-        let label = self.topo.label_of[x as usize] as usize;
-        if label >= self.s.jumps.len() {
-            return [NONE; 2];
-        }
-        let at = u32_of(self.s.arena.alloc(Some(live)));
-        std::mem::replace(&mut self.s.jumps[label], [at, cont])
-    }
-
-    /// Gives `x`'s label back its states `old` and frees the states from
-    /// `first` on.
-    fn restore(&mut self, x: u32, old: [u32; 2], first: usize) {
-        let label = self.topo.label_of[x as usize] as usize;
-        if label < self.s.jumps.len() {
-            self.s.jumps[label] = old;
-        }
-        self.s.arena.free(first);
+        self.s.restore(self.topo, blk, saved, first);
     }
 
     /// Instruction `x` backward over state `live`.
@@ -205,10 +245,7 @@ impl<A: Backward> Walk<'_, A> {
             Tag::Loop => self.repeat(x, live),
             Tag::Match => self.decide(x, live),
             Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-                let r = b.record(w);
-                let (cases, default) = r.split_at(r.len().saturating_sub(1));
-                let blks = cases.iter().skip(1).step_by(2).chain(default);
-                self.any(blks.copied(), live);
+                self.any(cases(b, w), live);
             }
             Tag::Guard => {
                 self.any(b.record(w).iter().copied(), live);
@@ -224,7 +261,7 @@ impl<A: Backward> Walk<'_, A> {
             }
             tag @ (Tag::Break | Tag::Continue) => {
                 let k = usize::from(tag == Tag::Continue);
-                let at = self.s.jumps.get(p as usize).map(|j| j[k]);
+                let at = self.s.jumps.get(p as usize).map(|j| j[k].0);
                 let at = at.filter(|&at| at != NONE);
                 self.s.arena.copy_or_clear(live, at);
             }
@@ -265,7 +302,7 @@ impl<A: Backward> Walk<'_, A> {
         let first = self.s.arena.top();
         let head = self.s.arena.alloc(None);
         // The walk of the body leaves the head as it is.
-        let saved = self.target(x, live, u32_of(head));
+        let saved = self.s.open(self.topo, x, Some(live), u32_of(head));
         // Each round but the last grows the head, by a bit at least.
         for _ in 0..self.s.arena.words * 64 + 2 {
             let end = self.s.arena.alloc(Some(head));
@@ -277,7 +314,7 @@ impl<A: Backward> Walk<'_, A> {
             }
         }
         self.s.arena.copy(live, head);
-        self.restore(x, saved, first);
+        self.s.restore(self.topo, x, saved, first);
     }
 
     /// Match `x` backward: each arm from after the match, then the decision
@@ -288,7 +325,7 @@ impl<A: Backward> Walk<'_, A> {
             return;
         };
         let first = self.s.arena.top();
-        let saved = self.target(x, live, NONE);
+        let saved = self.s.open(self.topo, x, Some(live), NONE);
         let arms_at = self.s.arena.top();
         for _ in arms {
             self.s.arena.alloc(Some(live));
@@ -301,6 +338,311 @@ impl<A: Backward> Walk<'_, A> {
         self.block(decision, tree);
         self.s.arms.pop();
         self.s.arena.copy(live, tree);
-        self.restore(x, saved, first);
+        self.s.restore(self.topo, x, saved, first);
+    }
+}
+
+/// The blocks a switch with record `w` may run: each case's, then the
+/// default's.
+fn cases(b: &Body, w: u32) -> impl Iterator<Item = u32> + '_ {
+    let r = b.record(w);
+    let (cases, default) = r.split_at(r.len().saturating_sub(1));
+    cases.iter().skip(1).step_by(2).chain(default).copied()
+}
+
+/// Where a forward walk starts the cleanup suites of a `Scope`.
+pub(crate) enum Suites {
+    /// From the body's end, where a path reaches it. The scope's value is
+    /// the union of the body's end and every suite's end (`union`), or the
+    /// last suite's end that a path falls out of.
+    FromEnd { union: bool },
+    /// From the union of the states at the body's exits: its end and each
+    /// jump that leaves it. The scope's value is the union of the body's
+    /// end and every suite's end.
+    FromExits,
+}
+
+/// A forward analysis over the structured control flow ([`forward`]):
+/// one bit per fact in state `st` of `s`, joins are unions ("on any
+/// path"). The analysis gives each instruction's transfer; the walk gives
+/// the paths.
+pub(crate) trait Forward {
+    const SUITES: Suites;
+    /// Instruction `x` over `st`, unless it runs blocks: a jump before it
+    /// leaves.
+    fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, st: usize);
+    /// The operands of `x`, which runs blocks, before it runs them.
+    fn enter(&mut self, b: &Body, x: u32, s: &mut BitArena, st: usize);
+    /// `x`'s own value, where a path falls out of the blocks it runs.
+    fn leave(&mut self, _: &Body, _x: u32, _s: &mut BitArena, _st: usize) {}
+    /// Block `blk`'s tail at its end, where the instruction that runs it
+    /// has a value.
+    fn tail(&mut self, _: &Body, _blk: u32, _s: &mut BitArena, _st: usize) {}
+    /// `x` goes round loop `lp` again: a `Continue`, or the end of the
+    /// loop's body (`x == lp`).
+    fn back(&mut self, _: &Body, _x: u32, _lp: u32, _s: &mut BitArena, _st: usize) {}
+    /// `Return` `x` leaves the sub-body.
+    fn exit(&mut self, _: &Body, _x: u32, _s: &mut BitArena, _st: usize) {}
+}
+
+/// Walks block `blk` of `b` forward from state `st` of `s`; false when no
+/// path falls out of its end.
+pub(crate) fn forward<A: Forward>(
+    b: &Body,
+    topo: &Topology,
+    s: &mut Flow,
+    a: &mut A,
+    blk: u32,
+    st: usize,
+) -> bool {
+    s.reset(b);
+    Ahead { b, topo, s, a }.block(blk, st)
+}
+
+struct Ahead<'a, A> {
+    b: &'a Body,
+    topo: &'a Topology,
+    s: &'a mut Flow,
+    a: &'a mut A,
+}
+
+impl<A: Forward> Ahead<'_, A> {
+    /// Block `blk` forward over `st`; false when no path falls out of it.
+    fn block(&mut self, blk: u32, st: usize) -> bool {
+        let b = self.b;
+        if b.tags.get(blk as usize) != Some(&Tag::Block) {
+            return true;
+        }
+        let first = self.s.arena.top();
+        let saved = self.s.open(self.topo, blk, None, NONE);
+        // A block in the list runs where the instruction that owns it runs
+        // it.
+        let mut members = b.record(b.data[blk as usize][0]).iter();
+        let mut falls = members.all(|&x| b.tags[x as usize] == Tag::Block || self.inst(x, st));
+        self.close(blk, saved, first, st, &mut falls);
+        falls
+    }
+
+    /// Walks block `blk` and takes its tail.
+    fn valued(&mut self, blk: u32, st: usize) -> bool {
+        let falls = self.block(blk, st);
+        if falls && self.b.tags.get(blk as usize) == Some(&Tag::Block) {
+            self.a.tail(self.b, blk, &mut self.s.arena, st);
+        }
+        falls
+    }
+
+    /// Closes `x`'s label: what its `Break`s carry continues after it.
+    fn close(&mut self, x: u32, old: Jumps, first: usize, st: usize, falls: &mut bool) {
+        let label = self.topo.label_of[x as usize] as usize;
+        if let Some(&[(at, true), _]) = self.s.jumps.get(label) {
+            self.s.arena.join(st, falls, at as usize);
+        }
+        self.s.restore(self.topo, x, old, first);
+    }
+
+    /// Instruction `x` forward over `st`; false when it never completes.
+    fn inst(&mut self, x: u32, st: usize) -> bool {
+        let b = self.b;
+        let [p, w] = b.data[x as usize];
+        let falls = match b.tags[x as usize] {
+            Tag::If => {
+                let r = b.record(w);
+                let blks = [0, 1].map(|k| r.get(k).copied().unwrap_or(NONE));
+                self.enter(x, st).any(blks, st, Self::valued)
+            }
+            // The right operand may not run.
+            Tag::And | Tag::Or => self.enter(x, st).any([NONE, w], st, Self::valued),
+            Tag::With => self.enter(x, st).valued(w, st),
+            Tag::RefDyn => self.enter(x, st).valued(p, st),
+            Tag::Loop => self.enter(x, st).repeat(x, st),
+            Tag::Match => self.enter(x, st).decide(x, st),
+            Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
+                let blks = cases(b, w).filter(|&c| b.tags.get(c as usize) == Some(&Tag::Block));
+                self.enter(x, st).any(blks, st, Self::valued)
+            }
+            Tag::Scope => self.enter(x, st).scope(x, st),
+            Tag::Guard => {
+                let blks = b.record(w).iter().copied();
+                return self.enter(x, st).valued(p, st) && self.any(blks, st, Self::block);
+            }
+            _ => return self.stmt(x, st),
+        };
+        if falls {
+            self.a.leave(b, x, &mut self.s.arena, st);
+        }
+        falls
+    }
+
+    /// The analysis's operand uses of `x`, which runs blocks, before them.
+    fn enter(&mut self, x: u32, st: usize) -> &mut Self {
+        self.a.enter(self.b, x, &mut self.s.arena, st);
+        self
+    }
+
+    /// Statement `x` over `st`, and where it goes; false when it never
+    /// completes.
+    fn stmt(&mut self, x: u32, st: usize) -> bool {
+        let (b, s) = (self.b, &mut *self.s);
+        self.a.stmt(b, x, &mut s.arena, st);
+        let p = b.data[x as usize][0] as usize;
+        let tag = b.tags[x as usize];
+        match tag {
+            Tag::ToArm => {
+                if let Some(&(first, count)) = s.arms.last()
+                    && p < count as usize
+                {
+                    let h = s.hit.len() - count as usize + p;
+                    s.arena
+                        .join(first as usize + p * s.arena.words, &mut s.hit[h], st);
+                }
+            }
+            Tag::Break | Tag::Continue | Tag::Return => {
+                // A jump leaves the scopes opened since its target's walk
+                // began; a `Return` leaves all of them.
+                let from = s.depth.get(p).filter(|_| tag != Tag::Return);
+                for &at in s.scopes.iter().skip(from.copied().unwrap_or(0) as usize) {
+                    s.arena.union(at as usize, st);
+                }
+                if tag == Tag::Return {
+                    self.a.exit(b, x, &mut s.arena, st);
+                    return false;
+                }
+                if tag == Tag::Continue {
+                    let lp = b.label_inst.get(p).copied().unwrap_or(NONE);
+                    self.a.back(b, x, lp, &mut s.arena, st);
+                }
+                let k = usize::from(tag == Tag::Continue);
+                if let Some(j) = s.jumps.get_mut(p)
+                    && j[k].0 != NONE
+                {
+                    s.arena.join(j[k].0 as usize, &mut j[k].1, st);
+                }
+            }
+            Tag::Unreachable => {}
+            _ => return true,
+        }
+        false
+    }
+
+    /// The paths through blocks `blks`, each from `st`, joined into `st`;
+    /// whether a path falls through. A `NONE` block is a path that runs
+    /// nothing.
+    fn any(
+        &mut self,
+        blks: impl IntoIterator<Item = u32>,
+        st: usize,
+        walk: impl Fn(&mut Self, u32, usize) -> bool,
+    ) -> bool {
+        let from = self.s.arena.alloc(Some(st));
+        let at = self.s.arena.alloc(None);
+        let mut falls = false;
+        for blk in blks {
+            self.s.arena.copy(at, from);
+            if walk(self, blk, at) {
+                self.s.arena.join(st, &mut falls, at);
+            }
+        }
+        self.s.arena.free(from);
+        falls
+    }
+
+    /// Loop `x` forward: its body from the head until the head stops
+    /// growing; what follows it is what its `Break`s carry.
+    fn repeat(&mut self, x: u32, st: usize) -> bool {
+        let first = self.s.arena.top();
+        let head = self.s.arena.alloc(Some(st));
+        let cont = self.s.arena.alloc(None);
+        let end = self.s.arena.alloc(None);
+        let saved = self.s.open(self.topo, x, None, u32_of(cont));
+        let label = self.topo.label_of[x as usize] as usize;
+        // Each round but the last grows the head, by a bit at least.
+        for _ in 0..self.s.arena.words * 64 + 2 {
+            // What the jumps carry is the last round's.
+            if let Some(j) = self.s.jumps.get_mut(label) {
+                *j = j.map(|(at, _)| (at, false));
+            }
+            self.s.arena.copy(end, head);
+            let mut grew = false;
+            if self.block(self.b.data[x as usize][0], end) {
+                self.a.back(self.b, x, x, &mut self.s.arena, end);
+                grew = self.s.arena.union(head, end);
+            }
+            if let Some(&[_, (_, true)]) = self.s.jumps.get(label) {
+                grew |= self.s.arena.union(head, cont);
+            }
+            if !grew {
+                break;
+            }
+        }
+        let mut falls = false;
+        self.close(x, saved, first, st, &mut falls);
+        falls
+    }
+
+    /// Match `x` forward: its decision tree from `st`, whose every path
+    /// ends in a `ToArm` or `Unreachable`, then each arm a path reaches,
+    /// from what its `ToArm`s carry.
+    fn decide(&mut self, x: u32, st: usize) -> bool {
+        let b = self.b;
+        let r = b.record(b.data[x as usize][1]);
+        let Some((&decision, arms)) = r.split_first() else {
+            return true;
+        };
+        let first = self.s.arena.top();
+        let saved = self.s.open(self.topo, x, None, NONE);
+        let arms_at = self.s.arena.top();
+        for _ in arms {
+            self.s.arena.alloc(None);
+        }
+        let h = self.s.hit.len();
+        self.s.hit.resize(h + arms.len(), false);
+        self.s.arms.push((u32_of(arms_at), u32_of(arms.len())));
+        self.block(decision, st);
+        self.s.arms.pop();
+        let mut falls = false;
+        for (k, &arm) in arms.iter().enumerate() {
+            let at = arms_at + k * self.s.arena.words;
+            if self.s.hit[h + k] && self.valued(arm, at) {
+                self.s.arena.join(st, &mut falls, at);
+            }
+        }
+        self.s.hit.truncate(h);
+        self.close(x, saved, first, st, &mut falls);
+        falls
+    }
+
+    /// Scope `x`: its body, then each cleanup suite from where
+    /// [`Forward::SUITES`] starts it.
+    fn scope(&mut self, x: u32, st: usize) -> bool {
+        let b = self.b;
+        let [body, suites] = b.data[x as usize];
+        let exits = matches!(A::SUITES, Suites::FromExits);
+        let from = self.s.arena.alloc(None);
+        if exits {
+            self.s.scopes.push(u32_of(from));
+        }
+        let falls = self.valued(body, st);
+        if exits {
+            self.s.scopes.pop();
+        }
+        if falls {
+            self.s.arena.union(from, st);
+        }
+        if (falls || exits) && suites != NONE {
+            let at = self.s.arena.alloc(None);
+            for &suite in b.record(suites) {
+                self.s.arena.copy(at, from);
+                if self.block(suite, at) && falls {
+                    if matches!(A::SUITES, Suites::FromEnd { union: false }) {
+                        self.s.arena.copy(st, at);
+                    } else {
+                        self.s.arena.union(st, at);
+                    }
+                }
+            }
+        }
+        self.s.arena.free(from);
+        falls
     }
 }

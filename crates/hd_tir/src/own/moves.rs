@@ -49,7 +49,7 @@
 
 use hd_types::Ty;
 
-use super::flow::{Back, Backward, BitArena, backward};
+use super::flow::{Backward, BitArena, Flow, backward};
 use super::{Operand, OwnCx, Role, Tri, fill, operands, splice, suite_touches, tracked};
 use crate::ir::{
     Body, CaptureMode, NONE, PlaceView, ReadMode, Root, Tag, Topology, for_blocks, is_suspension,
@@ -85,7 +85,7 @@ pub(crate) struct Tables {
     /// points, `is_suspension`).
     susp_sub: Vec<bool>,
     /// The liveness walk's states, one bit per candidate.
-    pub(super) back: Back,
+    pub(super) back: Flow,
     /// Per instruction: [`MOVE`] or [`KEEP`] for a candidate read the walk
     /// reached, from the state after it.
     decide: Vec<u8>,
