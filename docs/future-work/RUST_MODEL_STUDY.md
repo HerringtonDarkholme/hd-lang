@@ -3,7 +3,7 @@
 Status: decided (#163). hd does not adopt Rust's ownership. Objects live in
 linear memory under reference counting with cycle detection
 ([Refcount Runtime](REFCOUNT_RUNTIME.md)), values copy by default, and
-opt-in lifetimes are parked (#163).
+opt-in lifetimes are parked ([Object Model, Tier 2](OBJECT_MODEL_TIER2.md)).
 The study below prices Rust's model against the Wasm GC design of
 2026-10-18; its measurements stay as reference.
 
