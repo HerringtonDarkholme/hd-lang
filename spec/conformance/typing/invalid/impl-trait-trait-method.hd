@@ -1,0 +1,2 @@
+trait Factory:
+    fn make(self) -> impl Display  # diagnostic: type-mismatch

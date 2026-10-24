@@ -14,6 +14,17 @@ impl Parser<'_> {
     /// `result_type`: a function type here carries no requirement clause,
     /// so a header's clause belongs to the header.
     pub(crate) fn ty_result(&mut self) -> Done {
+        if self.at(TokenKind::KwImpl) {
+            let marker = self.start();
+            self.bump();
+            self.ty_bound_trait(true);
+            return self.complete(marker, SyntaxKind::ImplType);
+        }
+        self.ty_with(false)
+    }
+
+    /// A closure's result remains an ordinary type in this stage.
+    pub(crate) fn ty_result_plain(&mut self) -> Done {
         self.ty_with(false)
     }
 

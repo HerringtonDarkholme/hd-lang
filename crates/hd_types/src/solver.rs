@@ -204,7 +204,7 @@ impl HeadKey {
             TyData::Fn { suspends: true, .. } => HeadKey::SuspendFn,
             TyData::Fn { .. } => HeadKey::Fn,
             TyData::Mut(i) => HeadKey::of(pool, i),
-            TyData::Param(_) => HeadKey::Param,
+            TyData::Param(_) | TyData::Opaque { .. } => HeadKey::Param,
             _ => HeadKey::Any,
         }
     }
@@ -1060,6 +1060,17 @@ fn fold_vars(
         TyData::Adt { def, args } => TyData::Adt {
             def,
             args: fold_list(pool, args, canon, f)?,
+        },
+        TyData::Opaque {
+            owner,
+            site,
+            args,
+            bound,
+        } => TyData::Opaque {
+            owner,
+            site,
+            args: fold_list(pool, args, canon, f)?,
+            bound: fold_vars(pool, bound, canon, f)?,
         },
         TyData::Tuple { elems, rest } => TyData::Tuple {
             elems: fold_list(pool, elems, canon, f)?,
@@ -2420,7 +2431,7 @@ impl Search<'_, '_> {
                 return Ok(self.leaf(key, root, holds));
             }
             TyData::Infer(v) => return Ok(self.leaf(key, root, Answer::Stalled { on: vec![v] })),
-            TyData::Param(_) | TyData::TraitValue { .. } => {
+            TyData::Param(_) | TyData::Opaque { .. } | TyData::TraitValue { .. } => {
                 return Err(NotImplemented::new(
                     Stage::Body,
                     "Instantiations of a parameter or a trait value (the checker reads its clauses)",
@@ -2652,6 +2663,10 @@ impl Search<'_, '_> {
 fn clause_param(pool: Types<'_>, t: Ty) -> Option<ParamRef> {
     match pool.get(t) {
         TyData::Param(p) => Some(p),
+        TyData::Opaque { owner, .. } => Some(ParamRef {
+            owner,
+            index: u16::MAX,
+        }),
         TyData::Assoc { self_ty, .. } => clause_param(pool, strip_outer_mut(pool, self_ty)),
         _ => None,
     }

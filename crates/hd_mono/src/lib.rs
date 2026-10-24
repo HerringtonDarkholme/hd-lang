@@ -10,6 +10,7 @@
 pub mod defaults;
 pub mod erased;
 pub mod layout;
+pub mod opaque;
 pub mod plan;
 
 use hd_base::{HashMap, HashSet};
@@ -42,6 +43,16 @@ pub trait ProgramEnv: LayoutEnv {
         None
     }
     fn body(&self, def: DefId) -> Option<&Body>;
+    /// Codegen-only result facts. The driver decodes the raw checked body,
+    /// without recursively entering its ownership once-cell.
+    fn opaque_result(
+        &self,
+        _pool: &InternPool,
+        _owner: DefId,
+        _site: u32,
+    ) -> Option<opaque::HiddenResult> {
+        None
+    }
     /// Per type parameter of the item itself: has a bound (A1, `crates/hd_mono/DESIGN.md`
     /// §13.2: exact).
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
@@ -511,6 +522,8 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
             None
         }
     });
+    let s = opaque::reveal(pool, s, &|owner, site| env.opaque_result(pool, owner, site))
+        .unwrap_or(Ty::POISON);
     if pool.has_assoc(s) {
         // Impl heads and trait-value bindings use source reference types;
         // restore their permission before projecting, then lower the result.
@@ -660,6 +673,10 @@ fn name_into(
         }
     };
     match pool.get(t) {
+        TyData::Opaque { bound, .. } => {
+            out.push_str("impl ");
+            name_into(pool, env, printed, bound, out, limit);
+        }
         TyData::Prim(p) => out.push_str(p.name()),
         TyData::Never => out.push_str("never"),
         TyData::Adt { def, args } if def == env.ref_cell() => {
@@ -1450,6 +1467,10 @@ impl Cx<'_> {
         };
         match pool.get(t) {
             TyData::Adt { args, .. } => parts.extend(pool.list_items(args)),
+            TyData::Opaque { args, bound, .. } => {
+                parts.extend(pool.list_items(args));
+                parts.push(bound);
+            }
             TyData::Tuple { elems, rest } => {
                 parts.extend(pool.list_items(elems));
                 parts.extend(rest);

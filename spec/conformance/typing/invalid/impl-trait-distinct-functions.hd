@@ -1,0 +1,10 @@
+fn first() -> impl Display:
+    +7
+
+fn second() -> impl Display:
+    +7
+
+fn bad(flag: bool) -> impl Display:
+    if flag:
+        return first()
+    second()  # diagnostic: type-mismatch

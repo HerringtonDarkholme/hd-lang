@@ -64,6 +64,10 @@ pub(crate) struct Checkpoint {
     row_waits: usize,
     undo: usize,
     bound: usize,
+    opaque_rets: usize,
+    strict_rets: usize,
+    recursive_returns: usize,
+    clauses: usize,
     excl: [usize; 3],
     depths: [usize; 6],
 }
@@ -226,6 +230,10 @@ impl Ck<'_, '_> {
             row_waits: self.row_waits.len(),
             undo: self.undo.len(),
             bound: self.bound.len(),
+            opaque_rets: self.opaque_rets.len(),
+            strict_rets: self.strict_rets.len(),
+            recursive_returns: self.recursive_returns.len(),
+            clauses: self.env.clause_self.len(),
             excl: [
                 self.excl.len(),
                 self.excl_frames.len(),
@@ -268,6 +276,16 @@ impl Ck<'_, '_> {
         self.joins.rollback(c.joins);
         self.row_waits.truncate(c.row_waits);
         self.bound.truncate(c.bound);
+        self.opaque_rets.truncate(c.opaque_rets);
+        self.strict_rets.truncate(c.strict_rets);
+        self.recursive_returns.truncate(c.recursive_returns);
+        self.env.clause_self.truncate(c.clauses);
+        self.env.clause_trait.truncate(c.clauses);
+        self.env.clause_args.truncate(c.clauses);
+        self.env.clause_bindings.truncate(c.clauses);
+        self.env.clause_mut.truncate(c.clauses);
+        self.env.clause_origin.truncate(c.clauses);
+        self.env.key = Some(self.cx.global.env_key(&self.env));
         self.excl.truncate(c.excl[0]);
         self.excl_frames.truncate(c.excl[1]);
         self.conflicts.truncate(c.excl[2]);

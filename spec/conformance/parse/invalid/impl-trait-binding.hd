@@ -1,0 +1,2 @@
+fn bad() -> void:
+    let value: impl Display = +1  # diagnostic: syntax-error

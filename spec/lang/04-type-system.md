@@ -18,7 +18,7 @@ See also: [Type Inference Boundaries](#type-inference-boundaries).
 
 ## Type Forms
 
-r[types.forms.set] The type forms are:
+1. r[types.forms.with-opaque-results] The type forms are:
 
 | Form | Spelling |
 | --- | --- |
@@ -35,6 +35,7 @@ r[types.forms.set] The type forms are:
 | Trait value types | |
 | Transparent aliases and nominal newtypes | |
 | Reference types | `&T`, `&mut T` |
+| Opaque function result types | `impl Trait[Args]` |
 
 1. r[types.suspend] `Suspend[T]` is the dynamic one-shot computation protocol.
 
@@ -2352,3 +2353,37 @@ fn pick(flag: bool) -> i32 | string:   # error: syntax-error
 
 See also: [Runtime Type Identity](09-traits.md#runtime-type-identity),
 [Error Trait](09-traits.md#error-trait).
+
+
+## Opaque Result Types
+
+An opaque result gives a function a written trait interface while keeping
+its concrete result type in the defining body.
+
+1. r[types.opaque.define] A result annotation `impl Trait[Args]` denotes an opaque type with the written trait bound.
+2. r[types.opaque.identity] The declaring function and its generic arguments determine the opaque type's static identity.
+3. r[types.opaque.distinct] Results from different function declarations are distinct types, even when their written bounds and hidden concrete types are equal.
+4. r[types.opaque.head-only] Callers check against the declared bound, including its supertraits and associated-type bindings, without reading the defining body.
+5. r[types.opaque.no-leakage] The hidden concrete type adds no trait implementation or member to the opaque type during caller checking.
+6. r[types.opaque.representation] The hidden concrete type is a code-generation fact, not part of a caller's checking dependencies.
+7. r[types.opaque.codegen] An opaque result does not introduce a trait value or dynamic trait dispatch.
+8. r[types.opaque.recursive] A hidden result type that recursively contains itself is an error. Error: `recursive-value-type`.
+
+```hd
+fn answer() -> impl Display:
+    +42
+
+pub fn main() -> void $ Console:
+    println("${answer()}")
+```
+
+```text
+fn recursive() -> impl Display:  # error: recursive-value-type
+    recursive()
+```
+
+> **Why.** The written bound keeps checking independent of the body. Code
+> generation still sees the concrete representation and selects its trait
+> implementations.
+
+See also: [Opaque Results](07-functions.md#opaque-results).

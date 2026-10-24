@@ -1,0 +1,12 @@
+trait View:
+    fn get(self) -> i32
+
+struct Hidden:
+    value: i32
+
+impl View for Hidden:
+    fn get(self) -> i32:
+        self.value
+
+pub fn make() -> impl View:  # diagnostic: private-type-leak
+    Hidden { value: +7 }

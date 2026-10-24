@@ -1,0 +1,1 @@
+fn take(value: impl Display) -> void: ()  # diagnostic: syntax-error

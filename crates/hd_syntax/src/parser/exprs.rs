@@ -529,7 +529,7 @@ impl Parser<'_> {
         }
         self.param_list(super::items::Params::Closure);
         if self.eat(TokenKind::Arrow) {
-            self.ty_result();
+            self.ty_result_plain();
         }
         if self.at(TokenKind::Dollar) {
             self.requirement_clause();

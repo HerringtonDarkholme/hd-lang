@@ -253,3 +253,25 @@ fn an_if_nested_in_each_else_suite_still_nests_too_deep() {
             .any(|code| code.as_str() == "nesting-too-deep")
     );
 }
+
+#[test]
+fn opaque_result_is_one_whole_return_annotation() {
+    let source = "fn values[T](value: T) -> impl Iterator[T]:\n    value\n";
+    let parsed = parse(source.as_bytes());
+    assert!(parsed.is_ok(), "{:?}", parsed.diagnostic_codes());
+    let function = parsed.tree.root().children().next().expect("function");
+    assert!(
+        function
+            .children()
+            .any(|n| n.kind() == SyntaxKind::ImplType)
+    );
+    assert_eq!(parsed.tree.reconstruct(&parsed.tokens, source), source);
+    for source in [
+        "fn f(value: impl Display) -> void: ()\n",
+        "struct S:\n    value: impl Display\n",
+        "fn f() -> void:\n    let value: impl Display = +1\n",
+        "fn f() -> Result[impl Display, string]: +1\n",
+    ] {
+        assert!(!parse(source.as_bytes()).is_ok(), "{source}");
+    }
+}

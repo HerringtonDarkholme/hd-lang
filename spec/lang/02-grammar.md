@@ -462,8 +462,11 @@ declaration = [ "pub" ], ( function_decl
 
 ```ebnf
 function_decl = "fn", callable_name, [ function_generic_params ], parameter_clause,
-                [ "->", result_type ], [ requirement_clause ], ":",
+                [ "->", function_result_type ], [ requirement_clause ], ":",
                 suite_body ;
+
+function_result_type = result_type | opaque_result_type ;
+opaque_result_type = "impl", bound_trait_type ;
 
 callable_name = identifier, [ "!" ] ;
 
@@ -495,6 +498,7 @@ receiver_parameter = "self" | "mut", "self" | "&", "self" | "&", "mut", "self" ;
 5. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
 6. r[grammar.fn.vararg-name] A [vararg](07-functions.md#varargs) parameter writes `...` after its name, as in `values...: List[i32]`; it takes no default and must be the final positional parameter.
 7. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
+8. r[grammar.fn.opaque-result] `impl` begins only a whole named-function result annotation; it is invalid in parameters, fields, bindings, closure annotations, function types, and nested type positions. Error: `syntax-error`.
 
 ```text
 fn scaled(values...: List[i32], factor: i32) -> i32: factor  # error: nonfinal-vararg
@@ -586,7 +590,7 @@ supertrait_bounds = bound_trait_type, { "&", bound_trait_type } ;
 trait_member = associated_type_decl
              | { decorator_line }, "fn", callable_name, [ function_generic_params ],
                parameter_clause,
-               "->", result_type, [ requirement_clause ],
+               "->", function_result_type, [ requirement_clause ],
                ( NEWLINE | ":", suite_body )
              ;
 
@@ -609,13 +613,13 @@ impl_member = associated_type_decl
 
 intrinsic_method = "@", "intrinsic", NEWLINE, "fn", callable_name,
                    [ function_generic_params ], parameter_clause,
-                   "->", result_type, NEWLINE ;
+                   "->", function_result_type, NEWLINE ;
 
 derivation_line = ( identifier | "Self" ), ( "=" | "+=" ), closed_expression,
                   NEWLINE ;
 
 method_decl = [ "pub" ], "fn", callable_name, [ function_generic_params ],
-              parameter_clause, [ "->", result_type ],
+              parameter_clause, [ "->", function_result_type ],
               [ requirement_clause ], ":", suite_body ;
 
 associated_type_decl = "type", identifier, [ "<", supertrait_bounds ],

@@ -56,6 +56,15 @@ impl Cart:
 > caller in another file never waits for a callee's body to be checked.
 > Files can then be checked in parallel.
 
+### Opaque Results
+
+1. r[fn.opaque.position] A free function, an inherent method, or a nested named function may declare an [opaque result](04-type-system.md#opaque-result-types).
+2. r[fn.opaque.whole] `impl Trait[Args]` must be the whole return annotation.
+3. r[fn.opaque.trait-method] A trait declaration's or trait implementation's method returning `impl Trait` is an error. Error: `type-mismatch`.
+4. r[fn.opaque.same-type] Every completing `return` operand and the body's completing final value must have the same hidden concrete type. Error: `type-mismatch`.
+5. r[fn.opaque.no-join] Checking an opaque result does not join distinct result types or insert conversions between them.
+6. r[fn.opaque.bound] The hidden type must satisfy the declared trait bound and associated-type bindings. Error: `unsatisfied-trait-bound`.
+
 ### Recursion Without A Result Type
 
 1. r[fn.decl.omitted-recursion] A function whose result type is omitted must not be recursive through functions whose result types are all omitted, itself included.

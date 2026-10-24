@@ -38,7 +38,7 @@ const INLINE_LIMIT: usize = 8;
 impl OwnCx for Env<'_> {
     fn counted(&self, ty: Ty) -> Tri {
         let types = self.run.pool.types();
-        if types.has_param(ty) || types.has_assoc(ty) {
+        if types.has_param(ty) || types.has_assoc(ty) || types.has_opaque(ty) {
             return Tri::Maybe;
         }
         if self.layout_facts(ty).0 {
@@ -135,7 +135,7 @@ impl OwnCx for Env<'_> {
 
     fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
         let types = self.run.pool.types();
-        if types.has_param(ty) || types.has_assoc(ty) {
+        if types.has_param(ty) || types.has_assoc(ty) || types.has_opaque(ty) {
             out.clear();
             return false;
         }
@@ -181,7 +181,7 @@ impl Env<'_> {
         }
         let pool = &self.run.pool;
         match pool.get(strip_mut(pool, t)) {
-            TyData::Param(_) => true,
+            TyData::Param(_) | TyData::Opaque { .. } => true,
             TyData::Adt { def, args } => {
                 let known = &self.run.known;
                 if def == known.list || def == known.map {
@@ -237,7 +237,7 @@ impl Env<'_> {
             t = inner;
         }
         let types = pool.types();
-        let open = types.has_param(t) || types.has_assoc(t);
+        let open = types.has_param(t) || types.has_assoc(t) || types.has_opaque(t);
         match pool.get(t) {
             TyData::Ref { .. } => Pass::Lent,
             TyData::Adt { def, .. } if def == self.run.known.ref_cell => Pass::Lent,
@@ -436,7 +436,7 @@ impl Env<'_> {
         let args = &items[..self.trait_arity(trait_).min(items.len())];
         if std::iter::once(&self_ty)
             .chain(args)
-            .any(|&t| types.has_param(t) || types.has_assoc(t))
+            .any(|&t| types.has_param(t) || types.has_assoc(t) || types.has_opaque(t))
         {
             return None;
         }
@@ -502,7 +502,8 @@ impl Env<'_> {
     /// first, as the checker roots its bodies' (`hd_tir::ir::root_places`).
     pub(super) fn owned_generated(&self, mut body: Body) -> StageResult<Body> {
         let pool = &self.run.pool;
-        let open = |t: Ty| pool.types().has_param(t) || pool.types().has_assoc(t);
+        let open =
+            |t: Ty| pool.types().has_param(t) || pool.types().has_assoc(t) || pool.has_opaque(t);
         ROOTS.with(|r| hd_tir::ir::root_places(&mut body, &open, &mut r.borrow_mut()));
         self.own_passes(body)
     }

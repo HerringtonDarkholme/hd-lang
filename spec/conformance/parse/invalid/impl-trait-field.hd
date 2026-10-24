@@ -1,0 +1,2 @@
+struct Bad:
+    value: impl Display  # diagnostic: syntax-error

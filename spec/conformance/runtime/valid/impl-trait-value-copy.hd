@@ -1,0 +1,22 @@
+# expect-stdout: 2 1
+trait Buffer:
+    fn push(&mut self, value: i32) -> void
+    fn len(&self) -> usize
+
+struct Store:
+    values: List[i32]
+
+impl Buffer for Store:
+    fn push(&mut self, value: i32) -> void:
+        self.values.push(value)
+    fn len(&self) -> usize:
+        self.values.len()
+
+fn make() -> impl Buffer:
+    Store { values: [+1] }
+
+pub fn main() -> void $ Console:
+    let mut original = make()
+    copied := original
+    original.push(+2)
+    println("${original.len()} ${copied.len()}")

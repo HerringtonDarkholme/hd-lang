@@ -741,6 +741,14 @@ impl Ck<'_, '_> {
                     rest,
                 })
             }
+            SyntaxKind::ImplType => {
+                self.err(
+                    Code::TypeMismatch,
+                    n,
+                    "`impl Trait` must be the whole return type of a named function",
+                );
+                Ty::POISON
+            }
             SyntaxKind::DynType => {
                 if role != NameRole::Referent {
                     self.err(
