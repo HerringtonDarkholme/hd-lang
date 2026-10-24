@@ -39,7 +39,7 @@ use hd_types::Ty;
 
 use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, Topology, inside, place, u32_of};
 
-pub use hoist::{EntryTest, entry_test};
+pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
 mod borrow;
 pub(crate) mod flow;

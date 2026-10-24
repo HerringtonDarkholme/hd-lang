@@ -89,16 +89,48 @@ pub struct EntryTest {
     pub prefix: usize,
 }
 
-/// The entry test of `Loop` `l`, if it has one.
+/// The entry test of `Loop` `l`, if it has one: its [`loop_test`], with
+/// an arm that goes on.
 #[must_use]
 pub fn entry_test(b: &Body, l: u32) -> Option<EntryTest> {
-    let li = l as usize;
-    if b.tags.get(li) != Some(&Tag::Loop) {
+    let (test, prefix, [then, els]) = loop_test(b, l, false)?;
+    let arms = b.record(b.data[test as usize][1]);
+    let iteration = arms.get(usize::from(then)).copied().unwrap_or(NONE);
+    (then != els && iteration != NONE).then_some(EntryTest {
+        test,
+        iteration,
+        leaves_on_true: then,
+        prefix,
+    })
+}
+
+/// The statements of `Loop` `l`'s body block, without the blocks among
+/// them.
+pub fn loop_statements(b: &Body, l: u32) -> impl Iterator<Item = u32> + '_ {
+    let body = b.data[l as usize][0];
+    b.record(b.data[body as usize][0])
+        .iter()
+        .copied()
+        .filter(|&x| b.tags[x as usize] != Tag::Block)
+}
+
+/// The test of `Loop` `l`: the first `If` among its statements, how many
+/// statements stand before it, and whether each of its arms (then, else)
+/// only breaks out of the loop. A break with a value counts when `valued`.
+#[must_use]
+pub fn loop_test(b: &Body, l: u32, valued: bool) -> Option<(u32, usize, [bool; 2])> {
+    if b.tags.get(l as usize) != Some(&Tag::Loop) {
         return None;
     }
-    let body = b.data[li][0];
-    let is_break = |blk: u32| {
-        if blk == NONE || b.tags.get(blk as usize) != Some(&Tag::Block) {
+    let (prefix, test) = loop_statements(b, l)
+        .enumerate()
+        .find(|&(_, x)| b.tags[x as usize] == Tag::If)?;
+    let arms = b.record(b.data[test as usize][1]);
+    let breaks = |k: usize| {
+        let Some(&blk) = arms.get(k).filter(|&&a| a != NONE) else {
+            return false;
+        };
+        if b.tags.get(blk as usize) != Some(&Tag::Block) {
             return false;
         }
         let mut items = b
@@ -110,39 +142,10 @@ pub fn entry_test(b: &Body, l: u32) -> Option<EntryTest> {
         };
         let [label, value] = b.data[x as usize];
         b.tags[x as usize] == Tag::Break
-            && value == NONE
+            && (valued || value == NONE)
             && b.label_inst.get(label as usize) == Some(&l)
     };
-    let mut prefix = 0;
-    for &x in b.record(b.data[body as usize][0]) {
-        match b.tags[x as usize] {
-            Tag::Block => {}
-            Tag::If => {
-                let arms = b.record(b.data[x as usize][1]);
-                let (then, els) = (
-                    arms.first().copied().unwrap_or(NONE),
-                    arms.get(1).copied().unwrap_or(NONE),
-                );
-                return match (is_break(then), is_break(els)) {
-                    (true, false) if els != NONE => Some(EntryTest {
-                        test: x,
-                        iteration: els,
-                        leaves_on_true: true,
-                        prefix,
-                    }),
-                    (false, true) if then != NONE => Some(EntryTest {
-                        test: x,
-                        iteration: then,
-                        leaves_on_true: false,
-                        prefix,
-                    }),
-                    _ => None,
-                };
-            }
-            _ => prefix += 1,
-        }
-    }
-    None
+    Some((test, prefix, [breaks(0), breaks(1)]))
 }
 
 /// One place a loop may hoist or keep: a local root and its steps (`len`
@@ -619,14 +622,10 @@ fn hoist_loop(
     // Rule 1: the `IsUnique`s of the iteration block, behind a pure
     // prefix.
     if let Some(e) = entry_test(b, l) {
-        let body = b.data[l as usize][0];
         let mut budget = b.len();
-        let prefix_pure = b
-            .record(b.data[body as usize][0])
-            .iter()
-            .filter(|&&x| b.tags[x as usize] != Tag::Block)
+        let prefix_pure = loop_statements(b, l)
             .take(e.prefix)
-            .all(|&x| pure(b, cx, x, &mut budget));
+            .all(|x| pure(b, cx, x, &mut budget));
         if prefix_pure {
             for k in 0..b.record(b.data[e.iteration as usize][0]).len() {
                 let x = b.record(b.data[e.iteration as usize][0])[k];

@@ -27,6 +27,24 @@ pub enum Src {
     Locals(Vec<u32>),
 }
 
+/// Where [`Em::replace`] writes a value.
+#[derive(Clone, Copy)]
+pub(super) enum Dst<'a> {
+    /// The Wasm locals that hold it.
+    Locals(&'a [u32]),
+    /// Top-level binding `h`'s Wasm globals from value `first` on, of the
+    /// types `vals`: `(h, first, vals)`.
+    Globals(hd_base::Hash128, usize, &'a [Val]),
+    /// The leaves of the memory at the address in a local, some bytes
+    /// before them: `(at, base, leaves)`.
+    Mem(u32, u32, &'a [Leaf]),
+}
+
+/// Wasm global `k` of top-level binding `h`, of type `v`.
+fn storage(h: hd_base::Hash128, k: usize, v: Val) -> crate::module::Global {
+    crate::module::Global::Storage(h, u32::try_from(k).expect("k"), v)
+}
+
 impl Em<'_, '_, '_> {
     pub(super) fn kind(&self, t: Ty) -> Kind {
         kind(self.pool(), self.env(), t)
@@ -99,19 +117,7 @@ impl Em<'_, '_, '_> {
     ) -> StageResult<()> {
         address(self)?;
         value(self)?;
-        let m = mem(
-            HEAP,
-            u64::from(base + l.offset),
-            u32::from(l.bytes).trailing_zeros(),
-        );
-        self.f.op(match (l.val, l.bytes) {
-            (Val::I32, 1) => I::I32Store8(m),
-            (Val::I32, 2) => I::I32Store16(m),
-            (Val::I32, _) => I::I32Store(m),
-            (Val::I64, _) => I::I64Store(m),
-            (Val::F32, _) => I::F32Store(m),
-            (Val::F64, _) => I::F64Store(m),
-        });
+        self.f.op(l.store(base));
         Ok(())
     }
 
@@ -275,20 +281,87 @@ impl Em<'_, '_, '_> {
     /// Stores the values of `s` as the part `p` of the object at local `at`
     /// whose payload is laid out as `m`.
     pub(super) fn store_part(&mut self, at: u32, m: &Mem, p: Part, s: &Src) -> StageResult<()> {
-        for (k, l) in m.leaves[p.first..p.first + p.count]
-            .iter()
-            .copied()
-            .enumerate()
-        {
-            self.store_leaf(
-                &|em: &mut Self| {
-                    em.f.get(at);
-                    Ok(())
-                },
-                0,
-                l,
-                &mut |em: &mut Self| em.src(s, k),
-            )?;
+        let leaves = &m.leaves[p.first..p.first + p.count];
+        self.write_new(Dst::Mem(at, 0, leaves), s)
+    }
+
+    /// Replaces the `t` value at `d` with value `v`: a counted place takes
+    /// a count of the new value ([`Em::consumed`]; a copy of each
+    /// collection a place holds, `types.coll.value`) and releases the old
+    /// one's before the write.
+    pub(super) fn replace(&mut self, d: Dst, t: Ty, v: u32) -> StageResult<()> {
+        if self.counted(t).is_none() {
+            return self.write_new(d, &Src::Ref(v));
+        }
+        let s = self.consumed(v)?;
+        let old = self.old_locals(d);
+        self.load_old(d, &old);
+        self.release_locals(&old, t)?;
+        self.write_new(d, &s)
+    }
+
+    /// Replaces the `t` value at `d` with `s`, which holds its count
+    /// already, as [`Em::replace`] does, but releases the old value, read
+    /// into `old` ([`Em::old_locals`]), after the write.
+    pub(super) fn replace_late(&mut self, d: Dst, t: Ty, s: &Src, old: &[u32]) -> StageResult<()> {
+        let counted = self.counted(t).is_some();
+        if counted {
+            self.load_old(d, old);
+        }
+        self.write_new(d, s)?;
+        if counted {
+            self.release_locals(old, t)?;
+        }
+        Ok(())
+    }
+
+    /// The locals the value at `d` is read into before a write: `d`'s own
+    /// when it is locals.
+    pub(super) fn old_locals(&mut self, d: Dst) -> Vec<u32> {
+        match d {
+            Dst::Locals(ls) => ls.to_vec(),
+            Dst::Globals(_, _, vals) => vals.iter().map(|v| self.f.local(*v)).collect(),
+            Dst::Mem(_, _, leaves) => leaves.iter().map(|l| self.f.local(l.val)).collect(),
+        }
+    }
+
+    /// Reads the values at `d` into the locals `old`.
+    fn load_old(&mut self, d: Dst, old: &[u32]) {
+        for (k, o) in old.iter().enumerate() {
+            match d {
+                Dst::Locals(_) => return,
+                Dst::Globals(h, first, vals) => self.f.global_get(storage(h, first + k, vals[k])),
+                Dst::Mem(at, base, leaves) => {
+                    self.f.get(at);
+                    self.f.op(leaves[k].load(base));
+                }
+            }
+            self.f.set(*o);
+        }
+    }
+
+    /// Writes the values of `s` to `d`.
+    pub(super) fn write_new(&mut self, d: Dst, s: &Src) -> StageResult<()> {
+        match d {
+            Dst::Locals(ls) => {
+                self.push_src(s)?;
+                for x in ls.iter().rev() {
+                    self.f.set(*x);
+                }
+            }
+            Dst::Globals(h, first, vals) => {
+                self.push_src(s)?;
+                for (k, v) in vals.iter().enumerate().rev() {
+                    self.f.global_set(storage(h, first + k, *v));
+                }
+            }
+            Dst::Mem(at, base, leaves) => {
+                for (k, l) in leaves.iter().enumerate() {
+                    self.f.get(at);
+                    self.src(s, k)?;
+                    self.f.op(l.store(base));
+                }
+            }
         }
         Ok(())
     }
@@ -430,26 +503,11 @@ impl Em<'_, '_, '_> {
         let Some(p) = parts.get(idx as usize).copied() else {
             return unsupported("a field index outside the data type");
         };
-        let ft = tys[idx as usize];
-        let mut s = Src::Ref(v);
         let at = self.f.local(Val::I32);
         self.push_start(obj, Some(0))?;
         self.f.set(at);
-        // The field takes a count of the new value and drops the old one's.
-        if self.counted(ft).is_some() {
-            s = self.retain_src(&s, ft)?;
-            let old: Vec<u32> = m.leaves[p.first..p.first + p.count]
-                .iter()
-                .map(|l| self.f.local(l.val))
-                .collect();
-            for (l, o) in m.leaves[p.first..p.first + p.count].iter().zip(&old) {
-                self.f.get(at);
-                self.f.op(l.load(0));
-                self.f.set(*o);
-            }
-            self.release_locals(&old, ft)?;
-        }
-        self.store_part(at, &m, p, &s)
+        let leaves = &m.leaves[p.first..p.first + p.count];
+        self.replace(Dst::Mem(at, 0, leaves), tys[idx as usize], v)
     }
 
     /// The field types of struct type `t`, substituted.

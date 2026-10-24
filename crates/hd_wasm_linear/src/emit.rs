@@ -1668,7 +1668,7 @@ impl Em<'_, '_, '_> {
             }
             Tag::Loop => {
                 self.slot(i)?;
-                let caches = self.begin_list_loop(i, a)?;
+                let caches = self.begin_list_loop(i)?;
                 self.open(Ctl::Brk(i));
                 self.f.op(Instruction::Loop(BlockType::Empty));
                 self.ctl.push(Ctl::Cont(i));
@@ -1910,16 +1910,7 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let t = self.sub(self.b.local_ty[l as usize]);
-        let mut s = value::Src::Ref(v);
-        if self.counted(t).is_some() {
-            s = self.consumed(v)?;
-            self.release_locals(&ls, t)?;
-        }
-        self.push_src(&s)?;
-        for x in ls.iter().rev() {
-            self.f.set(*x);
-        }
-        Ok(())
+        self.replace(value::Dst::Locals(&ls), t, v)
     }
 
     /// A `Store` into a whole top-level binding: `def`
@@ -1934,26 +1925,10 @@ impl Em<'_, '_, '_> {
             self.f.op(Instruction::Unreachable);
             return Ok(());
         }
-        let vs = self.vals(self.ty_of(v))?;
         let t = self.ty_of(v);
-        let mut s = value::Src::Ref(v);
-        if self.counted(t).is_some() {
-            self.note_stored(h, t, None)?;
-            s = self.consumed(v)?;
-            let old: Vec<u32> = vs.iter().map(|x| self.f.local(*x)).collect();
-            for (k, (x, o)) in vs.iter().zip(&old).enumerate() {
-                self.f
-                    .global_get(Global::Storage(h, u32::try_from(k).expect("k"), *x));
-                self.f.set(*o);
-            }
-            self.release_locals(&old, t)?;
-        }
-        self.push_src(&s)?;
-        for (k, x) in vs.into_iter().enumerate().rev() {
-            self.f
-                .global_set(Global::Storage(h, u32::try_from(k).expect("k"), x));
-        }
-        Ok(())
+        let vals = self.vals(t)?;
+        self.note_stored(h, t, None)?;
+        self.replace(value::Dst::Globals(h, 0, &vals), t, v)
     }
 
     /// `Read [$l]` `i`: local `l`'s values, from its cell or its Wasm
@@ -2771,14 +2746,7 @@ impl Em<'_, '_, '_> {
             return self.store_as(i, w == hd_tir::ir::ReadMode::Move as u32);
         }
         let s = self.retain_src(&value::Src::Ref(w), t)?;
-        for (k, l) in m.leaves.iter().enumerate() {
-            let address = |em: &mut Self| {
-                em.f.get(at);
-                Ok(())
-            };
-            self.store_leaf(&address, 0, *l, &mut |em: &mut Self| em.src(&s, k))?;
-        }
-        Ok(())
+        self.write_new(value::Dst::Mem(at, 0, &m.leaves), &s)
     }
 
     /// The result type `T` of a `Suspend[T]`.

@@ -21,7 +21,7 @@ use wasm_encoder::BlockType;
 use super::Em;
 use super::refs::{Head, Start};
 use super::shape::Through;
-use super::value::Src;
+use super::value::{Dst, Src};
 use crate::layout::{coll_kind, coll_leaves, mem as mem_of, strip};
 use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_EXPOSED, LIST_LEN, LIST_OWN, empty_buffer};
@@ -197,44 +197,13 @@ impl Em<'_, '_, '_> {
     /// A canonical loop test, before its body: the `If` after a scalar
     /// prefix one of whose branches only breaks out of the loop, and
     /// whether that branch is the first.
-    fn list_loop_guard(&self, loop_inst: u32, body: u32) -> Option<(u32, bool)> {
-        let is_break = |blk: u32| {
-            if blk == hd_tir::ir::NONE || self.b.tags[blk as usize] != Tag::Block {
-                return false;
-            }
-            let mut items = self
-                .b
-                .record(self.b.data[blk as usize][0])
-                .iter()
-                .copied()
-                .filter(|x| self.b.tags[*x as usize] != Tag::Block);
-            let Some(item) = items.next() else {
-                return false;
-            };
-            items.next().is_none()
-                && self.b.tags[item as usize] == Tag::Break
-                && self
-                    .b
-                    .label_inst
-                    .get(self.b.data[item as usize][0] as usize)
-                    == Some(&loop_inst)
-        };
+    fn list_loop_guard(&self, l: u32) -> Option<(u32, bool)> {
+        let (test, prefix, [first, second]) = hd_tir::own::loop_test(self.b, l, true)?;
         let mut budget = self.b.len();
-        for x in self.rec(self.b.data[body as usize][0]) {
-            if self.b.tags[x as usize] == Tag::Block {
-                continue;
-            }
-            if self.b.tags[x as usize] == Tag::If {
-                let branches = self.rec(self.b.data[x as usize][1]);
-                let first = is_break(branches[0]);
-                let second = branches.get(1).is_some_and(|b| is_break(*b));
-                return (first != second).then_some((x, first));
-            }
-            if !self.scalar_loop_test(x, &mut budget) {
-                return None;
-            }
-        }
-        None
+        let scalar = hd_tir::own::loop_statements(self.b, l)
+            .take(prefix)
+            .all(|x| self.scalar_loop_test(x, &mut budget));
+        (first != second && scalar).then_some((test, first))
     }
 
     /// Follow immutable scalar aliases and fields of a just-built range.
@@ -586,11 +555,7 @@ impl Em<'_, '_, '_> {
             .filter(|_| self.susp.is_none())
             .and_then(|l| hd_tir::own::entry_test(self.b, l).map(|e| (l, e)));
         if let Some((l, e)) = test {
-            let body = self.b.data[l as usize][0];
-            let prefix: Vec<u32> = self
-                .rec(self.b.data[body as usize][0])
-                .into_iter()
-                .filter(|x| self.b.tags[*x as usize] != Tag::Block)
+            let prefix: Vec<u32> = hd_tir::own::loop_statements(self.b, l)
                 .take(e.prefix)
                 .collect();
             for x in prefix {
@@ -697,16 +662,12 @@ impl Em<'_, '_, '_> {
         Ok(roots)
     }
 
-    /// Loop `loop_inst`, whose body is block `block`, is about to start:
-    /// the hoisted `IsUnique`s waiting for it run, its exact range indices
-    /// are proven (§23.37), and its stable lists keep their buffer and
-    /// length in locals ([`Em::own_list_caches`]). The cached lists,
-    /// which the loop's exit drops from the cache.
-    pub(super) fn begin_list_loop(
-        &mut self,
-        loop_inst: u32,
-        block: u32,
-    ) -> StageResult<Vec<ListRoot>> {
+    /// Loop `loop_inst` is about to start: the hoisted `IsUnique`s waiting
+    /// for it run, its exact range indices are proven (§23.37), and its
+    /// stable lists keep their buffer and length in locals
+    /// ([`Em::own_list_caches`]). The cached lists, which the loop's exit
+    /// drops from the cache.
+    pub(super) fn begin_list_loop(&mut self, loop_inst: u32) -> StageResult<Vec<ListRoot>> {
         self.hoisted_uniques(Some(loop_inst))?;
         if self.susp.is_some() {
             return Ok(Vec::new());
@@ -715,7 +676,7 @@ impl Em<'_, '_, '_> {
             .map(|i| u32::try_from(i).expect("insts"))
             .filter(|x| self.in_loop(*x, loop_inst))
             .collect();
-        if let Some((test, false)) = self.list_loop_guard(loop_inst, block) {
+        if let Some((test, false)) = self.list_loop_guard(loop_inst) {
             let proven = self.range_indices(loop_inst, test, &body);
             self.proven_list_indices.extend(proven);
         }
@@ -835,22 +796,6 @@ impl Em<'_, '_, '_> {
         at
     }
 
-    /// Stores the values of `s` as the element at local `at`.
-    fn store_elem(&mut self, at: u32, e: &Elem, s: &Src) -> StageResult<()> {
-        for (k, l) in e.leaves.iter().copied().enumerate() {
-            self.store_leaf(
-                &|em: &mut Self| {
-                    em.f.get(at);
-                    Ok(())
-                },
-                LIST_ELEMS,
-                l,
-                &mut |em: &mut Self| em.src(s, k),
-            )?;
-        }
-        Ok(())
-    }
-
     /// Source `s` of a `t` value for the place that consumes it: an operand
     /// at its only use moves its count there ([`Em::take`]), any other
     /// value is a copy with counts of its own ([`Em::copy_locals`]).
@@ -943,7 +888,7 @@ impl Em<'_, '_, '_> {
                     self.f.set(at);
                 } else {
                     let s = self.retain_src(&Src::Ref(*r), et)?;
-                    self.store_elem(at, &e, &s)?;
+                    self.write_new(Dst::Mem(at, LIST_ELEMS, &e.leaves), &s)?;
                     self.f.get(at);
                     self.f.u32(e.size);
                     self.f.op(I::I32Add);
@@ -1061,29 +1006,8 @@ impl Em<'_, '_, '_> {
             count = part.count;
             ft = self.struct_fields(ft)[k as usize];
         }
-        let s = self.retain_src(&Src::Ref(v), ft)?;
-        let leaves = all[first..first + count].to_vec();
-        if self.counted(ft).is_some() {
-            let old: Vec<u32> = leaves.iter().map(|l| self.f.local(l.val)).collect();
-            for (l, o) in leaves.iter().zip(&old) {
-                self.f.get(at);
-                self.f.op(l.load(off));
-                self.f.set(*o);
-            }
-            self.release_locals(&old, ft)?;
-        }
-        for (k, l) in leaves.iter().enumerate() {
-            self.store_leaf(
-                &|em: &mut Self| {
-                    em.f.get(at);
-                    Ok(())
-                },
-                off,
-                *l,
-                &mut |em: &mut Self| em.src(&s, k),
-            )?;
-        }
-        Ok(())
+        let leaves = &all[first..first + count];
+        self.replace(Dst::Mem(at, off, leaves), ft, v)
     }
 
     /// `ListPush`: a pinned list panics (`ref.elem.pinned`); otherwise the
@@ -1111,7 +1035,7 @@ impl Em<'_, '_, '_> {
         self.f.set(n);
         let at = self.slot_at(b, n, e.size);
         let s = self.retain_src(&Src::Ref(args[1]), et)?;
-        self.store_elem(at, &e, &s)?;
+        self.write_new(Dst::Mem(at, LIST_ELEMS, &e.leaves), &s)?;
         self.f.get(b);
         self.f.get(n);
         self.f.i32(1);
