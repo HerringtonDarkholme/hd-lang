@@ -1,0 +1,16 @@
+# The parity driver supplies a FIFO whose writer waits for "tick".
+# The ordinary CLI case uses a regular file for portability.
+use std.fs.{FsError, FsRead, read_text}
+use std.path.Path
+use std.task.all
+use std.time.{Clock, ms, sleep}
+
+fn sibling!() -> void $ Clock + Console:
+    sleep!(ms(5))
+    println("tick")
+
+pub fn exercise!(path: string) -> Result[void, FsError] $ FsRead + Clock + Console:
+    pair := all!(read_text(Path(path)), sibling())
+    text := pair._0?
+    println(text)
+    .Ok(())

@@ -649,19 +649,135 @@ function envProvider({ grant, sink, st, flush }) {
   };
 }
 
+const fileOperations = {
+  "hd:FsRead": {
+    read_bytes: (p) => Ok(opening(p, () => readFileSync(p))),
+    read_text: (p) => {
+      const bytes = opening(p, () => readFileSync(p));
+      try {
+        return Ok(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+      } catch {
+        return fsErr(p, "InvalidUtf8");
+      }
+    },
+    // The entries in the byte order of their names; each path is the
+    // directory's, `/`, and the name (as `MemoryFs` lists them).
+    list_dir: (p) => {
+      const names = opening(p, () => readdirSync(p)).sort((a, b) =>
+        Buffer.compare(Buffer.from(a), Buffer.from(b)),
+      );
+      const under = p.endsWith("/") ? p : `${p}/`;
+      const found = [];
+      for (const n of names) {
+        try {
+          found.push(entry(under + n, lstatSync(under + n, { bigint: true })));
+        } catch {
+          // Gone since the listing.
+        }
+      }
+      return Ok(found);
+    },
+    stat: (p) => {
+      let st;
+      try {
+        st = lstatSync(p, { bigint: true });
+      } catch (err) {
+        if (err.code === "ENOENT" || err.code === "ENOTDIR") return Ok(null);
+        throw err;
+      }
+      return Ok(entry(p, st));
+    },
+  },
+  "hd:FsWrite": {
+    write_bytes: (p, bytes) => Ok(opening(p, () => writeFileSync(p, bytes))),
+    write_text: (p, text) => Ok(opening(p, () => writeFileSync(p, text))),
+    append_text: (p, text) => Ok(opening(p, () => appendFileSync(p, text))),
+    create_dir_all: {
+      run: (p) => {
+        if (existsSync(p) && !statSync(p).isDirectory()) return fsErr(p, "NotADirectory");
+        mkdirSync(p, { recursive: true });
+        return Ok(undefined);
+      },
+      create: true,
+    },
+    remove: (p) => {
+      if (lstatSync(p).isDirectory()) rmdirSync(p);
+      else unlinkSync(p);
+      return Ok(undefined);
+    },
+    // cli.cap.scope.rename: the grant covers both paths.
+    rename: (from, to) => Ok(renameSync(from, to)),
+    copy: (from, to) => {
+      // Validate the source as a read before attributing destination errors.
+      try {
+        if (opening(from, () => statSync(from)).isDirectory()) return fsErr(from, "IsADirectory");
+        closeSync(opening(from, () => openSync(from, "r")));
+      } catch (err) {
+        return fsFail(from, err);
+      }
+      if (existsSync(to) && statSync(to).isDirectory()) return fsErr(to, "IsADirectory");
+      return Ok(opening(to, () => copyFileSync(from, to)));
+    },
+  },
+};
+
+// Only methods that open a path can wait for a special-file peer. A
+// missing or uninspectable path stays inline and reports its ordinary error.
+const fileOpening = new Set([
+  "read_bytes",
+  "read_text",
+  "write_bytes",
+  "write_text",
+  "append_text",
+  "copy",
+]);
+const specialFile = (path) => {
+  if (process.platform === "win32") {
+    // Inspecting a Windows pipe can itself open/wait on it. Native uses
+    // these same device namespace spellings without touching the device.
+    const normalized = path.replaceAll("/", "\\").toLowerCase();
+    if (
+      normalized.startsWith("\\\\.\\") ||
+      normalized.startsWith("\\\\?\\pipe\\") ||
+      normalized.startsWith("\\\\?\\globalroot\\device\\") ||
+      /^\\\\(?:\?\\unc\\)?[^\\]+\\pipe\\/.test(normalized)
+    )
+      return true;
+  }
+  try {
+    const st = statSync(path);
+    return !st.isFile() && !st.isDirectory();
+  } catch {
+    return false;
+  }
+};
+
+// Shared by the inline provider and its isolated special-file helper;
+// checks stay in the provider, and both paths keep the same result/errors.
+export function fileOperation(module, name, args) {
+  const op = fileOperations[module][name];
+  try {
+    return (typeof op === "function" ? op : op.run)(...args);
+  } catch (err) {
+    const m = METHODS[module][name];
+    const ps = args.filter((_, i) => m.params[i] === Path);
+    return fsFail(ps[ps.length - 1], err);
+  }
+}
+
 // `hd:FsRead` and `hd:FsWrite`: the file providers (std.fs).
-function fsProviders({ grant, flush }) {
+function fsProviders({ grant, flush, fsClient }) {
   // The methods `ops` of `module`, each `run` once the grant covers every
   // path it names, its `Path` arguments (its resource, gen/abi.mjs). A
-  // method can block, as a read of a FIFO with no writer does, so the
-  // output is flushed first (std-console.host.visible-text). A method that
+  // special-file call is offloaded after these checks. Output is flushed
+  // first (std-console.host.visible-text). A method that
   // creates its directories keeps the OS's own rule for a `..` after a
   // missing name, as the Rust host's `create` does.
   const fsOps = (module, ops) =>
     Object.fromEntries(
       Object.entries(ops).map(([name, op]) => {
         const m = METHODS[module][name];
-        const { run, create = false } = typeof op === "function" ? { run: op } : op;
+        const { create = false } = typeof op === "function" ? {} : op;
         const provider = (...args) => {
           const ps = args.filter((_, i) => m.resource === "path" && m.params[i] === Path);
           const refused = ps.find(
@@ -677,86 +793,32 @@ function fsProviders({ grant, flush }) {
             if (missing !== undefined) return fsErr(p, missing);
           }
           flush();
-          try {
-            return run(...args);
-          } catch (err) {
-            return fsFail(ps[ps.length - 1], err);
+          if (fileOpening.has(name) && ps.some(specialFile)) {
+            const { ok: operation } = fsClient.call({ op: "wait_start", module, name, args });
+            let result = null;
+            const poll = () => {
+              const outcome = fsClient.call({ op: "wait_poll", operation });
+              if (outcome.pending) return false;
+              result = outcome.result;
+              return true;
+            };
+            return pendingOperation(
+              poll,
+              () => result,
+              () => fsClient.cancel({ op: "wait_abort", operation }),
+              () => {
+                fsClient.call({ op: "wait_finish", operation });
+              },
+            );
           }
+          return fileOperation(module, name, args);
         };
         return [name, provider];
       }),
     );
-  return {
-    "hd:FsRead": fsOps("hd:FsRead", {
-      read_bytes: (p) => Ok(opening(p, () => readFileSync(p))),
-      read_text: (p) => {
-        const bytes = opening(p, () => readFileSync(p));
-        try {
-          return Ok(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-        } catch {
-          return fsErr(p, "InvalidUtf8");
-        }
-      },
-      // The entries in the byte order of their names; each path is the
-      // directory's, `/`, and the name (as `MemoryFs` lists them).
-      list_dir: (p) => {
-        const names = opening(p, () => readdirSync(p)).sort((a, b) =>
-          Buffer.compare(Buffer.from(a), Buffer.from(b)),
-        );
-        const under = p.endsWith("/") ? p : `${p}/`;
-        const found = [];
-        for (const n of names) {
-          try {
-            found.push(entry(under + n, lstatSync(under + n, { bigint: true })));
-          } catch {
-            // Gone since the listing.
-          }
-        }
-        return Ok(found);
-      },
-      stat: (p) => {
-        let st;
-        try {
-          st = lstatSync(p, { bigint: true });
-        } catch (err) {
-          if (err.code === "ENOENT" || err.code === "ENOTDIR") return Ok(null);
-          throw err;
-        }
-        return Ok(entry(p, st));
-      },
-    }),
-    "hd:FsWrite": fsOps("hd:FsWrite", {
-      write_bytes: (p, bytes) => Ok(opening(p, () => writeFileSync(p, bytes))),
-      write_text: (p, text) => Ok(opening(p, () => writeFileSync(p, text))),
-      append_text: (p, text) => Ok(opening(p, () => appendFileSync(p, text))),
-      create_dir_all: {
-        run: (p) => {
-          if (existsSync(p) && !statSync(p).isDirectory()) return fsErr(p, "NotADirectory");
-          mkdirSync(p, { recursive: true });
-          return Ok(undefined);
-        },
-        create: true,
-      },
-      remove: (p) => {
-        if (lstatSync(p).isDirectory()) rmdirSync(p);
-        else unlinkSync(p);
-        return Ok(undefined);
-      },
-      // cli.cap.scope.rename: the grant covers both paths.
-      rename: (from, to) => Ok(renameSync(from, to)),
-      copy: (from, to) => {
-        // Validate the source as a read before attributing destination errors.
-        try {
-          if (opening(from, () => statSync(from)).isDirectory()) return fsErr(from, "IsADirectory");
-          closeSync(opening(from, () => openSync(from, "r")));
-        } catch (err) {
-          return fsFail(from, err);
-        }
-        if (existsSync(to) && statSync(to).isDirectory()) return fsErr(to, "IsADirectory");
-        return Ok(opening(to, () => copyFileSync(from, to)));
-      },
-    }),
-  };
+  return Object.fromEntries(
+    Object.entries(fileOperations).map(([module, ops]) => [module, fsOps(module, ops)]),
+  );
 }
 
 // The checks the Rust host makes before it starts a child
@@ -912,6 +974,7 @@ const nodeLayer = {
     const net = syncClient("net.mjs");
     const http = syncClient("http.mjs");
     const child = syncClient("process.mjs", "close");
+    const files = syncClient("fs.mjs", "close");
     // The program's output reaches its stream before it waits on the host
     // (std-console.host.visible-text): a run stopped in a wait loses none. Each
     // client call and child process asks `waiting()` first.
@@ -937,7 +1000,7 @@ const nodeLayer = {
         "hd:Http": httpProvider((request) => httpSend(httpClient, { ...request, grants })),
         "hd:Net": netProvider({ grant, netClient }),
         "hd:Env": envProvider({ grant, sink, st, flush }),
-        ...fsProviders({ grant, flush }),
+        ...fsProviders({ grant, flush, fsClient: client(files) }),
         "hd:Process": processProvider({ grant, env, left: waiting, processClient: client(child) }),
         "hd:TestRunner": testRunner.provider,
       },
@@ -958,6 +1021,7 @@ const nodeLayer = {
         net.stop();
         http.stop();
         child.stop();
+        files.stop();
         if (st.ownTemp) {
           try {
             rmSync(st.ownTemp, { recursive: true, force: true });

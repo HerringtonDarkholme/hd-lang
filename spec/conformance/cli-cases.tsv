@@ -14,6 +14,7 @@ exit-test-empty	cli.test.package-empty,cli.test.file-empty,cli.exit.hd-failure
 exit-outside-package	cli.run.package-only,cli.file.check-test.no-file,cli.exit.hd-failure,cli.mode.outside,cli.package.no-root
 fs-entry-modified	cli.host.default-profile.granted
 fs-copy	cli.host.default-profile.granted,cli.cap.scope.write-not-read
+fs-pending-special	cli.host.default-profile.granted,cli.engine.same-behavior
 json-check-error	cli.json.lines.build,cli.json.kind,cli.json.diagnostic,cli.json.diagnostic.fields,cli.json.summary.result,cli.json.summary.result.fields,cli.exit.hd-failure
 json-check-clean	cli.json.lines.build,cli.json.summary.result,cli.json.summary.result.fields,cli.exit.success,cli.check.summary-mode,cli.check.output-options
 json-check-warning	cli.json.diagnostic.fields,cli.json.summary.result,cli.json.summary.result.fields,cli.exit.success
