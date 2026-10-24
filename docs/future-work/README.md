@@ -19,8 +19,7 @@ the design stays.
 
 ### Application and host
 
-- [Server Applications](SERVER_APPLICATIONS.md): ordinary-`main!` application lifetime, shared state and deployment SDKs; direction A is approved, with hooks and isolated jobs compared and not chosen; the package/SDK boundary, deployment profile and lifecycle policies stay open (#806).
-- [HTTP Server](HTTP_SERVER.md): an ordinary `main!`, one retained instance per adapter, an SDK-owned `HttpServer` capability, and SDK packaging tasks with no `hd build` flag; Cloudflare, Vercel and local adapters follow #51's minimum (#266).
+- [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
 - [Host Embedding](HOST_EMBEDDING.md): parked proposal for embedding hd in an application; package host capabilities are designed in #51.
 - [GUI Applications](GUI_APPLICATIONS.md): parked exploration of host UIs, message/view models, signals and immediate frames, with explicit embedding and renderer gaps (#807).
 - [Streaming Design](STREAMING_DESIGN.md): one reader and writer shape for HTTP bodies, process pipes, files and `TcpStream`, on plain `Disposable` handles bound with `using` (#350).

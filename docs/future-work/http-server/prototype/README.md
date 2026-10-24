@@ -1,6 +1,6 @@
 # HTTP Handler Controls
 
-These are research controls for [the design record](../../HTTP_SERVER.md), not a shipped server or handler ABI.
+These are research controls for [the design record](../../SERVER_APPLICATIONS.md), not a shipped server or handler ABI.
 They exercise today's typed code and measure hosts; the decided design uses an ordinary `main!` and an SDK capability, not the handler entry the `gap` package declares.
 The hd program calls an ordinary typed handler from `main!`.
 The JS bridge supplies a JSON envelope through Args and reads one Console line.
