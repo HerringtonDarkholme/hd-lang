@@ -1,7 +1,7 @@
-//! `Console` and `ConsoleInput`. `write` is pending at once and
-//! writes its text into the held standard output when it completes;
-//! `write_error` likewise writes its text to standard error, after
-//! the held output (`module.console.write-error.raw`);
+//! `Console` and `ConsoleInput`. Output stays pending until the ordered
+//! writer thread writes its chunk, so a full pipe cannot block polling.
+//! `write_error` uses that same queue after prior standard output
+//! (`module.console.write-error.raw`);
 //! `read_line` and `read_all` are pending until the reactor's reader thread
 //! has read the next line, or the rest, of standard input, so a program's
 //! other operations go on while it waits for input.
@@ -48,7 +48,7 @@ pub(crate) fn call(
             } else {
                 Stream::Err
             };
-            Ret::pair(1, caller.data_mut().reactor.write(to, line))
+            Ret::pair(1, caller.data_mut().write_console(to, line))
         }
         // `Result[string?, ConsoleError]`: the line, `.None` at the end of
         // input, `.Err(.Closed)` when it cannot be read.

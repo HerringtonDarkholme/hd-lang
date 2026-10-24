@@ -124,7 +124,7 @@ impl BodyRunner for NativeBodyRunner {
                 .clone()
                 .unwrap_or_else(|| Outcome::Internal("test init did not finish".into()))
         };
-        instance.store.data_mut().flush();
+        instance.store.data_mut().drain_output();
         let mut trapped = instance.last_trapped;
         let frames = std::mem::take(&mut instance.last_frames);
         let status = match outcome {

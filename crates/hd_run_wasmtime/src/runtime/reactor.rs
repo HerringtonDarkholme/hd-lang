@@ -36,6 +36,8 @@ pub type Line = Result<Option<String>, ()>;
 /// What an offloaded operation delivers, for its `.finish` to encode.
 /// Each capability that moves onto the `hd-io` runtime adds its variant.
 pub enum Done {
+    /// A Console chunk written by the ordered output thread.
+    Output,
     /// `Process.run!`: how the child's run ended.
     Process(crate::process::native::Ran),
     /// `Process.run!` of a test case's named child, run on a thread of its
@@ -63,9 +65,6 @@ pub enum Stream {
 
 /// What an operation does when it completes.
 pub enum Work {
-    /// `Console.write` or `write_error`: the line, written to
-    /// its stream then.
-    Write(Stream, Vec<u8>),
     /// `Clock.sleep`.
     Timer,
     /// `ConsoleInput.read_line` or `read_all`: the line, or all the rest
@@ -246,10 +245,16 @@ impl Reactor {
         h
     }
 
-    /// A `write` or `write_error` of `line` to `to`, which
-    /// completes at once.
-    pub fn write(&mut self, to: Stream, line: Vec<u8>) -> i32 {
-        self.start(Some(now_ns()), Work::Write(to, line))
+    /// Register a write without starting hd-io. The output thread delivers
+    /// through the normal inbox so timers and input retain their wake order.
+    pub(crate) fn output(&mut self) -> (i32, impl FnOnce() + Send + 'static) {
+        let h = self.start(None, Work::Offloaded(None));
+        let inbox = Arc::clone(&self.inbox);
+        (h, move || {
+            let mut queue = inbox.queue.lock().unwrap_or_else(PoisonError::into_inner);
+            queue.done.push((h, Done::Output));
+            inbox.ready.notify_all();
+        })
     }
 
     /// A sleep of `ms` milliseconds.
@@ -448,10 +453,9 @@ impl Reactor {
         self.ops.get(&h).is_some_and(|op| op.completed)
     }
 
-    /// Completes every due operation, oldest first, pushing each
-    /// `Console` line, with its newline, to `lines` in that order, and
-    /// returns their handles.
-    pub fn due(&mut self, lines: &mut Vec<(Stream, Vec<u8>)>) -> Vec<i32> {
+    /// Completes every due operation, oldest first, and returns its handle.
+    /// Console writes arrive through the inbox after their writer finishes.
+    pub fn due(&mut self) -> Vec<i32> {
         self.take_delivered();
         let now = now_ns();
         let mut due = std::mem::take(&mut self.ready);
@@ -468,9 +472,6 @@ impl Reactor {
             {
                 op.completed = true;
                 self.open -= 1;
-                if let Work::Write(to, line) = &mut op.work {
-                    lines.push((*to, std::mem::take(line)));
-                }
             }
         }
         due.into_iter().map(|(_, h)| h).collect()
@@ -741,10 +742,9 @@ mod tests {
 
     /// Waits until `due` completes something, and returns it.
     fn next_due(r: &mut Reactor) -> Vec<i32> {
-        let mut out = Vec::new();
         loop {
             assert!(r.wait(), "an operation is pending");
-            let done = r.due(&mut out);
+            let done = r.due();
             if !done.is_empty() {
                 return done;
             }
@@ -826,11 +826,8 @@ mod tests {
             "the abort ends the op and hands back its result"
         );
         assert!(!r.waiting());
-        let mut out = Vec::new();
-        assert!(
-            r.due(&mut out).is_empty(),
-            "the late result completes nothing"
-        );
+
+        assert!(r.due().is_empty(), "the late result completes nothing");
         assert!(
             r.inbox.queue.lock().expect("inbox").done.is_empty(),
             "the late result is dropped"
@@ -864,8 +861,8 @@ mod tests {
         stopper.join().expect("the stopper ends");
         assert!(started.elapsed() < Duration::from_secs(10));
         assert!(r.waiting(), "the op is still pending");
-        let mut out = Vec::new();
-        assert!(r.due(&mut out).is_empty(), "the wake completes nothing");
+
+        assert!(r.due().is_empty(), "the wake completes nothing");
         r.remove(h);
     }
 
@@ -908,11 +905,11 @@ mod tests {
         let first = r.read_line();
         let second = r.read_line();
         r.remove(first);
-        let mut out = Vec::new();
+
         let mut done = Vec::new();
         while done.is_empty() {
             assert!(r.wait());
-            done = r.due(&mut out);
+            done = r.due();
         }
         assert_eq!(done, [second]);
         let Some(op) = r.remove(second) else {
@@ -925,7 +922,7 @@ mod tests {
         let mut done = Vec::new();
         while done.is_empty() {
             assert!(r.wait());
-            done = r.due(&mut out);
+            done = r.due();
         }
         assert_eq!(done, [third]);
         let op = r.remove(third).expect("read");
@@ -940,11 +937,11 @@ mod tests {
         let first = r.read_line();
         let rest = r.read_all();
         let again = r.read_all();
-        let mut out = Vec::new();
+
         let mut done = Vec::new();
         while done.len() < 3 {
             assert!(r.wait());
-            done.extend(r.due(&mut out));
+            done.extend(r.due());
         }
         let text = |r: &mut Reactor, h| match r.remove(h).map(|op| op.work) {
             Some(Work::Read(Some(Ok(text)))) => text,
@@ -967,8 +964,8 @@ mod tests {
         ] {
             let mut r = Reactor::new(Some(Box::new(input)));
             let h = r.read_all();
-            let mut out = Vec::new();
-            while r.due(&mut out).is_empty() {
+
+            while r.due().is_empty() {
                 assert!(r.wait());
             }
             let Some(Work::Read(Some(Ok(Some(got))))) = r.remove(h).map(|op| op.work) else {
@@ -982,9 +979,9 @@ mod tests {
     fn a_closed_input_ends_at_once() {
         let mut r = Reactor::new(None);
         let h = r.read_line();
-        let mut out = Vec::new();
+
         assert!(r.wait());
-        assert_eq!(r.due(&mut out), [h]);
+        assert_eq!(r.due(), [h]);
     }
 
     #[test]
@@ -992,8 +989,8 @@ mod tests {
         let mut r = Reactor::new(None);
         let h = r.gate();
         assert!(r.waiting(), "the wait is pending");
-        let mut out = Vec::new();
-        assert!(r.due(&mut out).is_empty(), "the wait never completes");
+
+        assert!(r.due().is_empty(), "the wait never completes");
         assert!(r.waiting(), "still pending");
         let op = r.remove(h).expect("the cancel drops the wait");
         assert!(matches!(op.work, Work::Gate));

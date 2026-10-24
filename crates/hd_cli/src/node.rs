@@ -39,6 +39,8 @@ const PROCESS: &str = include_str!("../../../host/process.mjs");
 const FS: &str = include_str!("../../../host/fs.mjs");
 /// The `ConsoleInput` provider's client thread.
 const INPUT: &str = include_str!("../../../host/input.mjs");
+/// The ordered output writer.
+const OUTPUT: &str = include_str!("../../../host/output.mjs");
 /// The float text of the host primitives (`core.mjs` imports it).
 const FLOAT: &str = include_str!("../../../host/float.mjs");
 /// A REPL session's journal of host calls (`core.mjs` imports it).
@@ -131,6 +133,7 @@ impl Scratch {
             ("process.mjs", PROCESS),
             ("fs.mjs", FS),
             ("input.mjs", INPUT),
+            ("output.mjs", OUTPUT),
             ("float.mjs", FLOAT),
             ("journal.mjs", JOURNAL),
             ("wire.mjs", WIRE),

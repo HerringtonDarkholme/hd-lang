@@ -31,13 +31,12 @@ impl HostIo {
 }
 
 /// The most standard output held in memory between flushes: output past
-/// this many bytes is written at once, though the program has not waited.
+/// this many bytes is queued for the writer, though the program has not waited.
 pub(crate) const HELD_OUTPUT_BOUND: usize = 64 * 1024;
 
 /// The per-instance host state of the store.
 pub struct Host {
-    out_stream: Box<dyn Write + Send>,
-    err_stream: Box<dyn Write + Send>,
+    output: super::output::Output,
     /// Standard output not yet written.
     pub(crate) out: Vec<u8>,
     pub memory: Option<Memory>,
@@ -99,8 +98,7 @@ impl Host {
     ) -> Host {
         let deadline = wall_ms.and_then(|ms| Instant::now().checked_add(Duration::from_millis(ms)));
         Host {
-            out_stream: io.out,
-            err_stream: io.err,
+            output: super::output::Output::new(io.out, io.err),
             out: Vec::new(),
             memory: None,
             facts: Vec::new(),
@@ -283,6 +281,7 @@ impl Host {
         if close {
             self.close();
         }
+        self.output.drain();
         Some(Outcome::Exit(u8::try_from(status & 0xff).unwrap_or(1)))
     }
 
@@ -310,14 +309,13 @@ impl Host {
         }
     }
 
-    /// Writes the held standard output.
+    /// Queues held standard output without blocking the program thread.
     pub fn flush(&mut self) {
         if self.muted {
             self.out.clear();
         } else if !self.out.is_empty() {
-            let _ = self.out_stream.write_all(&self.out);
-            let _ = self.out_stream.flush();
-            self.out.clear();
+            self.output
+                .write(Stream::Out, std::mem::take(&mut self.out), None);
         }
     }
 
@@ -331,17 +329,25 @@ impl Host {
         if self.muted {
             return;
         }
-        let _ = self.err_stream.write_all(bytes);
-        let _ = self.err_stream.flush();
+        self.output.write(Stream::Err, bytes.to_vec(), None);
     }
 
-    /// A completed `Console` line: held with the standard output, or
-    /// written to standard error after it.
-    pub(crate) fn console_line(&mut self, to: Stream, line: &[u8]) {
-        match to {
-            Stream::Out => self.out.extend_from_slice(line),
-            Stream::Err => self.err_bytes(line),
+    /// A guest bang write completes only when the writer accepted its
+    /// whole chunk. Aborting its wait discards the wake, not accepted bytes.
+    pub(crate) fn write_console(&mut self, to: Stream, line: Vec<u8>) -> i32 {
+        self.flush();
+        let (handle, done) = self.reactor.output();
+        if self.muted {
+            done();
+        } else {
+            self.output.write(to, line, Some(Box::new(done)));
         }
+        handle
+    }
+
+    pub(crate) fn drain_output(&mut self) {
+        self.flush();
+        self.output.drain();
     }
 
     /// Whether an operation is pending and not completed: something can

@@ -28,9 +28,9 @@ import {
   statSync,
   unlinkSync,
   writeFileSync,
-  writeSync,
 } from "node:fs";
 import { isIP } from "node:net";
+import { createOutput } from "./output.mjs";
 import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_threads";
 import { arch as osArch, availableParallelism, hostname, platform, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
@@ -1091,18 +1091,9 @@ export async function driveNodeSession() {
     if (line === false) throw new Error("cannot read the session control stream");
     return JSON.parse(line);
   };
-  const send = (kind, ...fields) => {
-    const bytes = Buffer.from(`${[kind, ...fields].join("\t")}\n`);
-    const waiter = new Int32Array(new SharedArrayBuffer(4));
-    for (let at = 0; at < bytes.length;) {
-      try {
-        at += writeSync(1, bytes, at);
-      } catch (error) {
-        if (error.code !== "EAGAIN") throw error;
-        Atomics.wait(waiter, 0, 0, 5);
-      }
-    }
-  };
+  const output = createOutput();
+  const frame = (kind, ...fields) => `${[kind, ...fields].join("\t")}\n`;
+  const send = (kind, ...fields) => output.out(frame(kind, ...fields));
   const input = (all) => {
     send(all ? "all" : "input");
     return receive()?.value ?? null;
@@ -1118,6 +1109,8 @@ export async function driveNodeSession() {
           case "open":
             session = createNodeSession(
               {
+                write: (fd, text) =>
+                  output.write(1, frame(fd === 1 ? "out" : "err", JSON.stringify(text))),
                 out: (text) => send("out", JSON.stringify(text)),
                 err: (text) => send("err", JSON.stringify(text)),
               },
@@ -1168,5 +1161,6 @@ export async function driveNodeSession() {
     }
   } finally {
     session?.close();
+    await output.close();
   }
 }

@@ -29,9 +29,8 @@ pub(crate) fn finished(reactor: &mut Reactor, h: i32) -> Sent {
 
 /// Waits for the operation `h` to complete and takes what it delivered.
 pub(crate) fn delivered(reactor: &mut Reactor, h: i32) -> Done {
-    let mut out = Vec::new();
     // An earlier `due` may already have completed `h` with another handle.
-    while !reactor.is_completed(h) && !reactor.due(&mut out).contains(&h) {
+    while !reactor.is_completed(h) && !reactor.due().contains(&h) {
         assert!(reactor.wait(), "the request is pending");
     }
     match reactor.remove(h).map(|op| op.work) {

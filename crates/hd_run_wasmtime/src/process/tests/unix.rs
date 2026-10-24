@@ -151,11 +151,8 @@ fn abort_after_the_child_exits_kills_a_descendant_holding_the_pipes() {
     let mut reactor = Reactor::new(None);
     let h = offload(&mut reactor, request("/bin/sh", &args, &vec![0; 262_144]));
     let pids = read_pids(&path, 1);
-    let mut out = Vec::new();
-    assert!(
-        !reactor.due(&mut out).contains(&h),
-        "the run waits for the pipes"
-    );
+
+    assert!(!reactor.due().contains(&h), "the run waits for the pipes");
     reactor.remove(h);
     let descendant = gone(pids[0]);
     release(&pids);

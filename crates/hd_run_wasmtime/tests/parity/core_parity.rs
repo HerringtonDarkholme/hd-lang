@@ -1583,3 +1583,295 @@ fn filesystem_fifo_read_keeps_a_sibling_running_on_both_engines() {
         assert_eq!(*output.bytes.lock().unwrap(), b"tick\nfifo contents\n");
     }
 }
+
+/// Stdout stays unread until a guest sibling publishes progress through
+/// `FsWrite`. Includes direct/supervised Node and a native subprocess using
+/// real process streams, for normal exit and a trap with a write pending.
+#[cfg(unix)]
+#[test]
+fn console_full_pipe_yields_and_drains_on_both_engines() {
+    use hd_driver::{Executor, Goal, Host, NoClock};
+    use hd_project::MemorySources;
+    use hd_run::{Grants, HostSetup, Limits, Outcome};
+    use hd_run_wasmtime::{EngineConfig, HostIo};
+    use hd_sched::SerialOrder;
+    use std::io::Read;
+    use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
+    const CHILD: &str = "HD_816_NATIVE_OUTPUT_WASM";
+    struct Child(std::process::Child);
+    impl Drop for Child {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    if let Some(wasm) = std::env::var_os(CHILD) {
+        let setup = HostSetup {
+            providers: vec![],
+            grants: Grants::default(),
+            limits: Limits::default(),
+            args: vec![],
+            program: String::new(),
+        };
+        let outcome = hd_run_wasmtime::run(
+            EngineConfig::default(),
+            &fs::read(wasm).unwrap(),
+            &setup,
+            HostIo::process(),
+        )
+        .unwrap();
+        let Outcome::Exit(code) = outcome else {
+            panic!("unexpected outcome: {outcome:?}")
+        };
+        std::process::exit(i32::from(code));
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let template = fs::read_to_string(
+        root.join("spec/conformance/cli/console-pending-output/src/external.hd"),
+    )
+    .unwrap();
+    for fail in [false, true] {
+        for mode in 0..3 {
+            let scratch = Scratch::new();
+            let marker = scratch.at("progress");
+            let entered = scratch.at("progress-entered");
+            let source = format!(
+                "{template}\npub fn main!() -> void $ Console + FsWrite + Clock:\n    exercise!({:?}, {fail})\n",
+                path(&marker)
+            );
+            let mut sources = MemorySources::default();
+            sources.insert("main.hd", &source);
+            let store = hd_cache::MemoryStore::default();
+            let host = Host {
+                render_tir: &[],
+                sources: &sources,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let built = hd_driver::build(
+                &host,
+                "pending-output",
+                &Goal::Program {
+                    entry: "main".into(),
+                },
+            );
+            assert!(built.diags.is_empty(), "{}", built.render());
+            let wasm = scratch.at("program.wasm");
+            fs::write(&wasm, built.wasm.unwrap()).unwrap();
+            let mut command = if mode == 2 {
+                let mut command = Command::new(std::env::current_exe().unwrap());
+                command
+                    .args([
+                        "--exact",
+                        "core_parity::console_full_pipe_yields_and_drains_on_both_engines",
+                        "--nocapture",
+                        "--quiet",
+                    ])
+                    .env(CHILD, &wasm);
+                command
+            } else {
+                let config = scratch.at("run.json");
+                fs::write(
+                    &config,
+                    if mode == 0 {
+                        "{}"
+                    } else {
+                        "{\"timeLimitMs\":20000}"
+                    },
+                )
+                .unwrap();
+                let mut command = Command::new("node");
+                command
+                    .arg(root.join("host/run.mjs"))
+                    .arg(&wasm)
+                    .arg(config);
+                command
+            };
+            let mut child = Child(
+                command
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .unwrap(),
+            );
+            let until = Instant::now() + Duration::from_secs(10);
+            while !marker.exists()
+                && child.0.try_wait().unwrap().is_none()
+                && Instant::now() < until
+            {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            let progressed = marker.exists();
+            let began = entered.exists();
+            // Always release the reader, including the negative control,
+            // so a regressed native writer cannot keep a process blocked.
+            let mut stdout = child.0.stdout.take().unwrap();
+            let mut stderr = child.0.stderr.take().unwrap();
+            let out = std::thread::spawn(move || {
+                let mut b = Vec::new();
+                stdout.read_to_end(&mut b).unwrap();
+                b
+            });
+            let err = std::thread::spawn(move || {
+                let mut b = Vec::new();
+                stderr.read_to_end(&mut b).unwrap();
+                b
+            });
+            let until = Instant::now() + Duration::from_secs(15);
+            let status = loop {
+                if let Some(status) = child.0.try_wait().unwrap() {
+                    break status;
+                }
+                assert!(Instant::now() < until, "output drains before deadline");
+                std::thread::sleep(Duration::from_millis(5));
+            };
+            let stdout = out.join().unwrap();
+            let stderr = err.join().unwrap();
+            assert!(
+                began && progressed,
+                "mode {mode} fail={fail}: sibling runs before any stdout is read; stderr={}",
+                String::from_utf8_lossy(&stderr)
+            );
+            assert_eq!(status.code(), Some(if fail { 3 } else { 0 }));
+            let guest = if mode == 2 {
+                stdout.strip_prefix(b"\nrunning 1 test\n").unwrap()
+            } else {
+                &stdout
+            };
+            assert_eq!(guest.len(), 2_097_152);
+            assert!(
+                guest.iter().all(|&b| b == b'x'),
+                "every accepted byte is preserved"
+            );
+            if fail {
+                assert!(String::from_utf8_lossy(&stderr).contains("output-panic-drain"));
+            } else {
+                assert!(stderr.is_empty());
+            }
+        }
+    }
+}
+
+/// The session's out/err/ran frames share one writer. No stdout reader
+/// exists until a sibling writes the independent progress marker.
+#[cfg(unix)]
+#[test]
+fn node_session_output_frames_yield_and_keep_completion_last() {
+    use hd_driver::{Executor, Goal, Host, NoClock, Packages, Session};
+    use hd_project::MemorySources;
+    use hd_sched::SerialOrder;
+    use std::io::{Read, Write};
+    use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let scratch = Scratch::new();
+    let marker = scratch.at("progress");
+    let template = fs::read_to_string(
+        root.join("spec/conformance/cli/console-pending-output/src/external.hd"),
+    )
+    .unwrap();
+    let source = format!(
+        "{template}\nexercise!({:?}, false)\n$.use(Console).write_error!(\"after-output\\n\").expect(\"stderr\")\n",
+        path(&marker)
+    );
+    let mut sources = MemorySources::default();
+    sources.insert("repl#1", &source);
+    let store = hd_cache::MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let session = Session::start();
+    let packages = Packages {
+        session: Some(&session),
+        inputs_from: Some(1),
+        ..Packages::default()
+    };
+    let built = hd_driver::build_packages(
+        &host,
+        "output-session",
+        &packages,
+        &Goal::ReplInput { input: 1 },
+    );
+    assert!(built.diags.is_empty(), "{}", built.render());
+    let wasm = scratch.at("session.wasm");
+    fs::write(&wasm, built.wasm.unwrap()).unwrap();
+    let url = format!("file://{}", path(&root.join("host/node.mjs")));
+    let mut child = Command::new("node")
+        .args([
+            "--input-type=module",
+            "-e",
+            &format!("import {{ driveNodeSession }} from {url:?}; await driveNodeSession();"),
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    writeln!(input, "{{\"op\":\"open\",\"cap\":33554432}}").unwrap();
+    writeln!(
+        input,
+        "{}",
+        serde_json::json!({"op":"run","wasm":path(&wasm),"sources":[[1,source]],"live":1})
+    )
+    .unwrap();
+    writeln!(input, "{{\"op\":\"close\"}}").unwrap();
+    drop(input);
+    let until = Instant::now() + Duration::from_secs(10);
+    while !marker.exists() && child.try_wait().unwrap().is_none() && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let progressed = marker.exists();
+    let mut stdout = child.stdout.take().unwrap();
+    let mut stderr = child.stderr.take().unwrap();
+    let out = std::thread::spawn(move || {
+        let mut b = Vec::new();
+        stdout.read_to_end(&mut b).unwrap();
+        b
+    });
+    let err = std::thread::spawn(move || {
+        let mut b = Vec::new();
+        stderr.read_to_end(&mut b).unwrap();
+        b
+    });
+    let until = Instant::now() + Duration::from_secs(15);
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        if Instant::now() >= until {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("session drains its output");
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    let stdout = out.join().unwrap();
+    let stderr = err.join().unwrap();
+    assert!(
+        progressed,
+        "a session sibling runs before stdout is read: {}",
+        String::from_utf8_lossy(&stderr)
+    );
+    assert!(status.success());
+    assert!(stderr.is_empty());
+    let text = String::from_utf8(stdout).unwrap();
+    let rows: Vec<_> = text.lines().collect();
+    assert_eq!(rows.len(), 4, "ready, out, err, ran frames only");
+    assert_eq!(rows[0], "ready");
+    let bytes: String = serde_json::from_str(rows[1].strip_prefix("out\t").unwrap()).unwrap();
+    assert_eq!(bytes, "x".repeat(2_097_152));
+    assert_eq!(rows[2], "err\t\"after-output\\n\"");
+    assert!(
+        rows[3].starts_with("ran\t\t\t\tnull\t0\texit0\tnull\t1\t0"),
+        "{}",
+        rows[3]
+    );
+}
