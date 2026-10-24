@@ -154,8 +154,6 @@ fn rename(user: &mut User, name: string) -> void:
 9. r[fn.param.mut.reassign] A `mut` parameter may be reassigned as a whole, and a struct field of one is a [writable place](04-type-system.md#writable-places).
 10. r[fn.param.mut.view] `mut a: T` marks the binding, not the type, so `mut a: S` with a struct `S` is valid and `a: mut S` is an error. Error: `mut-on-struct`.
 11. r[fn.param.mut.closure] A closure parameter may be `mut` in the same way.
-12. r[fn.param.mut.lost-write] A write to a `mut` parameter, or to a struct field of one, that is never read afterwards and never returned, stored, or passed on is a warning. The help says to take `&mut self` or `&mut T` to change the caller's value. Warning: `lost-write`.
-13. r[fn.param.mut.lost-write.scope] The check judges a write written directly in the function body. It stays silent when a later statement names the parameter, or when a closure or `defer` in the body does.
 
 ```text
 fn normalize(value: i32) -> i32:
@@ -172,7 +170,7 @@ fn bumped(mut c: Counter) -> Counter:
     c
 
 fn bump(mut c: Counter) -> void:
-    c.n += 1   # warning: lost-write
+    c.n += 1   # changes only the copy: the caller's value is unchanged
 ```
 
 > **Note.** A `mut` parameter never changes the caller's value in place. A

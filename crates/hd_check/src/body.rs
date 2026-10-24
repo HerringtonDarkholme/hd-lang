@@ -237,10 +237,8 @@ pub(crate) struct Ck<'a, 'c> {
     /// place (`types.value.writable-forms`).
     pub mut_locals: Vec<LocalId>,
     /// The `mut` parameters (and `mut self`) whose value is the callee's own
-    /// copy, and the statements that wrote one of them in place, for
-    /// `lost-write` (`fn.param.mut.lost-write`).
+    /// copy.
     pub mut_params: Vec<LocalId>,
-    pub param_writes: Vec<(LocalId, hd_base::NodeIdx)>,
     /// The locals some `&mut` refers to, and the `let mut` locals of a
     /// primitive type with their patterns, for `redundant-let-mut`
     /// (`types.bind.let-mut-primitive-unused`).
@@ -534,7 +532,6 @@ pub(crate) fn new_ck<'a, 'c>(
         using_locals: Vec::new(),
         mut_locals: Vec::new(),
         mut_params: Vec::new(),
-        param_writes: Vec::new(),
         ref_taken: Vec::new(),
         prim_let_mut: Vec::new(),
         self_ty: None,
@@ -1036,7 +1033,6 @@ fn fn_body_steps(
         Ok((tail, ret))
     })?;
     let root = ck.b.close_block(blk, tail, ret, body.index());
-    ck.lost_writes(body);
     ck.finish_with(root, ret, Some(node))
 }
 
@@ -3688,9 +3684,6 @@ impl Ck<'_, '_> {
                     }
                 };
                 self.note_write(l, depth);
-                if self.mut_params.contains(&l) {
-                    self.param_writes.push((l, s.index()));
-                }
                 self.set_local(l, v, s.index());
             }
             SyntaxKind::FieldExpr => {

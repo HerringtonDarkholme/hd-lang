@@ -4471,10 +4471,6 @@ typing/invalid/let-pattern-mut-an-unknown-field-still-reports-after-mut.hd	type	
 runtime/valid/struct-mut-self-copy.hd	runtime	accept	lang/07-functions.md#r-fn.param.mut.copy
 typing/valid/mut-parameters.hd	type	accept	lang/07-functions.md#r-fn.param.mut.reassign
 parse/valid/mut-parameters.hd	parse	accept	lang/02-grammar.md#r-grammar.fn.param-mut
-typing/warnings/lost-write-mut-self.hd	type	warn:lost-write	lang/07-functions.md#r-fn.param.mut.lost-write
-typing/warnings/lost-write-mut-self-list.hd	type	warn:lost-write	lang/07-functions.md#r-fn.param.mut.lost-write
-typing/warnings/lost-write-mut-self-map.hd	type	warn:lost-write	lang/07-functions.md#r-fn.param.mut.lost-write
-typing/warnings/lost-write-mut-parameter.hd	type	warn:lost-write	lang/07-functions.md#r-fn.param.mut.lost-write.scope
 typing/invalid/struct-mut-param-mut-type.hd	type	reject:mut-on-struct	lang/07-functions.md#r-fn.param.mut.view
 typing/invalid/struct-field-write-plain-param-with-mut-sibling.hd	type	reject:non-reassignable-parameter-binding	lang/04-type-system.md#r-types.value.write.plain-param
 runtime/valid/default-constant-specialization.hd	runtime	accept	lang/07-functions.md#r-fn.default.observable-effects

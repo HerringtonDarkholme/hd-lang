@@ -195,9 +195,6 @@ impl Ck<'_, '_> {
             }
             Root::Local(l, d) => {
                 self.note_write(l, d);
-                if self.mut_params.contains(&l) {
-                    self.param_writes.push((l, at));
-                }
                 (PlaceRoot::Local(l), fields.collect())
             }
             Root::Global(_, def, ty) => (PlaceRoot::Global(def, ty), fields.collect()),
@@ -262,78 +259,6 @@ impl Ck<'_, '_> {
             }
             self.mut_params.push(l);
             self.mut_locals.push(l);
-        }
-    }
-
-    /// `lost-write` (`fn.param.mut.lost-write`): a statement of the body
-    /// that writes a `mut` parameter, or a struct field of one, when no
-    /// later statement of the body names the parameter, and no closure or
-    /// `defer` in the body does. The write changes the callee's copy and is
-    /// never seen. Only a statement directly in the body is judged, so a
-    /// write the analysis cannot place stays silent.
-    pub(crate) fn lost_writes(&mut self, body: NodeRef<'_>) {
-        let mut writes = std::mem::take(&mut self.param_writes);
-        writes.dedup();
-        let stmts: Vec<_> = body.children().collect();
-        for (l, at) in writes {
-            let Some(i) = stmts.iter().position(|s| s.index() == at) else {
-                continue;
-            };
-            let name = self
-                .cx
-                .names
-                .text(self.b.body_mut().local_name[l.idx()])
-                .to_owned();
-            let named = |n: NodeRef<'_>| self.names_param(n, &name);
-            let deferred = stmts.iter().any(|s| self.captures_param(*s, &name));
-            if deferred || stmts[i + 1..].iter().any(|s| named(*s)) {
-                continue;
-            }
-            let (what, help) = if name == "self" {
-                ("`self`", "take `&mut self` to change the caller's value")
-            } else {
-                (
-                    "the parameter",
-                    "take `&mut T` to change the caller's value",
-                )
-            };
-            let msg = if name == "self" {
-                format!(
-                    "this write to {what} is lost: the copy is never read afterwards or returned; {help}"
-                )
-            } else {
-                format!(
-                    "this write to {what} `{name}` is lost: the copy is never read afterwards or returned; {help}"
-                )
-            };
-            let span = self.cx.src.span(stmts[i]);
-            self.diags.push(
-                Code::LostWrite,
-                hd_diag::Severity::Warning,
-                span,
-                &msg,
-                None,
-            );
-        }
-    }
-
-    /// Whether `n` names the parameter `name` anywhere in its tokens.
-    fn names_param(&self, n: NodeRef<'_>, name: &str) -> bool {
-        let src = self.cx.src;
-        n.direct_tokens().any(|t| {
-            matches!(
-                src.tkind(t),
-                Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwSelfValue)
-            ) && src.text(t) == name
-        }) || n.children().any(|c| self.names_param(c, name))
-    }
-
-    /// Whether a closure or a `defer` within `n` names the parameter, so it
-    /// may read the copy after the write.
-    fn captures_param(&self, n: NodeRef<'_>, name: &str) -> bool {
-        match n.kind() {
-            SyntaxKind::ClosureExpr | SyntaxKind::DeferStmt => self.names_param(n, name),
-            _ => n.children().any(|c| self.captures_param(c, name)),
         }
     }
 }

@@ -11,6 +11,7 @@ It changes no specification, compiler, or accepted behavior.
 - [Other tools](#other-tools)
 - [Semantics](#semantics)
 - [First lint](#first-lint)
+- [Later lint: lost write to a `mut` parameter](#later-lint-lost-write-to-a-mut-parameter)
 - [Implementation choices](#implementation-choices)
 - [Architecture](#architecture)
 - [Command and configuration](#command-and-configuration)
@@ -255,6 +256,25 @@ Use the actual method name and underline its receiver expression.
 Proposed wording: "`shift` takes a mutable temporary receiver; bind the value
 if you meant to keep the change". This does not assert that the body wrote.
 The finding contains no edit and invents no variable name.
+
+## Later lint: lost write to a `mut` parameter
+
+Proposed code: `lost-write`, category likely-bug, default warning. The owner moved this check out of the compiler on 2026-10-23: the language spec no longer has `fn.param.mut.lost-write`, and the checker no longer reports it. It belongs here, because whether a change to a function's own copy is a mistake depends on the program, not on the rules.
+
+A `mut` parameter or a `mut self` receiver is the function's own copy (`fn.param.mut.copy`, `fn.method.receiver.mut-self`), so a change to it never reaches the caller. The lint reports a change whose copy is never observed afterwards. That covers whole reassignment, a struct field write, a `push`, a map store, an element store and a `&mut self` method call on the copy (#817).
+
+It does not report a change that the function itself observes later. A read, a print, a return, a store, a pass to another call, or a capture by a closure or `defer` all count as observing it:
+
+```text
+fn report_len(list: mut List[i32]) -> void $ Console:
+    list.push(123)
+    println(list.len())    # the copy is read: no finding
+
+fn add(list: mut List[i32]) -> void:
+    list.push(123)         # finding: the copy is dropped unread
+```
+
+The compiler's version judged only statements directly in the body and stayed silent when any later statement named the parameter. The lint keeps that conservative form first, and can widen to branches and loops later. The message names the parameter, and the help suggests `&mut T` or `&mut self` when the caller's value was meant to change. It offers no fix.
 
 ## Implementation choices
 
