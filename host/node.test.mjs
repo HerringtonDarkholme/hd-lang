@@ -1199,6 +1199,7 @@ async function heldLookupHost(t) {
     "float.mjs",
     "journal.mjs",
     "wire.mjs",
+    "package-providers.mjs",
     "gen/abi.mjs",
   ]) {
     mkdirSync(dirname(join(root, name)), { recursive: true });

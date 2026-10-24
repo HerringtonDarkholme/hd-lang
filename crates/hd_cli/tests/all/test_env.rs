@@ -108,7 +108,7 @@ fn a_cap_flag_of_hd_test_refuses_a_denied_need() {
     );
     let out = hd(&root, None, &["test", "--cap", "Console=true"]);
     assert_eq!(text(&out.stdout), PASSED, "{}", text(&out.stderr));
-    // cli.cap.flag.unknown
+    // cli.cap.flag.unknown.with-package-host
     let out = hd(&root, None, &["test", "--cap", "Time=true"]);
     assert_eq!(out.status.code(), Some(101));
 }

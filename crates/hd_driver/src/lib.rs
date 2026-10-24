@@ -126,8 +126,7 @@ fn embedded_std() -> &'static EmbeddedStd {
 /// (req.ref.host.reference-values); the driver roots one instance per such
 /// key of an entry row. It is compiler-supplied, like
 /// `std.core`, so the TS prototype's `lib/std` is unchanged.
-pub const RT_SOURCE: &str = "\
-# std.rt: the entry and test-case result functions (hd_driver::RT_SOURCE).
+pub const RT_SOURCE: &str = r#"# std.rt: the entry and test-case result functions (hd_driver::RT_SOURCE).
 use std.process.Termination
 use std.error.{Error, report_of}
 
@@ -152,10 +151,126 @@ fn host_provider[T](provider: T) -> &mut T:
     let mut held = provider
     &mut held
 
-@intrinsic(\"entry_write\")
+@intrinsic("entry_write")
 fn entry_write(text: string) -> void:
-    panic(\"intrinsic\")
-";
+    panic("intrinsic")
+
+# These module-wide imports follow the bootstrap entry declarations so their
+# source locations, and ordinary programs' position metadata, stay stable.
+use std.json.{Json, JsonError, JsonObject, Number, to_json, from_json, encode, decode}
+use std.serde.{Serialize, Deserialize}
+
+# Private package values follow Serialize/Deserialize, retaining integer and
+# floating-point kinds through a flat typed stream. No JS implementation sees
+# the transport text. Flat framing does not multiply JSON nesting depth.
+fn host_value_encode[T < Serialize](value: T) -> string:
+    let mut pending: List[Json] = [to_json(value)]
+    let mut tokens: List[Json] = []
+    while !pending.is_empty():
+        item := pending.pop().expect("pending value")
+        match item:
+            .Null => tokens.push(.Array([.Text("n")]))
+            .Bool(value) => tokens.push(.Array([.Text("b"), .Bool(value)]))
+            .Text(value) => tokens.push(.Array([.Text("s"), .Text(value)]))
+            .Number(value) =>
+                match value.as_i64():
+                    .Some(integer) => tokens.push(.Array([.Text("i"), .Text("$integer")]))
+                    .None =>
+                        match value.as_u64():
+                            .Some(integer) => tokens.push(.Array([.Text("u"), .Text("$integer")]))
+                            .None =>
+                                bits := value.as_f64().expect("number").to_bits()
+                                let text = bits.to_radix(16)
+                                while text.len() < 16:
+                                    text = "0" + text
+                                tokens.push(.Array([.Text("f"), .Text(text)]))
+            .Array(items) =>
+                tokens.push(.Array([.Text("a"), .Number(Number::from_u64(u64(items.len())))]))
+                let at = items.len()
+                while at > 0:
+                    at = at - 1
+                    pending.push(items[at])
+            .Object(fields) =>
+                tokens.push(.Array([.Text("o"), .Number(Number::from_u64(u64(fields.len())))]))
+                keys := fields.keys()
+                let at = keys.len()
+                while at > 0:
+                    at = at - 1
+                    key := keys[at]
+                    pending.push(fields.get(key).expect("object key"))
+                    pending.push(.Text(key))
+    encode(tokens)
+
+fn host_value_error() -> JsonError:
+    .WrongType(path="$", expected="a package host value")
+
+fn host_value_decode[T < Deserialize](text: string) -> Result[T, JsonError]:
+    tokens := decode::[List[Json]](text)?
+    let mut values: List[Json] = []
+    let at = tokens.len()
+    while at > 0:
+        at = at - 1
+        token := tokens[at]
+        tag := token.at(0).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
+        match token:
+            .Array(items) =>
+                expected := if tag == "n": 1 else: 2
+                if items.len() != expected:
+                    return .Err(host_value_error())
+            _ => return .Err(host_value_error())
+        match tag:
+            "n" => values.push(.Null)
+            "b" =>
+                value := token.at(1).and_then(fn(v): v.as_bool()).ok_or(host_value_error())?
+                values.push(.Bool(value))
+            "s" =>
+                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
+                values.push(.Text(value))
+            "i" =>
+                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
+                number := value.parse::[i64]().map_err(fn(_error): host_value_error())?
+                values.push(.Number(Number::from_i64(number)))
+            "u" =>
+                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
+                number := value.parse::[u64]().map_err(fn(_error): host_value_error())?
+                values.push(.Number(Number::from_u64(number)))
+            "f" =>
+                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
+                if value.len() != 16:
+                    return .Err(host_value_error())
+                bits := u64::parse_radix(value, 16).map_err(fn(_error): host_value_error())?
+                number := Number::from_f64(f64::from_bits(bits)).ok_or(host_value_error())?
+                values.push(.Number(number))
+            "a" =>
+                count := token.at(1).and_then(fn(v): v.as_u64()).ok_or(host_value_error())?
+                if count > u64(values.len()):
+                    return .Err(host_value_error())
+                let mut items: List[Json] = []
+                let left = count
+                while left > 0:
+                    items.push(values.pop().ok_or(host_value_error())?)
+                    left = left - 1
+                values.push(.Array(items))
+            "o" =>
+                count := token.at(1).and_then(fn(v): v.as_u64()).ok_or(host_value_error())?
+                if count > u64(values.len() / 2):
+                    return .Err(host_value_error())
+                let mut fields = JsonObject::new()
+                let left = count
+                while left > 0:
+                    key := values.pop().and_then(fn(v): v.as_text()).ok_or(host_value_error())?
+                    value := values.pop().ok_or(host_value_error())?
+                    if fields.contains_key(key):
+                        return .Err(host_value_error())
+                    fields.set(key, value)
+                    left = left - 1
+                values.push(.Object(fields))
+            _ => return .Err(host_value_error())
+    if values.len() != 1:
+        return .Err(host_value_error())
+    from_json::[T](values.pop().ok_or(host_value_error())?)
+
+"#;
 
 /// A source set with the virtual `core.hd` and `rt.hd` added when they are
 /// missing: a run whose root package is std itself.
@@ -439,9 +554,32 @@ pub struct FixtureLayout {
     pub layout: hd_wasm_linear::views::TypeLayout,
 }
 
+/// Generated host artifacts derived solely from the checked contract data.
+#[derive(Clone, Debug)]
+pub struct HostArtifacts {
+    pub contract: hd_host_abi::schema::Contract,
+    pub javascript: String,
+}
+
+/// Read validated package host metadata and generate trusted glue. This
+/// also serves cached/prebuilt Wasm without executing artifact-supplied JS.
+pub fn host_artifacts(wasm: &[u8]) -> Result<Option<HostArtifacts>, &'static str> {
+    hd_host_abi::schema::from_wasm(wasm)?
+        .filter(|contract| !contract.interfaces.is_empty())
+        .map(|contract| {
+            let javascript = hd_host_abi::javascript::generate(&contract)?;
+            Ok(HostArtifacts {
+                contract,
+                javascript,
+            })
+        })
+        .transpose()
+}
+
 /// The result of a run.
 pub struct Output {
     pub wasm: Option<Vec<u8>>,
+    pub host_artifacts: Option<HostArtifacts>,
     /// Off-band instruction origins, when `Packages::instruction_origins` is enabled.
     pub instruction_origins: Vec<FunctionOrigins>,
     pub diags: DiagBuf,
@@ -1239,6 +1377,8 @@ struct Run<'a> {
     /// The host capability traits of the run's runtime profile, by item
     /// path ([`Packages::profile`]).
     profile: Vec<String>,
+    host_packages: Vec<HostPackage>,
+    host_contract_key: Option<Hash128>,
     table: ModuleTable,
     /// The run's module trie nodes mapped to project rows. Never cast between
     /// `PathId` and `ModuleId`: the tables have unrelated insertion orders.
@@ -1366,6 +1506,210 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
+/// Package metadata needed to validate paired host declarations and form
+/// nominal provider identities. It neither installs nor grants a provider.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HostPackage {
+    /// The root is 0; dependency i is i + 1, as in `Packages::requires`.
+    pub package: u16,
+    /// Existing language package identity; local directories are canonical.
+    pub identity: String,
+    /// Exact `HOST_PATH@VERSION` from dependency selection, not its compatibility line.
+    pub versioned_source: Option<String>,
+    pub declarations: Option<hd_project::HostDeclarations>,
+    /// Manifest path for diagnostics alongside the source declaration.
+    pub manifest: String,
+}
+
+impl HostPackage {
+    /// The ABI identity of an owned trait at the selected package version.
+    #[must_use]
+    pub fn trait_identity(&self, trait_path: &str) -> Option<hd_host_abi::schema::Identity> {
+        let (package, version) = if let Some(source) = &self.versioned_source {
+            let (host, version) = source.rsplit_once('@')?;
+            (host.to_owned(), version.to_owned())
+        } else {
+            let mut key = hd_base::StableHasher::new("local-host-package-v1");
+            key.str(&self.identity);
+            (format!("local:{:032x}", key.finish().0), String::new())
+        };
+        Some(hd_host_abi::schema::Identity {
+            package,
+            version,
+            trait_path: trait_path.to_owned(),
+        })
+    }
+}
+
+/// Check source/manifest agreement on every build, including cache hits.
+/// Only a file containing a possible marker or a listed trait is parsed;
+/// unused executable bodies are never checked as a side effect.
+fn check_host_declarations(
+    table: &ModuleTable,
+    texts: &[Arc<str>],
+    parsed: &[OnceLock<Parse>],
+    packages: &[HostPackage],
+    diags: &mut DiagBuf,
+) {
+    use hd_syntax::{SyntaxKind, TokenKind};
+    let packages: BTreeMap<_, _> = packages.iter().map(|p| (p.package, p)).collect();
+    let mut found = BTreeSet::new();
+    let mut declared = BTreeMap::new();
+    for (m, module) in table.modules.iter().enumerate() {
+        // The compiler-owned standard library has no package manifest input.
+        if table.identities[usize::from(module.package)] == "std" {
+            continue;
+        }
+        let package = packages.get(&module.package).copied();
+        let listed = package
+            .and_then(|p| p.declarations.as_ref())
+            .map(|d| d.trait_paths().collect::<Vec<_>>())
+            .unwrap_or_default();
+        let root = &table.roots[usize::from(module.package)];
+        let relative = module
+            .path
+            .strip_prefix(root)
+            .unwrap_or("")
+            .trim_start_matches('.');
+        let lists_module = listed
+            .iter()
+            .any(|t| t.rsplit_once('.').map_or("", |(p, _)| p) == relative);
+        if !(lists_module || texts[m].contains('@') && texts[m].contains("host")) {
+            continue;
+        }
+        let fresh;
+        let parse = if let Some(p) = parsed[m].get() {
+            p
+        } else {
+            fresh = hd_syntax::parse(texts[m].as_bytes());
+            &fresh
+        };
+        let src = Src {
+            parse,
+            text: &texts[m],
+            file: module.file,
+        };
+        for node in src
+            .root()
+            .children()
+            .filter(|n| n.kind() == SyntaxKind::TraitDecl)
+        {
+            let Some(name) = src.name_after(node, TokenKind::KwTrait) else {
+                continue;
+            };
+            let name_span = src.token_span(name);
+            let name = src.text(name);
+            let path = if relative.is_empty() {
+                name.to_owned()
+            } else {
+                format!("{relative}.{name}")
+            };
+            declared.insert((module.package, path.clone()), name_span);
+            let markers: Vec<_> = node
+                .children()
+                .filter(|n| n.kind() == SyntaxKind::Decorator)
+                .filter(|d| {
+                    let Some(mut callee) = d.children().next() else {
+                        return false;
+                    };
+                    for kind in [SyntaxKind::CallExpr, SyntaxKind::TypeArgsExpr] {
+                        if callee.kind() == kind {
+                            let Some(inner) = callee.children().next() else {
+                                return false;
+                            };
+                            callee = inner;
+                        }
+                    }
+                    callee.kind() == SyntaxKind::NameExpr
+                        && src
+                            .first_ident(callee)
+                            .is_some_and(|t| src.text(t) == "host")
+                })
+                .collect();
+            if markers.is_empty() {
+                continue;
+            }
+            found.insert((module.package, path.clone()));
+            let span = src.span(markers[0]);
+            let manifest = package.map_or("hd.toml", |p| p.manifest.as_str());
+            let line = package
+                .and_then(|p| p.declarations.as_ref())
+                .map_or(1, |d| d.line);
+            let bare = markers[0]
+                .children()
+                .next()
+                .is_some_and(|e| e.kind() == SyntaxKind::NameExpr);
+            let why = if !src.is_pub(node) {
+                Some("`@host` precedes only a package-owned `pub trait`")
+            } else if !bare {
+                Some("write bare `@host`, without arguments or type arguments")
+            } else {
+                None
+            };
+            if why.is_none() && !listed.contains(&path.as_str()) {
+                diags.error(Code::InvalidManifest, span, &format!(
+                    "host trait `{path}` is marked `@host` here but is missing from `[host]` at {manifest}:{line}; list `{path}` in its owning package's manifest"
+                ));
+            }
+            if let Some(why) = why
+                && !diags
+                    .primary
+                    .iter()
+                    .zip(&diags.code)
+                    .any(|(s, c)| *s == span && *c == Code::DecoratorTargetKind)
+            {
+                diags.error(Code::DecoratorTargetKind, span, why);
+            }
+        }
+    }
+    for package in packages.values() {
+        let Some(declarations) = &package.declarations else {
+            continue;
+        };
+        for entry in declarations.providers.iter().flatten() {
+            let path = &entry.trait_path;
+            if found.contains(&(package.package, path.clone())) {
+                continue;
+            }
+            let module_path = path.rsplit_once('.').map_or("", |(p, _)| p);
+            let target = if module_path.is_empty() {
+                table.roots[usize::from(package.package)].clone()
+            } else {
+                format!(
+                    "{}.{module_path}",
+                    table.roots[usize::from(package.package)]
+                )
+            };
+            let module = table
+                .modules
+                .iter()
+                .find(|m| m.package == package.package && m.path == target);
+            let span = declared
+                .get(&(package.package, path.clone()))
+                .copied()
+                .unwrap_or_else(|| {
+                    module.map_or(
+                        Span {
+                            file: FileId::NONE,
+                            lo: 0,
+                            hi: 0,
+                        },
+                        |m| Span {
+                            file: m.file,
+                            lo: 0,
+                            hi: 0,
+                        },
+                    )
+                });
+            let source = module.map_or(target, |m| table.files[m.file.idx()].clone());
+            diags.error(Code::InvalidManifest, span, &format!(
+                "host trait `{path}` is listed at {}:{} but has no package-owned `@host pub trait` declaration in {source}; mark the owning trait or remove the manifest entry",
+                package.manifest, entry.line,
+            ));
+        }
+    }
+}
+
 /// A package the root package reaches through its requirements (§4.7).
 pub struct Dependency<'a> {
     /// Its manifest name; its module paths start with its identifier form,
@@ -1389,6 +1733,8 @@ pub struct Dependency<'a> {
 /// The packages around a build's root package.
 #[derive(Default)]
 pub struct Packages<'a> {
+    /// Source/manifest host declaration metadata, with no authority implied.
+    pub host_packages: Vec<HostPackage>,
     /// Development tooling: emit instruction origins without changing module bytes.
     /// Mapped builds bypass the linked-byte cache; checked bodies may still be cached.
     pub instruction_origins: bool,
@@ -1699,12 +2045,42 @@ pub fn build_packages(
             (node, ModuleId::from_raw(u32_of(i)))
         })
         .collect();
-    let profile = packages.profile.clone().unwrap_or_else(|| {
+    let mut profile = packages.profile.clone().unwrap_or_else(|| {
         hd_host_abi::TABLE
             .iter()
             .map(|t| t.std_path.to_owned())
             .collect()
     });
+    let mut host_key = hd_base::StableHasher::new("package-host-inputs-v1");
+    let mut has_hosts = false;
+    for p in &packages.host_packages {
+        let Some(declarations) = p.declarations.as_ref() else {
+            continue;
+        };
+        let traits: Vec<_> = declarations.trait_paths().collect();
+        if traits.is_empty() {
+            continue;
+        }
+        has_hosts = true;
+        host_key.u16(p.package);
+        host_key.str(&p.identity);
+        host_key.str(p.versioned_source.as_deref().unwrap_or(""));
+        for t in traits {
+            host_key.str(t);
+            let path = format!("{}.{t}", table.roots[usize::from(p.package)]);
+            if !profile.contains(&path) {
+                profile.push(path);
+            }
+        }
+    }
+    let host_contract_key = has_hosts.then(|| host_key.finish());
+    let mut package_key = root_package_key(package, packages.profile.as_deref());
+    if let Some(hosts) = host_contract_key {
+        let mut key = hd_base::StableHasher::new("package-host-profile-v1");
+        key.hash(package_key);
+        key.hash(hosts);
+        package_key = key.finish();
+    }
     let run = Run {
         host,
         package: package.to_owned(),
@@ -1720,8 +2096,10 @@ pub fn build_packages(
         owners: OnceLock::new(),
         folder_impls: (0..nf).map(|_| OnceLock::new()).collect(),
         toolchain,
-        package_key: root_package_key(package, packages.profile.as_deref()),
+        package_key,
         profile,
+        host_packages: packages.host_packages.clone(),
+        host_contract_key,
         pipeline,
         planner,
         inline_counts: hd_opt::passes::pipeline(packages.target, packages.level)
@@ -1858,6 +2236,13 @@ pub fn build_packages(
             );
         }
     }
+    check_host_declarations(
+        &run.table,
+        &run.texts,
+        &run.parse,
+        &packages.host_packages,
+        &mut lock(&run.diags),
+    );
     if let Some(hit) = run.files.finish(&run.table) {
         let mut c = lock(&run.counters);
         let kind = EntryKind::Depfiles.as_str();
@@ -1885,11 +2270,26 @@ pub fn build_packages(
         .sum();
     counters.sort();
     let report = lock(&run.report).clone();
-    let diags = std::mem::take(&mut *lock(&run.diags));
-    let wasm = if diags.has_errors() {
+    let mut diags = std::mem::take(&mut *lock(&run.diags));
+    let mut wasm = if diags.has_errors() {
         None
     } else {
         run.wasm.get().cloned()
+    };
+    let host_artifacts = match wasm.as_deref().map(host_artifacts).transpose() {
+        Ok(artifacts) => artifacts.flatten(),
+        Err(why) => {
+            diags.internal_error(
+                Span {
+                    file: FileId::NONE,
+                    lo: 0,
+                    hi: 0,
+                },
+                why,
+            );
+            wasm = None;
+            None
+        }
     };
     let session_added = wasm.as_ref().and_then(|_| run.session_added.get().cloned());
     let ifaces = run
@@ -1974,6 +2374,7 @@ pub fn build_packages(
     let mut output = Output {
         tests: cases,
         wasm,
+        host_artifacts,
         instruction_origins: run.instruction_origins.get().cloned().unwrap_or_default(),
         diags,
         files: run.table.files.clone(),
@@ -7854,6 +8255,10 @@ impl Run<'_> {
             _ => entry_key.clone(),
         };
         let keyed_entry = format!("linear:checked={}:{}", self.checked(), keyed_entry);
+        let keyed_entry = self.host_contract_key.map_or_else(
+            || keyed_entry.clone(),
+            |k| format!("{keyed_entry}:package-host={:032x}", k.0),
+        );
         let pkey = prog_key(
             self.toolchain,
             self.pipeline,
@@ -8737,6 +9142,84 @@ impl Run<'_> {
         )
     }
 
+    fn package_trait_identity(&self, d: DefId) -> Option<(u16, hd_host_abi::schema::Identity)> {
+        let module = &self.table.modules[self.item_module(d)?.idx()];
+        let package = module.package;
+        let root = &self.table.roots[usize::from(package)];
+        let full = self.names().path(d).replace('/', ".");
+        let trait_path = full.strip_prefix(&format!("{root}."))?.to_owned();
+        let identity = if let Some(meta) = self.host_packages.iter().find(|p| p.package == package)
+        {
+            meta.trait_identity(&trait_path)?
+        } else if self.table.identities[usize::from(package)] == "std" {
+            hd_host_abi::schema::Identity {
+                package: "std".to_owned(),
+                version: format!("abi:{}", hd_host_abi::schema::VERSION),
+                trait_path,
+            }
+        } else {
+            return None;
+        };
+        Some((package, identity))
+    }
+
+    fn package_host_identity(&self, d: DefId) -> Option<hd_host_abi::schema::Identity> {
+        let (package, identity) = self.package_trait_identity(d)?;
+        self.host_packages
+            .iter()
+            .find(|p| p.package == package)?
+            .declarations
+            .as_ref()?
+            .trait_paths()
+            .any(|path| path == identity.trait_path)
+            .then_some(identity)
+    }
+
+    fn package_host_selectors(&self, def: DefId) -> Vec<String> {
+        let names = self.names();
+        let mut selectors = BTreeSet::new();
+        // Entry modules deliberately have no public import index. Their
+        // owned public host traits still have the manifest's canonical path.
+        if let Some((0, identity)) = self.package_trait_identity(def) {
+            selectors.insert(format!("pkg.{}", identity.trait_path));
+        }
+        for folder in &self.table.folders {
+            let mut prefixes = Vec::new();
+            if folder.package == 0 {
+                prefixes.push("pkg".to_owned());
+            } else {
+                for (alias, package) in &self.table.requires[0] {
+                    if *package == folder.package {
+                        prefixes.push(format!("dep.{}", hd_project::package_ident(alias)));
+                    }
+                }
+            }
+            if prefixes.is_empty() {
+                continue;
+            }
+            let Some(iface) = self.iface_of(folder.id) else {
+                continue;
+            };
+            for export in iface.exports.iter().filter(|e| e.def == def) {
+                let root = &self.table.roots[usize::from(folder.package)];
+                let relative = export
+                    .module
+                    .strip_prefix(root)
+                    .unwrap_or("")
+                    .trim_start_matches('.');
+                for prefix in &prefixes {
+                    let name = names.text(export.name);
+                    selectors.insert(if relative.is_empty() {
+                        format!("{prefix}.{name}")
+                    } else {
+                        format!("{prefix}.{relative}.{name}")
+                    });
+                }
+            }
+        }
+        selectors.into_iter().collect()
+    }
+
     /// `link`: one linear-memory module
     /// from collection's output and every instance's TIR body.
     fn link(&self) {
@@ -8917,10 +9400,17 @@ impl Run<'_> {
             );
             return;
         }
+        let package_trait = |d| self.package_trait_identity(d);
+        let package_host = |d| self.package_host_identity(d);
+        let package_trait = |d| package_trait(d).map(|(_, identity)| identity);
+        let package_selectors = |d| self.package_host_selectors(d);
         let input = hd_wasm_linear::Input {
             pool: &self.pool,
             env: &env,
             path: &path,
+            package_host: &package_host,
+            package_trait: &package_trait,
+            package_selectors: &package_selectors,
             collected: &c.collected,
             order: &c.order,
             body: &body,
@@ -10282,10 +10772,15 @@ impl ProgramEnv for Env<'_> {
         let k = self.p.items.get(def)?.intrinsic?;
         Some(self.run.syms.resolve(k).to_owned())
     }
+    fn is_package_host_trait(&self, def: DefId) -> bool {
+        self.run.package_host_identity(def).is_some()
+    }
     fn json_items(&self) -> Option<JsonItems> {
         let k = &self.run.known;
         let (result_is_ok, result_expect) = self.result_unwrap()?;
         Some(JsonItems {
+            package_encode: self.run.names().item("std.rt", "host_value_encode"),
+            package_decode: self.run.names().item("std.rt", "host_value_decode"),
             encode: k.json_encode,
             decode: k.json_decode,
             serialize: k.serialize,
@@ -10302,6 +10797,26 @@ impl ProgramEnv for Env<'_> {
             ItemData::Newtype(inner) => Some(vec![self.low(*inner)]),
             _ => None,
         }
+    }
+    fn enum_variant_names(&self, def: DefId) -> Option<Vec<(String, Vec<String>)>> {
+        let ItemData::Enum { variants, .. } = &self.p.items.get(def)?.data else {
+            return None;
+        };
+        let names = self.run.names();
+        Some(
+            variants
+                .iter()
+                .map(|v| {
+                    (
+                        names.text(v.name).to_owned(),
+                        v.fields
+                            .iter()
+                            .map(|f| names.text(f.name).to_owned())
+                            .collect(),
+                    )
+                })
+                .collect(),
+        )
     }
     fn data_field_names(&self, def: DefId) -> Option<Vec<String>> {
         match &self.p.items.get(def)?.data {
@@ -10779,5 +11294,670 @@ mod cache_section_tests {
         assert_eq!(sections[2].as_ref(), b"third");
         drop(sections);
         assert!(retained.upgrade().is_none());
+    }
+}
+
+#[cfg(test)]
+mod host_declaration_tests {
+    use super::*;
+
+    fn metadata(package: u16, paths: &[&str]) -> HostPackage {
+        HostPackage {
+            package,
+            identity: format!("/sdk-{package}"),
+            versioned_source: None,
+            declarations: Some(hd_project::HostDeclarations {
+                providers: Some(
+                    paths
+                        .iter()
+                        .map(|p| hd_project::HostProvider {
+                            trait_path: (*p).to_owned(),
+                            path: Some("provider.mjs".into()),
+                            line: 7,
+                        })
+                        .collect(),
+                ),
+                line: 7,
+            }),
+            manifest: format!("/sdk-{package}/hd.toml"),
+        }
+    }
+
+    fn sources(text: &str) -> MemorySources {
+        let mut files = MemorySources::default();
+        files.insert("server.hd", text);
+        files
+    }
+
+    fn declarations(files: &[&MemorySources], packages: &[HostPackage]) -> DiagBuf {
+        let inputs: Vec<_> = files
+            .iter()
+            .map(|sources| PackageIn {
+                name: "sdk",
+                identity: "sdk",
+                sources: *sources,
+                scope: Scope::All,
+                requires: Vec::new(),
+                entries: Vec::new(),
+                dev_requires: Vec::new(),
+            })
+            .collect();
+        let table = ModuleTable::discover_all(&inputs);
+        let texts: Vec<Arc<str>> = table
+            .sources
+            .iter()
+            .map(|(p, file)| {
+                Arc::from(
+                    String::from_utf8_lossy(&files[usize::from(*p)].read(file).unwrap())
+                        .into_owned(),
+                )
+            })
+            .collect();
+        let parsed = (0..texts.len())
+            .map(|_| OnceLock::new())
+            .collect::<Vec<_>>();
+        let mut diags = DiagBuf::default();
+        check_host_declarations(&table, &texts, &parsed, packages, &mut diags);
+        diags
+    }
+
+    #[test]
+    fn paired_host_declarations_match_canonical_trait_paths() {
+        let files = sources(
+            "@host\npub trait `type`:\n    fn read(&self) -> string\n\n@host\npub trait Σurface:\n    fn read(&self) -> string\n",
+        );
+        let diags = declarations(
+            &[&files],
+            &[metadata(0, &["server.type", "server.Σurface"])],
+        );
+        assert!(diags.is_empty(), "{}", diags.text);
+    }
+
+    #[test]
+    fn each_missing_side_names_its_own_trait_and_manifest_location() {
+        let marked = sources("\n@host\npub trait Marked:\n    fn read(&self) -> string\n");
+        let d = declarations(&[&marked], &[metadata(0, &[])]);
+        assert_eq!(d.code, [Code::InvalidManifest]);
+        assert_eq!(d.primary[0].lo, 1);
+        assert!(d.text.contains("server.Marked"));
+        assert!(d.text.contains("/sdk-0/hd.toml:7"));
+
+        let plain = sources("\n\npub trait Plain:\n    fn read(&self) -> string\n");
+        let d = declarations(&[&plain], &[metadata(0, &["server.Plain"])]);
+        assert_eq!(d.code, [Code::InvalidManifest]);
+        assert_eq!(d.primary[0].lo, 12, "the actual trait name is highlighted");
+        assert!(d.text.contains("server.Plain"));
+        assert!(d.text.contains("/sdk-0/hd.toml:7"));
+        assert!(d.text.contains("server.hd"));
+    }
+
+    #[test]
+    fn same_named_packages_cannot_supply_each_others_marker() {
+        let marked = sources("@host\npub trait Server:\n    fn read(&self) -> string\n");
+        let plain = sources("pub trait Server:\n    fn read(&self) -> string\n");
+        let d = declarations(
+            &[&marked, &plain],
+            &[
+                metadata(0, &["server.Server"]),
+                metadata(1, &["server.Server"]),
+            ],
+        );
+        assert_eq!(d.code, [Code::InvalidManifest]);
+        assert!(d.text.contains("/sdk-1/hd.toml:7"));
+        assert!(!d.text.contains("/sdk-0/hd.toml:7"));
+    }
+
+    #[test]
+    fn a_package_named_std_is_not_the_compiler_owned_standard_library() {
+        let files = sources("@host\npub trait Server:\n    fn read(&self) -> string\n");
+        let table = ModuleTable::discover_all(&[PackageIn {
+            name: "std",
+            identity: "/local/std",
+            sources: &files,
+            scope: Scope::All,
+            requires: Vec::new(),
+            entries: Vec::new(),
+            dev_requires: Vec::new(),
+        }]);
+        let texts = vec![Arc::from(
+            "@host\npub trait Server:\n    fn read(&self) -> string\n",
+        )];
+        let mut diags = DiagBuf::default();
+        check_host_declarations(
+            &table,
+            &texts,
+            &[OnceLock::new()],
+            &[metadata(0, &[])],
+            &mut diags,
+        );
+        assert_eq!(diags.code, [Code::InvalidManifest]);
+    }
+
+    #[test]
+    fn imports_and_nontraits_do_not_declare_owned_host_traits() {
+        for text in [
+            "use std.console.Console as Server\n",
+            "pub struct Server: pass\n",
+        ] {
+            let files = sources(text);
+            let d = declarations(&[&files], &[metadata(0, &["server.Server"])]);
+            assert_eq!(d.code, [Code::InvalidManifest], "{text}");
+            assert!(d.text.contains("server.Server"));
+        }
+    }
+
+    #[test]
+    fn manifest_only_edits_cannot_hide_behind_cached_checks() {
+        let mut files = sources("@host\npub trait Server:\n    fn read(&self) -> string\n");
+        files.insert("main.hd", "pub fn main() -> void: pass\n");
+        let store = MemoryStore::default();
+        let host = Host {
+            sources: &files,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+            render_tir: &[],
+        };
+        let mut packages = Packages {
+            host_packages: vec![metadata(0, &["server.Server"])],
+            ..Packages::default()
+        };
+        for _ in 0..2 {
+            let out = build_packages(&host, "sdk", &packages, &Goal::Analyze);
+            assert!(!out.diags.has_errors(), "{}", out.render());
+        }
+        packages.host_packages[0].declarations = None;
+        let out = build_packages(&host, "sdk", &packages, &Goal::Analyze);
+        assert_eq!(out.diags.code, [Code::InvalidManifest], "{}", out.render());
+        assert!(out.render().contains("server.Server"));
+    }
+
+    #[test]
+    fn host_marker_rejects_private_traits_arguments_and_wrong_targets() {
+        for (text, listed) in [
+            (
+                "@host\ntrait Server:\n    fn read(&self) -> string\n",
+                vec!["server.Server"],
+            ),
+            (
+                "@host()\npub trait Server:\n    fn read(&self) -> string\n",
+                vec!["server.Server"],
+            ),
+            (
+                "@host::[i32]\npub trait Server:\n    fn read(&self) -> string\n",
+                vec!["server.Server"],
+            ),
+            ("@host\npub fn read() -> void: pass\n", vec![]),
+        ] {
+            let files = sources(text);
+            let store = MemoryStore::default();
+            let host = Host {
+                sources: &files,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+                render_tir: &[],
+            };
+            let packages = Packages {
+                host_packages: vec![metadata(0, &listed)],
+                ..Packages::default()
+            };
+            let out = build_packages(&host, "sdk", &packages, &Goal::Analyze);
+            assert_eq!(
+                out.diags.code,
+                [Code::DecoratorTargetKind],
+                "{text}\n{}",
+                out.render()
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod package_host_abi_tests {
+    use super::*;
+
+    #[test]
+    fn typed_contract_glue_and_nominal_versions_survive_warm_links() {
+        let mut files = MemorySources::default();
+        files.insert(
+            "src/main.hd",
+            "\
+use std.serde.{Serialize, Deserialize, Serializer, Deserializer}
+
+pub struct Message:
+    pub text: string
+    pub count: u64
+
+@derive(Serialize, Deserialize)
+pub struct Secret:
+    large: u64
+    signed: i64
+    ratio: f64
+    zero: f64
+    children: List[string]
+
+pub struct Token:
+    hidden: string
+
+impl Serialize for Token:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+        out.text(\"custom:${self.hidden}\")
+
+impl Deserialize for Token:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Token, R::Error]:
+        .Ok(Token { hidden: input.text(\"Token\")? })
+
+pub enum Problem:
+    Broken(reason: string)
+
+@host
+pub trait Server:
+    fn ready(&self, message: Message) -> Message
+    fn secret(&self, value: Secret) -> Secret
+    fn custom(&self, value: Token) -> Token
+    fn wait!(&mut self) -> Result[string, Problem]
+
+pub fn main!() -> void $ Console + Server:
+    message := $.use(Server).ready(Message { text: \"hello\", count: 7 })
+    println(\"${message.text} ${message.count}\")
+    secret := $.use(Server).secret(Secret { large: 18446744073709551615, signed: -9223372036854775808, ratio: 1.0, zero: -0.0, children: [\"nested\"] })
+    println(\"${secret.large} ${secret.signed} ${secret.ratio.to_bits()} ${secret.zero.to_bits()} ${secret.children[0]}\")
+    token := $.use(Server).custom(Token { hidden: \"private\" })
+    println(token.hidden)
+    match $.use(Server).wait!():
+        .Ok(value) => println(value)
+        .Err(.Broken(reason)) => println(reason)
+",
+        );
+        let store = MemoryStore::default();
+        let host = Host {
+            sources: &files,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+            render_tir: &[],
+        };
+        let mut packages = Packages {
+            host_packages: vec![HostPackage {
+                package: 0,
+                identity: "example.org/sdk@1".into(),
+                versioned_source: Some("example.org/sdk@1.2.3".into()),
+                declarations: Some(hd_project::HostDeclarations {
+                    providers: Some(vec![hd_project::HostProvider {
+                        trait_path: "main.Server".into(),
+                        path: Some("provider.mjs".into()),
+                        line: 4,
+                    }]),
+                    line: 4,
+                }),
+                manifest: "hd.toml".into(),
+            }],
+            ..Packages::default()
+        };
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let first = build_packages(&host, "app", &packages, &goal);
+        assert!(!first.diags.has_errors(), "{}", first.render());
+        let wasm = first.wasm.as_ref().expect("SDK program builds");
+        wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
+            .validate_all(wasm)
+            .expect("valid Wasm with nominal imports");
+        let artifacts = first
+            .host_artifacts
+            .as_ref()
+            .expect("generated host artifacts");
+        assert_eq!(artifacts.contract.interfaces.len(), 1);
+        let interface = &artifacts.contract.interfaces[0];
+        assert_eq!(interface.identity.package, "example.org/sdk");
+        assert_eq!(interface.identity.version, "1.2.3");
+        assert_eq!(interface.identity.trait_path, "main.Server");
+        assert_eq!(interface.selectors, ["pkg.main.Server"]);
+        assert!(interface.module.starts_with("hd:pkg:"));
+        assert_eq!(
+            interface
+                .methods
+                .iter()
+                .map(|m| (m.name.as_str(), m.suspends))
+                .collect::<Vec<_>>(),
+            [
+                ("ready", false),
+                ("secret", false),
+                ("custom", false),
+                ("wait", true)
+            ]
+        );
+        assert!(
+            matches!(&interface.methods[0].params[0], hd_host_abi::schema::Value::Record(fields) if fields[0].name == "text" && fields[1].name == "count")
+        );
+        assert!(
+            matches!(&interface.methods[3].result, hd_host_abi::schema::Value::Result(_,error) if matches!(error.as_ref(), hd_host_abi::schema::Value::Enum(variants) if variants[0].name == "Broken" && variants[0].fields[0].name == "reason"))
+        );
+        assert!(artifacts.javascript.contains("runtime.record"));
+        let cached = build_packages(&host, "app", &packages, &goal);
+        assert!(!cached.diags.has_errors(), "{}", cached.render());
+        assert_eq!(cached.wasm.as_ref(), Some(wasm));
+        assert_eq!(
+            cached.host_artifacts.as_ref().unwrap().javascript,
+            artifacts.javascript
+        );
+        run_package_host_javascript(
+            &first,
+            r"
+assert.throws(() => createCoreHost(sink, { module }), /missing package host provider.*main.Server/);
+const implementation = {
+  ready(message) { return { text: message.text.toUpperCase(), count: message.count + 1n }; },
+  secret(value) {
+    assert.equal(typeof value, 'object');
+    assert.equal(value.large, 18446744073709551615n);
+    assert.equal(value.signed, -9223372036854775808n);
+    assert.equal(value.ratio, 1);
+    assert.equal(typeof value.ratio, 'number');
+    assert.ok(Object.is(value.zero, -0));
+    assert.deepEqual(value.children, ['nested']);
+    return { ...value, large: value.large - 1n, signed: value.signed + 1n };
+  },
+  custom(value) { assert.equal(value, 'custom:private'); return 'custom reply'; },
+  async wait(context) { assert.equal(context.signal.aborted, false); await new Promise(r => setTimeout(r, 2)); return { ok: true, value: 'from async' }; }
+};
+const root = glue.interfaces.find(i => !i.handle);
+const providers = new Map([[root.module, implementation]]);
+assert.throws(() => createCoreHost(sink, { module, grants: { 'pkg.main.Server': false }, packageBindings: rt => glue.bind(rt, providers) }), /capability denied/);
+assert.throws(() => createCoreHost(sink, { module, packageBindings: rt => glue.bind(rt, new Map([[root.module, Object.create(implementation)]])) }), /plain object/);
+const host = createCoreHost(sink, { module, packageBindings: rt => glue.bind(rt, providers) });
+try {
+  const instance = await WebAssembly.instantiate(module, host.imports);
+  const result = await host.run(instance, 'hd.init', 'hd.poll');
+  assert.equal(result.status, 0);
+  assert.equal(output.join(''), 'HELLO 8\n18446744073709551614 -9223372036854775807 4607182418800017408 9223372036854775808 nested\ncustom reply\nfrom async\n');
+  assert.equal(errors.join(''), '');
+} finally { host.close(); }
+// Exercise the generated Pending/finish/abort protocol without invoking a
+// guest turn after abort. A late Promise cannot revive the consumed ID.
+let deliver, signal;
+const waiting = {
+  ...implementation,
+  wait(context) { signal = context.signal; return new Promise(resolve => { deliver = resolve; }); }
+ };
+const cancelled = createCoreHost(sink, { module, packageBindings: rt => glue.bind(rt, new Map([[root.module, waiting]])) });
+try {
+  const instance = await WebAssembly.instantiate(module, cancelled.imports);
+  cancelled.prime(instance);
+  const target = cancelled.imports[root.module];
+  const [state, id] = target['wait.start']();
+  assert.equal(state, 1);
+  assert.throws(() => target['wait.finish'](id), /not pending/);
+  cancelled.imports['hd:rt'].abort(id);
+  assert.equal(signal.aborted, true);
+  deliver({ ok: true, value: 'late' });
+  await Promise.resolve();
+  assert.equal(cancelled.core.st.ops.size, 0);
+  assert.throws(() => target['wait.finish'](id), /not pending/);
+  const [, next] = target['wait.start']();
+  assert.notEqual(next, id);
+  deliver({ ok: true, value: 'delivered' });
+  await Promise.resolve();
+  assert.equal(cancelled.imports['hd:rt'].block(), 1);
+  assert.ok(target['wait.finish'](next) > 0);
+  assert.throws(() => target['wait.finish'](next), /not pending/);
+  target['wait.start']();
+} finally { cancelled.close(); }
+assert.equal(signal.aborted, true);
+assert.equal(cancelled.core.st.ops.size, 0);
+",
+        );
+        packages.host_packages[0].versioned_source = Some("example.org/sdk@1.2.4".into());
+        let updated = build_packages(&host, "app", &packages, &goal);
+        assert!(!updated.diags.has_errors(), "{}", updated.render());
+        let new = &updated.host_artifacts.as_ref().unwrap().contract.interfaces[0];
+        assert_eq!(new.identity.version, "1.2.4");
+        assert_ne!(
+            new.module, interface.module,
+            "a version-only edit invalidates the cached host ABI"
+        );
+        assert_ne!(updated.wasm.as_ref(), Some(wasm));
+    }
+}
+
+#[cfg(test)]
+mod package_host_inheritance_tests {
+    use super::*;
+
+    #[test]
+    fn inherited_concrete_methods_and_disposable_handles_have_typed_nominal_imports() {
+        let mut files = MemorySources::default();
+        files.insert(
+            "src/main.hd",
+            "\
+use std.ops.Disposable
+
+pub trait Base[T]:
+    fn echo(&self, text: T) -> T
+
+pub enum EventError:
+    Closed
+
+pub trait Events < Disposable:
+    fn next!(&mut self) -> Result[string?, EventError]
+
+@host
+pub trait Server < Base[string]:
+    fn open!(&mut self) -> &mut dyn Events
+
+pub fn main!() -> void $ Console + Server:
+    println($.use(Server).echo(\"inherited\"))
+    handle := $.use(Server).open!()
+    match handle.next!():
+        .Ok(.Some(text)) => println(text)
+        .Ok(.None) => pass
+        .Err(.Closed) => pass
+    handle.dispose!()
+",
+        );
+        let store = MemoryStore::default();
+        let host = Host {
+            sources: &files,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+            render_tir: &[],
+        };
+        let packages = Packages {
+            host_packages: vec![HostPackage {
+                package: 0,
+                identity: "/local/sdk".into(),
+                versioned_source: None,
+                declarations: Some(hd_project::HostDeclarations {
+                    providers: Some(vec![hd_project::HostProvider {
+                        trait_path: "main.Server".into(),
+                        path: Some("provider.mjs".into()),
+                        line: 4,
+                    }]),
+                    line: 4,
+                }),
+                manifest: "hd.toml".into(),
+            }],
+            ..Packages::default()
+        };
+        let out = build_packages(
+            &host,
+            "app",
+            &packages,
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
+            .validate_all(out.wasm.as_ref().unwrap())
+            .expect("inherited vtables validate");
+        let contract = &out.host_artifacts.as_ref().unwrap().contract;
+        assert_eq!(contract.interfaces.len(), 2);
+        let provider = contract.interfaces.iter().find(|i| !i.handle).unwrap();
+        let echo = provider
+            .methods
+            .iter()
+            .find(|m| m.member == "echo")
+            .unwrap();
+        assert!(echo.name.ends_with("/main.Base::echo"));
+        assert_eq!(echo.params, [hd_host_abi::schema::Value::String]);
+        let handle = contract.interfaces.iter().find(|i| i.handle).unwrap();
+        assert!(
+            handle
+                .methods
+                .iter()
+                .any(|m| m.member == "next" && m.suspends)
+        );
+        assert!(
+            handle
+                .methods
+                .iter()
+                .any(|m| m.member == "dispose" && m.name.ends_with("/ops.Disposable::dispose"))
+        );
+        assert_ne!(provider.module, handle.module);
+        assert!(
+            contract
+                .interfaces
+                .iter()
+                .all(|i| !i.identity.package.contains("/local/"))
+        );
+        run_package_host_javascript(
+            &out,
+            r"
+let disposed = 0, runtime;
+const provider = {
+  echo(text) { return text; },
+  async open() { return { async next() { return { ok: true, value: 'event' }; }, async dispose() { disposed++; } }; }
+ };
+const root = glue.interfaces.find(i => !i.handle);
+const host = createCoreHost(sink, { module, packageBindings: rt => { runtime = rt; return glue.bind(rt, new Map([[root.module, provider]])); } });
+try {
+  const instance = await WebAssembly.instantiate(module, host.imports);
+  assert.ok(WebAssembly.Module.imports(module).some(i => i.name === '$release'));
+  const result = await host.run(instance, 'hd.init', 'hd.poll');
+  assert.equal(result.status, 0);
+  assert.equal(output.join(''), 'inherited\nevent\n');
+  assert.equal(errors.join(''), '');
+  assert.equal(disposed, 1);
+  assert.equal(runtime.handleCount(), 0, 'last HD reference drops the JS binding');
+} finally { host.close(); }
+",
+        );
+    }
+}
+
+#[cfg(test)]
+fn run_package_host_javascript(out: &Output, body: &str) {
+    use std::io::Write as _;
+    use std::process::{Command, Stdio};
+    let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/core.mjs");
+    let glue = &out.host_artifacts.as_ref().unwrap().javascript;
+    let script = format!(
+        "\
+import assert from 'node:assert/strict';
+import {{ pathToFileURL }} from 'node:url';
+const {{ createCoreHost }} = await import(pathToFileURL({:?}));
+const glue = await import('data:text/javascript,' + encodeURIComponent({glue:?}));
+const module = await WebAssembly.compile(new Uint8Array({:?}));
+const output = [], errors = [];
+const sink = {{ out: text => output.push(text), err: text => errors.push(text) }};
+{body}
+",
+        core.to_str().unwrap(),
+        out.wasm.as_ref().unwrap(),
+    );
+    let mut child = Command::new("node")
+        .args(["--input-type=module"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Node for package host integration");
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(script.as_bytes())
+        .unwrap();
+    let result = child.wait_with_output().unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[cfg(test)]
+mod package_host_reexport_tests {
+    use super::*;
+
+    #[test]
+    fn a_transitive_sdk_keeps_its_identity_through_a_public_dependency_alias() {
+        let mut app = MemorySources::default();
+        app.insert("main.hd", "use dep.wrap.Service\npub fn main() -> void $ Console + Service:\n    println($.use(Service).read(\"hello\"))\n");
+        let mut wrapper = MemorySources::default();
+        wrapper.insert("src/lib.hd", "pub use dep.real.{Server as Service}\n");
+        let mut sdk = MemorySources::default();
+        sdk.insert(
+            "src/lib.hd",
+            "@host\npub trait Server:\n    fn read(&self, input: string) -> string\n",
+        );
+        let store = MemoryStore::default();
+        let host = Host {
+            sources: &app,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+            render_tir: &[],
+        };
+        let packages = Packages {
+            requires: vec![("wrap".into(), 1)],
+            deps: vec![
+                Dependency {
+                    name: "wrapper".into(),
+                    identity: "/local/wrapper".into(),
+                    sources: &wrapper,
+                    requires: vec![("real".into(), 2)],
+                    fetched: false,
+                },
+                Dependency {
+                    name: "sdk".into(),
+                    identity: "/local/sdk".into(),
+                    sources: &sdk,
+                    requires: vec![],
+                    fetched: false,
+                },
+            ],
+            host_packages: vec![HostPackage {
+                package: 2,
+                identity: "/local/sdk".into(),
+                versioned_source: Some("example.org/sdk@1.2.3".into()),
+                declarations: Some(hd_project::HostDeclarations {
+                    providers: Some(vec![hd_project::HostProvider {
+                        trait_path: "Server".into(),
+                        path: Some("provider.mjs".into()),
+                        line: 4,
+                    }]),
+                    line: 4,
+                }),
+                manifest: "sdk/hd.toml".into(),
+            }],
+            ..Packages::default()
+        };
+        let out = build_packages(
+            &host,
+            "app",
+            &packages,
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        let c = &out.host_artifacts.as_ref().unwrap().contract;
+        assert_eq!(c.interfaces.len(), 1);
+        assert_eq!(c.interfaces[0].identity.package, "example.org/sdk");
+        assert_eq!(c.interfaces[0].identity.trait_path, "Server");
+        assert_eq!(c.interfaces[0].selectors, ["dep.wrap.Service"]);
     }
 }

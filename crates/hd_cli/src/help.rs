@@ -71,7 +71,9 @@ const COMMANDS: &[Command] = &[
         name: "FILE.wasm",
         summary: "run a module that hd build wrote",
         usage: "hd [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE.wasm [-- ARGS]",
-        about: &["Run a module that hd build wrote. Its grant comes from --cap flags alone."],
+        about: &[
+            "Run a module that hd build wrote. Package host providers also need the app manifest above the module.",
+        ],
         flags: &[ENGINE, CAP, TIME_LIMIT, CLEANUP_LIMIT],
     },
     Command {

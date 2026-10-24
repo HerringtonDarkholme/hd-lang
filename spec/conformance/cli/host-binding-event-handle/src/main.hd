@@ -1,0 +1,25 @@
+use std.ops.Disposable
+
+pub enum Event:
+    Click(tag: u32)
+
+pub enum EventError:
+    Closed
+
+pub trait Events < Disposable:
+    fn next!(&mut self) -> Result[Event?, EventError]
+
+@host
+pub trait Surface:
+    fn render!(&mut self, commands: List[string]) -> usize
+    fn events!(&mut self) -> &mut dyn Events
+
+pub fn main!() -> void $ Console + Surface:
+    count := $.use(Surface).render!(["button"])
+    println("rendered $count")
+    events := $.use(Surface).events!()
+    match events.next!():
+        .Ok(.Some(.Click(tag))) => println("click $tag")
+        .Ok(.None) => println("no event")
+        .Err(.Closed) => println("closed")
+    events.dispose!()

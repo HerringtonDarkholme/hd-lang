@@ -1,0 +1,4 @@
+# module.host.package.marker
+@host
+pub trait Surface:
+    fn render!(&mut self, commands: List[string]) -> void

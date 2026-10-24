@@ -581,6 +581,7 @@ fn execute(
     table: &[(String, hd_project::Grant)],
     table_dir: Option<&Path>,
     flags: &[caps::CapFlag],
+    provider_program: Option<&disk::Program>,
     args: &[OsString],
     (engine, level, limits): (engine::EngineKind, OptLevel, engine::ProgramLimits),
     rep: &mut Reporter,
@@ -607,7 +608,15 @@ fn execute(
             .collect(),
         program: program.to_owned(),
     };
-    match engine::run(engine, level, wasm, &host) {
+    let providers = if engine == engine::EngineKind::Node {
+        match node::manifest_providers(wasm, provider_program, table, &host.grants) {
+            Ok(providers) => providers,
+            Err(error) => return rep.fail(&error),
+        }
+    } else {
+        Vec::new()
+    };
+    match engine::run(engine, level, wasm, &host, &providers) {
         Ok((Outcome::Exit(code), trap)) => {
             // A panic's location follows the host's `panic:` line, as a
             // test's report does (`flow.panic.report`).
@@ -748,6 +757,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
             &program.capabilities,
             program.package_dir.as_deref(),
             &w.caps,
+            Some(&program),
             &w.program_args,
             (w.engine, pipeline.level, w.limits),
             &mut rep,
@@ -782,6 +792,7 @@ fn run_stdin_command() -> ExitCode {
             &program.capabilities,
             program.package_dir.as_deref(),
             &[],
+            Some(&program),
             &[],
             (engine, pipeline.level, engine::ProgramLimits::default()),
             &mut rep,
@@ -793,8 +804,8 @@ fn run_stdin_command() -> ExitCode {
 /// `hd [--cap NAME=VALUE]... FILE.wasm [-- ARGS]` (Prebuilt Modules,
 /// `cli.wasm.*`): a module that `hd build` wrote. It is checked first: a
 /// valid module (`cli.wasm.invalid`), with the entry exports and only
-/// imports `hd` provides (`cli.wasm.not-hd.*`). Its grant comes from the
-/// flags alone (`cli.wasm.grant`).
+/// imports `hd` provides (`cli.wasm.not-hd.*`). Builtin-only modules use
+/// flags alone; package providers discover consent above the artifact.
 fn run_wasm_command(args: &[OsString]) -> ExitCode {
     let w = match file_words(args) {
         Ok(w) => w,
@@ -827,18 +838,57 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
             "`{shown}` has no entry export `{missing}`: {rebuild}"
         ));
     }
-    if let Some((m, n)) = hd_run::unknown_import(&imports) {
+    let artifacts = match hd_driver::host_artifacts(&wasm) {
+        Ok(a) => a,
+        Err(e) => return rep.fail(&format!("`{shown}` has an invalid host contract: {e}")),
+    };
+    let ordinary: Vec<_> = imports
+        .into_iter()
+        .filter(|(m, n)| {
+            !artifacts
+                .as_ref()
+                .is_some_and(|a| a.contract.contains_import(m, n))
+        })
+        .collect();
+    if let Some((m, n)) = hd_run::unknown_import(&ordinary) {
         return rep.fail(&format!(
             "`{shown}` imports `{m}` `{n}`, which `hd` does not provide: {rebuild}"
         ));
     }
+    // Package providers need the root manifest's explicit consent even for a
+    // prebuilt artifact. Discovery follows the artifact, never the caller cwd.
+    let provider_program = if artifacts.is_some() {
+        let absolute = match std::path::absolute(file) {
+            Ok(path) => path,
+            Err(e) => return rep.fail(&format!("{shown}: {e}")),
+        };
+        let Some(root) = absolute.parent().and_then(disk::package_root) else {
+            return rep.fail("package host capabilities need an app hd.toml above the Wasm file");
+        };
+        let program = match disk::load_package(&root, "src/main.hd") {
+            Ok(program) => program,
+            Err(e) => return rep.fail(&e),
+        };
+        if rep.diags(&program.problems) {
+            return rep.finish(HD_FAILURE);
+        }
+        Some(program)
+    } else {
+        None
+    };
+    let table = provider_program
+        .as_ref()
+        .map_or(&[][..], |p| p.capabilities.as_slice());
     let built = Compiled { wasm, frames: None };
     execute(
         &built,
         &file.to_string_lossy(),
-        &[],
-        None,
+        table,
+        provider_program
+            .as_ref()
+            .and_then(|p| p.package_dir.as_deref()),
         &w.caps,
+        provider_program.as_ref(),
         &w.program_args,
         (w.engine, level_of(w.release), w.limits),
         &mut rep,
@@ -1075,6 +1125,7 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
         &program.capabilities,
         program.package_dir.as_deref(),
         &w.caps,
+        Some(&program),
         &w.program_args,
         (w.engine, pipeline.level, w.limits),
         &mut rep,
@@ -1177,9 +1228,22 @@ fn write_module(
         dir.push("files");
     }
     let out = dir.join(format!("{stem}.wasm"));
+    let artifacts = hd_driver::host_artifacts(wasm).map_err(str::to_owned)?;
     std::fs::create_dir_all(&dir)
         .and_then(|()| std::fs::write(&out, wasm))
-        .map_err(|e| format!("{}: {e}", out.display()))
+        .map_err(|e| format!("{}: {e}", out.display()))?;
+    let glue = dir.join(format!("{stem}.host.mjs"));
+    if let Some(artifacts) = artifacts {
+        std::fs::write(&glue, artifacts.javascript)
+            .map_err(|e| format!("{}: {e}", glue.display()))?;
+    } else {
+        match std::fs::remove_file(&glue) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("{}: {e}", glue.display())),
+        }
+    }
+    Ok(())
 }
 
 /// `hd build [FILE]` (`cli.build.*`). Every module is tuned for the engine

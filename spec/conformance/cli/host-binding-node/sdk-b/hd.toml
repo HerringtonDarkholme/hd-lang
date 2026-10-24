@@ -1,0 +1,5 @@
+[package]
+name = "same_sdk"
+
+[host]
+"Server" = "provider.mjs"

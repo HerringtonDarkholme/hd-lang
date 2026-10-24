@@ -1,0 +1,8 @@
+use dep.a.Server as First
+use dep.b.Server as Second
+
+pub fn main!() -> void $ Console + First + Second:
+    println($.use(First).read("first"))
+    println($.use(Second).read("second"))
+    println($.use(First).wait!())
+    println($.use(Second).wait!())

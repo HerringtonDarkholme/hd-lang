@@ -1,12 +1,12 @@
 # Host Embedding
 
-Status: parked proposal, 2026-10-23. Package host capabilities are designed
-in [#51](https://github.com/HerringtonDarkholme/hd-lang/issues/51), which
-supersedes the embedding framing below; nothing here is accepted behavior or
-implemented by this note.
+Status: package host capabilities implement the [owner's #51 decision](https://github.com/HerringtonDarkholme/hd-lang/issues/51#issuecomment-6388965405).
+General exported-function embedding and native library loading remain deferred.
+The production HTTP SDK and deployment adapters follow in [#266](https://github.com/HerringtonDarkholme/hd-lang/issues/266), under [Server Applications](SERVER_APPLICATIONS.md).
 
 ## Contents
 
+- [Package-Declared Host Capabilities](#package-declared-host-capabilities)
 - [Purpose and existing pieces](#purpose-and-existing-pieces)
 - [Other embedders](#other-embedders)
 - [Choices and recommendation](#choices-and-recommendation)
@@ -16,216 +16,397 @@ implemented by this note.
 - [Delivery and checks](#delivery-and-checks)
 - [Evidence](#evidence)
 
+## Package-Declared Host Capabilities
+
+An SDK owns an ordinary `@host` trait and maps it to a JavaScript provider in its package.
+The app's root manifest grants consent to load that provider.
+The provider default-exports plain methods; generated app glue handles the Wasm ABI.
+
+### A Complete SDK And App
+
+Create this `embedding-demo/` directory beside the checkout.
+This deliberately small request source demonstrates the binding API; it is not the production HTTP API being built in #266.
+Its Node provider delivers one body and ends the stream.
+
+**`embedding-demo/sdk/hd.toml`**
+
+```toml
+[package]
+name = "server_sdk"
+
+[host]
+"server.HttpServer" = "providers/http.mjs"
+```
+
+**`embedding-demo/sdk/src/lib.hd`**
+
+```text
+pub use pkg.server.{HttpServer}
+```
+
+**`embedding-demo/sdk/src/server.hd`**
+
+```text
+@host
+pub trait HttpServer:
+    fn next!(&mut self) -> string?
+    fn respond!(&mut self, body: string) -> void
+```
+
+**`embedding-demo/sdk/providers/http.mjs`**
+
+```js
+const requests = ["hello"];
+export default {
+  async next() { return requests.shift() ?? null; },
+  async respond(body) { console.log(body); },
+};
+```
+
+**`embedding-demo/app/hd.toml`**
+
+```toml
+[package]
+name = "embedding_app"
+
+[dependencies]
+server_sdk = { path = "../sdk" }
+
+[capabilities]
+"dep.server_sdk.server.HttpServer" = true
+```
+
+**`embedding-demo/app/src/main.hd`**
+
+```text
+use dep.server_sdk.server.HttpServer
+
+pub fn main!() -> void $ HttpServer:
+    server := $.use(HttpServer)
+    while true:
+        match server.next!():
+            .Some(body) => server.respond!(body + "!")
+            .None => return
+```
+
+Build the dev compiler in the isolated checkout, then run from the app directory:
+
+```sh
+cargo build -p hd_cli
+embedding_hd="$(pwd)/target/debug/hd"
+cd ../embedding-demo/app
+"$embedding_hd" check
+"$embedding_hd" run --engine node
+"$embedding_hd" build --engine node
+"$embedding_hd" build/debug/embedding_app.wasm --engine node
+```
+
+Both runs print `hello!` and exit successfully.
+The build writes `build/debug/embedding_app.wasm` and `embedding_app.host.mjs`.
+The SDK provider imports neither file and survives changes to the app's output name or build directory.
+A prebuilt run discovers the nearest package manifest above the Wasm file, independently of the caller's working directory.
+
+### The Platform Adapter Call
+
+An edge adapter supplies the same plain methods through the generated binding module.
+For this example, copy the platform-neutral runtime from the checkout into `embedding-demo/runtime/`:
+
+```sh
+mkdir -p ../embedding-demo/runtime/gen
+cp host/core.mjs host/checked-report.mjs host/float.mjs host/journal.mjs \
+   host/wire.mjs host/package-providers.mjs ../embedding-demo/runtime/
+cp host/gen/abi.mjs ../embedding-demo/runtime/gen/
+```
+
+The following bridge keeps one ordinary `main!` alive across requests.
+Its `appCapabilities` argument is the app's root table, copied by the trusted adapter packaging step.
+It checks consent before constructing the provider and binds by the generated nominal module key.
+
+**`embedding-demo/edge.mjs`**
+
+```js
+import { createCoreHost } from "./runtime/core.mjs";
+
+// This small example has one queue and one ordinary HD main per instance.
+// #266 supplies production request lifetimes, limits and deployment tooling.
+export async function createBridge(module, bindings, appCapabilities) {
+  const root = bindings.interfaces.find(i => !i.handle && i.identity.trait_path === "server.HttpServer");
+  if (!root) throw new Error("missing server.HttpServer interface");
+  const granted = root.selectors.find(path => appCapabilities[path] === true);
+  if (!granted || root.selectors.some(path => appCapabilities[path] === false))
+    throw new Error("server.HttpServer needs root manifest consent");
+  const queue = [];
+  let waiting = null, current = null, closed = false, failure = null;
+  const take = () => {
+    if (queue.length) { current = queue.shift(); return current.body; }
+    return null;
+  };
+  const provider = {
+    next(context) {
+      if (queue.length || closed) return take();
+      return new Promise((resolve, reject) => {
+        const abort = () => { waiting = null; reject(new Error("server stopped")); };
+        context.signal.addEventListener("abort", abort, { once: true });
+        waiting = () => {
+          waiting = null;
+          context.signal.removeEventListener("abort", abort);
+          resolve(take());
+        };
+      });
+    },
+    respond(body) {
+      if (!current) throw new Error("response without a request");
+      current.resolve(new Response(body));
+      current = null;
+    },
+  };
+  const host = createCoreHost({ out() {}, err(text) { throw new Error(text); } }, {
+    module,
+    grants: { [granted]: true },
+    packageBindings: runtime => bindings.bind(runtime, new Map([[root.module, provider]])),
+  });
+  const instance = await WebAssembly.instantiate(module, host.imports);
+  const done = host.run(instance, "hd.init", "hd.poll").then(result => {
+    if (result.status !== 0) throw new Error(`HD status ${result.status}`);
+  }).catch(error => {
+    failure = error;
+    current?.reject(error);
+    for (const item of queue.splice(0)) item.reject(error);
+    throw error;
+  });
+  // Retain a rejection handler even before the invoker calls close().
+  done.catch(() => {});
+  return {
+    async fetch(request) {
+      const body = await request.text();
+      if (failure) throw failure;
+      if (closed) throw new Error("server closed");
+      return new Promise((resolve, reject) => {
+        queue.push({ body, resolve, reject });
+        waiting?.();
+      });
+    },
+    async close() {
+      closed = true;
+      waiting?.();
+      try { await done; } finally { host.close(); }
+    },
+  };
+}
+```
+
+Vercel's [Web Handler](https://vercel.com/docs/functions/functions-api-reference) receives a web `Request` and returns a `Response`.
+A Node function loads the built module once and calls the bridge:
+
+**`embedding-demo/api/index.mjs`**
+
+```js
+import { readFile } from "node:fs/promises";
+import * as bindings from "../app/build/debug/embedding_app.host.mjs";
+import { createBridge } from "../edge.mjs";
+const appCapabilities = { "dep.server_sdk.server.HttpServer": true };
+const ready = WebAssembly.compile(await readFile(
+  new URL("../app/build/debug/embedding_app.wasm", import.meta.url),
+)).then(module => createBridge(module, bindings, appCapabilities));
+export default { async fetch(request) { return (await ready).fetch(request); } };
+```
+
+Cloudflare/workerd supplies a compiled Wasm module through its [Wasm module import](https://developers.cloudflare.com/workers/runtime-apis/webassembly/javascript/).
+Its adapter makes the same checked binding call inside the request-scoped poll driver:
+
+**`embedding-demo/workerd-binding.mjs`**
+
+```js
+import module from "./app/build/debug/embedding_app.wasm";
+import * as bindings from "./app/build/debug/embedding_app.host.mjs";
+import { createCoreHost } from "./runtime/core.mjs";
+const appCapabilities = { "dep.server_sdk.server.HttpServer": true };
+export function bindServer(provider, sink) {
+  const root = bindings.interfaces.find(i => !i.handle &&
+    i.identity.trait_path === "server.HttpServer");
+  const path = root.selectors.find(path => appCapabilities[path] === true);
+  if (!path || root.selectors.some(path => appCapabilities[path] === false))
+    throw new Error("server.HttpServer needs root manifest consent");
+  return createCoreHost(sink, {
+    module, grants: { [path]: true },
+    packageBindings: runtime => bindings.bind(runtime,
+      new Map([[root.module, provider]])),
+  });
+}
+```
+
+This is the workerd binding module, not a complete fetch driver.
+Do not retain the Node bridge's global `host.run` Promise across workerd requests: the earlier real workerd control rejects cross-request I/O lifetimes.
+#266's [request-scoped dispatcher](SERVER_APPLICATIONS.md#architecture) drives poll turns and owns outgoing I/O in each platform request's coroutine.
+That dispatcher consumes `bindServer(provider, sink)` and preserves one ordinary HD main and instance.
+
+The handwritten capability constant mirrors the complete app table above; production packaging must derive it from that manifest.
+The bridge is a tested API example, not a deployed server adapter.
+#266 adds request identity, disconnection, deadlines, body limits, streaming, platform lifetime constraints, packaging and deployment checks.
+Those cannot be inferred from a successful local Request/Response call.
+
+### Common Mistakes
+
+| Mistake | Result and correction |
+| --- | --- |
+| Omit the root `true` grant | Startup names the package/version/trait and asks for its `[capabilities]` entry; no provider module loads. |
+| Set the grant to `false` | Capability denial before import; remove the denial only if the app should load this provider. |
+| Pass `--cap PATH=true` without manifest consent | Startup still refuses; add the root manifest entry. |
+| Misspell or omit the mapped provider file | Startup reports the provider path and declaring manifest line; fix the SDK map. |
+| Map a file outside the SDK, including a symlink escape | Startup refuses canonical containment; put the provider inside the declaring package. |
+| Add `@host` without a map entry, or map an unmarked trait | `invalid-manifest` identifies the disagreement; make source and map match. |
+| Export a class instance or inherit required root methods | Binding refuses; default-export a plain object with own methods. |
+| Import app-generated glue from SDK provider code | Remove that dependency; the invoker wraps the plain object with the app's generated glue. |
+| Run a required package capability on Wasmtime | Refusal before guest initialization names the capability and JavaScript-host requirement. |
+| Run prebuilt Wasm without an app manifest above it | Precise startup refusal; retain the artifact inside its app package. |
+
+### Goal, Existing Mechanisms And Options
+
+The decided surface is `[host] "server.HttpServer" = "providers/http.mjs"`, paired exactly with bare `@host` on an owned public trait.
+`traits = [...]`, `javascript = ...`, `--host` and `defineProvider` are superseded.
+Library manifests never grant root consent.
+An app continues using ordinary rows, `$.use` and `$.with` fakes.
+
+### Identity And Contract
+
+A fetched capability's identity contains its canonical package host path, exact selected version and package-relative trait path.
+A local package uses its canonical-directory hash; moving the directory changes that identity.
+`hd:pkg:<hash>` namespaces imports, while the custom section retains the complete identity and method schemas for validation.
+A final trait name alone never selects a provider.
+
+Only a reachable package host requirement emits an `hd.capabilities` section and generated companion.
+Built-in-only programs retain their import names and emit no package companion.
+The generated glue and Wasm contract must agree byte for byte.
+
+### Binding, Startup And Authority
+
+Node selects provider files from the declaring SDK's map only after validating every required root manifest grant.
+It resolves and checks all files before importing any provider.
+Provider JavaScript has its realm's ambient authority; HD grants do not sandbox its imports.
+An adapter is trusted code responsible for honoring the same root consent and its own resource restrictions.
+
+An unused declaration needs no provider load.
+A host trait replaced by an ordinary HD fake needs no host provider for those replaced calls.
+Registering HttpServer grants no implicit Net, Http, Process or filesystem access to the guest.
+
+### Pending Calls And Request Context
+
+A suspending method returns either a ready value or a Promise.
+Its final argument supplies `signal` for the operation and `instanceSignal` for the instance.
+Aborting discards undelivered results and signals cancellation; a later Promise completion cannot revive a consumed operation ID.
+The provider remains responsible for stopping its external work.
+
+### Generated Glue For JS Hosts
+
+`crates/hd_host_abi/src/javascript.rs` generates `bind(runtime, implementations)` from checked signatures.
+`implementations` is a `Map` from generated interface module keys to plain method objects.
+Generated wrappers pin nominal identity and the full checked schema; provider files import no application artifact.
+Returned handles may have prototype methods, while root provider methods must be own functions.
+
+| HD value | Provider value |
+| --- | --- |
+| Structural integers through 32 bits | `Number` |
+| Structural 64-bit integers | `BigInt` |
+| Float | `Number` |
+| String / bytes | string / `Uint8Array` |
+| List / tuple / public record | array / array / named object |
+| Enum | `{ tag: "Variant", fields: { ... } }` |
+| Result | `{ ok: true, value }` or `{ ok: false, error }` |
+| Optional | `null` or its value |
+| Private-field type | The JS value chosen by its directional Serde implementation; Serde integers are `BigInt` and floats are `Number`. |
+
+Private values use an internal flat typed transport, preserving integer range, float kind and finite float bits without exposing transport text.
+A custom serializer that writes a string delivers that string; it does not expose the private record's layout.
+The builtin hosts retain their existing boundary codecs.
+
+A handle's final HD release removes its instance-local registry binding through `$release`.
+Resource cleanup remains an explicit operation, such as `dispose!`; release does not call arbitrary resource methods.
+
+### Wasmtime Refusal And Deferred Native Loading
+
+The native host refuses required package capabilities before entering the guest.
+There is no engine fallback.
+Dylib loading, native provider registration and general exported functions remain deferred.
+
+### A GUI-Shaped Current-Compiler Control
+
+The focused event-handle fixture supplies a Surface with rendering and an explicitly disposable event handle.
+It exercises returned handles and suspension without introducing GUI or DOM behavior into std.
+GUI application design remains parked.
+
+### Data Flow, Budget And Tests
+
+```text
+SDK source + provider map -> checked nominal contract + generated bindings
+root app consent + selected manifests -> checked provider paths -> plain JS methods
+HD values <-> generated codecs <-> JS values
+```
+
+The manifest parser records each mapping's line; paired source checks survive cached builds.
+Monomorphization collects private package codecs only for reachable package boundaries, including inherited methods and returned handles.
+The existing builtin/private codecs and package codecs occupy separate entries, so either may use the same private HD type.
+Emission uses the existing profile and exchange-buffer machinery.
+
+Tests cover declarations, aliases, exact versions, plain providers, missing/denied consent, ready/Pending calls, abort, late completion and handle release.
+Private round trips include integer extrema, float `1.0`, negative zero, nested data and custom serialization.
+A no-package-capability control must remain byte-identical to the same source built on the integration main baseline.
+
+### One-Hour Slices And Exact Scope
+
+The #51 revision covers manifest maps and source checks, root consent and selection, generated wrapping, private values, and worked examples.
+Only the explicitly approved linear backend files are edited; no emitter, checker, TIR or std implementation changes belong here.
+HTTP implementation follows [Server Applications](SERVER_APPLICATIONS.md), slices 1–8, with #827 when required grants first become necessary.
+
+### Recommendation, Approvals And Evidence
+
+The [confirmed review](https://github.com/HerringtonDarkholme/hd-lang/issues/51#issuecomment-6388965405) selects the map, root consent, plain objects and unified JS values.
+[Prebuilt discovery](https://github.com/HerringtonDarkholme/hd-lang/issues/51#issuecomment-6389198731) follows the artifact's nearest app manifest.
+The worked SDK/app checks, source run, build and prebuilt run succeed locally.
+The bridge serves `one!` and `two!` through one live instance; hosted deployment is not claimed.
+
 ## Purpose and existing pieces
 
-An application should call named hd functions, bind its own capability
-providers, and receive typed results or structured failures. Native and
-browser hosts should share the registration contract and value encoding.
-The first release uses core Wasm, as the owner already decided.
-
-The language distinguishes [registration](../../spec/lang/10-modules.md#registration)
-from `pub`. Each registered function is an entry for provider checking.
-Its row must fit its selected profile, and the host binds every key
-before invocation. A manifest cannot invent a runtime profile.
-
-The [boundary rules](../../spec/lang/10-modules.md#boundary-safe-values) already
-define structural values, private-field serialization, and poisoning panics.
-They exclude dynamic trait values, closures, and live handles from registered
-parameters and results. This proposal preserves those restrictions.
-
-| Existing piece | Present limit |
-| --- | --- |
-| `hd_run::Engine`, `Instance`, `Provider`, `HostSetup` | `Instance` exposes polling and test invocation, without general typed registered calls. |
-| `HostSetup::providers` | The native design records that its engine binds built-in providers directly instead. |
-| `hd_host_abi` and generated JS/Rust codecs | Built-in provider descriptions exist; application-trait registration is not a public general API. |
-| Exchange memory and poll/wake driver | One active call per instance, without reentrant callbacks into Wasm. |
-
-At `5cdef5f66`, the generated model contains 12 capability traits with 34
-methods, two runner traits with seven methods, three handle traits with
-18 methods, and 22 structured types. These are coverage counts, not an
-embedding-readiness or implementation-cost measurement.
+The broader embedding proposal remains deferred.
+The current implementation reuses ordinary main, requirement profiles and the existing [Wasm boundary](../../spec/lang/10-modules.md#wasm-boundary).
+It does not expose arbitrary HD functions as host-callable exports.
 
 ## Other embedders
 
-| Tool | Relevant approach | Lesson for hd |
-| --- | --- | --- |
-| [Wasmtime](https://docs.wasmtime.dev/api/wasmtime/struct.Linker.html) | Its linker binds named host functions, including typed wrappers. | Explicit provider registration can hide engine internals. |
-| [Wasmer](https://wasmerio.github.io/wasmer/crates/doc/wasmer/struct.Imports.html) | Imports pair module/name keys with host functions. | Validate complete binding identities, not method names alone. |
-| [wazero](https://pkg.go.dev/github.com/tetratelabs/wazero#HostModuleBuilder) | A host module builder exports functions into an instance. | A library API can hide raw linkage. |
-| [wasm-bindgen](https://wasm-bindgen.github.io/wasm-bindgen/reference/attributes/on-rust-exports/index.html) | Generates bindings for selected exports. | Generate adapters from the compiled module's checked contract. |
-| [Extism](https://extism.org/docs/concepts/host-functions/) | Host functions declare names, input/output types, and application data. | Custom providers need signatures and instance-lifetime state. |
-| [AssemblyScript](https://www.assemblyscript.org/runtime.html#interface) | Raw managed references need host pinning across allocations. | Prefer owned boundary copies over exposing hd's RC pointers. |
-
-Explicit bindings and generated adapters work with core Wasm. These tools'
-memory policies differ; hd should preserve its own boundary semantics.
+The [Component Model](https://component-model.bytecodealliance.org/) remains a separate integration option.
+The owner's first-release decision uses HD's own core-Wasm imports.
+No comparison here changes that decision.
 
 ## Choices and recommendation
 
-Every option selects this ordinary hd function:
-
-```text
-pub struct Request:
-    pub name: string
-
-pub fn greet(request: Request) -> string:
-    "hello, ${request.name}"
-
-pub fn main() -> void:
-    pass
-```
-
-`pub` alone registers nothing. Registration selects `greet`; the existing
-source needs no export decorator or foreign-function declaration.
-
-| Criterion | Explicit library contract | One hand-written dispatcher | Automatic public exports |
-| --- | --- | --- | --- |
-| Mechanism | A library build API selects concrete source items; compiler-generated adapters consume checked signatures. | One request/response enum and dispatcher combine all calls. | Every public function becomes a host entry. |
-| Named typed calls | Generated per entry | Repeated manual dispatch and codec boilerplate | Includes unintended public helpers |
-| Provider checking | Every registered entry | Dispatcher union row | Every public function's row |
-| Rule cost | Existing registration semantics; new build/runtime APIs | Existing semantics and ordinary hd dispatcher | Changes the visibility/registration distinction |
-| Safety | Checked signatures and generated codecs | Checked envelope | Still needs signature checks |
-| Agent writing / human reading | Ordinary hd plus explicit registrations | More boilerplate, one envelope to inspect | Shorter, with an unrelated visibility effect |
-| Evolution | Independent entry contracts | One growing envelope | Public API changes alter host exposure implicitly |
-
-The dispatcher is the radical simplification and a useful prototype.
-Automatic public exports contradict an existing decision and are not eligible
-without reopening it. None needs a new syntax form to express the example.
-
-**Recommendation.** Use explicit library registration and generated adapters,
-with Rust and JavaScript SDKs sharing one catalogue and wire description.
-Keep registration an explicit compiler build input supplied by the library.
-This favors runtime/library APIs over a new keyword or semantic exception.
-
-This sacrifices implicit discovery and direct heap references. The next-best
-option is a bounded dispatcher prototype with the same provider and wire checks.
-No general callback, durable-resume, or Component Model mechanism is proposed.
+Package-declared capabilities are the current implementation target.
+General registration, durable execution and native library loading are deferred rather than alternate ways to bind this SDK.
 
 ## Registration and providers
 
-Proposed API concepts, not current method names:
-
-| Operation | Contract |
-| --- | --- |
-| `register(external_name, source_item)` | Select an accessible concrete function and a unique external name; resolve its actual signature. |
-| `profile(toolchain_profile)` | Select a toolchain-defined profile and its nominal bindable trait identities. |
-| `build(registrations)` | Root and provider-check every selected entry; generate its adapter and catalogue. |
-| `bind(trait_descriptor, provider)` | Match the complete method signatures and wait behavior. |
-| `call(entry, arguments)` | Encode checked inputs, invoke the entry, and yield a typed value or structured failure. |
-
-The embedding library owns this build API. Applications may wrap it for
-tools or workflows. Registration is neither an `@export` decorator nor an
-implicit effect of visibility.
-
-The catalogue records external name, concrete parameter/result schema,
-requirement row, profile, and wire version. Open rows and unspecialized
-generic functions require concrete registrations; ordinary generic hd functions remain valid.
-
-Provider descriptors use nominal trait identities and actual import mappings.
-Two traits called `Database` are not interchangeable. Reject colliding mappings
-and incompatible descriptors before initialization; retain existing built-in import names.
-
-Before module initializers run, validate the catalogue, wire version, provider
-shapes, grants, and required import bindings. Missing providers produce a
-startup error before user code. Bindings remain fixed for that instance.
-
-Application traits work when the selected toolchain profile explicitly supports
-their descriptors and adapters. A string-keyed provider object does not add
-authority for a trait absent from that profile.
+The package path, exact version and trait path form nominal identity.
+Generated glue validates the Wasm contract; trusted adapters choose implementations and enforce root consent.
+A general export registration API needs its own approved design.
 
 ## Calls and wire values
 
-Reuse the exchange-buffer encoding and codec model from
-[Host Interface and Embedding](../../crates/hd_run_wasmtime/DESIGN.md#17-host-interface-and-embedding).
-Generate the adapter and host codecs from one checked type description.
-The catalogue and wire contract are versioned together; incompatible adapters fail at load.
-
-| Value | Handling |
-| --- | --- |
-| Scalars | Existing width/range checks; live floats retain IEEE 754 values. |
-| Strings, byte lists, lists, tuples, public structs, enums, optionals, results | Structural encoding, recursively checked against the signature. |
-| Private-field structs | Honor directional Serialize/Deserialize exactly; layout metadata cannot expose omitted fields. |
-| Maps | Count and key/value pairs; decoding invokes ordinary Eq and Hash, with the specified poisoning behavior for decoder panics. |
-| References, dynamic trait values, closures, live handles | Reject in registered parameters/results under the existing boundary rules. |
-
-The low-level implementation does not cover every specified structural case.
-Its design records unsupported map and recursive-type paths. Completing those
-adapters is delivery work; this proposal claims no existing full coverage.
-
-The host owns argument and result copies. No exchange-memory view survives
-an allocation, await, wake, or invocation boundary. Copy encoded arguments
-before reusing the buffer. A provider retaining arguments must own its
-copies before returning Pending.
-
-Allow one active invocation per instance. A second call or a provider
-callback into that instance returns busy before entering Wasm. Parallel
-calls use distinct instances with disjoint heaps and drivers.
-
-Suspending entries use the existing poll/wake protocol behind SDK futures
-or promises. Host cancellation retains the current cleanup bounds and requires
-its exported entry hook to remain a compiler reachability root.
-
-Provider-returned host handles are separate from registered value parameters.
-They use profile descriptors, instance-local host identifiers, and existing close
-behavior. They never expose hd pointers. The broader handle design in [#9](https://github.com/HerringtonDarkholme/hd-lang/issues/9)
-is not reopened by this proposal.
+Package JS values are described above.
+The language boundary still defines tree semantics, directional private-field serialization and poisoning failures.
+No arbitrary HD address or closure crosses as a JavaScript handle.
 
 ## Panics and process status
 
-Keep typed invocation outcomes separate from process policy:
-
-| Event | SDK outcome | CLI adaptation |
-| --- | --- | --- |
-| A function returns `Result.Err` | Ordinary typed result | Exit mapping applies only when its entry contract requests that mapping. |
-| hd panic, including host-contract or decoder panic | Panic report; poison and discard the instance | Selected profile's panic status |
-| Module/profile/provider mismatch | Load/start error before user code | 101 when `hd` itself owns the failed tool operation |
-| Runtime implementation failure | Internal failure, distinct from a language panic | Existing internal-failure reporting; no fabricated panic category |
-
-Recommend panic status **3** for official native and Node profiles, matching
-their current runtime behavior. Other toolchain profiles declare a status
-explicitly, never 101. Browsers return the panic report and invalidate the
-instance; they have no process status to set.
-
-SDKs never terminate the embedding process. The application owns that policy.
-Histories record the stable diagnostic name, message, and logical source locations.
-Engine trap spellings remain diagnostic detail, not replay identity.
-Never invoke a poisoned instance again.
+A malformed provider result is a host-contract failure.
+A poisoned instance must be discarded; adapters cannot resume it as a healthy request processor.
+The existing CLI panic and cancellation policies remain in effect.
 
 ## Delivery and checks
 
-The owner approves this runtime API direction before code. Runtime API
-and ABI details belong with the runtime contract; existing language registration
-and boundary rules remain authoritative. No spec rule or ID changes here.
-
-Start with one pure structural entry, explicit registration, a generated
-descriptor, and native/Node invocation. Then wire application providers and
-missing-binding failures, suspending entries and cancellation, and the remaining structural types.
-
-The native slice must actually dispatch supplied providers instead of leaving
-`HostSetup::providers` unused. Validate application provider results with the
-same rules as built-in providers. Do not advertise a complete SDK before
-the supported boundary types have corresponding adapters and tests.
-
-Fixtures cover private-field redaction, domain errors, narrow integers, floats,
-maps, invalid UTF-8, wrong tags, stale handles, profile mismatch, reentrancy,
-and use after panic. Compare semantic outcomes across hosts and retain
-generated-schema consistency checks and golden wire vectors.
-
-No size or speed promise follows from this note. Measure the first vertical
-slice before proposing catalogue caching, zero-copy values, or cross-instance sharing.
+#51 supplies the package binding mechanism.
+#266 owns the production HTTP SDK, platform adapters and actual deploy checks.
+Local Node Request/Response evidence is not proof of Vercel or workerd request lifetime behavior.
 
 ## Evidence
 
-Source inspection and model counts use `5cdef5f66e054c4df32a04da56a500726020bc28`.
-The count command reads `host/gen/abi.json`, counts each table's entries and
-methods, and counts its type declarations. Exact counts and source hashes
-are retained in this note's validation evidence.
-
-The complete hd example parses and checks with zero errors and warnings.
-That validates its source only: it does not register `greet`, implement
-an SDK, or demonstrate a cross-boundary invocation.
-
-Validation used frozen compiler SHA-256 `9b1f42c4c0c62247243594f55a61319e28f09dea3580f89353051b9ff86a9a7c`
-and parser SHA-256 `ca6a7ddc0432b75003dab442c5da45356473dd40c531a861054dc6fcd2d448a5`.
-The compiler is `bc3ffb05a3` plus #526 cancellation pruning, which changes
-no syntax or type rule. Exact commands, outputs, ABI counts, and source
-hashes are retained in `/private/tmp/muse-51-evidence-1792772655965311000`.
+The implementation and review evidence are linked from [#51](https://github.com/HerringtonDarkholme/hd-lang/issues/51).
+Worked files and probe outputs are retained under `.cache-muse-51-review/worked/` in the isolated worktree.
+The first proposed selector API is superseded by the confirmed review, not a second supported interface.

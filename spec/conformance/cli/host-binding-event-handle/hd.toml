@@ -1,0 +1,8 @@
+[package]
+name = "surface"
+
+[host]
+"main.Surface" = "provider.mjs"
+
+[capabilities]
+"pkg.main.Surface" = true

@@ -918,7 +918,7 @@ fn a_totally_denied_need_refuses_to_start() {
     assert_eq!((r.code, r.out.as_str()), (Some(0), "hi\n"), "{}", r.err);
 }
 
-/// `cli.cap.flag.unknown`, `cli.cap.flag.unscoped`, `cli.cap.table.keys`.
+/// `cli.cap.flag.unknown.with-package-host`, `cli.cap.flag.unscoped`, `cli.cap.table.keys.with-package-host`.
 #[test]
 fn a_grant_must_name_a_host_trait_and_fit_its_kind() {
     let dir = shop("hd-forms-bad-cap");
@@ -1372,7 +1372,7 @@ fn fetch_with_path_requirements_only_has_nothing_to_do() {
     assert!(r.err.contains("fetch-failed"), "{}", r.err);
 }
 
-/// `cli.wasm.run`, `cli.wasm.grant`, `cli.wasm.invalid`, `cli.wasm.not-hd`,
+/// `cli.wasm.run`, `cli.wasm.grant.builtin-only`, `cli.wasm.invalid`, `cli.wasm.not-hd`,
 /// `cli.args.separator`: `hd FILE.wasm` runs what `hd build` wrote, with a
 /// grant from flags alone, and rejects a file that is no Wasm module or
 /// no module of `hd`; words after `--` are the program's.
@@ -1479,7 +1479,7 @@ fn test_file_links_only_what_it_uses_and_skips_untested_entries() {
     );
 }
 
-/// `cli.cap.flag.commands`, `cli.cap.flag.unknown`: `hd test` takes
+/// `cli.cap.flag.commands`, `cli.cap.flag.unknown.with-package-host`: `hd test` takes
 /// `--cap` and rejects a flag that names no host trait.
 #[test]
 fn test_takes_cap_flags() {

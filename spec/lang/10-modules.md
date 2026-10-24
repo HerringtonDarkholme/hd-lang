@@ -2433,6 +2433,37 @@ hd build --release src/main.hd   # the official compiler targets Wasm
 > embedder binds is hd's foreign function interface, by
 > [`module.register.application`](#r-module.register.application).
 
+### Package Host Traits
+
+A package host trait declares an interface whose implementation the invoker supplies:
+
+```text
+@host
+pub trait Surface:
+    fn render!(&mut self, commands: List[string]) -> void
+```
+
+1. r[module.host.package.marker] Bare `@host` marks a package-owned public trait as a host capability trait.
+2. r[module.host.package.target] `@host` on any other declaration or member is an error. Error: `decorator-target-kind`.
+3. r[module.host.package.bare] Arguments and type arguments on `@host` are errors. Error: `decorator-target-kind`.
+4. r[module.host.package.fact] `@host` is a compiler marker and attaches no fact value.
+5. r[module.host.package.identity] A fetched host trait's nominal identity includes its canonical package host path, exact selected version, and package-relative trait path.
+6. r[module.host.package.local-identity] A local host trait's nominal package identity hashes its canonical directory, so moving that directory requires rebinding.
+7. r[module.host.package.fake] A package host trait uses ordinary requirement rows, `$.use`, and `$.with` replacement.
+8. r[module.host.package.js-values] JavaScript package providers receive and return JavaScript values rather than serialized text.
+9. r[module.host.package.js-integers] A structural 64-bit integer crosses as `BigInt`, and a narrower structural integer crosses as `Number`.
+10. r[module.host.package.js-private-serde] A private-field value crosses through its directional `Serialize` or `Deserialize` implementation, with Serde integers represented as `BigInt`.
+11. r[module.host.package.js-private-floats] A Serde float crosses as `Number` while retaining its numeric kind and finite IEEE 754 bits, including negative zero.
+
+
+```text
+@host()  # error: decorator-target-kind
+pub trait Surface:
+    fn render!(&mut self, commands: List[string]) -> void
+```
+
+See also: [Package Host Declarations](../cli/command-line.md#package-host-declarations), [Runtime Profiles](#runtime-profiles), [Host Boundary](#host-boundary).
+
 ### Closable Handles
 
 A closable runtime handle reports a use after close with its module's

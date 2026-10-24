@@ -38,6 +38,8 @@
 // reaches this process, so a process told of such a signal ignores SIGINT
 // (the listener below), else the one interrupt would arrive twice.
 import { readFileSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+import { readPackageContract } from "./package-providers.mjs";
 import {
   isMainThread,
   MessageChannel,
@@ -45,7 +47,7 @@ import {
   Worker,
   workerData,
 } from "node:worker_threads";
-import { CANCEL_STATUS, entryCancel } from "./core.mjs";
+import { CANCEL_STATUS, HostContract, entryCancel } from "./core.mjs";
 import { createHost, exitPast, PROGRAM_TIME_LIMIT, reportIn } from "./node.mjs";
 
 import { createOutput } from "./output.mjs";
@@ -89,16 +91,64 @@ function sharedCancel(boundMs, cell) {
 // `config`, writing through `sink`, and returns the status. `cancel`,
 // when given, is how a Ctrl-C reaches the run.
 async function runHere(module, config, args, sink, deadline = null, cancel = null) {
+  try {
+    return await runHereUnchecked(module, config, args, sink, deadline, cancel);
+  } catch (error) {
+    if (!(error instanceof HostContract)) throw error;
+    sink.err(`error: ${error.message}\n`);
+    return 101;
+  }
+}
+
+async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
   // The unsupervised path may receive bytes; retain the compiled module
   // so checked reports can read its custom metadata too.
   module = module instanceof WebAssembly.Module ? module : await WebAssembly.compile(module);
+  const sections = WebAssembly.Module.customSections(module, "hd.capabilities");
+  if (sections.length > 1) throw new HostContract("duplicate package host contracts");
+  const required = sections.length ? readPackageContract(new Uint8Array(sections[0])) : [];
+  const registrations = new Map();
+  const grants = { ...config.grants };
+  for (const registration of config.hostProviders ?? []) {
+    const i = required.find((i) => !i.handle && i.module === registration.module);
+    if (!i || !i.selectors.includes(registration.grantPath))
+      throw new HostContract("provider mapping names no required package capability");
+    if (registrations.has(i.module))
+      throw new HostContract(`duplicate provider for ${i.identity.trait_path}`);
+    registrations.set(i.module, registration);
+  }
+  // Preflight every grant before importing any provider: initialization can
+  // already touch the machine. Mappings come from the CLI's manifest check.
+  for (const i of required.filter((i) => !i.handle)) {
+    const name = `${i.identity.package}@${i.identity.version}/${i.identity.trait_path}`;
+    if (i.selectors.some((s) => grants[s] === false))
+      throw new HostContract(`package capability denied: ${name}`);
+    const registration = registrations.get(i.module);
+    if (!registration)
+      throw new HostContract(
+        `package capability ${name} is not granted; add its trait path to the app's [capabilities] table`,
+      );
+    grants[registration.grantPath] = true;
+  }
+  let packageBindings = null;
+  if (required.length) {
+    // This module was regenerated from validated data by hd, in its private
+    // host directory. It is never JavaScript obtained from a guest section.
+    const generated = await import("./main.host.mjs");
+    const providers = new Map();
+    for (const [module, registration] of registrations) {
+      providers.set(module, (await import(pathToFileURL(registration.path).href)).default);
+    }
+    packageBindings = (runtime) => generated.bind(runtime, providers);
+  }
   const profile = config.profile ? await import("./profiles.mjs") : null;
   const host = createHost(sink, {
     module,
     args,
     program: config.program ?? "",
-    grants: config.grants ?? {},
+    grants,
     providers: profile ? (io) => profile.providers(config.profile, io) : null,
+    packageBindings,
     deadline,
   });
   try {

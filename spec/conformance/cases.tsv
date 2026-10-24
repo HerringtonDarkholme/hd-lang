@@ -4965,3 +4965,8 @@ runtime/valid/race-wake-during-sibling-println.hd	runtime	accept	lang/11-require
 runtime/valid/all-nested-wake-during-sibling-println.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.schedule.all-unfinished
 runtime/valid/all-wake-during-sibling-dispose.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.schedule.all-unfinished
 runtime/valid/block-on-all-wake-during-sibling-println.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.inner-only
+parse/valid/host-declaration-marker.hd	parse	accept	lang/10-modules.md#r-module.host.package.marker
+typing/invalid/host-declaration-private.hd	type	reject:decorator-target-kind	lang/10-modules.md#r-module.host.package.target
+typing/invalid/host-declaration-call.hd	type	reject:decorator-target-kind	lang/10-modules.md#r-module.host.package.bare
+typing/invalid/host-declaration-type-arguments.hd	type	reject:decorator-target-kind	lang/10-modules.md#r-module.host.package.bare
+typing/invalid/host-declaration-function.hd	type	reject:decorator-target-kind	lang/10-modules.md#r-module.host.package.target

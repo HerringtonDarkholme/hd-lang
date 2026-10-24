@@ -1,0 +1,9 @@
+[package]
+name = "host_missing_file"
+
+[host]
+"main.Server" = "missing.mjs"
+
+[capabilities]
+"pkg.main.Server" = true
+Console = true

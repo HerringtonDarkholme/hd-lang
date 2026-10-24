@@ -305,6 +305,7 @@ pub(crate) fn run(
     level: OptLevel,
     wasm: &[u8],
     host: &HostSetup,
+    providers: &[crate::node::HostProvider],
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     match kind {
         EngineKind::Node => {
@@ -312,12 +313,18 @@ pub(crate) fn run(
                 on_ctrl_c(crate::node::forward_interrupt);
             }
             let store = crate::disk_store();
-            let node = crate::node::NodeEngine::default();
+            let node = crate::node::NodeEngine {
+                host_providers: providers.to_vec(),
+                ..crate::node::NodeEngine::default()
+            };
             let outcome = run_program(&node, wasm, &store, host).map_err(|e| e.to_string())?;
             let frames = node.trace.lock().map(|t| t.clone()).unwrap_or_default();
             Ok((outcome, frames))
         }
-        EngineKind::Wasmtime => wasmtime::run_program(level, wasm, host),
+        EngineKind::Wasmtime => {
+            // The native engine refuses reachable package traits before guest start.
+            wasmtime::run_program(level, wasm, host)
+        }
     }
 }
 

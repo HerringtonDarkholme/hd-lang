@@ -49,6 +49,8 @@ const FLOAT: &str = include_str!("../../../host/float.mjs");
 const JOURNAL: &str = include_str!("../../../host/journal.mjs");
 /// The exchange-buffer encoding the hosts' codecs are built on.
 const WIRE: &str = include_str!("../../../host/wire.mjs");
+/// The checked helpers called by generated package host bindings.
+const PACKAGE_PROVIDERS: &str = include_str!("../../../host/package-providers.mjs");
 /// The codecs and method descriptors generated from the ABI model.
 const ABI: &str = include_str!("../../../host/gen/abi.mjs");
 
@@ -58,6 +60,82 @@ const ABI: &str = include_str!("../../../host/gen/abi.mjs");
 #[derive(Default)]
 pub struct NodeEngine {
     pub trace: Arc<Mutex<Vec<(u32, u32)>>>,
+    pub host_providers: Vec<HostProvider>,
+}
+
+/// A provider selected from the declaring package after root manifest consent.
+#[derive(Clone)]
+pub struct HostProvider {
+    pub module: String,
+    pub grant_path: String,
+    pub path: PathBuf,
+}
+
+/// Resolve only reachable package providers. A CLI flag cannot supply the
+/// missing manifest consent, and no provider module is imported here.
+pub(crate) fn manifest_providers(
+    wasm: &[u8],
+    program: Option<&crate::disk::Program>,
+    table: &[(String, hd_project::Grant)],
+    grants: &Grants,
+) -> Result<Vec<HostProvider>, String> {
+    let Some(artifacts) = hd_driver::host_artifacts(wasm).map_err(str::to_owned)? else {
+        return Ok(Vec::new());
+    };
+    let mut selected = Vec::new();
+    for interface in artifacts.contract.interfaces.iter().filter(|i| !i.handle) {
+        let name = format!(
+            "{}@{}/{}",
+            interface.identity.package, interface.identity.version, interface.identity.trait_path
+        );
+        if interface.selectors.iter().any(|path| !grants.allows(path)) {
+            return Err(format!("package capability denied: {name}"));
+        }
+        let grant = interface.selectors.iter().find(|path| table.iter().any(|(key, value)| key == *path && *value == hd_project::Grant::All))
+            .ok_or_else(|| format!("package capability {name} is not granted; add `\"{}\" = true` to the app's `[capabilities]` table", interface.selectors.first().map_or("TRAIT_PATH", String::as_str)))?;
+        let package = program
+            .and_then(|p| p.host_packages.iter().find(|package| package.trait_identity(&interface.identity.trait_path).as_ref() == Some(&interface.identity)))
+            .ok_or_else(|| format!("no selected package manifest provides {name}; run this program in its app package"))?;
+        let root = program
+            .and_then(|p| p.package_directory(package.package))
+            .ok_or_else(|| format!("no package directory provides {name}"))?;
+        let entry = package
+            .declarations
+            .as_ref()
+            .and_then(|d| d.providers.as_ref())
+            .and_then(|entries| {
+                entries
+                    .iter()
+                    .find(|entry| entry.trait_path == interface.identity.trait_path)
+            })
+            .ok_or_else(|| format!("{} has no `[host]` entry for {name}", package.manifest))?;
+        let file = entry.path.as_ref().ok_or_else(|| {
+            format!(
+                "{}:{}: provider for {name} must name a file",
+                package.manifest, entry.line
+            )
+        })?;
+        let root = hd_run::canonicalize(root).map_err(|e| format!("{}: {e}", root.display()))?;
+        let wanted = root.join(file);
+        let path = hd_run::canonicalize(&wanted).map_err(|e| {
+            format!(
+                "{}:{}: provider `{file}` for {name}: {e}",
+                package.manifest, entry.line
+            )
+        })?;
+        if !path.starts_with(&root) || !path.is_file() {
+            return Err(format!(
+                "{}:{}: provider `{file}` for {name} must be a file inside its declaring package",
+                package.manifest, entry.line
+            ));
+        }
+        selected.push(HostProvider {
+            module: interface.module.clone(),
+            grant_path: grant.clone(),
+            path,
+        });
+    }
+    Ok(selected)
 }
 
 pub struct NodeModule {
@@ -66,6 +144,7 @@ pub struct NodeModule {
 
 struct NodeInstance {
     wasm: Vec<u8>,
+    host_providers: Vec<HostProvider>,
     /// The program's arguments, after the module's path and its
     /// configuration on Node's command line.
     args: Vec<String>,
@@ -90,6 +169,38 @@ impl Engine for NodeEngine {
         if wasm.get(..4) != Some(b"\0asm") {
             return Err(LoadError::NotHd("not a Wasm module".into()));
         }
+        let artifacts =
+            hd_driver::host_artifacts(wasm).map_err(|e| LoadError::Engine(e.to_owned()))?;
+        let roots: Vec<_> = artifacts
+            .as_ref()
+            .into_iter()
+            .flat_map(|a| &a.contract.interfaces)
+            .filter(|i| !i.handle)
+            .collect();
+        let mut registered = std::collections::BTreeSet::new();
+        for provider in &self.host_providers {
+            let Some(interface) = roots.iter().find(|i| {
+                i.module == provider.module && i.selectors.contains(&provider.grant_path)
+            }) else {
+                return Err(LoadError::Engine(
+                    "selected provider names no required package capability".into(),
+                ));
+            };
+            if !registered.insert(&interface.module) {
+                return Err(LoadError::Engine(format!(
+                    "duplicate provider for {}",
+                    interface.identity.trait_path
+                )));
+            }
+        }
+        for interface in roots {
+            if !registered.contains(&interface.module) {
+                return Err(LoadError::Engine(format!(
+                    "missing package host provider for {}; grant the trait in the app's `[capabilities]` table",
+                    interface.identity.trait_path
+                )));
+            }
+        }
         Ok(NodeModule {
             wasm: wasm.to_vec(),
         })
@@ -101,6 +212,7 @@ impl Engine for NodeEngine {
     ) -> Result<Box<dyn Instance>, StartError> {
         Ok(Box::new(NodeInstance {
             wasm: m.wasm.clone(),
+            host_providers: self.host_providers.clone(),
             args: host.args.clone(),
             program: host.program.clone(),
             grants: host.grants.clone(),
@@ -140,12 +252,19 @@ impl Scratch {
             ("float.mjs", FLOAT),
             ("journal.mjs", JOURNAL),
             ("wire.mjs", WIRE),
+            ("package-providers.mjs", PACKAGE_PROVIDERS),
             ("gen/abi.mjs", ABI),
         ] {
             std::fs::write(s.0.join(name), text).map_err(|e| format!("{}: {e}", s.0.display()))?;
         }
         std::fs::write(s.0.join("main.wasm"), wasm)
             .map_err(|e| format!("{}: {e}", s.0.display()))?;
+        if !wasm.is_empty()
+            && let Some(artifacts) = hd_driver::host_artifacts(wasm).map_err(str::to_owned)?
+        {
+            std::fs::write(s.0.join("main.host.mjs"), artifacts.javascript)
+                .map_err(|e| format!("{}: {e}", s.0.display()))?;
+        }
         Ok(s)
     }
 }
@@ -171,12 +290,29 @@ impl NodeInstance {
         let config = dir.0.join("config.json");
         let frames = dir.0.join("frames.json");
         let killed = dir.0.join("status.txt");
-        let text = run_config(
+        let mut text = run_config(
             &self.program,
             &self.grants,
             (self.wall_ms, self.cleanup_ms),
             Some((&frames, &killed)),
         );
+        if !self.host_providers.is_empty() {
+            text.pop();
+            text.push_str(",\"hostProviders\":[");
+            for (n, r) in self.host_providers.iter().enumerate() {
+                if n != 0 {
+                    text.push(',');
+                }
+                let _ = write!(
+                    text,
+                    "{{\"module\":{},\"grantPath\":{},\"path\":{}}}",
+                    quote(&r.module),
+                    quote(&r.grant_path),
+                    quote(&r.path.to_string_lossy())
+                );
+            }
+            text.push_str("]}");
+        }
         if let Err(e) = std::fs::write(&config, text) {
             return Outcome::Internal(format!("{}: {e}", config.display()));
         }

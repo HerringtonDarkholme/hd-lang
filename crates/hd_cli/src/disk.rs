@@ -223,6 +223,7 @@ fn walk_below(
 pub type Requires = Vec<(String, u16)>;
 
 pub struct Program {
+    pub host_packages: Vec<hd_driver::HostPackage>,
     pub sources: DiskSources,
     pub package: String,
     /// The entry module below the package, as `main`.
@@ -270,9 +271,19 @@ impl Program {
             .retain(|path| hd_project::in_program(entry_file, path));
     }
 
+    /// The on-disk directory of a selected package, with the root at index zero.
+    pub(crate) fn package_directory(&self, package: u16) -> Option<&Path> {
+        if package == 0 {
+            self.package_dir.as_deref()
+        } else {
+            Some(&self.deps.get(usize::from(package) - 1)?.sources.root)
+        }
+    }
+
     /// The packages around the root, as the driver takes them.
     pub fn packages(&self) -> Packages<'_> {
         Packages {
+            host_packages: self.host_packages.clone(),
             instruction_origins: false,
             checked: false,
             requires: self.requires.clone(),
@@ -438,7 +449,21 @@ fn dependencies(root: &Path) -> Result<Dependencies, String> {
             fetched: p.fetched.is_some(),
         });
     }
+    let host_packages = order
+        .iter()
+        .map(|&i| {
+            let p = &sel.packages[i];
+            hd_driver::HostPackage {
+                package: index[&i],
+                identity: p.identity.clone(),
+                versioned_source: p.fetched.clone(),
+                declarations: p.manifest.host.clone(),
+                manifest: shown_from(&canonical, &p.dir.join("hd.toml")),
+            }
+        })
+        .collect();
     Ok(Dependencies {
+        host_packages,
         requires: edges(&first.requires),
         dev_requires: edges(&first.dev_requires),
         deps,
@@ -449,6 +474,7 @@ fn dependencies(root: &Path) -> Result<Dependencies, String> {
 /// What `dependencies` finds for a package.
 #[derive(Default)]
 struct Dependencies {
+    host_packages: Vec<hd_driver::HostPackage>,
     requires: Requires,
     dev_requires: Requires,
     deps: Vec<DiskPackage>,
@@ -780,6 +806,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         requires: Vec::new(),
         dev_requires: Vec::new(),
         deps: Vec::new(),
+        host_packages: Vec::new(),
         problems: Vec::new(),
         single_file: true,
         as_written,
@@ -812,6 +839,7 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
         requires: Vec::new(),
         dev_requires: Vec::new(),
         deps: Vec::new(),
+        host_packages: Vec::new(),
         problems: Vec::new(),
         single_file: true,
         as_written: None,
@@ -843,6 +871,7 @@ pub fn load_session(cwd: &Path) -> Result<Program, String> {
         requires: Vec::new(),
         dev_requires: Vec::new(),
         deps: Vec::new(),
+        host_packages: Vec::new(),
         problems: Vec::new(),
         single_file: false,
         as_written: None,
@@ -874,6 +903,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
             requires: Vec::new(),
             dev_requires: Vec::new(),
             deps: Vec::new(),
+            host_packages: Vec::new(),
             problems: vec![d],
             single_file: false,
             as_written: None,
@@ -884,6 +914,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
     }
     let (sources, package) = sources_of(root)?;
     let Dependencies {
+        host_packages,
         requires,
         dev_requires,
         deps,
@@ -898,6 +929,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
     Ok(Program {
         sources,
         package,
+        host_packages,
         entry: module_below(entry),
         requires,
         dev_requires,
@@ -1197,4 +1229,83 @@ pub fn tasks(root: &Path) -> Vec<Runnable> {
         .collect();
     out.sort_by(|a, b| a.name.cmp(&b.name));
     out
+}
+
+#[cfg(test)]
+mod host_declaration_tests {
+    use super::*;
+
+    #[test]
+    fn same_named_packages_keep_separate_host_declarations_without_overriding_grants() {
+        struct Scratch(PathBuf);
+        impl Drop for Scratch {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let root = Scratch(std::env::temp_dir().join(format!(
+            "hd-host-metadata-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )));
+        std::fs::create_dir(&root.0).unwrap();
+        for name in ["app", "left", "right"] {
+            std::fs::create_dir_all(root.0.join(name).join("src")).unwrap();
+        }
+        let app = root.0.join("app");
+        std::fs::write(
+            app.join("hd.toml"),
+            "[package]\nname = \"app\"\n[dependencies]\nleft = { path = \"../left\" }\nright = { path = \"../right\" }\n[capabilities]\nProcess = false\n",
+        ).unwrap();
+        std::fs::write(
+            app.join("src/main.hd"),
+            "pub fn main() -> void:\n    pass\n",
+        )
+        .unwrap();
+        for name in ["left", "right"] {
+            std::fs::write(root.0.join(name).join("hd.toml"),
+                "[package]\nname = \"same-sdk\"\n[host]\nServer = \"provider.mjs\"\n[capabilities]\nProcess = true\n").unwrap();
+            std::fs::write(
+                root.0.join(name).join("src/lib.hd"),
+                "@host\npub trait Server:\n    fn next!(&mut self) -> string\n",
+            )
+            .unwrap();
+        }
+        let program = load_package(&app, "src/main.hd").unwrap();
+        assert!(program.problems.is_empty(), "{:?}", program.problems);
+        assert_eq!(
+            program.capabilities,
+            [("Process".to_owned(), Grant::Deny)],
+            "a dependency's Process=true cannot override the root deny"
+        );
+        let packages = program.packages();
+        let hosts = packages.host_packages;
+        assert_eq!(hosts.len(), 3);
+        assert!(hosts[0].declarations.is_none());
+        assert_ne!(hosts[1].identity, hosts[2].identity);
+        for (i, name) in [(1, "left"), (2, "right")] {
+            assert_eq!(hosts[i].package, u16::try_from(i).unwrap());
+            assert_eq!(
+                hosts[i].identity,
+                hd_run::canonicalize(root.0.join(name))
+                    .unwrap()
+                    .display()
+                    .to_string()
+            );
+            assert!(hosts[i].versioned_source.is_none());
+            assert!(
+                hosts[i].manifest.ends_with(&format!("{name}/hd.toml"))
+                    || hosts[i].manifest.ends_with(&format!("{name}\\hd.toml"))
+            );
+            let declarations = hosts[i].declarations.as_ref().unwrap();
+            assert_eq!(declarations.line, 3);
+            assert_eq!(declarations.trait_paths().collect::<Vec<_>>(), ["Server"]);
+            let provider = &declarations.providers.as_ref().unwrap()[0];
+            assert_eq!(provider.line, 4);
+            assert_eq!(provider.path.as_deref(), Some("provider.mjs"));
+        }
+    }
 }

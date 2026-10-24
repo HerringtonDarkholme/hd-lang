@@ -1,0 +1,31 @@
+use std.serde.{Serialize, Deserialize, Serializer, Deserializer}
+
+@derive(Serialize, Deserialize)
+pub struct Secret:
+    large: u64
+    signed: i64
+    ratio: f64
+    zero: f64
+    children: List[string]
+
+pub struct Token:
+    hidden: string
+
+impl Serialize for Token:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+        out.text("custom:${self.hidden}")
+
+impl Deserialize for Token:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Token, R::Error]:
+        .Ok(Token { hidden: input.text("Token")? })
+
+@host
+pub trait Server:
+    fn secret(&self, value: Secret) -> Secret
+    fn custom(&self, value: Token) -> Token
+
+pub fn main() -> void $ Console + Server:
+    secret := $.use(Server).secret(Secret { large: 18446744073709551615, signed: -9223372036854775808, ratio: 1.0, zero: -0.0, children: ["nested"] })
+    println("${secret.large} ${secret.signed} ${secret.ratio.to_bits()} ${secret.zero.to_bits()} ${secret.children[0]}")
+    token := $.use(Server).custom(Token { hidden: "private" })
+    println(token.hidden)

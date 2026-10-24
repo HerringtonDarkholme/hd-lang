@@ -1,0 +1,7 @@
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd run
+stdout: 7
+run: hd build
+file: build/debug/host_probe.wasm
+no-file: build/debug/host_probe.host.mjs

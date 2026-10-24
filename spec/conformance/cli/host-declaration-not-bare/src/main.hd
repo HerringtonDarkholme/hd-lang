@@ -1,0 +1,3 @@
+@host()
+pub trait Server:
+    fn read(&self) -> string

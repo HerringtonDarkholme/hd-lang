@@ -1,0 +1,10 @@
+[package]
+name = "host_app"
+
+[dependencies]
+a = { path = "sdk-a" }
+b = { path = "sdk-b" }
+
+[capabilities]
+"dep.a.Server" = true
+"dep.b.Server" = true

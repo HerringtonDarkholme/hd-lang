@@ -1,0 +1,5 @@
+[package]
+name = "host_probe"
+
+[host]
+"main..Server" = "provider.mjs"

@@ -88,6 +88,9 @@ pub struct LEnum {
 pub struct LHandle {
     pub vtable: usize,
     pub wrap: Option<Hash128>,
+    /// Package handles release the JS registry record on the last HD count.
+    /// This drops a binding, without invoking a provider's resource methods.
+    pub release: Option<String>,
 }
 
 /// A private-field data type's JSON codecs: `encode` when the value
@@ -162,6 +165,10 @@ pub struct AtProfile<'a> {
     pub codecs: &'a BoundaryMap,
     pub out: bool,
     pub handles: &'a [DefId],
+    /// Package adapters use nominal namespaces, including returned handles.
+    pub package: bool,
+    /// The concrete owner arguments of an inherited method, Self first.
+    pub arguments: Option<TyList>,
 }
 
 /// The boundary type of `t`, or `unsupported` for a type that does not
@@ -294,7 +301,22 @@ fn of_at(
         },
         TyData::TraitValue { def, args, .. } if args == TyList::EMPTY => {
             let path = (input.path)(def).replace('/', ".");
-            let vtable = if let Some(host) = hd_host_abi::handle_trait(&path) {
+            let vtable = if let Some(at) = at.filter(|a| a.package && !a.out) {
+                if at.handles.contains(&def) {
+                    return unsupported(format!("the self-returning host handle trait `{path}`"));
+                }
+                let handles = [at.handles, &[def]].concat();
+                handle_vtable(
+                    input,
+                    m,
+                    def,
+                    None,
+                    Some(AtProfile {
+                        handles: &handles,
+                        ..at
+                    }),
+                )?
+            } else if let Some(host) = hd_host_abi::handle_trait(&path) {
                 handle_vtable(input, m, def, Some(host), None)?
             } else if let Some(at) = at
                 && !at.out
@@ -318,7 +340,16 @@ fn of_at(
             } else {
                 return unsupported(what());
             };
-            LTy::Handle(Box::new(LHandle { vtable, wrap: None }))
+            let release = if at.is_some_and(|a| a.package && !a.out) {
+                (input.package_trait)(def).map(|i| package_module(&i, true))
+            } else {
+                None
+            };
+            LTy::Handle(Box::new(LHandle {
+                vtable,
+                wrap: None,
+                release,
+            }))
         }
         _ => return unsupported(what()),
     })
@@ -369,7 +400,11 @@ fn json(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy> 
         _ => None,
     };
     if at.out {
-        let Some(encode) = codecs.encode else {
+        let Some(encode) = (if at.package {
+            codecs.package_encode
+        } else {
+            codecs.encode
+        }) else {
             return unsupported(format!(
                 "`{}` at a profile's boundary without its Serialize codec",
                 name()
@@ -384,7 +419,11 @@ fn json(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy> 
             decoded_walk: None,
         })));
     }
-    let (Some(decode), Some(decoded)) = (codecs.decode, codecs.decoded) else {
+    let (Some(decode), Some(decoded)) = (if at.package {
+        (codecs.package_decode, codecs.package_decoded)
+    } else {
+        (codecs.decode, codecs.decoded)
+    }) else {
         return unsupported(format!(
             "`{}` at a profile's boundary without its Deserialize codec",
             name()
@@ -432,8 +471,13 @@ fn unmut(pool: &InternPool, t: Ty) -> Ty {
 
 /// The method `m`'s parameter types after the receiver and its result
 /// type, at the trait value (`Self` the class `REF`).
-fn signature(pool: &InternPool, env: &dyn ProgramEnv, m: DefId) -> (Vec<Ty>, Ty) {
-    let full = pool.list(&[hd_mono::class_ref(pool)]);
+pub fn signature(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    m: DefId,
+    arguments: Option<TyList>,
+) -> (Vec<Ty>, Ty) {
+    let full = arguments.unwrap_or_else(|| pool.list(&[hd_mono::class_ref(pool)]));
     let params = env
         .params(m)
         .unwrap_or_default()
@@ -449,8 +493,16 @@ fn signature(pool: &InternPool, env: &dyn ProgramEnv, m: DefId) -> (Vec<Ty>, Ty)
 /// calls (`hd_mono::Collected::calls_dyn`): `(data, params) -> results`, a
 /// trap with no import.
 pub fn uncalled_slot(input: &Input<'_>, m: DefId) -> StageResult<Helper> {
+    uncalled_slot_at(input, m, None)
+}
+
+pub fn uncalled_slot_at(
+    input: &Input<'_>,
+    m: DefId,
+    arguments: Option<TyList>,
+) -> StageResult<Helper> {
     let (pool, env) = (input.pool, input.env);
-    let (params, ret) = signature(pool, env, m);
+    let (params, ret) = signature(pool, env, m, arguments);
     let mut all = vec![Val::I32];
     for p in &params {
         all.extend(layout::vals(pool, env, *p)?);
@@ -488,7 +540,7 @@ pub fn host_slot(
     if env.suspends(m) != waits {
         return refused();
     }
-    let (params, ret) = signature(pool, env, m);
+    let (params, ret) = signature(pool, env, m, at.and_then(|a| a.arguments));
     let mut args = Vec::new();
     let mut types = Vec::new();
     let codecs = if handle {
@@ -610,7 +662,45 @@ fn handle_vtable(
     at: Option<AtProfile<'_>>,
 ) -> StageResult<usize> {
     let tp = (input.path)(trait_);
-    let tname = tp.rsplit(['.', '/']).next().unwrap_or("").to_owned();
+    let package = at.is_some_and(|a| a.package);
+    let identity = if package {
+        (input.package_trait)(trait_)
+    } else {
+        None
+    };
+    let module = identity.as_ref().map(|i| package_module(i, true));
+    let tname = module
+        .as_deref()
+        .and_then(|m| m.strip_prefix("hd:"))
+        .unwrap_or_else(|| tp.rsplit(['.', '/']).next().unwrap_or(""))
+        .to_owned();
+    if package {
+        let mut methods = Vec::new();
+        let key = tname.clone();
+        let vtable = package_handle_tree(
+            input,
+            m,
+            trait_,
+            trait_,
+            &key,
+            at.expect("package boundary"),
+            &mut methods,
+            &mut Vec::new(),
+        )?;
+        if let (Some(identity), Some(module)) = (identity, module) {
+            record_package_interface(
+                m,
+                hd_host_abi::schema::Interface {
+                    identity,
+                    module,
+                    selectors: Vec::new(),
+                    handle: true,
+                    methods,
+                },
+            )?;
+        }
+        return Ok(vtable);
+    }
     let supers: Vec<Ty> = input.env.decls().supertraits(trait_).to_vec();
     if !supers.is_empty() && host.is_none() {
         return unsupported(format!(
@@ -627,11 +717,83 @@ fn handle_vtable(
                 "the host handle trait `{tp}`, whose supertrait has supertraits"
             ));
         }
-        let slots = handle_slots(input, m, def, &tname, host, at)?;
+        let slots = handle_slots(input, m, def, trait_, &tname, host, at)?;
         parents.push(m.vtable(slots));
     }
-    let slots = handle_slots(input, m, trait_, &tname, host, at)?;
+    let slots = handle_slots(input, m, trait_, trait_, &tname, host, at)?;
     Ok(m.vtable_with(slots, parents))
+}
+
+fn package_handle_tree(
+    input: &Input<'_>,
+    m: &mut Module,
+    owner: DefId,
+    target: DefId,
+    key: &str,
+    at: AtProfile<'_>,
+    methods: &mut Vec<hd_host_abi::schema::Method>,
+    seen: &mut Vec<DefId>,
+) -> StageResult<usize> {
+    if seen.contains(&owner) {
+        return unsupported("cyclic package host handle supertraits");
+    }
+    seen.push(owner);
+    let slots = handle_slots(input, m, owner, target, key, None, Some(at))?;
+    for method in input
+        .env
+        .trait_methods(owner)
+        .into_iter()
+        .filter(|d| input.collected.calls_dyn(*d))
+    {
+        add_package_method(
+            methods,
+            package_method(input, method, target, owner, at.arguments)?,
+        )?;
+    }
+    let mut parents = Vec::new();
+    for &sup in input.env.decls().supertraits(owner) {
+        let full = at
+            .arguments
+            .unwrap_or_else(|| input.pool.list(&[hd_mono::class_ref(input.pool)]));
+        let sup = subst(input.pool, input.env, owner, full, sup);
+        let TyData::TraitValue { def, args, .. } = input.pool.get(sup) else {
+            return unsupported("a host supertrait that is not a trait");
+        };
+        let args = input.pool.list(
+            &std::iter::once(hd_mono::class_ref(input.pool))
+                .chain(input.pool.list_items(args).iter().copied())
+                .collect::<Vec<_>>(),
+        );
+        parents.push(package_handle_tree(
+            input,
+            m,
+            def,
+            target,
+            key,
+            AtProfile {
+                arguments: Some(args),
+                ..at
+            },
+            methods,
+            seen,
+        )?);
+    }
+    seen.pop();
+    Ok(m.vtable_with(slots, parents))
+}
+
+pub fn add_package_method(
+    methods: &mut Vec<hd_host_abi::schema::Method>,
+    method: hd_host_abi::schema::Method,
+) -> StageResult<()> {
+    if let Some(other) = methods.iter().find(|m| m.name == method.name) {
+        if other != &method {
+            return unsupported("conflicting inherited package host signatures");
+        }
+    } else {
+        methods.push(method);
+    }
+    Ok(())
 }
 
 /// The slots of trait `trait_`'s vtable for a host handle of trait
@@ -640,6 +802,7 @@ fn handle_slots(
     input: &Input<'_>,
     m: &mut Module,
     trait_: DefId,
+    target: DefId,
     tname: &str,
     host: Option<&hd_host_abi::HostTrait>,
     at: Option<AtProfile<'_>>,
@@ -649,11 +812,22 @@ fn handle_slots(
     let mut slots = Vec::new();
     for method in env.trait_methods(trait_) {
         if !input.collected.calls_dyn(method) {
-            slots.push(Sym::Helper(uncalled_slot(input, method)?));
+            slots.push(Sym::Helper(uncalled_slot_at(
+                input,
+                method,
+                at.and_then(|a| a.arguments),
+            )?));
             continue;
         }
         let mp = (input.path)(method);
         let name = mp.rsplit(['.', '/']).next().unwrap_or("");
+        let package_name;
+        let name = if at.is_some_and(|a| a.package) {
+            package_name = package_wire_name(input, target, trait_, name)?;
+            package_name.as_str()
+        } else {
+            name
+        };
         let inner = match (host, at) {
             (Some(host), _) => {
                 let full = format!("{tname}.{name}");
@@ -663,7 +837,7 @@ fn handle_slots(
                 host_slot(input, m, host.key, &Row::of(hm), method, true, None)?
             }
             (None, Some(at)) => {
-                let (params, ret) = signature(pool, env, method);
+                let (params, ret) = signature(pool, env, method, at.arguments);
                 let mut codecs = vec![Codec::Scalar(Scalar::I32)];
                 codecs.extend(params.iter().map(|_| Codec::Buffer("")));
                 let row = Row {
@@ -684,7 +858,7 @@ fn handle_slots(
             }
             (None, None) => return unsupported(format!("the host handle trait `{tname}`")),
         };
-        let (params, ret) = signature(pool, env, method);
+        let (params, ret) = signature(pool, env, method, at.and_then(|a| a.arguments));
         let mut pv = Vec::new();
         for p in &params {
             pv.extend(layout::vals(pool, env, *p)?);
@@ -1439,9 +1613,18 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             let (number, data) = (f.local(Val::I32), f.local(Val::I32));
             get_len(&mut f, 0);
             f.set(number);
-            // The box of the number: nothing in it is counted.
+            // The number owns one host binding. Aliases count this box;
+            // its last release drops the binding, never an I/O resource.
             f.i32(4);
-            f.i32(0);
+            crate::rt::push_desc(
+                &mut f,
+                h.release.as_ref().map(|module| {
+                    Sym::Helper(Helper::PackageHandleRelease {
+                        module: module.clone(),
+                    })
+                }),
+                false,
+            );
             f.helper(Helper::New);
             f.set(data);
             f.get(data);
@@ -1546,4 +1729,214 @@ fn byte_elem() -> Elem {
         colls: Vec::new(),
         cyclic: false,
     }
+}
+
+/// Length-delimited full nominal identity, independent of dependency aliases.
+/// Role separates a default provider from a returned handle of the same trait.
+pub fn package_module(identity: &hd_host_abi::schema::Identity, handle: bool) -> String {
+    let mut h = hd_base::StableHasher::new("package-host-wire");
+    h.u32(hd_host_abi::schema::VERSION);
+    h.str(&identity.package);
+    h.str(&identity.version);
+    h.str(&identity.trait_path);
+    h.u8(u8::from(handle));
+    format!("hd:pkg:{:032x}", h.finish().0)
+}
+
+pub fn record_package_interface(
+    m: &mut Module,
+    interface: hd_host_abi::schema::Interface,
+) -> StageResult<()> {
+    if let Some(previous) = m
+        .package_contract
+        .interfaces
+        .iter()
+        .find(|i| i.module == interface.module)
+    {
+        if previous != &interface {
+            return unsupported("conflicting package host interface identities or schemas");
+        }
+    } else {
+        m.package_contract.interfaces.push(interface);
+    }
+    Ok(())
+}
+
+pub fn package_wire_name(
+    input: &Input<'_>,
+    target: DefId,
+    owner: DefId,
+    name: &str,
+) -> StageResult<String> {
+    if target == owner {
+        return Ok(name.to_owned());
+    }
+    let Some(id) = (input.package_trait)(owner) else {
+        return unsupported("a supertrait without a package identity");
+    };
+    Ok(format!(
+        "{}@{}/{}::{name}",
+        id.package, id.version, id.trait_path
+    ))
+}
+
+pub fn package_method(
+    input: &Input<'_>,
+    method: DefId,
+    target: DefId,
+    owner: DefId,
+    arguments: Option<TyList>,
+) -> StageResult<hd_host_abi::schema::Method> {
+    let (params, ret) = signature(input.pool, input.env, method, arguments);
+    let path = (input.path)(method);
+    Ok(hd_host_abi::schema::Method {
+        name: package_wire_name(
+            input,
+            target,
+            owner,
+            path.rsplit(['.', '/']).next().unwrap_or(""),
+        )?,
+        member: path.rsplit(['.', '/']).next().unwrap_or("").to_owned(),
+        params: params
+            .into_iter()
+            .map(|t| package_value(input, t, 0))
+            .collect::<StageResult<_>>()?,
+        result: package_value(input, ret, 0)?,
+        suspends: input.env.suspends(method),
+    })
+}
+
+fn package_value(input: &Input<'_>, t: Ty, depth: u32) -> StageResult<hd_host_abi::schema::Value> {
+    use hd_host_abi::schema::{Field, Value, Variant};
+    let (pool, env) = (input.pool, input.env);
+    let fail = || unsupported(format!("the generated JS codec for `{}`", pool.display(t)));
+    if depth > MAX_DEPTH {
+        return fail();
+    }
+    let s = layout::strip(pool, env, t);
+    if let TyData::Adt { def, args } = pool.get(s) {
+        if def == env.ref_cell() {
+            let Some(&inner) = pool.list_items(args).first() else {
+                return fail();
+            };
+            return package_value(input, inner, depth + 1);
+        }
+        if env.has_private_field(def) {
+            return Ok(Value::Json);
+        }
+    }
+    let int = |bits, signed| Value::Int { bits, signed };
+    Ok(match pool.get(s) {
+        TyData::Prim(p) => match p {
+            Prim::Bool => Value::Bool,
+            Prim::Char => Value::Char,
+            Prim::I8 => int(8, true),
+            Prim::I16 => int(16, true),
+            Prim::I32 => int(32, true),
+            Prim::I64 => int(64, true),
+            Prim::U8 => int(8, false),
+            Prim::U16 => int(16, false),
+            Prim::U32 | Prim::Usize => int(32, false),
+            Prim::U64 => int(64, false),
+            Prim::F32 => Value::F32,
+            Prim::F64 => Value::F64,
+            Prim::String => Value::String,
+        },
+        TyData::Tuple { elems, rest: None } => {
+            let ts = pool
+                .list_items(elems)
+                .iter()
+                .map(|t| package_value(input, *t, depth + 1))
+                .collect::<StageResult<Vec<_>>>()?;
+            if ts.is_empty() {
+                Value::Void
+            } else {
+                Value::Tuple(ts)
+            }
+        }
+        TyData::Option(inner) => Value::Option(Box::new(package_value(input, inner, depth + 1)?)),
+        TyData::Adt { def, args } if env.std_kind(def) == hd_mono::layout::StdKind::List => {
+            let Some(&elem) = pool.list_items(args).first() else {
+                return fail();
+            };
+            if pool.get(layout::strip(pool, env, elem)) == TyData::Prim(Prim::U8) {
+                Value::Bytes
+            } else {
+                Value::List(Box::new(package_value(input, elem, depth + 1)?))
+            }
+        }
+        TyData::Adt { def, args } => {
+            if let Some(variants) = env.enum_variants(def, args) {
+                if (input.path)(def).replace('/', ".") == "std.core.Result"
+                    && variants.len() == 2
+                    && variants.iter().all(|v| v.len() == 1)
+                {
+                    Value::Result(
+                        Box::new(package_value(input, variants[0][0], depth + 1)?),
+                        Box::new(package_value(input, variants[1][0], depth + 1)?),
+                    )
+                } else {
+                    let Some(names) = env.enum_variant_names(def) else {
+                        return fail();
+                    };
+                    if names.len() != variants.len() {
+                        return fail();
+                    }
+                    let mut out = Vec::new();
+                    for ((name, fields), types) in names.into_iter().zip(variants) {
+                        if fields.len() != types.len() {
+                            return fail();
+                        }
+                        out.push(Variant {
+                            name,
+                            fields: fields
+                                .into_iter()
+                                .zip(types)
+                                .map(|(name, ty)| {
+                                    Ok(Field {
+                                        name,
+                                        value: package_value(input, ty, depth + 1)?,
+                                    })
+                                })
+                                .collect::<StageResult<_>>()?,
+                        });
+                    }
+                    Value::Enum(out)
+                }
+            } else {
+                let Some(types) = env.data_fields(def) else {
+                    return fail();
+                };
+                let Some(names) = env.data_field_names(def) else {
+                    return fail();
+                };
+                if names.len() != types.len() {
+                    return fail();
+                }
+                Value::Record(
+                    names
+                        .into_iter()
+                        .zip(types)
+                        .map(|(name, ty)| {
+                            Ok(Field {
+                                name,
+                                value: package_value(
+                                    input,
+                                    subst(pool, env, def, args, ty),
+                                    depth + 1,
+                                )?,
+                            })
+                        })
+                        .collect::<StageResult<_>>()?,
+                )
+            }
+        }
+        TyData::TraitValue { def, args, .. } if args == TyList::EMPTY => {
+            let Some(identity) = (input.package_trait)(def) else {
+                return fail();
+            };
+            Value::Handle(package_module(&identity, true))
+        }
+        _ => return fail(),
+    })
 }
