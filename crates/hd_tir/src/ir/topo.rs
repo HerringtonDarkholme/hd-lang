@@ -12,12 +12,15 @@ use crate::own::fill;
 #[derive(Default)]
 pub struct Topology {
     /// The block whose list holds each instruction, or `NONE`, and the
-    /// instruction's position there.
+    /// instruction's position there. A child block is listed too, in the
+    /// block around the instruction that runs it, so of the blocks only
+    /// the body's root has `NONE`.
     pub blk: Vec<u32>,
     pub pos: Vec<u32>,
-    /// The instruction that runs each block, or `NONE`. A cleanup scope
-    /// owns its suites, since it runs them, not the `Defer` that
-    /// registers one.
+    /// The instruction that runs each block, or `NONE`: it names the
+    /// block in an operand, while `blk` holds the block that lists it.
+    /// A cleanup scope owns its suites, since it runs them, not the
+    /// `Defer` that registers one.
     pub owner: Vec<u32>,
     /// The lowest instruction inside each instruction: its own index, or
     /// the first of the blocks it lists or runs.

@@ -299,6 +299,12 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
 /// up through the blocks that hold it to a sub-body's root (a closure's
 /// root is listed in its parent's block too, so the climb stops at the
 /// first root).
+///
+/// The climb follows only `blk`, yet reaches the root from a point inside
+/// an `if`, `match` or loop body: every child block is listed in the block
+/// around the instruction that runs it, as the builder lists each
+/// instruction made while a block is open and the inliner lists the
+/// copy's root. Issue #828; own/a-reference-after-a-suspension-in-* guard it.
 fn suspending_subs(b: &Body, topo: &Topology, t: &mut Tables) {
     fill(&mut t.susp_sub, b.sub_root.len(), false);
     for i in (0..u32_of(b.len())).filter(|&i| is_suspension(b.tags[i as usize])) {
