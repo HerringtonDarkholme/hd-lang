@@ -1,6 +1,6 @@
 # Server Applications
 
-Status: design record, 2026-10-24. The direction is decided (#806, #266); the server SDK, its host capability and the adapters are not built.
+Status: design record, 2026-10-24. The direction is decided (#806, #266). The SDK request source and worker loops now have a slice-1 implementation; the deployment adapters and the remaining lifecycle slices are unfinished.
 Package-declared host capabilities ([#51](https://github.com/HerringtonDarkholme/hd-lang/issues/51)) come first, then the adapters of [#266](https://github.com/HerringtonDarkholme/hd-lang/issues/266).
 
 ## Contents
@@ -45,14 +45,14 @@ struct Hits:
 
 fn handle!(req: Request, hits: &mut Hits) -> Response:
     hits.n = hits.n + 1
-    Response::text(200, "hit ${hits.n}")
+    Response { status: 200, body: "hit ${hits.n}".to_utf8() }
 
 pub fn main!() -> void $ HttpServer:
     let mut hits = Hits { n: 0 }
-    serve!(8, &mut hits, handle)
+    serve!(8, &mut hits, handle).expect("server")
 ```
 
-`serve!` and `Response::text` are illustrative SDK names; the capability's exact signature belongs to #51.
+The [SDK](../../packages/server-sdk/README.md) owns `serve!` and `HttpServer`; [Server SDK](../../spec/std/server-sdk.md) specifies their slice-1 interface.
 Rejected shapes, each for one reason: a registered hook convention adds a host-owned application runtime; a command per job loses warm state; a fresh instance per request repeats initialization; a single instance with a queue lets one slow upstream delay unrelated requests.
 
 ## Use Cases

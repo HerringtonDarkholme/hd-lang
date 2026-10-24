@@ -859,3 +859,24 @@ pub fn main!() -> void $ Console + Http + Args:
         format!("host 127.0.0.1:{port}\nhost example.test\n")
     );
 }
+
+/// The SDK-owned package trait serves real requests through an ordinary
+/// retained main. Windows graceful listener shutdown belongs to #266's
+/// supervision slice; the HD provider fixtures do not use OS signals.
+#[cfg(unix)]
+#[test]
+fn server_sdk_main_keeps_state_and_serves_concurrent_requests() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let out = Command::new("node")
+        .args(["--test", "packages/server-sdk/test/node.test.mjs"])
+        .env("HD_SDK_TEST_HD", env!("CARGO_BIN_EXE_hd"))
+        .current_dir(root)
+        .output()
+        .expect("run SDK HTTP test");
+    assert!(
+        out.status.success(),
+        "{}\n{}",
+        text(&out.stdout),
+        text(&out.stderr)
+    );
+}

@@ -183,6 +183,25 @@ fn role_packages() -> Vec<(String, MemorySources)> {
     names
         .into_iter()
         .map(|path| {
+            // A packaged library is tested from its shipped sources rather
+            // than a copied implementation under the fixture directory.
+            let package_root = path.join("package-root.txt");
+            if package_root.is_file() {
+                let relative = std::fs::read_to_string(package_root).expect("package root");
+                let package = path.join(relative.trim());
+                let manifest =
+                    std::fs::read_to_string(package.join("hd.toml")).expect("package manifest");
+                let mut sources = MemorySources::default();
+                load_tree(&package, &package.join("src"), &mut sources);
+                sources.insert("hd.toml", &manifest);
+                return (
+                    path.file_name()
+                        .expect("package name")
+                        .to_string_lossy()
+                        .into_owned(),
+                    sources,
+                );
+            }
             let mut flat = MemorySources::default();
             load_tree(&path, &path, &mut flat);
             let mut sources = MemorySources::default();
@@ -371,6 +390,23 @@ fn build_for(
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let packages = Packages {
+        host_packages: fixture
+            .deps
+            .iter()
+            .enumerate()
+            .filter_map(|(i, (name, sources))| {
+                let text = hd_project::SourceSet::read(sources, "hd.toml")?;
+                let manifest = hd_project::parse_manifest(&String::from_utf8_lossy(&text))
+                    .expect("fixture dependency manifest");
+                Some(hd_driver::HostPackage {
+                    package: u16::try_from(i + 1).expect("packages"),
+                    identity: name.clone(),
+                    versioned_source: None,
+                    declarations: manifest.host,
+                    manifest: format!("dep.{name}/hd.toml"),
+                })
+            })
+            .collect(),
         requires: fixture
             .deps
             .iter()
