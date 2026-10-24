@@ -1,0 +1,13 @@
+run: hd build --engine node
+file: build/debug/host_app.wasm
+file: build/debug/host_app.host.mjs
+run: hd run --engine node --host dep.a.Server=provider-a.mjs --host dep.b.Server=provider-b.mjs
+stdout: A first
+stdout: B second
+stdout: A pending
+stdout: B pending
+run: hd build/debug/host_app.wasm --engine node --host dep.a.Server=provider-a.mjs --host dep.b.Server=provider-b.mjs --time-limit 2s
+stdout: A first
+stdout: B second
+stdout: A pending
+stdout: B pending

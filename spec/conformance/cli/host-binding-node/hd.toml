@@ -1,0 +1,6 @@
+[package]
+name = "host_app"
+
+[dependencies]
+a = { path = "sdk-a" }
+b = { path = "sdk-b" }

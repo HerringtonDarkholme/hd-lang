@@ -1,0 +1,4 @@
+# module.host.package.bare
+@host::[i32]  # diagnostic: decorator-target-kind
+pub trait Server:
+    fn read(&self) -> string

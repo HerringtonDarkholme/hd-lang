@@ -11,6 +11,9 @@
 //! hosts' codecs and method descriptors: the JS host's `host/gen/abi.mjs`
 //! and the wasmtime host's `hd_run_wasmtime/src/abi.rs`.
 
+pub mod javascript;
+pub mod schema;
+
 /// Scalar Wasm types at the boundary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scalar {

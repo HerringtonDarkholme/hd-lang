@@ -37,9 +37,9 @@ use hd_run::{HostSetup, Outcome};
 use crate::report::Reporter;
 
 const USAGE: &str = "usage:
-  hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd [-- ARGS]
-  hd [--cap NAME=VALUE]... FILE.wasm [-- ARGS]
-  hd run [--release] [--format json] [--cap NAME=VALUE]... [NAME]
+  hd [--release] [--format json] [--cap NAME=VALUE]... [--host PATH=PROVIDER.mjs]... FILE.hd [-- ARGS]
+  hd [--cap NAME=VALUE]... [--host PATH=PROVIDER.mjs]... FILE.wasm [-- ARGS]
+  hd run [--release] [--format json] [--cap NAME=VALUE]... [--host PATH=PROVIDER.mjs]... [NAME]
   hd --repl [--engine NAME] FILE
   hd build [--release] [--format json] [FILE.hd]
   hd check [FILE.hd] [--tests | --all] [--format json]
@@ -581,6 +581,7 @@ fn execute(
     table: &[(String, hd_project::Grant)],
     table_dir: Option<&Path>,
     flags: &[caps::CapFlag],
+    registrations: &[node::HostRegistration],
     args: &[OsString],
     (engine, level, limits): (engine::EngineKind, OptLevel, engine::ProgramLimits),
     rep: &mut Reporter,
@@ -607,7 +608,7 @@ fn execute(
             .collect(),
         program: program.to_owned(),
     };
-    match engine::run(engine, level, wasm, &host) {
+    match engine::run(engine, level, wasm, &host, registrations) {
         Ok((Outcome::Exit(code), trap)) => {
             // A panic's location follows the host's `panic:` line, as a
             // test's report does (`flow.panic.report`).
@@ -639,6 +640,7 @@ fn execute(
 struct FileWords {
     json: bool,
     caps: Vec<caps::CapFlag>,
+    host_registrations: Vec<node::HostRegistration>,
     file: Option<PathBuf>,
     /// The program's arguments (`cli.args.pass`).
     program_args: Vec<OsString>,
@@ -652,6 +654,7 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
     let mut w = FileWords {
         json: false,
         caps: Vec::new(),
+        host_registrations: Vec::new(),
         file: None,
         program_args: Vec::new(),
         engine: engine::EngineKind::default(),
@@ -674,6 +677,12 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
         if let Some(cap) = caps::cap_flag(args, i) {
             let (flag, used) = cap?;
             w.caps.push(flag);
+            i += used;
+            continue;
+        }
+        if let Some(registration) = node::host_flag(args, i) {
+            let (registration, used) = registration?;
+            w.host_registrations.push(registration);
             i += used;
             continue;
         }
@@ -748,6 +757,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
             &program.capabilities,
             program.package_dir.as_deref(),
             &w.caps,
+            &w.host_registrations,
             &w.program_args,
             (w.engine, pipeline.level, w.limits),
             &mut rep,
@@ -781,6 +791,7 @@ fn run_stdin_command() -> ExitCode {
             "main.hd",
             &program.capabilities,
             program.package_dir.as_deref(),
+            &[],
             &[],
             &[],
             (engine, pipeline.level, engine::ProgramLimits::default()),
@@ -827,7 +838,19 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
             "`{shown}` has no entry export `{missing}`: {rebuild}"
         ));
     }
-    if let Some((m, n)) = hd_run::unknown_import(&imports) {
+    let artifacts = match hd_driver::host_artifacts(&wasm) {
+        Ok(a) => a,
+        Err(e) => return rep.fail(&format!("`{shown}` has an invalid host contract: {e}")),
+    };
+    let ordinary: Vec<_> = imports
+        .into_iter()
+        .filter(|(m, n)| {
+            !artifacts
+                .as_ref()
+                .is_some_and(|a| a.contract.contains_import(m, n))
+        })
+        .collect();
+    if let Some((m, n)) = hd_run::unknown_import(&ordinary) {
         return rep.fail(&format!(
             "`{shown}` imports `{m}` `{n}`, which `hd` does not provide: {rebuild}"
         ));
@@ -839,6 +862,7 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         &[],
         None,
         &w.caps,
+        &w.host_registrations,
         &w.program_args,
         (w.engine, level_of(w.release), w.limits),
         &mut rep,
@@ -851,6 +875,7 @@ struct Words {
     json: bool,
     /// `--cap` flags; only `hd run` takes them (`cli.cap.flag.commands`).
     caps: Vec<caps::CapFlag>,
+    host_registrations: Vec<node::HostRegistration>,
     positional: Vec<OsString>,
     /// The words after `--`; only `hd run` takes them (`cli.args.separator`).
     program_args: Vec<OsString>,
@@ -867,6 +892,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         release: false,
         json: false,
         caps: Vec::new(),
+        host_registrations: Vec::new(),
         positional: Vec::new(),
         program_args: Vec::new(),
         packages: Vec::new(),
@@ -906,6 +932,14 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
             continue;
         }
 
+        if command == "run"
+            && let Some(registration) = node::host_flag(args, i)
+        {
+            let (registration, used) = registration?;
+            w.host_registrations.push(registration);
+            i += used;
+            continue;
+        }
         if command == "run"
             && let Some(cap) = caps::cap_flag(args, i)
         {
@@ -1075,6 +1109,7 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
         &program.capabilities,
         program.package_dir.as_deref(),
         &w.caps,
+        &w.host_registrations,
         &w.program_args,
         (w.engine, pipeline.level, w.limits),
         &mut rep,
@@ -1177,9 +1212,22 @@ fn write_module(
         dir.push("files");
     }
     let out = dir.join(format!("{stem}.wasm"));
+    let artifacts = hd_driver::host_artifacts(wasm).map_err(str::to_owned)?;
     std::fs::create_dir_all(&dir)
         .and_then(|()| std::fs::write(&out, wasm))
-        .map_err(|e| format!("{}: {e}", out.display()))
+        .map_err(|e| format!("{}: {e}", out.display()))?;
+    let glue = dir.join(format!("{stem}.host.mjs"));
+    if let Some(artifacts) = artifacts {
+        std::fs::write(&glue, artifacts.javascript)
+            .map_err(|e| format!("{}: {e}", glue.display()))?;
+    } else {
+        match std::fs::remove_file(&glue) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("{}: {e}", glue.display())),
+        }
+    }
+    Ok(())
 }
 
 /// `hd build [FILE]` (`cli.build.*`). Every module is tuned for the engine

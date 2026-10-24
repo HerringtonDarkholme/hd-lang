@@ -1,0 +1,4 @@
+# module.host.package.bare
+@host()  # diagnostic: decorator-target-kind
+pub trait Surface:
+    fn render!(&mut self, commands: List[string]) -> void

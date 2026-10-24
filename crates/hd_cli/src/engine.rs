@@ -305,6 +305,7 @@ pub(crate) fn run(
     level: OptLevel,
     wasm: &[u8],
     host: &HostSetup,
+    registrations: &[crate::node::HostRegistration],
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     match kind {
         EngineKind::Node => {
@@ -312,12 +313,24 @@ pub(crate) fn run(
                 on_ctrl_c(crate::node::forward_interrupt);
             }
             let store = crate::disk_store();
-            let node = crate::node::NodeEngine::default();
+            let node = crate::node::NodeEngine {
+                host_registrations: registrations.to_vec(),
+                ..crate::node::NodeEngine::default()
+            };
             let outcome = run_program(&node, wasm, &store, host).map_err(|e| e.to_string())?;
             let frames = node.trace.lock().map(|t| t.clone()).unwrap_or_default();
             Ok((outcome, frames))
         }
-        EngineKind::Wasmtime => wasmtime::run_program(level, wasm, host),
+        EngineKind::Wasmtime => {
+            // The engine names a reachable package trait before guest start.
+            if registrations.is_empty()
+                || hd_driver::host_artifacts(wasm).is_ok_and(|a| a.is_some())
+            {
+                wasmtime::run_program(level, wasm, host)
+            } else {
+                Err("`--host` provider registration requires a JS host; use `--engine node`".into())
+            }
+        }
     }
 }
 

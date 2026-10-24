@@ -8,8 +8,15 @@ use crate::view::Src;
 use crate::{BindingKind, ModuleScope, Names};
 
 /// The decorators that are not facts: each is read by the compiler.
-const COMPILER_DECORATORS: &[&str] =
-    &["derive", "error", "from", "source", "intrinsic", "annotate"];
+const COMPILER_DECORATORS: &[&str] = &[
+    "derive",
+    "error",
+    "from",
+    "source",
+    "intrinsic",
+    "annotate",
+    "host",
+];
 
 /// A decorator line's callee, without its call and type-argument wrappers.
 fn callee(d: NodeRef<'_>) -> Option<NodeRef<'_>> {

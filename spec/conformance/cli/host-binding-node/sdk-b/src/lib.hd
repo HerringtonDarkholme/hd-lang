@@ -1,0 +1,4 @@
+@host
+pub trait Server:
+    fn read(&self, text: string) -> string
+    fn wait!(&mut self) -> string

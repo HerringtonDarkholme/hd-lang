@@ -1,0 +1,7 @@
+@host
+pub trait Server:
+    fn read(&self) -> i32
+
+pub fn main() -> void $ Console + Server:
+    println("guest started")
+    println("${$.use(Server).read()}")

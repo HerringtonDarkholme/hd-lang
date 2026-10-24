@@ -1,0 +1,8 @@
+[package]
+name = "host_probe"
+
+[host]
+traits = ["main.Server"]
+
+[capabilities]
+"pkg.main.Server" = false

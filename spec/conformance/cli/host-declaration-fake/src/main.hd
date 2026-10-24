@@ -1,0 +1,15 @@
+@host
+pub trait Server:
+    fn read(&self) -> i32
+
+struct Fake: pass
+
+impl Server for Fake:
+    fn read(&self) -> i32: +7
+
+fn sample() -> i32 $ Server:
+    $.use(Server).read()
+
+pub fn main() -> void $ Console:
+    $.with(Server=&Fake {}):
+        println("${sample()}")

@@ -1,0 +1,4 @@
+run: hd run --engine node --host pkg.main.Server=provider.mjs --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","code":"denied-capability","severity":"error","message":null,"file":null,"line":null,"column":null},{"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101}]

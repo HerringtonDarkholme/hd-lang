@@ -116,6 +116,11 @@ pub trait ProgramEnv: LayoutEnv {
     fn data_field_names(&self, _def: DefId) -> Option<Vec<String>> {
         None
     }
+    /// Variant and payload field names in `LayoutEnv::enum_variants` order,
+    /// for generated host interfaces. `None` when names are unavailable.
+    fn enum_variant_names(&self, _def: DefId) -> Option<Vec<(String, Vec<String>)>> {
+        None
+    }
     /// Whether `def` is a `struct` declaration: a value whose copies copy
     /// the collections it holds (`crates/hd_wasm_linear/DESIGN.md` §15.2,
     /// "Collection values").
@@ -2023,10 +2028,15 @@ impl Cx<'_> {
             if !visited.insert((trait_, targs)) {
                 continue;
             }
+            let full = self.pool.list(
+                &std::iter::once(class_ref(self.pool))
+                    .chain(self.pool.list_items(targs).iter().copied())
+                    .collect::<Vec<_>>(),
+            );
+            for &parent in self.env.decls().supertraits(trait_) {
+                keys.push(subst(self.pool, self.env, trait_, full, parent));
+            }
             for m in self.env.trait_methods(trait_) {
-                let mut full = vec![class_ref(self.pool)];
-                full.extend(self.pool.list_items(targs).iter().copied());
-                let full = self.pool.list(&full);
                 let params = self.env.params(m).unwrap_or_default();
                 for p in params.into_iter().skip(1) {
                     let p = subst(self.pool, self.env, m, full, p);

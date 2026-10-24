@@ -47,6 +47,8 @@ const FLOAT: &str = include_str!("../../../host/float.mjs");
 const JOURNAL: &str = include_str!("../../../host/journal.mjs");
 /// The exchange-buffer encoding the hosts' codecs are built on.
 const WIRE: &str = include_str!("../../../host/wire.mjs");
+/// The checked helpers called by generated package host bindings.
+const PACKAGE_PROVIDERS: &str = include_str!("../../../host/package-providers.mjs");
 /// The codecs and method descriptors generated from the ABI model.
 const ABI: &str = include_str!("../../../host/gen/abi.mjs");
 
@@ -56,6 +58,47 @@ const ABI: &str = include_str!("../../../host/gen/abi.mjs");
 #[derive(Default)]
 pub struct NodeEngine {
     pub trace: Arc<Mutex<Vec<(u32, u32)>>>,
+    pub host_registrations: Vec<HostRegistration>,
+}
+
+/// An invoker's explicit selection. A declaration or grant never adds one.
+#[derive(Clone)]
+pub struct HostRegistration {
+    pub selector: String,
+    pub path: PathBuf,
+}
+
+pub(crate) fn host_flag(
+    args: &[std::ffi::OsString],
+    i: usize,
+) -> Option<Result<(HostRegistration, usize), String>> {
+    let text = args.get(i)?.to_string_lossy();
+    let (value, used) = if text == "--host" {
+        match args.get(i + 1) {
+            Some(v) => (v.to_string_lossy().into_owned(), 2),
+            None => return Some(Err("`--host` needs SOURCE_TRAIT_PATH=PROVIDER.mjs".into())),
+        }
+    } else {
+        (text.strip_prefix("--host=")?.to_owned(), 1)
+    };
+    Some((|| {
+        let (selector, path) = value
+            .split_once('=')
+            .ok_or_else(|| "`--host` needs SOURCE_TRAIT_PATH=PROVIDER.mjs".to_owned())?;
+        if !hd_project::is_capability_selector(selector) {
+            return Err(format!(
+                "`--host {value}` needs a `pkg...` or `dep...` trait path"
+            ));
+        }
+        let path = std::fs::canonicalize(path).map_err(|e| format!("provider `{path}`: {e}"))?;
+        Ok((
+            HostRegistration {
+                selector: selector.into(),
+                path,
+            },
+            used,
+        ))
+    })())
 }
 
 pub struct NodeModule {
@@ -64,6 +107,7 @@ pub struct NodeModule {
 
 struct NodeInstance {
     wasm: Vec<u8>,
+    host_registrations: Vec<HostRegistration>,
     /// The program's arguments, after the module's path and its
     /// configuration on Node's command line.
     args: Vec<String>,
@@ -88,6 +132,37 @@ impl Engine for NodeEngine {
         if wasm.get(..4) != Some(b"\0asm") {
             return Err(LoadError::NotHd("not a Wasm module".into()));
         }
+        let artifacts =
+            hd_driver::host_artifacts(wasm).map_err(|e| LoadError::Engine(e.to_owned()))?;
+        let roots: Vec<_> = artifacts
+            .as_ref()
+            .into_iter()
+            .flat_map(|a| &a.contract.interfaces)
+            .filter(|i| !i.handle)
+            .collect();
+        let mut registered = std::collections::BTreeSet::new();
+        for r in &self.host_registrations {
+            let Some(i) = roots.iter().find(|i| i.selectors.contains(&r.selector)) else {
+                return Err(LoadError::Engine(format!(
+                    "provider selector `{}` names no required package capability",
+                    r.selector
+                )));
+            };
+            if !registered.insert(&i.module) {
+                return Err(LoadError::Engine(format!(
+                    "duplicate registration for `{}`",
+                    r.selector
+                )));
+            }
+        }
+        for i in roots {
+            if !registered.contains(&i.module) {
+                return Err(LoadError::Engine(format!(
+                    "missing package host provider for {}@{}/{}; register it with --host SOURCE_TRAIT_PATH=PROVIDER.mjs",
+                    i.identity.package, i.identity.version, i.identity.trait_path
+                )));
+            }
+        }
         Ok(NodeModule {
             wasm: wasm.to_vec(),
         })
@@ -99,6 +174,7 @@ impl Engine for NodeEngine {
     ) -> Result<Box<dyn Instance>, StartError> {
         Ok(Box::new(NodeInstance {
             wasm: m.wasm.clone(),
+            host_registrations: self.host_registrations.clone(),
             args: host.args.clone(),
             program: host.program.clone(),
             grants: host.grants.clone(),
@@ -137,12 +213,19 @@ impl Scratch {
             ("float.mjs", FLOAT),
             ("journal.mjs", JOURNAL),
             ("wire.mjs", WIRE),
+            ("package-providers.mjs", PACKAGE_PROVIDERS),
             ("gen/abi.mjs", ABI),
         ] {
             std::fs::write(s.0.join(name), text).map_err(|e| format!("{}: {e}", s.0.display()))?;
         }
         std::fs::write(s.0.join("main.wasm"), wasm)
             .map_err(|e| format!("{}: {e}", s.0.display()))?;
+        if !wasm.is_empty()
+            && let Some(artifacts) = hd_driver::host_artifacts(wasm).map_err(str::to_owned)?
+        {
+            std::fs::write(s.0.join("main.host.mjs"), artifacts.javascript)
+                .map_err(|e| format!("{}: {e}", s.0.display()))?;
+        }
         Ok(s)
     }
 }
@@ -168,12 +251,28 @@ impl NodeInstance {
         let config = dir.0.join("config.json");
         let frames = dir.0.join("frames.json");
         let killed = dir.0.join("status.txt");
-        let text = run_config(
+        let mut text = run_config(
             &self.program,
             &self.grants,
             (self.wall_ms, self.cleanup_ms),
             Some((&frames, &killed)),
         );
+        if !self.host_registrations.is_empty() {
+            text.pop();
+            text.push_str(",\"hostProviders\":[");
+            for (n, r) in self.host_registrations.iter().enumerate() {
+                if n != 0 {
+                    text.push(',');
+                }
+                let _ = write!(
+                    text,
+                    "{{\"selector\":{},\"path\":{}}}",
+                    quote(&r.selector),
+                    quote(&r.path.to_string_lossy())
+                );
+            }
+            text.push_str("]}");
+        }
         if let Err(e) = std::fs::write(&config, text) {
             return Outcome::Internal(format!("{}: {e}", config.display()));
         }

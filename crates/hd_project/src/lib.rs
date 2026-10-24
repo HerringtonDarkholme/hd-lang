@@ -18,9 +18,9 @@ use hd_diag::Code;
 
 pub use doctest::{DocTest, doc_tests};
 pub use manifest::{
-    CAPABILITY_KEYS, Executable, Grant, HostPath, Manifest, ManifestError, Problem, Requirement,
-    Version, Workspace, compatibility_line, grant_problem, host_path, key_problem, parse_manifest,
-    problems, requirement_problem,
+    CAPABILITY_KEYS, Executable, Grant, HostDeclarations, HostPath, Manifest, ManifestError,
+    Problem, Requirement, Version, Workspace, compatibility_line, grant_problem, host_path,
+    is_capability_selector, key_problem, parse_manifest, problems, requirement_problem,
 };
 
 /// One file of a source set: its package-relative path with `/`.

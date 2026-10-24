@@ -56,6 +56,7 @@ import {
   recorded,
 } from "./journal.mjs";
 import { Dec, decodeUtf8, Enc, Err, HostContract, Ok, str, variant } from "./wire.mjs";
+import { createPackageRuntime, readPackageContract } from "./package-providers.mjs";
 
 export { HostContract };
 
@@ -732,6 +733,36 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // `pending` registers a wait the driver wakes, `finish` drops one.
   if (env.providers) Object.assign(imports, env.providers({ put, Enc, pending, finish }));
 
+  // Invoker-selected package providers use signature-generated glue. A guest
+  // descriptor is data only: it never selects or loads a JavaScript module.
+  let packageRuntime = null;
+  if (env.packageBindings) {
+    packageRuntime = createPackageRuntime(io, env);
+    try {
+      Object.assign(imports, env.packageBindings(packageRuntime));
+    } catch (error) {
+      packageRuntime.close();
+      platform?.close?.();
+      throw error;
+    }
+  } else if (env.module) {
+    try {
+      const sections = WebAssembly.Module.customSections(env.module, "hd.capabilities");
+      if (sections.length > 1) throw new HostContract("duplicate package host contracts");
+      if (sections.length) {
+        const required = readPackageContract(new Uint8Array(sections[0]));
+        const i = required.find((i) => !i.handle) ?? required[0];
+        if (i)
+          throw new HostContract(
+            `missing package host provider for ${i.identity.package}@${i.identity.version}/${i.identity.trait_path}; register it explicitly`,
+          );
+      }
+    } catch (error) {
+      platform?.close?.();
+      throw error;
+    }
+  }
+
   // Points the host at `instance`'s memory, for a driver that calls the
   // exports itself instead of `run` (a scenario's drivers): reports and
   // codecs read the exchange buffer through it.
@@ -887,7 +918,11 @@ export function createCoreHost(sink, env = {}, layer = null) {
     try {
       clearOperations(st);
     } finally {
-      platform?.close?.();
+      try {
+        packageRuntime?.close();
+      } finally {
+        platform?.close?.();
+      }
     }
   };
 

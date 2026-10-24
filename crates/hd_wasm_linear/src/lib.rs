@@ -249,6 +249,10 @@ pub struct Input<'a> {
     pub env: &'a dyn ProgramEnv,
     /// An item's stable path, for function names.
     pub path: &'a dyn Fn(DefId) -> String,
+    /// Declared package host roots, and identities for their returned handles.
+    pub package_host: &'a dyn Fn(DefId) -> Option<hd_host_abi::schema::Identity>,
+    pub package_trait: &'a dyn Fn(DefId) -> Option<hd_host_abi::schema::Identity>,
+    pub package_selectors: &'a dyn Fn(DefId) -> Vec<String>,
     pub collected: &'a Collected,
     /// The instances in content order (`InstanceTable::content_order`).
     pub order: &'a [InstId],

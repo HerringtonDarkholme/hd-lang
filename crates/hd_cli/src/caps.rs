@@ -51,7 +51,7 @@ fn parse_flag(value: &str) -> Result<CapFlag, String> {
                 .collect(),
         ),
     };
-    // `cli.cap.flag.unknown`, `cli.cap.flag.unscoped`.
+    // `cli.cap.flag.unknown.with-package-host`, `cli.cap.flag.unscoped`.
     if let Some(why) = grant_problem(key, &grant) {
         return Err(format!("`--cap {value}`: {why}"));
     }
@@ -100,10 +100,25 @@ fn denied(
         Ok(i) => i,
         Err(e) => return Some(Diag::error(None, &format!("the built module: {e}"))),
     };
-    hd_run::needs(&imports).into_iter().find_map(|need| {
+    let mut needs: Vec<String> = hd_run::needs(&imports)
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    match hd_driver::host_artifacts(wasm) {
+        Ok(Some(a)) => needs.extend(
+            a.contract
+                .interfaces
+                .into_iter()
+                .filter(|i| !i.handle)
+                .flat_map(|i| i.selectors),
+        ),
+        Ok(None) => {}
+        Err(e) => return Some(Diag::error(None, &format!("the built host contract: {e}"))),
+    }
+    needs.into_iter().find_map(|need| {
         let setting = table
             .iter()
-            .find(|(k, g)| k == need && *g == Grant::Deny)
+            .find(|(k, g)| k == &need && *g == Grant::Deny)
             .map(|(k, _)| format!("`{k} = false` in {table_name}"))
             .or_else(|| {
                 flags

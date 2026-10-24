@@ -4,7 +4,7 @@
 //! `cli.dep.invalid`, Package Tooling's `cli.manifest.*`).
 
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use hd_diag::{Code, Severity};
 
@@ -25,6 +25,9 @@ pub struct Manifest {
     pub source_root: Option<(String, u32)>,
     pub dependencies: Vec<Requirement>,
     pub dev_dependencies: Vec<Requirement>,
+    /// Package-owned traits listed by `[host] traits`; this declares no grant
+    /// and never names code that the toolchain should execute.
+    pub host: Option<HostDeclarations>,
     /// `[capabilities]` (`cli.cap.table`): each key as written, its grant
     /// (`None` when the value is neither a boolean nor a list of strings),
     /// and its line.
@@ -36,8 +39,16 @@ pub struct Manifest {
     /// `[workspace]` (`cli.mode.workspace`).
     pub workspace: Option<Workspace>,
     /// Each table or key that no rule gives a meaning, by its dotted path,
-    /// and its line (`cli.manifest.unknown-key`).
+    /// and its line (`cli.manifest.unknown-key.with-host`).
     pub unknown: Vec<(String, u32)>,
+}
+
+/// The package's host-trait declaration list and its manifest location.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HostDeclarations {
+    /// `None` preserves an invalid/missing list for a located diagnostic.
+    pub traits: Option<Vec<String>>,
+    pub line: u32,
 }
 
 /// One `[[executable]]` table: `name`, `module`, and the line of its
@@ -73,7 +84,7 @@ pub enum Grant {
 }
 
 /// The host capability traits a grant may name, and whether each takes
-/// scope entries (Capability Grants, `cli.cap.table.keys`).
+/// scope entries (Capability Grants, `cli.cap.table.keys.with-package-host`).
 pub const CAPABILITY_KEYS: &[(&str, bool)] = &[
     ("Console", false),
     ("ConsoleInput", false),
@@ -89,10 +100,15 @@ pub const CAPABILITY_KEYS: &[(&str, bool)] = &[
     ("Sys", true),
 ];
 
-/// Why a grant for `key` breaks `cli.cap.table.keys` or
+/// Why a grant for `key` breaks `cli.cap.table.keys.with-package-host` or
 /// `cli.cap.value.unscoped` (or their flag forms), or `None`.
 #[must_use]
 pub fn grant_problem(key: &str, grant: &Grant) -> Option<String> {
+    if is_capability_selector(key) {
+        return matches!(grant, Grant::Scopes(_)).then(|| {
+            format!("`{key}` is a package capability; its grant is `true` or `false`, not a list")
+        });
+    }
     let names = || {
         CAPABILITY_KEYS
             .iter()
@@ -110,6 +126,21 @@ pub fn grant_problem(key: &str, grant: &Grant) -> Option<String> {
         )),
         Some(_) => None,
     }
+}
+
+/// A root source-use path, resolved to nominal identity by the built program.
+#[must_use]
+pub fn is_capability_selector(key: &str) -> bool {
+    let parts: Vec<_> = key.split('.').collect();
+    let prefix = match parts.first() {
+        Some(&"pkg") => parts.len() >= 2,
+        Some(&"dep") => parts.len() >= 3,
+        _ => false,
+    };
+    prefix
+        && parts
+            .iter()
+            .all(|p| *p != "_" && !p.contains('$') && crate::is_module_ident(p))
 }
 
 /// One dependency requirement of a manifest (`module.dep.*`).
@@ -286,7 +317,7 @@ impl std::error::Error for ManifestError {}
 
 /// Parses `hd.toml` by the Package Tooling table: each table and key it
 /// lists is read, and every other one is recorded as unknown
-/// (`cli.manifest.unknown-key`).
+/// (`cli.manifest.unknown-key.with-host`).
 pub fn parse_manifest(text: &str) -> Result<Manifest, ManifestError> {
     let table: toml::Table = text.parse().map_err(|e: toml::de::Error| {
         let before = e.span().and_then(|r| text.get(..r.start));
@@ -341,6 +372,26 @@ pub fn parse_manifest(text: &str) -> Result<Manifest, ManifestError> {
                 } else {
                     m.dev_dependencies = reqs;
                 }
+            }
+            ("host", toml::Value::Table(h)) => {
+                only(&mut unknowns, "host", h, &["traits"]);
+                let traits = h
+                    .get("traits")
+                    .and_then(toml::Value::as_array)
+                    .and_then(|a| a.iter().map(|v| v.as_str().map(str::to_owned)).collect());
+                m.host = Some(HostDeclarations {
+                    traits,
+                    line: lines
+                        .get("host.traits")
+                        .copied()
+                        .unwrap_or_else(|| at("host")),
+                });
+            }
+            ("host", _) => {
+                m.host = Some(HostDeclarations {
+                    traits: None,
+                    line: at("host"),
+                });
             }
             ("capabilities", toml::Value::Table(c)) => {
                 m.capabilities = grants("capabilities", c, &lines);
@@ -669,10 +720,10 @@ fn identity(r: &Requirement) -> Option<String> {
 /// form, key-name collisions and keys that share a package
 /// (`cli.dep.invalid`), a minimum toolchain above `toolchain`
 /// (`module.toolchain.graph-minimum`), each `[capabilities]` and
-/// `[test.capabilities]` key and value (`cli.cap.table.keys`,
+/// `[test.capabilities]` key and value (`cli.cap.table.keys.with-package-host`,
 /// `cli.cap.value.unscoped`), an `[[executable]]` table without a string
 /// `name` and `module` (`cli.manifest.known-key`), and a warning for each
-/// unknown table or key (`cli.manifest.unknown-key`).
+/// unknown table or key (`cli.manifest.unknown-key.with-host`).
 #[must_use]
 pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
     let mut out = Vec::new();
@@ -724,6 +775,37 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
                 "this package needs toolchain {text} or newer, and this `hd` is {toolchain}"
             ),
         });
+    }
+    if let Some(host) = &m.host {
+        let mut seen = BTreeSet::new();
+        let mut report = |message| {
+            out.push(Problem {
+                code: Some(Code::InvalidManifest),
+                severity: Severity::Error,
+                line: Some(host.line),
+                message,
+            });
+        };
+        if let Some(traits) = &host.traits {
+            for path in traits {
+                let valid = path.split('.').all(|part| {
+                    // These are canonical names, not source tokens: a raw
+                    // identifier such as `type` has the canonical name type.
+                    part != "_" && !part.contains('$') && crate::is_module_ident(part)
+                });
+                if !valid {
+                    report(format!(
+                        "host trait `{path}` is not a package-relative trait path; write a path such as `server.HttpServer`"
+                    ));
+                } else if !seen.insert(path) {
+                    report(format!(
+                        "host trait `{path}` is listed more than once in `[host] traits`; keep one entry"
+                    ));
+                }
+            }
+        } else {
+            report("`[host] traits` must be a list of package-relative trait paths, such as [\"server.HttpServer\"]".to_owned());
+        }
     }
     for (key, grant, line) in m.capabilities.iter().chain(&m.test_capabilities) {
         let why = match grant {
@@ -783,7 +865,10 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Version, key_problem, parse_manifest, problems};
+    use super::{
+        Grant, Version, grant_problem, is_capability_selector, key_problem, parse_manifest,
+        problems,
+    };
     use hd_diag::Code;
 
     #[test]
@@ -843,6 +928,75 @@ mod tests {
         );
         let lines: Vec<Option<u32>> = problems(&m, "0.1.0").into_iter().map(|p| p.line).collect();
         assert_eq!(lines, [Some(6), Some(7), Some(8)]);
+    }
+
+    #[test]
+    fn host_declarations_keep_their_location_without_granting_capabilities() {
+        let m = parse_manifest(
+            "[package]\nname = \"sdk\"\n[host]\ntraits = [\"server.HttpServer\", \"ui.Σurface\", \"server.type\"]\n",
+        )
+        .unwrap();
+        let host = m.host.as_ref().unwrap();
+        assert_eq!(host.line, 4);
+        assert_eq!(
+            host.traits.as_ref().unwrap(),
+            &["server.HttpServer", "ui.Σurface", "server.type"]
+        );
+        assert!(m.capabilities.is_empty());
+        assert!(m.unknown.is_empty());
+        assert!(
+            problems(&m, "0.1.0").is_empty(),
+            "{:?}",
+            problems(&m, "0.1.0")
+        );
+    }
+
+    #[test]
+    fn package_capability_grants_use_source_paths_and_only_booleans() {
+        for key in [
+            "pkg.Ui",
+            "pkg.ui.Ui",
+            "dep.server_sdk.server.HttpServer",
+            "dep.sdk.type",
+        ] {
+            assert!(is_capability_selector(key));
+            assert_eq!(grant_problem(key, &Grant::All), None);
+            assert_eq!(grant_problem(key, &Grant::Deny), None);
+            assert!(grant_problem(key, &Grant::Scopes(vec!["anything".into()])).is_some());
+        }
+        for key in [
+            "Ui",
+            "pkg",
+            "dep.sdk",
+            "dep..Ui",
+            "pkg._",
+            "pkg.ui$",
+            "example.org/sdk@1.2.3/Ui",
+        ] {
+            assert!(!is_capability_selector(key));
+            assert!(grant_problem(key, &Grant::All).is_some());
+        }
+    }
+
+    #[test]
+    fn invalid_host_declarations_are_located_errors() {
+        for text in [
+            "host = true",
+            "[host]",
+            "[host]\ntraits = \"Server\"",
+            "[host]\ntraits = [1]",
+            "[host]\ntraits = [\"server..Server\"]",
+            "[host]\ntraits = [\"server.$internal\"]",
+            "[host]\ntraits = [\"server._\"]",
+            "[host]\ntraits = [\"Server\", \"Server\"]",
+        ] {
+            let m = parse_manifest(text).unwrap();
+            let errors = problems(&m, "0.1.0");
+            assert_eq!(errors.len(), 1, "{text}: {errors:?}");
+            assert_eq!(errors[0].code, Some(hd_diag::Code::InvalidManifest));
+            assert_eq!(errors[0].severity, hd_diag::Severity::Error);
+            assert!(errors[0].line.is_some());
+        }
     }
 
     #[test]

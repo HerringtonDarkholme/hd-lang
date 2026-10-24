@@ -338,6 +338,19 @@ impl Lower<'_, '_, '_> {
             };
             let k = place.kind;
             match deco.name.as_str() {
+                "host" => {
+                    if k != kind::TRAIT || !self.src.is_pub(n) {
+                        self.target_error(
+                            span,
+                            "`@host` precedes only a package-owned `pub trait`",
+                        );
+                    } else if !deco.bare || deco.typed {
+                        self.target_error(
+                            span,
+                            "write bare `@host`, without arguments or type arguments",
+                        );
+                    }
+                }
                 "derive" => {
                     if k & (kind::FN | kind::TRAIT | kind::IMPL | kind::METHOD) != 0 {
                         let msg = "`@derive` precedes only a data type or an enum";

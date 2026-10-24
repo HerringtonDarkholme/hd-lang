@@ -237,6 +237,24 @@ impl Engine for WasmtimeEngine {
         if wasm.get(..4) != Some(b"\0asm") {
             return Err(LoadError::NotHd("not a Wasm module".into()));
         }
+        if let Some(contract) = hd_host_abi::schema::from_wasm(wasm)
+            .map_err(|why| LoadError::Engine(format!("invalid package host contract: {why}")))?
+            && let Some(interface) = contract
+                .interfaces
+                .iter()
+                .find(|i| !i.handle)
+                .or_else(|| contract.interfaces.first())
+        {
+            let id = &interface.identity;
+            let name = if id.version.is_empty() {
+                format!("{}/{}", id.package, id.trait_path)
+            } else {
+                format!("{}@{}/{}", id.package, id.version, id.trait_path)
+            };
+            return Err(LoadError::Engine(format!(
+                "package host trait {name:?} requires a JS host; wasmtime does not load package host providers"
+            )));
+        }
         let imports = hd_run::module_imports(wasm).map_err(LoadError::NotHd)?;
         if let Some((m, n)) = imports.iter().find(|(m, n)| !supported(m, n, self.profile)) {
             return Err(LoadError::Engine(unsupported_message(m, n)));
@@ -254,5 +272,58 @@ impl Engine for WasmtimeEngine {
             host,
             HostIo::process(),
         )?))
+    }
+}
+
+#[cfg(test)]
+mod package_host_tests {
+    use super::*;
+    use hd_host_abi::schema::{Contract, Identity, Interface, SECTION};
+
+    #[test]
+    fn a_package_host_is_refused_before_the_guest_start_function() {
+        let contract = Contract {
+            interfaces: vec![Interface {
+                identity: Identity {
+                    package: "example.org/sdk".into(),
+                    version: "1.2.3".into(),
+                    trait_path: "server.Server".into(),
+                },
+                module: "hd:pkg:provider".into(),
+                selectors: vec!["dep.sdk.server.Server".into()],
+                handle: false,
+                methods: vec![],
+            }],
+        };
+        let mut module = wasm_encoder::Module::new();
+        let mut types = wasm_encoder::TypeSection::new();
+        types.ty().function([], []);
+        module.section(&types);
+        let mut functions = wasm_encoder::FunctionSection::new();
+        functions.function(0);
+        module.section(&functions);
+        module.section(&wasm_encoder::StartSection { function_index: 0 });
+        let mut code = wasm_encoder::CodeSection::new();
+        let mut start = wasm_encoder::Function::new([]);
+        start.instruction(&wasm_encoder::Instruction::Unreachable);
+        start.instruction(&wasm_encoder::Instruction::End);
+        code.function(&start);
+        module.section(&code);
+        module.section(&wasm_encoder::CustomSection {
+            name: SECTION.into(),
+            data: contract.encode().into(),
+        });
+        let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
+        let Err(LoadError::Engine(message)) =
+            engine.load(&module.finish(), &hd_cache::MemoryStore::default())
+        else {
+            panic!("package host must be refused at load")
+        };
+        assert!(message.contains("example.org/sdk@1.2.3/server.Server"));
+        assert!(message.contains("requires a JS host"));
+        assert!(
+            !message.contains("unreachable"),
+            "the trapping start function did not run"
+        );
     }
 }

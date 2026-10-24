@@ -1,0 +1,3 @@
+@host
+trait Server:
+    fn read(&self) -> string

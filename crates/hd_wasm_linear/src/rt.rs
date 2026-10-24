@@ -478,6 +478,10 @@ pub enum Helper {
         params: Vec<Val>,
         results: Vec<Val>,
     },
+    /// `(payload)`: remove the package handle's host binding on last release.
+    PackageHandleRelease {
+        module: String,
+    },
     /// `(end)`: grows the exchange buffer to `end` bytes.
     Fit,
     /// `(off, v: i64) -> off'`: unsigned LEB128 into the buffer.
@@ -1047,26 +1051,72 @@ fn profile_vtable(
     def: hd_base::DefId,
     p: &str,
 ) -> StageResult<usize> {
-    use hd_host_abi::{Codec, Wait};
-    let key = p.rsplit('.').next().unwrap_or("");
+    let package = (input.package_host)(def);
+    let module = package
+        .as_ref()
+        .map(|identity| crate::boundary::package_module(identity, false));
+    let key = module
+        .as_deref()
+        .and_then(|m| m.strip_prefix("hd:"))
+        .unwrap_or_else(|| p.rsplit('.').next().unwrap_or(""));
     let at = crate::boundary::AtProfile {
         codecs: &input.collected.boundary,
         out: false,
         handles: &[],
+        package: package.is_some(),
+        arguments: None,
     };
-    let full = input.pool.list(&[hd_mono::class_ref(input.pool)]);
+    let mut methods = Vec::new();
+    let vtable = profile_tree(input, m, def, def, key, at, &mut methods, &mut Vec::new())?;
+    if let (Some(identity), Some(module)) = (package, module) {
+        crate::boundary::record_package_interface(
+            m,
+            hd_host_abi::schema::Interface {
+                identity,
+                module,
+                selectors: (input.package_selectors)(def),
+                handle: false,
+                methods,
+            },
+        )?;
+    }
+    Ok(vtable)
+}
+
+fn profile_tree(
+    input: &Input<'_>,
+    m: &mut Module,
+    def: hd_base::DefId,
+    target: hd_base::DefId,
+    key: &str,
+    at: crate::boundary::AtProfile<'_>,
+    methods: &mut Vec<hd_host_abi::schema::Method>,
+    seen: &mut Vec<hd_base::DefId>,
+) -> StageResult<usize> {
+    use hd_host_abi::{Codec, Wait};
+    if seen.contains(&def) {
+        return unsupported("cyclic package host supertraits");
+    }
+    seen.push(def);
     let mut slots = Vec::new();
     for method in input.env.trait_methods(def) {
         if !input.collected.calls_dyn(method) {
-            slots.push(Sym::Helper(crate::boundary::uncalled_slot(input, method)?));
+            slots.push(Sym::Helper(crate::boundary::uncalled_slot_at(
+                input,
+                method,
+                at.arguments,
+            )?));
             continue;
         }
         let mp = (input.path)(method);
-        let name = mp.rsplit(['.', '/']).next().unwrap_or("").to_owned();
-        let params = input.env.params(method).unwrap_or_default();
-        let ret = input.env.ret(method).unwrap_or(Ty::VOID);
-        let ret = hd_mono::subst(input.pool, input.env, method, full, ret);
-        let codecs = vec![Codec::Buffer(""); params.len().saturating_sub(1)];
+        let member = mp.rsplit(['.', '/']).next().unwrap_or("");
+        let name = if at.package {
+            crate::boundary::package_wire_name(input, target, def, member)?
+        } else {
+            member.to_owned()
+        };
+        let (params, ret) = crate::boundary::signature(input.pool, input.env, method, at.arguments);
+        let codecs = vec![Codec::Buffer(""); params.len()];
         let row = crate::boundary::Row {
             name: &name,
             params: &codecs,
@@ -1091,7 +1141,54 @@ fn profile_vtable(
             Some(at),
         )?));
     }
-    Ok(m.vtable(slots))
+    if at.package {
+        for method in input
+            .env
+            .trait_methods(def)
+            .into_iter()
+            .filter(|d| input.collected.calls_dyn(*d))
+        {
+            crate::boundary::add_package_method(
+                methods,
+                crate::boundary::package_method(input, method, target, def, at.arguments)?,
+            )?;
+        }
+    }
+    let mut parents = Vec::new();
+    if at.package {
+        for &sup in input.env.decls().supertraits(def) {
+            let full = at
+                .arguments
+                .unwrap_or_else(|| input.pool.list(&[hd_mono::class_ref(input.pool)]));
+            let sup = hd_mono::subst(input.pool, input.env, def, full, sup);
+            let TyData::TraitValue {
+                def: parent, args, ..
+            } = input.pool.get(sup)
+            else {
+                return unsupported("a host supertrait that is not a trait");
+            };
+            let args = input.pool.list(
+                &std::iter::once(hd_mono::class_ref(input.pool))
+                    .chain(input.pool.list_items(args).iter().copied())
+                    .collect::<Vec<_>>(),
+            );
+            parents.push(profile_tree(
+                input,
+                m,
+                parent,
+                target,
+                key,
+                crate::boundary::AtProfile {
+                    arguments: Some(args),
+                    ..at
+                },
+                methods,
+                seen,
+            )?);
+        }
+    }
+    seen.pop();
+    Ok(m.vtable_with(slots, parents))
 }
 
 /// Adds `by` to the forbidden-context counter.
@@ -1243,6 +1340,24 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             params,
             results,
         } => crate::boundary::handle_slot(m, inner, params, results),
+        Helper::PackageHandleRelease { module } => {
+            let mut f = m.func("rt:package_handle_release", vec![Val::I32], vec![]);
+            if !m.acyclic {
+                f.global_get(Global::Tracing);
+                f.op(Instruction::If(BlockType::Empty));
+                f.op(Instruction::Return);
+                f.op(Instruction::End);
+            }
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+            f.call(Sym::Import(Import {
+                module: module.clone(),
+                name: "$release".into(),
+                params: vec![Val::I32],
+                results: vec![],
+            }));
+            f
+        }
         Helper::Fit => crate::boundary::fit(m),
         Helper::LebPut => crate::boundary::leb_put(m),
         Helper::LebGet => crate::boundary::leb_get(m),

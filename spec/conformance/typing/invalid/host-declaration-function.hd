@@ -1,0 +1,3 @@
+# module.host.package.target
+@host  # diagnostic: decorator-target-kind
+pub fn read() -> string: "ready"

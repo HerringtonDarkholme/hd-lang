@@ -710,6 +710,8 @@ pub const fn mem(memory: u32, offset: u64, align: u32) -> wasm_encoder::MemArg {
 #[derive(Default)]
 pub struct Module {
     pub track_origins: bool,
+    /// Reachable package capabilities and their generated adapter schemas.
+    pub package_contract: hd_host_abi::schema::Contract,
     /// Defined functions by symbol. A helper is defined when
     /// [`Module::finish`] finds a body naming it.
     symbols: Symbols,
@@ -1607,6 +1609,18 @@ impl Module {
             );
         }
         let mut module = wasm_encoder::Module::new();
+        if !self.package_contract.interfaces.is_empty() {
+            self.package_contract
+                .interfaces
+                .sort_by(|a, b| (&a.identity, a.handle).cmp(&(&b.identity, b.handle)));
+            self.package_contract
+                .validate()
+                .map_err(|why| NotImplemented::bug(Stage::Link, why))?;
+            module.section(&wasm_encoder::CustomSection {
+                name: hd_host_abi::schema::SECTION.into(),
+                data: self.package_contract.encode().into(),
+            });
+        }
         module.section(&types);
         if !imports.is_empty() {
             module.section(&import_sec);

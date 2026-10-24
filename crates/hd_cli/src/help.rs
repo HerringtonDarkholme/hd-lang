@@ -26,6 +26,10 @@ const CAP: (&str, &str) = (
     "--cap NAME=VALUE",
     "grant the capability NAME: true, false, or a comma-separated list, as in Http=api.example.com",
 );
+const HOST: (&str, &str) = (
+    "--host SOURCE_TRAIT_PATH=PROVIDER.mjs",
+    "explicitly load trusted provider JS for a package capability (Node only); may be repeated",
+);
 const TIME_LIMIT: (&str, &str) = (
     "--time-limit DURATION",
     "limit how long the program runs, as 30s; past it the program panics",
@@ -61,6 +65,7 @@ const COMMANDS: &[Command] = &[
             RELEASE,
             ENGINE,
             CAP,
+            HOST,
             TIME_LIMIT,
             CLEANUP_LIMIT,
             FORMAT,
@@ -72,7 +77,7 @@ const COMMANDS: &[Command] = &[
         summary: "run a module that hd build wrote",
         usage: "hd [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE.wasm [-- ARGS]",
         about: &["Run a module that hd build wrote. Its grant comes from --cap flags alone."],
-        flags: &[ENGINE, CAP, TIME_LIMIT, CLEANUP_LIMIT],
+        flags: &[ENGINE, CAP, HOST, TIME_LIMIT, CLEANUP_LIMIT],
     },
     Command {
         name: "--repl",
@@ -112,6 +117,7 @@ const COMMANDS: &[Command] = &[
             ENGINE,
             PACKAGE,
             CAP,
+            HOST,
             TIME_LIMIT,
             CLEANUP_LIMIT,
             FORMAT,
@@ -141,6 +147,7 @@ const COMMANDS: &[Command] = &[
             ),
             ("--update", "rewrite each failing snapshot's expected text"),
             CAP,
+            HOST,
             TIME_LIMIT,
             FORMAT,
             JOBS,
