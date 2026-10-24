@@ -1373,28 +1373,6 @@ reads, and the counts of the code it generates.
   `host_provider` count a copy of each argument the target owns
   (`rt::own_arg`). So a dynamic call lends its arguments, as host stubs
   expect.
-- **Copy-out** (docs/compiler/tir-v2.md, 3b). A function that does not
-  suspend and whose `mut self` receiver is a list or a map at this
-  instance (`emit::copies_out`, reading `OwnCx::received`) returns the
-  receiver's final value after its results, with a count of its own; the
-  passes never drop that receiver. A direct or default argument's call
-  stores it into the place of a local or a top-level binding the
-  argument read, as a `Store` lowers, then releases it (`Em::copy_back`);
-  `DynRead` stores it back through the reference; `DynSlot` and a
-  function reference's adapter have no place and release it.
-- **The `conflicting-access` check** (docs/compiler/tir-v2.md, 3c;
-  `ref.elem.self-call.conflict`). Before such a direct or default call,
-  a place another path may reach (`Em::reached`: rooted at a top-level
-  binding or a cell, or past a dereference) holds the marker 0: the
-  caller stores 0 by the `Store` lowering, with no header copy
-  (`Em::marking`), which releases the place's count while the call's
-  count of the argument keeps the value, and `Em::copy_back` stores the
-  copied-out value over it. A read of a list or a map through such a
-  place tests it (`Em::test_local`, `Em::test_read`, `Func::marker_test`:
-  `local.get x; call rt:marker_test`). Where no function calls
-  `Helper::Marker`, the no-op each marker store writes, the link erases
-  every test before it builds a helper (`Module::erase_marker_tests`), so
-  such a program is the code it was without the check.
 - **Moves.** The move pass moves a value's count into its one consumer
   and a local's into its last read (docs/compiler/tir-v2.md, "Move",
   rules 1 to 4). The emitter zeroes a moved place once its consumer has

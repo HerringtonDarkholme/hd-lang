@@ -160,7 +160,6 @@ impl Em<'_, '_, '_> {
             // counts its arguments itself.
             let mut own = Vec::new();
             let tys = super::callee_params(self.input, self.m, t.key, t.item, t.args);
-            let out = super::copies_out(self.input, t.item, &tys);
             for (k, mut pt) in tys.into_iter().enumerate() {
                 if k == 0 {
                     // The receiver: a reference, or the value the slot
@@ -246,7 +245,6 @@ impl Em<'_, '_, '_> {
                     results,
                     own,
                     ctx,
-                    out,
                 }
             } else {
                 Helper::DynSlot {
@@ -256,7 +254,6 @@ impl Em<'_, '_, '_> {
                     results,
                     own,
                     ctx,
-                    out,
                 }
             }));
         }

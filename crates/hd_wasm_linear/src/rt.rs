@@ -267,13 +267,6 @@ pub enum Helper {
     /// `(list) -> bool`: whether an element reference pins the list: its
     /// header has an owner word and its buffer a count over 1 (§23.20).
     ListPinned,
-    /// Marks a store of the marker 0 into a place a call copies out of
-    /// (`docs/compiler/tir-v2.md`, commit 3c); erased before
-    /// optimization. Each [`Helper::MarkerTest`] stays only where some
-    /// code calls it.
-    Marker,
-    /// `(list)`: panics `conflicting-access` on the marker.
-    MarkerTest,
     /// `(list) -> list`: a new list over a copy of the list's buffer,
     /// whose elements take their own counts: how [`Helper::ListCopy`]
     /// copies a pinned list, through the owner word's slot.
@@ -380,8 +373,6 @@ pub enum Helper {
     /// The dynamic call lends its arguments; `own` has the walk of each of
     /// `target`'s parameters, the receiver first, that it owns
     /// (`layout::Pass`), and the slot counts a copy of each of those.
-    /// With `out`, `target` copies out its receiver (`emit::copies_out`),
-    /// whose final value the slot has no place for and releases.
     DynSlot {
         target: Hash128,
         leaves: Option<Vec<Leaf>>,
@@ -389,13 +380,10 @@ pub enum Helper {
         results: Vec<Val>,
         own: Vec<(u32, Option<Walk>)>,
         ctx: Option<SlotCtx>,
-        out: bool,
     },
     /// `(ref, params..) -> results`: a vtable slot whose payload is a
     /// reference and whose target takes the value: reads it through the
     /// reference's `get`, calls `target`, then releases the value read.
-    /// With `out`, `target` copies out its receiver (`emit::copies_out`),
-    /// whose final value the slot stores back through the reference.
     DynRead {
         target: Hash128,
         read: RefRead,
@@ -403,7 +391,6 @@ pub enum Helper {
         results: Vec<Val>,
         own: Vec<(u32, Option<Walk>)>,
         ctx: Option<SlotCtx>,
-        out: bool,
     },
     /// `(env, at, ctx) -> (usize, (K, V))?`: the step closure code of
     /// std's `map_steps` (`map.rs`).
@@ -1139,10 +1126,10 @@ fn rt_import(name: &str, params: &[Val], results: &[Val]) -> Sym {
 fn dyn_read(
     target: Hash128,
     read: &RefRead,
-    (params, results): (&[Val], &[Val]),
+    params: &[Val],
+    results: &[Val],
     own: &[(u32, Option<Walk>)],
     ctx: Option<&SlotCtx>,
-    out: bool,
     m: &Module,
 ) -> Func {
     let mut all = vec![Val::I32];
@@ -1164,13 +1151,6 @@ fn dyn_read(
     recv(&mut f);
     push_slot_params(&mut f, params.len() - usize::from(ctx.is_some()), ctx);
     f.call(Sym::Inst(target));
-    // The receiver's final value, one address, back through the reference.
-    if out {
-        let x = f.local(Val::I32);
-        f.set(x);
-        ref_store(&mut f, 0, &[x], &read.value);
-        ref_count(&mut f, &[x], &read.value, false);
-    }
     if !recv_owned {
         ref_count(&mut f, &held, &read.value, false);
     }
@@ -1532,18 +1512,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::ListPinned => list_pinned(m),
-        Helper::Marker => m.func("rt:marker", vec![], vec![]),
-        Helper::MarkerTest => {
-            let mut f = m.func("rt:marker_test", vec![Val::I32], vec![]);
-            f.get(0);
-            f.op(Instruction::I32Eqz);
-            f.op(Instruction::If(BlockType::Empty));
-            f.helper(Helper::Panic(
-                "conflicting-access: read during an in-place change".into(),
-            ));
-            f.op(Instruction::End);
-            f
-        }
         Helper::ListClone { elem } => list_clone(m, elem),
         Helper::ListBuf { elem } => list_buf(m, elem),
         Helper::DropElems { elem } => drop_elems(m, elem),
@@ -1569,7 +1537,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             results,
             own,
             ctx,
-            out,
         } => {
             let mut all = vec![Val::I32];
             all.extend(params.iter().copied());
@@ -1594,12 +1561,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 ctx.as_ref(),
             );
             f.call(Sym::Inst(*target));
-            if *out {
-                match own[0].1.clone().filter(|_| m.runtime.is_some()) {
-                    Some(walk) => f.helper(Helper::Release { vals: rvals, walk }),
-                    None => f.op(Instruction::Drop),
-                }
-            }
             f
         }
         Helper::DynRead {
@@ -1609,8 +1570,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             results,
             own,
             ctx,
-            out,
-        } => dyn_read(*target, read, (params, results), own, ctx.as_ref(), *out, m),
+        } => dyn_read(*target, read, params, results, own, ctx.as_ref(), m),
         Helper::ListTruncate { elem } => list_truncate(m, elem),
         Helper::TypeIdOf(parts) => type_id(parts, vec![], m),
         Helper::RuntimeType(parts) => type_id(parts, vec![Val::I32], m),

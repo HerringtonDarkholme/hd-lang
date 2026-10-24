@@ -97,7 +97,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     decided(b, &mut errs);
     takes_outside_suspension(b, &mut errs);
     lent_refs(b, &mut errs);
-    change_places(b, own, &mut errs);
+    change_places(b, &mut errs);
     hoisted(b, own, &mut errs);
     Empties::new(&cx).walk(&mut errs);
     borrow_spans(&cx, &mut errs);
@@ -114,7 +114,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
 /// `Body::bound` row, sorted and once each, names a local that is no
 /// parameter and that one whole `Store`, its binding, writes. A place in a
 /// copy is rooted at a local the body defines: a parameter or a local some
-/// whole `Store` writes, so no in-place parameter's local is left in it.
+/// whole `Store` writes.
 fn copies(b: &Body, errs: &mut Vec<VerifyError>) {
     if !b.anchors.is_empty() && b.anchors.len() != b.len() {
         err(
@@ -192,9 +192,8 @@ fn copies(b: &Body, errs: &mut Vec<VerifyError>) {
 /// read from one, or a `&mut` reference takes its storage or a place in
 /// its list. Then a value of a type that may hold a list or a map, stored
 /// into a whole changing local, is fresh (a copy included) or a map value
-/// read for a change; and a changing parameter, but a `mut self` view of a
-/// collection, is first read in its sub-body to be copied and stored
-/// back.
+/// read for a change; and a changing parameter is first read in its
+/// sub-body to be copied and stored back.
 fn header_copies(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     use crate::own::copies::{changed_local, is_fresh, place_root, through_deref};
     let n = b.len();
@@ -283,8 +282,7 @@ fn header_copies(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     }
     for l in 0..b.local_ty.len() {
         let ty = b.local_ty[l];
-        if params[l] == NONE || !changing[l] || cx.in_place_view(ty) || cx.header_copy(ty).is_none()
-        {
+        if params[l] == NONE || !changing[l] || cx.header_copy(ty).is_none() {
             continue;
         }
         let (r, st) = (first[l] as usize, second[l] as usize);
@@ -413,7 +411,7 @@ fn lent_refs(b: &Body, errs: &mut Vec<VerifyError>) {
 /// arithmetic steps, coercions, constructions, drops and header copies
 /// between it and the change: nothing that may write the place or
 /// replace its buffer.
-fn change_places(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
+fn change_places(b: &Body, errs: &mut Vec<VerifyError>) {
     let n = b.len();
     let mut at = vec![(usize::MAX, 0); n];
     for i in (0..n).filter(|&i| b.tags[i] == Tag::Block) {
@@ -440,7 +438,7 @@ fn change_places(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         ),
     };
     for c in 0..n {
-        for (_, v) in crate::own::changed(b, cx, c) {
+        for (_, v) in crate::own::changed(b, c) {
             let r = v as usize;
             let Some(p) = (Ref(v).as_inst().is_some() && r < n && b.tags[r] == Tag::Read)
                 .then(|| b.decode_place(b.data[r][0]))

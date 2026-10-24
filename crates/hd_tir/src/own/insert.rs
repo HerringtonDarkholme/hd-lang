@@ -19,9 +19,7 @@
 //!    innermost block holding all its accesses that holds the last one
 //!    (the emitter's old rule, §23.20). Parameters and captures live in their
 //!    sub-body's root block. Every owned local is in its sub-body's exit
-//!    set. A `mut self` receiver whose final value the body copies out
-//!    (`OwnCx::received`'s `InPlace`) is not owned: no `Drop` empties it
-//!    before the backend reads it at the exit.
+//!    set.
 //! 4. **Jumps.** A `Break`, `Continue` or `ToArm` gets a `Drop` before it
 //!    of each value and local whose home it leaves while it may still hold
 //!    a count; a `Return` of each such value (the exit set drops the
@@ -33,15 +31,13 @@
 //! 5. **Uniqueness.** Every in-place change of a collection place gets an
 //!    `IsUnique` of that place just before it: a `Store` through an element
 //!    projection (each list on its path, outermost first), and `ListPush`,
-//!    `MapSet`, `MapRemove` and an in-place argument
-//!    ([`super::Pass::InPlace`], a `mut self` receiver of a collection), of
-//!    their collection operand. A change goes through the reads its place
-//!    or operand was made from (`xs[i].push(v)` pushes to the element that
-//!    `Read [$xs [%i]]` read): each list on such a read's path gets an
-//!    `IsUnique` before that read, outermost first, so the read sees the
-//!    buffer the change will reach; the walk stops at a read through a
-//!    dereference, whose change reaches the referent. A push's list, a map
-//!    store's or removal's map, or an in-place argument read from a place
+//!    `MapSet` and `MapRemove`, of their collection operand. A change goes
+//!    through the reads its place or operand was made from (`xs[i].push(v)`
+//!    pushes to the element that `Read [$xs [%i]]` read): each list on such
+//!    a read's path gets an `IsUnique` before that read, outermost first,
+//!    so the read sees the buffer the change will reach; the walk stops at
+//!    a read through a dereference, whose change reaches the referent. A
+//!    push's list or a map store's or removal's map read from a place
 //!    rooted at a local or a top-level binding names that place instead:
 //!    the `IsUnique` is of the place, and the change reads the place right
 //!    after it, again where an argument may write, looking each map value
@@ -72,9 +68,7 @@ use hd_base::{LocalId, NodeIdx, SubId};
 use hd_types::Ty;
 
 use super::splice::for_blocks;
-use super::{
-    Loc, Operand, OwnCx, OwnScratch, Pass, Role, Tri, consumes, operands, splice, tracked,
-};
+use super::{Loc, Operand, OwnCx, OwnScratch, Role, Tri, consumes, operands, splice, tracked};
 use crate::ir::{Body, CaptureMode, IntrinsicOp, NONE, ReadMode, Ref, Tag, local_flags, place};
 
 /// A place a jump may need to drop: a value or a local (bit 31 set),
@@ -353,7 +347,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     }
     collect_uses(b, t);
     for i in 0..n {
-        changes(b, cx, t, i);
+        changes(b, t, i);
     }
     super::copies::decide(b, cx, t, &mut scratch.copies, edits);
     values(b, cx, t, edits)?;
@@ -685,7 +679,6 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
             in_sub[l as usize] = u32_of(s);
         }
     }
-    let first = t.entries.len();
     for (l, (&flags, sub)) in b.local_flags.iter().zip(in_sub.iter_mut()).enumerate() {
         if flags & local_flags::PARAM != 0 && *sub == NONE {
             t.entries.push((0, u32_of(l)));
@@ -693,11 +686,6 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
         *sub = NONE;
     }
     t.placed = in_sub;
-    // A receiver whose final value the body copies out
-    // (`OwnCx::received`) is the caller's: never dropped, in no exit set.
-    let params = t.entries.len() - first;
-    let kept =
-        (params > 0 && cx.received(b.item, 0, params) == Pass::InPlace).then(|| t.entries[first].1);
     for i in 0..n {
         let [a, w] = b.data[i];
         match b.tags[i] {
@@ -733,7 +721,7 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
     t.entries.sort_unstable();
     t.entries.dedup();
     let owned = |b: &Body, t: &Tables, l: u32| {
-        kept != Some(l) && (t.celled[l as usize] || cx.counted(b.local_ty[l as usize]) != Tri::No)
+        t.celled[l as usize] || cx.counted(b.local_ty[l as usize]) != Tri::No
     };
     let (mut k, mut e) = (0, 0);
     for s in 0..u32_of(b.sub_root.len()) {
@@ -1016,18 +1004,18 @@ type Change = (u32, u32, u32, Option<bool>);
 
 /// The collection changes of instruction `i` into `t.changes`, as
 /// (change, `extra` word, operand, quiet): a push's list, a map store's
-/// or removal's map, and each in-place argument ([`Pass::InPlace`]). Quiet
-/// is `None` for an operand that reads no place rooted at a local or a
-/// top-level binding, and else whether nothing between that read and the
-/// change may write. A change whose operand reads a place is an access of
-/// the local the place is rooted at, if any, and an operand read again at
-/// the change owns nothing; its map value steps look their entries up
-/// again there, with their keys ([`Tables::relook`]).
-fn changes(b: &Body, cx: &dyn OwnCx, t: &mut Tables, i: usize) {
+/// or removal's map. Quiet is `None` for an operand that reads no place
+/// rooted at a local or a top-level binding, and else whether nothing
+/// between that read and the change may write. A change whose operand
+/// reads a place is an access of the local the place is rooted at, if
+/// any, and an operand read again at the change owns nothing; its map
+/// value steps look their entries up again there, with their keys
+/// ([`Tables::relook`]).
+fn changes(b: &Body, t: &mut Tables, i: usize) {
     if t.blk[i] == NONE {
         return;
     }
-    for (at, v) in super::changed(b, cx, i) {
+    for (at, v) in super::changed(b, i) {
         let Some(r) = Ref(v).as_inst().map(|r| r.0 as usize) else {
             continue;
         };

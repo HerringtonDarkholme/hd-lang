@@ -54,14 +54,12 @@
 //!    **the source of a struct update** (`CopyStruct`).
 //! 4. **A value argument** whose source may change while the callee runs:
 //!    a global, a dereference, an aliased local, or a local a later
-//!    argument changes. Not an in-place argument ([`Pass::InPlace`]), which
-//!    is meant to change, nor a list or map receiver, passed as is. The
+//!    argument changes. Not a list or map receiver, passed as is. The
 //!    inliner's `Store` of an argument into a parameter's local that does
 //!    not change ([`Body::binding`]) follows this rule instead of 1, and a
 //!    binding counts as an argument wherever 1 asks for one.
-//! 5. **A changing parameter**, at its sub-body's entry, but a `mut self`
-//!    view of a collection ([`OwnCx::in_place_view`]): it is read, copied
-//!    and stored back.
+//! 5. **A changing parameter**, at its sub-body's entry: it is read,
+//!    copied and stored back.
 //! 6. **A local a closure captures by value** that may share its header: a
 //!    parameter without an entry copy, or a local some value was stored
 //!    into with no copy (a binding of a fixed or safely shared source, a
@@ -115,7 +113,7 @@ use hd_base::NodeIdx;
 use hd_types::Ty;
 
 use super::insert;
-use super::{HeaderCopy, Loc, OwnCx, Pass, Role, splice};
+use super::{HeaderCopy, Loc, OwnCx, Role, splice};
 use crate::ir::{
     Body, BodyKind, Callee, CaptureMode, IntrinsicOp, NONE, ReadMode, Ref, Tag, local_flags, place,
     ref_word,
@@ -416,9 +414,8 @@ fn into_referent(b: &Body, word: u32) -> bool {
 
 /// The changing locals: the roots of every change rules 5 and 6 make
 /// unique (an element step on a `Store` or `Ref` place, a collection
-/// operand of a change, an in-place argument), and the locals a `&mut`
-/// reference takes. Each change site is a row of `sites`.
-fn changes(b: &Body, cx: &dyn OwnCx, t: &mut Tables, sub: &[u32]) {
+/// operand of a change), and the locals a `&mut` reference takes. Each change site is a row of `sites`.
+fn changes(b: &Body, t: &mut Tables, sub: &[u32]) {
     let mark = |t: &mut Tables, l: u32, i: usize| {
         if let Some(c) = t.changing.get_mut(l as usize) {
             *c = true;
@@ -478,20 +475,6 @@ fn changes(b: &Body, cx: &dyn OwnCx, t: &mut Tables, sub: &[u32]) {
                     && let Some(l) = changed_local(b, coll)
                 {
                     mark(t, l, i);
-                }
-            }
-            Tag::Call | Tag::Await => {
-                let Some(callee) = Callee::from_words(b.record(a)) else {
-                    continue;
-                };
-                let n = b.record(w).len().saturating_sub(3);
-                for k in 0..n {
-                    let arg = b.record(w)[k];
-                    if cx.pass(&callee, k, n) == Pass::InPlace
-                        && let Some(l) = changed_local(b, arg)
-                    {
-                        mark(t, l, i);
-                    }
                 }
             }
             _ => {}
@@ -592,7 +575,7 @@ pub(crate) fn decide(
             }
         }
     }
-    changes(b, cx, t, &ins.sub);
+    changes(b, t, &ins.sub);
     sources(b, &mut t.src);
     let copy_of = |b: &Body, v: u32| -> Option<(usize, HeaderCopy)> {
         let x = Ref(v).as_inst()?.0 as usize;
@@ -663,15 +646,12 @@ pub(crate) fn decide(
         }
         for &l in &params {
             let ty = b.local_ty[l as usize];
-            if !t.changing[l as usize] || cx.in_place_view(ty) {
+            if !t.changing[l as usize] || cx.header_copy(ty).is_none() {
                 continue;
             }
-            let Some(h) = cx.header_copy(ty) else {
-                continue;
-            };
             t.entry_copied[l as usize] = true;
             let syn = b.local_syn[l as usize];
-            copy_back(b, edits, root, 0, l, ty, h.ty, syn);
+            copy_back(b, edits, root, 0, l, ty, syn);
         }
     }
     for i in 0..n {
@@ -702,14 +682,11 @@ pub(crate) fn decide(
                         || t.sub_param[l as usize];
                     let shares = (param && !t.entry_copied[l as usize]) || !t.owns[l as usize];
                     let ty = b.local_ty[l as usize];
-                    if !shares {
+                    if !shares || cx.header_copy(ty).is_none() {
                         continue;
                     }
-                    let Some(h) = cx.header_copy(ty) else {
-                        continue;
-                    };
                     let (blk, pos, syn) = (ins.blk[i], ins.pos[i], b.syn[i]);
-                    copy_back(b, edits, blk, pos, l, ty, h.ty, syn);
+                    copy_back(b, edits, blk, pos, l, ty, syn);
                 }
             }
             _ => {}
@@ -1094,12 +1071,7 @@ fn arguments(b: &Body, cx: &dyn OwnCx, ins: &mut insert::Tables, t: &Tables, i: 
         let Some(h) = cx.header_copy(b.ty[x]) else {
             continue;
         };
-        let pass = match (&callee, fn_ty) {
-            (Some(c), _) => cx.pass(c, k, n),
-            (None, Some(f)) => cx.pass_value(f, k, n),
-            _ => continue,
-        };
-        if pass == Pass::InPlace
+        if (callee.is_none() && fn_ty.is_none())
             || (h.coll && callee.as_ref().is_some_and(|c| cx.receiver(c, k, n)))
         {
             continue;
@@ -1129,8 +1101,9 @@ fn arg_word(b: &Body, i: usize, k: usize) -> u32 {
 
 /// 5 and 6: `$l` read, copied and stored back, before position `pos` of
 /// block `blk`: `%r = Read copy [$l]`, `%c = ValueCopy %r`, `Drop [%r]`,
-/// `Store [$l] %c`, as insertion makes of the checker's copy today.
-#[allow(clippy::too_many_arguments)]
+/// `Store [$l] %c`, as insertion makes of the checker's copy today. The
+/// copy has the local's type, a `mut self` receiver's `mut` view too, so
+/// it stores back as it was read.
 fn copy_back(
     b: &mut Body,
     edits: &mut splice::Tables,
@@ -1138,7 +1111,6 @@ fn copy_back(
     pos: u32,
     l: u32,
     ty: Ty,
-    copy_ty: Ty,
     syn: NodeIdx,
 ) {
     let n = u32_of(b.len());
@@ -1151,7 +1123,7 @@ fn copy_back(
         pos,
         Tag::Intrinsic,
         [IntrinsicOp::ValueCopy as u32, rec],
-        copy_ty,
+        ty,
         syn,
     );
     let at = u32_of(b.extra.len());

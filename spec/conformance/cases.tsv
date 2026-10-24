@@ -1489,9 +1489,9 @@ runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy.hd	runtime	accept	la
 runtime/valid/a-list-default-is-fresh-on-every-call.hd	runtime	accept	lang/07-functions.md#default-values
 runtime/valid/a-literal-list-beside-collect-takes-the-default-list.hd	runtime	accept	std/iter.md#r-std-iter.collect.default
 runtime/valid/a-method-default-reads-the-receiver-and-earlier-parameters.hd	runtime	accept	lang/07-functions.md#default-values
-runtime/valid/a-mut-self-call-on-a-binding-completes-when-nothing-reads-it.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.self-call.store
-runtime/valid/a-mut-self-change-of-a-list-reaches-the-callers-place.hd	runtime	accept	lang/04-type-system.md#r-types.coll.writable
+runtime/valid/a-mut-self-change-of-a-list-stays-in-the-methods-copy.hd	runtime	accept	lang/07-functions.md#r-fn.method.mut-self-struct
 runtime/valid/a-parenthesized-chain-is-a-value.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
+runtime/valid/a-read-of-a-binding-during-its-mut-self-call-sees-the-unchanged-value.hd	runtime	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
 runtime/valid/a-spread-through-a-value-passes-each-element.hd	runtime	accept	lang/07-functions.md#function-types-and-values
 runtime/valid/a-three-link-chain-binds-every-name.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
 runtime/valid/a-top-level-chain-declares-every-name-once.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
@@ -4584,7 +4584,6 @@ typing/invalid/for-element-references-mut-short-binding.hd	type	reject:not-writa
 runtime/valid/reference-to-list-index.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.index.declared
 runtime/valid/element-receiver-auto-address.hd	runtime	accept	lang/07-functions.md#r-fn.method.auto-address.collection-element
 runtime/panic/element-receiver-pinned-during-call-panics.hd	runtime	panic:collection-pinned	lang/07-functions.md#r-fn.method.auto-address.collection-element
-runtime/panic/a-read-of-a-binding-during-its-mut-self-call-panics.hd	runtime	panic:conflicting-access	lang/13-values-and-references.md#r-ref.elem.self-call.conflict
 runtime/valid/for-element-references-through-reference.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.through
 typing/invalid/reference-to-list-readonly-store.hd	type	reject:not-writable	lang/13-values-and-references.md#r-ref.write.index
 typing/invalid/for-element-references-map.hd	type	reject:map-value-not-addressable	lang/06-control-flow.md#r-flow.for.ref.map

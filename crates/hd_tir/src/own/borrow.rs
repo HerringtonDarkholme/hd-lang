@@ -920,7 +920,6 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
         let lent = match cx.received(b.item, at, n) {
             Pass::Lent => true,
             Pass::Owned => !suspends && !t.kept_read[l],
-            Pass::InPlace => false,
         };
         if !lent {
             continue;

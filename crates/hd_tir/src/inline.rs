@@ -109,10 +109,6 @@ pub enum Bind {
     Store,
     /// The same for a list or map receiver, which a call passes as is.
     Receiver,
-    /// An in-place parameter, whose argument is a `Read`: the copy's places
-    /// rooted at the parameter are rooted at the place that read reads, so
-    /// a change writes back through it, and the read is left unused.
-    Place,
 }
 
 fn u32_of(n: usize) -> u32 {
@@ -129,14 +125,12 @@ pub struct Site {
 }
 
 /// A site that passed its checks: its parameters a `Store` binds (local,
-/// argument, and for a bound one whether it is a receiver), those an
-/// argument's place stands for (local, place word), the call's block,
-/// and where the copy will start.
+/// argument, and for a bound one whether it is a receiver), the call's
+/// block, and where the copy will start.
 struct Ready {
     c: usize,
     k: Body,
     params: Vec<(u32, usize, Option<bool>)>,
-    at: Vec<(u32, u32)>,
     outer: usize,
     base: u32,
 }
@@ -150,8 +144,8 @@ struct Ready {
 /// it last.
 ///
 /// A site is skipped, the rest still copied, when its callee's parameters
-/// do not match the call's arguments or binds, a [`Bind::Place`] argument
-/// is no `Read`, or the call is in no block. A caller the renumbering
+/// do not match the call's arguments or binds, or the call is in no
+/// block. A caller the renumbering
 /// refuses (a `CallDyn`, a call's providers of an unknown kind) copies
 /// none and is unchanged.
 ///
@@ -236,30 +230,23 @@ fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
     } = site;
     let r = b.record(b.data[c][1]);
     let args = &r[..r.len().saturating_sub(3)];
-    let (mut params, mut at) = (Vec::new(), Vec::new());
+    let mut params = Vec::new();
     for l in 0..k.local_flags.len() {
         if k.local_flags[l] & local_flags::PARAM == 0 {
             continue;
         }
-        let j = params.len() + at.len();
-        let (&bind, &a) = (binds.get(j)?, args.get(j)?);
+        let j = params.len();
+        let &bind = binds.get(j)?;
         // A parameter the callee stores whole binds as any local does.
         let word = u32_of(l) | place::BARE_LOCAL;
         let stored = (0..k.len()).any(|i| k.tags[i] == Tag::Store && k.data[i][0] == word);
-        if bind != Bind::Place {
-            params.push((u32_of(l), j, (!stored).then_some(bind == Bind::Receiver)));
-        } else if b.tags.get(a as usize) == Some(&Tag::Read) {
-            at.push((u32_of(l), b.data[a as usize][0]));
-        } else {
-            return None;
-        }
+        params.push((u32_of(l), j, (!stored).then_some(bind == Bind::Receiver)));
     }
     let outer = *outer.get(c).filter(|&&o| o != NONE)?;
-    (args.len() == params.len() + at.len() && !k.is_empty()).then_some(Ready {
+    (args.len() == params.len() && !k.is_empty()).then_some(Ready {
         c,
         k,
         params,
-        at,
         outer: outer as usize,
         base: 0,
     })
@@ -273,7 +260,6 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(), String> {
         c,
         mut k,
         params,
-        at,
         outer,
         base,
     } = r;
@@ -294,14 +280,6 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(), String> {
     let syn = out.syn[c];
     let ty = out.ty[c];
     out.extra.append(&mut k.extra);
-    for j in (0..m).filter(|_| !at.is_empty()) {
-        let (oa, ob) = k.tags[j].operands();
-        for (x, op) in [oa, ob].into_iter().enumerate() {
-            if op == Op::Place {
-                k.data[j][x] = rooted(out, k.data[j][x], lbase, &at);
-            }
-        }
-    }
     // The bindings stand right before the `Scope` in the call's block, so
     // an argument is consumed in the block that made it; the block also
     // lists the root, which the `Scope` runs.
@@ -384,38 +362,6 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(), String> {
     Ok(())
 }
 
-/// Place word `w` of the copy, rooted at the argument's place when its
-/// root is a parameter `at` lists (a local `lbase` past the callee's).
-fn rooted(out: &mut Body, w: u32, lbase: u32, at: &[(u32, u32)]) -> u32 {
-    let bare = w & place::BARE_LOCAL != 0;
-    let l = if bare {
-        w & !place::BARE_LOCAL
-    } else if out.extra[w as usize + 1] == place::ROOT_LOCAL {
-        out.extra[w as usize + 2]
-    } else {
-        return w;
-    };
-    let Some(&(_, arg)) = at.iter().find(|&&(p, _)| p + lbase == l) else {
-        return w;
-    };
-    if bare {
-        return arg;
-    }
-    // The argument's root and steps, then the copy's steps.
-    let (n, an) = (
-        out.extra[w as usize] as usize,
-        out.extra[arg as usize] as usize,
-    );
-    let mut words = Vec::with_capacity(an + n);
-    if arg & place::BARE_LOCAL == 0 {
-        words.extend_from_slice(&out.extra[arg as usize + 1..][..an]);
-    } else {
-        words.extend([place::ROOT_LOCAL, arg & !place::BARE_LOCAL]);
-    }
-    words.extend_from_slice(&out.extra[w as usize + 3..][..n - 2]);
-    push_record(out, &words)
-}
-
 /// Moves the copy's record words `xbase` on, its locals `lbase` on and
 /// its labels `lab` on, and turns each `Return` into a `Break` to `label`.
 fn relocate(k: &mut Body, xbase: u32, lbase: u32, lab: u32, label: u32) {
@@ -465,8 +411,8 @@ mod tests {
 
     use super::{Bind, Site, inlinable, inline_calls, plain_call, rechoose, u32_of};
     use crate::ir::{
-        Body, BodyKind, Callee, ChoiceKind, Op, Place, PlaceRoot, Proj, Providers, ReadMode, Ref,
-        Tag, TirBuilder, TirSink, local_flags, map_body_types, verify, verify_owned,
+        Body, BodyKind, Callee, ChoiceKind, IntrinsicOp, Op, Place, PlaceRoot, Proj, Providers,
+        ReadMode, Ref, Tag, TirBuilder, TirSink, local_flags, map_body_types, verify, verify_owned,
     };
     use crate::own::tests::{Cx, show};
     use crate::own::{OwnScratch, run};
@@ -662,8 +608,9 @@ mod tests {
         let mut b = one_splice_equals_one_per_copy(two_calls(), &callee, &[Bind::Store]);
         run(&mut b, &Cx, &mut OwnScratch::default()).expect("passes");
         assert_eq!(verify_owned(&b, &Cx), []);
-        // `x = 7(); 3(x.1, "q"); 3(x.1, "q")`: each `p` is rooted at `x.1`,
-        // and the later call's copy binds `q` first.
+        // `x = 7(); 3(x.1, "q"); 3(x.1, "q")`: each copy binds `p` and `q`
+        // and stores `p`; the later call's copy, appended first, has the
+        // lower locals.
         let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
         let blk = b.open_block();
         let x = b.local(LIST, Symbol::from_raw(0), 0, N);
@@ -680,12 +627,15 @@ mod tests {
         }
         let root = b.close_block(blk, None, Ty::VOID, N);
         let b = b.finish(root, &[]).expect("caller verifies");
-        let b = one_splice_equals_one_per_copy(b, &|| changer(true), &[Bind::Place, Bind::Store]);
+        let b = one_splice_equals_one_per_copy(b, &|| changer(true), &[Bind::Store, Bind::Store]);
         let stores = (0..b.len()).filter(|&i| b.tags[i] == Tag::Store);
         let places: Vec<_> = stores
             .filter_map(|i| b.decode_place(b.data[i][0]).map(|p| p.to_string()))
             .collect();
-        assert_eq!(places, ["[$0]", "[$4]", "[$0 .1]", "[$2]", "[$0 .1]"]);
+        assert_eq!(
+            places,
+            ["[$0]", "[$3]", "[$4]", "[$3]", "[$1]", "[$2]", "[$1]"]
+        );
     }
 
     /// The verifier checks what a copy promises: anchors in its rows, the
@@ -709,15 +659,17 @@ mod tests {
         let mut bad = b.clone();
         bad.bound.push(bad.bound[0]);
         assert!(finds(&bad, "bound local"));
-        // An in-place parameter's local left in its copy.
-        let mut b = changing_caller(false);
-        inline_call(&mut b, 5, changer(true), &[Bind::Place, Bind::Store]).expect("inlines");
-        run(&mut b, &Cx, &mut OwnScratch::default()).expect("passes");
+        // A copy's read of a local nothing stores.
         assert!(!finds(&b, "nothing stores"));
         let copied = |i: usize| b.anchors[i] & crate::ir::INLINED != 0 && b.tags[i] == Tag::Read;
         let read = (0..b.len()).find(|&i| copied(i)).expect("the copy's read");
-        b.data[read][0] = 1 | crate::ir::place::BARE_LOCAL;
-        assert!(finds(&b, "rooted at $1, which nothing stores"));
+        let l = u32_of(b.local_ty.len());
+        b.local_ty.push(LIST);
+        b.local_name.push(Symbol::from_raw(0));
+        b.local_syn.push(N);
+        b.local_flags.push(0);
+        b.data[read][0] = l | crate::ir::place::BARE_LOCAL;
+        assert!(finds(&b, &format!("rooted at ${l}, which nothing stores")));
     }
 
     /// The test context's list type ([`crate::own::tests::Cx`]).
@@ -751,46 +703,30 @@ mod tests {
         b.finish(root, &[]).expect("callee verifies")
     }
 
-    /// `g() { x = 7(); 3(x.1, 5(x)) }`, where callee 5 changes `x` in place
-    /// (`Cx`), or `3(x, ...)` with `whole`.
-    fn changing_caller(whole: bool) -> Body {
+    /// `g() { x = 7(); 3(x, { x.push("s"); "q" }) }`.
+    fn changing_caller() -> Body {
         let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
         let blk = b.open_block();
         let x = b.local(LIST, Symbol::from_raw(0), 0, N);
         let made = b.call(&item(7), &[], Providers::None, LIST, N);
         b.set(x, made, N);
-        let proj = if whole { vec![] } else { vec![Proj::Field(1)] };
-        let w = b.place(&Place {
-            root: PlaceRoot::Local(x),
-            proj,
-        });
-        let a = b.emit(Tag::Read, w, ReadMode::Use as u32, LIST, N);
+        let a = b.get(x, LIST, N);
+        let inner = b.open_block();
         let r = b.get(x, LIST, N);
-        let s = b.call(&item(5), &[r], Providers::None, Ty::STRING, N);
+        let v = b.const_str("s");
+        let rec = b.refs_record(&[r, v]);
+        b.emit(
+            Tag::Intrinsic,
+            IntrinsicOp::ListPush as u32,
+            rec,
+            Ty::VOID,
+            N,
+        );
+        let q = b.const_str("q");
+        let s = b.close_block(inner, Some(q), Ty::STRING, N);
         b.call(&item(3), &[a, s], Providers::None, Ty::VOID, N);
         let root = b.close_block(blk, None, Ty::VOID, N);
         b.finish(root, &[]).expect("caller verifies")
-    }
-
-    /// An in-place parameter names its argument's place: the copy reads
-    /// `x.1.0` and stores `x.1`, and only the other parameter is bound.
-    #[test]
-    fn an_in_place_parameter_is_rooted_at_its_arguments_place() {
-        let mut b = changing_caller(false);
-        inline_call(&mut b, 5, changer(true), &[Bind::Place, Bind::Store]).expect("inlines");
-        let mut v = b.clone();
-        v.anchors.clear();
-        assert_eq!(verify(&v), []);
-        let place = |i: usize| b.decode_place(b.data[i][0]).map(|p| p.to_string());
-        let rows: Vec<_> = (0..b.len())
-            .filter(|&i| matches!(b.tags[i], Tag::Read | Tag::Store))
-            .map(|i| place(i).unwrap_or_default())
-            .collect();
-        assert_eq!(
-            rows,
-            ["[$0]", "[$0 .1]", "[$0]", "[$2]", "[$0 .1 .0]", "[$0 .1]"]
-        );
-        assert_eq!(b.bound, [(2, false)]);
     }
 
     /// A list bound by a `Store` from a local a later argument changes takes
@@ -799,17 +735,18 @@ mod tests {
     #[test]
     fn a_bound_argument_is_copied_only_where_the_call_would_copy_it() {
         let copies = |bind| {
-            let mut b = changing_caller(true);
-            inline_call(&mut b, 5, changer(false), &[bind, Bind::Store]).expect("inlines");
+            let mut b = changing_caller();
+            let c = (0..b.len()).find(|&i| plain_call(&b, i) == Some(item(3)));
+            let c = c.expect("the call");
+            inline_call(&mut b, c, changer(false), &[bind, Bind::Store]).expect("inlines");
             run(&mut b, &Cx, &mut OwnScratch::default()).expect("passes");
             assert_eq!(verify_owned(&b, &Cx), []);
             let text = show(&b);
-            let copy = text.find(" Intrinsic %");
             let change = text.find("IsUnique").expect("the change");
-            (copy.is_some_and(|c| c < change), copy.is_none())
+            text.find(" Intrinsic %").is_some_and(|c| c < change)
         };
-        assert_eq!(copies(Bind::Store), (true, false));
-        assert_eq!(copies(Bind::Receiver), (false, true));
+        assert!(copies(Bind::Store));
+        assert!(!copies(Bind::Receiver));
     }
 
     /// A `Bound` call at a receiver substitution made concrete is chosen

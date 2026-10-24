@@ -762,9 +762,9 @@ step of such a read. A list element is `Read [%xs [%i]]`, a slot of the
 buffer of the list header `%xs` (`Body::element_read`); there is no
 element intrinsic. A read a change then goes through stays a `Read`
 too: insertion follows each change back
-through the reads it goes through (`own/insert.rs`, rule 5), and a
-`mut self` receiver of a collection is an in-place argument
-(`own::Pass::InPlace`, a signature fact `OwnCx::pass` gives). A `Store`
+through the reads it goes through (`own/insert.rs`, rule 5). A `mut
+self` receiver of a collection is the callee's own copy, a value
+argument like any `mut` parameter's. A `Store`
 writes a whole local
 (`[$l]`), a top-level binding (`[@g]`), a struct field of either, a
 data object's field (`[*%o .k]`), a place through a reference
@@ -1218,7 +1218,7 @@ body built elsewhere, such as a generated structure method, gets
   insertion (`own/insert.rs`): copies, drops and
   the exit set, an `IsUnique` before each change of a collection place
   (an element store, a push, a map store or removal, a write through a
-  map value, an in-place argument) and before each read such a change
+  map value) and before each read such a change
   goes through, of every list on that read's path, and an `IsUnique` and
   a `Pin` of each list on an element reference's path (the checker
   writes no pin of its own), and the header copies
@@ -1236,9 +1236,8 @@ body built elsewhere, such as a generated structure method, gets
   source; a value argument whose source may change while the callee runs (an
   aliased local, a dereference, a global, a local a later argument
   changes), copied right after it; a changing parameter on entry; a
-  local a closure captures by value that may share its header. A `mut
-  self` view of a collection (`OwnCx::in_place_view`) or a list or map
-  receiver (`OwnCx::receiver`) is passed as is;
+  local a closure captures by value that may share its header. A list
+  or map receiver (`OwnCx::receiver`) is passed as is;
   then borrow (`own/borrow.rs`): a `copy` read whose value only lends,
   over a span no write of what it reads, call that may reach it or
   suspension point crosses, becomes a `borrow` and loses its `Drop`s

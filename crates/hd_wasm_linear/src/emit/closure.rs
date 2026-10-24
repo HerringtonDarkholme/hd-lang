@@ -278,7 +278,7 @@ impl Em<'_, '_, '_> {
         for x in self.cell_read(l)? {
             self.f.get(x);
         }
-        self.tested(true, i, false)
+        self.store(i)
     }
 
     /// A `Store` into the whole of a cell's local. Its declaration makes a

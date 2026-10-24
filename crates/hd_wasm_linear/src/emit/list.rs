@@ -12,6 +12,7 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
+use hd_mono::layout::StdKind;
 use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Step, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
@@ -920,7 +921,7 @@ impl Em<'_, '_, '_> {
     /// place holds: a literal, a constructor, a call's result whose type
     /// is no legacy `mut` view, or a copy.
     fn fresh(&self, r: u32) -> bool {
-        let Some(at) = Ref(r).as_inst().filter(|_| !self.marking) else {
+        let Some(at) = Ref(r).as_inst() else {
             return true;
         };
         let i = at.0 as usize;
@@ -1258,8 +1259,17 @@ impl Em<'_, '_, '_> {
     /// `ValueCopy`: each collection in the value becomes its copy, a new
     /// header over the same buffer; a value holding none is itself.
     pub(super) fn value_copy(&mut self, i: u32, r: u32) -> StageResult<()> {
-        // The copy's own type says what it copies.
-        let t = self.ty(i);
+        // The copy's own type says what it copies. A list or a map copies
+        // through its `mut` view, which only a `mut self` receiver has,
+        // since no written type is one; a struct's `mut` view, a
+        // provider's, stays shared.
+        let mut t = self.ty(i);
+        let s = strip(self.pool(), self.env(), t);
+        if matches!(self.pool().get(s), TyData::Adt { def, .. }
+            if matches!(self.env().std_kind(def), StdKind::List | StdKind::Map))
+        {
+            t = s;
+        }
         let colls = coll_leaves(self.pool(), self.env(), t);
         if colls.is_empty() {
             self.push(r)?;

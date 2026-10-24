@@ -507,7 +507,6 @@ impl Em<'_, '_, '_> {
         let mut fresh = Vec::new();
         let (at, ty) = self.walk_place(NONE, &p, p.proj.len(), &mut fresh)?;
         let h = self.at_i32(&at)?;
-        self.test_local(self.reached(p.root, &p.proj), h, ty);
         self.release_fresh(&fresh)?;
         Ok((h, ty))
     }
@@ -782,7 +781,7 @@ impl Em<'_, '_, '_> {
             for x in &ls[part.first..part.first + part.count] {
                 self.f.get(*x);
             }
-            return self.tested(self.is_cell(l as usize), i, false);
+            return self.store(i);
         }
         if s.head != Head::Deref {
             return unsupported(
@@ -814,7 +813,7 @@ impl Em<'_, '_, '_> {
         } else {
             self.load_through(at, &value);
         }
-        self.tested(true, i, true)
+        self.store_owned(i)
     }
 
     /// Reads only `part` of the `target` value that the reference in
@@ -848,7 +847,7 @@ impl Em<'_, '_, '_> {
                 self.f.get(boxed);
                 self.f.op(leaf.load(0));
             }
-            self.tested(true, dest, false)?;
+            self.store(dest)?;
             self.own_view_field(dest, flag)?;
             self.f.get(boxed);
             self.f.helper(Helper::ReleaseRef);
@@ -857,7 +856,7 @@ impl Em<'_, '_, '_> {
             for l in &parent[part.first..part.first + part.count] {
                 self.f.get(*l);
             }
-            self.tested(true, dest, false)?;
+            self.store(dest)?;
             self.own_view_field(dest, flag)?;
             self.release_locals(&parent, target)?;
         }
@@ -866,7 +865,7 @@ impl Em<'_, '_, '_> {
             self.f.get(at);
             self.f.op(leaf.load(0));
         }
-        self.tested(true, dest, false)?;
+        self.store(dest)?;
         self.f.op(I::End);
         Ok(())
     }
@@ -900,20 +899,11 @@ impl Em<'_, '_, '_> {
     /// binding, whole or a struct field of it, and into a list value's
     /// element or a struct field of it ([`Em::elem_store`]).
     pub(super) fn place_store(&mut self, i: u32) -> StageResult<()> {
-        let [w, v] = self.b.data[i as usize];
-        self.store_into(i, w, v)
-    }
-
-    /// A store of value `v` into the place of word `w`, for instruction
-    /// `i`, as [`Em::place_store`] lowers one.
-    pub(super) fn store_into(&mut self, i: u32, w: u32, v: u32) -> StageResult<()> {
-        let Some(p) = self.b.decode_place(w) else {
-            return unsupported("a malformed place");
-        };
-        if self.owned && Self::rooted(&p) {
-            return self.rooted_store(i, &p, v);
+        if self.rooted_at(i) {
+            return self.rooted_store(i);
         }
-        let s = self.spot_of(&p)?;
+        let s = self.spot(i)?;
+        let v = self.b.data[i as usize][1];
         match (s.start, s.head, s.path.is_empty()) {
             (_, Head::Deref, true) => self.deref_write(s.start, v),
             (_, Head::Deref, false) => self.deref_field_write(s.start, &s.path, v),
@@ -1231,7 +1221,7 @@ impl Em<'_, '_, '_> {
             self.f.static_addr(at);
             self.f.op(leaf.load(0));
         }
-        self.tested(true, i, false)
+        self.store(i)
     }
 
     /// A store of `v` into top-level binding `def` in static slot `at`.
@@ -1309,33 +1299,6 @@ impl Em<'_, '_, '_> {
                 Proj::Deref => k > 0 || global,
                 Proj::Field(_) => false,
             })
-    }
-
-    /// Whether the place at `proj` from `root` is one another path may
-    /// reach while a call copies it out ([`Em::mark`]): a top-level
-    /// binding's, a cell's, or one past a dereference.
-    pub(super) fn reached(&self, root: PlaceRoot, proj: &[Proj]) -> bool {
-        let cell = matches!(root, PlaceRoot::Local(l) if self.is_cell(l.idx()));
-        cell || matches!(root, PlaceRoot::Global(..)) || proj.contains(&Proj::Deref)
-    }
-
-    /// Where `reached`, panics `conflicting-access` when the list or map
-    /// of type `ty` in local `x` is the marker a call that copies it out
-    /// left in its place ([`Em::mark`], `ref.elem.self-call.conflict`).
-    pub(super) fn test_local(&mut self, reached: bool, x: u32, ty: Ty) {
-        if reached && super::collection(self.input, ty) {
-            self.f.marker_test(x);
-        }
-    }
-
-    /// Stores the values on the stack as `Read` `i`'s ([`Em::store_as`]),
-    /// then [`Em::test_local`] of the list or map it read.
-    pub(super) fn tested(&mut self, reached: bool, i: u32, owned: bool) -> StageResult<()> {
-        self.store_as(i, owned)?;
-        if let Some(&x) = self.vals.get(&i).and_then(|ls| ls.first()) {
-            self.test_local(reached, x, self.ty(i));
-        }
-        Ok(())
     }
 
     /// The value at a place's root, where the walk starts: a local's (read
@@ -1554,10 +1517,9 @@ impl Em<'_, '_, '_> {
                 k = next;
                 continue;
             };
-            let h = self.at_i32(&at)?;
-            self.test_local(self.reached(p.root, &steps[..k]), h, ty);
             // A map's value at entry `ix` (`ref.elem.map`).
             if self.is_map(ty) {
+                let h = self.at_i32(&at)?;
                 let (vt, a) = self.map_value_at(h, ty, ix.0)?;
                 at = At::Mem(a, 0);
                 ty = vt;
@@ -1565,6 +1527,7 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             let (et, e) = self.elem(ty)?;
+            let h = self.at_i32(&at)?;
             let b = self.buffer(h);
             // The first element of a local's list, which a loop's range
             // proof may cover.
@@ -1822,7 +1785,7 @@ impl Em<'_, '_, '_> {
                 } else {
                     self.load_through(r, &value);
                 }
-                self.tested(true, i, true)?;
+                self.store_owned(i)?;
             } else {
                 let (_, part) = self.fold_path(target, &fields)?;
                 self.read_part(i, r, &value, target, part)?;
@@ -1831,7 +1794,7 @@ impl Em<'_, '_, '_> {
         }
         let (at, ty) = self.walk_place(i, &p, p.proj.len(), &mut fresh)?;
         self.push_at(&at, ty)?;
-        self.tested(self.reached(p.root, &p.proj), i, false)?;
+        self.store(i)?;
         self.release_fresh(&fresh)
     }
 
@@ -1840,19 +1803,23 @@ impl Em<'_, '_, '_> {
     /// value before the old one's is released; or through a reference that
     /// only fields follow, as `Store [*%r .x]` writes ([`Em::deref_field_write`]).
     /// The passes' `IsUnique` came before it.
-    fn rooted_store(&mut self, i: u32, p: &Place, v: u32) -> StageResult<()> {
+    pub(super) fn rooted_store(&mut self, i: u32) -> StageResult<()> {
+        let v = self.b.data[i as usize][1];
         if v != NONE && self.diverges(v) {
             self.f.op(I::Unreachable);
             return Ok(());
         }
+        let Some(p) = self.b.decode_place(self.b.data[i as usize][0]) else {
+            return unsupported("a malformed place");
+        };
         let mut fresh = Vec::new();
-        match self.last_through(p)? {
+        match self.last_through(&p)? {
             None => return unsupported("a store into a place in no memory"),
             Some((d, Some((target, fat)))) => {
                 if fat {
                     return unsupported("a write through a trait value reference");
                 }
-                let (at, _) = self.walk_place(i, p, d, &mut fresh)?;
+                let (at, _) = self.walk_place(i, &p, d, &mut fresh)?;
                 let r = self.at_i32(&at)?;
                 let fields: Option<Vec<u32>> = p.proj[d + 1..]
                     .iter()
@@ -1868,7 +1835,7 @@ impl Em<'_, '_, '_> {
                 }
             }
             Some(_) => {
-                let (at, ty) = self.walk_place(i, p, p.proj.len(), &mut fresh)?;
+                let (at, ty) = self.walk_place(i, &p, p.proj.len(), &mut fresh)?;
                 let Some((a, lv)) = self.at_leaves(&at, ty)? else {
                     return unsupported("a store into a place in no memory");
                 };
