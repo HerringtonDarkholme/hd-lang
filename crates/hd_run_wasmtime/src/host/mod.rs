@@ -36,6 +36,7 @@ mod call;
 mod kind;
 mod link;
 pub(crate) mod offload;
+mod output;
 mod reply;
 mod rt;
 mod state;

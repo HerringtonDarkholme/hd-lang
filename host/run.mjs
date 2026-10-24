@@ -38,7 +38,7 @@
 // alone, and passes it on as that signal, once. A terminal's Ctrl-C also
 // reaches this process, so a process told of such a signal ignores SIGINT
 // (the listener below), else the one interrupt would arrive twice.
-import { readFileSync, writeFileSync, writeSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import {
   isMainThread,
   MessageChannel,
@@ -49,25 +49,7 @@ import {
 import { CANCEL_STATUS, entryCancel } from "./core.mjs";
 import { createHost, exitPast, PROGRAM_TIME_LIMIT, reportIn } from "./node.mjs";
 
-// Creating a Worker makes Node's pipe descriptors nonblocking on macOS.
-// A write can then be short, even when the receiver keeps draining it.
-// Preserve all bytes here; asynchronous output/backpressure is #816.
-const outputWaiter = new Int32Array(new SharedArrayBuffer(4));
-function writeOutput(fd, text) {
-  const bytes = Buffer.from(text);
-  let offset = 0;
-  while (offset < bytes.length) {
-    try {
-      const written = writeSync(fd, bytes, offset, bytes.length - offset);
-      offset += written;
-      if (written === 0) Atomics.wait(outputWaiter, 0, 0, 1);
-    } catch (error) {
-      if (error.code === "EINTR") continue;
-      if (error.code !== "EAGAIN" && error.code !== "EWOULDBLOCK") throw error;
-      Atomics.wait(outputWaiter, 0, 0, 1);
-    }
-  }
-}
+import { createOutput } from "./output.mjs";
 
 // How long past the deadline the main thread waits for the host to end
 // the run on its own before it stops the worker.
@@ -204,7 +186,7 @@ async function runHere(
 
 // Runs `module` in a worker until its deadline, `limit` milliseconds from
 // now, and returns the status: the program's, or 3 for a worker it stopped.
-function supervise(module, config, args, limit) {
+function supervise(module, config, args, limit, output) {
   return new Promise((done, fail) => {
     const deadline = now() + limit;
     const { port1: port, port2 } = new MessageChannel();
@@ -215,9 +197,10 @@ function supervise(module, config, args, limit) {
     const cell = config.cleanupMs == null ? null : new Int32Array(new SharedArrayBuffer(8));
     const signal = interruptOf(config);
     const input = inputLines();
+    const outputConnection = output.connection();
     const worker = new Worker(new URL(import.meta.url), {
-      workerData: { module, config, args, deadline, port: port2, flag, cell },
-      transferList: [port2],
+      workerData: { module, config, args, deadline, port: port2, flag, cell, outputConnection },
+      transferList: [port2, outputConnection.port],
     });
     let status = null;
     let ended = false;
@@ -239,7 +222,7 @@ function supervise(module, config, args, limit) {
         });
       } else if (m.fd === undefined) status = m.status;
       else {
-        writeOutput(m.fd, m.text);
+        // The guest already queued these bytes through its writer connection.
         if (m.fd === 2 && m.text === reportIn(fact, PROGRAM_TIME_LIMIT)) reported = true;
       }
     };
@@ -250,8 +233,10 @@ function supervise(module, config, args, limit) {
       if (cell) process.off(signal, interrupt);
       port.close();
       input.close();
-      exitPast([worker], s, config.statusFile);
-      done(s);
+      output.drain().then(() => {
+        exitPast([worker], s, config.statusFile);
+        done(s);
+      }, fail);
     };
     // A Ctrl-C reaches a worker whose host waits, which cancels or
     // abandons the entry; one that computes is stopped at once, after what
@@ -266,7 +251,7 @@ function supervise(module, config, args, limit) {
       for (let m; status === null && (m = receiveMessageOnPort(port));) take(m.message);
       if (status !== null) return end(status);
       worker.terminate();
-      writeOutput(2, "stopped\n");
+      output.err("stopped\n");
       end(CANCEL_STATUS);
     };
     if (cell) process.on(signal, interrupt);
@@ -276,7 +261,7 @@ function supervise(module, config, args, limit) {
       for (let m; status === null && (m = receiveMessageOnPort(port));) take(m.message);
       if (status !== null) return end(status);
       worker.terminate();
-      if (!reported) writeOutput(2, reportIn(fact, PROGRAM_TIME_LIMIT));
+      if (!reported) output.err(reportIn(fact, PROGRAM_TIME_LIMIT));
       end(3);
     }, limit + GRACE_MS);
     port.on("message", (m) => {
@@ -316,23 +301,18 @@ if (isMainThread) {
           if (waiting) process.on(signal, cancel.request);
           else process.off(signal, cancel.request);
         });
-  process.exitCode =
-    limit === null
-      ? await runHere(
-          bytes,
-          config,
-          args,
-          {
-            out: (text) => writeOutput(1, text),
-            err: (text) => writeOutput(2, text),
-          },
-          null,
-          undefined,
-          cancel,
-        )
-      : await supervise(await WebAssembly.compile(bytes), config, args, limit);
+  const output = createOutput();
+  try {
+    process.exitCode =
+      limit === null
+        ? await runHere(bytes, config, args, output, null, undefined, cancel)
+        : await supervise(await WebAssembly.compile(bytes), config, args, limit, output);
+  } finally {
+    await output.close();
+  }
 } else {
-  const { module, config, args, deadline, port, flag, cell } = workerData;
+  const { module, config, args, deadline, port, flag, cell, outputConnection } = workerData;
+  const output = createOutput(outputConnection);
   // The next input line, which the main thread reads.
   const readLine = () => {
     Atomics.store(flag, 0, 0);
@@ -345,8 +325,12 @@ if (isMainThread) {
     config,
     args,
     {
-      out: (text) => port.postMessage({ fd: 1, text }),
-      err: (text) => port.postMessage({ fd: 2, text }),
+      out: output.out,
+      write: output.write,
+      err: (text) => {
+        output.err(text);
+        port.postMessage({ fd: 2, text });
+      },
       fact: (label) => port.postMessage({ fact: label }),
     },
     deadline,

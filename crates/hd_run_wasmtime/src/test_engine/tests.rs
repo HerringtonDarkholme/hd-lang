@@ -277,9 +277,8 @@ fn start_child(
 /// `.finish` do.
 #[cfg(unix)]
 fn finished_child(reactor: &mut Reactor, h: i32) -> Option<crate::codec::Enc> {
-    let mut out = Vec::new();
     // An earlier `due` may already have completed `h` with another handle.
-    while !reactor.is_completed(h) && !reactor.due(&mut out).contains(&h) {
+    while !reactor.is_completed(h) && !reactor.due().contains(&h) {
         assert!(reactor.wait(), "the child is pending");
     }
     match reactor.remove(h).map(|op| op.work) {
@@ -363,9 +362,9 @@ fn aborting_a_waiting_child_ends_its_thread() {
     let mut reactor = Reactor::new(None);
     let h = reactor.offload(run.wait()).unwrap();
     let sleep = reactor.sleep(100);
-    let mut out = Vec::new();
+
     let started = Instant::now();
-    while !reactor.is_completed(sleep) && !reactor.due(&mut out).contains(&sleep) {
+    while !reactor.is_completed(sleep) && !reactor.due().contains(&sleep) {
         assert!(reactor.wait(), "the sleep is pending");
     }
     assert!(!reactor.is_completed(h), "the child still runs");

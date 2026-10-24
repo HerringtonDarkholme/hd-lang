@@ -45,9 +45,8 @@ fn offload(reactor: &mut Reactor, request: Request) -> i32 {
 /// Waits for the operation `h` to complete and takes its result, as
 /// `block` and `.finish` do.
 fn finished(reactor: &mut Reactor, h: i32) -> Done {
-    let mut out = Vec::new();
     // An earlier `due` may already have completed `h` with another handle.
-    while !reactor.is_completed(h) && !reactor.due(&mut out).contains(&h) {
+    while !reactor.is_completed(h) && !reactor.due().contains(&h) {
         assert!(reactor.wait(), "the run is pending");
     }
     match reactor.remove(h).map(|op| op.work) {

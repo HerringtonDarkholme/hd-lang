@@ -386,6 +386,7 @@ impl WasmtimeSession {
             }
             other => other,
         };
+        self.run.store.data_mut().drain_output();
         Ok(outcome)
     }
 

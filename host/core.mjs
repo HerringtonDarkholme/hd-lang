@@ -15,8 +15,8 @@
 //   `.start`, which returns `[status, value]`, then `.finish(h)`. Status 0:
 //   done at once, the result is in the buffer and `value` is its length.
 //   Status 1: pending, `value` is its handle. `hd:Console` `write`
-//   and `write_error` complete at once (the text is written at
-//   completion); `hd:Clock`
+//   and `write_error` can wait for output backpressure; captured/browser
+//   sinks complete immediately. `hd:Clock`
 //   `sleep` completes when its duration has passed. External I/O can stay
 //   pending through generic readiness and cancellation hooks; other methods
 //   run synchronously and finish at once.
@@ -429,18 +429,22 @@ function consoleProvider({ st, sink, flush, grant }) {
   return {
     write: (text) =>
       grant.allows("Console")
-        ? later(performance.now(), () => {
-            st.out.push(text);
-            return Ok(undefined);
-          })
+        ? sink.write
+          ? (flush(), sink.write(1, text))
+          : later(performance.now(), () => {
+              st.out.push(text);
+              return Ok(undefined);
+            })
         : denied("stdout"),
     write_error: (text) =>
       grant.allows("Console")
-        ? later(performance.now(), () => {
-            flush();
-            sink.err(text);
-            return Ok(undefined);
-          })
+        ? sink.write
+          ? (flush(), sink.write(2, text))
+          : later(performance.now(), () => {
+              flush();
+              sink.err(text);
+              return Ok(undefined);
+            })
         : denied("stderr"),
   };
 }
