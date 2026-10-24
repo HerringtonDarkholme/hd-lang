@@ -2864,6 +2864,13 @@ instructions). The ownership passes then run on the combined body, so a
 `ListIter.next` inlined into a loop borrows its list like a hand-written
 index loop.
 
+A copy's parameter bound from a binding local borrows it the way any
+binding local does, and does not stop that local from borrowing in turn
+(2026-10-24, #667): in `for part in parts: n += part.len()`, the copied
+`len`'s `self` borrows `part` and `part` borrows the element, with no
+count per element. It is the borrow pass's local rule for a binding local
+read into another; the copy is not treated differently.
+
 **What it costs.**
 
 - **Code.** About 1,300 lines of Rust code and 400 of tests, counted

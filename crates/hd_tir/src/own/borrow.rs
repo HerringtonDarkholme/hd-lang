@@ -48,10 +48,17 @@
 //! field. It is not a parameter, never addressed, captured or changed in
 //! place, no read of it is consumed (that read would copy, where the
 //! binding could take the value), and every read of it lies in the span,
-//! which ends at its last `Drop`. It holds a borrowed value, so it owns
-//! nothing: its `Drop`s go, it leaves the exit set, and its reads resolve
-//! through it to the read it holds. The backend stores into it with no
-//! count (`Moves::loan_locals`).
+//! which ends at its last `Drop`. A read of it that another binding local
+//! holds, decided first, is not consumed: an arm precedes its match's
+//! bindings, so in `for part in parts: n += part.len()` the inlined `len`'s
+//! `self` borrows `part`, and then `part` borrows the element. The inner
+//! span lies in the outer one, since the outer's `Drop` in it would have
+//! stopped the inner borrow, so the outer's check covers both.
+//!
+//! A binding local holds a borrowed value, so it owns nothing: its `Drop`s
+//! go, it leaves the exit set, and its reads resolve through it to the
+//! read it holds. The backend stores into it with no count
+//! (`Moves::loan_locals`).
 //!
 //! A **lent parameter** ([`OwnCx::received`]) that the body never stores,
 //! addresses, captures or changes in place (an `IsUnique` gives up a count
@@ -189,9 +196,9 @@ pub(crate) struct Tables {
     last_ldrop: Vec<u32>,
     holds: Vec<u32>,
     unowned: Vec<bool>,
-    /// Per local: a read of it of a counted type whose value a use keeps or
-    /// a store takes.
-    kept_read: Vec<bool>,
+    /// Per local: the reads of it of a counted type whose value a use
+    /// keeps or a store takes, less those a binding local borrows.
+    kept_read: Vec<u32>,
     /// Per local: a closure's parameter.
     inner: Vec<bool>,
     /// Writes by root (locals, then values), in compressed rows in
@@ -515,15 +522,15 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut spli
     let locals = b.local_ty.len();
     t.reset(n, locals);
     scan(b, cx, t);
-    // Per local: a read of it whose value a use keeps or a store takes.
-    fill(&mut t.kept_read, locals, false);
+    // Per local: the reads of it whose value a use keeps or a store takes.
+    fill(&mut t.kept_read, locals, 0);
     for i in 0..n {
         if b.tags[i] == Tag::Read
             && let (Root::Local(l), _, _) = root_of(b, b.data[i][0])
             && (t.keeps[i] || t.stored[i] != NONE)
             && cx.counted(b.ty[i]) != Tri::No
         {
-            t.kept_read[l as usize] = true;
+            t.kept_read[l as usize] += 1;
         }
     }
     index_writes(b, cx, t);
@@ -832,7 +839,7 @@ fn decide(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tabl
     let keep = keeps_drops(b, cx, r);
     // A binding read for a consumer would copy there: the read copies (or
     // moves) into the binding instead.
-    if bind != NONE && (keep || t.kept_read[bind as usize]) {
+    if bind != NONE && (keep || t.kept_read[bind as usize] > 0) {
         return;
     }
     // The span is the statements of the end's block from the one that
@@ -874,6 +881,12 @@ fn decide(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tabl
             }
         }
     } else {
+        // A binding local's read into this one keeps nothing of it, so it
+        // may borrow too (`for part in parts` and an inlined `part.len()`
+        // binding its `self`).
+        if let (Root::Local(l), _, _) = root_of(b, b.data[r][0]) {
+            t.kept_read[l as usize] -= 1;
+        }
         t.holds[bind as usize] = x;
         t.unowned[bind as usize] = true;
         for k in t.start[bind as usize]..t.start[bind as usize + 1] {
@@ -937,7 +950,7 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
         }
         let lent = match cx.received(b.item, at, n) {
             Pass::Lent => true,
-            Pass::Owned => !suspends && !t.kept_read[l],
+            Pass::Owned => !suspends && t.kept_read[l] == 0,
         };
         if !lent {
             continue;

@@ -1,0 +1,10 @@
+# @dump: own counts
+# Borrow: `string.len` is inlined into the loop, and its `self` binds
+# the borrowed element `part`. The copy only reads `self`, so the binding
+# borrows too: no retain or release per element.
+fn total_len(parts: List[string]) -> usize:
+    let total: usize = 0
+    # subject
+    for part in parts:
+        total = total + part.len()
+    total
