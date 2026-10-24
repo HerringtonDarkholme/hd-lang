@@ -1,0 +1,2 @@
+run: hd run --time-limit 5s
+stdout: cancelled waits keep TCP and UDP input

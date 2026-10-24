@@ -340,11 +340,12 @@ function primImports({ put, text, env }) {
 // pending: it completes at `at`, on `performance.now()`'s clock, and
 // `done()`, when given, does it then and returns its result.
 class Later {
-  constructor(at, done, poll = null, abort = null) {
+  constructor(at, done, poll = null, abort = null, finish = null) {
     this.at = at;
     this.done = done;
     this.poll = poll;
     this.abort = abort;
+    this.finish = finish;
   }
 }
 const later = (at, done = null) => new Later(at, done);
@@ -353,8 +354,10 @@ const later = (at, done = null) => new Later(at, done);
 // hook, including when complete() ran but the guest never took .finish.
 // Timed operations keep their existing path. A pending probe is retried
 // after a short wait, from either the async driver or synchronous rt.block.
-export const pendingOperation = (poll, done, abort) =>
-  new Later(performance.now(), done, poll, abort);
+// The optional delivery hook can replace the kept result, such as Closed
+// after a resource closes between readiness and guest delivery.
+export const pendingOperation = (poll, done, abort, finish = null) =>
+  new Later(performance.now(), done, poll, abort, finish);
 
 function abortOperation(st, h) {
   const operation = st.ops.get(h);
@@ -409,7 +412,9 @@ function traitImports(module, provider, { view, text, put, pending, finished }) 
     }
     out[`${name}.start`] = (...raw) => {
       const v = f(...decode(raw));
-      return v instanceof Later ? pending(v.at, v.done, key, v.poll, v.abort) : [0, written(v)];
+      return v instanceof Later
+        ? pending(v.at, v.done, key, v.poll, v.abort, v.finish)
+        : [0, written(v)];
     };
     out[`${name}.finish`] = (h) => written(finished(h, key));
   }
@@ -625,9 +630,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // Pending operations by handle: `at` is when it completes, `done()` what
   // it does then, its result kept as `value`, and `method` the import
   // module and method that started it, whose `.finish` alone takes it.
-  const pending = (at, done, method = null, poll = null, abort = null) => {
+  const pending = (at, done, method = null, poll = null, abort = null, finish = null) => {
     const h = st.nextHandle++;
-    st.ops.set(h, { at, done, method, poll, abort, completed: false, value: undefined });
+    st.ops.set(h, { at, done, method, poll, abort, finish, completed: false, value: undefined });
     return [1, h];
   };
   const nextDeadline = () => {
@@ -682,8 +687,11 @@ export function createCoreHost(sink, env = {}, layer = null) {
     if (o?.method !== method || !o.completed) {
       throw new HostContract("a finish of an operation that is not pending");
     }
+    // Ownership transfers only at the validated guest .finish, not when
+    // complete() computes the value. Abort still owns an undelivered result.
+    const delivered = o.finish?.();
     st.ops.delete(h);
-    return o.value;
+    return delivered === undefined ? o.value : delivered;
   };
   // Waits at most until `d`, and never past the timeout: a pending host
   // wait is cut at the deadline (crates/hd_run_wasmtime/DESIGN.md §17.8).

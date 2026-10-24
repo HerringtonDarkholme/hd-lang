@@ -117,14 +117,13 @@ fn node_time_limit_cuts_a_socket_wait_after_flushing_output() {
     let wasm = build(
         &dir,
         "accepts",
-        "use std.net.Net\nuse std.time.{Clock, sleep, ms}\nuse std.task.race\n\n\
+        "use std.net.Net\n\n\
          fn wait_conn!() -> string $ Net:\n    let mut net = $.use(Net)\n    \
          let mut server = match net.listen!(\"127.0.0.1\", 0):\n        .Ok(l) => l\n        \
          .Err(e) => return \"${e}\"\n    match server.accept!():\n        \
          .Ok(_) => \"accepted\"\n        .Err(e) => \"${e}\"\n\n\
-         fn nap!() -> string $ Clock:\n    sleep!(ms(500))\n    \"timeout\"\n\n\
-         pub fn main!() -> void $ Console + Net + Clock:\n    println(\"before\")\n    \
-         println(race!(wait_conn(), nap()))\n",
+         pub fn main!() -> void $ Console + Net:\n    println(\"before\")\n    \
+         println(wait_conn!())\n",
     );
     let started = Instant::now();
     let mut command = hd(&dir);
