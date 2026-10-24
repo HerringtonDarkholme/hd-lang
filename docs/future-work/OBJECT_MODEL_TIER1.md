@@ -41,7 +41,7 @@ from the measurements in REFCOUNT_RUNTIME.md.
 
 - **Records in bulk.** A million points should be a million values in
   one buffer, not a million objects: most of Rust's lead on
-  allocation-heavy code is layout (RUST_MODEL_STUDY.md section 8).
+  allocation-heavy code is layout (the Rust model study's section 8).
 - **Shared mutable objects.** A connection table or a UI's state is
   changed by several holders, each seeing the others' changes.
 - **Graphs with cycles.** A tree with parent links is a cycle; the cycle
@@ -924,7 +924,7 @@ Jobs 1 to 10 are the language; 14 to 18 migrate; 19 follows the backend.
   OxCaml: [stack allocation](https://oxcaml.org/documentation/stack-allocation/intro/).
   D: [scope parameters](https://dlang.org/spec/function.html#scope-parameters).
   Hylo: Racordon et al., [Implementation Strategies for Mutable Value Semantics](https://www.jot.fm/issues/issue_2022_02/article2.pdf), JOT 2022.
-- hd: [RUST_MODEL_STUDY.md](RUST_MODEL_STUDY.md),
+- hd: the Rust model study (`git show b3f5eed1a:docs/future-work/RUST_MODEL_STUDY.md`),
   [PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md), REFCOUNT_RUNTIME.md,
   the removed chapter 13 (`git show 5d0b21e0a^:spec/lang/13-ownership.md`),
   [04-type-system.md](../../spec/lang/04-type-system.md),

@@ -28,7 +28,7 @@ confirmed" (section 10).
 Three earlier measurements set the bar.
 
 - **Allocating one object at a time is cheaper on Wasm GC than in
-  linear memory.** In the Rust study ([RUST_MODEL_STUDY.md](RUST_MODEL_STUDY.md)
+  linear memory.** In the Rust model study (`git show b3f5eed1a:docs/future-work/RUST_MODEL_STUDY.md`
   section 8), binary-trees allocates one object per node in both
   languages, and hd on Wasm GC ran 1,934 ms on V8 against Rust's 3,958
   with `Box` and `dlmalloc`, and 2,913 against 11,973 on wasmtime. The
@@ -825,7 +825,7 @@ because the linear backend is the only backend.
   [Wasm benchmarks](https://github.com/SFBdragon/talc/blob/master/BENCHMARKS_WASM.md);
   [dlmalloc](https://github.com/alexcrichton/dlmalloc-rs);
   [lol_alloc](https://github.com/Craig-Macomber/lol_alloc).
-- This repository: [RUST_MODEL_STUDY.md](RUST_MODEL_STUDY.md) section 8
+- This repository: the Rust model study (`git show b3f5eed1a:docs/future-work/RUST_MODEL_STUDY.md`) section 8
   and its appendix (hd's Wasm GC numbers),
   [PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md),
   [crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md) §14 and §15.

@@ -756,7 +756,7 @@ body.
 ## 10. Suspension, Providers And Boundaries
 
 - A suspending body that borrows its own local across a bang call
-  allocates its frame on entry (RUST_MODEL_STUDY.md section 2.2).
+  allocates its frame on entry (the Rust model study's section 2.2).
 - A cold suspension built from a call with scoped arguments is scoped:
   `Suspend[{conn}, Row]` cannot outlive `conn`. Children of `all!` may
   borrow the parent's locals; two children may not both hold
@@ -942,7 +942,7 @@ a drop flag where a move happens on some paths.
 | Incremental | sets, kinds and `~Copy` are in the interface hash; a body edit rechecks that body |
 | Code size | one body per function; generic instances split on a `global` lifetime argument as on a type argument |
 
-RUST_MODEL_STUDY.md estimated a full Rust checker at 10k to 15k lines
+The Rust model study estimated a full Rust checker at 10k to 15k lines
 in `hd_check`; without moves of ordinary values, cross-function region
 inference and full drop elaboration, an estimate here is 5k to 8k.
 
@@ -1099,6 +1099,6 @@ jobs 1 to 10.
   Kotlin: [inline functions](https://kotlinlang.org/docs/inline-functions.html),
   [`callsInPlace`](https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.contracts/-contract-builder/calls-in-place.html).
 - hd: [OBJECT_MODEL_TIER1.md](OBJECT_MODEL_TIER1.md), [REFCOUNT_RUNTIME.md](REFCOUNT_RUNTIME.md),
-  [RUST_MODEL_STUDY.md](RUST_MODEL_STUDY.md), [PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md),
+  the Rust model study (`git show b3f5eed1a:docs/future-work/RUST_MODEL_STUDY.md`), [PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md),
   [07-functions.md](../../spec/lang/07-functions.md); the removed chapter 13 at
   `5d0b21e0a^` (`^`), `101344d4c^` (lifetime sets) and `a04c3497c^` (owned values).

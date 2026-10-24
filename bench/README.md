@@ -54,7 +54,7 @@ Two Node tools drive the Rust `hd` as a child process:
 ## Runtime Suite On The RC Backend
 
 `study/` holds the eleven programs of the Rust model study
-(docs/future-work/RUST_MODEL_STUDY.md §8 and its appendix), rewritten
+(the Rust model study §8 and its appendix, in git history: `git show b3f5eed1a:docs/future-work/RUST_MODEL_STUDY.md`), rewritten
 from its descriptions since its sources were scratch files, each with a
 JavaScript, Go and Python version that print the same output, and
 `dyn_iter.hd` with Go and Python iterator references for issue #634.

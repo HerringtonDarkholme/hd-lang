@@ -1,5 +1,5 @@
 // The runtime suite on the RC (linear-memory) backend: the eleven programs
-// of the Rust model study (docs/future-work/RUST_MODEL_STUDY.md §8 and its
+// of the Rust model study (§8, in git history at b3f5eed1a, and its
 // appendix), #634's iterator bench, bench/runtime/progs, bench/micro and
 // the tokenizer and math cases. Each hd program is built with
 // `hd build --release --engine E` for E in node and wasmtime, run on Node
