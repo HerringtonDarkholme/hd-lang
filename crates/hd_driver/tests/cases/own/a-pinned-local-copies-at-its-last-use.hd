@@ -1,0 +1,12 @@
+# @dump: own
+# A local a `Pin` names is never moved out of: its read at the last use
+# copies, so the callee's parameter is a clone of the pinned list while
+# the element reference lives (`ref.elem.copy`).
+fn set_after(target: &mut i64, copy: List[i64]) -> List[i64]:
+    *target = 9
+    copy
+
+fn run() -> List[i64]:
+    let mut xs = [1i64, 2]
+    # subject
+    set_after(&mut xs[0], xs)

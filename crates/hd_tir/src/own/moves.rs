@@ -7,7 +7,9 @@
 //!    (`[$l .a .b]`), after which no path reads `$l` again before a store
 //!    replaces all of it, moves. Its local is not addressed and lives in
 //!    no cell (a `Ref` or a shared capture reaches it), no cleanup suite
-//!    touches it, and no `borrow` reads it.
+//!    touches it, no `borrow` reads it, and no `Pin` names a place in it:
+//!    a pinned collection's copy is a clone (`ref.elem.copy`), which a
+//!    move would skip.
 //! 2. **Temporaries.** A `copy` of a whole temporary `[%v]` at its last
 //!    use moves when the temporary's `Drop` follows it in its block: the
 //!    copy is the temporary's count, and the drop goes.
@@ -398,6 +400,13 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
                 {
                     t.keep_l[l as usize] = true;
                     t.holds[l as usize] = w;
+                }
+            }
+            // A pinned collection's copy is a clone (`ref.elem.copy`), so
+            // a read of its local copies even at its last use.
+            Tag::Pin => {
+                if let (Root::Local(l), _, _) = root_of(b, a) {
+                    t.keep_l[l as usize] = true;
                 }
             }
             Tag::Scope if w != NONE => {

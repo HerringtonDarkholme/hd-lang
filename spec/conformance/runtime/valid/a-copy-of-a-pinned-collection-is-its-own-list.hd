@@ -1,0 +1,36 @@
+# test: every copy of a pinned list is a list of its own: one a map lookup returns, one a map iteration binds and one passed at the list's last use
+# Spec 13 Element References: ref.elem.copy.
+fn set_after(target: &mut i64, copy: List[i64]?) -> List[i64]:
+    *target = 9
+    copy.unwrap_or([])
+
+fn set_in_loop(target: &mut i64, m: Map[string, List[i64]]) -> List[i64]:
+    *target = 8
+    let mut out: List[i64] = []
+    for (_, v) in m:
+        out = v
+    out
+
+fn set_last(target: &mut i64, copy: List[i64]) -> List[i64]:
+    *target = 7
+    copy
+
+tests:
+    use std.testing.assert_equal
+
+    it("a map lookup copies the pinned value"):
+        let mut m: Map[string, List[i64]] = {"a": [1i64, 2]}
+        got := set_after(&mut m["a"][0], m.get("a"))
+        assert_equal(m["a"][0], 9, reason="the reference writes the map's list")
+        assert_equal(got[0], 1, reason="the lookup's copy is its own list")
+
+    it("a map passed beside the reference copies the pinned value"):
+        let mut m: Map[string, List[i64]] = {"a": [1i64, 2]}
+        got := set_in_loop(&mut m["a"][0], m)
+        assert_equal(m["a"][0], 8, reason="the reference writes the map's list")
+        assert_equal(got[0], 1, reason="the map's copy holds a list of its own")
+
+    it("a pinned list passed at its last use is copied"):
+        let mut xs = [1i64, 2, 3]
+        got := set_last(&mut xs[0], xs)
+        assert_equal(got[0], 1, reason="the argument is a copy, not the referenced list")

@@ -26,11 +26,14 @@
 //! with counts, its reads copy, and its exit releases every place it holds.
 
 use hd_base::StageResult;
+use hd_mono::layout::StdKind;
 use hd_tir::ir::{NONE, Ref, Tag};
-use hd_types::Ty;
+use hd_types::{Ty, TyData};
 
 use super::Em;
-use crate::layout::{Walk, walk};
+use super::value::Src;
+use crate::layout::{Walk, coll_leaves, strip, walk};
+use crate::module::Val;
 use crate::rt::Helper;
 
 impl Em<'_, '_, '_> {
@@ -175,8 +178,28 @@ impl Em<'_, '_, '_> {
         self.input.runtime.is_some() && crate::cycle::holding(self.pool(), self.env(), parts)
     }
 
-    /// Calls `on` for the value in locals `ls` of type `t`: one count more
-    /// (`retain`) or less on each of its counted references.
+    /// The values of a `t` value that a count of it takes through the copy
+    /// glue (`rt:coll_copy`, `types.coll.value`): a list's or a map's own,
+    /// through a `mut self` receiver's view too, and each list or map in a
+    /// struct's fields at any depth. A struct's `mut` view, a provider's,
+    /// shares its fields.
+    pub(super) fn copied(&self, t: Ty) -> Vec<u32> {
+        let s = strip(self.pool(), self.env(), t);
+        match self.pool().get(s) {
+            TyData::Adt { def, .. }
+                if matches!(self.env().std_kind(def), StdKind::List | StdKind::Map) =>
+            {
+                vec![0]
+            }
+            _ => coll_leaves(self.pool(), self.env(), t),
+        }
+    }
+
+    /// One count more (`retain`) or less on each counted reference of the
+    /// value in locals `ls` of type `t`. A count more of a collection is
+    /// its copy glue's result, which replaces it in `ls`: a clone when the
+    /// collection is pinned or exposed (`ref.elem.copy`), so `ls` must hold
+    /// a value no count of its own keeps, which the count makes a copy.
     pub(super) fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
         let start = self.f.body.len();
         let result = self.count_locals_inner(ls, t, retain);
@@ -197,9 +220,21 @@ impl Em<'_, '_, '_> {
     }
 
     fn count_locals_inner(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
-        let Some(w) = self.counted(t) else {
+        let Some(mut w) = self.counted(t) else {
             return Ok(());
         };
+        let colls = if retain { self.copied(t) } else { Vec::new() };
+        for &c in &colls {
+            self.f.get(ls[c as usize]);
+            self.f.helper(Helper::CollCopy);
+            self.f.set(ls[c as usize]);
+        }
+        if !colls.is_empty() {
+            match w.without(&colls) {
+                Some(rest) => w = rest,
+                None => return Ok(()),
+            }
+        }
         if let Walk::Ref(k) = w {
             self.f.get(ls[k as usize]);
             if crate::layout::block_start(self.pool(), self.env(), t) {
@@ -281,16 +316,42 @@ impl Em<'_, '_, '_> {
         self.count_locals(ls, t, false)
     }
 
-    /// One more count on value `r`'s references, for a place that keeps a
-    /// copy of it. A constant is static data, which has no count.
-    pub(super) fn retain_ref(&mut self, r: u32) -> StageResult<()> {
+    /// The `t` value in locals `ls`, which keep it, as a copy with counts
+    /// of its own for another place: each collection is the copy glue's
+    /// result in a local of its own ([`Em::count_locals`]).
+    pub(super) fn copy_locals(&mut self, ls: &[u32], t: Ty) -> StageResult<Vec<u32>> {
+        let mut out = ls.to_vec();
+        for c in self.copied(t) {
+            let x = self.f.local(Val::I32);
+            self.f.get(ls[c as usize]);
+            self.f.set(x);
+            out[c as usize] = x;
+        }
+        self.retain_locals(&out, t)?;
+        Ok(out)
+    }
+
+    /// Value `r` as a copy with counts of its own, for a place that keeps
+    /// it ([`Em::copy_locals`]). A constant is static data, which has no
+    /// count.
+    pub(super) fn retain_ref(&mut self, r: u32) -> StageResult<Src> {
         if r == NONE || Ref(r).as_inst().is_none() || self.counted(self.ty_of(r)).is_none() {
-            return Ok(());
+            return Ok(Src::Ref(r));
         }
         let Some(ls) = self.vals.get(&r).cloned() else {
             return crate::unsupported("a value its instruction did not compute");
         };
-        self.retain_locals(&ls, self.ty_of(r))
+        Ok(Src::Locals(self.copy_locals(&ls, self.ty_of(r))?))
+    }
+
+    /// Operand `r` for the instruction being emitted, which consumes it:
+    /// moved in at its only use ([`Em::take`]), else a copy with counts of
+    /// its own ([`Em::retain_ref`]).
+    pub(super) fn consumed(&mut self, r: u32) -> StageResult<Src> {
+        if self.take(r) {
+            return Ok(Src::Ref(r));
+        }
+        self.retain_ref(r)
     }
 
     /// Stores the values on the stack as instruction `i`'s. Unless `owned`

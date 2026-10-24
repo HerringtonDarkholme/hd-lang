@@ -4130,6 +4130,112 @@ panics `internal: a collection changed through a reference view`, which no
 conformance case reaches; a collection changed in an erased cell is
 supported only when the cell holds it as one address.
 
+3g removes the header copies for both kinds: `own/copies.rs`, the verifier's
+`header_copies`, `OwnCx::header_copy` and `HeaderCopy`, the driver's
+`holds_coll`, the `ValueCopy` intrinsic with insertion's rule 7, its early
+copies and the splice's late edits, and the emitter's `value_copy`,
+`slot_src`, `copy_src` and `fresh`; `in_place_view` had gone with the `mut
+self` copies. A copy of a list or a map is now a count of its buffer, and
+every count runs the copy glue. `Em::count_locals` calls `rt:coll_copy`
+for each collection leaf of a retain (`Em::copied`: a list's or a map's
+own, through a `mut self` receiver's view too, and each one in a struct's
+fields at any depth) and stores the result in the leaf's local, so it is
+given only locals no count of their own keeps: an instruction's slot, fresh
+loads, a lent parameter's entry count. An operand that another place keeps
+is copied into locals of its own (`Em::copy_locals`, which
+`Em::retain_ref`, `Em::retain_src` and `Em::consumed` return as a source),
+and the instruction that consumes it stores those. In memory,
+`Em::retain_fields` copies each collection leaf of a new object's payload
+in place (a data value's update, a closure's environment, a trait value's
+box, a cursor's environment), and `rt:ref_load` copies a value read through
+a reference (`RefLayout::colls`, `ref_copy`). A suspending callee's cold
+constructor counts its arguments and captures before the frame keeps them.
+`own_arg` needed nothing: what a vtable slot or a map's key glue lends was
+copied when it was made (a dynamic call's arguments at the caller, a trait
+value's data at its coercion), and an erased value never holds a
+collection, since a type argument that holds one keeps its instance exact.
+
+A parameter that an `IsUnique` or a `Pin` names stays owned
+(`borrow::lent_params`, `Tables::changed`), since the change gives up the
+count of the buffer it replaces, and such a local is never a binding local
+either (`let mut ys = xs` followed by `ys.push(..)` borrowed `xs` without
+the copy). The verifier's `binding_locals` rejects an `IsUnique` or a `Pin`
+of a local the body does not own; the counts view names each copy glue
+call `copy`. Two rules the plan did not price came from the conformance
+suite. The move pass moves nothing out of a local a `Pin` names: a move
+skips the copy glue, so `set_after(&mut a.items[0], a)` handed the callee
+the pinned buffer at `a`'s last use. Hoisting takes a read through memory
+whose value a use keeps and whose type may hold a collection
+(`OwnCx::holds_coll`) as a copy that can make a second owner of a
+candidate another reference reaches, the part `ValueCopy` played in rule 3
+(`loop-list-cache-physical-cow`, two parameters naming one list). A change
+that reads its place again also deletes the receiver's read when only the
+change used it and its place checks no index: the dead load per change 3f
+left (`b.parts.push(text)`, `counts[word] = ...`).
+
+3g adds 279 Rust code lines and deletes 1,386, against the share of 115 and
+the stop line of 175, which it passes: count glue 53 (`emit/count.rs` +49,
+`views.rs` +4; planned 30); copies of operands and heap copies 140
+(`emit/value.rs` +55/−49, `emit.rs` +26/−28, `rt.rs` +16, `emit/refs.rs`
++15, `emit/closure.rs` +9, `emit/erased.rs` +7, `emit/scope.rs` +6, the rest
++6; planned 25), most of it the source the copy returns threaded through
+each store; task frames 15 (`emit/susp.rs` +15/−11; planned 10); owned
+changed parameters 14 (`own/borrow.rs`; planned 10); the verifier 6 (planned
+15); and, unpriced, hoisting's copy rule with `OwnCx::holds_coll` 21, the
+move pass's pin rule 5, the dead load 5, the splice without late edits 7,
+and 13 lines insertion and the checker rewrote where rule 7 went. The deletes by row: `copies.rs` 860 (planned 887), `header_copies` 118
+(112), `header_copy`, `HeaderCopy` and the driver's `holds_coll` 58 (62),
+insertion's rule 7 with the splice's late edits and the passes' `ValueCopy`
+cases 112 (21), the emitter's copies 97 (61), and 141 replaced lines of the
+threaded code. Changed baselines: `own` views lose the entry copies and the
+copies before stores (`a-changing-local-takes-its-own-header`,
+`a-captured-parameter-copies-its-header`, `a-mut-self-receiver-is-the-methods-copy`
+and ten more) and the dead receiver reads (`a-change-reads-its-place-after-its-arguments`
+and four more); `counts` views show `copy` where a retain was
+(`local-lent-by-mut-reference`, `local-replaced-inside-the-span`, a
+snapshot's) and fewer
+counts where the copies' temporaries went (`returning-a-list-twice-exposes-header-counts`,
+three builds); the `wat` views lose the dead loads (`a-change-takes-the-header-its-check-found`,
+`distinct-parameters-can-alias`, `update-from-get`) and show the copy glue
+of a read through a reference (`unexposed-nested-copy`, as its expected
+note asked). New fixtures: `counts/a-count-of-a-collection-is-its-copy`,
+`own/a-pinned-local-copies-at-its-last-use` and
+`own/a-parameter-changed-in-place-is-owned`; the new runtime case
+`a-copy-of-a-pinned-collection-is-its-own-list` fails on 3f, whose
+`m.get(k)` shared a pinned map value, and passes on V8 and wasmtime.
+
+Release `.wasm` on node against 3f: json 168,344 to 165,548 (−1.7%),
+closures 15,265 to 14,958 (−2.0%), string_build −0.6%, dyn_iter −0.6%,
+map_count −0.4%; hello, binary_trees, fannkuch_redux, mandelbrot, points,
+sieve and spectral_norm +2 B and nbody +4 B: `std.rt.host_provider`'s
+parameter now moves into the local a reference takes, where 3f's copy
+retained it on entry and released it at the exit, and nbody's read of
+`*bodies` calls the copy glue. Study times on V8, 21 runs each alternated
+run by run, under a load average of 2 to 5: json 98 to 95 ms (CPU 134 to
+130), map_count 166 to 164 (173 to 172), sieve 221 to 221 (221 to 221),
+string_build 192 to 189 (244 to 242), closures 129 to 136 (132 to 139,
++5%), dyn_iter 1,712 to 1,837 (1,722 to 1,847, +7%; its `dyn` variant 130
+to 148 ms). The slower two run byte-identical loops: after naming every
+call target, the functions that changed (`Iterator.fold`, `sum`, `all`,
+`any`, `count`, `find`) differ only in their entry and exit, where 3g
+counts less, and with `--no-wasm-inlining` dyn_iter's `dyn` runs about 400
+to 385 ms, so V8's inlining of the smaller functions decides it. A second round
+under a load of 3 to 10 gave the same signs. Cold build CPU, medians of 11
+alternated release builds with an empty cache and the dev-profile
+compiler: json 0.265 s to 0.272 s, nbody 0.215 s to 0.206 s, noise at that
+load. The web compiler's gzip shrinks 10,192 B (1,922,360 to 1,912,168,
+both built here), against the planned 12.9 KB.
+
+Left open: a push or an `IsUnique` through a representation view still
+panics `internal: a collection changed through a reference view`, and no
+program reaches it: a view comes only from an erased crossing (a reference
+an erased instance passes to concrete code, a converting cell, a projection
+of a view, a kept suspension's result), and the type behind it is an erased
+type argument or part of one, which holds no list or map in place, since
+`hd_mono` keeps such an instance exact; a collection inside a tuple, an
+enum or an optional cannot be changed in place. So neither the setter path
+nor a runtime case could be written; the check stays.
+
 No commit carries two copy paths: through 3e both kinds copy by
 `ListCopy` (a new header over the same buffer), 3f moves both to the
 buffer copy glue at once, and 3g removes the header copies of both.

@@ -13,19 +13,16 @@ fn add_one(r: &mut i32) -> void:
 >   %3 = Block - : ()
 
 fn bump(mut xs: List[i32], i: usize) -> void:
+    add_one(&mut xs[i])
 > app/main/bump
 >   local $0 xs: List[i32] [param read]
 >   local $1 i: usize [param read]
->   %0 = Read borrow [$0] : List[i32]
->   %1 = Intrinsic ValueCopy [%0] : List[i32]
->   %2 = Store [$0] %1 : ()
-    add_one(&mut xs[i])
->   %3 = Read copy [$1] : usize
->   %4 = IsUnique [$0] : ()
->   %5 = Pin [$0] : ()
->   %6 = Ref mut [$0 [%3]] : Ref[mut i32]
->   %7 = Drop [$0] : ()
->   %8 = Call app/main/add_one[] (%6) : ()
->   %9 = Drop [%6] : ()
->   %10 = Block - : ()
+>   %0 = Read copy [$1] : usize
+>   %1 = IsUnique [$0] : ()
+>   %2 = Pin [$0] : ()
+>   %3 = Ref mut [$0 [%0]] : Ref[mut i32]
+>   %4 = Drop [$0] : ()
+>   %5 = Call app/main/add_one[] (%3) : ()
+>   %6 = Drop [%3] : ()
+>   %7 = Block - : ()
 >   exit sub 0 drops [$0]

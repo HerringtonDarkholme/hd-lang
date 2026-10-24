@@ -179,8 +179,8 @@ impl Em<'_, '_, '_> {
 
     /// Puts the key in locals `kl` (hash `h`) with value `v` into the map
     /// table in local `m`, which then holds the table, moved when it grew:
-    /// the table takes a count of each, and a value holding a collection
-    /// that some place holds is stored as its copy (`types.coll.value`).
+    /// the table takes a count of each, a collection's through its copy
+    /// glue (`types.coll.value`).
     fn map_put(
         &mut self,
         m: u32,
@@ -190,8 +190,7 @@ impl Em<'_, '_, '_> {
         v: u32,
     ) -> StageResult<()> {
         self.retain_locals(kl, kt)?;
-        let s = self.slot_src(v, vt, false)?;
-        self.retain_src(&s, vt)?;
+        let s = self.retain_src(&Src::Ref(v), vt)?;
         self.f.get(m);
         self.f.get(h);
         for l in kl {

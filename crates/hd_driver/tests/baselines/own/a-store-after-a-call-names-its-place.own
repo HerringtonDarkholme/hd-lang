@@ -63,12 +63,11 @@ fn put[T](xs: &mut List[T], k: usize, v: T) -> void:
 >   %4 = Read borrow [$0] : Ref[mut List[T]]
 >   %5 = Store [*%4 [%1]] %2 : ()
 >   %6 = Drop [%0] : ()
->   %13 = Block - : ()
+>   %12 = Block - : ()
     xs.push(v)
 >   %7 = Read borrow [$0] : Ref[mut List[T]]
->   %8 = Read borrow [*%7] : List[T]
->   %9 = Read move [$2] : T
->   %10 = IsUnique [*$0] : ()
->   %11 = Read borrow [*$0] : List[T]
->   %12 = Intrinsic ListPush [%11 %9] : ()
+>   %8 = Read move [$2] : T
+>   %9 = IsUnique [*$0] : ()
+>   %10 = Read borrow [*$0] : List[T]
+>   %11 = Intrinsic ListPush [%10 %8] : ()
 >   exit sub 0 drops [$2]

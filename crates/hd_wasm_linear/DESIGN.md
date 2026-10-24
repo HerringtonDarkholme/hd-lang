@@ -603,9 +603,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   reachable, with no check of its own. The checker writes element
   references as plain `Ref`s, which the passes pin, and element reads as
   plain `Read`s (docs/compiler/tir-v2.md, stage 2 commit 12b); TIR has
-  no pin or element-write intrinsic. Its header copies
-  (`ValueCopy`, lowered as below, §23.17) are insertion's (`hd_tir::own`
-  rule 7, stage 2 commit 13a).
+  no pin or element-write intrinsic, and no copy: every count of a
+  collection runs the copy glue (§23.17).
 - **Moves of parts, taking references, borrows.** A `move` read of a
   part takes the part laid out in its root's locals (`Em::part_slots`:
   struct, tuple and newtype fields and enum payload fields), whose locals
@@ -708,13 +707,15 @@ changes preserve collection value semantics (§23.7).
   one static empty
   buffer, whose count word is 0, a static object's, so no count changes it and a change always copies it first. A
   tuple's rest list is its last member.
-- **Copies.** `ValueCopy` and `SnapBegin` count one more holder of the
-  same buffer, or clone a pinned or exposed one (`rt:coll_copy`); a struct's copy
-  copies each list among its fields at any depth (`layout::coll_leaves`,
-  after `hd_mono::holds_coll`). An operand stored into an element, a
-  field, a payload or a tuple is copied the same way, unless its own
-  instruction made it. Such a copy's own
-  count belongs to a temporary that the function's exit releases.
+- **Copies.** Every count of a list or a map, and `SnapBegin`, counts
+  one more holder of the same buffer, or clones a pinned or exposed one
+  (`rt:coll_copy`), and the result replaces the value in the copy: a
+  count of a struct copies each list among its fields at any depth
+  (`layout::coll_leaves`, after `hd_mono::holds_coll`). The count glue
+  does it for a value in locals (`Em::count_locals`, `Em::copy_locals`
+  for a value another place keeps), a new object's payload
+  (`Em::retain_fields`), a value read through a reference (`rt:ref_load`)
+  and a frame's arguments and captures.
 - **Changes.** The passes' `IsUnique` before a `push` or an element
   store makes the buffer the list's own (`rt:list_unique`). A shared
   buffer is copied: its elements take their own counts, the lists among
@@ -779,7 +780,7 @@ Each operation implements collection value semantics (§15.2;
   count: probes pass it, iteration skips it, and the survivors keep
   their order. The result takes its own count of the value before the
   table releases the entry's key and value.
-- **Copies and changes.** `ValueCopy`, `SnapBegin` and `SnapEnd` are the
+- **Copies and changes.** Copies, `SnapBegin` and `SnapEnd` are the
   list ones (§23.17), with the owner word where a list's is. `m[k] = v`,
   `remove` and a change through a value place first make the table the
   map's own (`rt:map_unique`): a shared table is copied whole, each live entry

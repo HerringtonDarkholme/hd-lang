@@ -582,12 +582,9 @@ pub(super) fn write_backs(
             continue;
         };
         let same = |b: &Body, x: u32| x == pb || (p.is_some() && read_of(b, x) == p);
-        // A copy would share a list or map header that a later change of
-        // `x` reaches in place, where the write stored a copy of its own.
         if b.ptr_target(r as usize).is_none_or(|pa| !same(b, pa))
             || b.data[r as usize][1] != ReadMode::Move as u32
             || mt.blk[r as usize] != blk
-            || (!moved && cx.header_copy(b.ty[r as usize]).is_some())
         {
             continue;
         }

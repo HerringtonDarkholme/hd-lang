@@ -1,8 +1,8 @@
 //! Collection values (spec 04 "Collection Values", `OBJECT_MODEL_TIER1.md`
 //! §6.2): `List[T]` and `Map[K, V]` are values with copy-on-write. The
-//! checker places no copies: the ownership passes' insertion writes each
-//! copy of a value that holds a collection (`ValueCopy`) where a store
-//! needs one (`docs/compiler/tir-v2.md`, stage 2 commit 13a).
+//! checker places no copies: every count of a collection the backend takes
+//! runs its copy glue (`docs/compiler/tir-v2.md`, "List and Map buffers",
+//! 3g).
 //!
 //! Changing a collection needs a writable place, as changing a struct's
 //! field does.
@@ -50,10 +50,7 @@ impl Ck<'_, '_> {
             Tag::NewTuple | Tag::Closure | Tag::Interp | Tag::Prim => true,
             Tag::Call | Tag::CallDyn | Tag::DefaultCall => true,
             Tag::CallValue | Tag::Ref | Tag::RefDyn | Tag::RefIdentity => true,
-            Tag::Intrinsic => matches!(
-                IntrinsicOp::from_u32(data[0]),
-                Some(IntrinsicOp::ValueCopy | IntrinsicOp::Item)
-            ),
+            Tag::Intrinsic => IntrinsicOp::from_u32(data[0]) == Some(IntrinsicOp::Item),
             Tag::Coerce => self.is_fresh(Ref(data[0])),
             _ => false,
         }

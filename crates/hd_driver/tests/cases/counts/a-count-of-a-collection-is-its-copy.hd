@@ -1,0 +1,14 @@
+# @dump: counts
+# Every count of a list or a map runs its copy glue (`rt:coll_copy`, a
+# "copy" here), which a clone replaces when the collection is pinned: the
+# struct field, the element, the capture and the tuple member each take
+# one. A string's count stays a plain retain.
+struct Bag:
+    items: List[i64]
+    name: string
+
+fn keep(xs: List[i64], name: string) -> (Bag, List[List[i64]], fn() -> usize, List[i64]):
+    bag := Bag { items: xs, name: name }
+    rows := [xs]
+    count := fn() -> usize: xs.len()
+    (bag, rows, count, xs)

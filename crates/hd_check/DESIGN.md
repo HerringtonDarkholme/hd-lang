@@ -109,10 +109,9 @@ of its own (`elem_refs.rs`); a map value is a place too, `[%m [%e]]` at
 the entry `MapEntry` finds just before each read, store or reference
 (`Ck::elem_index`), so a change through `m[k]` reaches the map as one
 through `xs[i]` reaches the list; and the checker writes
-no collection copy (`ValueCopy`): insertion's
-rule 7 (crates/hd_tir/src/own/copies.rs) makes the header copies from
-the passes' own facts, where a header that may change in place would be
-held by two places.
+no collection copy: a copy of a list or a map is a count of its buffer,
+which the backend takes through the copy glue (`rt:coll_copy`), and a
+change makes a shared buffer its own first.
 
 **Conflicting access, as built (#494).** The static half of
 `ref.elem.conflict` lives in `elem_refs.rs`, on the places the checker

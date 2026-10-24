@@ -54,8 +54,8 @@ impl hd_tir::own::OwnCx for NoCounts {
     fn received(&self, _: hd_base::DefId, _: usize, _: usize) -> hd_tir::own::Pass {
         hd_tir::own::Pass::Owned
     }
-    fn header_copy(&self, _: Ty) -> Option<hd_tir::own::HeaderCopy> {
-        None
+    fn holds_coll(&self, _: Ty) -> bool {
+        false
     }
     fn receiver(&self, _: &Callee, _: usize, _: usize) -> bool {
         false

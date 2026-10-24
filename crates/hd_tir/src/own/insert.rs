@@ -51,12 +51,6 @@
 //!    nothing else releases it. A `for` over element references pins its
 //!    list this way at each step, from the step's reference to the end of
 //!    the step, where its binding is dropped.
-//! 7. **Header copies** ([`super::copies`]). A list or map value that a
-//!    store, a result, an argument or a capture would leave held by two
-//!    places, where one may change it in place, gets a `ValueCopy` of its
-//!    own: the checker's collection copies, decided by the pass. The copy
-//!    stands before its use, which consumes or lends it; an argument's
-//!    stands right after the argument.
 //!
 //! Why it is sound: on every path an owned value is consumed by its one
 //! use or dropped once, after its last use or before a jump that leaves
@@ -84,9 +78,6 @@ struct Item {
 }
 
 const LOCAL_BIT: u32 = 1 << 31;
-/// An [`Item`]'s value is a new instruction (its number in the splice's
-/// numbering): a header copy that stands before its use (rule 7).
-const EDIT_BIT: u32 = 1 << 30;
 
 /// Insertion's dense tables, reused across bodies.
 #[derive(Default)]
@@ -104,9 +95,6 @@ pub(crate) struct Tables {
     pub(super) start: Vec<u32>,
     fill: Vec<u32>,
     pub(super) uses: Vec<(u32, Operand)>,
-    /// Per use (parallel to `uses`): the type of the header copy rule 7
-    /// puts before it ([`super::copies`]), or `Ty::VOID`.
-    pub(super) hcopy: Vec<Ty>,
     ops: Vec<Operand>,
     /// The chain of blocks around a place, innermost first, with the
     /// statement position in each; `mark` is a chain block's level plus 1.
@@ -154,8 +142,7 @@ pub(crate) struct Tables {
 
 /// A `Drop` after a last use: its block and position, its place's age (the
 /// instruction that defines the value, or a local's first access; 0 for
-/// an entry local), its place word and syntax node, and whether it stands
-/// after a header copy at that position.
+/// an entry local), and its place word and syntax node.
 #[derive(Clone, Copy)]
 struct After {
     blk: u32,
@@ -163,7 +150,6 @@ struct After {
     age: u32,
     word: u32,
     syn: NodeIdx,
-    late: bool,
 }
 
 fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
@@ -195,7 +181,6 @@ impl Tables {
         self.relook.clear();
         self.after.clear();
         self.uses.clear();
-        self.hcopy.clear();
         self.ops.clear();
         self.chain.clear();
         self.levels.clear();
@@ -349,7 +334,6 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     for i in 0..n {
         changes(b, t, i);
     }
-    super::copies::decide(b, cx, t, &mut scratch.copies, edits);
     values(b, cx, t, edits)?;
     locals(b, cx, t, edits);
     after_drops(t, edits);
@@ -476,24 +460,8 @@ fn values(
             if u == t.reread[v] {
                 continue;
             }
-            // An argument's header copy stands right after the value
-            // (rule 7), which is where the value's use ends.
-            let at = if early_copy(b, t, v, k) {
-                Some((t.blk[v], t.pos[v]))
-            } else {
-                t.at(b, u, &op)
-            };
-            match at.and_then(|(blk, pos)| t.meet(blk, pos).map(|met| (blk, met))) {
-                Some((blk, mut met)) => {
-                    // A header copy stands right before its use, so a use
-                    // in the value's own block ends at the copy.
-                    if t.hcopy[k] != Ty::VOID
-                        && !early_copy(b, t, v, k)
-                        && t.chain[met.0 as usize].0 == blk
-                        && met.1 > 0
-                    {
-                        met.1 -= 1;
-                    }
+            match t.at(b, u, &op).and_then(|(blk, pos)| t.meet(blk, pos)) {
+                Some(met) => {
                     home = home.max(met.0);
                     t.levels.push(met);
                 }
@@ -524,9 +492,7 @@ fn values(
         }
         // One use, which consumes it as a statement of its own block or as
         // that block's tail.
-        if let [(u, op)] = t.uses[lo..hi]
-            && t.hcopy[lo] == Ty::VOID
-        {
+        if let [(u, op)] = t.uses[lo..hi] {
             let direct = if op.role == Role::Tail {
                 u == own
             } else {
@@ -546,7 +512,6 @@ fn values(
                 continue;
             }
         }
-        let mut late_copy = None;
         for k in lo..hi {
             let (u, op) = t.uses[k];
             if u == t.reread[v] {
@@ -557,49 +522,6 @@ fn values(
                 Role::Tail => (u, block_len(b, u)),
                 _ => (t.blk[u as usize], t.pos[u as usize]),
             };
-            // Rule 7: a header of its own, which the use consumes, or which
-            // is dropped after the use's statement. An argument's copy
-            // stands right after the argument, before a later argument can
-            // change its source, and a jump between drops it.
-            if t.hcopy[k] != Ty::VOID {
-                let n = u32_of(b.len());
-                let early = early_copy(b, t, v, k);
-                let at = if early { t.pos[v] + 1 } else { pos };
-                let rec = u32_of(b.extra.len());
-                b.extra.extend([1, u32_of(v)]);
-                let data = [IntrinsicOp::ValueCopy as u32, rec];
-                let (ty, syn) = (t.hcopy[k], b.syn[v]);
-                // Right before its use, after the drops the later passes
-                // put there; an argument's right after the argument.
-                let copy = if early {
-                    edits.insert(blk, at, Tag::Intrinsic, data, ty, syn)
-                } else {
-                    late_copy = Some((blk, at));
-                    edits.insert_late(blk, at, Tag::Intrinsic, data, ty, syn)
-                };
-                edits.rewrite(u, op.at, copy);
-                if !consumed {
-                    let word = value_place(b, n + copy);
-                    let after = (pos + 1).min(block_len(b, blk));
-                    edits.insert(
-                        blk,
-                        after,
-                        Tag::Drop,
-                        [word, NONE],
-                        Ty::VOID,
-                        b.syn[u as usize],
-                    );
-                }
-                if early && at < pos {
-                    t.items.push(Item {
-                        blk,
-                        what: (n + copy) | EDIT_BIT,
-                        first: at,
-                        last: if consumed { pos - 1 } else { pos },
-                    });
-                }
-                continue;
-            }
             if !consumed {
                 continue;
             }
@@ -617,15 +539,12 @@ fn values(
         let syn = statement_syn(b, h, last);
         let word = value_place(b, u32_of(v));
         let at = (last + 1).min(block_len(b, h));
-        // After a header copy of the value that stands there too (a
-        // block's tail).
         t.after.push(After {
             blk: h,
             pos: at,
             age: u32_of(v),
             word,
             syn,
-            late: late_copy == Some((h, at)),
         });
         t.items.push(Item {
             blk: h,
@@ -645,23 +564,8 @@ fn after_drops(t: &mut Tables, edits: &mut splice::Tables) {
     t.after
         .sort_by_key(|a| (a.blk, a.pos, std::cmp::Reverse(a.age)));
     for a in &t.after {
-        let data = [a.word, NONE];
-        if a.late {
-            edits.insert_late(a.blk, a.pos, Tag::Drop, data, Ty::VOID, a.syn);
-        } else {
-            edits.insert(a.blk, a.pos, Tag::Drop, data, Ty::VOID, a.syn);
-        }
+        edits.insert(a.blk, a.pos, Tag::Drop, [a.word, NONE], Ty::VOID, a.syn);
     }
-}
-
-/// Whether use `k` of value `v` takes a header copy right after the value
-/// (rule 7): an argument's, an inlined one's too, in the value's own
-/// block, before a later argument can change its source.
-fn early_copy(b: &Body, t: &Tables, v: usize, k: usize) -> bool {
-    let (u, op) = t.uses[k];
-    t.hcopy[k] != Ty::VOID
-        && (matches!(op.role, Role::Arg(_)) || b.binding(u as usize).is_some())
-        && t.blk[v] == t.blk[u as usize]
 }
 
 /// Rule 3: each owned local's `Drop` after its last access, and its exit
@@ -809,7 +713,6 @@ fn place_local(
         age: if entry { 0 } else { u32_of(first) },
         word: l | place::BARE_LOCAL,
         syn: statement_syn(b, d, last),
-        late: false,
     });
     t.exits.push((SubId::from_raw(s), LocalId::from_raw(l)));
     if !entry {
@@ -874,14 +777,6 @@ fn jumps(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                         continue;
                     }
                     let word = l | place::BARE_LOCAL;
-                    edits.insert(jb, jp, Tag::Drop, [word, NONE], Ty::VOID, b.syn[j]);
-                } else if it.what & EDIT_BIT != 0 {
-                    // No suite reads a header copy: it lives within one
-                    // statement's arguments.
-                    if ps < it.first || ps > it.last {
-                        continue;
-                    }
-                    let word = value_place(b, it.what & !EDIT_BIT);
                     edits.insert(jb, jp, Tag::Drop, [word, NONE], Ty::VOID, b.syn[j]);
                 } else {
                     let v = it.what;
@@ -1153,6 +1048,15 @@ fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change
     if quiet == Some(false) {
         let e = edits.insert(blk, pos, Tag::Read, [word, mode], b.ty[r], syn);
         edits.rewrite(c.0, super::Loc::Extra(c.1), e);
+        // The receiver's read, which only the change used and which checks
+        // no index, has nothing left to do.
+        let elem =
+            |p: crate::ir::Place| p.proj.iter().any(|s| matches!(s, crate::ir::Proj::Elem(_)));
+        if t.start[r + 1] - t.start[r] == 1
+            && b.decode_place(b.data[r][0]).is_some_and(|p| !elem(p))
+        {
+            edits.remove(t.blk[r], c.2);
+        }
     }
 }
 

@@ -2,6 +2,4 @@
 app/main/last
   local $1 ys: List[i32] [:= read assigned]
   %2 = Read move [$1] : List[i32]
-  %3 = Intrinsic ValueCopy [%2] : List[i32]
-  %4 = Drop [%2] : ()
   exit sub 0 drops [$0]

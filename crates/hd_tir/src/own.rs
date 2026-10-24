@@ -10,8 +10,7 @@
 //! at their local on this path (`crate::ir::root_places`), the naive,
 //! correct ownership of `crates/hd_wasm_linear/DESIGN.md` §23.16 with
 //! releases at last use (§23.20), made explicit, with an `IsUnique` before each change of a
-//! collection place, the pins of element references and the header copies
-//! of lists and maps (`ValueCopy`, `copies`); then **borrow**
+//! collection place and the pins of element references; then **borrow**
 //! (`borrow`), which turns a `copy` whose value can live on its place's
 //! count into a `borrow` and deletes its `Drop`s; then **move** (`moves`),
 //! which turns a `copy` that no path reads after into a `move` and deletes
@@ -44,7 +43,6 @@ pub use hoist::{EntryTest, entry_test};
 pub(crate) use splice::for_blocks as splice_for_blocks;
 
 mod borrow;
-pub(crate) mod copies;
 pub(crate) mod hoist;
 mod insert;
 mod known;
@@ -123,27 +121,13 @@ pub trait OwnCx {
         let _ = item;
         true
     }
-    /// Whether a value of `ty` may hold a list or a map header that a copy
-    /// of the value must make its own (`types.coll.value`): a list, a map,
-    /// a struct holding one in a field at any depth, or a type naming a
-    /// type parameter. A tuple, an enum or an optional holds its
-    /// collections in members no change can reach in place, so a copy
-    /// shares them; a reference refers. `None` when it holds none.
-    /// Insertion's header copies read it ([`HeaderCopy`]).
-    fn header_copy(&self, ty: Ty) -> Option<HeaderCopy>;
+    /// Whether a value of `ty` may hold a list or a map in place, which a
+    /// count of it copies: a list, a map, a struct holding one in a field
+    /// at any depth, or a type the instance decides. Hoisting reads it.
+    fn holds_coll(&self, ty: Ty) -> bool;
     /// Whether argument `k` of `n` of a call of `callee` is the callee's
     /// `self` receiver, which a list or map receiver passes as is.
     fn receiver(&self, callee: &Callee, k: usize, n: usize) -> bool;
-}
-
-/// What a header copy of a value makes ([`OwnCx::header_copy`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct HeaderCopy {
-    /// The copy's type: the value's type without its `mut` view.
-    pub ty: Ty,
-    /// Whether that type is a list or a map itself, not a struct or a type
-    /// parameter that holds one.
-    pub coll: bool,
 }
 
 /// How an instruction uses one of its value operands.
@@ -561,7 +545,6 @@ pub fn consumers(b: &Body, cx: &dyn OwnCx, out: &mut Vec<u32>) {
 #[derive(Default)]
 pub struct OwnScratch {
     pub(crate) borrow: borrow::Tables,
-    pub(crate) copies: copies::Tables,
     pub(crate) hoist: hoist::Tables,
     pub(crate) insert: insert::Tables,
     pub(crate) known: known::Tables,
@@ -610,8 +593,7 @@ pub(crate) mod tests {
     use hd_base::{DefId, LocalId, NodeIdx, Symbol};
     use hd_types::{Ty, TyList};
 
-    /// A list type for the header copies: counted, and a copy makes a
-    /// header of its own.
+    /// A list type: counted, and changed in place by a push.
     const LIST: Ty = Ty(1_000_000);
 
     /// `string` and `LIST` are counted; callee 9 takes its argument as a value
@@ -644,8 +626,8 @@ pub(crate) mod tests {
         fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
             Pass::Owned
         }
-        fn header_copy(&self, ty: Ty) -> Option<super::HeaderCopy> {
-            (ty == LIST).then_some(super::HeaderCopy { ty, coll: true })
+        fn holds_coll(&self, ty: Ty) -> bool {
+            ty == LIST
         }
         fn receiver(&self, _: &Callee, _: usize, _: usize) -> bool {
             false
@@ -1567,110 +1549,13 @@ pub(crate) mod tests {
         );
     }
 
-    /// Header copies (insertion's rule 7): a local a push changes takes a
-    /// header of its own when another local's list is stored into it; a
-    /// local no change reaches shares a fixed local's header; the function's
-    /// result is its own changing local, which holds no shared header, so it
-    /// is not copied, where a result read from a sharing local is.
+    /// A parameter a push changes stays owned, though no read keeps it:
+    /// the change gives up a count of the buffer it replaces. The verifier
+    /// rejects such a change of a parameter the body does not own.
     #[test]
-    fn a_changing_local_takes_its_own_header_and_a_fixed_one_shares() {
+    fn a_parameter_changed_in_place_stays_owned() {
         use crate::ir::IntrinsicOp;
         let n = NodeIdx::from_raw(1);
-        let body = |own_result: bool| {
-            passes(
-                |b| {
-                    let a = b.local(LIST, Symbol::from_raw(0), 0, n);
-                    let c = b.local(LIST, Symbol::from_raw(1), 0, n);
-                    let d = b.local(LIST, Symbol::from_raw(2), 0, n);
-                    let made = call(b, 7, &[], LIST);
-                    b.set(a, made, n);
-                    let r = b.get(a, LIST, n);
-                    b.set(c, r, n);
-                    let r = b.get(a, LIST, n);
-                    b.set(d, r, n);
-                    let h = b.get(c, LIST, n);
-                    let s = call(b, 7, &[], Ty::STRING);
-                    let rec = b.refs_record(&[h, s]);
-                    b.emit(
-                        Tag::Intrinsic,
-                        IntrinsicOp::ListPush as u32,
-                        rec,
-                        Ty::VOID,
-                        n,
-                    );
-                    Some(b.get(if own_result { c } else { d }, LIST, n))
-                },
-                LIST,
-            )
-        };
-        let own = body(true);
-        assert_eq!(own.matches("Intrinsic").count(), 2, "{own}");
-        let shared = body(false);
-        assert_eq!(shared.matches("Intrinsic").count(), 3, "{shared}");
-    }
-
-    /// Header copies: an argument whose local a later argument changes is
-    /// copied right after it is read, before the change.
-    #[test]
-    fn an_argument_is_copied_before_a_later_argument_changes_its_source() {
-        use crate::ir::IntrinsicOp;
-        let n = NodeIdx::from_raw(1);
-        let text = passes(
-            |b| {
-                let a = b.local(LIST, Symbol::from_raw(0), 0, n);
-                let made = call(b, 7, &[], LIST);
-                b.set(a, made, n);
-                let r = b.get(a, LIST, n);
-                let h = b.get(a, LIST, n);
-                let s = call(b, 7, &[], Ty::STRING);
-                let rec = b.refs_record(&[h, s]);
-                b.emit(
-                    Tag::Intrinsic,
-                    IntrinsicOp::ListPush as u32,
-                    rec,
-                    Ty::VOID,
-                    n,
-                );
-                call(b, 9, &[r], Ty::VOID);
-                None
-            },
-            Ty::VOID,
-        );
-        let copy = text
-            .find(" Intrinsic %2\n")
-            .expect("the copy of the argument");
-        let push = text.find("IsUnique").expect("the push");
-        assert!(copy < push, "{text}");
-    }
-
-    /// Header copies: a parameter a push changes is copied on entry, and the
-    /// verifier rejects a changing local that shares a header.
-    #[test]
-    fn a_changing_parameter_is_copied_on_entry() {
-        use crate::ir::IntrinsicOp;
-        let n = NodeIdx::from_raw(1);
-        let text = passes(
-            |b| {
-                let p = b.local(LIST, Symbol::from_raw(0), local_flags::PARAM, n);
-                let h = b.get(p, LIST, n);
-                let s = call(b, 7, &[], Ty::STRING);
-                let rec = b.refs_record(&[h, s]);
-                b.emit(
-                    Tag::Intrinsic,
-                    IntrinsicOp::ListPush as u32,
-                    rec,
-                    Ty::VOID,
-                    n,
-                );
-                None
-            },
-            Ty::VOID,
-        );
-        assert!(
-            text.starts_with("%0 Read borrow [$0]\n%1 Intrinsic %0\n%2 Store [$0] %1\n"),
-            "{text}"
-        );
-        // Without the copy, the parameter would share its caller's header.
         let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
         let blk = b.open_block();
         let p = b.local(LIST, Symbol::from_raw(0), local_flags::PARAM, n);
@@ -1687,16 +1572,13 @@ pub(crate) mod tests {
         let root = b.close_block(blk, None, Ty::VOID, n);
         let mut body = b.finish(root, &[]).expect("verifies");
         run(&mut body, &Cx, &mut OwnScratch::default()).expect("passes");
-        let store = (0..body.len())
-            .find(|&i| body.tags[i] == Tag::Store)
-            .expect("the entry copy's store");
-        let read = (0..body.len())
-            .find(|&i| body.tags[i] == Tag::Read)
-            .expect("the entry copy's read");
-        body.data[store][1] = u32::try_from(read).expect("insts");
+        assert_eq!(verify_owned(&body, &Cx), []);
+        assert_eq!(body.exit_drops.len(), 1, "{:?}", body.exit_drops);
+        body.exit_drops.clear();
         let errs = verify_owned(&body, &Cx);
         assert!(
-            errs.iter().any(|e| e.what.contains("shares the header")),
+            errs.iter()
+                .any(|e| e.what.contains("a change in place of $0")),
             "{errs:?}"
         );
     }

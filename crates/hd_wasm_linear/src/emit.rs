@@ -410,10 +410,12 @@ fn body_func<'a>(
             em.f.op(Instruction::Unreachable);
         } else if em.counting {
             let moved = em.take_from(tail, root);
-            if !moved {
-                em.retain_ref(tail)?;
-            }
-            em.push(tail)?;
+            let s = if moved {
+                value::Src::Ref(tail)
+            } else {
+                em.retain_ref(tail)?
+            };
+            em.push_src(&s)?;
             for l in em.ret.clone().iter().rev() {
                 em.f.set(*l);
             }
@@ -563,9 +565,10 @@ impl OnceCell<'_> {
         for l in held.iter().rev() {
             em.f.set(*l);
         }
-        // The result already owns its caller's count; the global adds one.
-        em.retain_locals(&held, ret)?;
-        self.publish(&mut em.f, &held);
+        // The result already owns its caller's count; the global takes a
+        // copy.
+        let kept = em.copy_locals(&held, ret)?;
+        self.publish(&mut em.f, &kept);
         if self.fact.is_some() {
             em.f.i32(-1);
             em.f.call(Self::fact_import());
@@ -952,8 +955,7 @@ struct Em<'i, 'a, 'm> {
     /// `Exit::Cancel` being taken leaves from: an owned body releases the
     /// unwind rows of the points it holds ([`Em::release_unwound`]).
     cancel_from: u32,
-    /// The locals of the collection copies that operands were stored as
-    /// (`list.rs`, `copy_src`), each owning one count until the exit.
+    /// Locals that each own one count until the exit (`susp.rs`).
     temps: Vec<u32>,
     /// The locals that closures share, each in a cell, with the store
     /// that declares it (`closure.rs`).
@@ -1774,9 +1776,10 @@ impl Em<'_, '_, '_> {
                 let tys = crate::layout::variants(self.pool(), self.env(), self.ty(i))
                     .and_then(|vs| vs.get(a as usize).cloned())
                     .unwrap_or_default();
-                let mut payload = Vec::new();
-                for (r, pt) in self.rec(bw).into_iter().zip(tys) {
-                    payload.push(self.slot_src(r, pt, false)?);
+                let payload: Vec<value::Src> =
+                    self.rec(bw).into_iter().map(value::Src::Ref).collect();
+                if payload.len() != tys.len() {
+                    return unsupported("a variant built from other fields than it has");
                 }
                 self.new_variant(i, a, &payload)?;
             }
@@ -1786,7 +1789,6 @@ impl Em<'_, '_, '_> {
                 match op {
                     Some(IntrinsicOp::ListLen) => self.list_len(i, args[0])?,
                     Some(IntrinsicOp::ListPush) => self.list_push(&args)?,
-                    Some(IntrinsicOp::ValueCopy) => self.value_copy(i, args[0])?,
                     Some(IntrinsicOp::SnapBegin) => self.snap_begin(i, args[0])?,
                     Some(IntrinsicOp::SnapEnd) => self.snap_end(args[1])?,
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
@@ -1823,12 +1825,9 @@ impl Em<'_, '_, '_> {
                     self.pool(),
                     crate::layout::strip(self.pool(), self.env(), self.ty(i)),
                 );
-                let mut srcs = Vec::new();
-                for (r, mt) in members.into_iter().zip(&tys) {
-                    srcs.push(self.slot_src(r, *mt, false)?);
-                }
+                let srcs: Vec<value::Src> = members.into_iter().map(value::Src::Ref).collect();
                 // Construction consumes its parts (§23.25).
-                self.count_parts(&srcs, &tys)?;
+                let srcs = self.count_parts(&srcs, &tys)?;
                 for (s, mt) in srcs.iter().zip(tys) {
                     for k in 0..self.vals(mt)?.len() {
                         self.src(s, k)?;
@@ -1912,13 +1911,12 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let t = self.sub(self.b.local_ty[l as usize]);
+        let mut s = value::Src::Ref(v);
         if self.counted(t).is_some() {
-            if !self.take(v) {
-                self.retain_ref(v)?;
-            }
+            s = self.consumed(v)?;
             self.release_locals(&ls, t)?;
         }
-        self.push(v)?;
+        self.push_src(&s)?;
         for x in ls.iter().rev() {
             self.f.set(*x);
         }
@@ -1939,11 +1937,10 @@ impl Em<'_, '_, '_> {
         }
         let vs = self.vals(self.ty_of(v))?;
         let t = self.ty_of(v);
+        let mut s = value::Src::Ref(v);
         if self.counted(t).is_some() {
             self.note_stored(h, t, None)?;
-            if !self.take(v) {
-                self.retain_ref(v)?;
-            }
+            s = self.consumed(v)?;
             let old: Vec<u32> = vs.iter().map(|x| self.f.local(*x)).collect();
             for (k, (x, o)) in vs.iter().zip(&old).enumerate() {
                 self.f
@@ -1952,7 +1949,7 @@ impl Em<'_, '_, '_> {
             }
             self.release_locals(&old, t)?;
         }
-        self.push(v)?;
+        self.push_src(&s)?;
         for (k, x) in vs.into_iter().enumerate().rev() {
             self.f
                 .global_set(Global::Storage(h, u32::try_from(k).expect("k"), x));
@@ -2091,10 +2088,12 @@ impl Em<'_, '_, '_> {
         };
         if params.len() == args.len() {
             for (r, t) in args.iter().zip(params) {
-                if matches!(self.pass(*t), Pass::Owned(_)) && !self.take(*r) {
-                    self.retain_ref(*r)?;
+                if matches!(self.pass(*t), Pass::Owned(_)) {
+                    let s = self.consumed(*r)?;
+                    self.push_src(&s)?;
+                } else {
+                    self.push(*r)?;
                 }
-                self.push(*r)?;
             }
             return Ok(());
         }
@@ -2772,8 +2771,7 @@ impl Em<'_, '_, '_> {
             }
             return self.store_as(i, w == hd_tir::ir::ReadMode::Move as u32);
         }
-        let s = self.slot_src(w, t, false)?;
-        self.retain_src(&s, t)?;
+        let s = self.retain_src(&value::Src::Ref(w), t)?;
         for (k, l) in m.leaves.iter().enumerate() {
             let address = |em: &mut Self| {
                 em.f.get(at);

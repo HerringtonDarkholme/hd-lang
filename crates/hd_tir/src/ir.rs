@@ -262,13 +262,6 @@ pub enum IntrinsicOp {
     MapSlotNext,
     /// `(map, slot) -> (K, V)`: the entry in a live slot.
     MapSlotEntry,
-    /// `(value) -> value`: a copy of a value that holds a `List` or a
-    /// `Map` (spec/lang/04-type-system.md, "Collection Values"). Where
-    /// the type holds none, the copy is the value itself. A collection's
-    /// copy shares its counted buffer and copies it before its next change
-    /// when another owner still holds it (`crates/hd_wasm_linear/DESIGN.md`
-    /// §23.20, "Collections").
-    ValueCopy,
     /// `(collection) -> collection`: the snapshot a counted `for` over a
     /// list or a map iterates (`flow.for.snapshot`): it shares the
     /// collection's buffer, which a change during the loop copies first.
@@ -287,7 +280,7 @@ pub enum IntrinsicOp {
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 17] = [
+    pub const ALL: [IntrinsicOp; 16] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::MapLen,
@@ -301,7 +294,6 @@ impl IntrinsicOp {
         IntrinsicOp::MapSlots,
         IntrinsicOp::MapSlotNext,
         IntrinsicOp::MapSlotEntry,
-        IntrinsicOp::ValueCopy,
         IntrinsicOp::SnapBegin,
         IntrinsicOp::SnapEnd,
         IntrinsicOp::MapEntry,
@@ -3596,8 +3588,8 @@ mod tests {
         fn received(&self, _: hd_base::DefId, _: usize, _: usize) -> crate::own::Pass {
             crate::own::Pass::Owned
         }
-        fn header_copy(&self, _: Ty) -> Option<crate::own::HeaderCopy> {
-            None
+        fn holds_coll(&self, _: Ty) -> bool {
+            false
         }
         fn receiver(&self, _: &Callee, _: usize, _: usize) -> bool {
             false

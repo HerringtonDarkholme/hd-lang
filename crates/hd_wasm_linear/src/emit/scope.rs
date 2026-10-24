@@ -252,10 +252,12 @@ impl Em<'_, '_, '_> {
             // The value moves out at its only use, or takes a count for
             // the caller.
             let moved = self.counting && self.take(a);
-            if self.counting && !moved {
-                self.retain_ref(a)?;
-            }
-            self.push(a)?;
+            let s = if self.counting && !moved {
+                self.retain_ref(a)?
+            } else {
+                super::value::Src::Ref(a)
+            };
+            self.push_src(&s)?;
             for l in self.ret.clone().iter().rev() {
                 self.f.set(*l);
             }

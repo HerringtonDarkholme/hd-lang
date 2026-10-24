@@ -147,14 +147,34 @@ impl Em<'_, '_, '_> {
         at
     }
 
+    /// The leaves of a payload of `tys`, laid out as `parts`, that hold a
+    /// collection a count copies ([`Em::copied`]).
+    pub(super) fn part_colls(&self, tys: &[Ty], parts: &[Part]) -> Vec<u32> {
+        let mut out = Vec::new();
+        for (t, p) in tys.iter().zip(parts) {
+            let first = u32::try_from(p.first).expect("leaves");
+            out.extend(self.copied(*t).into_iter().map(|c| first + c));
+        }
+        out
+    }
+
     /// One more count on each counted reference that a new object's
-    /// construction copied into its payload.
-    pub(super) fn retain_fields(&mut self, at: u32, m: &Mem, walk: Option<&Walk>) {
-        if let Some(w) = walk {
+    /// construction copied into its payload: each collection, at the
+    /// leaves `colls`, the copy glue's result stored back.
+    pub(super) fn retain_fields(&mut self, at: u32, m: &Mem, walk: Option<&Walk>, colls: &[u32]) {
+        for &c in colls {
+            let l = m.leaves[c as usize];
+            self.f.get(at);
+            self.f.get(at);
+            self.f.op(l.load(0));
+            self.f.helper(Helper::CollCopy);
+            self.f.op(I::I32Store(mem(HEAP, u64::from(l.offset), 2)));
+        }
+        if let Some(w) = walk.and_then(|w| w.without(colls)) {
             self.f.get(at);
             self.f.helper(Helper::RetainFields {
                 leaves: m.leaves.clone(),
-                walk: w.clone(),
+                walk: w,
             });
         }
     }
@@ -191,12 +211,8 @@ impl Em<'_, '_, '_> {
         match self.kind(t) {
             Kind::Value => {
                 let tys = self.struct_fields(t);
-                let mut srcs = Vec::new();
-                for (r, ft) in fields.iter().zip(&tys) {
-                    srcs.push(self.slot_src(*r, *ft, false)?);
-                }
                 // Construction consumes its parts (§23.25).
-                self.count_parts(&srcs, &tys)?;
+                let srcs = self.count_refs(&fields, &tys)?;
                 for (s, ft) in srcs.iter().zip(&tys) {
                     for k in 0..self.vals(*ft)?.len() {
                         self.src(s, k)?;
@@ -210,16 +226,12 @@ impl Em<'_, '_, '_> {
                 } else {
                     let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
                     let walk = self.payload_walk(&tys);
-                    let mut srcs = Vec::new();
-                    for (r, ft) in fields.iter().zip(&tys) {
-                        srcs.push(self.slot_src(*r, *ft, true)?);
-                    }
+                    let srcs = self.count_refs(&fields, &tys)?;
                     let cyclic = self.cyclic_object(t);
                     let at = self.object(&m, walk.as_ref(), cyclic);
                     for (s, p) in srcs.iter().zip(&parts) {
                         self.store_part(at, &m, *p, s)?;
                     }
-                    self.count_parts(&srcs, &tys)?;
                     self.f.get(at);
                 }
                 // A new object arrives with its count.
@@ -232,15 +244,32 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
-    /// One count for a new value on each part of `srcs`, of types `tys`,
-    /// that does not move its own count in ([`Em::retain_src`]).
-    pub(super) fn count_parts(&mut self, srcs: &[Src], tys: &[Ty]) -> StageResult<()> {
-        for (s, t) in srcs.iter().zip(tys) {
-            if self.counted(*t).is_some() {
-                self.retain_src(s, *t)?;
+    /// The parts `srcs`, of types `tys`, of a new value, each moved in or a
+    /// copy with counts of its own ([`Em::retain_src`]).
+    pub(super) fn count_parts(&mut self, srcs: &[Src], tys: &[Ty]) -> StageResult<Vec<Src>> {
+        srcs.iter()
+            .zip(tys)
+            .map(|(s, t)| self.retain_src(s, *t))
+            .collect()
+    }
+
+    /// The parts `rs`, of types `tys`, of a new value ([`Em::count_parts`]).
+    fn count_refs(&mut self, rs: &[u32], tys: &[Ty]) -> StageResult<Vec<Src>> {
+        let srcs: Vec<Src> = rs.iter().map(|r| Src::Ref(*r)).collect();
+        self.count_parts(&srcs, tys)
+    }
+
+    /// Pushes every value of `s`.
+    pub(super) fn push_src(&mut self, s: &Src) -> StageResult<()> {
+        match s {
+            Src::Ref(r) => self.push(*r),
+            Src::Locals(ls) => {
+                for l in ls {
+                    self.f.get(*l);
+                }
+                Ok(())
             }
         }
-        Ok(())
     }
 
     /// Stores the values of `s` as the part `p` of the object at local `at`
@@ -282,27 +311,19 @@ impl Em<'_, '_, '_> {
             Kind::Value => {
                 let (_, parts) = struct_mem(self.pool(), self.env(), t)?;
                 let tys = self.struct_fields(t);
-                let mut srcs = Vec::new();
-                for (f, ft) in tys.iter().enumerate() {
-                    srcs.push(match replaced(f) {
-                        Some(v) => Some(self.slot_src(v, *ft, false)?),
-                        None => None,
-                    });
-                }
                 // The copy takes a count of each kept field, and each
                 // replacement moves its count in or takes one (§23.25).
                 let from = self.vals.get(&a).cloned();
-                for ((s, ft), p) in srcs.iter().zip(&tys).zip(&parts) {
-                    if self.counted(*ft).is_none() {
-                        continue;
-                    }
-                    match (s, &from) {
-                        (Some(s), _) => self.retain_src(s, *ft)?,
+                let mut srcs = Vec::new();
+                for (f, (ft, p)) in tys.iter().zip(&parts).enumerate() {
+                    srcs.push(match (replaced(f), &from) {
+                        (Some(v), _) => Some(self.consumed(v)?),
                         (None, Some(ls)) => {
-                            self.retain_locals(&ls[p.first..p.first + p.count], *ft)?;
+                            let kept = &ls[p.first..p.first + p.count];
+                            Some(Src::Locals(self.copy_locals(kept, *ft)?))
                         }
-                        (None, None) => {}
-                    }
+                        (None, None) => None,
+                    });
                 }
                 for (f, p) in parts.iter().enumerate() {
                     match &srcs[f] {
@@ -326,13 +347,8 @@ impl Em<'_, '_, '_> {
                 } else {
                     let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
                     let walk = self.payload_walk(&tys);
-                    let mut srcs = Vec::new();
-                    for (f, ft) in tys.iter().enumerate() {
-                        srcs.push(match replaced(f) {
-                            Some(v) => Some(self.slot_src(v, *ft, true)?),
-                            None => None,
-                        });
-                    }
+                    let srcs: Vec<Option<Src>> =
+                        (0..tys.len()).map(|f| replaced(f).map(Src::Ref)).collect();
                     let cyclic = self.cyclic_object(t);
                     let at = self.object(&m, walk.as_ref(), cyclic);
                     for (f, p) in parts.iter().enumerate() {
@@ -355,7 +371,8 @@ impl Em<'_, '_, '_> {
                             }
                         }
                     }
-                    self.retain_fields(at, &m, walk.as_ref());
+                    let colls = self.part_colls(&tys, &parts);
+                    self.retain_fields(at, &m, walk.as_ref(), &colls);
                     self.f.get(at);
                 }
                 return self.store_owned(i);
@@ -414,13 +431,13 @@ impl Em<'_, '_, '_> {
             return unsupported("a field index outside the data type");
         };
         let ft = tys[idx as usize];
-        let s = self.slot_src(v, ft, true)?;
+        let mut s = Src::Ref(v);
         let at = self.f.local(Val::I32);
         self.push_start(obj, Some(0))?;
         self.f.set(at);
         // The field takes a count of the new value and drops the old one's.
         if self.counted(ft).is_some() {
-            self.retain_src(&s, ft)?;
+            s = self.retain_src(&s, ft)?;
             let old: Vec<u32> = m.leaves[p.first..p.first + p.count]
                 .iter()
                 .map(|l| self.f.local(l.val))
@@ -544,6 +561,8 @@ impl Em<'_, '_, '_> {
         if tys.len() != fields.len() {
             return unsupported("a variant built from other fields than it has");
         }
+        // Construction consumes its parts (§23.25).
+        let fields = self.count_parts(fields, &tys)?;
         let push = |em: &mut Self, p: usize| -> StageResult<()> {
             if p == 0 {
                 em.f.u32(variant);
@@ -571,14 +590,9 @@ impl Em<'_, '_, '_> {
                     &mut |em: &mut Self| push(em, p),
                 )?;
             }
-            if walk.is_some() {
-                self.count_parts(fields, &tys)?;
-            }
             self.f.get(cell);
             return self.store_owned(i);
         }
-        // Construction consumes its parts (§23.25).
-        self.count_parts(fields, &tys)?;
         for p in 0..m.leaves.len() {
             push(self, p)?;
         }

@@ -749,7 +749,8 @@ them: a nullable reference for `REF`, a tag and a reference for `REF?`.
 So `List[Point].push` and `List[User].push` are one instance, emitted,
 cached and compiled once. A type argument whose copy copies a collection
 (a `List` or `Map` value, or a struct holding one, `hd_mono::holds_coll`)
-stays exact: a `ValueCopy` of `T` in the body must know what it copies
+stays exact: a count of a `T` value in the body runs the copy glue of
+each collection in it, so it must know what it copies
 (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Collection values"), so
 `List[List[i32]].push` is its own instance. The callees of a class instance see the class
 as their argument too. The rule reads only the item's signature, its own

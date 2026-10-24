@@ -97,6 +97,7 @@ impl Em<'_, '_, '_> {
             size: m.size,
             leaves: m.leaves,
             walk,
+            colls: self.copied(ty),
             boxed,
         })
     }
@@ -864,7 +865,8 @@ impl Em<'_, '_, '_> {
                     offset: 0,
                 };
                 self.store_part(obj, &m, all, &src)?;
-                self.retain_fields(obj, &m, w.as_ref());
+                let colls = self.copied(ty);
+                self.retain_fields(obj, &m, w.as_ref(), &colls);
                 self.f.get(obj);
                 return self.store_owned(i);
             }
@@ -1066,9 +1068,9 @@ impl Em<'_, '_, '_> {
     /// value's part: they take a count of the new value (a copy of each
     /// collection a place holds) before the old one's is released.
     fn part_store(&mut self, dst: &[u32], ft: Ty, v: u32) -> StageResult<()> {
-        let s = self.slot_src(v, ft, false)?;
+        let mut s = Src::Ref(v);
         if self.counted(ft).is_some() {
-            self.retain_src(&s, ft)?;
+            s = self.retain_src(&s, ft)?;
             self.release_locals(dst, ft)?;
         }
         for k in 0..dst.len() {
@@ -1130,9 +1132,9 @@ impl Em<'_, '_, '_> {
         let vs = self.vals(t)?;
         let global =
             |k: usize| crate::module::Global::Storage(h, u32::try_from(k).expect("k"), vs[k]);
-        let s = self.slot_src(v, ft, false)?;
+        let mut s = Src::Ref(v);
         if self.counted(ft).is_some() {
-            self.retain_src(&s, ft)?;
+            s = self.retain_src(&s, ft)?;
             let old: Vec<u32> = (part.first..part.first + part.count)
                 .map(|k| {
                     let o = self.f.local(vs[k]);
@@ -1180,9 +1182,9 @@ impl Em<'_, '_, '_> {
     /// (a copy of each collection a place holds, `types.coll.value`)
     /// before the old one's is released.
     fn store_leaves(&mut self, at: u32, leaves: &[Leaf], ft: Ty, v: u32) -> StageResult<()> {
-        let s = self.slot_src(v, ft, false)?;
+        let mut s = Src::Ref(v);
         if self.counted(ft).is_some() {
-            self.retain_src(&s, ft)?;
+            s = self.retain_src(&s, ft)?;
             let old: Vec<u32> = leaves.iter().map(|l| self.f.local(l.val)).collect();
             for (l, o) in leaves.iter().zip(&old) {
                 self.f.get(at);
@@ -1354,9 +1356,11 @@ impl Em<'_, '_, '_> {
         self.f.static_addr(at);
         self.f.set(a);
         let old: Vec<u32> = m.leaves.iter().map(|l| self.f.local(l.val)).collect();
-        if counted && !self.take(v) {
-            self.retain_ref(v)?;
-        }
+        let s = if counted {
+            self.consumed(v)?
+        } else {
+            Src::Ref(v)
+        };
         if counted {
             for (l, o) in m.leaves.iter().zip(&old) {
                 self.f.get(a);
@@ -1369,7 +1373,7 @@ impl Em<'_, '_, '_> {
             count: m.leaves.len(),
             offset: 0,
         };
-        self.store_part(a, &m, all, &Src::Ref(v))?;
+        self.store_part(a, &m, all, &s)?;
         if counted {
             self.release_locals(&old, t)?;
         }

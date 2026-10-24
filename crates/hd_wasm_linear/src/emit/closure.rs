@@ -291,10 +291,8 @@ impl Em<'_, '_, '_> {
         let src = if v == NONE {
             self.zero_src(l)?
         } else {
-            if !self.take(v) {
-                self.retain_ref(v)?;
-            }
-            self.cell_src(l, Src::Ref(v))?
+            let s = self.consumed(v)?;
+            self.cell_src(l, s)?
         };
         if self.cells.get(&l) == Some(&i) {
             let c = self.local(u32::try_from(l).expect("locals"))?[0];
@@ -407,7 +405,14 @@ impl Em<'_, '_, '_> {
         for (s, p) in srcs.iter().zip(&parts) {
             self.store_part(at, &m, *p, s)?;
         }
-        self.retain_fields(at, &m, walk.as_ref());
+        // A shared capture's slot holds its cell.
+        let copied: Vec<Ty> = caps
+            .iter()
+            .zip(&tys)
+            .map(|((_, shared), t)| if *shared { Ty::VOID } else { *t })
+            .collect();
+        let colls = self.part_colls(&copied, &parts);
+        self.retain_fields(at, &m, walk.as_ref(), &colls);
         self.f.get(at);
         self.store_owned(i)
     }

@@ -253,10 +253,7 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
             None => Vec::new(),
             Some(_) if em.diverges(at) => Vec::new(),
             Some(ls) if is_open(pool, rty) => vec![em.erase(&ls, rty, ct, false)?],
-            Some(ls) => {
-                em.retain_locals(&ls, ct)?;
-                ls
-            }
+            Some(ls) => em.copy_locals(&ls, ct)?,
         }
     };
     if out.len() == results.len() {
@@ -340,10 +337,8 @@ impl Em<'_, '_, '_> {
         let mut params = Vec::new();
         for r in thunk_operands(self.b, i) {
             params.extend(self.vals(self.ty_of(r))?);
-            if !self.take(r) {
-                self.retain_ref(r)?;
-            }
-            self.push(r)?;
+            let s = self.consumed(r)?;
+            self.push_src(&s)?;
         }
         for (l, shared) in thunk_capture_locals(self.b, i) {
             let l = l as usize;
@@ -356,9 +351,8 @@ impl Em<'_, '_, '_> {
             }
             let t = self.sub(self.b.local_ty[l]);
             let ls = self.local_value(u32::try_from(l).expect("locals"))?;
-            self.retain_locals(&ls, t)?;
-            for x in &ls {
-                self.f.get(*x);
+            for x in self.copy_locals(&ls, t)? {
+                self.f.get(x);
             }
             params.extend(self.vals(t)?);
         }
@@ -470,7 +464,8 @@ impl Em<'_, '_, '_> {
                 };
                 self.store_part(at, &m, part, &Src::Locals(ls.to_vec()))?;
                 if !owned {
-                    self.retain_fields(at, &m, w.as_ref());
+                    let colls = self.copied(ct);
+                    self.retain_fields(at, &m, w.as_ref(), &colls);
                 }
                 self.f.get(at);
                 self.f.set(out);

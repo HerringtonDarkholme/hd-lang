@@ -1,7 +1,7 @@
-//! Insertion's header copies (`docs/compiler/tir-v2.md`, stage 2 commit
-//! 13a): a match binding of a map's list keeps its value when the map's
-//! list changes in place afterwards. The checker's former copies went
-//! into `let` bindings only, so there the binding saw the push.
+//! Collection copies (`docs/compiler/tir-v2.md`, "List and Map buffers",
+//! 3g): a match binding of a map's list keeps its value when the map's
+//! list changes in place afterwards, since its count makes the map's
+//! buffer shared and the change copies it first.
 
 use std::path::Path;
 use std::process::Command;

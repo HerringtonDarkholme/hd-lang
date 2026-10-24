@@ -194,8 +194,8 @@ impl Ck<'_, '_> {
         // A bound `push` or `remove` of a `let mut` collection takes the
         // local's address, as a `&mut self` method's does
         // (`fn.ref.bound.address`), so calling it changes that collection
-        // in place; a shared list header would get a list of its own from
-        // insertion's header copies.
+        // in place; a copy of the list would get its own buffer at the
+        // change.
         if let Some((recv, rt)) = self.in_place_bound_receiver(base, &name)? {
             return self.bound_ref(recv, rt, &name, method_targs, want, n);
         }

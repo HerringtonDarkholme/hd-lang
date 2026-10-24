@@ -729,11 +729,11 @@ mod tests {
         b.finish(root, &[]).expect("caller verifies")
     }
 
-    /// A list bound by a `Store` from a local a later argument changes takes
-    /// a header copy right after the argument, as a call's argument does;
-    /// a list receiver, which a call passes as is, takes none.
+    /// A list bound by a `Store` from a local a later argument changes, or
+    /// bound as a receiver, takes no copy of its own: its count is its
+    /// copy, which the change makes unique.
     #[test]
-    fn a_bound_argument_is_copied_only_where_the_call_would_copy_it() {
+    fn a_bound_argument_shares_its_list_with_the_local_a_later_argument_changes() {
         let copies = |bind| {
             let mut b = changing_caller();
             let c = (0..b.len()).find(|&i| plain_call(&b, i) == Some(item(3)));
@@ -745,7 +745,7 @@ mod tests {
             let change = text.find("IsUnique").expect("the change");
             text.find(" Intrinsic %").is_some_and(|c| c < change)
         };
-        assert!(copies(Bind::Store));
+        assert!(!copies(Bind::Store));
         assert!(!copies(Bind::Receiver));
     }
 

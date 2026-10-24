@@ -159,6 +159,8 @@ pub struct CountOperation {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CountAction {
     Retain,
+    /// A count of a collection through its copy glue (`rt:coll_copy`).
+    Copy,
     Release,
     Free,
 }
@@ -168,6 +170,7 @@ impl CountAction {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Retain => "retain",
+            Self::Copy => "copy",
             Self::Release => "release",
             Self::Free => "free",
         }
@@ -179,8 +182,9 @@ pub(crate) fn count_action(
     runtime: Option<&crate::Runtime>,
 ) -> Option<CountAction> {
     use crate::{Helper, module::Sym};
-    use CountAction::{Free, Release, Retain};
+    use CountAction::{Copy, Free, Release, Retain};
     match s {
+        Sym::Helper(Helper::CollCopy) => Some(Copy),
         Sym::Helper(
             Helper::Retain { .. }
             | Helper::RetainKnown

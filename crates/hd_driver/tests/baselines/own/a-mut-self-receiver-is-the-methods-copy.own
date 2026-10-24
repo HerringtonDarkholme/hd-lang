@@ -22,20 +22,17 @@ trait Bump:
 
 impl Bump for List[i64]:
     fn bump(mut self) -> usize:
+        self.push(1)
 > app/main/impl Bump for List [ i64 ].bump
 >   local $0 self: List[i64] [param read]
->   %0 = Read borrow [$0] : List[i64]
->   %1 = Intrinsic ValueCopy [%0] : List[i64]
->   %2 = Store [$0] %1 : ()
-        self.push(1)
->   %3 = IsUnique [$0] : ()
->   %4 = Read borrow [$0] : List[i64]
->   %5 = Intrinsic ListPush [%4 1:i64] : ()
->   %9 = Block %7 : usize
+>   %0 = IsUnique [$0] : ()
+>   %1 = Read borrow [$0] : List[i64]
+>   %2 = Intrinsic ListPush [%1 1:i64] : ()
+>   %6 = Block %4 : usize
         self.len()
->   %6 = Read move [$0] : List[i64]
->   %7 = Intrinsic ListLen [%6] : usize
->   %8 = Drop [%6] : ()
+>   %3 = Read move [$0] : List[i64]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Drop [%3] : ()
 >   exit sub 0 drops [$0]
 
 fn grow(mut grid: List[List[i64]], i: usize) -> usize:

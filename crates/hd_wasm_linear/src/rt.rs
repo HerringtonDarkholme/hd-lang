@@ -81,6 +81,8 @@ pub struct RefLayout {
     pub size: u32,
     pub leaves: Vec<Leaf>,
     pub walk: Option<Walk>,
+    /// The leaves a copy takes through the copy glue (`rt:coll_copy`).
+    pub colls: Vec<u32>,
     pub boxed: bool,
     pub known: bool,
 }
@@ -3124,9 +3126,26 @@ fn ref_unbox_into(f: &mut Func, at: u32, value: &RefLayout, ls: &[u32]) {
         f.op(leaf.load(0));
         f.set(*l);
     }
-    ref_count(f, ls, value, true);
+    ref_copy(f, ls, value);
     f.get(at);
     f.helper(Helper::ReleaseRef);
+}
+
+/// One more count on each counted reference of the value in locals `ls`,
+/// loads no count keeps: a collection's is the copy glue's result, which
+/// replaces it, a clone when the collection is pinned (`ref.elem.copy`).
+fn ref_copy(f: &mut Func, ls: &[u32], value: &RefLayout) {
+    for &c in &value.colls {
+        f.get(ls[c as usize]);
+        f.helper(Helper::CollCopy);
+        f.set(ls[c as usize]);
+    }
+    let rest = RefLayout {
+        walk: value.walk.as_ref().and_then(|w| w.without(&value.colls)),
+        known: value.known && value.colls.is_empty(),
+        ..value.clone()
+    };
+    ref_count(f, ls, &rest, true);
 }
 
 /// The value that the reference in local `at` names, in new locals with
@@ -3171,7 +3190,7 @@ fn ref_load_inner(f: &mut Func, at: u32, value: &RefLayout, owned: Option<u32>) 
         f.set(*l);
     }
     if owned.is_none() {
-        ref_count(f, &ls, value, true);
+        ref_copy(f, &ls, value);
     }
     f.op(Instruction::End);
     ls

@@ -1,8 +1,8 @@
 //! Lists (`crates/hd_wasm_linear/DESIGN.md` §23.7, §23.17, job 9). A list value
 //! is the address of its buffer, a counted object holding the capacity,
-//! the length, the owner word (§23.20) and the elements inline; a copy
-//! (`ValueCopy`, `rt:coll_copy`) counts one more holder of the same
-//! buffer. The ownership passes' `IsUnique` makes the buffer the list's
+//! the length, the owner word (§23.20) and the elements inline; a copy,
+//! every count of it (`rt:coll_copy`), counts one more holder of the same
+//! buffer, or clones a pinned one. The ownership passes' `IsUnique` makes the buffer the list's
 //! own before a change (`rt:list_unique`): a shared one is copied, and the
 //! copied elements' collections are copied in turn, so a nested write
 //! never reaches another list. A check or a change that replaces the
@@ -13,7 +13,6 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
-use hd_mono::layout::StdKind;
 use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Step, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
@@ -558,8 +557,6 @@ impl Em<'_, '_, '_> {
                 }
                 Tag::Intrinsic if external && !reaches => match IntrinsicOp::from_u32(a) {
                     Some(IntrinsicOp::ListLen) => {}
-                    Some(IntrinsicOp::ValueCopy)
-                        if coll_leaves(self.pool(), self.env(), self.ty(x)).is_empty() => {}
                     // Distinct reference parameters can denote the same
                     // list. A mutation through either may replace its buffer.
                     _ => return false,
@@ -869,88 +866,14 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// One more count on each counted reference of `s`, a value of type
-    /// `t`, for the place that consumes it; an operand at its only use
-    /// moves its count there instead ([`Em::take`]).
-    pub(super) fn retain_src(&mut self, s: &Src, t: Ty) -> StageResult<()> {
+    /// Source `s` of a `t` value for the place that consumes it: an operand
+    /// at its only use moves its count there ([`Em::take`]), any other
+    /// value is a copy with counts of its own ([`Em::copy_locals`]).
+    pub(super) fn retain_src(&mut self, s: &Src, t: Ty) -> StageResult<Src> {
         match s {
-            Src::Ref(r) if self.take(*r) => Ok(()),
-            Src::Ref(r) => self.retain_ref(*r),
-            Src::Locals(ls) => self.retain_locals(ls, t),
+            Src::Ref(r) => self.consumed(*r),
+            Src::Locals(ls) => Ok(Src::Locals(self.copy_locals(ls, t)?)),
         }
-    }
-
-    /// Whether operand `r` is a value its own instruction made, which no
-    /// place holds: a literal, a constructor, a call's result whose type
-    /// is no legacy `mut` view, or a copy.
-    fn fresh(&self, r: u32) -> bool {
-        let Some(at) = Ref(r).as_inst() else {
-            return true;
-        };
-        let i = at.0 as usize;
-        let legacy = matches!(self.pool().get(self.ty_of(r)), TyData::Mut(_));
-        match self.b.tags[i] {
-            Tag::NewList
-            | Tag::NewMap
-            | Tag::NewStruct
-            | Tag::CopyStruct
-            | Tag::NewVariant
-            | Tag::NewTuple
-            | Tag::Closure
-            | Tag::Interp
-            | Tag::Prim => true,
-            Tag::Call | Tag::CallDyn | Tag::DefaultCall => !legacy,
-            Tag::Intrinsic => {
-                matches!(
-                    IntrinsicOp::from_u32(self.b.data[i][0]),
-                    Some(IntrinsicOp::ValueCopy | IntrinsicOp::Item)
-                ) && !legacy
-            }
-            Tag::Coerce => self.fresh(self.b.data[i][0]),
-            _ => false,
-        }
-    }
-
-    /// The source of operand `r` for a slot of type `slot` (an element, a
-    /// field, a payload): its copy when the slot holds a collection and
-    /// some place holds `r` (`types.coll.value`). A legacy data type's
-    /// list field shares its list (`in_data`); only a struct value in
-    /// such a field is copied.
-    pub(super) fn slot_src(&mut self, r: u32, slot: Ty, in_data: bool) -> StageResult<Src> {
-        if coll_leaves(self.pool(), self.env(), slot).is_empty() || self.fresh(r) {
-            return Ok(Src::Ref(r));
-        }
-        if in_data
-            && matches!(self.pool().get(strip(self.pool(), self.env(), slot)), TyData::Adt { def, .. }
-                if self.env().std_kind(def) != hd_mono::layout::StdKind::Other)
-        {
-            return Ok(Src::Ref(r));
-        }
-        self.copy_src(r, slot)
-    }
-
-    /// Value `r` of type `t` with each collection in it replaced by its
-    /// copy. Each copy's own count belongs to a temporary that the
-    /// function's exit releases (in a loop, the next iteration's copy),
-    /// so the place it is stored in takes a count of its own as for any
-    /// value.
-    fn copy_src(&mut self, r: u32, t: Ty) -> StageResult<Src> {
-        let Some(mut ls) = self.vals.get(&r).cloned() else {
-            return unsupported("a value its instruction did not compute");
-        };
-        for c in coll_leaves(self.pool(), self.env(), t) {
-            let tmp = self.f.local(Val::I32);
-            if self.loops > 0 {
-                self.f.get(tmp);
-                self.f.helper(Helper::ReleaseRef);
-            }
-            self.f.get(ls[c as usize]);
-            self.f.helper(Helper::CollCopy);
-            self.f.set(tmp);
-            self.temps.push(tmp);
-            ls[c as usize] = tmp;
-        }
-        Ok(Src::Locals(ls))
     }
 
     /// `NewList`: a buffer sized exactly for the items and the spreads
@@ -1034,8 +957,7 @@ impl Em<'_, '_, '_> {
                     self.f.op(I::I32Add);
                     self.f.set(at);
                 } else {
-                    let s = self.slot_src(*r, et, false)?;
-                    self.retain_src(&s, et)?;
+                    let s = self.retain_src(&Src::Ref(*r), et)?;
                     self.store_elem(at, &e, &s)?;
                     self.f.get(at);
                     self.f.u32(e.size);
@@ -1154,8 +1076,7 @@ impl Em<'_, '_, '_> {
             count = part.count;
             ft = self.struct_fields(ft)[k as usize];
         }
-        let s = self.slot_src(v, ft, false)?;
-        self.retain_src(&s, ft)?;
+        let s = self.retain_src(&Src::Ref(v), ft)?;
         let leaves = all[first..first + count].to_vec();
         if self.counted(ft).is_some() {
             let old: Vec<u32> = leaves.iter().map(|l| self.f.local(l.val)).collect();
@@ -1204,8 +1125,7 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
         self.f.set(n);
         let at = self.slot_at(b, n, e.size);
-        let s = self.slot_src(args[1], et, false)?;
-        self.retain_src(&s, et)?;
+        let s = self.retain_src(&Src::Ref(args[1]), et)?;
         self.store_elem(at, &e, &s)?;
         self.f.get(b);
         self.f.get(n);
@@ -1213,40 +1133,6 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Add);
         self.f.op(I::I32Store(mem(HEAP, LIST_LEN, 2)));
         Ok(())
-    }
-
-    /// `ValueCopy`: each collection in the value becomes its copy
-    /// (`rt:coll_copy`); a value holding none is itself.
-    pub(super) fn value_copy(&mut self, i: u32, r: u32) -> StageResult<()> {
-        // The copy's own type says what it copies. A list or a map copies
-        // through its `mut` view, which only a `mut self` receiver has,
-        // since no written type is one; a struct's `mut` view, a
-        // provider's, stays shared.
-        let mut t = self.ty(i);
-        let s = strip(self.pool(), self.env(), t);
-        if matches!(self.pool().get(s), TyData::Adt { def, .. }
-            if matches!(self.env().std_kind(def), StdKind::List | StdKind::Map))
-        {
-            t = s;
-        }
-        let colls = coll_leaves(self.pool(), self.env(), t);
-        if colls.is_empty() {
-            self.push(r)?;
-            return self.store(i);
-        }
-        if self.input.runtime.is_none() {
-            return unsupported("lists without std's allocator");
-        }
-        if self.vals(t)?.len() == 1 {
-            self.comp(r, 0)?;
-            self.f.helper(Helper::CollCopy);
-            return self.store_owned(i);
-        }
-        let s = self.copy_src(r, t)?;
-        for k in 0..self.vals(t)?.len() {
-            self.src(&s, k)?;
-        }
-        self.store(i)
     }
 
     /// `SnapBegin`: the list a counted `for` iterates, a copy of the

@@ -11,10 +11,9 @@ use std::cell::RefCell;
 
 use hd_base::{DefId, Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use hd_mono::ProgramEnv;
-use hd_mono::layout::LayoutEnv;
 use hd_tir::inline::{Bind, Site};
 use hd_tir::ir::{Body, Callee, ChoiceKind};
-use hd_tir::own::{HeaderCopy, OwnCx, OwnScratch, Pass, Tri};
+use hd_tir::own::{OwnCx, OwnScratch, Pass, Tri};
 use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, ParamEnv, Selection, SolveCx, Solver, TableSolver, TraitRef,
 };
@@ -142,15 +141,13 @@ impl OwnCx for Env<'_> {
         hd_wasm_linear::in_place_parts(&self.run.pool, self, ty, variant, out)
     }
 
-    fn header_copy(&self, ty: Ty) -> Option<HeaderCopy> {
+    fn holds_coll(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
-        let ty = strip_mut(pool, ty);
-        if !self.holds_coll(ty, 0) {
-            return None;
-        }
-        let known = &self.run.known;
-        let coll = matches!(pool.get(ty), TyData::Adt { def, .. } if def == known.list || def == known.map);
-        Some(HeaderCopy { ty, coll })
+        let types = pool.types();
+        types.has_param(ty)
+            || types.has_assoc(ty)
+            || types.has_opaque(ty)
+            || hd_mono::holds_coll(pool, self, hd_wasm_linear::strip_type(pool, self, ty))
     }
 
     fn receiver(&self, callee: &Callee, k: usize, n: usize) -> bool {
@@ -163,46 +160,7 @@ impl OwnCx for Env<'_> {
     }
 }
 
-/// `t` without its `mut` views.
-fn strip_mut(pool: &hd_types::InternPool, mut t: Ty) -> Ty {
-    while let TyData::Mut(inner) = pool.get(t) {
-        t = inner;
-    }
-    t
-}
-
 impl Env<'_> {
-    /// Whether a value of `t` may hold a list or a map a copy makes its own
-    /// (`types.coll.value`, the checker's `may_hold_coll`): a list, a map, a
-    /// struct or a newtype holding one at any depth, or a type parameter.
-    fn holds_coll(&self, t: Ty, depth: u32) -> bool {
-        if depth > 16 {
-            return false;
-        }
-        let pool = &self.run.pool;
-        match pool.get(strip_mut(pool, t)) {
-            TyData::Param(_) | TyData::Opaque { .. } => true,
-            TyData::Adt { def, args } => {
-                let known = &self.run.known;
-                if def == known.list || def == known.map {
-                    return true;
-                }
-                if let Some(base) = self.newtype_base(def) {
-                    return self.holds_coll(hd_mono::subst(pool, self, def, args, base), depth + 1);
-                }
-                self.is_struct(def)
-                    && self
-                        .data_fields(def)
-                        .unwrap_or_default()
-                        .into_iter()
-                        .any(|f| {
-                            self.holds_coll(hd_mono::subst(pool, self, def, args, f), depth + 1)
-                        })
-            }
-            _ => false,
-        }
-    }
-
     /// [`OwnCx::pass`] of parameter `k` of `def` called with `n`
     /// arguments, from its declaration. A body without a signature (a
     /// module's init) is never called.

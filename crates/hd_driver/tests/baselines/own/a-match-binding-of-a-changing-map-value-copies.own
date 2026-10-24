@@ -2,31 +2,29 @@
 app/main/kept
   local $0 m: Map[string, List[i64]] [param read]
   local $1 xs: List[i64] [read assigned]
-  %3 = Read borrow [$0] : Map[string, List[i64]]
-  %4 = Intrinsic MapGet [%3 "a"] : List[i64]?
-  %5 = Read borrow [$0] : Map[string, List[i64]]
-  %6 = Intrinsic MapEntry [%5 "a"] : usize
-  %7 = IsUnique [$0] : ()
-  %8 = IsUnique [$0 [%6]] : ()
-  %9 = Read borrow [$0 [%6]] : List[i64]
-  %10 = Intrinsic ListPush [%9 3:i64] : ()
-  %11 = Read borrow [$1] : List[i64]
-  %12 = Intrinsic ListLen [%11] : usize
-  %13 = Block %12 : usize
-  %14 = Block 0:usize : usize
-  %15 = Read borrow [%4 as #1 .0] : List[i64]
-  %16 = Intrinsic ValueCopy [%15] : List[i64]
-  %17 = Store [$1] %16 : ()
+  %0 = Read borrow [$0] : Map[string, List[i64]]
+  %1 = Intrinsic MapGet [%0 "a"] : List[i64]?
+  %2 = Read borrow [$0] : Map[string, List[i64]]
+  %3 = Intrinsic MapEntry [%2 "a"] : usize
+  %4 = IsUnique [$0] : ()
+  %5 = IsUnique [$0 [%3]] : ()
+  %6 = Read borrow [$0 [%3]] : List[i64]
+  %7 = Intrinsic ListPush [%6 3:i64] : ()
+  %8 = Read borrow [$1] : List[i64]
+  %9 = Intrinsic ListLen [%8] : usize
+  %10 = Block %9 : usize
+  %11 = Block 0:usize : usize
+  %12 = Read borrow [%1 as #1 .0] : List[i64]
+  %13 = Store [$1] %12 : ()
+  %15 = Block - : never
+  %17 = Block - : never
   %19 = Block - : never
+  %20 = SwitchTag %1 [#0 %17 %19] : never
   %21 = Block - : never
+  %22 = SwitchTag %1 [#1 %15 %21] : never
   %23 = Block - : never
-  %24 = SwitchTag %4 [#0 %21 %23] : never
-  %25 = Block - : never
-  %26 = SwitchTag %4 [#1 %19 %25] : never
-  %27 = Block - : never
-  %28 = Match %4 [%27 %13 %14] : usize
-  %29 = Drop [$1] : ()
-  %30 = Drop [%4] : ()
-  %31 = Drop [$0] : ()
-  %32 = Block %28 : usize
+  %24 = Match %1 [%23 %10 %11] : usize
+  %25 = Drop [%1] : ()
+  %26 = Drop [$0] : ()
+  %27 = Block %24 : usize
   exit sub 0 drops [$0]

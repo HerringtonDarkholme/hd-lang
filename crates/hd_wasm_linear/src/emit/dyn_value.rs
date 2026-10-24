@@ -113,7 +113,7 @@ impl Em<'_, '_, '_> {
             self.f.push(Ins::VTable(vt));
             return self.store(i);
         }
-        let src = self.slot_src(a, from, false)?;
+        let src = Src::Ref(a);
         let m = mem_of(self.pool(), self.env(), from)?;
         let w = self.counted(from);
         let cyclic = self.cyclic_holding(&[from]);
@@ -124,7 +124,8 @@ impl Em<'_, '_, '_> {
             offset: 0,
         };
         self.store_part(at, &m, part, &src)?;
-        self.retain_fields(at, &m, w.as_ref());
+        let colls = self.copied(from);
+        self.retain_fields(at, &m, w.as_ref(), &colls);
         let vt = self.vtable_of(&table, Some(&m.leaves), from)?;
         self.f.get(at);
         self.f.push(Ins::VTable(vt));

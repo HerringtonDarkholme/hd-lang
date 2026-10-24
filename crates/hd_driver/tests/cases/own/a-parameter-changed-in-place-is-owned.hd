@@ -1,0 +1,7 @@
+# @dump: own
+# A parameter a change makes unique stays owned, in the exit set, though
+# no read of it keeps its value: the `IsUnique` gives up the count of the
+# buffer it replaces, which must be the body's own.
+fn grown(mut xs: List[i64]) -> usize:
+    xs.push(1)
+    xs.len()

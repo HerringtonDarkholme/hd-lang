@@ -4,63 +4,55 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:list_grow" (func $rt:list_grow (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $push (param $b i32) (param $text.0 i32) (param $text.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $push (param $b i32) (param $text.0 i32) (param $text.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     block
     ;; 11 |     b.parts.push(text)
-      local.get $b
-      local.tee $t0
-      drop
-      block
-        local.get $t0
-        i32.load $heap
-        drop
-      end
       local.get $text.0
       local.get $text.1
+      local.set $t0
       local.set $t1
-      local.set $t2
       i32.const 0
       local.set $text.0
       i32.const 0
       local.set $text.1
       ;; ...
-      local.tee $t3
+      local.tee $t2
       call $rt:list_pinned
       if
         call $rt:panic
         unreachable
       end
-      local.get $t3
+      local.get $t2
       call $rt:list_grow
-      local.set $t3
+      local.set $t2
       local.get $b
       drop
       local.get $b
-      local.get $t3
+      local.get $t2
       i32.store $heap
-      local.get $t3
+      local.get $t2
       i32.load $heap offset=4
-      local.set $t4
+      local.set $t3
+      local.get $t2
       local.get $t3
-      local.get $t4
       i32.const 8
       i32.mul
       i32.add
-      local.tee $t5
-      local.get $t2
-      i32.store $heap offset=16
-      local.get $t5
+      local.tee $t4
       local.get $t1
-      i32.store $heap offset=20
-      local.get $t3
+      i32.store $heap offset=16
       local.get $t4
+      local.get $t0
+      i32.store $heap offset=20
+      local.get $t2
+      local.get $t3
       i32.const 1
       i32.add
       i32.store $heap offset=4
       i32.const 0
-      local.set $t2
-      i32.const 0
       local.set $t1
+      i32.const 0
+      local.set $t0
     end
   )
 )

@@ -1221,9 +1221,12 @@ body built elsewhere, such as a generated structure method, gets
   map value) and before each read such a change
   goes through, of every list on that read's path, and an `IsUnique` and
   a `Pin` of each list on an element reference's path (the checker
-  writes no pin of its own), and the header copies
-  (`own/copies.rs`, rule 7, commit 13a; the checker writes none): a `ValueCopy` of a value that may hold a list or a map
-  (`OwnCx::header_copy`) and that no instruction just made, where a
+  writes no pin of its own). A copy of a list or a map is a count of its
+  buffer, which the backend takes through the copy glue (stage 3, 3g:
+  the former header copies, `own/copies.rs`, went with their
+  `ValueCopy`); the passes keep a parameter that a change reaches in
+  place owned, and a local a `Pin` names unmoved. Before 3g the header
+  copies went where a
   header that may change in place would otherwise be held by two places:
   a store into a whole local that a change reaches in place (a changing
   local), or of a value whose source is not a read of a local no change
@@ -1267,7 +1270,7 @@ body built elsewhere, such as a generated structure method, gets
   one more rebuild at the end, renumbering it (`own/splice.rs`). They
   read the body and `OwnCx` (counted types, parameter modes, how a body
   receives its own parameters, `may_write`, the in-place parts of a
-  type, which types a header copy copies, in-place views and receivers)
+  type, which types hold a collection in place, and receivers)
   only.
   `own::operands` names each value operand of an instruction with its
   role (lent, consumed, a call argument, a block tail, a drop), and

@@ -418,12 +418,7 @@ pub(crate) fn keeps(b: &Body, user: u32, role: Role) -> bool {
         || (b.tags[user as usize] == Tag::Intrinsic
             && matches!(
                 IntrinsicOp::from_u32(b.data[user as usize][0]),
-                Some(
-                    IntrinsicOp::ValueCopy
-                        | IntrinsicOp::SnapBegin
-                        | IntrinsicOp::SnapEnd
-                        | IntrinsicOp::Item
-                )
+                Some(IntrinsicOp::SnapBegin | IntrinsicOp::SnapEnd | IntrinsicOp::Item)
             ))
 }
 
@@ -437,7 +432,7 @@ fn aliases(b: &Body, user: u32, role: Role) -> bool {
         && !(b.tags[user as usize] == Tag::Intrinsic
             && matches!(
                 IntrinsicOp::from_u32(b.data[user as usize][0]),
-                Some(IntrinsicOp::ValueCopy | IntrinsicOp::SnapBegin | IntrinsicOp::SnapEnd)
+                Some(IntrinsicOp::SnapBegin | IntrinsicOp::SnapEnd)
             ))
 }
 
@@ -589,7 +584,7 @@ fn facts(b: &Body, t: &mut Tables) {
                         ) || (b.tags.get(w as usize) == Some(&Tag::Intrinsic)
                             && matches!(
                                 IntrinsicOp::from_u32(b.data[w as usize][0]),
-                                Some(IntrinsicOp::ValueCopy | IntrinsicOp::SnapBegin)
+                                Some(IntrinsicOp::SnapBegin)
                             ))
                     });
                     t.fresh[l as usize] &= fresh;
@@ -917,8 +912,18 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, tag: Tag, [a, w]: [u3
                 let ok = match tag {
                     Tag::Read if w == ReadMode::Move as u32 => temp || !covers,
                     // A read of the header, or of a place holding it, whose
-                    // value a use keeps.
-                    Tag::Read => !covers || x == NONE || !t.kept(b, x),
+                    // value a use keeps; for a place another reference or
+                    // list may reach, such a copy of any collection through
+                    // memory.
+                    Tag::Read => {
+                        x == NONE
+                            || !t.kept(b, x)
+                            || (!covers
+                                && (mine
+                                    || !c.external
+                                    || !memory
+                                    || !cx.holds_coll(b.ty[x as usize])))
+                    }
                     Tag::Store | Tag::Drop => temp || (!covers && (mine || !c.external || !memory)),
                     Tag::Ref => temp || !(covers || below),
                     // A removed or covered `IsUnique` an outer loop hoisted

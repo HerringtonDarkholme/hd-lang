@@ -45,17 +45,18 @@
 //!
 //! A **binding local** is a local whose one `Store` is of a read that
 //! borrows: a loop's element binding (`for word in words`), a `:=` of a
-//! field. It is not a parameter, never addressed or captured, no read of
-//! it is consumed (that read would copy, where the binding could take the
-//! value), and every read of it lies in the span, which ends at its last
-//! `Drop`. It holds a
-//! borrowed value, so it owns nothing: its `Drop`s go, it leaves the exit
-//! set, and its reads resolve through it to the read it holds. The backend
-//! stores into it with no count (`Moves::loan_locals`).
+//! field. It is not a parameter, never addressed, captured or changed in
+//! place, no read of it is consumed (that read would copy, where the
+//! binding could take the value), and every read of it lies in the span,
+//! which ends at its last `Drop`. It holds a borrowed value, so it owns
+//! nothing: its `Drop`s go, it leaves the exit set, and its reads resolve
+//! through it to the read it holds. The backend stores into it with no
+//! count (`Moves::loan_locals`).
 //!
 //! A **lent parameter** ([`OwnCx::received`]) that the body never stores,
-//! addresses or captures is the caller's for the whole call: the body owns
-//! none of it. Its `Drop`s go, it leaves the exit set, and a read of it is
+//! addresses, captures or changes in place (an `IsUnique` gives up a count
+//! of the buffer it replaces, which must be the body's) is the caller's for
+//! the whole call: the body owns none of it. Its `Drop`s go, it leaves the exit set, and a read of it is
 //! limited by nothing in the body. The backend takes no count of it on
 //! entry, and releases at the exit one an instance receives owned. An
 //! owned parameter of a body that does not suspend is left so too when no
@@ -174,11 +175,13 @@ pub(crate) struct Tables {
     stored: Vec<u32>,
     last_drop: Vec<u32>,
     /// Per local: the stores into it, whether a reference or a closure
-    /// reaches it, whether every value stored into it is fresh, the first
-    /// and last read of it, its last `Drop`, the read a binding local
-    /// holds, and whether it left the exit set.
+    /// reaches it, whether an `IsUnique` or a `Pin` changes it in place,
+    /// whether every value stored into it is fresh, the first and last read
+    /// of it, its last `Drop`, the read a binding local holds, and whether
+    /// it left the exit set.
     stores: Vec<u32>,
     reached: Vec<bool>,
+    changed: Vec<bool>,
     captured: Vec<bool>,
     fresh: Vec<bool>,
     first_read: Vec<u32>,
@@ -320,6 +323,7 @@ impl Tables {
         fill(&mut self.last_drop, n, NONE);
         fill(&mut self.stores, locals, 0);
         fill(&mut self.reached, locals, false);
+        fill(&mut self.changed, locals, false);
         fill(&mut self.captured, locals, false);
         fill(&mut self.fresh, locals, true);
         fill(&mut self.first_read, locals, NONE);
@@ -590,7 +594,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                         ) || (b.tags.get(w as usize) == Some(&Tag::Intrinsic)
                             && matches!(
                                 IntrinsicOp::from_u32(b.data[w as usize][0]),
-                                Some(IntrinsicOp::ValueCopy | IntrinsicOp::SnapBegin)
+                                Some(IntrinsicOp::SnapBegin)
                             ))
                     });
                     t.fresh[li] &= fresh;
@@ -599,6 +603,11 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             Tag::Ref => {
                 if let Some(l) = b.local_in_place(a) {
                     t.reached[l.idx()] = true;
+                }
+            }
+            Tag::IsUnique | Tag::Pin => {
+                if let Some(l) = b.local_in_place(a) {
+                    t.changed[l.idx()] = true;
                 }
             }
             Tag::Read => {
@@ -878,11 +887,11 @@ fn decide(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tabl
 }
 
 /// The body's lent parameters (`OwnCx::received`) that it never stores,
-/// addresses or captures: the caller keeps each alive for the call, so
-/// the body owns none of them. Their `Drop`s go and they leave the exit
-/// set; every read of one may borrow, and no read moves out of it. The
-/// backend takes no count of such a parameter on entry, and releases at
-/// the exit one that an instance passes owned.
+/// addresses, captures or changes in place: the caller keeps each alive
+/// for the call, so the body owns none of them. Their `Drop`s go and they
+/// leave the exit set; every read of one may borrow, and no read moves out
+/// of it. The backend takes no count of such a parameter on entry, and
+/// releases at the exit one that an instance passes owned.
 ///
 /// An owned parameter of a body that does not suspend is left unowned the
 /// same way when no read of it keeps its value (every use lends, and no
@@ -916,7 +925,13 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
         }
         let at = k;
         k += 1;
-        if t.stores[l] != 0 || t.captured[l] || t.reached[l] || cx.counted(b.local_ty[l]) == Tri::No
+        // A parameter changed in place is owned: the change gives up a
+        // count of the buffer it replaces, which must be the body's.
+        if t.stores[l] != 0
+            || t.captured[l]
+            || t.reached[l]
+            || t.changed[l]
+            || cx.counted(b.local_ty[l]) == Tri::No
         {
             continue;
         }
@@ -1006,6 +1021,7 @@ fn binding(b: &Body, t: &Tables, s: u32) -> Option<u32> {
     (from == to
         && b.local_flags[li] & local_flags::PARAM == 0
         && !t.reached[li]
+        && !t.changed[li]
         && !t.captured[li]
         && t.stores[li] == 1
         && t.last_ldrop[li] != NONE)

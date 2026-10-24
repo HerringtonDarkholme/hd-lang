@@ -1279,6 +1279,15 @@ pub(super) fn finish(
     let fr = em.f.local(Val::I32);
     em.f.helper(Helper::Frame(key));
     em.f.set(fr);
+    // Each argument's count, a collection's its copy, before the frame
+    // keeps it.
+    if em.counting {
+        for &l in plocals {
+            let ls: Vec<u32> = em.locals[&l].iter().map(|x| x - 1).collect();
+            let t = em.sub(em.b.local_ty[l]);
+            em.retain_locals(&ls, t)?;
+        }
+    }
     for j in 0..cold_params.len() {
         let l = u32::try_from(j + 1).expect("params");
         if let Some((at, v)) = at_of(l) {
@@ -1288,11 +1297,6 @@ pub(super) fn finish(
         }
     }
     if em.counting {
-        for &l in plocals {
-            let ls: Vec<u32> = em.locals[&l].iter().map(|x| x - 1).collect();
-            let t = em.sub(em.b.local_ty[l]);
-            em.retain_locals(&ls, t)?;
-        }
         for d in em
             .susp
             .as_ref()
@@ -1333,20 +1337,22 @@ pub(super) fn finish(
                     continue;
                 };
                 let mut loaded = Vec::new();
-                for (leaf, x) in m.leaves[p.first..p.first + p.count].iter().zip(&ls) {
+                for leaf in &m.leaves[p.first..p.first + p.count] {
                     let y = em.f.local(leaf.val);
                     em.f.get(0);
                     em.f.op(leaf.load(0));
                     em.f.set(y);
-                    if let Some((at, v)) = at_of(*x) {
-                        em.f.get(fr);
-                        em.f.get(y);
-                        em.f.op(store_op(v, at));
-                    }
                     loaded.push(y);
                 }
                 if em.counting {
                     em.count_local(*l, &loaded, true)?;
+                }
+                for (x, y) in ls.iter().zip(&loaded) {
+                    if let Some((at, v)) = at_of(*x) {
+                        em.f.get(fr);
+                        em.f.get(*y);
+                        em.f.op(store_op(v, at));
+                    }
                 }
             }
         }
