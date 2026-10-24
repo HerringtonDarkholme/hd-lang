@@ -1,6 +1,6 @@
 # Positional Union Types: Stress Test
 
-Design review, 2026-10-24; this report accepts no behavior and changes no design decision, specification, fixture or compiler code.
+Design review, 2026-10-24. **Parked by the owner on 2026-10-24: hd does not need union types now.** The direction is kept for later: `A | B` is an anonymous enum, as a tuple is an anonymous struct. Order matters, `A | A` is a valid type, and nested unions stay nested. Variants are positional (`._0`, `._1`), and matching is positional. Construction is always explicit: you write `._0(x)` or `.map_err(Union._0)?`, with no injection by type, so no checker rule is added beyond the sugar. A one-payload variant is already a function value, which is what makes `map_err(Union._0)` work, and `?` supplies the missing member type from the enclosing result. Kotlin-style error sets were rejected because they add set semantics, normalization and type-test arms. Two questions remain for a future spec job: how `Error.source` behaves on a union, and how the nameable `Union` is defined for each number of members. This report changes no specification, fixture or compiler code.
 It tests the [owner's positional candidate](https://github.com/HerringtonDarkholme/hd-lang/issues/804#issuecomment-6377970627) and [explicit alternative](https://github.com/HerringtonDarkholme/hd-lang/issues/804#issuecomment-6378059165).
 The earlier Kotlin-style proposal in the issue body is superseded and remains rejected.
 
