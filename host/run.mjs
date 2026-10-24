@@ -18,9 +18,8 @@
 // so the two never both report. A worker blocked in a system call, such
 // as a read of a FIFO with no writer, does not stop, and Node cannot exit
 // while it runs, so once the run has ended this thread kills the process
-// if the worker has not exited soon after (node.mjs `exitPast`). This
-// thread also reads standard input for the worker: a thread blocked in a
-// read cannot be stopped, and the process cannot exit while it waits.
+// if the worker has not exited soon after (node.mjs `exitPast`). Standard
+// input belongs to the input provider's I/O worker in both profiles.
 //
 // The configuration's `cleanupMs`, which `hd` always writes, is the cleanup
 // bound of a Ctrl-C (cli.cancel.ctrl-c, cli.cancel.bound): a Ctrl-C that
@@ -79,60 +78,6 @@ const interruptOf = (config) => config.interruptSignal ?? "SIGINT";
 // The wall clock, comparable across threads.
 const now = () => performance.timeOrigin + performance.now();
 
-// Standard input, read without blocking this thread, one line at a time
-// for `next(answer)`: the line without its ending, `null` at the end of
-// input (and every time after), or `false` when it cannot be read, as
-// node.mjs `lineReader` answers.
-function inputLines() {
-  let pending = Buffer.alloc(0);
-  // What every read answers once the input ended: `null`, or `false`.
-  let last;
-  const waiting = [];
-  const serve = () => {
-    while (waiting.length) {
-      const nl = pending.indexOf(10);
-      let line;
-      if (nl >= 0) {
-        line = pending.subarray(0, nl);
-        pending = pending.subarray(nl + 1);
-        if (line.length && line[line.length - 1] === 13) line = line.subarray(0, line.length - 1);
-        line = line.toString("utf8");
-      } else if (last === undefined) {
-        return;
-      } else if (pending.length && last === null) {
-        line = pending.toString("utf8");
-        pending = Buffer.alloc(0);
-      } else {
-        line = last;
-      }
-      waiting.shift()(line);
-    }
-  };
-  let stdin = null;
-  return {
-    next: (answer) => {
-      if (stdin === null) {
-        stdin = process.stdin;
-        stdin.on("data", (chunk) => {
-          pending = Buffer.concat([pending, chunk]);
-          serve();
-        });
-        stdin.on("end", () => {
-          last ??= null;
-          serve();
-        });
-        stdin.on("error", () => {
-          last ??= false;
-          serve();
-        });
-      }
-      waiting.push(answer);
-      serve();
-    },
-    close: () => stdin?.destroy(),
-  };
-}
-
 // The worker's side of a Ctrl-C under `supervise`, as an `entryCancel`:
 // `cell[0]` counts the requests the main thread passed on, and `cell[1]`
 // is 1 while the host waits, when a request ends the wait at once.
@@ -159,18 +104,9 @@ function sharedCancel(boundMs, cell) {
 }
 
 // Runs `module` (bytes or a compiled module) in this thread under
-// `config`, writing through `sink`, and returns the status. `readLine`,
-// when given, reads standard input; `cancel`, when given, is how a
-// Ctrl-C reaches the run.
-async function runHere(
-  module,
-  config,
-  args,
-  sink,
-  deadline = null,
-  readLine = undefined,
-  cancel = null,
-) {
+// `config`, writing through `sink`, and returns the status. `cancel`,
+// when given, is how a Ctrl-C reaches the run.
+async function runHere(module, config, args, sink, deadline = null, cancel = null) {
   // The unsupervised path may receive bytes; retain the compiled module
   // so checked reports can read its custom metadata too.
   module = module instanceof WebAssembly.Module ? module : await WebAssembly.compile(module);
@@ -182,7 +118,6 @@ async function runHere(
     grants: config.grants ?? {},
     providers: profile ? (io) => profile.providers(config.profile, io) : null,
     deadline,
-    readLine,
   });
   try {
     const instance = await WebAssembly.instantiate(module, host.imports);
@@ -208,15 +143,12 @@ function supervise(module, config, args, limit) {
   return new Promise((done, fail) => {
     const deadline = now() + limit;
     const { port1: port, port2 } = new MessageChannel();
-    // Set to 1 when an input line is ready for the worker.
-    const flag = new Int32Array(new SharedArrayBuffer(4));
     // The Ctrl-C requests passed on, and whether the worker's host waits
     // (`sharedCancel`).
     const cell = config.cleanupMs == null ? null : new Int32Array(new SharedArrayBuffer(8));
     const signal = interruptOf(config);
-    const input = inputLines();
     const worker = new Worker(new URL(import.meta.url), {
-      workerData: { module, config, args, deadline, port: port2, flag, cell },
+      workerData: { module, config, args, deadline, port: port2, cell },
       transferList: [port2],
     });
     let status = null;
@@ -226,18 +158,11 @@ function supervise(module, config, args, limit) {
     // The label of the facts body the worker runs, or null: a time limit
     // that stops it names its facts (annot.fact.eval.panic-runtime).
     let fact = null;
-    // A message is output (`fd`, `text`), a read of an input line, the
-    // facts body that runs (`fact`), or the program's status.
+    // A message is output (`fd`, `text`), the facts body (`fact`),
+    // or the program's status.
     const take = (m) => {
       if (m.fact !== undefined) fact = m.fact;
-      else if (m.read) {
-        input.next((line) => {
-          if (ended) return;
-          port.postMessage({ line });
-          Atomics.store(flag, 0, 1);
-          Atomics.notify(flag, 0);
-        });
-      } else if (m.fd === undefined) status = m.status;
+      else if (m.fd === undefined) status = m.status;
       else {
         writeOutput(m.fd, m.text);
         if (m.fd === 2 && m.text === reportIn(fact, PROGRAM_TIME_LIMIT)) reported = true;
@@ -249,7 +174,6 @@ function supervise(module, config, args, limit) {
       clearTimeout(timer);
       if (cell) process.off(signal, interrupt);
       port.close();
-      input.close();
       exitPast([worker], s, config.statusFile);
       done(s);
     };
@@ -288,7 +212,6 @@ function supervise(module, config, args, limit) {
       clearTimeout(timer);
       if (cell) process.off(signal, interrupt);
       port.close();
-      input.close();
       fail(e);
     });
     worker.on("exit", () => {
@@ -327,19 +250,11 @@ if (isMainThread) {
             err: (text) => writeOutput(2, text),
           },
           null,
-          undefined,
           cancel,
         )
       : await supervise(await WebAssembly.compile(bytes), config, args, limit);
 } else {
-  const { module, config, args, deadline, port, flag, cell } = workerData;
-  // The next input line, which the main thread reads.
-  const readLine = () => {
-    Atomics.store(flag, 0, 0);
-    port.postMessage({ read: true });
-    Atomics.wait(flag, 0, 0);
-    return receiveMessageOnPort(port).message.line;
-  };
+  const { module, config, args, deadline, port, cell } = workerData;
   const status = await runHere(
     module,
     config,
@@ -350,7 +265,6 @@ if (isMainThread) {
       fact: (label) => port.postMessage({ fact: label }),
     },
     deadline,
-    readLine,
     cell ? sharedCancel(config.cleanupMs, cell) : null,
   );
   port.postMessage({ status });

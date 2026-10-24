@@ -9,6 +9,7 @@ exit-package-check	cli.package.whole,cli.check.default,cli.exit.success,cli.mode
 exit-package-file	cli.package.file,cli.exit.success,cli.file.in-package
 exit-usage-error	cli.exit.hd-failure
 backend-selection-removed	cli.codegen.single,cli.codegen.no-option
+console-pending	cli.host.default-profile.granted,cli.host.default-profile.input-closed
 command-help	cli.command.help,cli.command.help.command,cli.command.positional,cli.engine.flag
 exit-test-empty	cli.test.package-empty,cli.test.file-empty,cli.exit.hd-failure
 exit-outside-package	cli.run.package-only,cli.file.check-test.no-file,cli.exit.hd-failure,cli.mode.outside,cli.package.no-root

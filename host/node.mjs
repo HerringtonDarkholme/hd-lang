@@ -383,11 +383,45 @@ function lineReader(fd) {
 
 // `hd:ConsoleInput`: the next input line, `.None` at the end, `.Err` when
 // it cannot be read. `env.readLine`, when a host has one, reads it instead
-// of `lineReader` (run.mjs, whose main thread reads for a worker).
-function consoleInputProvider({ env, flush }) {
+// of the input worker (the REPL keeps its framed control reader).
+function consoleInputProvider({ env, flush, inputClient }) {
+  if (env.readLine === undefined && env.stdin !== null) {
+    const read = (kind) => {
+      flush();
+      const { ok: operation } = inputClient.call({
+        op: "wait_start",
+        kind,
+        fd: env.stdin ?? 0,
+      });
+      let result = null;
+      const poll = () => {
+        const outcome = inputClient.call({ op: "wait_poll", operation });
+        if (outcome.pending) return false;
+        result = outcome;
+        return true;
+      };
+      const finish = () => {
+        inputClient.call({ op: "wait_finish", operation });
+      };
+      const output = () => (result.closed ? Err({ tag: "Closed" }) : Ok(result.ok));
+      if (poll()) {
+        finish();
+        return output();
+      }
+      return pendingOperation(
+        poll,
+        output,
+        () => inputClient.cancel({ op: "wait_abort", operation }),
+        finish,
+      );
+    };
+    return { read_line: () => read("line"), read_all: () => read("all") };
+  }
+  // The REPL's framed control reader and a test's explicitly closed stdin.
+
   const readLine = env.readLine ?? lineReader(env.stdin === undefined ? 0 : env.stdin);
-  // A host that reads lines for a worker has no read of the rest: the
-  // lines are joined here, each ended by "\n", as the default body of
+  // A custom reader without a read of the rest joins its lines here,
+  // each ended by "\n", as the default body of
   // `read_all!` does.
   const readAll =
     readLine.all ??
@@ -975,6 +1009,7 @@ const nodeLayer = {
     const http = syncClient("http.mjs");
     const child = syncClient("process.mjs", "close");
     const files = syncClient("fs.mjs", "close");
+    const input = syncClient("input.mjs");
     // The program's output reaches its stream before it waits on the host
     // (std-console.host.visible-text): a run stopped in a wait loses none. Each
     // client call and child process asks `waiting()` first.
@@ -995,7 +1030,7 @@ const nodeLayer = {
     const testRunner = testRunnerProvider({ env, st });
     return {
       traits: {
-        "hd:ConsoleInput": consoleInputProvider({ env, flush }),
+        "hd:ConsoleInput": consoleInputProvider({ env, flush, inputClient: client(input) }),
         "hd:Sys": sysProvider({ grant }),
         "hd:Http": httpProvider((request) => httpSend(httpClient, { ...request, grants })),
         "hd:Net": netProvider({ grant, netClient }),
@@ -1022,6 +1057,7 @@ const nodeLayer = {
         http.stop();
         child.stop();
         files.stop();
+        input.stop();
         if (st.ownTemp) {
           try {
             rmSync(st.ownTemp, { recursive: true, force: true });
