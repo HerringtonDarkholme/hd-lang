@@ -349,6 +349,12 @@ pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
                 params_in(pool, a, out);
             }
         }
+        TyData::Opaque { args, bound, .. } => {
+            for &a in pool.list_items(args) {
+                params_in(pool, a, out);
+            }
+            params_in(pool, bound, out);
+        }
         TyData::Tuple { elems, rest } => {
             for &a in pool.list_items(elems) {
                 params_in(pool, a, out);

@@ -73,6 +73,12 @@ pub fn walk(
                 go(a, polarity * vs.get(j).copied().unwrap_or(0), seen);
             }
         }
+        TyData::Opaque { args, bound, .. } => {
+            for &a in pool.list_items(args) {
+                go(a, 0, seen);
+            }
+            go(bound, 0, seen);
+        }
         TyData::Tuple { elems, rest } => {
             for e in pool.list_items(elems).iter().copied() {
                 go(e, polarity, seen);

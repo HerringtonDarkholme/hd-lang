@@ -226,6 +226,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub memo: BodyMemo,
     /// The result type of the body or closure being checked.
     pub rets: Vec<Ty>,
+    /// Opaque result inference is invariant; it never joins or inserts coercions.
+    pub strict_rets: Vec<Ty>,
+    pub opaque_rets: Vec<(Ty, Ty)>,
+    pub recursive_returns: Vec<Ty>,
     /// Type parameters by name: the impl's, then the function's.
     pub gens: Vec<(Symbol, Ty)>,
     /// The `using` binding being checked (`flow.using.access`).
@@ -527,6 +531,9 @@ pub(crate) fn new_ck<'a, 'c>(
         fuel: Fuel::new(cx.fuel),
         memo: BodyMemo::default(),
         rets: vec![ret],
+        strict_rets: vec![],
+        opaque_rets: vec![],
+        recursive_returns: vec![],
         gens: Vec::new(),
         using_bind: false,
         using_locals: Vec::new(),
@@ -1026,12 +1033,22 @@ fn fn_body_steps(
     // `types.lct.sites`: an omitted result type joins the final value and
     // the `return` operands, and widens in place when an optional one
     // follows plain ones (`join_site`).
-    let want = (!infer.ret).then(|| ck.norm_ty(sig.ret));
-    let (tail, ret) = ck.join_site(want, |ck, ret| {
+    let (tail, ret) = if let TyData::Opaque { bound, .. } = ck.pool().get(sig.ret) {
+        let ret = ck.infer.fresh(ck.pool(), VarKind::General);
         ck.rets[0] = ret;
+        ck.strict_rets.push(ret);
+        ck.opaque_rets.push((sig.ret, ret));
         let (tail, _) = ck.block_value(body, Some(ret))?;
-        Ok((tail, ret))
-    })?;
+        ck.check_opaque_result(ret, bound, node)?;
+        (tail, ret)
+    } else {
+        let want = (!infer.ret).then(|| ck.norm_ty(sig.ret));
+        ck.join_site(want, |ck, ret| {
+            ck.rets[0] = ret;
+            let (tail, _) = ck.block_value(body, Some(ret))?;
+            Ok((tail, ret))
+        })?
+    };
     let root = ck.b.close_block(blk, tail, ret, body.index());
     ck.finish_with(root, ret, Some(node))
 }
@@ -1374,6 +1391,53 @@ impl Ck<'_, '_> {
         }
     }
 
+    pub(crate) fn check_opaque_result(
+        &mut self,
+        ret: Ty,
+        bound: Ty,
+        n: NodeRef<'_>,
+    ) -> StageResult<()> {
+        let pool = self.pool();
+        if matches!(pool.get(self.infer.resolve(pool, ret)), TyData::Infer(_))
+            && self.infer.kind_of(pool, ret) == Some(VarKind::General)
+        {
+            if self.recursive_returns.contains(&ret) {
+                self.err(
+                    Code::RecursiveValueType,
+                    n,
+                    "the recursive hidden result has no concrete type",
+                );
+                return Ok(());
+            }
+            let _ = self.infer.unify(pool, ret, Ty::NEVER);
+        }
+        if let TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } = self.pool().get(bound)
+        {
+            let args = self.cx.lookup.item(def).map_or(args, |it| {
+                hd_resolve::fill_trait_args(self.cx.names.pool, def, &it.generics, args, Some(ret))
+            });
+            let bound = pool.intern_ty(&TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            });
+            self.require_ref(
+                hd_types::solver::TraitRef {
+                    trait_: def,
+                    self_ty: ret,
+                    args,
+                },
+                n,
+            )?;
+            self.check_bindings(ret, bound, n)?;
+        }
+        Ok(())
+    }
+
     /// Adds a bound and, transitively, its supertraits to the environment.
     pub(crate) fn add_bound(&mut self, self_ty: Ty, bound: Ty, depth: u32) {
         add_bound(
@@ -1593,6 +1657,28 @@ impl Ck<'_, '_> {
         // `types.never.assignable`: `never` goes into every type, and no
         // ordinary value goes into `never`.
         if g == Ty::NEVER || g == w {
+            return r;
+        }
+        if self.strict_rets.contains(&target) {
+            // A call of this same declaration returns its chosen hidden
+            // type. It constrains neither which type that is nor its size.
+            if self
+                .opaque_rets
+                .iter()
+                .any(|&(opaque, result)| opaque == got && result == target)
+            {
+                self.recursive_returns.push(target);
+                return r;
+            }
+            let snap = self.infer.snapshot();
+            if self.infer.unify(pool, got, want).is_err() {
+                self.infer.rollback(snap);
+                let (expected, found) = self.show_pair(want, got);
+                let msg = format!(
+                    "all returns of `impl Trait` need one concrete type: expected {expected}, found {found}"
+                );
+                self.err(Code::TypeMismatch, n, &msg);
+            }
             return r;
         }
         // A least-common-type site's variable is not a declared type: the
@@ -3449,6 +3535,16 @@ impl Ck<'_, '_> {
                     let (r, t) = self.expr(*e, Some(ret))?;
                     self.coerce(r, t, ret, *e, "return", ExpectPosition::General)
                 } else {
+                    if self.strict_rets.contains(&ret) {
+                        self.coerce(
+                            Ref(NONE),
+                            Ty::VOID,
+                            ret,
+                            s,
+                            "return",
+                            ExpectPosition::General,
+                        );
+                    }
                     Ref(NONE)
                 };
                 self.b.emit(Tag::Return, r.0, NONE, Ty::NEVER, s.index());
@@ -4072,6 +4168,21 @@ impl Ck<'_, '_> {
                 let row = self.zonk_row(row);
                 pool.intern_ty(&TyData::Row(row))
             }
+            TyData::Opaque {
+                owner,
+                site,
+                args,
+                bound,
+            } => {
+                let args = self.zonk_list(args);
+                let bound = self.zonk(bound);
+                pool.intern_ty(&TyData::Opaque {
+                    owner,
+                    site,
+                    args,
+                    bound,
+                })
+            }
             TyData::TraitValue {
                 def,
                 args,
@@ -4573,7 +4684,7 @@ impl Ck<'_, '_> {
         // the places are rooted only now. The rebuild renumbers the body,
         // its root block included.
         let pool = self.pool();
-        let open = |t: Ty| pool.has_param(t) || pool.has_assoc(t);
+        let open = |t: Ty| pool.has_param(t) || pool.has_assoc(t) || pool.has_opaque(t);
         let body = self.b.body_mut();
         body.sub_root[0] = root.0;
         ROOTS.with(|r| hd_tir::ir::root_places(body, &open, &mut r.borrow_mut()));

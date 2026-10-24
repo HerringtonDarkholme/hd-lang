@@ -600,6 +600,9 @@ impl<'a> ItemCheck<'_, 'a> {
                 .or_else(|| self.private_in(result))
                 .or_else(|| keys(row)),
             TyData::Row(row) | TyData::Context(row) => keys(row),
+            TyData::Opaque { args, bound, .. } => {
+                any(pool.list_items(args)).or_else(|| self.private_in(bound))
+            }
             _ => None,
         }
     }

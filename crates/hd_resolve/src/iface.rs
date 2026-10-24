@@ -1853,6 +1853,10 @@ pub fn mentioned_defs<'a>(
                 stack.extend(pool.list_items(args));
                 stack.extend(bindings.iter().map(|b| b.1));
             }
+            TyData::Opaque { args, bound, .. } => {
+                stack.extend(pool.list_items(args));
+                stack.push(bound);
+            }
             TyData::Tuple { elems, rest } => {
                 stack.extend(pool.list_items(elems));
                 stack.extend(rest);
@@ -2174,6 +2178,17 @@ fn show_ty_opts(
                 list(params),
                 show_ty_opts(names, pool, result, rows, qualified)
             )
+        }
+        TyData::Opaque {
+            owner, args, bound, ..
+        } => {
+            let shown = show_ty_opts(names, pool, bound, rows, qualified);
+            let shown = format!("impl {}", shown.strip_prefix("dyn ").unwrap_or(&shown));
+            if qualified {
+                format!("{shown} returned by {}[{}]", seg(owner), list(args))
+            } else {
+                shown
+            }
         }
         TyData::Param(p) => names.param_name(p.owner, p.index),
         TyData::Assoc { assoc, self_ty, .. } => {

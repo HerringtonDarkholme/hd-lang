@@ -202,6 +202,15 @@ pub enum TyData {
         args: TyList,
         bindings: Vec<(DefId, Ty)>,
     },
+    /// A generative return type. Only `bound` is visible to checking;
+    /// the defining body's result supplies its representation in mono.
+    Opaque {
+        owner: DefId,
+        /// Zero for the owner's result, otherwise the local function's syntax node + 1.
+        site: u32,
+        args: TyList,
+        bound: Ty,
+    },
     Param(ParamRef),
     /// An unnormalized projection: the associated item and its trait reference.
     Assoc {
@@ -239,6 +248,7 @@ enum PoolTag {
     Option,
     Fn,
     TraitValue,
+    Opaque,
     Param,
     Assoc,
     Mut,
@@ -260,6 +270,7 @@ pub mod meta {
     pub const HAS_ASSOC: u32 = 8;
     pub const HAS_CANON: u32 = 16;
     pub const HAS_REF: u32 = 32;
+    pub const HAS_OPAQUE: u32 = 64;
 }
 
 impl PoolTag {
@@ -272,6 +283,7 @@ impl PoolTag {
                 | PoolTag::TupleRest
                 | PoolTag::Fn
                 | PoolTag::TraitValue
+                | PoolTag::Opaque
                 | PoolTag::Param
                 | PoolTag::Assoc
                 | PoolTag::List
@@ -329,6 +341,7 @@ impl Cols {
         let len = match tag {
             PoolTag::Adt | PoolTag::TupleRest | PoolTag::Param | PoolTag::List => 2,
             PoolTag::Fn | PoolTag::Assoc => 4,
+            PoolTag::Opaque => 4,
             PoolTag::TraitValue => 3 + 2 * x(2),
             PoolTag::Row => {
                 let n = x(0);
@@ -788,6 +801,10 @@ impl InternPool {
         self.types().has_param(t)
     }
     #[must_use]
+    pub fn has_opaque(&self, t: Ty) -> bool {
+        self.types().has_opaque(t)
+    }
+    #[must_use]
     pub fn has_assoc(&self, t: Ty) -> bool {
         self.types().has_assoc(t)
     }
@@ -957,6 +974,11 @@ impl<'a> Types<'a> {
                     .iter()
                     .fold(self.list_meta(*args), |m, (_, t)| m | self.meta_of(*t)),
             ),
+            TyData::Opaque { args, bound, .. } => (
+                T::Opaque,
+                0,
+                meta::HAS_OPAQUE | self.list_meta(*args) | self.meta_of(*bound),
+            ),
             TyData::Param(_) => (T::Param, 0, meta::HAS_PARAM),
             TyData::Assoc { self_ty, args, .. } => (
                 T::Assoc,
@@ -995,6 +1017,15 @@ impl<'a> Types<'a> {
                 inputs,
             } => {
                 buf = [params.0, result.0, row.0, inputs.word(*suspends)];
+                &buf
+            }
+            TyData::Opaque {
+                owner,
+                site,
+                args,
+                bound,
+            } => {
+                buf = [owner.raw(), *site, args.0, bound.0];
                 &buf
             }
             TyData::Param(p) => {
@@ -1109,6 +1140,12 @@ impl<'a> Types<'a> {
                     .map(|c| (DefId::from_raw(c[0]), Ty(c[1])))
                     .collect(),
             },
+            PoolTag::Opaque => TyData::Opaque {
+                owner: DefId::from_raw(x[0]),
+                site: x[1],
+                args: TyList(x[2]),
+                bound: Ty(x[3]),
+            },
             PoolTag::Param => TyData::Param(ParamRef {
                 owner: DefId::from_raw(x[0]),
                 index: u16::try_from(x[1]).expect("param"),
@@ -1145,6 +1182,10 @@ impl<'a> Types<'a> {
         self.meta_of(t) & meta::HAS_POISON != 0
     }
     #[must_use]
+    pub fn has_opaque(self, t: Ty) -> bool {
+        self.meta_of(t) & meta::HAS_OPAQUE != 0
+    }
+    #[must_use]
     pub fn has_param(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_PARAM != 0
     }
@@ -1164,6 +1205,9 @@ impl<'a> Types<'a> {
         match self.get(t) {
             TyData::Param(p) => is_self(p),
             TyData::Adt { args, .. } => list(args),
+            TyData::Opaque { args, bound, .. } => {
+                list(args) || self.names_trait_self(bound, trait_)
+            }
             TyData::Tuple { elems, rest } => {
                 list(elems) || rest.is_some_and(|r| self.names_trait_self(r, trait_))
             }
@@ -1252,6 +1296,17 @@ impl<'a> Types<'a> {
                 }
             }
             TyData::Adt { def, args } => TyData::Adt { def, args: l(args) },
+            TyData::Opaque {
+                owner,
+                site,
+                args,
+                bound,
+            } => TyData::Opaque {
+                owner,
+                site,
+                args: l(args),
+                bound: self.lower_refs(cell, bound),
+            },
             TyData::Tuple { elems, rest } => TyData::Tuple {
                 elems: l(elems),
                 rest: rest.map(|r| self.lower_refs(cell, r)),
@@ -1371,6 +1426,17 @@ impl<'a> Types<'a> {
                 def,
                 args: l(args, memo),
             },
+            TyData::Opaque {
+                owner,
+                site,
+                args,
+                bound,
+            } => TyData::Opaque {
+                owner,
+                site,
+                args: l(args, memo),
+                bound: self.raise_refs_in(cell, bound, memo),
+            },
             TyData::Tuple { elems, rest } => TyData::Tuple {
                 elems: l(elems, memo),
                 rest: rest.map(|r| self.raise_refs_in(cell, r, memo)),
@@ -1463,6 +1529,17 @@ impl<'a> Types<'a> {
         };
         let d = match self.get(t) {
             TyData::Param(p) => return f(p).unwrap_or(t),
+            TyData::Opaque {
+                owner,
+                site,
+                args,
+                bound,
+            } => TyData::Opaque {
+                owner,
+                site,
+                args: l(args),
+                bound: self.subst(bound, f),
+            },
             TyData::Adt { def, args } => TyData::Adt { def, args: l(args) },
             TyData::Tuple { elems, rest } => TyData::Tuple {
                 elems: l(elems),
@@ -1594,6 +1671,7 @@ impl<'a> Types<'a> {
                 )
             }
             TyData::TraitValue { def, .. } => format!("dyn #{}", def.raw()),
+            TyData::Opaque { bound, .. } => format!("impl {}", self.display(bound)),
             TyData::Param(p) => format!("T{}@{}", p.index, p.owner.raw()),
             TyData::Assoc { assoc, self_ty, .. } => {
                 format!("<{}>::#{}", self.display(self_ty), assoc.raw())
@@ -1690,6 +1768,45 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn opaque_identity_substitutes_args_without_revealing_a_body() {
+        let pool = super::InternPool::new();
+        let owner = hd_base::DefId::from_raw(71);
+        let parameter = super::ParamRef { owner, index: 0 };
+        let t = pool.intern_ty(&super::TyData::Param(parameter));
+        let bound = pool.intern_ty(&super::TyData::TraitValue {
+            def: hd_base::DefId::from_raw(73),
+            args: pool.list(&[t]),
+            bindings: vec![],
+        });
+        let make = |owner, site, arg, bound| {
+            pool.intern_ty(&super::TyData::Opaque {
+                owner,
+                site,
+                args: pool.list(&[arg]),
+                bound,
+            })
+        };
+        let opaque = make(owner, 0, t, bound);
+        let applied = pool.subst(opaque, &|p| (p == parameter).then_some(super::Ty::I32));
+        let concrete_bound = pool.subst(bound, &|p| (p == parameter).then_some(super::Ty::I32));
+        assert_eq!(applied, make(owner, 0, super::Ty::I32, concrete_bound));
+        assert_ne!(applied, make(owner, 1, super::Ty::I32, concrete_bound));
+        assert_ne!(
+            applied,
+            make(
+                hd_base::DefId::from_raw(72),
+                0,
+                super::Ty::I32,
+                concrete_bound
+            )
+        );
+        assert_ne!(applied, make(owner, 0, super::Ty::STRING, concrete_bound));
+        assert!(pool.has_opaque(applied));
+        assert!(!pool.has_param(applied));
+        assert_ne!(applied, super::Ty::I32);
+    }
+
     use super::{Inputs, InternPool, LocalPool, Prim, RowData, RowId, Ty, TyData, TyList, Types};
     use hd_base::DefId;
 

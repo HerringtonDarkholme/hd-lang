@@ -54,6 +54,7 @@ mod tag {
     // and 20 a lifetime and a lifetime argument; they are not reused.
     pub const REF: u8 = 21;
     pub const REF_MUT: u8 = 22;
+    pub const OPAQUE: u8 = 23;
 }
 
 impl<'a> TableWriter<'a> {
@@ -211,6 +212,15 @@ impl<'a> TableWriter<'a> {
             TyData::Option(i) => {
                 let inner = self.ty(i)?;
                 self.row(tag::OPTION, &[inner])
+            }
+            TyData::Opaque {
+                owner,
+                site,
+                args,
+                bound,
+            } => {
+                let words = [self.def(owner), site, self.list(args)?, self.ty(bound)?];
+                self.row(tag::OPAQUE, &words)
             }
             TyData::Param(p) => {
                 let owner = self.def(p.owner);
@@ -383,6 +393,15 @@ impl Tables {
                     .0
                 }
                 tag::OPTION => pool.intern_ty(&TyData::Option(Ty(row(0)?))).0,
+                tag::OPAQUE => {
+                    pool.intern_ty(&TyData::Opaque {
+                        owner: def(0)?,
+                        site: *words.get(1)?,
+                        args: TyList(row(2)?),
+                        bound: Ty(row(3)?),
+                    })
+                    .0
+                }
                 tag::PARAM => {
                     let index = u16::try_from(*words.get(1)?).ok()?;
                     pool.intern_ty(&TyData::Param(ParamRef {
@@ -496,6 +515,65 @@ impl Tables {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn opaque_cache_rows_reintern_declaration_and_arguments() {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let owner = paths.item("app", "values", "make");
+        let bound = pool.intern_ty(&TyData::TraitValue {
+            def: paths.item("app", "values", "View"),
+            args: pool.list(&[Ty::I32]),
+            bindings: vec![],
+        });
+        let opaque = pool.intern_ty(&TyData::Opaque {
+            owner,
+            site: 17,
+            args: pool.list(&[Ty::I32, Ty::STRING]),
+            bound,
+        });
+        let mut tables = TableWriter::new(&pool, &paths, &syms);
+        let row = tables.ty(opaque).expect("opaque row");
+        let mut bytes = Writer::default();
+        tables.write(&mut bytes);
+        let (other, other_paths, other_syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        other_paths.item("unrelated", "earlier", "Path");
+        let decoded = Tables::read(
+            &mut Reader::new(&bytes.bytes),
+            &other,
+            &other_paths,
+            &other_syms,
+        )
+        .expect("tables");
+        let decoded_ty = decoded.ty(row).expect("opaque type");
+        let TyData::Opaque {
+            owner: decoded_owner,
+            site,
+            args,
+            bound: decoded_bound,
+        } = other.get(decoded_ty)
+        else {
+            panic!("lost opaque identity");
+        };
+        assert_eq!(decoded_owner, other_paths.item("app", "values", "make"));
+        assert_eq!(site, 17);
+        assert_eq!(other.list_items(args), &[Ty::I32, Ty::STRING]);
+        assert!(
+            matches!(other.get(decoded_bound), TyData::TraitValue { def, .. } if def == other_paths.item("app", "values", "View"))
+        );
+        let mut rewritten = TableWriter::new(&other, &other_paths, &other_syms);
+        assert_eq!(rewritten.ty(decoded_ty).expect("rewritten opaque"), row);
+        let mut output = Writer::default();
+        rewritten.write(&mut output);
+        assert_eq!(output.bytes, bytes.bytes);
+    }
+
     use super::{TableWriter, Tables};
     use crate::pool::{InternPool, ParamRef, RowData, Ty, TyData};
     use hd_base::wire::{Reader, Writer};

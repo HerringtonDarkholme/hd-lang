@@ -1,0 +1,1 @@
+fn bad() -> Result[impl Display, string]: +1  # diagnostic: syntax-error

@@ -1,0 +1,40 @@
+# expect-stdout: 7 7 eight nine
+trait Source:
+    type Item
+    fn get(&self) -> Self::Item
+
+struct Stored:
+    value: i32
+
+impl Source for Stored:
+    type Item = i32
+    fn get(&self) -> i32:
+        self.value
+
+trait WithItem < Source[Item = i32]
+
+impl WithItem for Stored
+
+fn source_derived() -> impl WithItem:
+    Stored { value: +7 }
+
+fn source() -> impl Source[Item = i32]:
+    Stored { value: +7 }
+
+struct Holder[T]:
+    value: T
+
+impl[T < Display] Holder[T]:
+    fn hidden(self) -> impl Display:
+        self.value
+
+fn nested[T < Display](value: T) -> string:
+    fn earlier[U](value: U) -> U:
+        value
+    _ := earlier(+0)
+    fn later[U < Display](value: U) -> impl Display:
+        value
+    later(value).to_string()
+
+pub fn main() -> void $ Console:
+    println("${source().get()} ${source_derived().get()} ${Holder { value: "eight" }.hidden()} ${nested("nine")}")

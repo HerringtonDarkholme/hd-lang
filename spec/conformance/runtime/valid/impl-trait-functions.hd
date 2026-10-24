@@ -1,0 +1,32 @@
+# expect-stdout: 7 8 9 10
+# expect-stdout: 42
+# expect-stdout: 11
+# expect-stdout: true
+fn value[T < Display](x: T) -> impl Display:
+    x
+
+struct Factory:
+    marker: i32
+
+impl Factory:
+    fn make(self) -> impl Display:
+        self.marker
+
+fn recursive(flag: bool) -> impl Display:
+    if flag:
+        return recursive(false)
+    +10
+
+fn comparable() -> impl Eq:
+    +3
+
+fn answer() -> impl Display:
+    +42
+
+pub fn main() -> void $ Console:
+    fn local[T < Display](x: T) -> impl Display:
+        x
+    println("${value(+7)} ${Factory { marker: +8 }.make()} ${local(+9)} ${recursive(true)}")
+    println("${answer()}")
+    println("${value(value(+11))}")
+    println("${comparable() == comparable()}")

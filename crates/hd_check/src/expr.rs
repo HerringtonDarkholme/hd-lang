@@ -3834,11 +3834,52 @@ impl Ck<'_, '_> {
                 ptys.push(t);
             }
         }
-        let ret = match (ret, parts.ret) {
-            (Some(r), _) => r,
-            (None, Some(rt)) => self.ty_node(rt)?,
-            (None, None) => self.join_target(None),
+        let opaque = if let Some(annotation) =
+            parts.ret.filter(|n| n.kind() == SyntaxKind::ImplType)
+            && parts.name.is_some()
+            && parts.upto.is_none()
+        {
+            let bound = match Src::child(annotation, SyntaxKind::NamedType) {
+                Some(t) => self.ty_node_as(t, crate::ty::NameRole::Trait)?,
+                None => Ty::POISON,
+            };
+            let args: Vec<Ty> = self
+                .gens
+                .iter()
+                .map(|(name, t)| {
+                    self.row_gens
+                        .iter()
+                        .find(|(s, _)| s == name)
+                        .map_or(*t, |(_, r)| {
+                            pool.intern_ty(&TyData::Row(pool.row(&hd_types::RowData {
+                                keys: vec![],
+                                params: vec![*r],
+                            })))
+                        })
+                })
+                .collect();
+            Some(pool.intern_ty(&TyData::Opaque {
+                owner: self.b.body_mut().item,
+                site: n.index().raw() + 1,
+                args: pool.list(&args),
+                bound,
+            }))
+        } else {
+            None
         };
+        let ret = if let Some(opaque) = opaque {
+            let ret = self.infer.fresh(pool, hd_types::VarKind::General);
+            self.strict_rets.push(ret);
+            self.opaque_rets.push((opaque, ret));
+            ret
+        } else {
+            match (ret, parts.ret) {
+                (Some(r), _) => r,
+                (None, Some(rt)) => self.ty_node(rt)?,
+                (None, None) => self.join_target(None),
+            }
+        };
+        let public_ret = opaque.unwrap_or(ret);
         // A written row, or the least row of the keys the body uses
         // (`req.row.omitted.closure-row`); the expected row is matched
         // against it afterwards, by row subsumption.
@@ -3851,7 +3892,7 @@ impl Ck<'_, '_> {
         let own = parts.name.map(|name| {
             let t = pool.intern_ty(&TyData::Fn {
                 params: pool.list(&ptys),
-                result: ret,
+                result: public_ret,
                 row: own_row,
                 suspends,
                 inputs: hd_types::Inputs::Fixed,
@@ -3903,6 +3944,13 @@ impl Ck<'_, '_> {
                 ret,
             )
         };
+        if let Some(opaque) = opaque {
+            let TyData::Opaque { bound, .. } = pool.get(opaque) else {
+                unreachable!()
+            };
+            self.check_opaque_result(ret, bound, n)?;
+            self.strict_rets.pop();
+        }
         let root = self.b.close_block(blk, tail, ret, n.index());
         self.loops = saved_loops;
         let row = match self.rows.pop() {
@@ -3918,7 +3966,7 @@ impl Ck<'_, '_> {
         self.scopes.pop();
         let ft = pool.intern_ty(&TyData::Fn {
             params: pool.list(&ptys),
-            result: ret,
+            result: public_ret,
             row,
             suspends,
             inputs: hd_types::Inputs::Fixed,

@@ -700,6 +700,7 @@ struct CheckOut {
     content: Hash128,
     has_errors: bool,
     generic_edges: Vec<hd_check::inst_cycles::Edge>,
+    has_opaque: bool,
 }
 
 /// The program as `Collect` decoded it.
@@ -7073,6 +7074,14 @@ impl Run<'_> {
         content.hash(regs_hash(regs));
         let mut meta = Writer::default();
         meta.hash(content.finish());
+        meta.u8(u8::from(
+            all_items
+                .iter()
+                .any(|i| i.sig().is_some_and(|s| self.pool.has_opaque(s.ret)))
+                || keep
+                    .iter()
+                    .any(|b| b.ty.iter().any(|&t| self.pool.has_opaque(t))),
+        ));
         let Some(key) = self.check_key(m) else { return };
         // The references to `dbg`, whichever the profile: a release build
         // reads them (`module.dbg.release`), so they stay out of the TIR
@@ -7324,17 +7333,107 @@ impl Run<'_> {
             let _ = self.check[m].set(None);
             return;
         };
-        let content = Reader::new(meta.as_ref()).hash();
+        let mut meta_reader = Reader::new(meta.as_ref());
+        let content = meta_reader.hash();
+        let has_opaque = !meta_reader.at_end() && meta_reader.u8() != 0;
         let _ = self.check[m].set(Some(CheckOut {
             entry,
             content,
             has_errors,
             generic_edges,
+            has_opaque,
         }));
+    }
+
+    /// Recompute hidden-type equations after module checks, including cache
+    /// hits, without adding body dependencies to any caller's check key.
+    fn check_opaque_cycles(&self) {
+        let mut facts = HashMap::default();
+        for (m, checked) in self.check.iter().enumerate() {
+            let Some(Some(checked)) = checked.get() else {
+                continue;
+            };
+            if checked.has_errors || !checked.has_opaque {
+                continue;
+            }
+            let Some(sections) = split_sections(&checked.entry) else {
+                continue;
+            };
+            let Some(items) = sections
+                .get(2)
+                .and_then(|b| hd_resolve::decode_items(&self.names(), b))
+            else {
+                continue;
+            };
+            let declared: HashMap<_, _> = items
+                .0
+                .iter()
+                .filter_map(|i| i.sig().map(|s| (i.def, s.ret)))
+                .collect();
+            let Some(index) = body_index(&checked.entry) else {
+                continue;
+            };
+            for (_, at) in index {
+                let Some(body) = hd_tir::wire::read_body(
+                    &checked.entry[at],
+                    &self.pool,
+                    &self.paths,
+                    &self.syms,
+                ) else {
+                    continue;
+                };
+                for f in
+                    hd_mono::opaque::facts(&self.pool, &body, declared.get(&body.item).copied())
+                {
+                    facts.insert(
+                        (body.item, f.site),
+                        (f, self.src(m).span(self.parse_of(m).tree.node(f.syn))),
+                    );
+                }
+            }
+        }
+        let hidden = |owner, site| {
+            let (f, _) = facts.get(&(owner, site))?;
+            let TyData::Opaque { args, .. } = self.pool.get(f.opaque) else {
+                return None;
+            };
+            Some((args, f.hidden))
+        };
+        let mut reported = hd_base::HashSet::default();
+        let mut ordered: Vec<_> = facts.iter().collect();
+        ordered.sort_by_key(|(_, (_, span))| (span.file.raw(), span.lo));
+        for (_, (fact, fallback)) in ordered {
+            let result = hd_mono::opaque::reveal(&self.pool, fact.opaque, &hidden);
+            if matches!(result, Err(hd_mono::opaque::Error::TooComplex(_))) {
+                lock(&self.diags).error(
+                    Code::ItemTooComplex,
+                    *fallback,
+                    "resolving this hidden result exceeds the implementation's complexity limit",
+                );
+                continue;
+            }
+            if let Err(hd_mono::opaque::Error::Recursive(cycle)) = result {
+                if cycle.iter().any(|key| reported.contains(key)) {
+                    continue;
+                }
+                let span = cycle
+                    .iter()
+                    .filter_map(|key| facts.get(key).map(|(_, span)| *span))
+                    .min_by_key(|span| (span.file.raw(), span.lo))
+                    .unwrap_or(*fallback);
+                reported.extend(cycle);
+                lock(&self.diags).error(
+                    Code::RecursiveValueType,
+                    span,
+                    "the hidden result type recursively contains itself",
+                );
+            }
+        }
     }
 
     fn package_result(&self, sp: &dyn Spawn) {
         lock(&self.report).ok(Stage::PackageResult);
+        self.check_opaque_cycles();
         // Recompute the folder graph from current module summaries, including
         // cache hits. Its verdict is never cached under one module's key.
         let mut folder_edges: BTreeMap<usize, Vec<&hd_check::inst_cycles::Edge>> = BTreeMap::new();
@@ -9984,6 +10083,26 @@ impl ProgramEnv for Env<'_> {
     fn body(&self, def: DefId) -> Option<&Body> {
         self.run.body_of(self.p, def).map(|b| &b.0)
     }
+    fn opaque_result(
+        &self,
+        pool: &hd_types::InternPool,
+        owner: DefId,
+        site: u32,
+    ) -> Option<hd_mono::opaque::HiddenResult> {
+        let lazy = self
+            .p
+            .bodies
+            .all
+            .get(&self.run.paths.hash(hd_base::PathId::from_raw(owner.raw())))?;
+        let (body, _) = self.run.decode(lazy)?;
+        let fact = hd_mono::opaque::facts(pool, body, self.sig(owner).map(|s| s.ret))
+            .into_iter()
+            .find(|f| f.site == site)?;
+        let TyData::Opaque { args, .. } = pool.get(fact.opaque) else {
+            return None;
+        };
+        Some((args, fact.hidden))
+    }
     fn bounded(&self, def: DefId) -> Option<Vec<bool>> {
         self.sig(def)
             .map(|s| s.generics.iter().map(|g| g.bound.is_some()).collect())
@@ -10000,6 +10119,9 @@ impl ProgramEnv for Env<'_> {
         if let Some(b) = self.default_body(def) {
             return b.sub_root.first().map(|&r| b.ty[r as usize]);
         }
+        if let Some(sig) = self.sig(def) {
+            return Some(self.low(sig.ret));
+        }
         // A script's init returns `Result[void, dyn Error]` when its top
         // level uses `?` (`module.init.script-try.reference-values`).
         if let Some((b, _)) = self.run.body_of(self.p, def)
@@ -10007,7 +10129,7 @@ impl ProgramEnv for Env<'_> {
         {
             return b.sub_root.first().map(|&r| b.ty[r as usize]);
         }
-        self.sig(def).map(|s| self.low(s.ret))
+        None
     }
     fn params(&self, def: DefId) -> Option<Vec<Ty>> {
         if let Some(b) = self.default_body(def) {

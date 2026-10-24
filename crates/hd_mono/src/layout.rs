@@ -358,7 +358,8 @@ fn layout_in(
         }
         // One providers array (`crates/hd_mono/DESIGN.md` §12.4, "Context values").
         TyData::Context(_) => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
-        TyData::Param(_)
+        TyData::Opaque { .. }
+        | TyData::Param(_)
         | TyData::Assoc { .. }
         | TyData::Infer(_)
         | TyData::Canon(_)
@@ -633,6 +634,18 @@ pub fn canon(
             canon_row(pool, path_hash, memo, r, &mut h);
         }
         TyData::Poison => h.u8(9),
+        TyData::Opaque {
+            owner,
+            site,
+            args,
+            bound,
+        } => {
+            h.u8(18);
+            h.hash(path_hash(owner));
+            h.u32(site);
+            canon_list(pool, path_hash, memo, args, &mut h);
+            h.hash(canon(pool, path_hash, memo, bound));
+        }
         TyData::Param(p) => {
             h.u8(10);
             h.hash(path_hash(p.owner));

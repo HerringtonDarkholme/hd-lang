@@ -1,0 +1,2 @@
+fn recursive() -> impl Display:  # diagnostic: recursive-value-type
+    recursive()

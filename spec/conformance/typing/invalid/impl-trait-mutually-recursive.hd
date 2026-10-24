@@ -1,0 +1,5 @@
+fn first() -> impl Display:
+    second()  # diagnostic: recursive-value-type
+
+fn second() -> impl Display:
+    first()

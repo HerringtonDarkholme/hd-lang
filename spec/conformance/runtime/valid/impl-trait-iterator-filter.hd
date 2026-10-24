@@ -1,0 +1,9 @@
+# expect-stdout: 6
+fn evens(xs: &List[i32]) -> impl Iterator[i32]:
+    xs.iter().filter(fn(value: i32) -> bool: value % 2 == 0)
+
+pub fn main() -> void $ Console:
+    let total = +0
+    for value in evens(&[+1, +2, +3, +4]):
+        total += value
+    println("$total")

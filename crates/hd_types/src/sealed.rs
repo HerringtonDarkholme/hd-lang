@@ -175,7 +175,9 @@ pub(crate) fn row(
     }
     match t {
         TyData::Infer(v) => return Some(Row::Stalled(v)),
-        TyData::Param(_) | TyData::Assoc { .. } => return Some(Row::Fails(FailReason::NoImpl)),
+        TyData::Param(_) | TyData::Opaque { .. } | TyData::Assoc { .. } => {
+            return Some(Row::Fails(FailReason::NoImpl));
+        }
         _ => {}
     }
     if trait_ == s.any_val || trait_ == s.any_ref {

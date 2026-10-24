@@ -2300,6 +2300,14 @@ impl Lower<'_, '_, '_> {
         };
         match n.kind() {
             SyntaxKind::NamedType => self.named(n, gn, referent),
+            SyntaxKind::ImplType => {
+                self.diags.error(
+                    Code::TypeMismatch,
+                    self.src.span(n),
+                    "`impl Trait` must be the whole return type of a named function",
+                );
+                Ty::POISON
+            }
             SyntaxKind::OptionalType => {
                 let t = first_ty(self, n);
                 pool.intern_ty(&TyData::Option(t))
@@ -2913,7 +2921,38 @@ impl Lower<'_, '_, '_> {
                 defaults.push(Src::child(p, SyntaxKind::DefaultValue).is_some());
             }
         }
-        let ret = self.ty(Src::type_child(f), gn);
+        let ret = match Src::type_child(f) {
+            Some(n) if n.kind() == SyntaxKind::ImplType => {
+                let bound = Src::child(n, SyntaxKind::NamedType)
+                    .and_then(|n| self.trait_value(n, gn, None))
+                    .unwrap_or(Ty::POISON);
+                let args: Vec<Ty> = gn
+                    .decls
+                    .iter()
+                    .filter_map(|(name, _)| {
+                        if let Some((_, r)) = gn.rows.iter().find(|(s, _)| s == name) {
+                            return Some(self.names.pool.intern_ty(&TyData::Row(
+                                self.names.pool.row(&hd_types::RowData {
+                                    keys: vec![],
+                                    params: vec![*r],
+                                }),
+                            )));
+                        }
+                        gn.tys
+                            .iter()
+                            .find(|(s, _, _)| s == name)
+                            .map(|(_, t, _)| *t)
+                    })
+                    .collect();
+                self.names.pool.intern_ty(&TyData::Opaque {
+                    owner,
+                    site: 0,
+                    args: self.names.pool.list(&args),
+                    bound,
+                })
+            }
+            n => self.ty(n, gn),
+        };
         let row = self.row(Src::child(f, SyntaxKind::RequirementRow), gn);
         let suspends = f
             .direct_token(&self.src.parse.tokens, TokenKind::Bang)
@@ -3300,6 +3339,15 @@ impl Lower<'_, '_, '_> {
                     let name = self.sym_token(t);
                     let def = self.names.member(owner, PathKind::Member, &text);
                     self.result_required(f, result_required || self.src.is_pub(f));
+                    if result_required
+                        && Src::type_child(f).is_some_and(|n| n.kind() == SyntaxKind::ImplType)
+                    {
+                        self.diags.error(
+                            Code::TypeMismatch,
+                            self.src.span(f),
+                            "a trait method cannot return `impl Trait` yet",
+                        );
+                    }
                     let sig = self.sig(f, def, gn);
                     let mut it = Item::new(
                         def,

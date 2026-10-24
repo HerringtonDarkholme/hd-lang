@@ -1,0 +1,5 @@
+fn value() -> impl Display:
+    "seven"
+
+fn bad() -> usize:
+    value().len()  # diagnostic: unknown-method

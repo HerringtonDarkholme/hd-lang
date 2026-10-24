@@ -251,6 +251,17 @@ impl InferTable {
                 def,
                 args: rl(args),
             },
+            TyData::Opaque {
+                owner,
+                site,
+                args,
+                bound,
+            } => TyData::Opaque {
+                owner,
+                site,
+                args: rl(args),
+                bound: r(bound),
+            },
             TyData::Tuple { elems, rest } => TyData::Tuple {
                 elems: rl(elems),
                 rest: rest.map(r),
@@ -321,6 +332,13 @@ impl InferTable {
                 .iter()
                 .copied()
                 .any(|x| self.occurs(pool, v, x)),
+            TyData::Opaque { args, bound, .. } => {
+                self.occurs(pool, v, bound)
+                    || pool
+                        .list_items(args)
+                        .iter()
+                        .any(|&x| self.occurs(pool, v, x))
+            }
             TyData::Tuple { elems, rest } => pool
                 .list_items(elems)
                 .iter()
@@ -442,6 +460,23 @@ impl InferTable {
             }
             (TyData::Infer(x), _) => self.bind(pool, self.root(x.raw()), b),
             (_, TyData::Infer(y)) => self.bind(pool, self.root(y.raw()), a),
+            (
+                TyData::Opaque {
+                    owner: d1,
+                    site: s1,
+                    args: a1,
+                    bound: b1,
+                },
+                TyData::Opaque {
+                    owner: d2,
+                    site: s2,
+                    args: a2,
+                    bound: b2,
+                },
+            ) if d1 == d2 && s1 == s2 => {
+                self.unify_lists(pool, a1, a2, a, b)?;
+                self.unify(pool, b1, b2)
+            }
             (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 }) if d1 == d2 => {
                 self.unify_lists(pool, a1, a2, a, b)
             }

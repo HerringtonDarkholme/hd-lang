@@ -3626,6 +3626,7 @@ impl Ck<'_, '_> {
     pub(crate) fn resolve_method(&mut self, rt: Ty, name: &str) -> StageResult<Option<Hit>> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, rt);
+        self.add_opaque_bounds(t);
         let t = match pool.get(t) {
             TyData::Mut(i) => i,
             _ => t,
@@ -3648,7 +3649,10 @@ impl Ck<'_, '_> {
         // A parameter: its bounds, supertraits included. A rigid
         // projection such as `I::IntoIter` has the bounds its trait
         // declares on the associated type (`trait.assoc.bound-use`).
-        if matches!(pool.get(t), TyData::Param(_) | TyData::Assoc { .. }) {
+        if matches!(
+            pool.get(t),
+            TyData::Param(_) | TyData::Opaque { .. } | TyData::Assoc { .. }
+        ) {
             for i in 0..self.env.clause_self.len() {
                 if self.env.clause_self[i] != t {
                     continue;
@@ -4568,9 +4572,63 @@ impl Ck<'_, '_> {
 
     /// `t` with its projections normalized as far as inference allows;
     /// a type without projections is returned as is.
+    /// Make only the declared bounds of opaque results available. This reads
+    /// type descriptors, never a defining body or its hidden representation.
+    pub(crate) fn add_opaque_bounds(&mut self, t: Ty) {
+        let pool = self.pool();
+        if !pool.has_opaque(t) {
+            return;
+        }
+        let before = self.env.clause_self.len();
+        let mut todo = vec![t];
+        let mut seen = Vec::new();
+        while let Some(t) = todo.pop() {
+            if !pool.has_opaque(t) || seen.contains(&t) {
+                continue;
+            }
+            seen.push(t);
+            match pool.get(t) {
+                TyData::Opaque { bound, args, .. } => {
+                    self.add_bound(t, bound, 0);
+                    todo.extend_from_slice(pool.list_items(args));
+                }
+                TyData::Adt { args, .. } => todo.extend_from_slice(pool.list_items(args)),
+                TyData::Tuple { elems, rest } => {
+                    todo.extend_from_slice(pool.list_items(elems));
+                    todo.extend(rest);
+                }
+                TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => todo.push(i),
+                TyData::Fn {
+                    params,
+                    result,
+                    row,
+                    ..
+                } => {
+                    todo.extend_from_slice(pool.list_items(params));
+                    todo.push(result);
+                    todo.extend(pool.row_data(row).keys);
+                }
+                TyData::TraitValue { args, bindings, .. } => {
+                    todo.extend_from_slice(pool.list_items(args));
+                    todo.extend(bindings.into_iter().map(|(_, t)| t));
+                }
+                TyData::Assoc { self_ty, args, .. } => {
+                    todo.push(self_ty);
+                    todo.extend_from_slice(pool.list_items(args));
+                }
+                TyData::Row(r) | TyData::Context(r) => todo.extend(pool.row_data(r).keys),
+                _ => {}
+            }
+        }
+        if self.env.clause_self.len() != before {
+            self.env.key = Some(self.cx.global.env_key(&self.env));
+        }
+    }
+
     pub(crate) fn norm_ty(&mut self, t: Ty) -> Ty {
         let pool = self.pool();
         let r = self.infer.resolve(pool, t);
+        self.add_opaque_bounds(r);
         if !pool.has_assoc(r) {
             return t;
         }
@@ -4616,7 +4674,7 @@ impl Ck<'_, '_> {
                     None => Ok(t),
                 };
             }
-            TyData::Param(_) => {
+            TyData::Param(_) | TyData::Opaque { .. } => {
                 // A binding on the parameter's bound or on a supertrait
                 // clause it reaches (`trait.binding.inside`).
                 let found = (0..self.env.clause_self.len())

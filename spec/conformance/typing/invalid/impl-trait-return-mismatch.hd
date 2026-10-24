@@ -1,0 +1,4 @@
+fn choose(flag: bool) -> impl Display:
+    if flag:
+        return +7
+    "seven"  # diagnostic: type-mismatch

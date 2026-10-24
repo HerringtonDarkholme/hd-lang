@@ -119,6 +119,7 @@ pub enum SyntaxKind {
     // Types.
     NamedType,
     DynType,
+    ImplType,
     MutType,
     RefType,
     OptionalType,
@@ -467,6 +468,7 @@ ast_nodes! {
     RangePattern => RangePattern,
     NamedType => NamedType,
     DynType => DynType,
+    ImplType => ImplType,
     MutType => MutType,
     RefType => RefType,
     OptionalType => OptionalType,
@@ -587,6 +589,7 @@ impl SyntaxKind {
             self,
             Self::NamedType
                 | Self::DynType
+                | Self::ImplType
                 | Self::MutType
                 | Self::RefType
                 | Self::OptionalType
