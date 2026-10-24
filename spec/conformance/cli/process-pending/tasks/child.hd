@@ -1,0 +1,5 @@
+use std.time.{Clock, ms, sleep}
+
+pub fn main!() -> void $ Clock + Console:
+    sleep!(ms(200))
+    println("child finished")

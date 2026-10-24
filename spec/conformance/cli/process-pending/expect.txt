@@ -1,0 +1,2 @@
+run: hd test --format json --time-limit 10s
+stdout-json: [{"kind":"test","name":"a sibling advances while the child runs","outcome":"passed"},{"kind":"summary","passed":1,"failed":0,"status":0}]

@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -9,7 +17,7 @@ import http from "node:http";
 import { once } from "node:events";
 import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_threads";
 import { createCoreHost, httpProvider, pendingOperation } from "./core.mjs";
-import { Dec, Enc, Ok } from "./wire.mjs";
+import { Dec, Enc, Err, Ok } from "./wire.mjs";
 import { METHODS } from "./gen/abi.mjs";
 
 import { cgroupCpuCount, createHost } from "./node.mjs";
@@ -334,6 +342,7 @@ function netWorker(t, options = {}) {
     transferList: [port2],
   });
   t.after(async () => {
+    if (options.close) call({ op: options.close });
     port1.close();
     await worker.terminate();
   });
@@ -366,17 +375,17 @@ async function loopback(t) {
 }
 
 // Exercise the real provider through the ABI, including complete-before-finish.
-function netHost(t) {
-  const host = createHost({ out() {}, err() {} });
+function netHost(t, trait = "hd:Net", env = {}) {
+  const host = createHost({ out() {}, err() {} }, env);
   host.core.st.deadline = performance.now() + 5000;
   t.after(() => host.close());
-  const memory = new WebAssembly.Memory({ initial: 1 });
+  const memory = new WebAssembly.Memory({ initial: trait === "hd:Process" ? 32 : 1 });
   host.prime({ exports: { "hd.x": memory } });
-  const imports = host.imports["hd:Net"];
+  const imports = host.imports[trait];
   const decode = (name, len) =>
-    METHODS["hd:Net"][name].result.dec(new Dec(new Uint8Array(memory.buffer, 0, len)));
+    METHODS[trait][name].result.dec(new Dec(new Uint8Array(memory.buffer, 0, len)));
   const call = (name, ...args) => {
-    const method = METHODS["hd:Net"][name];
+    const method = METHODS[trait][name];
     const encoded = new Enc(),
       raw = [];
     method.params.forEach((param, i) => {
@@ -841,4 +850,242 @@ test("the shared HTTP adapter preserves synchronous browser-style answers", () =
   const failed = httpProvider(() => ({ error: "Timeout" })).send(request);
   assert.equal(failed.ok, false);
   assert.equal(failed.error.tag, "Timeout");
+});
+
+// #812: real children live on a worker even when the guest uses rt.block.
+function processHost(t, env) {
+  const api = netHost(t, "hd:Process", env);
+  const run = (script, options = {}) =>
+    api.call("run", {
+      program: process.execPath,
+      args: ["-e", script],
+      env: [],
+      current_dir: null,
+      stdin: "",
+      ...options,
+    });
+  return { ...api, run };
+}
+
+test("Process pending child lets sibling clocks advance before release", async (t) => {
+  const root = fixture(t, {});
+  const ready = join(root, "ready"),
+    release = join(root, "release");
+  const { host, run, take } = processHost(t);
+  const child = run(`const fs=require('node:fs');fs.writeFileSync(${JSON.stringify(ready)},'');
+    const timer=setInterval(()=>{if(fs.existsSync(${JSON.stringify(release)})){
+      clearInterval(timer);process.stdout.write('released');}},5);`);
+  assert.equal(typeof child.operation, "number");
+  await t.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
+  for (let tick = 0; tick < 3; tick++) {
+    const [, clock] = host.imports["hd:Clock"]["sleep.start"](0n);
+    assert.ok(host.imports["hd:rt"].block() > 0);
+    host.imports["hd:Clock"]["sleep.finish"](clock);
+    assert.equal(host.core.st.ops.get(child.operation).completed, false);
+  }
+  writeFileSync(release, "");
+  assert.deepEqual(
+    take("run", child),
+    Ok({ stdout: "released", stderr: "", status: 0, program: process.execPath }),
+  );
+});
+
+test("Process drains both pipes while feeding input and keeps nonzero status", (t) => {
+  const { run, take } = processHost(t);
+  // The exchange buffer belongs to the guest; this larger command needs more.
+  const input = "A".repeat(50_000);
+  const result = take(
+    "run",
+    run(
+      `const fs=require('node:fs');
+    fs.writeSync(1,'x'.repeat(70000));fs.writeSync(2,'y'.repeat(70000));
+    const input=fs.readFileSync(0);fs.writeSync(1,String(input.length));process.exitCode=23;`,
+      { stdin: input },
+    ),
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.value.status, 23);
+  assert.equal(result.value.program, process.execPath);
+  assert.equal(result.value.stdout.length, 70_005);
+  assert.equal(result.value.stderr.length, 70_000);
+  assert.ok(result.value.stdout === "x".repeat(70_000) + "50000");
+  assert.ok(result.value.stderr === "y".repeat(70_000));
+});
+
+test("Process child closing stdin preserves output and status", (t) => {
+  const { run, take } = processHost(t);
+  // Input exceeds a pipe buffer; the child closes without reading it.
+  assert.deepEqual(
+    take(
+      "run",
+      run(
+        `require('node:fs').closeSync(0);process.stdout.write('ok');process.stderr.write('err');process.exitCode=7;`,
+        {
+          stdin: "line\n".repeat(200_000),
+        },
+      ),
+    ),
+    Ok({ stdout: "ok", stderr: "err", status: 7, program: process.execPath }),
+  );
+});
+
+test("Process missing program, grant and malformed commands keep typed errors", (t) => {
+  const api = processHost(t);
+  assert.deepEqual(
+    api.take("run", api.run("", { program: "hd-missing-muse-812" })),
+    Err({ tag: "NotFound", program: "hd-missing-muse-812" }),
+  );
+  const denied = processHost(t, { grants: { Process: false } });
+  const refused = denied.run("", { program: "hd-missing-muse-812" });
+  assert.equal(refused.operation, undefined);
+  assert.deepEqual(refused.result, Err({ tag: "NotGranted" }));
+  const bad = api.run("", { args: ["bad\0argument"] });
+  assert.equal(bad.operation, undefined);
+  assert.equal(bad.result.ok, false);
+  assert.equal(bad.result.error.tag, "Other");
+});
+
+function processWorker(t) {
+  const call = netWorker(t, { url: new URL("./process.mjs", import.meta.url), close: "close" });
+  const start = (script, more = {}) =>
+    call({
+      op: "wait_start",
+      program: process.execPath,
+      args: ["-e", script],
+      cwd: process.cwd(),
+      env: {},
+      input: new Uint8Array(),
+      timeout: Infinity,
+      ...more,
+    }).ok;
+  return { call, start };
+}
+
+for (const phase of ["running", "leader-exited"]) {
+  test(
+    `Process abort kills its process group (${phase})`,
+    { skip: process.platform === "win32" },
+    async (t) => {
+      const root = fixture(t, {}),
+        ready = join(root, "ready"),
+        parent = join(root, "parent");
+      const { call, start } = processWorker(t);
+      const descendant = `require('node:fs').writeFileSync(${JSON.stringify(ready)},String(process.pid));setInterval(()=>{},1000)`;
+      const script = `require('node:fs').writeFileSync(${JSON.stringify(parent)},String(process.pid));const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e',${JSON.stringify(descendant)}],{stdio:['ignore','inherit','inherit']});
+      ${phase === "leader-exited" ? "child.unref();" : "setInterval(()=>{},1000);"}`;
+      const operation = start(script);
+      await t.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
+      const pid = Number(readFileSync(ready, "utf8"));
+      const parentPid = Number(readFileSync(parent, "utf8"));
+      if (phase === "leader-exited") {
+        await t.waitFor(() => assert.throws(() => process.kill(parentPid, 0)), { timeout: 5000 });
+      } else process.kill(parentPid, 0);
+      t.after(() => {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {}
+      });
+      assert.deepEqual(call({ op: "wait_poll", operation }), { pending: true });
+      assert.deepEqual(call({ op: "wait_abort", operation }), { ok: null });
+      assert.deepEqual(call({ op: "wait_abort", operation }), { ok: null });
+      await t.waitFor(() => assert.throws(() => process.kill(pid, 0)), { timeout: 5000 });
+    },
+  );
+}
+
+test("Process ready result stays owned until finish or abort", async (t) => {
+  const { call, start } = processWorker(t);
+  const operation = start("process.stdout.write('ready')");
+  let result;
+  await t.waitFor(
+    () => {
+      result = call({ op: "wait_poll", operation });
+      assert.ok(result.ok);
+    },
+    { timeout: 5000 },
+  );
+  assert.deepEqual(call({ op: "wait_poll", operation }), result);
+  assert.deepEqual(call({ op: "wait_abort", operation }), { ok: null });
+  const second = start("process.stdout.write('next')");
+  await t.waitFor(() => assert.ok(call({ op: "wait_poll", operation: second }).ok), {
+    timeout: 5000,
+  });
+  assert.deepEqual(call({ op: "wait_finish", operation: second }), { ok: null });
+});
+
+test("Process prepared child uses its configured launcher, directory and environment", (t) => {
+  const root = fixture(t, {
+    "child.mjs": `process.stdout.write(JSON.stringify([process.argv.slice(2),process.cwd(),process.env.MUSE_CHILD]));`,
+  });
+  const api = processHost(t, {
+    programs: {
+      prepared: {
+        host: join(root, "child.mjs"),
+        wasm: "child.wasm",
+        config: "child.json",
+        cwd: root,
+      },
+    },
+  });
+  const output = api.take(
+    "run",
+    api.run("", {
+      program: "prepared",
+      args: ["one", "two"],
+      env: [
+        ["MUSE_CHILD", "first"],
+        ["MUSE_CHILD", "last"],
+      ],
+    }),
+  );
+  assert.equal(output.ok, true);
+  assert.equal(output.value.program, "prepared");
+  assert.deepEqual(JSON.parse(output.value.stdout), [
+    ["child.wasm", "child.json", "one", "two"],
+    realpathSync(root),
+    "last",
+  ]);
+});
+
+test("Process worker deadline kills the child and reports timeout", async (t) => {
+  const { call, start } = processWorker(t);
+  const operation = start("setInterval(()=>{},1000)", { timeout: 50 });
+  await t.waitFor(() => assert.deepEqual(call({ op: "wait_poll", operation }), { timeout: true }), {
+    timeout: 5000,
+  });
+  assert.deepEqual(call({ op: "wait_finish", operation }), { ok: null });
+});
+
+test("Process host close cancels a child with unread output", async (t) => {
+  const root = fixture(t, {}),
+    ready = join(root, "ready");
+  const { host, run } = processHost(t);
+  run(
+    `require('node:fs').writeFileSync(${JSON.stringify(ready)},String(process.pid));setInterval(()=>{},1000)`,
+  );
+  await t.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
+  const pid = Number(readFileSync(ready, "utf8"));
+  t.after(() => {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {}
+  });
+  host.close();
+  await t.waitFor(() => assert.throws(() => process.kill(pid, 0)), { timeout: 5000 });
+});
+
+// A host timeout longer than Node's timer range must not turn into 1 ms.
+test("Process long deadline does not overflow the worker timer", async (t) => {
+  const { call, start } = processWorker(t);
+  const operation = start("setTimeout(()=>process.stdout.write('ok'),20)", {
+    timeout: 2_147_483_648,
+  });
+  await t.waitFor(
+    () => {
+      const result = call({ op: "wait_poll", operation });
+      assert.equal(result.ok?.stdout, "ok");
+    },
+    { timeout: 5000 },
+  );
+  call({ op: "wait_finish", operation });
 });

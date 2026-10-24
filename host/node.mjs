@@ -30,17 +30,9 @@ import {
   writeFileSync,
   writeSync,
 } from "node:fs";
-import { spawnSync } from "node:child_process";
 import { isIP } from "node:net";
 import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_threads";
-import {
-  arch as osArch,
-  availableParallelism,
-  constants as osConstants,
-  hostname,
-  platform,
-  tmpdir,
-} from "node:os";
+import { arch as osArch, availableParallelism, hostname, platform, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
 import {
   createCoreHost,
@@ -233,16 +225,25 @@ const entry = (path, st) => {
 
 // A client thread running `file` (`http.mjs`, `net.mjs`), started on its
 // first call. `call(request, left)` posts the request and waits for the
-// thread's answer synchronously, so an operation finishes inside its
-// `.start`. It waits at most `left()` milliseconds, the time before the
-// run's deadline: past it, the thread stops, since it still holds the
-// operation, and the call throws the `time-limit` panic.
-const syncClient = (file) => {
+// thread's control reply synchronously. Pending providers use short
+// start/poll/finish/abort requests rather than waiting for their I/O here.
+// A control call waits at most `left()` milliseconds before stopping its
+// client and throwing the `time-limit` panic.
+const syncClient = (file, close = null) => {
   let client = null;
-  // Stops the thread, closing whatever it holds open.
+  // Stops the thread, allowing an optional close request to release OS children.
   const stop = () => {
-    client?.worker.terminate();
-    client = null;
+    if (client !== null) {
+      if (close === null) client.worker.terminate();
+      else {
+        // Child processes outlive worker termination. Let this worker kill
+        // and reap them even if a short control call hit the run deadline.
+        client.worker.ref();
+        client.port.postMessage({ op: close });
+        client.port.close();
+      }
+      client = null;
+    }
   };
   return {
     // Whether the thread has started, so it may hold something open.
@@ -788,82 +789,78 @@ const noDirectory = (dir) => Err({ tag: "Other", message: `working directory not
 // profile, cli.test.process): the test runner's provider starts the
 // package's executables and tasks by name, the default profile's a host
 // program.
-function processProvider({ grant, env, left }) {
+function processProvider({ grant, env, left, processClient }) {
   const run = ({ program: name, args: argv, env: pairs, current_dir: dir, stdin: text }) => {
     if (!grant.coversName("Process", name)) return Err({ tag: "NotGranted" });
-    // The child runs at most until the run's deadline.
     const ms = left();
     if (ms <= 0) throw new TimeLimit();
-    const timeout = Number.isFinite(ms) ? Math.ceil(ms) : undefined;
-    // module.process.command-env: the program's environment, then the
-    // command's pairs in order, so a later pair for a name wins.
+    // module.process.command-env: later pairs win, without case on Windows.
     const childEnv = { ...process.env };
     for (const [key, value] of pairs) {
-      // Windows names variables without case.
       const own =
         platform() === "win32"
           ? Object.keys(childEnv).find((k) => k.toUpperCase() === key.toUpperCase())
           : undefined;
       childEnv[own ?? key] = value;
     }
-    let r;
+    let program = name;
+    let args = argv;
+    let cwd;
     if (env.programs) {
       const p = env.programs[name];
       if (!p) return Err({ tag: "NotFound", program: name });
       const bad = refusal(name, argv, pairs, dir);
       if (bad) return bad;
-      const cwd = dir === null ? p.cwd : resolve(p.cwd, dir);
-      if (!isDirectory(cwd)) return noDirectory(dir);
-      r = spawnSync(process.execPath, [p.host, p.wasm, p.config, ...argv], {
-        input: text,
-        cwd,
-        env: childEnv,
-        maxBuffer: 1 << 30,
-        timeout,
-      });
+      cwd = dir === null ? p.cwd : resolve(p.cwd, dir);
+      program = process.execPath;
+      args = [p.host, p.wasm, p.config, ...argv];
     } else {
       if (name === "") return Err({ tag: "NotFound", program: name });
       const bad = refusal(name, argv, pairs, dir);
       if (bad) return bad;
-      const cwd = dir === null ? process.cwd() : resolve(process.cwd(), dir);
-      if (!isDirectory(cwd)) return noDirectory(dir);
-      try {
-        r = spawnSync(name, argv, {
-          input: text,
-          cwd,
-          env: childEnv,
-          maxBuffer: 1 << 30,
-          timeout,
-        });
-      } catch (error) {
-        return Err({ tag: "Other", message: String(error.message) });
-      }
+      cwd = dir === null ? process.cwd() : resolve(process.cwd(), dir);
     }
-    // std-process.stdin.unread: a child that exited without reading all of
-    // its stdin breaks the pipe; the rest is dropped and the run is `.Ok`.
-    // The pipe reports it as EPIPE or ECONNRESET, ENOTCONN on macOS, and EOF
-    // on Windows (libuv maps ERROR_BROKEN_PIPE to EOF, as `fill` above meets
-    // on reads). A child that never started has neither a status nor a signal.
-    const stdinClosed =
-      ["EPIPE", "ECONNRESET", "ENOTCONN", "EOF"].includes(r.error?.code) &&
-      (r.status !== null || r.signal !== null);
-    if (r.error && !stdinClosed) {
-      const code = r.error.code;
-      if (code === "ETIMEDOUT") throw new TimeLimit();
-      if (code === "ENOENT") return Err({ tag: "NotFound", program: name });
-      if (code === "EACCES" || code === "EPERM")
-        return Err({ tag: "PermissionDenied", program: name });
-      return Err({ tag: "Other", message: String(r.error.message) });
-    }
-    // std-process.child.signal: a child ended by a signal reports 128 plus
-    // the signal number.
-    const status = r.status ?? 128 + (osConstants.signals[r.signal] ?? 0);
-    return Ok({
-      stdout: r.stdout.toString("utf8"),
-      stderr: r.stderr.toString("utf8"),
-      status,
-      program: name,
+    if (!isDirectory(cwd)) return noDirectory(dir);
+    const { ok: operation } = processClient.call({
+      op: "wait_start",
+      program,
+      args,
+      cwd,
+      env: childEnv,
+      input: text,
+      timeout: ms,
     });
+    let result = null;
+    const poll = () => {
+      const outcome = processClient.call({ op: "wait_poll", operation });
+      if (outcome.pending) return false;
+      result = outcome;
+      return true;
+    };
+    const finish = () => processClient.call({ op: "wait_finish", operation });
+    const output = () => {
+      if (result.timeout) throw new TimeLimit();
+      if (result.error) {
+        const { code, message } = result.error;
+        if (code === "ENOENT") return Err({ tag: "NotFound", program: name });
+        if (code === "EACCES" || code === "EPERM")
+          return Err({ tag: "PermissionDenied", program: name });
+        return Err({ tag: "Other", message });
+      }
+      return Ok({ ...result.ok, program: name });
+    };
+    if (poll()) {
+      finish();
+      return output();
+    }
+    return pendingOperation(
+      poll,
+      output,
+      () => processClient.cancel({ op: "wait_abort", operation }),
+      () => {
+        finish();
+      },
+    );
   };
   return { run };
 }
@@ -914,6 +911,7 @@ const nodeLayer = {
     // this instance's own, which holds its sockets; `close` stops it.
     const net = syncClient("net.mjs");
     const http = syncClient("http.mjs");
+    const child = syncClient("process.mjs", "close");
     // The program's output reaches its stream before it waits on the host
     // (std-console.host.visible-text): a run stopped in a wait loses none. Each
     // client call and child process asks `waiting()` first.
@@ -940,7 +938,7 @@ const nodeLayer = {
         "hd:Net": netProvider({ grant, netClient }),
         "hd:Env": envProvider({ grant, sink, st, flush }),
         ...fsProviders({ grant, flush }),
-        "hd:Process": processProvider({ grant, env, left: waiting }),
+        "hd:Process": processProvider({ grant, env, left: waiting, processClient: client(child) }),
         "hd:TestRunner": testRunner.provider,
       },
       tempDir: testRunner.tempDir,
@@ -959,6 +957,7 @@ const nodeLayer = {
       close: () => {
         net.stop();
         http.stop();
+        child.stop();
         if (st.ownTemp) {
           try {
             rmSync(st.ownTemp, { recursive: true, force: true });
