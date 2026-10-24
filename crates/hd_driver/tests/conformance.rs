@@ -2030,7 +2030,7 @@ fn add_count(counts: &mut Counts, verdict: &Verdict) {
 
 /// `HD_CONFORMANCE_ONLY=a,b`: run only the cases whose path or rule
 /// contains one of the comma-separated parts, print each verdict with the
-/// first diagnostic or unsupported reason, and skip the known-failure rule.
+/// first diagnostic or unsupported reason, and judge the selected cases.
 fn filtered(cases: Vec<Case>) -> Option<Vec<Case>> {
     let only = std::env::var("HD_CONFORMANCE_ONLY").ok()?;
     let parts: Vec<&str> = only.split(',').filter(|part| !part.is_empty()).collect();
@@ -2235,7 +2235,6 @@ fn specification_conformance_passes_except_known_failures() {
 
     if only.is_some() || selected_tier.is_some() {
         print_filtered(&cases, &results, &store);
-        return;
     }
     let engine = mode.name();
     let outcomes: Vec<Outcome<'_>> = cases
@@ -2252,14 +2251,18 @@ fn specification_conformance_passes_except_known_failures() {
         })
         .collect();
     let known = known_failures::load(&root());
-    let (summary, errors) = known_failures::judge(
-        "driver",
-        engine,
-        Some(pipeline_name()),
-        &known,
-        |path| !path.starts_with("cli/"),
-        &outcomes,
-    );
+    let (summary, errors) = if only.is_some() || selected_tier.is_some() {
+        known_failures::judge_selection("driver", engine, Some(pipeline_name()), &known, &outcomes)
+    } else {
+        known_failures::judge(
+            "driver",
+            engine,
+            Some(pipeline_name()),
+            &known,
+            |path| !path.starts_with("cli/"),
+            &outcomes,
+        )
+    };
     // Straight to stdout, past the test harness's capture, so a passing run
     // shows the counts too.
     std::io::stdout()
