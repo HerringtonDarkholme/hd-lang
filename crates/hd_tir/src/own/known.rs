@@ -676,12 +676,22 @@ impl Forward for Walk<'_> {
         s.union(self.t.exit, st);
     }
 
-    /// The pending `Drop`s that stand before member `p`.
-    fn before(&mut self, b: &Body, blk: u32, p: usize, y: &mut usize, s: &mut BitArena, st: usize) {
+    /// The pending `Drop`s that stand before member `p`; whether any
+    /// stand after it.
+    #[inline]
+    fn before(
+        &mut self,
+        b: &Body,
+        blk: u32,
+        p: usize,
+        y: &mut usize,
+        s: &mut BitArena,
+        st: usize,
+    ) -> bool {
         while let Some(&e) = self.t.pending.of(blk).get(*y) {
             let (_, pos, tag, [word, _], _) = self.edits.get(e);
             if pos as usize > p {
-                break;
+                return true;
             }
             if tag == Tag::Drop {
                 self.t
@@ -689,6 +699,7 @@ impl Forward for Walk<'_> {
             }
             *y += 1;
         }
+        false
     }
 
     fn skip(&self, x: u32) -> bool {
