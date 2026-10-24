@@ -1,0 +1,22 @@
+# @dump: own
+# A store whose base read folding kept, because a call stands between,
+# names the place that read: the store is rooted at the local
+# (`[$1 [0]]`, `[*$0 [1]]`), and a compound assignment's element read
+# keeps the base read. Where the read is of a reference of an open type,
+# which folding leaves alone, the `IsUnique` names the place it reads,
+# `[*$0]`, and a push reads that place again.
+fn twice(n: i32) -> i32:
+    n * 2
+
+fn fill(n: usize) -> List[usize]:
+    let mut xs: List[usize] = [0, 0]
+    xs[1] = n * 2
+    xs[0] = n + usize(twice(1))
+    xs
+
+fn bump(counts: &mut List[i32]) -> void:
+    counts[1] += twice(5)
+
+fn put[T](xs: &mut List[T], k: usize, v: T) -> void:
+    xs[k] = v
+    xs.push(v)

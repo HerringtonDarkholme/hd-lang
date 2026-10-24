@@ -1121,6 +1121,41 @@ pub(crate) mod tests {
         assert!(found(&build(true, true)));
     }
 
+    /// An `IsUnique` rooted at a value stores the buffer it leaves in that
+    /// value alone, so the verifier rejects one whose value reads a local's
+    /// place, which would keep the old buffer, and accepts a call's result.
+    #[test]
+    fn the_verifier_wants_a_check_rooted_at_a_value_to_read_no_place() {
+        use crate::ir::IntrinsicOp;
+        let n = NodeIdx::from_raw(1);
+        let build = |from_local: bool| {
+            let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+            let blk = b.open_block();
+            let a = b.local(LIST, Symbol::from_raw(0), local_flags::PARAM, n);
+            let s = call(&mut b, 7, &[], Ty::STRING);
+            let h = if from_local {
+                let word = a.raw() | crate::ir::place::BARE_LOCAL;
+                b.emit(Tag::Read, word, ReadMode::Borrow as u32, LIST, n)
+            } else {
+                call(&mut b, 8, &[], LIST)
+            };
+            let word = b.place(&format!("[%{}]", h.0).parse().expect("place"));
+            b.emit(Tag::IsUnique, word, 0, Ty::VOID, n);
+            let rec = b.refs_record(&[h, s]);
+            let push = IntrinsicOp::ListPush as u32;
+            b.emit(Tag::Intrinsic, push, rec, Ty::VOID, n);
+            let root = b.close_block(blk, None, Ty::VOID, n);
+            b.finish_tolerating(root, &[], &[22]).expect("valid")
+        };
+        let found = |body: &Body| {
+            verify_owned(body, &Cx)
+                .iter()
+                .any(|e| e.what.contains("leaves its buffer in no place"))
+        };
+        assert!(found(&build(true)));
+        assert!(!found(&build(false)));
+    }
+
     /// A part taken by a move read lets more parts or a drop of the rest
     /// follow, and nothing else: the verifier accepts a drop of the whole
     /// after it, and rejects a use.

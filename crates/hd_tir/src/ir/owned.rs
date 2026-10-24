@@ -46,7 +46,10 @@
 //! - a collection change's operand that reads a place rooted at a local
 //!   or a top-level binding reads it right after the place's `IsUnique`
 //!   (or a hoisted one names the place), with nothing that may write
-//!   between that read and the change ([`change_places`]);
+//!   between that read and the change; any other operand, and the root
+//!   of an `IsUnique` rooted at a value, reads no such place through
+//!   other reads, so the buffer a check or a change leaves reaches the
+//!   place it replaced ([`change_places`]);
 //! - nothing tier 2 reserves: no `FlagSet`, `FlagClear` or `regions` row.
 //!
 //! The walks follow the body's layout: dense tables indexed by instruction,
@@ -410,7 +413,12 @@ fn lent_refs(b: &Body, errs: &mut Vec<VerifyError>) {
 /// where a hoisted `IsUnique` names the place), with only reads,
 /// arithmetic steps, coercions, constructions, drops and header copies
 /// between it and the change: nothing that may write the place or
-/// replace its buffer.
+/// replace its buffer. Any other operand, and the root value of an
+/// `IsUnique` rooted at a value, reads no place rooted at a local or a
+/// binding through reads and coercions: once a collection is its buffer's
+/// address, a check or a change can store the buffer it leaves only into
+/// the place it names, and one rooted at such a value would leave the
+/// place with the old one.
 fn change_places(b: &Body, errs: &mut Vec<VerifyError>) {
     let n = b.len();
     let mut at = vec![(usize::MAX, 0); n];
@@ -437,6 +445,33 @@ fn change_places(b: &Body, errs: &mut Vec<VerifyError>) {
                 | Tag::Drop
         ),
     };
+    // Whether value `v` reads a place rooted at a local or a binding.
+    let placed = |mut v: u32| {
+        for _ in 0..64 {
+            let r = v as usize;
+            if Ref(v).as_inst().is_none() || r >= n {
+                return false;
+            }
+            match (b.tags[r], b.decode_place(b.data[r][0]).map(|p| p.root)) {
+                (Tag::Coerce, _) => v = b.data[r][0],
+                (Tag::Read, Some(PlaceRoot::Value(u))) => v = u.0,
+                (Tag::Read, Some(PlaceRoot::Local(_) | PlaceRoot::Global(..))) => return true,
+                _ => return false,
+            }
+        }
+        false
+    };
+    for x in (0..n).filter(|&x| b.tags[x] == Tag::IsUnique) {
+        if let Some(PlaceRoot::Value(v)) = b.decode_place(b.data[x][0]).map(|p| p.root)
+            && placed(v.0)
+        {
+            let what = format!(
+                "`IsUnique` rooted at %{} leaves its buffer in no place",
+                v.0
+            );
+            err(errs, u32_of(x), what);
+        }
+    }
     for c in 0..n {
         for (_, v) in crate::own::changed(b, c) {
             let r = v as usize;
@@ -445,6 +480,10 @@ fn change_places(b: &Body, errs: &mut Vec<VerifyError>) {
                 .flatten()
                 .filter(|p| matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..)))
             else {
+                if placed(v) {
+                    let what = format!("change operand %{r} leaves its buffer in no place");
+                    err(errs, u32_of(c), what);
+                }
                 continue;
             };
             let ((blk, pos), (cb, cp)) = (at[r], at[c]);

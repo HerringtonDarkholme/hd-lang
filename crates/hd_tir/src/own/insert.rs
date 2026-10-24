@@ -979,8 +979,15 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
             Tag::Store | Tag::Ref => {
                 let pin = b.tags[i] == Tag::Ref;
                 let deref = path_lists(b, t, a);
+                // A place rooted at a read of a local's or a binding's
+                // place, which folding kept (`xs[i] += f()`): its checks
+                // name that place, as a change's do.
+                let base = value_root(b, a).and_then(|v| read_place(b, t, v));
                 for k in 0..t.elems.len() {
-                    let word = prefix(b, a, t.elems[k]);
+                    let word = match base {
+                        Some(w) => graft(b, w, a, t.elems[k]),
+                        None => prefix(b, a, t.elems[k]),
+                    };
                     edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
                     if pin {
                         edits.insert(blk, pos, Tag::Pin, [word, NONE], Ty::VOID, syn);
@@ -1005,7 +1012,8 @@ type Change = (u32, u32, u32, Option<bool>);
 /// The collection changes of instruction `i` into `t.changes`, as
 /// (change, `extra` word, operand, quiet): a push's list, a map store's
 /// or removal's map. Quiet is `None` for an operand that reads no place
-/// rooted at a local or a top-level binding, and else whether nothing
+/// rooted at a local or a top-level binding, directly or through the
+/// reads of values, and else whether it reads it directly and nothing
 /// between that read and the change may write. A change whose operand
 /// reads a place is an access of the local the place is rooted at, if
 /// any, and an operand read again at the change owns nothing; its map
@@ -1014,6 +1022,15 @@ type Change = (u32, u32, u32, Option<bool>);
 fn changes(b: &Body, t: &mut Tables, i: usize) {
     if t.blk[i] == NONE {
         return;
+    }
+    // A store or a reference through a read of a local's place names
+    // that place in its checks ([`uniqueness`]): an access of the local.
+    if matches!(b.tags[i], Tag::Store | Tag::Ref)
+        && let Some(l) = value_root(b, b.data[i][0])
+            .and_then(|v| read_root(b, t, v))
+            .filter(|&l| l != NONE)
+    {
+        t.acc.push((t.sub[i], l, u32_of(i)));
     }
     for (at, v) in super::changed(b, i) {
         let Some(r) = Ref(v).as_inst().map(|r| r.0 as usize) else {
@@ -1024,22 +1041,33 @@ fn changes(b: &Body, t: &mut Tables, i: usize) {
         let root = (b.tags[r] == Tag::Read && t.blk[r] != NONE)
             .then(|| root_local(b, b.data[r][0]).or(global_root(b, b.data[r][0])))
             .flatten();
+        // An operand through reads of a local's place, which folding kept,
+        // names that place and reads it again, as one rooted there does.
+        let chained = root.is_none().then(|| read_root(b, t, v)).flatten();
         let once = t.start[r + 1] - t.start[r] == 1;
         let still = once && t.blk[r] == t.blk[i] && (r + 1..i).all(|x| quiet(b, x));
-        let kind = root.is_some().then_some(still);
+        let kind = root
+            .or(chained)
+            .is_some()
+            .then_some(still && chained.is_none());
         // A read used again keeps its count; the change's use moves on.
         t.tracked[r] &= kind != Some(false) || !once;
         t.changes.push((u32_of(i), at, v, kind));
-        if let Some(l) = root.filter(|&l| l != NONE) {
+        if let Some(l) = root.or(chained).filter(|&l| l != NONE) {
             t.acc.push((t.sub[i], l, u32_of(i)));
         }
         if kind == Some(false) {
             t.reread[r] = u32_of(i);
-            path_lists(b, t, b.data[r][0]);
-            for x in 0..t.elems.len() {
-                if let Some(e) = entry(b, b.extra[t.elems[x] as usize + 1]) {
-                    t.relook.push((b.record(b.data[e][1])[1], u32_of(i)));
+            // The map value steps of every read on the way.
+            let mut x = Some(v);
+            while let Some(w) = x.filter(|&w| b.tags[w as usize] == Tag::Read) {
+                path_lists(b, t, b.data[w as usize][0]);
+                for k in 0..t.elems.len() {
+                    if let Some(e) = entry(b, b.extra[t.elems[k] as usize + 1]) {
+                        t.relook.push((b.record(b.data[e][1])[1], u32_of(i)));
+                    }
                 }
+                x = value_root(b, b.data[w as usize][0]);
             }
         }
     }
@@ -1061,7 +1089,7 @@ fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change
     let (blk, pos, syn, word) = (t.blk[s], t.pos[s], b.syn[s], b.data[r][0]);
     if quiet.is_none() {
         through(b, t, edits, c.2, false);
-        let word = value_place(b, c.2);
+        let word = read_place(b, t, c.2).unwrap_or_else(|| value_place(b, c.2));
         edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
         return;
     }
@@ -1070,11 +1098,12 @@ fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change
         _ => word,
     };
     let (n, mode) = (u32_of(b.len()), ReadMode::Borrow as u32);
-    // The re-read's own place, whose entries the new lookups replace.
-    let word = if quiet == Some(false) {
-        whole(b, word)
-    } else {
-        word
+    // The re-read's own place, whose entries the new lookups replace,
+    // rooted where its reads start.
+    let word = match (quiet, read_place(b, t, c.2)) {
+        (Some(false), Some(w)) if value_root(b, word).is_some() => w,
+        (Some(false), _) => whole(b, word),
+        _ => word,
     };
     path_lists(b, t, word);
     for k in 0..t.elems.len() {
@@ -1097,6 +1126,57 @@ fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change
         let e = edits.insert(blk, pos, Tag::Read, [word, mode], b.ty[r], syn);
         edits.rewrite(c.0, super::Loc::Extra(c.1), e);
     }
+}
+
+/// The local the chain of reads ending at value `v` starts at, through
+/// the reads of values; `Some(NONE)` for a top-level binding.
+fn read_root(b: &Body, t: &Tables, mut v: u32) -> Option<u32> {
+    for _ in 0..64 {
+        let i = v as usize;
+        if b.tags[i] != Tag::Read || t.blk[i] == NONE {
+            return None;
+        }
+        let w = b.data[i][0];
+        if let Some(l) = root_local(b, w).or(global_root(b, w)) {
+            return Some(l);
+        }
+        v = value_root(b, w)?;
+    }
+    None
+}
+
+/// The place read `v` reads, rooted where its chain of reads starts
+/// ([`read_root`]): `[*%0]` after `%0 = Read [$0]` is `[$0 *]`.
+fn read_place(b: &mut Body, t: &Tables, v: u32) -> Option<u32> {
+    let i = v as usize;
+    if b.tags[i] != Tag::Read || t.blk[i] == NONE {
+        return None;
+    }
+    let w = b.data[i][0];
+    if root_local(b, w).or(global_root(b, w)).is_some() {
+        return Some(w);
+    }
+    let base = read_place(b, t, value_root(b, w)?)?;
+    Some(graft(b, base, w, w + 1 + b.extra[w as usize]))
+}
+
+/// A new place record: the place at `base` followed by the steps of the
+/// place at `word`, which is rooted at a value, up to `extra` position
+/// `end`.
+fn graft(b: &mut Body, base: u32, word: u32, end: u32) -> u32 {
+    let at = u32_of(b.extra.len());
+    let from = word + 3;
+    if base & place::BARE_LOCAL != 0 {
+        b.extra
+            .extend([2 + end - from, place::ROOT_LOCAL, base & !place::BARE_LOCAL]);
+    } else {
+        let n = b.extra[base as usize];
+        b.extra.push(n + end - from);
+        b.extra
+            .extend_from_within(base as usize + 1..(base + 1 + n) as usize);
+    }
+    b.extra.extend_from_within(from as usize..end as usize);
+    at
 }
 
 /// The `MapEntry` instruction an element step's index is, if any: the
@@ -1151,8 +1231,12 @@ fn through(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, v: u32, pin
                 let done = t.walked[i];
                 if done & need != need {
                     let (blk, pos, syn) = (t.blk[i], t.pos[i], b.syn[i]);
+                    let base = value_root(b, word).and_then(|u| read_place(b, t, u));
                     for k in 0..t.elems.len() {
-                        let place = prefix(b, word, t.elems[k]);
+                        let place = match base {
+                            Some(w) => graft(b, w, word, t.elems[k]),
+                            None => prefix(b, word, t.elems[k]),
+                        };
                         if done & 1 == 0 {
                             edits.insert(blk, pos, Tag::IsUnique, [place, 0], Ty::VOID, syn);
                         }

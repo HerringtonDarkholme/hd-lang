@@ -712,8 +712,11 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     Root::Global(_) | Root::Other => true,
                     Root::Value(_) => false,
                 };
+            // A write of a top-level binding counts against a read of any
+            // binding, as one behind a reference does.
             if reachable {
-                t.reach.push((x, behind, through));
+                let global = matches!(root, Root::Global(_));
+                t.reach.push((x, behind || global, through));
             }
         }
         match tag {

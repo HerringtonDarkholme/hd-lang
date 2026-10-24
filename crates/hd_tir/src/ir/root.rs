@@ -29,6 +29,11 @@
 //!    erased instance outlines an open read by its values
 //!    (`crates/hd_mono/DESIGN.md` §13.5.1), and a local is none.
 //!
+//! When only rule 2's statements between fail, the `Store`s and `Ref`s
+//! among the uses still become `P` followed by their steps, and the read
+//! stays only for the reads among them: `xs[i] = f(i)` stores into
+//! `[$xs [%i]]`, so the store names its place, as a change does.
+//!
 //! The reads run in instruction order, so a chain folds from its root:
 //! `%r = Read [$0]`, `%h = Read [*%r]`, `%e = Read [%h [%i]]` and
 //! `Read [%e .x]` become `Read [*$0 [%i] .x]`. A read that does not fold
@@ -252,6 +257,7 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
             last = last.max(t.pos[u as usize]);
             t.mark[u as usize] = u32_of(v);
         }
+        let mut quiet = ok;
         if ok {
             let elem = has_elem(b, from, to);
             let members = b.record(b.data[blk as usize][0]);
@@ -261,7 +267,7 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
                     || t.mark[s] == u32_of(v)
                     || if elem { unchecked(b, s) } else { inert(b, s) };
                 if !fine {
-                    ok = false;
+                    quiet = false;
                     break;
                 }
             }
@@ -269,9 +275,17 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
         if !ok {
             continue;
         }
-        // Each use's place: `P` followed by the use's own steps.
+        // Each use's place: `P` followed by the use's own steps. Where a
+        // statement between may write, only a `Store`'s or a `Ref`'s: they
+        // write or address the place as it is when they run, as a change
+        // read again after its arguments does (`xs[i] = f(i)`), and the
+        // read stays for the reads.
         for k in (lo..hi).filter(|&k| t.uses[k].1) {
             let u = t.uses[k].0 as usize;
+            if !quiet && b.tags[u] == Tag::Read {
+                kept = true;
+                continue;
+            }
             let word = b.data[u][0];
             let len = b.extra[word as usize];
             t.words.clear();
