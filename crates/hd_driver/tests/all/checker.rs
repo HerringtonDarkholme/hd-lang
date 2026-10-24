@@ -549,3 +549,36 @@ pub fn two(n: i32) -> i32:
     ]);
     assert!(!out.diags.has_errors(), "{}", out.render());
 }
+
+#[test]
+fn associated_function_output_infers_its_requirement_row() {
+    let header = r#"
+trait Make:
+    type Out
+    fn make(self) -> Self::Out
+struct Hello: pass
+impl Make for Hello:
+    type Out = fn() -> void $ Console
+    fn make(self) -> (fn() -> void $ Console):
+        fn() -> void $ Console: println("hello")
+fn call[$S, P < Make[Out = fn() -> void $ S]](maker: P) -> void $ S:
+    callback := maker.make()
+    callback()
+"#;
+    let missing = program(&format!(
+        "{header}\npub fn main() -> void:\n    call(Hello {{}})\n"
+    ));
+    assert!(
+        missing.diags.code.contains(&Code::MissingRequirement),
+        "{}",
+        missing.render()
+    );
+    let mismatched = program(&format!(
+        "{header}\npub fn main() -> void:\n    call::[$(), Hello](Hello {{}})\n"
+    ));
+    assert!(
+        mismatched.diags.code.contains(&Code::UnsatisfiedTraitBound),
+        "{}",
+        mismatched.render()
+    );
+}
