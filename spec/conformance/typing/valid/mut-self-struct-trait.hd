@@ -1,0 +1,25 @@
+# A struct's mut self receiver is its own changeable value copy, including
+# after substituting Self in a trait method and a generic struct target.
+# Spec 07: fn.method.receiver.mut-self. Spec 09: trait.impl.signature.
+trait Bump:
+    fn bump(mut self) -> usize
+
+struct Counter:
+    n: usize
+
+impl Bump for Counter:
+    fn bump(mut self) -> usize:
+        self.n += 1
+        self.n
+
+struct Tagged[T]:
+    value: T
+    n: usize
+
+impl[T] Bump for Tagged[T]:
+    fn bump(mut self) -> usize:
+        self.n += 1
+        self.n
+
+fn use_both() -> usize:
+    Counter { n: 4 }.bump() + Tagged { value: "tag", n: 6 }.bump()

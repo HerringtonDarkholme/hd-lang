@@ -4940,3 +4940,6 @@ typing/invalid/function-value-named-argument.hd	type	reject:unknown-named-argume
 typing/invalid/derivation-block-hash.hd	type	reject:underivable-trait	lang/14-annotations.md#r-annot.block.template
 typing/invalid/task-all-list-private.hd	type	reject:private-import	std/task.md#r-std-task.map-all.private-engine
 runtime/valid/task-map-all-2000.hd	runtime	accept	std/task.md#r-std-task.map-all.like-all
+typing/valid/mut-self-struct-trait.hd	type	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
+runtime/valid/mut-self-struct-trait-copy.hd	runtime	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
+typing/invalid/mut-self-struct-trait-reference.hd	type	reject:trait-method-signature	lang/09-traits.md#r-trait.impl.signature
