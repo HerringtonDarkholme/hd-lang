@@ -613,25 +613,26 @@ impl Elem {
     }
 }
 
-/// A list header's payload (§23.7): the buffer's address, then the
-/// owner word: 0 while the buffer may be shared, or, once an element
-/// reference pinned the list, the function-table slot of the list's
-/// [`Helper::ListClone`] plus one, with [`LIST_EXPOSED`] for transitive
-/// exposure. A buffer whose header has an owner word
-/// has that header as its one owner, so each count past the first is an
-/// element reference's: the list is pinned while its buffer's count is
-/// over 1 (§23.20).
-pub const LIST_OWN: u64 = 4;
+/// The owner word of a list buffer and of a map table (§23.7), at the same
+/// payload offset of both: 0 while the buffer may be shared, or, once an
+/// element reference pinned the collection, the function-table slot of
+/// its [`Helper::ListClone`] or [`Helper::MapClone`] plus one, with
+/// [`LIST_EXPOSED`] for transitive exposure. A buffer whose owner word is
+/// set has one header holding it, so each count past the first is an
+/// element reference's: the collection is pinned while its buffer's count
+/// is over 1 (§23.20).
+pub const LIST_OWN: u64 = 8;
 
 /// A list containing collection values has exposed an element. Keep its
 /// buffer unshared even after the direct pin ends: a descendant reference
 /// may still be alive. The remaining owner bits name the clone glue.
 pub const LIST_EXPOSED: u32 = 1 << 31;
 
-/// A list buffer's payload: the capacity in elements, the length, then
-/// the elements inline from [`LIST_ELEMS`].
+/// A list buffer's payload: the capacity in elements, the length, the
+/// owner word ([`LIST_OWN`]), then the elements inline from
+/// [`LIST_ELEMS`].
 pub const LIST_LEN: u64 = 4;
-pub const LIST_ELEMS: u32 = 8;
+pub const LIST_ELEMS: u32 = 16;
 
 /// A context (`crates/hd_mono/DESIGN.md` §12.4, `emit/ctx.rs`): a list
 /// buffer whose elements are entries of [`CTX_ENTRY`] bytes, each a key id
@@ -663,15 +664,15 @@ pub fn ctx_elem() -> Elem {
 /// A context entry's size, and its provider's data and vtable offsets
 /// from the address `LIST_ELEMS` before it: past the key id.
 pub const CTX_ENTRY: u32 = 16;
-pub const CTX_DATA: u64 = 16;
-pub const CTX_VTABLE: u64 = 20;
+pub const CTX_DATA: u64 = 24;
+pub const CTX_VTABLE: u64 = 28;
 
 /// The address of the one static empty buffer, shared by every empty list
-/// and map literal: its payload's 16 zero bytes are an empty list buffer
+/// and map literal: its payload's 24 zero bytes are an empty list buffer
 /// and an empty map table. Its count word is 2, so a change always copies
 /// it first, and as static data it is never counted.
 pub fn empty_buffer(m: &mut Module) -> u32 {
-    let mut bytes = [0u8; 24];
+    let mut bytes = [0u8; 32];
     bytes[0] = 2;
     let at = m.static_bytes(&bytes, 8) + HEADER;
     m.label_static(at, "empty-buffer");
@@ -2483,8 +2484,8 @@ fn release_ref(m: &Module, known: bool) -> Func {
 /// [`Helper::ListHeader`].
 /// [`Helper::ListCopy`]: a new header over the same buffer, which counts
 /// one more owner. A pinned list's buffer has one owner, so its copy is a
-/// copy of the buffer (`ref.elem.pin`); an unpinned list whose header
-/// still has an owner word gives the word up, as its buffer is shared now.
+/// copy of the buffer (`ref.elem.pin`); an unpinned list whose buffer
+/// still has an owner word gives the word up, as the buffer is shared now.
 /// Exposed ancestors stay unshared even without a direct pin: their
 /// recursively copied elements may contain a still-pinned descendant.
 fn list_copy(m: &Module) -> Func {
@@ -2493,7 +2494,7 @@ fn list_copy(m: &Module) -> Func {
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.set(b);
-    f.get(0);
+    f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
     f.set(own);
     f.get(own);
@@ -2518,7 +2519,7 @@ fn list_copy(m: &Module) -> Func {
     f.call_indirect(vec![Val::I32], vec![Val::I32]);
     f.op(Instruction::Return);
     f.op(Instruction::End);
-    f.get(0);
+    f.get(b);
     f.i32(0);
     f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
     f.op(Instruction::End);
@@ -2540,12 +2541,15 @@ fn list_copy(m: &Module) -> Func {
 /// [`Helper::ListPinned`].
 fn list_pinned(m: &Module) -> Func {
     let mut f = m.func("rt:list_pinned", vec![Val::I32], vec![Val::I32]);
+    let b = f.local(Val::I32);
     f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(b);
+    f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
     f.i32(0);
     f.op(Instruction::I32Ne);
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.get(b);
     f.u32(HEADER);
     f.op(Instruction::I32Sub);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
@@ -2602,7 +2606,7 @@ fn list_clone(m: &Module, elem: &Elem) -> Func {
 fn list_header_as(m: &Module) -> Func {
     let mut f = m.func("rt:list_header_as", vec![Val::I32; 2], vec![Val::I32]);
     let h = f.local(Val::I32);
-    f.i32(8);
+    f.i32(4);
     push_desc(&mut f, Some(Sym::Helper(Helper::ListHeaderDrop)), false);
     f.get(1);
     f.op(Instruction::I32Or);
@@ -2612,25 +2616,19 @@ fn list_header_as(m: &Module) -> Func {
     f.get(0);
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
     f.get(h);
-    f.i32(0);
-    f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
-    f.get(h);
     f
 }
 
 fn list_header(m: &Module, cyclic: bool) -> Func {
     let mut f = m.func("rt:list_header", vec![Val::I32], vec![Val::I32]);
     let h = f.local(Val::I32);
-    f.i32(8);
+    f.i32(4);
     push_desc(&mut f, Some(Sym::Helper(Helper::ListHeaderDrop)), cyclic);
     f.helper(Helper::New);
     f.set(h);
     f.get(h);
     f.get(0);
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    f.get(h);
-    f.i32(0);
-    f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
     f.get(h);
     f
 }
@@ -2670,6 +2668,9 @@ fn list_buf(m: &Module, elem: &Elem) -> Func {
     f.get(b);
     f.i32(0);
     f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    f.get(b);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
     f.get(b);
     f
 }
@@ -2928,9 +2929,9 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.i32(1);
     f.op(Instruction::I32Ne);
-    // A header with an owner word is its buffer's one owner; the other
+    // A buffer with an owner word has one header holding it; the other
     // counts are element references, which see the change in place.
-    f.get(0);
+    f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
     f.op(Instruction::I32Eqz);
     f.op(Instruction::I32And);
@@ -3022,6 +3023,11 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
         src_mem: HEAP,
         dst_mem: HEAP,
     });
+    // An exposed list stays unshared after its pin ends, so the word moves.
+    f.get(nb);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
+    f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
     if let Some(r) = m.runtime {
         f.get(b);
         f.u32(HEADER);

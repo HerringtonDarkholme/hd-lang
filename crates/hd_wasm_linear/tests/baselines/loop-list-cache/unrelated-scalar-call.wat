@@ -73,7 +73,7 @@
           i32.mul
           i32.add
           local.get $t8
-          i32.store $heap offset=8
+          i32.store $heap offset=16
     ;; 9 |     for i in 0..n:
           br 0
         end

@@ -78,7 +78,7 @@
           i32.mul
           i32.add
           local.get $t7
-          i32.store $heap offset=8
+          i32.store $heap offset=16
           local.get $t9
           local.get $t10
           i32.const 1
@@ -119,7 +119,7 @@
           i32.const 4
           i32.mul
           i32.add
-          i32.load $heap offset=8
+          i32.load $heap offset=16
           i32.add
           local.set $total
     ;; 7 |     for i in 0..3:

@@ -31,7 +31,7 @@
       i32.const 16
       i32.mul
       i32.add
-      f64.load $heap offset=8
+      f64.load $heap offset=16
       local.set $t4
     end
     local.get $t4

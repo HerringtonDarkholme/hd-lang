@@ -39,10 +39,10 @@
       i32.add
       local.tee $t7
       local.get $t3
-      i32.store $heap offset=8
+      i32.store $heap offset=16
       local.get $t7
       local.get $t2
-      i32.store $heap offset=12
+      i32.store $heap offset=20
       local.get $t5
       local.get $t6
       i32.const 1

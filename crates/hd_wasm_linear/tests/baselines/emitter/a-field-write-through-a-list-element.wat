@@ -35,7 +35,7 @@
       i32.mul
       i32.add
       local.get $t1
-      f64.store $heap offset=8
+      f64.store $heap offset=16
     end
   )
 )

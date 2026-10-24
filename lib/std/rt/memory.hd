@@ -105,7 +105,7 @@ impl[T] Ptr[T]:
 pub fn size_of[T]() -> usize:
     panic("intrinsic")
 
-## A counted heap object: a capacity word, a length word, then room for `capacity()` values of `T`, of which it holds the first `len()`. A copy of a `Buffer[T]` counts the same object once more; the release of its last count drops the values it holds and frees it.
+## A counted heap object: a capacity word, a length word, an owner word and a padding word, then room for `capacity()` values of `T`, of which it holds the first `len()`. A copy of a `Buffer[T]` counts the same object once more; the release of its last count drops the values it holds and frees it.
 ## See [module.rt.buffer.type](../../../spec/lang/10-modules.md#r-module.rt.buffer.type).
 pub struct Buffer[T]:
     address: usize
@@ -127,7 +127,7 @@ impl[T] Buffer[T]:
     pub fn set_len(self, len: usize) -> void: store_u32(self.address + 4, u32(len))
 
     ## The place of value `index` of the buffer's room.
-    pub fn at(self, index: usize) -> Ptr[T]: Ptr::[T] { address: self.address + 8 }.offset(index)
+    pub fn at(self, index: usize) -> Ptr[T]: Ptr::[T] { address: self.address + 16 }.offset(index)
 
 ## The address of the first of the bytes of `text`, which stay where they are while `text` or a copy of it lives.
 ## See [module.rt.string.bytes](../../../spec/lang/10-modules.md#r-module.rt.string.bytes).

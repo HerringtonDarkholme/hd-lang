@@ -1317,9 +1317,9 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// Gives the list header in local `h`, of type `t`, its owner word: the
-    /// function-table slot of the list's clone glue plus one, with bit 31
-    /// when its elements hold collections (§23.20).
+    /// Gives the buffer of the list header in local `h`, of type `t`, its
+    /// owner word: the function-table slot of the list's clone glue plus
+    /// one, with bit 31 when its elements hold collections (§23.20).
     pub(super) fn pin_owner(&mut self, h: u32, t: Ty) -> StageResult<()> {
         // A map's header is a list's kind (`ref.elem.map`): its clone glue
         // copies the table.
@@ -1333,6 +1333,7 @@ impl Em<'_, '_, '_> {
             (Helper::ListClone { elem: e }, exposed)
         };
         self.f.get(h);
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
         self.f.table_slot(Sym::Helper(clone));
         self.f.i32(1);
         self.f.op(I::I32Add);
