@@ -133,7 +133,7 @@ impl Em<'_, '_, '_> {
         let Some(&p) = ps.get(k) else {
             return unsupported("a map key operation without its parameter");
         };
-        Ok(match self.pass(p) {
+        Ok(match self.pass_at(self.env().lends(t.item), k, p) {
             crate::layout::Pass::Owned(w) => Some(w),
             _ => None,
         })

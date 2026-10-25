@@ -38,6 +38,13 @@ pub(super) struct Summaries {
     /// (`hd_tir::own::writes`), known before the passes run over its
     /// component: `OwnCx::may_write` reads it for a call of the body.
     writes: std::sync::Mutex<HashMap<DefId, bool>>,
+    /// Per summarized item outside a recursive component, the value
+    /// parameters its summary lends ([`Env::lent_mask`]), once recorded.
+    lent: std::sync::Mutex<HashMap<DefId, u64>>,
+    /// Per item and parameter, the answer the passes first read
+    /// ([`Env::summary_lends`]), which stays: a body and its emission read
+    /// the same one, and a bit read as kept before the record stays kept.
+    read: std::sync::Mutex<HashMap<(DefId, u32), bool>>,
 }
 
 /// The `own` view's line for `body`'s summary in `all`: its kept
@@ -116,6 +123,16 @@ impl OwnCx for Env<'_> {
     }
 
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
+        // Release: a parameter the callee's summary lends.
+        if self.run.summaries.is_some()
+            && let Some(d) = match callee {
+                Callee::Item { def, .. } => Some(*def),
+                c @ Callee::TraitMethod { .. } => self.impl_target(c).map(|(d, _)| d),
+            }
+            && self.summary_lends(d, k)
+        {
+            return Pass::Lent;
+        }
         // The signature's parameters, the receiver first.
         let def = match callee {
             Callee::Item { def, .. } => *def,
@@ -222,6 +239,10 @@ impl OwnCx for Env<'_> {
             return false;
         }
         hd_wasm_linear::in_place_parts(&self.run.pool, self, ty, variant, out)
+    }
+
+    fn summarizes(&self) -> bool {
+        self.run.summaries.is_some()
     }
 
     fn holds_coll(&self, ty: Ty) -> bool {
@@ -556,10 +577,70 @@ impl Env<'_> {
                 );
             }
             lock(&all.by_item).insert(body.item, s);
+            // What it lends, but nothing of a recursive component's member
+            // (its callers inside read the declared convention), nothing
+            // emitted glue calls with owned arguments (the runtime and a
+            // host boundary codec's items), and no bit the passes already
+            // read as kept.
+            let item = body.item;
+            let glue = self.run.item_module_text(item).starts_with("std.rt")
+                || self.json_items().is_some_and(|j| {
+                    [
+                        j.package_encode,
+                        j.package_decode,
+                        j.encode,
+                        j.decode,
+                        j.result_is_ok,
+                        j.result_expect,
+                        j.host_provider,
+                    ]
+                    .contains(&item)
+                });
+            let n = hd_tir::own::params(&body).len().min(64);
+            let read = lock(&all.read);
+            let mut lent = !s.kept
+                & u64::MAX
+                    .checked_shr(64 - u32::try_from(n).expect("params"))
+                    .unwrap_or(0);
+            if glue || lock(&all.cycle).contains_key(&item) {
+                lent = 0;
+            }
+            for k in 0..u32::try_from(n).expect("params") {
+                if read.get(&(item, k)) == Some(&false) {
+                    lent &= !(1 << k);
+                }
+            }
+            if lent != 0 {
+                lock(&all.lent).insert(item, lent);
+            }
         }
         let mut k = StableHasher::new("own-passes");
         k.hash(hash);
         Ok((body, k.finish()))
+    }
+
+    /// Release (`docs/future-work/RELEASE_INTERPROC.md`, "What each caller
+    /// reads"): whether every caller passes parameter `k` of `def` with no
+    /// count, as its summary lends it. The first answer stays, so a caller's
+    /// passes and its emission agree; one read before the record is no.
+    fn summary_lends(&self, def: DefId, k: usize) -> bool {
+        let Some(all) = &self.run.summaries else {
+            return false;
+        };
+        let key = (def, u32::try_from(k).expect("arguments"));
+        let mut read = lock(&all.read);
+        *read.entry(key).or_insert_with(|| {
+            k < 64 && lock(&all.lent).get(&def).is_some_and(|m| m & (1 << k) != 0)
+        })
+    }
+
+    /// The value parameters, the receiver first, that every instance of
+    /// `def` receives lent ([`Env::summary_lends`]): emission takes no
+    /// count of them on either side of a call.
+    pub(super) fn lent_mask(&self, def: DefId) -> u64 {
+        (self.run.summaries.as_ref())
+            .and_then(|all| lock(&all.lent).get(&def).copied())
+            .unwrap_or(0)
     }
 
     /// The callee scan: the items whose summaries inlined body `body`'s
@@ -735,10 +816,12 @@ impl Run<'_> {
                     }
                 }
                 drop(bodies);
-                for &m in members.iter() {
-                    if recursive {
+                if recursive {
+                    for &m in members.iter() {
                         lock(&all.cycle).insert(m, members[0]);
                     }
+                }
+                for &m in members.iter() {
                     let body = inlined.borrow_mut().remove(&m);
                     if let (Some(lazy), Some((body, hash))) = (self.lazy_body(p, m), body)
                         && let Ok(owned) = env.own_inlined(body, hash)

@@ -1,0 +1,48 @@
+# @dump: own counts
+# @build: v8 release
+# Release lent parameters: `weight` only reads `f`, so its summary keeps
+# nothing and `total` passes `f` with no count on either side. `remember`
+# stores `f`, so `collect` still counts a copy for it. `apply` calls
+# `weight` through a function value: the value's caller passes `f` owned,
+# and the adapter releases it after the call. `set_first` keeps nothing,
+# but `pinned` passes it a mutable reference into `xs` beside `xs`, so
+# `xs` is copied for the call.
+struct Field:
+    name: string
+    n: i64
+
+fn weight(f: Field) -> i64:
+    f.n + 1
+
+fn remember(all: &mut List[Field], f: Field) -> void:
+    all.push(f)
+
+fn total(f: Field, times: i64) -> i64:
+    let sum: i64 = 0
+    for _ in 0..times:
+        sum = sum + weight(f)
+    sum
+
+fn collect(f: Field) -> usize:
+    let mut all: List[Field] = []
+    remember(&mut all, f)
+    remember(&mut all, f)
+    all.len()
+
+fn apply(g: fn(Field) -> i64, f: Field) -> i64:
+    g(f)
+
+fn set_first(target: &mut i64, xs: List[i64]) -> i64:
+    *target = 9
+    xs[0]
+
+fn pinned() -> i64:
+    let mut xs: List[i64] = [1, 2]
+    set_first(&mut xs[0], xs)
+
+pub fn main() -> void $ Console:
+    f := Field { name: "abc${1}", n: 2 }
+    println(total(f, 3))
+    println(collect(f))
+    println(apply(weight, f))
+    println(pinned())

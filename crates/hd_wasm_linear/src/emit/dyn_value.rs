@@ -174,7 +174,7 @@ impl Em<'_, '_, '_> {
                         _ => from,
                     };
                 }
-                let w = match self.pass(pt) {
+                let w = match self.pass_at(env.lends(t.item), k, pt) {
                     crate::layout::Pass::Owned(w) if !env.suspends(t.item) => Some(w),
                     _ => None,
                 };

@@ -188,6 +188,9 @@ pub(crate) struct Tables {
     kept_read: Vec<u32>,
     /// Per local: those of [`Tables::kept_read`] that read all of it.
     kept_whole: Vec<u32>,
+    /// Per local: those of [`Tables::kept_read`] that a binding local may
+    /// borrow, read before the borrow pass decides.
+    kept_bind: Vec<u32>,
     /// Per local: a closure's parameter.
     inner: Vec<bool>,
     /// Writes by root (locals, then values), in compressed rows in
@@ -425,6 +428,7 @@ pub(crate) fn run(
     // Per local: the reads of it whose value a use keeps or a store takes.
     fill(&mut t.kept_read, locals, 0);
     fill(&mut t.kept_whole, locals, 0);
+    fill(&mut t.kept_bind, locals, 0);
     for i in 0..n {
         let p = b.view(b.data[i][0]);
         if b.tags[i] == Tag::Read
@@ -434,6 +438,12 @@ pub(crate) fn run(
         {
             t.kept_read[l as usize] += 1;
             t.kept_whole[l as usize] += u32::from(p.whole());
+            t.kept_bind[l as usize] += u32::from(
+                !t.keeps[i]
+                    && t.uses[i] == 1
+                    && b.data[i][1] == ReadMode::Copy as u32
+                    && binding(b, t, t.stored[i]).is_some(),
+            );
         }
     }
     index_writes(b, cx, t);
@@ -663,6 +673,21 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             Tag::Call => {
                 let may = Callee::from_words(b.record(a)).is_none_or(|c| cx.may_write(&c));
                 t.calls.push((x, may));
+                // Release: the callee writes through a mutable reference
+                // argument here, where an argument read after the `Ref` and
+                // lent by a summary still borrows (`f(&mut xs[0], xs)`).
+                let args = b.record(w);
+                for &v in args.get(..args.len().saturating_sub(3)).unwrap_or_default() {
+                    if may
+                        && cx.summarizes()
+                        && let Some(r) = Ref(v).as_inst().map(|r| r.0 as usize)
+                        && b.tags[r] == Tag::Ref
+                        && b.data[r][1] & crate::ir::ref_word::MUT != 0
+                    {
+                        t.walk(b, b.data[r][0], false);
+                        t.write_links(x, false);
+                    }
+                }
             }
             Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall | Tag::Hook => {
                 t.calls.push((x, true));
@@ -848,9 +873,13 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
         {
             continue;
         }
+        // Release: one whose only kept reads go to binding locals too
+        // (`name := m.name`, an inlined method's `self`), which borrow it
+        // or copy from it, so that its summary may lend it.
+        let kept = t.kept_read[l] - if cx.summarizes() { t.kept_bind[l] } else { 0 };
         let lent = match cx.received(b.item, at, n) {
             Pass::Lent => true,
-            Pass::Owned => !suspends && t.kept_read[l] == 0,
+            Pass::Owned => !suspends && kept == 0,
         };
         if !lent {
             continue;

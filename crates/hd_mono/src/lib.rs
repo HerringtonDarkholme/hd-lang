@@ -177,6 +177,14 @@ pub trait ProgramEnv: LayoutEnv {
     /// [`adapter_call_body`]), after the ownership passes, as the driver
     /// runs them over every body it supplies.
     fn own_generated(&self, body: Body) -> StageResult<Body>;
+    /// Bit k: every instance of `item` receives its value parameter k (the
+    /// receiver first) lent, so a call passes it with no count and glue
+    /// that calls the instance counts none for it. Only the optimized
+    /// pipeline's release summaries set one
+    /// (`docs/future-work/RELEASE_INTERPROC.md`).
+    fn lends(&self, _item: DefId) -> u64 {
+        0
+    }
     /// `std.format.Debug`, whose printer is preferred by `dbg_printer`.
     fn debug_trait(&self) -> DefId;
     /// Private template method and Structure trait; no public conformance is added.

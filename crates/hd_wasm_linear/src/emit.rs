@@ -71,6 +71,7 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
         key: t.key[id.idx()],
         erased,
         cold: None,
+        lends: input.env.lends(item),
     };
     body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b)
 }
@@ -86,6 +87,9 @@ struct Own {
     key: Hash128,
     erased: Option<Hash128>,
     cold: Option<Ty>,
+    /// The parameters the item's release summary lends
+    /// (`ProgramEnv::lends`): none for a body that only calls the item.
+    lends: u64,
 }
 
 /// The function of body `b`'s sub-body `sub`, the instance `own`, whose
@@ -131,6 +135,9 @@ fn body_func<'a>(
     }
     em.owned = true;
     em.sub_id = sub;
+    if sub == 0 {
+        em.lends = own.lends;
+    }
     em.own_consumers();
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).
@@ -360,7 +367,8 @@ fn body_func<'a>(
                         .iter()
                         .any(|&(s, x)| u32::from(sub) == s.raw() && x.idx() == *l);
                 if by_type {
-                    match em.pass(t) {
+                    let k = plocals.iter().position(|p| p == l).expect("parameter");
+                    match em.pass_at(em.lends, k, t) {
                         Pass::Owned(_) if unowned => {
                             em.unowned_params.push(*l);
                             continue;
@@ -715,11 +723,12 @@ fn adapter(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
             (ct.item, ct.args),
             ct.ret,
             Sym::Inst(ct.key),
+            input.env.lends(ct.item),
         ),
         Some(target @ (Target::Call(_) | Target::Dyn)) => {
             let (sym, ret) = call_func(input, m, id, target)?;
             let args = input.collected.table.args[id.idx()];
-            forward(input, m, item, (item, args), ret, sym)
+            forward(input, m, item, (item, args), ret, sym, 0)
         }
         _ => unsupported("a function reference that collection did not resolve"),
     }
@@ -765,6 +774,7 @@ fn call_func(
         key: k.finish(),
         erased: None,
         cold,
+        lends: 0,
     };
     let f = body_func(input, m, &own, 0, &calls, b)?;
     let sym = Sym::Inst(own.key);
@@ -775,7 +785,9 @@ fn call_func(
 /// The closure code of a reference to `item` that forwards its
 /// parameters and its row's providers, read from the caller's context,
 /// to one call of `sym`, a function of `callee` at its arguments, of
-/// result type `ret`.
+/// result type `ret`. The value's caller passes each parameter as the
+/// function type says; `sym` borrows those in `lends`
+/// (`ProgramEnv::lends`), which the adapter releases after the call.
 fn forward(
     input: &Input<'_>,
     m: &Module,
@@ -783,11 +795,26 @@ fn forward(
     (callee, cargs): (DefId, TyList),
     ret: Ty,
     sym: Sym,
+    lends: u64,
 ) -> StageResult<Func> {
     let (pool, env) = (input.pool, input.env);
     let mut params = vec![Val::I32];
-    for p in env.params(callee).unwrap_or_default() {
-        params.extend(vals(pool, env, subst(pool, env, callee, cargs, p))?);
+    let mut lent = Vec::new();
+    for (k, p) in env
+        .params(callee)
+        .unwrap_or_default()
+        .into_iter()
+        .enumerate()
+    {
+        let t = subst(pool, env, callee, cargs, p);
+        let vs = vals(pool, env, t)?;
+        if k < 64
+            && lends & (1 << k) != 0
+            && let Pass::Owned(w) = crate::layout::pass(pool, env, m.runtime.is_some(), t)
+        {
+            lent.push((u32::try_from(params.len()).expect("params"), vs.clone(), w));
+        }
+        params.extend(vs);
     }
     // The context of the value's caller, which holds the value's row.
     let c = u32::try_from(params.len()).expect("params");
@@ -821,6 +848,21 @@ fn forward(
         f.get(c);
     }
     f.call(sym);
+    if !lent.is_empty() {
+        let out: Vec<u32> = f.results.clone().into_iter().map(|v| f.local(v)).collect();
+        for &l in out.iter().rev() {
+            f.set(l);
+        }
+        for (at, vals, walk) in lent {
+            for k in at..at + u32::try_from(vals.len()).expect("values") {
+                f.get(k);
+            }
+            f.helper(Helper::Release { vals, walk });
+        }
+        for l in out {
+            f.get(l);
+        }
+    }
     Ok(f)
 }
 
@@ -951,6 +993,9 @@ struct Em<'i, 'a, 'm> {
     /// The parameters borrowed from the caller, which the body never
     /// counts ([`crate::layout::Pass::Borrowed`]).
     borrowed: hd_base::HashSet<usize>,
+    /// The parameters of the body's own function that its item's release
+    /// summary lends (`ProgramEnv::lends`).
+    lends: u64,
     /// The instructions being emitted, innermost last.
     emitting: Vec<u32>,
     /// The operands whose counts moved into an instruction being emitted,
@@ -1082,6 +1127,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             cached_buffers: Vec::new(),
             proven_list_indices: Vec::new(),
             borrowed: hd_base::HashSet::default(),
+            lends: 0,
             emitting: Vec::new(),
             moving: Vec::new(),
             susp: None,
@@ -2018,13 +2064,28 @@ impl Em<'_, '_, '_> {
         crate::layout::pass(self.pool(), self.env(), self.input.runtime.is_some(), t)
     }
 
+    /// How an instance whose release summary lends the parameters in
+    /// `lends` (`ProgramEnv::lends`) takes its parameter `k`, of type `t`:
+    /// [`Em::pass`], but borrowed where it is lent.
+    pub(super) fn pass_at(&self, lends: u64, k: usize, t: Ty) -> Pass {
+        match self.pass(t) {
+            Pass::Owned(_) if k < 64 && lends & (1 << k) != 0 => Pass::Borrowed,
+            p => p,
+        }
+    }
+
     /// Pushes a call's arguments `args` for a callee with parameters of
     /// types `params` (`None`: all lent). Each argument the callee owns
     /// moves in at its only use ([`Em::take`]) or takes a count of its own;
     /// a borrowed one is lent. Arguments spread from a tuple do not line up
     /// with the parameters one to one: each owned parameter's values then
     /// take a count, wherever they come from.
-    pub(super) fn push_args(&mut self, args: &[u32], params: Option<&[Ty]>) -> StageResult<()> {
+    pub(super) fn push_args(
+        &mut self,
+        args: &[u32],
+        params: Option<&[Ty]>,
+        lends: u64,
+    ) -> StageResult<()> {
         let Some(params) = params else {
             for r in args {
                 self.push(*r)?;
@@ -2032,8 +2093,8 @@ impl Em<'_, '_, '_> {
             return Ok(());
         };
         if params.len() == args.len() {
-            for (r, t) in args.iter().zip(params) {
-                if matches!(self.pass(*t), Pass::Owned(_)) {
+            for (k, (r, t)) in args.iter().zip(params).enumerate() {
+                if matches!(self.pass_at(lends, k, *t), Pass::Owned(_)) {
                     let s = self.consumed(*r)?;
                     self.push_src(&s)?;
                 } else {
@@ -2050,12 +2111,12 @@ impl Em<'_, '_, '_> {
             }
         }
         let mut at = 0;
-        for t in params {
+        for (k, t) in params.iter().enumerate() {
             let vs = self.vals(*t)?;
             let Some(part) = flat.get(at..at + vs.len()) else {
                 return unsupported("a call whose arguments do not fill its parameters");
             };
-            if let Pass::Owned(walk) = self.pass(*t) {
+            if let Pass::Owned(walk) = self.pass_at(lends, k, *t) {
                 for &(r, k) in part {
                     self.comp(r, k)?;
                 }
@@ -2096,7 +2157,8 @@ impl Em<'_, '_, '_> {
             Some(Target::Call(ct)) => match &ct.kind {
                 TargetKind::Instance => {
                     let params = self.param_tys(ct.key, ct.item, ct.args);
-                    self.push_args(&args, params.as_deref())?;
+                    let lends = self.env().lends(ct.item);
+                    self.push_args(&args, params.as_deref(), lends)?;
                     let c = self.push_call_providers(ct.item, ct.args)?;
                     self.f.call(Sym::Inst(ct.key));
                     // A suspending callee called cold returns its frame.
@@ -2341,7 +2403,8 @@ impl Em<'_, '_, '_> {
             Some(Target::Default { call, bracket }) => {
                 let args = self.rec(bw);
                 let params = self.param_tys(call.key, call.item, call.args);
-                self.push_args(&args, params.as_deref())?;
+                let lends = self.env().lends(call.item);
+                self.push_args(&args, params.as_deref(), lends)?;
                 let c = self.push_call_providers(call.item, call.args)?;
                 if bracket {
                     self.forbid_by(1);

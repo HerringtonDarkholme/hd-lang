@@ -55,6 +55,8 @@
         local.set $t8
       else
         i32.const 0
+        i64.const 0
+        local.set $t8
       end
       local.get $t8
       i64.const 0
@@ -87,6 +89,5 @@
       local.get $t10
       i32.store $heap
     end
-    ;; ...
   )
 )

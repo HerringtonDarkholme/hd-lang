@@ -133,6 +133,13 @@ pub trait OwnCx {
     /// count of it copies: a list, a map, a struct holding one in a field
     /// at any depth, or a type the instance decides. Hoisting reads it.
     fn holds_coll(&self, ty: Ty) -> bool;
+    /// Whether the optimized pipeline's release summaries read the body's
+    /// result (`docs/future-work/RELEASE_INTERPROC.md`): an owned parameter
+    /// whose only kept reads go to binding locals is then left unowned too,
+    /// so that callers may lend it.
+    fn summarizes(&self) -> bool {
+        false
+    }
 }
 
 pub use crate::ir::{Loc, Role};

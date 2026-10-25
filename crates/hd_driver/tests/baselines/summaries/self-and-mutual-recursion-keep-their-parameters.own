@@ -42,7 +42,7 @@ fn ping(c: Config, n: i64) -> i64:
 >   %6 = If %1 [%5 -] : ()
 >   %11 = Block %10 : i64
         return depth(c)
->   %2 = Read move [$0] : Config
+>   %2 = Read borrow [$0] : Config
 >   %3 = Call app/main/depth[] (%2) : i64
 >   %4 = Return %3 : never
 >   %5 = Block - : never

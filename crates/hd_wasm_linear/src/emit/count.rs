@@ -589,10 +589,12 @@ impl Em<'_, '_, '_> {
         use hd_tir::ir::place;
         let b = self.b;
         let mut out = hd_base::HashSet::default();
-        for &l in plocals {
+        for (k, &l) in plocals.iter().enumerate() {
             let t = self.sub(b.local_ty[l]);
-            if !matches!(self.pass(t), crate::layout::Pass::Borrowed)
-                || self.is_cell(l)
+            if !matches!(
+                self.pass_at(self.lends, k, t),
+                crate::layout::Pass::Borrowed
+            ) || self.is_cell(l)
                 || b.cap_local.iter().any(|c| c.idx() == l)
             {
                 continue;
@@ -662,7 +664,11 @@ impl Em<'_, '_, '_> {
             return false;
         }
         let k = args.iter().position(|&a| a == r).expect("argument");
-        matches!(self.pass(params[k]), crate::layout::Pass::Borrowed)
+        let lends = self.env().lends(ct.item);
+        matches!(
+            self.pass_at(lends, k, params[k]),
+            crate::layout::Pass::Borrowed
+        )
     }
 
     /// In an owned body: whether value `r`, which `user` consumes, moves

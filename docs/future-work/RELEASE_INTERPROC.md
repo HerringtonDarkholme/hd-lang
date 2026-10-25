@@ -233,6 +233,9 @@ The borrow pass applies its rules 1 to 4 (tir-v2.md, "Borrow") over a
 span that includes the call. Here rule 2 fails: a mutable `Ref` of an
 overlapping place stands in the span. So the caller copies `xs` (one
 retain) and drops the copy after the call, as for a `&T` argument today.
+With the arguments the other way round, `f(&mut xs[0], xs)`, the `Ref`
+comes before the read, so in release a call that may write counts as a
+write, at the call, of each place a mutable `Ref` argument names.
 
 **References.** A `&T` or `&mut T` parameter never escapes by
 declaration
@@ -426,7 +429,7 @@ output stays deterministic. The meet of two summaries is `kept | kept`,
 | `Callee::TraitMethod` chosen as an impl (`ChoiceKind::Impl`), resolved as `impl_target` does for the inliner | the impl method's summary |
 | a trait call through a bound | declared (slices 2 to 6), then the trait method's meet (slice 7) |
 | a trait call through a trait value (`dyn`), a `CallValue`, a bang call, an intrinsic | declared |
-| a function reference's adapter (§13.11) | the item's summary: the adapter is a body of one direct `Call` that goes through the passes, so it receives owned by the function type and lends to the item |
+| a function reference's adapter (§13.11) | the item's summary: the adapter receives owned by the function type, lends to the item, and releases each lent argument after the call |
 | backend glue that calls an instance: vtable slots (`Helper::DynSlot`), erased thunks, map `KeyOps`, host codecs (`rt::own_arg`), and `callee_params` | the instance's convention, from the same table |
 
 A callee receives parameter k lent exactly when its own summary clears
@@ -847,6 +850,11 @@ both pipelines (checked on the optimized one), and the bench rows named.
 4. **Lent parameters on direct calls.** `convention` read by `pass`,
    `received` and the backend glue. Done: the lent and kept counts cases;
    checked optimized conformance green; json bench before and after.
+   As built: the passes read a callee's bit once and keep that answer, so
+   a body and its emission agree; a bit read before the record stays
+   kept. Members of a recursive component, `std.rt` and the items a host
+   boundary codec calls lend nothing. A read that a binding local may
+   borrow (an inlined method's `self`) does not keep its parameter.
 5. **Writes.** The `writes` walk feeds `may_write`. Done: a case where a
    borrow through `&self` survives a pure hd helper; json bench.
 6. **Returned parameters (#681).** Callee and caller sides, adapter and
