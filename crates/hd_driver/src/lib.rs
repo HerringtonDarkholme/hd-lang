@@ -576,18 +576,29 @@ pub fn host_artifacts(wasm: &[u8]) -> Result<Option<HostArtifacts>, &'static str
         .transpose()
 }
 
-/// One capability in a checked root executable's main requirement row.
+/// The root entry whose checked requirement row needs a capability.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CapabilityEntry {
+    Main,
+    Task,
+    Test(String),
+}
+
+/// One capability in a checked root entry's requirement row.
 /// Selectors are equivalent manifest spellings for the same nominal trait.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MainCapability {
+pub struct EntryCapability {
     pub span: Span,
     pub selectors: Vec<String>,
+    pub entry: CapabilityEntry,
+    /// Whether the span is a written requirement row rather than an entry point.
+    pub written_row: bool,
 }
 
 /// The result of a run.
 pub struct Output {
-    /// Checked main rows, including capabilities unused by the linked code.
-    pub main_capabilities: Vec<MainCapability>,
+    /// Checked entry rows, including capabilities unused by the linked code.
+    pub entry_capabilities: Vec<EntryCapability>,
     pub wasm: Option<Vec<u8>>,
     pub host_artifacts: Option<HostArtifacts>,
     /// Off-band instruction origins, when `Packages::instruction_origins` is enabled.
@@ -1745,9 +1756,9 @@ pub struct Dependency<'a> {
 pub struct Packages<'a> {
     /// Source/manifest host declaration metadata, with no authority implied.
     pub host_packages: Vec<HostPackage>,
-    /// Expose checked executable main rows for manifest validation. This
+    /// Expose checked root entry rows for manifest validation. This
     /// off-band metadata does not change modules or their cache keys.
-    pub main_capabilities: bool,
+    pub entry_capabilities: bool,
     /// Development tooling: emit instruction origins without changing module bytes.
     /// Mapped builds bypass the linked-byte cache; checked bodies may still be cached.
     pub instruction_origins: bool,
@@ -2256,8 +2267,8 @@ pub fn build_packages(
         &packages.host_packages,
         &mut lock(&run.diags),
     );
-    let main_capabilities = if packages.main_capabilities {
-        run.main_capabilities()
+    let entry_capabilities = if packages.entry_capabilities {
+        run.entry_capabilities()
     } else {
         Vec::new()
     };
@@ -2390,7 +2401,7 @@ pub fn build_packages(
         }
     }
     let mut output = Output {
-        main_capabilities,
+        entry_capabilities,
         tests: cases,
         wasm,
         host_artifacts,
@@ -9163,11 +9174,11 @@ impl Run<'_> {
 
     /// Read checked signatures after the task graph on cold and warm runs.
     /// Manifest checks must not depend on imports that dead-code removal kept.
-    fn main_capabilities(&self) -> Vec<MainCapability> {
+    fn entry_capabilities(&self) -> Vec<EntryCapability> {
         let names = self.names();
         let mut out = Vec::new();
         for (m, module) in self.table.modules.iter().enumerate() {
-            if !self.entry_module(m) || module.role == Role::Test {
+            if module.package != 0 {
                 continue;
             }
             let Some(Some(checked)) = self.check[m].get() else {
@@ -9185,41 +9196,66 @@ impl Run<'_> {
             else {
                 continue;
             };
-            let main = names.item(&module.path, "main");
-            let Some(item) = items.0.iter().find(|i| i.def == main) else {
-                continue;
-            };
-            let ItemData::Fn(sig) = &item.data else {
-                continue;
-            };
             let src = self.src(m);
-            let Some(head) = hd_resolve::heads(&names, &src, &module.path, false)
-                .into_iter()
-                .find(|h| h.def == main)
-            else {
-                continue;
-            };
-            let span = hd_resolve::Src::child(head.node, hd_syntax::SyntaxKind::RequirementRow)
-                .map_or_else(|| src.span(head.node), |row| src.span(row));
-            for key in self.pool.row_data(sig.row).keys {
-                let TyData::TraitValue { def, .. } = self.pool.get(key) else {
-                    continue;
-                };
-                let Some((_, identity)) = self.package_trait_identity(def) else {
-                    continue;
-                };
-                let selectors = if identity.package == "std" {
-                    hd_host_abi::TABLE
-                        .iter()
-                        .find(|t| t.std_path == format!("std.{}", identity.trait_path))
-                        .map_or_else(Vec::new, |t| vec![t.key.to_owned()])
-                } else if self.package_host_identity(def).is_some() {
-                    self.package_host_selectors(def)
-                } else {
-                    Vec::new()
-                };
-                if !selectors.is_empty() {
-                    out.push(MainCapability { span, selectors });
+            let mut entries = Vec::new();
+            if self.entry_module(m) && module.role != Role::Test {
+                let main = names.item(&module.path, "main");
+                if let Some(head) = hd_resolve::heads(&names, &src, &module.path, false)
+                    .into_iter()
+                    .find(|h| h.def == main)
+                {
+                    let row =
+                        hd_resolve::Src::child(head.node, hd_syntax::SyntaxKind::RequirementRow);
+                    let span = row.map_or_else(|| src.span(head.node), |r| src.span(r));
+                    let entry = if module.role == Role::Task {
+                        CapabilityEntry::Task
+                    } else {
+                        CapabilityEntry::Main
+                    };
+                    entries.push((main, span, entry, row.is_some()));
+                } else if module.role == Role::Task {
+                    let init = hd_check::default_body_def(
+                        &names,
+                        names.item(&module.path, "init"),
+                        "init",
+                    );
+                    if let Some(statement) = hd_check::init::init_statements(src.root()).first() {
+                        self.capabilities_for_keys(
+                            self.entry_init_keys(init),
+                            src.span(*statement),
+                            &CapabilityEntry::Task,
+                            false,
+                            &mut out,
+                        );
+                    }
+                }
+            }
+            for registration in self.regs[m].get().into_iter().flatten() {
+                if let Some(body) = &registration.body {
+                    let span = Span {
+                        lo: registration.at,
+                        hi: registration.at + u32_of(registration.kind.len()),
+                        ..src.span(src.root())
+                    };
+                    entries.push((
+                        names.item(&module.path, body),
+                        span,
+                        CapabilityEntry::Test(registration.name.clone()),
+                        false,
+                    ));
+                }
+            }
+            for (def, span, entry, written_row) in entries {
+                if let Some(item) = items.0.iter().find(|i| i.def == def)
+                    && let ItemData::Fn(sig) = &item.data
+                {
+                    self.capabilities_for_keys(
+                        self.pool.row_data(sig.row).keys,
+                        span,
+                        &entry,
+                        written_row,
+                        &mut out,
+                    );
                 }
             }
         }
@@ -9231,6 +9267,116 @@ impl Run<'_> {
             ))
         });
         out
+    }
+
+    fn entry_init_keys(&self, def: DefId) -> Vec<Ty> {
+        let Some(p) = self.program() else {
+            return Vec::new();
+        };
+        let Some((body, _)) = self.body_of(p, def) else {
+            return Vec::new();
+        };
+        let folders = self.program_folders();
+        let arity = p.arity();
+        let view = self.program_view(p, &folders, &arity);
+        let env = Env {
+            run: self,
+            p,
+            impls: Impls::Owned(&view),
+            sealed: self.known.sealed(),
+        };
+        let topology = hd_tir::ir::Topology::new(body);
+        let mut keys = Vec::new();
+        for (i, tag) in body.tags.iter().enumerate() {
+            if topology.sub[i] != 0 {
+                continue;
+            }
+            let read = match tag {
+                hd_tir::Tag::ProviderGet => vec![Ty(body.record(body.data[i][0])[0])],
+                hd_tir::Tag::CallValue => {
+                    let callee = hd_tir::ir::Ref(body.data[i][0]);
+                    let ty = callee.as_inst().map(|inst| body.ty[inst.0 as usize]);
+                    match ty.map(|ty| self.pool.get(env.low(ty))) {
+                        Some(TyData::Fn { row, .. }) => self.pool.row_data(row).keys,
+                        _ => Vec::new(),
+                    }
+                }
+                hd_tir::Tag::Call | hd_tir::Tag::Await => {
+                    match hd_tir::Callee::from_words(body.record(body.data[i][0])) {
+                        Some(hd_tir::Callee::Item { def, targs }) => env.row_keys(def, targs),
+                        Some(hd_tir::Callee::TraitMethod { method, targs, .. }) => {
+                            env.row_keys(method, targs)
+                        }
+                        _ => Vec::new(),
+                    }
+                }
+                _ => Vec::new(),
+            };
+            for key in read {
+                // $.with supplies its block locally; it needs no host grant.
+                // A context spread supplies every concrete key in its row.
+                let bound = topology.enclosing(u32_of(i)).any(|block| {
+                    let owner = topology.owner[block as usize];
+                    if owner == hd_tir::ir::NONE || body.tags[owner as usize] != hd_tir::Tag::With {
+                        return false;
+                    }
+                    body.record(body.data[owner as usize][0])
+                        .chunks_exact(2)
+                        .any(|pair| {
+                            let provided = Ty(pair[0]);
+                            match self.pool.get(provided) {
+                                TyData::Context(row) => self.pool.row_data(row).keys.contains(&key),
+                                _ => provided == key,
+                            }
+                        })
+                });
+                if !bound && !keys.contains(&key) {
+                    keys.push(key);
+                }
+            }
+        }
+        keys
+    }
+
+    fn capabilities_for_keys(
+        &self,
+        keys: Vec<Ty>,
+        span: Span,
+        entry: &CapabilityEntry,
+        written_row: bool,
+        out: &mut Vec<EntryCapability>,
+    ) {
+        for key in keys {
+            let TyData::TraitValue { def, .. } = self.pool.get(key) else {
+                continue;
+            };
+            let Some((_, identity)) = self.package_trait_identity(def) else {
+                continue;
+            };
+            let selectors = if identity.package == "std" {
+                hd_host_abi::TABLE
+                    .iter()
+                    .find(|t| {
+                        t.std_path == format!("std.{}", identity.trait_path)
+                            && hd_project::CAPABILITY_KEYS
+                                .iter()
+                                .any(|(key, _)| *key == t.key)
+                    })
+                    .map_or_else(Vec::new, |t| vec![t.key.to_owned()])
+            } else if self.package_host_identity(def).is_some() {
+                self.package_host_selectors(def)
+            } else {
+                Vec::new()
+            };
+            if !selectors.is_empty() {
+                out.push(EntryCapability {
+                    span,
+                    selectors,
+                    entry: entry.clone(),
+                    written_row,
+                });
+            }
+        }
     }
 
     fn package_trait_identity(&self, d: DefId) -> Option<(u16, hd_host_abi::schema::Identity)> {
@@ -12058,7 +12204,7 @@ mod main_capability_tests {
     use super::*;
 
     #[test]
-    fn unused_main_capabilities_are_available_on_cold_and_warm_checks() {
+    fn unused_entry_capabilities_are_available_on_cold_and_warm_checks() {
         let source = "use std.process.Process\npub fn main() -> void $ Process:\n    pass\n";
         let mut files = MemorySources::default();
         files.insert("src/main.hd", source);
@@ -12071,19 +12217,143 @@ mod main_capability_tests {
             render_tir: &[],
         };
         let packages = Packages {
-            main_capabilities: true,
+            entry_capabilities: true,
             entries: vec!["main".to_owned()],
             ..Packages::default()
         };
         for warm in [false, true] {
             let out = build_packages(&host, "app", &packages, &Goal::Analyze);
             assert!(!out.diags.has_errors(), "{}", out.render());
-            assert_eq!(out.main_capabilities.len(), 1);
-            let need = &out.main_capabilities[0];
+            assert_eq!(out.entry_capabilities.len(), 1);
+            let need = &out.entry_capabilities[0];
             assert_eq!(need.selectors, ["Process"]);
             assert!(source[need.span.lo as usize..need.span.hi as usize].contains("Process"));
             if warm {
                 assert!(out.counters.modules_checked.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn test_capability_rows_are_available_on_cold_and_warm_checks() {
+        let mut files = MemorySources::default();
+        files.insert("src/lib.hd", "pub fn value() -> i32: +1\n");
+        files.insert(
+            "tests/one.hd",
+            "it(\"needs console\"):\n    println(\"hello\")\n",
+        );
+        let store = MemoryStore::default();
+        let host = Host {
+            sources: &files,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+            render_tir: &[],
+        };
+        let packages = Packages {
+            entry_capabilities: true,
+            ..Packages::default()
+        };
+        for _ in 0..2 {
+            let out = build_packages(&host, "app", &packages, &Goal::CheckTests);
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            assert_eq!(
+                out.entry_capabilities.len(),
+                1,
+                "{:?}",
+                out.entry_capabilities
+            );
+            let need = &out.entry_capabilities[0];
+            assert_eq!(need.selectors, ["Console"]);
+            assert_eq!(need.entry, CapabilityEntry::Test("needs console".into()));
+            assert!(!need.written_row);
+            assert_eq!(out.files[need.span.file.idx()], "tests/one.hd");
+            assert_eq!(
+                &out.texts[need.span.file.idx()][need.span.lo as usize..need.span.hi as usize],
+                "it"
+            );
+        }
+    }
+
+    #[test]
+    fn task_scripts_have_development_capability_rows() {
+        let mut files = MemorySources::default();
+        files.insert("tasks/report.hd", "println(\"report\")\n");
+        let store = MemoryStore::default();
+        let host = Host {
+            sources: &files,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+            render_tir: &[],
+        };
+        let packages = Packages {
+            entry_capabilities: true,
+            ..Packages::default()
+        };
+        let out = build_packages(
+            &host,
+            "app",
+            &packages,
+            &Goal::Program {
+                entry: "$tasks.report".into(),
+            },
+        );
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        assert_eq!(
+            out.entry_capabilities.len(),
+            1,
+            "{:?}",
+            out.entry_capabilities
+        );
+        assert_eq!(out.entry_capabilities[0].selectors, ["Console"]);
+        assert_eq!(out.entry_capabilities[0].entry, CapabilityEntry::Task);
+    }
+
+    #[test]
+    fn task_script_provider_reads_distinguish_local_and_host_grants() {
+        let local = "use std.time.{Clock, ManualClock, Timestamp, now}\n\n$.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):\n    _ := now()\n";
+        for (source, wants_clock) in [
+            (local.to_owned(), false),
+            (format!("{local}\n_ := now()\n"), true),
+            ("use std.time.Clock\n_ := $.use(Clock)\n".to_owned(), true),
+            (
+                "use std.time.{Clock, now}\naction := fn() -> void $ Clock: _ := now()\naction()\n"
+                    .to_owned(),
+                true,
+            ),
+            (
+                "use std.time.{Clock, now}\naction := fn() -> void $ Clock: _ := now()\n"
+                    .to_owned(),
+                false,
+            ),
+        ] {
+            let mut files = MemorySources::default();
+            files.insert("tasks/report.hd", &source);
+            let store = MemoryStore::default();
+            let host = Host {
+                sources: &files,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+                render_tir: &[],
+            };
+            let packages = Packages {
+                entry_capabilities: true,
+                ..Packages::default()
+            };
+            for _ in 0..2 {
+                let out = build_packages(&host, "app", &packages, &Goal::Analyze);
+                assert!(!out.diags.has_errors(), "{}", out.render());
+                assert_eq!(
+                    out.entry_capabilities.len(),
+                    usize::from(wants_clock),
+                    "{source}: {:?}",
+                    out.entry_capabilities
+                );
+                if wants_clock {
+                    assert_eq!(out.entry_capabilities[0].selectors, ["Clock"]);
+                }
             }
         }
     }
@@ -12104,15 +12374,15 @@ mod main_capability_tests {
             render_tir: &[],
         };
         let packages = Packages {
-            main_capabilities: true,
+            entry_capabilities: true,
             entries: vec!["main".to_owned()],
             ..Packages::default()
         };
         for _ in 0..2 {
             let out = build_packages(&host, "app", &packages, &Goal::Analyze);
             assert!(!out.diags.has_errors(), "{}", out.render());
-            assert_eq!(out.main_capabilities.len(), 1);
-            assert_eq!(out.main_capabilities[0].selectors, ["Process"]);
+            assert_eq!(out.entry_capabilities.len(), 1);
+            assert_eq!(out.entry_capabilities[0].selectors, ["Process"]);
         }
     }
 
@@ -12133,7 +12403,7 @@ mod main_capability_tests {
                 .unwrap()
                 .host;
         let packages = Packages {
-            main_capabilities: true,
+            entry_capabilities: true,
             entries: vec!["main".to_owned()],
             host_packages: vec![HostPackage {
                 package: 0,
@@ -12146,12 +12416,12 @@ mod main_capability_tests {
         };
         let out = build_packages(&host, "app", &packages, &Goal::Analyze);
         assert!(!out.diags.has_errors(), "{}", out.render());
-        assert_eq!(out.main_capabilities.len(), 1);
-        assert_eq!(out.main_capabilities[0].selectors, ["pkg.main.Process"]);
+        assert_eq!(out.entry_capabilities.len(), 1);
+        assert_eq!(out.entry_capabilities[0].selectors, ["pkg.main.Process"]);
     }
 
     #[test]
-    fn library_rows_do_not_become_main_capabilities() {
+    fn library_rows_do_not_become_entry_capabilities() {
         let mut files = MemorySources::default();
         files.insert(
             "src/lib.hd",
@@ -12166,11 +12436,11 @@ mod main_capability_tests {
             render_tir: &[],
         };
         let packages = Packages {
-            main_capabilities: true,
+            entry_capabilities: true,
             ..Packages::default()
         };
         let out = build_packages(&host, "app", &packages, &Goal::Analyze);
         assert!(!out.diags.has_errors(), "{}", out.render());
-        assert!(out.main_capabilities.is_empty());
+        assert!(out.entry_capabilities.is_empty());
     }
 }

@@ -6,3 +6,6 @@ Console = true
 Args = true
 Clock = true
 Random = true
+
+[dev-capabilities]
+Process = true

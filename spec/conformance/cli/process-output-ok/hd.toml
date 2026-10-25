@@ -3,3 +3,6 @@ name = "status-child"
 
 [capabilities]
 Console = true
+
+[dev-capabilities]
+Process = true

@@ -781,7 +781,7 @@ pub fn main!() -> void $ Console + Process:
 fn a_test_child_sees_its_command_environment_and_directory() {
     let dir = work("command-env-dir-test");
     for (path, content) in [
-        ("hd.toml", "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\nEnv = true\nFsRead = true\n"),
+        ("hd.toml", "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\nEnv = true\nFsRead = true\n\n[dev-capabilities]\nProcess = true\n"),
         ("src/lib.hd", "pub fn rows() -> i32:\n    2\n"),
         ("kid/marker.txt", "from kid"),
         (

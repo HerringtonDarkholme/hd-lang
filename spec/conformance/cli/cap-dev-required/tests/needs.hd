@@ -1,0 +1,7 @@
+use std.process.Process
+
+fn requires_process() -> void $ Process:
+    pass
+
+it("needs process"):
+    requires_process()

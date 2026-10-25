@@ -33,8 +33,8 @@ pub struct Manifest {
     /// (`None` when the value is neither a boolean nor a list of strings),
     /// and its line.
     pub capabilities: Vec<(String, Option<Grant>, u32)>,
-    /// `[test.capabilities]`, in the same form (`cli.test.env.grant.table`).
-    pub test_capabilities: Vec<(String, Option<Grant>, u32)>,
+    /// `[dev-capabilities]`, added to the root grant for tests and tasks.
+    pub dev_capabilities: Vec<(String, Option<Grant>, u32)>,
     /// The `[[executable]]` tables, in order (`cli.exe.table`).
     pub executables: Vec<Executable>,
     /// `[workspace]` (`cli.mode.workspace`).
@@ -282,7 +282,7 @@ fn requirements(
         .collect()
 }
 
-/// A grant table: `[capabilities]` or `[test.capabilities]`.
+/// A grant table: `[capabilities]` or `[dev-capabilities]`.
 fn grants(
     path: &str,
     table: &toml::Table,
@@ -415,11 +415,8 @@ pub fn parse_manifest(text: &str) -> Result<Manifest, ManifestError> {
             ("capabilities", toml::Value::Table(c)) => {
                 m.capabilities = grants("capabilities", c, &lines);
             }
-            ("test", toml::Value::Table(t)) => {
-                only(&mut unknowns, "test", t, &["capabilities"]);
-                if let Some(toml::Value::Table(c)) = t.get("capabilities") {
-                    m.test_capabilities = grants("test.capabilities", c, &lines);
-                }
+            ("dev-capabilities", toml::Value::Table(c)) => {
+                m.dev_capabilities = grants("dev-capabilities", c, &lines);
             }
             ("workspace", toml::Value::Table(w)) => {
                 only(&mut unknowns, "workspace", w, &["members", "exclude"]);
@@ -739,7 +736,7 @@ fn identity(r: &Requirement) -> Option<String> {
 /// form, key-name collisions and keys that share a package
 /// (`cli.dep.invalid`), a minimum toolchain above `toolchain`
 /// (`module.toolchain.graph-minimum`), each `[capabilities]` and
-/// `[test.capabilities]` key and value (`cli.cap.table.keys.with-package-host`,
+/// `[dev-capabilities]` key and value (`cli.cap.table.keys.with-package-host`,
 /// `cli.cap.value.unscoped`), an `[[executable]]` table without a string
 /// `name` and `module` (`cli.manifest.known-key`), and a warning for each
 /// unknown table or key (`cli.manifest.unknown-key.with-host`).
@@ -840,7 +837,7 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
             );
         }
     }
-    for (key, grant, line) in m.capabilities.iter().chain(&m.test_capabilities) {
+    for (key, grant, line) in m.capabilities.iter().chain(&m.dev_capabilities) {
         let why = match grant {
             None => Some(format!(
                 "the grant of `{key}` is `true`, `false`, or a list of scope entries"
@@ -1069,8 +1066,23 @@ mod tests {
 /// valid capability selectors; existing entries, including false, are kept.
 #[must_use]
 pub fn capability_insertion(text: &str, names: &[String]) -> Option<(u32, String)> {
+    capability_insertion_for(text, names, false)
+}
+
+/// Inserts a production or development grant table entry, preserving TOML.
+#[must_use]
+pub fn capability_insertion_for(
+    text: &str,
+    names: &[String],
+    development: bool,
+) -> Option<(u32, String)> {
+    let table_name = if development {
+        "dev-capabilities"
+    } else {
+        "capabilities"
+    };
     let table: toml::Table = text.parse().ok()?;
-    let present = table.get("capabilities").and_then(toml::Value::as_table);
+    let present = table.get(table_name).and_then(toml::Value::as_table);
     let names: std::collections::BTreeSet<_> = names
         .iter()
         .filter(|key| grant_problem(key, &Grant::All).is_none())
@@ -1098,7 +1110,7 @@ pub fn capability_insertion(text: &str, names: &[String]) -> Option<(u32, String
     let entry = doc
         .get_ref()
         .iter()
-        .find(|(k, _)| k.get_ref() == "capabilities");
+        .find(|(k, _)| k.get_ref() == table_name);
     let (at, addition) = if let Some((name, value)) = entry {
         let start = name.span().start;
         let line = text[..start].rfind('\n').map_or(0, |i| i + 1);
@@ -1128,7 +1140,7 @@ pub fn capability_insertion(text: &str, names: &[String]) -> Option<(u32, String
             } else {
                 // Root dotted keys define an implicit table; extending that
                 // table with more dotted keys avoids declaring it twice.
-                (0, lines("capabilities."))
+                (0, lines(&format!("{table_name}.")))
             }
         }
     } else {
@@ -1139,7 +1151,7 @@ pub fn capability_insertion(text: &str, names: &[String]) -> Option<(u32, String
         };
         (
             text.len(),
-            format!("{gap}{newline}[capabilities]{newline}{}", lines("")),
+            format!("{gap}{newline}[{table_name}]{newline}{}", lines("")),
         )
     };
     Some((u32::try_from(at).ok()?, addition))
@@ -1175,6 +1187,33 @@ mod capability_insertion_tests {
             assert_eq!(actual, expected, "{after}");
             assert!(after.contains("# keep"));
             assert!(capability_insertion(&after, &keys).is_none());
+        }
+    }
+
+    #[test]
+    fn development_insertions_preserve_all_toml_forms() {
+        for text in [
+            "[package]\nname=\"app\"\n",
+            "[dev-capabilities]\nConsole=false\n",
+            "[ \"dev-capabilities\" ] # keep\r\nConsole=false\r\n",
+            "dev-capabilities={Console=false}\n",
+            "dev-capabilities={}\n",
+            "dev-capabilities.Console=false\n",
+        ] {
+            let keys = vec!["Process".to_owned(), "dep.sdk.Server".to_owned()];
+            let (at, add) = capability_insertion_for(text, &keys, true).unwrap();
+            let after = format!("{}{}{}", &text[..at as usize], add, &text[at as usize..]);
+            let mut expected: toml::Table = text.parse().unwrap();
+            let table = expected
+                .entry("dev-capabilities")
+                .or_insert_with(|| toml::Value::Table(toml::Table::new()))
+                .as_table_mut()
+                .unwrap();
+            for key in &keys {
+                table.insert(key.clone(), toml::Value::Boolean(true));
+            }
+            assert_eq!(after.parse::<toml::Table>().unwrap(), expected, "{after}");
+            assert!(capability_insertion_for(&after, &keys, true).is_none());
         }
     }
 

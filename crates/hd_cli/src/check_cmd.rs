@@ -266,9 +266,9 @@ fn check_role(
     (shown, out.counters.modules_checked)
 }
 
-/// The diagnostics of a whole-package check of `program`, as `hd check`
-/// with no flag reports them (`cli.check.default`); `hd fix` runs it
-/// (`cli.fix.command.with-capabilities`).
+/// Whole-package diagnostics including tests and tasks, as `hd check --all`
+/// reports them (`cli.check.all`); `hd fix` runs it
+/// (`cli.fix.command.all-entries`).
 pub(crate) fn check_package(program: disk::Program) -> Vec<Diag> {
     let t = Target {
         program,
@@ -277,7 +277,10 @@ pub(crate) fn check_package(program: disk::Program) -> Vec<Diag> {
     };
     check_one(
         t,
-        &Options::default(),
+        &Options {
+            all: true,
+            ..Options::default()
+        },
         &DeferredStore::new(crate::disk_store()),
     )
     .0

@@ -1,0 +1,6 @@
+use std.fs.read_text
+use std.path.Path
+
+it("uses both grant tables"):
+    assert_equal(read_text!(Path("a.txt")).expect("base scope"), "base", reason="base")
+    assert_equal(read_text!(Path("b.txt")).expect("development scope"), "dev", reason="dev")

@@ -1,0 +1,4 @@
+use dep.kit.text
+
+pub fn main() -> void $ Console:
+    println(text())

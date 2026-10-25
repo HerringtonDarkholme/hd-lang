@@ -62,10 +62,39 @@ fn parse_flag(value: &str) -> Result<CapFlag, String> {
     })
 }
 
-/// A package main must list every checked host requirement, even when
-/// its emitted module never imports a method of that capability.
+/// Combine the root's production and development tables before applying flags.
+/// Denial is sticky; unrestricted grants subsume scopes; scoped grants unite.
+pub(crate) fn development_grants(
+    base: &[(String, Grant)],
+    dev: &[(String, Grant)],
+) -> Vec<(String, Grant)> {
+    let mut merged = std::collections::BTreeMap::<String, Grant>::new();
+    for (key, grant) in base.iter().chain(dev) {
+        merged
+            .entry(key.clone())
+            .and_modify(|old| {
+                *old = match (&*old, grant) {
+                    (Grant::Deny, _) | (_, Grant::Deny) => Grant::Deny,
+                    (Grant::All, _) | (_, Grant::All) => Grant::All,
+                    (Grant::Scopes(a), Grant::Scopes(b)) => {
+                        let mut scopes = a.clone();
+                        for scope in b {
+                            if !scopes.contains(scope) {
+                                scopes.push(scope.clone());
+                            }
+                        }
+                        Grant::Scopes(scopes)
+                    }
+                };
+            })
+            .or_insert_with(|| grant.clone());
+    }
+    merged.into_iter().collect()
+}
+
+/// Check the actual root entry rows, including unused written requirements.
 pub(crate) fn required(program: &crate::disk::Program, out: &hd_driver::Output) -> Vec<Diag> {
-    if program.single_file || program.package_dir.is_none() || out.main_capabilities.is_empty() {
+    if program.single_file || program.package_dir.is_none() || out.entry_capabilities.is_empty() {
         return Vec::new();
     }
     let Some(bytes) = program.sources.read("hd.toml") else {
@@ -83,43 +112,93 @@ pub(crate) fn required(program: &crate::disk::Program, out: &hd_driver::Output) 
             ];
         }
     };
+    let listed = |table: &[(String, Option<Grant>, u32)], selectors: &[String]| {
+        table
+            .iter()
+            .any(|(key, grant, _)| grant.is_some() && selectors.contains(key))
+    };
     let missing: Vec<_> = out
-        .main_capabilities
+        .entry_capabilities
         .iter()
         .filter(|need| {
-            !manifest
-                .capabilities
-                .iter()
-                .any(|(key, grant, _)| grant.is_some() && need.selectors.contains(key))
+            !listed(&manifest.capabilities, &need.selectors)
+                && (need.entry == hd_driver::CapabilityEntry::Main
+                    || !listed(&manifest.dev_capabilities, &need.selectors))
         })
         .collect();
-    let keys: Vec<_> = missing
+    let production: Vec<_> = missing
         .iter()
+        .filter(|n| n.entry == hd_driver::CapabilityEntry::Main)
+        .map(|n| n.selectors[0].clone())
+        .collect();
+    let development: Vec<_> = missing
+        .iter()
+        .filter(|need| need.entry != hd_driver::CapabilityEntry::Main)
         .map(|need| need.selectors[0].clone())
         .collect();
-    let fix = hd_project::capability_insertion(text, &keys).map(|(at, text)| Fix {
-        message: "list the missing capabilities in hd.toml".to_owned(),
-        exact: true,
-        edits: vec![Edit {
-            file: "hd.toml".to_owned(),
-            start: at,
-            end: at,
-            text,
-        }],
-    });
-    missing.into_iter().map(|need| {
-        let row = out.texts[need.span.file.idx()].get(need.span.lo as usize..need.span.hi as usize).unwrap_or("").split_whitespace().collect::<Vec<_>>().join(" ");
-        let mut diag = Diag::error(Some(Code::MissingCapability), &format!("`main` requires `{}` in `{row}`, but `[capabilities]` in hd.toml does not list it", need.selectors[0]));
-        let (file, line, column) = out.locate(need.span);
-        let (_, end_line, end_column) = out.locate(hd_base::Span { lo: need.span.hi, ..need.span });
-        diag.file = Some(file);
-        diag.line = Some(line);
-        diag.column = Some(column);
-        diag.end_line = Some(end_line);
-        diag.end_column = Some(end_column);
-        diag.fixes.extend(fix.clone());
-        diag
-    }).collect()
+    let fix = |keys: &[String], development| {
+        hd_project::capability_insertion_for(text, keys, development).map(|(at, text)| Fix {
+            message: "list the missing capabilities in hd.toml".to_owned(),
+            exact: true,
+            edits: vec![Edit {
+                file: "hd.toml".to_owned(),
+                start: at,
+                end: at,
+                text,
+            }],
+        })
+    };
+    // Keep main fixes stable across the library/test checks. When both tables
+    // insert at EOF, hd fix applies the overlapping development fix next round.
+    let production_fix = fix(&production, false);
+    let development_fix = fix(&development, true);
+    missing
+        .into_iter()
+        .map(|need| {
+            let who = match &need.entry {
+                hd_driver::CapabilityEntry::Main => "`main`".to_owned(),
+                hd_driver::CapabilityEntry::Task => "the task".to_owned(),
+                hd_driver::CapabilityEntry::Test(name) => format!("test `{name}`"),
+            };
+            let row = if need.written_row {
+                let row = out.texts[need.span.file.idx()]
+                    .get(need.span.lo as usize..need.span.hi as usize)
+                    .unwrap_or("")
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                format!(" in `{row}`")
+            } else {
+                String::new()
+            };
+            let tables = if need.entry == hd_driver::CapabilityEntry::Main {
+                "`[capabilities]` in hd.toml does not list it"
+            } else {
+                "neither `[capabilities]` nor `[dev-capabilities]` in hd.toml lists it"
+            };
+            let mut diag = Diag::error(
+                Some(Code::MissingCapability),
+                &format!("{who} requires `{}`{row}, but {tables}", need.selectors[0]),
+            );
+            let (file, line, column) = out.locate(need.span);
+            let (_, end_line, end_column) = out.locate(hd_base::Span {
+                lo: need.span.hi,
+                ..need.span
+            });
+            diag.file = Some(file);
+            diag.line = Some(line);
+            diag.column = Some(column);
+            diag.end_line = Some(end_line);
+            diag.end_column = Some(end_column);
+            diag.fixes
+                .extend(if need.entry == hd_driver::CapabilityEntry::Main {
+                    production_fix.clone()
+                } else {
+                    development_fix.clone()
+                });
+            diag
+        })
+        .collect()
 }
 
 /// The refusal of a module whose needs include a totally denied trait
@@ -132,8 +211,7 @@ pub(crate) fn refusal(wasm: &[u8], table: &[(String, Grant)], flags: &[CapFlag])
 }
 
 /// The same refusal of an integration test program or a doc test under the
-/// test grant (`cli.cap.total.test`), whose table is `[test.capabilities]`
-/// (`cli.test.env.grant.table`); `file` names the test program.
+/// test grant (`cli.cap.total.test`); `file` names the test program.
 pub(crate) fn test_refusal(
     wasm: &[u8],
     table: &[(String, Grant)],
@@ -143,7 +221,7 @@ pub(crate) fn test_refusal(
     denied(
         wasm,
         table,
-        "`[test.capabilities]` of hd.toml",
+        "`[capabilities]` or `[dev-capabilities]` of hd.toml",
         flags,
         &format!("the test program {file}"),
     )
@@ -224,8 +302,8 @@ pub(crate) fn grants(table: &[(String, Grant)], table_dir: &Path, flags: &[CapFl
     Grants::resolve(&table, table_dir, &flags, &cwd)
 }
 
-/// A test case's grant (`cli.test.env.grant`): the package's
-/// `[test.capabilities]` table and the flags of `hd test` by Grant
+/// A test case's grant (`cli.test.env.grant.combined`): the package's
+/// production and development tables and the flags of `hd test` by Grant
 /// Precedence, with `FsRead` covering the package directory and the case's
 /// temporary directory and `FsWrite` that directory, as
 /// `cli.test.env.grant.fs-read`, `.fs-write` and `.fs-added` say.
@@ -238,4 +316,37 @@ pub(crate) fn test_grants(
     let cwd = std::env::current_dir().unwrap_or_else(|_| package_dir.to_path_buf());
     let (table, flags) = values(table, flags);
     Grants::for_test(&table, package_dir, &flags, &cwd, temp_dir)
+}
+
+#[cfg(test)]
+mod development_tests {
+    use super::*;
+
+    #[test]
+    fn development_grants_preserve_denials_and_unite_scopes() {
+        let scopes = |xs: &[&str]| Grant::Scopes(xs.iter().map(|s| (*s).to_owned()).collect());
+        let base = vec![
+            ("Http".into(), scopes(&["base", "both"])),
+            ("Process".into(), Grant::Deny),
+            ("FsRead".into(), Grant::All),
+        ];
+        let dev = vec![
+            ("Http".into(), scopes(&["both", "dev"])),
+            ("Process".into(), Grant::All),
+            ("FsRead".into(), scopes(&["dev"])),
+            ("Console".into(), Grant::All),
+        ];
+        let combined = development_grants(&base, &dev);
+        assert!(combined.contains(&("Http".into(), scopes(&["base", "both", "dev"]))));
+        assert!(combined.contains(&("Process".into(), Grant::Deny)));
+        assert!(combined.contains(&("FsRead".into(), Grant::All)));
+        assert!(combined.contains(&("Console".into(), Grant::All)));
+        assert_eq!(
+            development_grants(
+                &[("Console".into(), Grant::All)],
+                &[("Console".into(), Grant::Deny)]
+            ),
+            vec![("Console".into(), Grant::Deny)]
+        );
+    }
 }

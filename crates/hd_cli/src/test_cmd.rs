@@ -34,7 +34,7 @@ struct Options {
     /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
     packages: Vec<String>,
     /// The `--cap` flags, which the test grant reads
-    /// (`cli.test.env.grant`).
+    /// (`cli.test.env.grant.combined`).
     caps: Vec<CapFlag>,
     /// `--seed N`: every property test case's base seed
     /// (`cli.test.seed.flag`).
@@ -106,7 +106,7 @@ fn parse_with_engine(
             continue;
         }
         // `cli.cap.flag.commands`: the flags join the test grant of each
-        // integration test program and doc test (`cli.test.env.grant`); a
+        // integration test program and doc test (`cli.test.env.grant.combined`); a
         // unit test gets no provider.
         if let Some(cap) = crate::caps::cap_flag(args, i) {
             let (flag, used) = cap?;
@@ -700,6 +700,7 @@ fn test_one(
         let mut out = hd_driver::build_packages(&host, package, &packages, &goal);
         crate::note_built(&out);
         let mut found = report::from_output(&out, None);
+        found.extend(crate::caps::required(&program, &out));
         // `cli.test.program`: the program of a doc test or an integration
         // test file, else one per module of the unit-test program.
         let (doc_record, case_records) = {
@@ -983,7 +984,7 @@ fn imports(wasm: &[u8], module: &str) -> bool {
 /// The package's executables and tasks, built for the test runner's
 /// `Process` provider (`cli.test.process`, `.process.tasks`). Each gets
 /// the package's `[capabilities]` table and no flags, as `hd run NAME`
-/// would (`cli.cap.source.hd-run`). They run on the tests' `engine`, so
+/// would (`cli.cap.source.hd-run.entry`). They run on the tests' `engine`, so
 /// they are built with the tests' `pipeline`.
 fn build_programs(
     root: &Path,
@@ -1001,7 +1002,7 @@ fn build_programs(
         // `cli.profile.test`: the executables a test run builds are checked.
         let wasm = crate::compile(&p, (hd_driver::BuildProfile::Checked, pipeline), rep)?;
         let grants = crate::caps::grants(
-            &p.capabilities,
+            &p.execution_capabilities(),
             p.package_dir.as_deref().unwrap_or(root),
             &[],
         );
@@ -1011,8 +1012,8 @@ fn build_programs(
 }
 
 /// What a test case's environment comes from (Test Environments): the
-/// package directory, its `[test.capabilities]` table and the `--cap`
-/// flags (`cli.test.env.grant`), and `--seed` (`cli.test.seed.flag`).
+/// package directory, its combined grant tables and the `--cap`
+/// flags (`cli.test.env.grant.combined`), and `--seed` (`cli.test.seed.flag`).
 struct RunEnv<'a> {
     root: &'a Path,
     table: Vec<(String, hd_project::Grant)>,

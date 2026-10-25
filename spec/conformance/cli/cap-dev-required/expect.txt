@@ -1,0 +1,20 @@
+# Both absent tables insert at EOF; all entry fixes must compose safely.
+run: hd check --all --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"missing-capability","file":"src/main.hd"},{"kind":"diagnostic","code":"missing-capability","file":"tasks/closure.hd"},{"kind":"diagnostic","code":"missing-capability","file":"tasks/report.hd"},{"kind":"diagnostic","code":"missing-capability","file":"tests/needs.hd"},{"kind":"summary","errors":4,"warnings":0,"status":101}]
+run: hd run report --format json
+exit: 101
+run: hd test --format json
+exit: 101
+run: hd run closure --format json
+exit: 101
+stderr-json: [{"kind":"diagnostic","code":"missing-capability","file":"src/main.hd"},{"kind":"diagnostic","code":"missing-capability","file":"tasks/closure.hd"},{"kind":"summary","errors":2,"status":101}]
+run: hd fix
+same-text: hd.toml want.toml
+run: hd check --all --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd test
+stdout: test result: ok. 1 passed; 0 failed; 0 ignored
+run: hd run report
+stdout: report
+run: hd run closure

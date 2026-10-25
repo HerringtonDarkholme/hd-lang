@@ -1123,7 +1123,7 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
     execute(
         &built,
         &chosen.name,
-        &program.capabilities,
+        &program.execution_capabilities(),
         program.package_dir.as_deref(),
         &w.caps,
         Some(&program),

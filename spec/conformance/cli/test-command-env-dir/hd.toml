@@ -5,3 +5,6 @@ name = "shop"
 Console = true
 Env = true
 FsRead = true
+
+[dev-capabilities]
+Process = true

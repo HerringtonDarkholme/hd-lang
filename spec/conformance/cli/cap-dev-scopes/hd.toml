@@ -1,0 +1,9 @@
+[package]
+name = "scope-union"
+
+[capabilities]
+FsRead = ["a.txt"]
+
+[dev-capabilities]
+Console = true
+FsRead = ["b.txt"]

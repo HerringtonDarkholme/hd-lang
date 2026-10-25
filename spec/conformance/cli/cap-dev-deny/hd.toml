@@ -1,0 +1,8 @@
+[package]
+name = "deny-wins"
+
+[capabilities]
+Console = false
+
+[dev-capabilities]
+Console = true

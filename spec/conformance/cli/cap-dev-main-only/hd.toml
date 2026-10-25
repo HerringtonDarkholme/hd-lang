@@ -1,0 +1,5 @@
+[package]
+name = "production"
+
+[dev-capabilities]
+Console = true

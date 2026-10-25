@@ -1,0 +1,5 @@
+[package]
+name = "root-app"
+
+[dependencies]
+kit = { path = "kit" }

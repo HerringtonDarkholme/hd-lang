@@ -1,0 +1,9 @@
+[package]
+name = "dev-required"
+
+[capabilities]
+Clock = true
+
+[dev-capabilities]
+Console = true
+Process = true

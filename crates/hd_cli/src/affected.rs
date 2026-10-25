@@ -109,7 +109,7 @@ pub(crate) fn common(s: &Settings<'_>) -> Hash128 {
     for c in s.caps {
         h.str(&c.text);
     }
-    // The manifest settings, `[test.capabilities]` among them, and the
+    // The manifest settings, `[dev-capabilities]` among them, and the
     // locked versions.
     for name in ["hd.toml", "hd.sum"] {
         file(&mut h, &s.root.join(name));
