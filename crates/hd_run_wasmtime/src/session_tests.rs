@@ -771,13 +771,15 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
             panic!("{:?}", events[12]);
         };
         assert_eq!(request, &Request::Args(vec![3, b'h', b'i', b'\n']));
-        // The panic stub starts its report, then writes it.
+        // The panic stub starts its report, then writes it. On Windows the
+        // write above also blocks and finishes, two more events.
+        let panic_at = if cfg!(windows) { 17 } else { 15 };
         assert!(matches!(
-            &events[15],
+            &events[panic_at],
             Event::Call { request: Request::Args(args), .. } if args.is_empty()
         ));
         assert!(matches!(
-            &events[16],
+            &events[panic_at + 1],
             Event::Call {
                 request: Request::Digest { .. },
                 ..
