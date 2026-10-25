@@ -11824,7 +11824,7 @@ pub trait Events < Disposable:
 
 @host
 pub trait Server < Base[string]:
-    fn open!(&mut self) -> &mut dyn Events
+    fn open!(&mut self) -> *mut dyn Events
 
 pub fn main!() -> void $ Console + Server:
     println($.use(Server).echo(\"inherited\"))
