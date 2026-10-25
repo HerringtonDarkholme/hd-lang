@@ -1,2 +1,5 @@
 [package]
 name = "dbg_structural_printer"
+
+[capabilities]
+Console = true

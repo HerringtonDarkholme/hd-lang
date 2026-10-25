@@ -221,14 +221,20 @@ fn manifest_line(key: &str, files: &[(&str, &str)]) -> String {
 }
 
 const TEXT_V1: &[(&str, &str)] = &[
-    ("hd.toml", "[package]\nname = \"text\"\n"),
+    (
+        "hd.toml",
+        "[package]\nname = \"text\"\n\n[capabilities]\nConsole = true\n",
+    ),
     (
         "src/lib.hd",
         "pub fn greeting() -> string: \"hello from 1.0\"\n",
     ),
 ];
 const TEXT_V12: &[(&str, &str)] = &[
-    ("hd.toml", "[package]\nname = \"text\"\n"),
+    (
+        "hd.toml",
+        "[package]\nname = \"text\"\n\n[capabilities]\nConsole = true\n",
+    ),
     (
         "src/lib.hd",
         "pub fn greeting() -> string: \"hello from 1.2\"\n\npub fn shout(s: string) -> string: s + \"!\"\n",
@@ -244,7 +250,7 @@ fn app(world: &World, name: &str, deps: &str, main: &str) -> PathBuf {
         &[
             (
                 "hd.toml",
-                &format!("[package]\nname = \"{name}\"\n\n[dependencies]\n{deps}"),
+                &format!("[package]\nname = \"{name}\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\n{deps}"),
             ),
             ("src/main.hd", main),
         ],
@@ -271,7 +277,7 @@ fn fetch_records_hashes_and_run_works_offline() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("\"file\":\"hd.toml\",\"line\":5"),
+        stdout.contains("\"file\":\"hd.toml\",\"line\":8"),
         "{stdout}"
     );
     assert!(!world.cache().join("pkg").exists());
@@ -372,7 +378,7 @@ fn tampering_is_a_mismatch() {
             "{stdout}"
         );
         let (_, stderr) = fails(&world.hd(&dir, &["run"]));
-        assert!(stderr.contains("hd.toml:5:1: sum-mismatch"), "{stderr}");
+        assert!(stderr.contains("hd.toml:8:1: sum-mismatch"), "{stderr}");
         fails(&world.hd(&dir, &["fetch"]));
         assert_eq!(
             std::fs::read_to_string(dir.join("hd.sum")).expect("sum"),
@@ -392,7 +398,13 @@ fn tampering_is_a_mismatch() {
     for (path, mode) in [(&entry, 0o755), (&entry.join("hd.toml"), 0o644)] {
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).expect("chmod");
     }
-    write(&entry, &[("hd.toml", "[package]\nname = \"evil\"\n")]);
+    write(
+        &entry,
+        &[(
+            "hd.toml",
+            "[package]\nname = \"evil\"\n\n[capabilities]\nConsole = true\n",
+        )],
+    );
     let (_, stderr) = fails(&world.hd(&dir, &["check"]));
     assert!(stderr.contains("sum-mismatch"), "{stderr}");
     assert!(stderr.contains("manifest's hash"), "{stderr}");
@@ -408,7 +420,7 @@ fn selection_takes_the_largest_minimum() {
     let lint: &[(&str, &str)] = &[
         (
             "hd.toml",
-            "[package]\nname = \"lint\"\n\n[dependencies]\ntext = \"github.com/acme/text@1.2.0\"\n",
+            "[package]\nname = \"lint\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\ntext = \"github.com/acme/text@1.2.0\"\n",
         ),
         (
             "src/lib.hd",
@@ -423,7 +435,10 @@ fn selection_takes_the_largest_minimum() {
                 ("README.md", "tools\n"),
                 ("lint/hd.toml", lint[0].1),
                 ("lint/src/lib.hd", lint[1].1),
-                ("lint/nested/hd.toml", "[package]\nname = \"nested\"\n"),
+                (
+                    "lint/nested/hd.toml",
+                    "[package]\nname = \"nested\"\n\n[capabilities]\nConsole = true\n",
+                ),
                 ("lint/nested/src/lib.hd", "pub fn n() -> i32: 1\n"),
             ],
         )],
@@ -502,7 +517,7 @@ fn a_workspace_fetches_once() {
         &[
             (
                 "hd.toml",
-                "[package]\nname = \"tool\"\n\n[dependencies]\ntext = \"github.com/acme/text@1.2.0\"\n",
+                "[package]\nname = \"tool\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\ntext = \"github.com/acme/text@1.2.0\"\n",
             ),
             ("src/lib.hd", "pub fn t() -> i32: 1\n"),
         ],
@@ -592,14 +607,20 @@ fn a_pseudo_version_fetches_its_commit() {
 }
 
 const TEXT_V13: &[(&str, &str)] = &[
-    ("hd.toml", "[package]\nname = \"text\"\n"),
+    (
+        "hd.toml",
+        "[package]\nname = \"text\"\n\n[capabilities]\nConsole = true\n",
+    ),
     (
         "src/lib.hd",
         "pub fn greeting() -> string: \"hello from 1.3\"\n",
     ),
 ];
 const TEXT_V2: &[(&str, &str)] = &[
-    ("hd.toml", "[package]\nname = \"text\"\n"),
+    (
+        "hd.toml",
+        "[package]\nname = \"text\"\n\n[capabilities]\nConsole = true\n",
+    ),
     (
         "src/lib.hd",
         "pub fn greeting() -> string: \"hello from 2.0\"\n",
@@ -624,7 +645,11 @@ fn read(dir: &Path, file: &str) -> String {
 fn add_records_then_lowers() {
     let world = World::new("add");
     world.remote("text", &[("v1.0.0", TEXT_V1), ("v1.2.0", TEXT_V12)]);
-    let dir = bare(&world, "app", "[package]\nname = \"app\"  # mine\n");
+    let dir = bare(
+        &world,
+        "app",
+        "[package]\nname = \"app\"  # mine\n\n[capabilities]\nConsole = true\n",
+    );
     let (stdout, stderr) = ok(&world.hd(&dir, &["add", "acme/text@1.2.0"]));
     assert_eq!(stdout, "text = \"github.com/acme/text@1.2.0\"\n");
     assert!(
@@ -633,7 +658,7 @@ fn add_records_then_lowers() {
     );
     assert_eq!(
         read(&dir, "hd.toml"),
-        "[package]\nname = \"app\"  # mine\n\n[dependencies]\ntext = \"github.com/acme/text@1.2.0\"\n"
+        "[package]\nname = \"app\"  # mine\n\n[capabilities]\nConsole = true\n\n[dependencies]\ntext = \"github.com/acme/text@1.2.0\"\n"
     );
     assert_eq!(
         read(&dir, "hd.sum"),
@@ -649,7 +674,7 @@ fn add_records_then_lowers() {
     );
     assert_eq!(
         read(&dir, "hd.toml"),
-        "[package]\nname = \"app\"  # mine\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n"
+        "[package]\nname = \"app\"  # mine\n\n[capabilities]\nConsole = true\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n"
     );
     assert_eq!(
         read(&dir, "hd.sum"),
@@ -685,7 +710,7 @@ fn a_lowered_requirement_stays_a_minimum() {
         &[
             (
                 "hd.toml",
-                "[package]\nname = \"tool\"\n\n[dependencies]\ntext = \"github.com/acme/text@1.2.0\"\n",
+                "[package]\nname = \"tool\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\ntext = \"github.com/acme/text@1.2.0\"\n",
             ),
             ("src/lib.hd", "pub fn t() -> i32: 1\n"),
         ],
@@ -714,10 +739,13 @@ fn a_lowered_requirement_stays_a_minimum() {
 fn add_dev_and_the_other_table() {
     let world = World::new("add-dev");
     world.remote("text", &[("v1.0.0", TEXT_V1)]);
-    let dir = bare(&world, "app", "[package]\nname = \"app\"\n");
+    let dir = bare(
+        &world,
+        "app",
+        "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n",
+    );
     ok(&world.hd(&dir, &["add", "--dev", "acme/text@1.0.0"]));
-    let manifest =
-        "[package]\nname = \"app\"\n\n[dev-dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n";
+    let manifest = "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n\n[dev-dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n";
     assert_eq!(read(&dir, "hd.toml"), manifest);
     let sum = read(&dir, "hd.sum");
     assert_eq!(sum, sum_lines("github.com/acme/text@1.0.0", TEXT_V1));
@@ -736,7 +764,7 @@ fn add_dev_and_the_other_table() {
     let other = bare(
         &world,
         "other",
-        "[package]\nname = \"other\"\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n",
+        "[package]\nname = \"other\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n",
     );
     let (_, stderr) = fails(&world.hd(
         &other,
@@ -757,8 +785,7 @@ fn a_failed_add_writes_nothing() {
     let world = World::new("add-fails");
     world.remote("text", &[("v1.0.0", TEXT_V1)]);
     world.remote("tail", &[("v0.1.0", TEXT_V12)]);
-    let manifest =
-        "[package]\nname = \"app\"\n\n[dependencies]\ntail = \"github.com/acme/tail@0.1.0\"\n";
+    let manifest = "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\ntail = \"github.com/acme/tail@0.1.0\"\n";
     let dir = bare(&world, "app", manifest);
     ok(&world.hd(&dir, &["fetch"]));
     let sum = read(&dir, "hd.sum");
@@ -799,7 +826,11 @@ fn a_failed_add_writes_nothing() {
 fn an_untagged_package_takes_a_pseudo_version_and_a_note() {
     let world = World::new("untagged");
     let repo = world.remote("text", &[("", TEXT_V1)]);
-    let dir = bare(&world, "app", "[package]\nname = \"app\"\n");
+    let dir = bare(
+        &world,
+        "app",
+        "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n",
+    );
     let (stdout, stderr) = ok(&world.hd(&dir, &["add", "acme/text"]));
     let head = world.git(&repo, &["rev-parse", "HEAD"]);
     let hash = &head.trim()[..12];
@@ -844,7 +875,7 @@ fn update_moves_to_the_newest_release() {
     let dir = bare(
         &world,
         "app",
-        "[package]\nname = \"app\"\n\n[dependencies]\n# the text\ntext = \"github.com/acme/text@1.0.0\"  # pinned\n\n[dev-dependencies]\ntail = \"github.com/acme/tail@0.1.0\"\n",
+        "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\n# the text\ntext = \"github.com/acme/text@1.0.0\"  # pinned\n\n[dev-dependencies]\ntail = \"github.com/acme/tail@0.1.0\"\n",
     );
     ok(&world.hd(&dir, &["fetch"]));
 
@@ -858,7 +889,7 @@ fn update_moves_to_the_newest_release() {
     assert_eq!(stdout, "text: 1.0.0 -> 1.2.0\n");
     assert_eq!(
         read(&dir, "hd.toml"),
-        "[package]\nname = \"app\"\n\n[dependencies]\n# the text\ntext = \"github.com/acme/text@1.2.0\"  # pinned\n\n[dev-dependencies]\ntail = \"github.com/acme/tail@0.1.4\"\n"
+        "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\n# the text\ntext = \"github.com/acme/text@1.2.0\"  # pinned\n\n[dev-dependencies]\ntail = \"github.com/acme/tail@0.1.4\"\n"
     );
     // Tidy: the new versions' lines are there, and the old ones' are gone.
     assert_eq!(
@@ -886,8 +917,7 @@ fn update_moves_to_the_newest_release() {
 fn update_needs_the_network() {
     let world = World::new("update-network");
     let remote = world.remote("text", &[("v1.0.0", TEXT_V1), ("v1.2.0", TEXT_V12)]);
-    let manifest =
-        "[package]\nname = \"app\"\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n";
+    let manifest = "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n";
     let dir = bare(&world, "app", manifest);
     ok(&world.hd(&dir, &["fetch"]));
     let sum = read(&dir, "hd.sum");
@@ -912,13 +942,13 @@ fn remove_tidies_hd_sum() {
     let dir = bare(
         &world,
         "app",
-        "[package]\nname = \"app\"\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n\n[dev-dependencies]\ntail = \"github.com/acme/tail@0.1.0\"\n",
+        "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n\n[dev-dependencies]\ntail = \"github.com/acme/tail@0.1.0\"\n",
     );
     ok(&world.hd(&dir, &["fetch"]));
     ok(&world.hd(&dir, &["remove", "tail"]));
     assert_eq!(
         read(&dir, "hd.toml"),
-        "[package]\nname = \"app\"\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n"
+        "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n"
     );
     assert_eq!(
         read(&dir, "hd.sum"),
@@ -936,7 +966,7 @@ fn remove_tidies_hd_sum() {
                 (
                     "hd.toml",
                     &format!(
-                        "[package]\nname = \"{member}\"\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n"
+                        "[package]\nname = \"{member}\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\ntext = \"github.com/acme/text@1.0.0\"\n"
                     ),
                 ),
                 ("src/lib.hd", "pub fn t() -> i32: 1\n"),
@@ -952,7 +982,7 @@ fn remove_tidies_hd_sum() {
     assert_eq!(read(&ws, "hd.sum"), "");
     assert_eq!(
         read(&ws.join("two"), "hd.toml"),
-        "[package]\nname = \"two\"\n"
+        "[package]\nname = \"two\"\n\n[capabilities]\nConsole = true\n"
     );
 }
 
@@ -1172,7 +1202,10 @@ fn two_lines_and_a_member_of_one_name_are_three_packages() {
     world.package(
         "ws/text",
         &[
-            ("hd.toml", "[package]\nname = \"text\"\n"),
+            (
+                "hd.toml",
+                "[package]\nname = \"text\"\n\n[capabilities]\nConsole = true\n",
+            ),
             (
                 "src/lib.hd",
                 "pub fn greeting() -> string: \"hello from the member\"\n",
@@ -1252,7 +1285,10 @@ fn a_package_reached_twice_is_one_package() {
     world.package(
         "money",
         &[
-            ("hd.toml", "[package]\nname = \"money\"\n"),
+            (
+                "hd.toml",
+                "[package]\nname = \"money\"\n\n[capabilities]\nConsole = true\n",
+            ),
             ("src/lib.hd", "pub struct Coin:\n    pub cents: i32\n"),
         ],
     );
@@ -1261,7 +1297,7 @@ fn a_package_reached_twice_is_one_package() {
         &[
             (
                 "hd.toml",
-                "[package]\nname = \"mint\"\n\n[dependencies]\nmoney = { path = \"../money\" }\n",
+                "[package]\nname = \"mint\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\nmoney = { path = \"../money\" }\n",
             ),
             (
                 "src/lib.hd",
@@ -1274,7 +1310,7 @@ fn a_package_reached_twice_is_one_package() {
         &[
             (
                 "hd.toml",
-                "[package]\nname = \"bank\"\n\n[dependencies]\ncash = { path = \"../money\" }\n",
+                "[package]\nname = \"bank\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\ncash = { path = \"../money\" }\n",
             ),
             (
                 "src/lib.hd",

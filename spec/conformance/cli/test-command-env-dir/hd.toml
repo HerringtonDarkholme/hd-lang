@@ -1,2 +1,7 @@
 [package]
 name = "shop"
+
+[capabilities]
+Console = true
+Env = true
+FsRead = true

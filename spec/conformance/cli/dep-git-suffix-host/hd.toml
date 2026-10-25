@@ -3,3 +3,6 @@ name = "shop"
 
 [dependencies]
 billing = "git.example.com/shop/billing.git@0.4.2"
+
+[capabilities]
+Console = true

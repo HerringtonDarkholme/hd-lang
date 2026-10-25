@@ -1,2 +1,5 @@
 [package]
 name = "tools"
+
+[capabilities]
+Console = true

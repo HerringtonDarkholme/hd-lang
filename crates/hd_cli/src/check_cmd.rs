@@ -268,7 +268,7 @@ fn check_role(
 
 /// The diagnostics of a whole-package check of `program`, as `hd check`
 /// with no flag reports them (`cli.check.default`); `hd fix` runs it
-/// (`cli.fix.command`).
+/// (`cli.fix.command.with-capabilities`).
 pub(crate) fn check_package(program: disk::Program) -> Vec<Diag> {
     let t = Target {
         program,
@@ -374,7 +374,8 @@ fn scope(t: &mut Target, o: &Options) -> (bool, Vec<Diag>) {
 /// no file is kept.
 fn shown(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc]) -> Vec<Diag> {
     let as_written = t.program.as_written.as_deref();
-    let all = report::from_output(out, as_written);
+    let mut all = report::from_output(out, as_written);
+    all.extend(crate::caps::required(&t.program, out));
     let Some(only) = &t.only else {
         return all;
     };

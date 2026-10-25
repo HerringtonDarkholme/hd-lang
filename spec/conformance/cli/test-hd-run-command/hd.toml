@@ -1,2 +1,9 @@
 [package]
 name = "runner"
+
+[capabilities]
+Args = true
+Console = true
+ConsoleInput = true
+Env = true
+FsRead = true

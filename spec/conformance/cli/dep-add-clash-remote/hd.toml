@@ -3,3 +3,6 @@ name = "app"
 
 [dependencies]
 json = { path = "vendored" }
+
+[capabilities]
+Console = true

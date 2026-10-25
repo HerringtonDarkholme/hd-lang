@@ -52,7 +52,11 @@ tests:
 fn package(name: &str, lib: &str) -> Scratch {
     let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
     std::fs::create_dir_all(root.join("src")).expect("src");
-    std::fs::write(root.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("hd.toml");
+    std::fs::write(
+        root.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("hd.toml");
     std::fs::write(root.join("src/lib.hd"), lib).expect("lib");
     root
 }
@@ -167,7 +171,11 @@ fn a_method_frame_names_its_type_and_module() {
     let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-frames-methods");
     std::fs::create_dir_all(root.join("src")).expect("src");
     std::fs::create_dir_all(root.join("tests")).expect("tests");
-    std::fs::write(root.join("hd.toml"), "[package]\nname = \"corner-shop\"\n").expect("hd.toml");
+    std::fs::write(
+        root.join("hd.toml"),
+        "[package]\nname = \"corner-shop\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("hd.toml");
     std::fs::write(
         root.join("src/cart.hd"),
         "\
@@ -516,7 +524,11 @@ pub fn main() -> void $ Console:
 fn a_built_module_prints_its_frames_without_the_cache() {
     let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-frames-built");
     std::fs::create_dir_all(root.join("src")).expect("src");
-    std::fs::write(root.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("hd.toml");
+    std::fs::write(
+        root.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("hd.toml");
     std::fs::write(root.join("src/main.hd"), BUILT).expect("main");
     let built = hd(&root, &["build"]);
     assert!(built.status.success(), "{}", text(&built.stderr));

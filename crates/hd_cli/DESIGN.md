@@ -173,15 +173,16 @@ whose source hash a manifest record marks as already formatted.
 no FILE, no `-p` and no `--format`, as the Commands table and
 `cli.json.commands` leave them out.
 
-1. Read every source file of the package once. Checks run in memory: a
+1. Read every source file and the package manifest once. Checks run in memory: a
    tried state's texts reach the driver through `DiskSources::set_text`,
    and nothing is written until the end.
 2. Check as `hd check` does with no flag (`check_cmd::check_package`).
 3. Of each diagnostic, in output order, take its first `Exact` fix-it
-   whose edits all lie in a package source file and fit its text. One
-   whose edit overlaps, or starts at the same byte as, an edit already
-   taken waits (`cli.fix.overlap`). `hd.toml`, dependencies and `std` are
-   never edited.
+   whose edits fit package source files, or a missing-capability fix
+   that inserts grants into `hd.toml`. An overlapping edit waits
+   (`cli.fix.overlap`). Other manifest fixes, dependencies and `std` are
+   never edited. Capability fixes insert all missing grants together, so
+   the round bound does not limit how many capabilities can be listed.
 4. Apply the round's fix-its together and check again. The round is safe
    when no diagnostic key (code, severity, file, message) occurs more
    often than before; positions are not in the key, since edits move

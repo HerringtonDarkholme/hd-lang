@@ -1,7 +1,7 @@
 # hd.toml declares executables, and none names src/main.hd. The
 # unlisted-entry diagnostic has a fix-it that adds an [[executable]] table
-# to hd.toml. hd fix edits source files only, so it reports the error and
-# leaves hd.toml as it was: the check after it reports the same error.
+# to hd.toml. This is not a capability-table fix, so hd fix reports the
+# error and leaves hd.toml unchanged; checking still reports the error.
 run: hd fix
 exit: 101
 run: hd check --format json

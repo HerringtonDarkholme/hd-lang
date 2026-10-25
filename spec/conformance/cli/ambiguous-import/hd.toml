@@ -4,3 +4,6 @@ name = "shop"
 [[executable]]
 name = "main"
 module = "main"
+
+[capabilities]
+Console = true

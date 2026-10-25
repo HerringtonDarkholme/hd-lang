@@ -4,3 +4,6 @@ name = "app"
 [dependencies]
 money = { path = "../money" }
 util = "github.com/acme/util@1.0.0"
+
+[capabilities]
+Console = true

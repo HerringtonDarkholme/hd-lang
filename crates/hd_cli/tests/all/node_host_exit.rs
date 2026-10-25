@@ -53,7 +53,7 @@ fn build(dir: &Path, name: &str, source: &str) -> PathBuf {
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::write(
         dir.join("hd.toml"),
-        format!("[package]\nname = \"{name}\"\n"),
+        format!("[package]\nname = \"{name}\"\n\n[capabilities]\nConsole = true\nConsoleInput = true\nFsRead = true\nNet = true\nProcess = true\n"),
     )
     .unwrap();
     std::fs::write(dir.join("src/main.hd"), source).unwrap();
@@ -218,7 +218,7 @@ fn test_run(name: &str, lib: &str, tests: &str, limit: &str) -> Output {
     let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::create_dir_all(dir.join("tests")).unwrap();
-    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"probe\"\n").unwrap();
+    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"probe\"\n\n[capabilities]\nConsole = true\nConsoleInput = true\nFsRead = true\nNet = true\nProcess = true\n").unwrap();
     std::fs::write(dir.join("src/lib.hd"), lib).unwrap();
     std::fs::write(dir.join("tests/waits.hd"), tests).unwrap();
     let mut command = hd(&dir);
@@ -385,7 +385,7 @@ fn node_test_time_limit_ends_a_run_blocked_in_a_file_read() {
     let package = dir.join("probe");
     std::fs::create_dir_all(package.join("src")).unwrap();
     std::fs::create_dir_all(package.join("tests")).unwrap();
-    std::fs::write(package.join("hd.toml"), "[package]\nname = \"probe\"\n").unwrap();
+    std::fs::write(package.join("hd.toml"), "[package]\nname = \"probe\"\n\n[capabilities]\nConsole = true\nConsoleInput = true\nFsRead = true\nNet = true\nProcess = true\n").unwrap();
     std::fs::write(package.join("src/lib.hd"), "pub fn one() -> i32:\n    1\n").unwrap();
     std::fs::write(
         package.join("tests/reads.hd"),

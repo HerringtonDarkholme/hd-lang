@@ -13,7 +13,11 @@ fn scratch(name: &str) -> Scratch {
 /// A package `shop` whose `main.hd` holds `main_source`.
 fn package(name: &str, main_source: &str) -> Scratch {
     let dir = scratch(name);
-    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("write");
     std::fs::write(dir.join("main.hd"), main_source).expect("write");
     dir
 }
@@ -235,7 +239,11 @@ fn second_run_is_warm() {
 /// `type-mismatch` error, and `c.hd` an `unknown-name` error.
 fn broken_library(name: &str) -> Scratch {
     let dir = scratch(name);
-    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"lib\"\n").expect("write");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"lib\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("write");
     std::fs::create_dir_all(dir.join("src")).expect("dir");
     let files = [
         ("util.hd", "pub fn double(v: i32) -> i32:\n    v * 2\n"),
@@ -417,7 +425,11 @@ fn json_mode_reports_a_command_error_as_a_diagnostic_with_no_code() {
 /// module, an integration test file, and a task.
 fn code_kinds(name: &str) -> Scratch {
     let dir = scratch(name);
-    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("write");
     let files = [
         (
             "src/lib.hd",
@@ -502,7 +514,11 @@ fn messages_name_test_and_task_code_by_file() {
 fn messages_name_doc_tests_library_view() {
     let dir = scratch("hd-check-doc-library-view");
     std::fs::create_dir_all(dir.join("src")).expect("dir");
-    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"app2\"\n").expect("write");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"app2\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("write");
     std::fs::write(
         dir.join("src/main.hd"),
         "## ```hd\n## use pkg.parse_version\n## pass\n## ```\n\
@@ -531,7 +547,10 @@ fn dev_dependencies_are_for_test_code_only() {
             "hd.toml",
             "[package]\nname = \"shop\"\n\n[dev-dependencies]\nfixtures = { path = \"fixtures\" }\n",
         ),
-        ("fixtures/hd.toml", "[package]\nname = \"fixtures\"\n"),
+        (
+            "fixtures/hd.toml",
+            "[package]\nname = \"fixtures\"\n\n[capabilities]\nConsole = true\n",
+        ),
         ("fixtures/src/lib.hd", "pub fn sample() -> i32:\n    2\n"),
         ("src/lib.hd", "pub fn double(v: i32) -> i32:\n    v * 2\n"),
         (
@@ -575,7 +594,10 @@ fn dev_dependencies_are_for_test_code_only() {
 fn a_folder_cycle_shows_its_loop_uses_tangle_and_fix() {
     let dir = scratch("hd-check-cycle-detail");
     for (file, text) in [
-        ("hd.toml", "[package]\nname = \"cyc\"\n"),
+        (
+            "hd.toml",
+            "[package]\nname = \"cyc\"\n\n[capabilities]\nConsole = true\n",
+        ),
         (
             "src/shop/mod.hd",
             "use pkg.cart.item\n\npub fn shop_name() -> string:\n    item()\n",
@@ -600,7 +622,10 @@ fn a_folder_cycle_shows_its_loop_uses_tangle_and_fix() {
     );
     let dir = scratch("hd-check-cycle-fix");
     for (file, text) in [
-        ("hd.toml", "[package]\nname = \"cyc\"\n"),
+        (
+            "hd.toml",
+            "[package]\nname = \"cyc\"\n\n[capabilities]\nConsole = true\n",
+        ),
         (
             "src/shop/mod.hd",
             "use pkg.cart.{cart}\n\npub fn shop() -> i32:\n    cart()\n",
@@ -631,7 +656,10 @@ fn a_folder_cycle_shows_its_loop_uses_tangle_and_fix() {
 fn a_folder_cycle_is_one_error_and_bodies_still_check() {
     let dir = scratch("hd-check-cycle");
     for (file, text) in [
-        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        (
+            "hd.toml",
+            "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+        ),
         (
             "src/a/x.hd",
             "use pkg.b.y.{two}\n\npub fn one() -> i32:\n    two() - 1\n",
@@ -688,7 +716,10 @@ fn an_unwritable_cache_warns_once_and_the_check_succeeds() {
 fn a_three_folder_tangle_is_one_folder_cycle() {
     let dir = scratch("hd-check-cycle-tangle");
     for (file, text) in [
-        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        (
+            "hd.toml",
+            "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+        ),
         (
             "src/a/x.hd",
             "use pkg.b.y.{two}\n\npub fn one() -> i32:\n    1\n",
@@ -718,7 +749,10 @@ fn a_three_folder_tangle_is_one_folder_cycle() {
 fn test_code_makes_no_folder_cycle() {
     let dir = scratch("hd-check-test-edges");
     for (file, text) in [
-        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        (
+            "hd.toml",
+            "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+        ),
         ("src/shop/cart.hd", "pub fn total() -> i32:\n    3\n"),
         (
             "src/testkit/kit.hd",
@@ -853,7 +887,10 @@ fn a_tested_script_prints_only_when_it_runs_whichever_runs_first() {
 #[test]
 fn package_scripts_check_as_they_run_whichever_runs_first() {
     let files = [
-        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        (
+            "hd.toml",
+            "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+        ),
         ("src/main.hd", CLEAN),
         ("tasks/greet.hd", SCRIPT),
         ("tool.hd", SCRIPT),
@@ -872,7 +909,10 @@ fn package_scripts_check_as_they_run_whichever_runs_first() {
         },
     );
     let files = [
-        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        (
+            "hd.toml",
+            "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+        ),
         ("src/main.hd", CLEAN),
         ("tasks/greet.hd", SCRIPT),
     ];
@@ -901,7 +941,10 @@ fn a_no_root_file_in_a_package_uses_only_std() {
     let tool = "use pkg.main\n\nprintln(\"tool\")\n";
     let tested = "tests:\n    it(\"runs\"):\n        pass\n\nuse pkg.main\n";
     let files = [
-        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        (
+            "hd.toml",
+            "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+        ),
         ("src/main.hd", CLEAN),
         ("tasks/greet.hd", SCRIPT),
         ("tool.hd", tool),
@@ -964,7 +1007,11 @@ fn a_format_flag_before_the_command_selects_json() {
 fn a_symlink_cycle_under_src_is_skipped() {
     let dir = scratch("hd-check-symlink-cycle");
     std::fs::create_dir_all(dir.join("src")).expect("src");
-    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("write");
     std::fs::write(dir.join("src/main.hd"), CLEAN).expect("write");
     std::os::unix::fs::symlink("..", dir.join("src/loop")).expect("symlink");
     let r = check(&dir, &[]);
@@ -1020,7 +1067,11 @@ fn a_warm_check_prints_before_it_publishes() {
     use std::io::Read as _;
     let dir = scratch("hd-check-print-then-publish");
     std::fs::create_dir_all(dir.join("src")).expect("src");
-    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("write");
     std::fs::write(dir.join("src/main.hd"), CLEAN).expect("write");
     let mut noisy = String::new();
     for i in 0..3000 {

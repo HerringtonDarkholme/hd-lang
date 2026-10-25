@@ -632,7 +632,11 @@ fn a_time_limit_in_a_fact_is_wrapped() {
 #[test]
 fn hd_build_takes_the_wasmtime_engine() {
     let dir = work("build-engine");
-    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("manifest");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\nEnv = true\nFsRead = true\n",
+    )
+    .expect("manifest");
     std::fs::create_dir_all(dir.join("src")).expect("src");
     std::fs::write(
         dir.join("src/main.hd"),
@@ -777,7 +781,7 @@ pub fn main!() -> void $ Console + Process:
 fn a_test_child_sees_its_command_environment_and_directory() {
     let dir = work("command-env-dir-test");
     for (path, content) in [
-        ("hd.toml", "[package]\nname = \"shop\"\n"),
+        ("hd.toml", "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\nEnv = true\nFsRead = true\n"),
         ("src/lib.hd", "pub fn rows() -> i32:\n    2\n"),
         ("kid/marker.txt", "from kid"),
         (

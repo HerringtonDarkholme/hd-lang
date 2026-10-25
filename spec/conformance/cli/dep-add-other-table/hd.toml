@@ -6,3 +6,6 @@ money = { path = "money" }
 
 [dev-dependencies]
 fixtures = { path = "fixtures" }
+
+[capabilities]
+Console = true

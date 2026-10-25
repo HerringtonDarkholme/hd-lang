@@ -1,0 +1,5 @@
+# Five missing grants must be fixed together within the bounded rounds.
+run: hd fix
+same-text: hd.toml want.toml
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

@@ -1,2 +1,5 @@
 [package]
 name = "app"
+
+[capabilities]
+Console = true

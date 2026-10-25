@@ -1,2 +1,6 @@
 [package]
 name = "console-pending"
+
+[capabilities]
+Console = true
+ConsoleInput = true

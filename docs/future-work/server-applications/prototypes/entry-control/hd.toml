@@ -3,3 +3,8 @@ name = "server_entry_control"
 
 [dependencies]
 model = { path = "../model" }
+
+[capabilities]
+Args = true
+Clock = true
+Console = true

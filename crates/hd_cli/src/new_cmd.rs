@@ -110,6 +110,9 @@ fn files(kind: Kind, name: &str, pages: bool) -> Vec<(String, String)> {
     )];
     match kind {
         Kind::App => {
+            out[0].1.push_str(
+                "\n[capabilities]\nConsole = true\nArgs = true\nClock = true\nRandom = true\n",
+            );
             out.push((
                 "src/main.hd".to_owned(),
                 "pub fn main() -> void $ Console:\n    println(\"hello, world\")\n".to_owned(),

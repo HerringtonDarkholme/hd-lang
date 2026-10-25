@@ -8,10 +8,10 @@ use std::ffi::OsString;
 use std::path::Path;
 
 use hd_diag::Code;
-use hd_project::{Grant, grant_problem};
+use hd_project::{Grant, SourceSet as _, grant_problem};
 use hd_run::{GrantValue, Grants};
 
-use crate::report::Diag;
+use crate::report::{Diag, Edit, Fix};
 
 /// One `--cap NAME=VALUE` flag (`cli.cap.flag`), as written and parsed.
 pub(crate) struct CapFlag {
@@ -60,6 +60,66 @@ fn parse_flag(value: &str) -> Result<CapFlag, String> {
         grant,
         text: format!("--cap {value}"),
     })
+}
+
+/// A package main must list every checked host requirement, even when
+/// its emitted module never imports a method of that capability.
+pub(crate) fn required(program: &crate::disk::Program, out: &hd_driver::Output) -> Vec<Diag> {
+    if program.single_file || program.package_dir.is_none() || out.main_capabilities.is_empty() {
+        return Vec::new();
+    }
+    let Some(bytes) = program.sources.read("hd.toml") else {
+        return Vec::new();
+    };
+    let Ok(text) = std::str::from_utf8(&bytes) else {
+        return Vec::new();
+    };
+    let manifest = match hd_project::parse_manifest(text) {
+        Ok(m) => m,
+        Err(error) => {
+            return vec![
+                Diag::error(Some(Code::InvalidManifest), &error.message)
+                    .at("hd.toml", error.at.map(|p| p.0 as usize)),
+            ];
+        }
+    };
+    let missing: Vec<_> = out
+        .main_capabilities
+        .iter()
+        .filter(|need| {
+            !manifest
+                .capabilities
+                .iter()
+                .any(|(key, grant, _)| grant.is_some() && need.selectors.contains(key))
+        })
+        .collect();
+    let keys: Vec<_> = missing
+        .iter()
+        .map(|need| need.selectors[0].clone())
+        .collect();
+    let fix = hd_project::capability_insertion(text, &keys).map(|(at, text)| Fix {
+        message: "list the missing capabilities in hd.toml".to_owned(),
+        exact: true,
+        edits: vec![Edit {
+            file: "hd.toml".to_owned(),
+            start: at,
+            end: at,
+            text,
+        }],
+    });
+    missing.into_iter().map(|need| {
+        let row = out.texts[need.span.file.idx()].get(need.span.lo as usize..need.span.hi as usize).unwrap_or("").split_whitespace().collect::<Vec<_>>().join(" ");
+        let mut diag = Diag::error(Some(Code::MissingCapability), &format!("`main` requires `{}` in `{row}`, but `[capabilities]` in hd.toml does not list it", need.selectors[0]));
+        let (file, line, column) = out.locate(need.span);
+        let (_, end_line, end_column) = out.locate(hd_base::Span { lo: need.span.hi, ..need.span });
+        diag.file = Some(file);
+        diag.line = Some(line);
+        diag.column = Some(column);
+        diag.end_line = Some(end_line);
+        diag.end_column = Some(end_column);
+        diag.fixes.extend(fix.clone());
+        diag
+    }).collect()
 }
 
 /// The refusal of a module whose needs include a totally denied trait

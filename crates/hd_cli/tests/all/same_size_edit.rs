@@ -13,7 +13,11 @@ const MAIN: &str =
 fn package(name: &str, price: &str) -> Scratch {
     let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
     std::fs::create_dir_all(root.join("src")).expect("src");
-    std::fs::write(root.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("hd.toml");
+    std::fs::write(
+        root.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("hd.toml");
     std::fs::write(root.join("src/main.hd"), MAIN).expect("main");
     std::fs::write(root.join("src/price.hd"), price).expect("price");
     root

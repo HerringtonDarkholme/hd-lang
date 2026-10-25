@@ -5,4 +5,5 @@ name = "host_probe"
 "main.Server" = "provider.mjs"
 
 [capabilities]
+Console = true
 "pkg.main.Server" = false

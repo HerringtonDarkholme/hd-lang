@@ -3,3 +3,6 @@ name = "shop"
 
 [dependencies]
 json = "github.com/acme/json@2.3.1-0.20260921151320-cb7e77231b8d"
+
+[capabilities]
+Console = true

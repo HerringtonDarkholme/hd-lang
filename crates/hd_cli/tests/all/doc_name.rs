@@ -38,13 +38,16 @@ fn a_dependency_name_finds_only_its_pub_items() {
         &[
             (
                 "hd.toml",
-                "[package]\nname = \"shop\"\n\n[dependencies]\nmoney = { path = \"money\" }\n",
+                "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\nmoney = { path = \"money\" }\n",
             ),
             (
                 "src/main.hd",
                 "use dep.money.{cents}\n\npub fn main() -> void $ Console:\n    println(cents(12))\n",
             ),
-            ("money/hd.toml", "[package]\nname = \"money\"\n"),
+            (
+                "money/hd.toml",
+                "[package]\nname = \"money\"\n\n[capabilities]\nConsole = true\n",
+            ),
             (
                 "money/src/lib.hd",
                 "## Money helpers.\n\n## Turns euros into cents.\npub fn cents(euros: i32) -> i32:\n    euros * 100\n\nfn helper() -> i32: 1\n",
@@ -94,7 +97,10 @@ fn a_std_name_prints_the_lib_std_declaration() {
     write(
         &root,
         &[
-            ("hd.toml", "[package]\nname = \"shop\"\n"),
+            (
+                "hd.toml",
+                "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+            ),
             ("src/lib.hd", "pub fn one() -> i32: 1\n"),
         ],
     );

@@ -284,6 +284,7 @@ impl Program {
     pub fn packages(&self) -> Packages<'_> {
         Packages {
             host_packages: self.host_packages.clone(),
+            main_capabilities: true,
             instruction_origins: false,
             checked: false,
             requires: self.requires.clone(),

@@ -1,2 +1,5 @@
 [package]
 name = "server_config_control"
+
+[capabilities]
+Console = true

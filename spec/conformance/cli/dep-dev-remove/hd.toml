@@ -3,3 +3,6 @@ name = "app"
 
 [dev-dependencies]
 fixtures = "github.com/acme/fixtures@1.0.0"
+
+[capabilities]
+Console = true

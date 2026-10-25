@@ -1,0 +1,3 @@
+use std.process.{Process as Spawn}
+pub fn main() -> void $ Spawn + Console:
+    println("guest started")

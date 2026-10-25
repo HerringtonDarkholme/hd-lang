@@ -1,2 +1,5 @@
 [package]
 name = "shapes_demo"
+
+[capabilities]
+Console = true

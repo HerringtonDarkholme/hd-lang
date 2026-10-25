@@ -3,3 +3,6 @@ name = "shop"
 
 [dependencies]
 money = "github.com/acme/money@1.0.0"
+
+[capabilities]
+Console = true

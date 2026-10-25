@@ -375,7 +375,11 @@ fn scratch(name: &str) -> Scratch {
 /// A package `shop` with one executable (`main.hd`) and one task (`seed`).
 fn shop(name: &str) -> Scratch {
     let dir = scratch(name);
-    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("write");
     std::fs::write(
         dir.join("main.hd"),
         "pub fn main() -> void $ Console:\n    println(\"main\")\n",
@@ -929,14 +933,14 @@ fn a_grant_must_name_a_host_trait_and_fit_its_kind() {
     }
     std::fs::write(
         dir.join("hd.toml"),
-        "[package]\nname = \"shop\"\n\n[capabilities]\nTime = true\n",
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\nTime = true\n",
     )
     .expect("write");
     let r = ran(&dir, &["run"]);
     assert_eq!(r.code, Some(101));
     assert!(
         r.err.starts_with(
-            "error: hd.toml:5:1: invalid-manifest: `Time` is no host capability trait"
+            "error: hd.toml:6:1: invalid-manifest: `Time` is no host capability trait"
         ),
         "{}",
         r.err
@@ -965,7 +969,7 @@ fn executable_tables_name_their_entry_modules() {
         &[
             (
                 "hd.toml",
-                "[package]\nname = \"shop\"\n\n[[executable]]\nname = \"migrate\"\nmodule = \"tools.migrate\"\n",
+                "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n\n[[executable]]\nname = \"migrate\"\nmodule = \"tools.migrate\"\n",
             ),
             (
                 "src/tools/migrate.hd",
@@ -995,11 +999,20 @@ fn a_workspace_root_acts_on_its_members() {
         "hd-forms-workspace",
         &[
             ("hd.toml", "[workspace]\nmembers = [\"app\", \"lib\"]\n"),
-            ("app/hd.toml", "[package]\nname = \"app\"\n"),
+            (
+                "app/hd.toml",
+                "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n",
+            ),
             ("app/src/main.hd", HELLO),
-            ("lib/hd.toml", "[package]\nname = \"lib\"\n"),
+            (
+                "lib/hd.toml",
+                "[package]\nname = \"lib\"\n\n[capabilities]\nConsole = true\n",
+            ),
             ("lib/src/lib.hd", "pub fn one() -> i32:\n    missing\n"),
-            ("loose/hd.toml", "[package]\nname = \"loose\"\n"),
+            (
+                "loose/hd.toml",
+                "[package]\nname = \"loose\"\n\n[capabilities]\nConsole = true\n",
+            ),
             ("loose/src/main.hd", HELLO),
         ],
     );
@@ -1051,7 +1064,11 @@ fn a_program_leaves_test_code_out() {
 /// A package `app` with a library, `src/main.hd`, and the given files.
 fn app(name: &str, files: &[(&str, &str)]) -> Scratch {
     let dir = scratch(name);
-    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"app\"\n").expect("write");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("write");
     let mut all = vec![(
         "src/main.hd",
         "pub fn main() -> void $ Console:\n    println(\"main\")\n",
@@ -1238,6 +1255,17 @@ fn new_creates_a_package_and_joins_its_workspace() {
         "[workspace]\nmembers = [\"old\", \"my-app\"]\n"
     );
     assert!(dir.join("my-app/tests/my_app.hd").is_file());
+    let manifest =
+        hd_project::parse_manifest(&std::fs::read_to_string(dir.join("my-app/hd.toml")).unwrap())
+            .unwrap();
+    for key in ["Console", "Args", "Clock", "Random"] {
+        assert!(
+            manifest
+                .capabilities
+                .iter()
+                .any(|(name, value, _)| name == key && *value == Some(hd_project::Grant::All))
+        );
+    }
     let r = ran(&dir.join("my-app"), &["run"]);
     assert_eq!(
         (r.code, r.out.as_str()),
@@ -1259,7 +1287,11 @@ fn clean_cache_empties_only_an_hd_cache() {
     let cache = dir.join("cache");
     let version = cache.join("pkg/github.com/acme/json@2.1.0");
     std::fs::create_dir_all(version.join("src")).expect("dir");
-    std::fs::write(version.join("hd.toml"), "[package]\nname = \"json\"\n").expect("write");
+    std::fs::write(
+        version.join("hd.toml"),
+        "[package]\nname = \"json\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("write");
     std::fs::create_dir_all(cache.join("obj/check")).expect("dir");
     #[cfg(unix)]
     {
@@ -1310,7 +1342,7 @@ fn remove_deletes_a_requirement_line_by_line() {
         &[
             (
                 "hd.toml",
-                "[package]\nname = \"app\"  # mine\n\n[dependencies]\nmoney = { path = \"money\" }\n\n[dev-dependencies]\njson = \"github.com/acme/json@2.1.0\"\n",
+                "[package]\nname = \"app\"  # mine\n\n[capabilities]\nConsole = true\n\n[dependencies]\nmoney = { path = \"money\" }\n\n[dev-dependencies]\njson = \"github.com/acme/json@2.1.0\"\n",
             ),
             (
                 "hd.sum",
@@ -1318,7 +1350,10 @@ fn remove_deletes_a_requirement_line_by_line() {
                     "github.com/acme/json@2.1.0 {H}\ngithub.com/acme/json@2.1.0/hd.toml {H}\ngithub.com/acme/yaml@1.0.0 {H}\n"
                 ),
             ),
-            ("money/hd.toml", "[package]\nname = \"money\"\n"),
+            (
+                "money/hd.toml",
+                "[package]\nname = \"money\"\n\n[capabilities]\nConsole = true\n",
+            ),
             ("money/src/lib.hd", "pub fn one() -> i32:\n    1\n"),
             ("src/main.hd", HELLO),
         ],
@@ -1327,7 +1362,7 @@ fn remove_deletes_a_requirement_line_by_line() {
     assert_eq!(r.code, Some(0), "{}", r.err);
     assert_eq!(
         std::fs::read_to_string(dir.join("hd.toml")).expect("read"),
-        "[package]\nname = \"app\"  # mine\n\n[dependencies]\nmoney = { path = \"money\" }\n"
+        "[package]\nname = \"app\"  # mine\n\n[capabilities]\nConsole = true\n\n[dependencies]\nmoney = { path = \"money\" }\n"
     );
     // Tidy keeps one entry per selected version and read manifest, and no
     // other: nothing is selected now, so not even yaml's line stays.
@@ -1350,9 +1385,12 @@ fn fetch_with_path_requirements_only_has_nothing_to_do() {
         &[
             (
                 "hd.toml",
-                "[package]\nname = \"shop\"\n\n[dependencies]\nmoney = { path = \"money\" }\n",
+                "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\nmoney = { path = \"money\" }\n",
             ),
-            ("money/hd.toml", "[package]\nname = \"money\"\n"),
+            (
+                "money/hd.toml",
+                "[package]\nname = \"money\"\n\n[capabilities]\nConsole = true\n",
+            ),
             ("money/src/lib.hd", "pub fn one() -> i32:\n    1\n"),
             ("src/main.hd", HELLO),
         ],
@@ -1363,7 +1401,7 @@ fn fetch_with_path_requirements_only_has_nothing_to_do() {
     assert!(!dir.join("hd.sum").exists());
     std::fs::write(
         dir.join("hd.toml"),
-        "[package]\nname = \"shop\"\n\n[dependencies]\njson = \"github.com/acme/json@2.1.0\"\n",
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\njson = \"github.com/acme/json@2.1.0\"\n",
     )
     .expect("write");
     // The remote is unreachable at once: both its URLs map to a missing path.
@@ -1417,7 +1455,10 @@ fn fmt_formats_the_package_and_leaves_broken_files_alone() {
     let dir = tree(
         "hd-forms-fmt",
         &[
-            ("hd.toml", "[package]\nname = \"shop\"\n"),
+            (
+                "hd.toml",
+                "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+            ),
             (
                 "src/main.hd",
                 "pub fn main() -> void $ Console:   \n    println(\"hi\")\n\n\n",
@@ -1456,7 +1497,10 @@ fn test_file_links_only_what_it_uses_and_skips_untested_entries() {
     let dir = tree(
         "hd-forms-test-scope",
         &[
-            ("hd.toml", "[package]\nname = \"shop\"\n"),
+            (
+                "hd.toml",
+                "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+            ),
             (
                 "src/util.hd",
                 "pub fn double(v: i32) -> i32:\n    v * 2\n\ntests:\n    use std.testing.assert_equal\n\n    it(\"doubles\"):\n        assert_equal(double(2), 4, reason=\"d\")\n",
@@ -1486,7 +1530,10 @@ fn test_takes_cap_flags() {
     let dir = tree(
         "hd-forms-test-cap",
         &[
-            ("hd.toml", "[package]\nname = \"shop\"\n"),
+            (
+                "hd.toml",
+                "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+            ),
             (
                 "src/lib.hd",
                 "pub fn one() -> i32:\n    1\n\ntests:\n    it(\"is one\"):\n        pass\n",
@@ -1508,9 +1555,15 @@ fn p_selects_workspace_members_from_anywhere() {
         "hd-forms-select",
         &[
             ("hd.toml", "[workspace]\nmembers = [\"app\", \"lib\"]\n"),
-            ("app/hd.toml", "[package]\nname = \"app\"\n"),
+            (
+                "app/hd.toml",
+                "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n",
+            ),
             ("app/src/main.hd", HELLO),
-            ("lib/hd.toml", "[package]\nname = \"lib\"\n"),
+            (
+                "lib/hd.toml",
+                "[package]\nname = \"lib\"\n\n[capabilities]\nConsole = true\n",
+            ),
             ("lib/src/lib.hd", "pub fn one() -> i32:\n    missing\n"),
         ],
     );
@@ -1538,11 +1591,14 @@ fn run_workspace(name: &str) -> Scratch {
             ("hd.toml", "[workspace]\nmembers = [\"web\", \"api\"]\n"),
             (
                 "web/hd.toml",
-                "[package]\nname = \"web\"\n\n[[executable]]\nname = \"serve\"\nmodule = \"serve\"\n",
+                "[package]\nname = \"web\"\n\n[capabilities]\nConsole = true\n\n[[executable]]\nname = \"serve\"\nmodule = \"serve\"\n",
             ),
             ("web/src/serve.hd", &say("serving")),
             ("web/tasks/seed.hd", &say("seeded web")),
-            ("api/hd.toml", "[package]\nname = \"api\"\n"),
+            (
+                "api/hd.toml",
+                "[package]\nname = \"api\"\n\n[capabilities]\nConsole = true\n",
+            ),
             ("api/tasks/seed.hd", &say("seeded api")),
             ("api/tasks/audit.hd", &say("audited")),
         ],
@@ -1661,7 +1717,7 @@ fn source_root_moves_the_modules_and_paths_stay_as_on_disk() {
         &[
             (
                 "hd.toml",
-                "[package]\nname = \"shop\"\n\n[source]\nroot = \"code\"\n",
+                "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n\n[source]\nroot = \"code\"\n",
             ),
             (
                 "code/main.hd",
@@ -1771,4 +1827,120 @@ fn programs_without_host_calls_instantiate() {
         );
         assert_eq!(String::from_utf8_lossy(&output.stdout), "", "{name}");
     }
+}
+
+/// `cli.cap.table.required-unused`: checked row needs survive dead code and
+/// command-line flags cannot substitute for an explicit package grant.
+#[test]
+fn a_package_main_lists_an_unused_capability_and_fixes_its_manifest() {
+    let source = "use std.process.{Process as Spawn}\npub fn main() -> void $ Spawn + Console:\n    println(\"guest started\")\n";
+    let dir = tree(
+        "required-cap-unused",
+        &[
+            (
+                "hd.toml",
+                "[package]\nname=\"shop\"\n[capabilities]\nConsole=true\n",
+            ),
+            ("src/main.hd", source),
+        ],
+    );
+    for args in [
+        vec!["check", "--format", "json"],
+        vec!["run", "--format", "json"],
+        vec!["run", "--format", "json", "--cap", "Process=true"],
+    ] {
+        let r = ran(&dir, &args);
+        assert_eq!(r.code, Some(101), "{}{}", r.out, r.err);
+        let diagnostics = format!("{}{}", r.out, r.err);
+        assert!(diagnostics.contains("missing-capability"), "{diagnostics}");
+        assert!(diagnostics.contains("$ Spawn + Console"), "{diagnostics}");
+        assert!(diagnostics.contains("Process = true"), "{diagnostics}");
+        if args[0] == "run" {
+            assert!(r.out.is_empty(), "the guest must not start");
+        }
+    }
+    let r = ran(&dir, &["fix"]);
+    assert_eq!(r.code, Some(0), "{}{}", r.out, r.err);
+    assert!(
+        std::fs::read_to_string(dir.join("hd.toml"))
+            .unwrap()
+            .contains("Process = true")
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("src/main.hd")).unwrap(),
+        source
+    );
+    let r = ran(&dir, &["run"]);
+    assert_eq!(
+        (r.code, r.out.as_str()),
+        (Some(0), "guest started\n"),
+        "{}",
+        r.err
+    );
+}
+
+/// One combined insertion fixes more needs than the command's round bound.
+#[test]
+fn required_capabilities_are_fixed_together_without_changing_denials() {
+    let dir = tree(
+        "required-cap-many",
+        &[
+            (
+                "hd.toml",
+                "[package]\nname=\"shop\"\n[capabilities]\nProcess=false\n",
+            ),
+            (
+                "src/main.hd",
+                "use std.host.Args\nuse std.time.Clock\nuse std.random.Random\nuse std.http.Http\nuse std.process.Process\npub fn main() -> void $ Console + Args + Clock + Random + Http + Process: pass\n",
+            ),
+        ],
+    );
+    let r = ran(&dir, &["fix"]);
+    assert_eq!(r.code, Some(0), "{}{}", r.out, r.err);
+    assert!(r.err.contains("fixed: 1; errors: 0"), "{}", r.err);
+    let manifest =
+        hd_project::parse_manifest(&std::fs::read_to_string(dir.join("hd.toml")).unwrap()).unwrap();
+    assert_eq!(manifest.capabilities.len(), 6);
+    assert!(
+        manifest
+            .capabilities
+            .iter()
+            .any(|(name, value, _)| name == "Process" && *value == Some(hd_project::Grant::Deny))
+    );
+    assert_eq!(ran(&dir, &["check"]).code, Some(0));
+}
+
+#[test]
+fn missing_package_capability_fix_uses_its_nominal_path() {
+    let dir = tree(
+        "required-cap-package",
+        &[
+            (
+                "hd.toml",
+                "[package]\nname=\"shop\"\n[host]\n\"main.Server\"=\"provider.mjs\"\n",
+            ),
+            (
+                "src/main.hd",
+                "@host\npub trait Server:\n    fn read(&self) -> string\npub fn main() -> void $ Server: pass\n",
+            ),
+            (
+                "provider.mjs",
+                "throw new Error('checking must not load this provider');\n",
+            ),
+        ],
+    );
+    let r = ran(&dir, &["check", "--format", "json"]);
+    assert_eq!(r.code, Some(101), "{}{}", r.out, r.err);
+    assert!(
+        r.out.contains("missing-capability") && r.out.contains("pkg.main.Server"),
+        "{}",
+        r.out
+    );
+    let r = ran(&dir, &["fix"]);
+    assert_eq!(r.code, Some(0), "{}{}", r.out, r.err);
+    let manifest =
+        hd_project::parse_manifest(&std::fs::read_to_string(dir.join("hd.toml")).unwrap()).unwrap();
+    assert!(manifest.capabilities.iter().any(
+        |(name, value, _)| name == "pkg.main.Server" && *value == Some(hd_project::Grant::All)
+    ));
 }
