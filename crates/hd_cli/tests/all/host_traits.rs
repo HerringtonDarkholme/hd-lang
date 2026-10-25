@@ -872,6 +872,8 @@ fn server_sdk_main_keeps_state_and_serves_concurrent_requests() {
             "--test",
             "packages/server-sdk/test/node.test.mjs",
             "packages/server-sdk/test/provider.test.mjs",
+            "packages/server-sdk/test/dispatcher.test.mjs",
+            "packages/server-sdk/test/application.test.mjs",
         ])
         .env("HD_SDK_TEST_HD", env!("CARGO_BIN_EXE_hd"))
         .current_dir(root)

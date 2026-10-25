@@ -67,3 +67,42 @@ These names are also re-exported from the package's root module.
 > handler's fallback timeout. The existing timeout combinator bounds
 > cleanup when the local cancellation race or an outer cancellation wins.
 > A CPU-bound handler or cleanup still needs platform interruption.
+
+## JavaScript Lease Dispatcher
+
+The SDK adapter keeps native I/O in each request's owning coroutine while
+the retained guest shares synchronous driver turns.
+
+1. r[std-server-sdk.dispatch.open] `createLeaseDispatcher` creates generation-tagged leases with monotonically increasing request sequences.
+2. r[std-server-sdk.dispatch.owner] A lease's `run()` coroutine owns native operation starts and disposal.
+3. r[std-server-sdk.dispatch.poll] Polling another request's guest work queues its native operations for their owning lease.
+4. r[std-server-sdk.dispatch.pending] `operation(context, start)` returns readiness through the package provider's existing `context.pending` interface.
+5. r[std-server-sdk.dispatch.abort] Aborting before an operation starts prevents its native I/O.
+6. r[std-server-sdk.dispatch.late] Completions after disposal or lease finish must not wake a later request.
+7. r[std-server-sdk.dispatch.copy] `respond` copies response bytes and header pairs before guest lease release.
+8. r[std-server-sdk.dispatch.ack] `run()` publishes the response only after the worker acknowledges cleanup through `finish`.
+9. r[std-server-sdk.dispatch.failure] Instance failure rejects active requests after their queued native disposal runs in their respective owners.
+10. r[std-server-sdk.dispatch.poison] A failed dispatcher rejects new requests.
+11. r[std-server-sdk.dispatch.cancel] Cancellation records the first reason for its lease without cancelling other leases.
+
+> **Why.** A platform may cancel I/O started in another completed request.
+> Only readiness and copied data cross shared guest turns; native I/O stays
+> with the request that awaits it.
+
+## JavaScript Application Adapter
+
+`adapters/application.mjs` connects the dispatcher to an ordinary compiled
+SDK application through public runtime and generated binding modules.
+
+1. r[std-server-sdk.application.inputs] `createApplication` takes a Wasm module, generated bindings, `createCoreHost`, explicit grants, and an output sink.
+2. r[std-server-sdk.application.source] The adapter requires exactly one root package capability named `server.HttpServer` with an explicitly granted selector.
+3. r[std-server-sdk.application.driver] The adapter drives its retained instance through serialized synchronous `createDriver().step()` turns.
+4. r[std-server-sdk.application.values] `dispatch(request, signal)` accepts an HD request value and returns response, cancellation, and cleanup-abandonment values.
+5. r[std-server-sdk.application.signal] Aborting the supplied signal requests lease-local `Disconnected` cancellation.
+6. r[std-server-sdk.application.clock] The source clock queues timer creation and disposal in its request's owning coroutine.
+7. r[std-server-sdk.application.stop] `stop()` closes admission and ends idle workers while admitted requests finish.
+8. r[std-server-sdk.application.fail] `fail(error)` poisons the instance and closes its core host.
+
+> **Note.** This adapter exchanges plain values. Platform HTTP mapping,
+> outgoing fetch grants, admission limits, supervision and deployment
+> packaging are separate layers.
