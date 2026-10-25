@@ -1144,6 +1144,13 @@ pub trait Process:
 15. r[module.process.mut-ref] `run!` takes `&mut self`, so `Process` is a mutable requirement trait, as `Console` is, `$.use(Process)` is a `&mut dyn Process`, and a provider may record what it runs.
 16. r[module.process.names] `Process`, `Command`, `ProcessOutput`, and `ProcessError` are not prelude names; code imports them from `std.process`.
 17. r[module.process.output-program] A provider fills `ProcessOutput.program` from the command's `program` field.
+18. r[module.process.node.windows-launcher] A Windows Node host requires an explicit `processLauncher` path to an `hd` executable for its `Process` provider.
+19. r[module.process.node.windows-no-launcher] Without that path, `run!` returns `.Err(ProcessError.Other(message))` with a message naming the missing `processLauncher`.
+20. r[module.process.node.windows-job] The Windows Node host assigns a child to its Job before the child's first instruction.
+
+> **Why.** The Job retains descendants after their parent exits, so cancellation
+> can kill them. Standalone embeddings supply the launcher explicitly.
+
 
 A scripted provider answers each program from a table:
 

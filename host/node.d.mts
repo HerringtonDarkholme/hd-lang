@@ -9,6 +9,8 @@ export type { Host, Session, Sink } from "./core.mjs";
 export interface HostEnv extends CoreEnv {
   /** A file descriptor, or `null` for a closed standard input. */
   stdin?: number | null;
+  /** Explicit hd executable used for Windows Process Job ownership. */
+  processLauncher?: string;
   tempDir?: string;
   snapshot?: { dir: string; shown?: string; slug: string; update: boolean };
   programs?: Record<string, { host: string; wasm: string; config: string; cwd: string }>;

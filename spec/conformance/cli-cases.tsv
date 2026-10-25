@@ -210,6 +210,7 @@ script-top-level-try	cli.file.run,cli.exit.program,cli.host.script-binding,cli.h
 script-grant-no-manifest	cli.file.run,cli.host.script-binding,cli.cap.source.flags-only,cli.cap.order.default,cli.host.default-profile.granted
 script-grant-package	cli.file.run,cli.host.script-binding,cli.cap.source.production,cli.cap.value.list,cli.cap.partial.refuse,cli.cap.order.deny,cli.cap.flag.commands,cli.cap.total.refuse,cli.cap.total.status
 test-command-env-dir	cli.test.process.tasks
+process-cancel-successor	cli.host.process.windows-launcher,cli.test.process
 process-pending	cli.host.default-profile.granted,cli.test.process
 process-unread-stdin	cli.test.program
 exit-entry-cancelled	cli.cancel.flag,cli.limit.forms,cli.cancel.end,cli.cancel.status,cli.exit.cancelled,cli.test.cancelled,cli.exit.test-failure

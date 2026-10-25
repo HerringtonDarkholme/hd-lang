@@ -531,11 +531,12 @@ pub struct TestEnv<'a> {
 /// each case's.
 fn host_config(env: &TestEnv<'_>, cases: &[HostCase]) -> String {
     let programs = env.programs.map_or("null", |p| p.json.as_str());
+    let launcher = process_launcher();
     let limit = env
         .wall_ms
         .map_or(String::new(), |ms| format!("\"timeLimitMs\":{ms},"));
     let mut out = format!(
-        "{{\"program\":{},\"args\":[],{limit}\"programs\":{programs},\"cases\":[",
+        "{{\"program\":{},\"args\":[],{limit}\"programs\":{programs}{launcher},\"cases\":[",
         quote(env.program)
     );
     for (i, c) in cases.iter().enumerate() {
@@ -613,6 +614,19 @@ impl Programs {
     }
 }
 
+/// Windows Node processes receive the launcher explicitly; the standalone
+/// JS host never searches PATH or compiler caches for one.
+fn process_launcher() -> String {
+    #[cfg(windows)]
+    if let Ok(executable) = std::env::current_exe() {
+        return format!(
+            ",\"processLauncher\":{}",
+            quote(&executable.to_string_lossy())
+        );
+    }
+    String::new()
+}
+
 /// The run host's configuration (`run.mjs`): the program's `Args.program`,
 /// its grant, its time limit and its Ctrl-C's cleanup bound in
 /// milliseconds, and, for `hd run`, the files where it writes the frames
@@ -623,6 +637,7 @@ fn run_config(
     (wall_ms, cleanup_ms): (Option<u64>, Option<u64>),
     files: Option<(&Path, &Path)>,
 ) -> String {
+    let launcher = process_launcher();
     let mut limit = wall_ms.map_or(String::new(), |ms| format!(",\"timeLimitMs\":{ms}"));
     if let Some(ms) = cleanup_ms {
         let _ = write!(limit, ",\"cleanupMs\":{ms}");
@@ -637,7 +652,7 @@ fn run_config(
         )
     });
     format!(
-        "{{\"program\":{},\"grants\":{}{limit}{files}}}",
+        "{{\"program\":{},\"grants\":{}{limit}{files}{launcher}}}",
         quote(program),
         grants_json(grants)
     )
@@ -889,7 +904,7 @@ mod tests {
 
     use hd_run::{Grants, Limit};
 
-    use super::{HostCase, Snapshot, TestEnv, host_config, parse_case, read_results};
+    use super::{HostCase, Snapshot, TestEnv, host_config, parse_case, quote, read_results};
 
     /// Each case ends once (#161): the host's stream that once reported a
     /// time-limit cut twice is an error, never `2 of 1 cases`.
@@ -952,10 +967,18 @@ mod tests {
         // `Path::join` writes the platform separator after the root, so
         // Windows has `/pkg\__snapshots__` (JSON-escaped below).
         let sep = if cfg!(windows) { r"\\" } else { "/" };
+        let launcher = if cfg!(windows) {
+            format!(
+                ",\"processLauncher\":{}",
+                quote(&std::env::current_exe().unwrap().to_string_lossy())
+            )
+        } else {
+            String::new()
+        };
         assert_eq!(
             host_config(&env, &cases),
             format!(
-                r#"{{"program":"tests/report.hd","args":[],"timeLimitMs":300,"programs":null,"cases":[{{"test":2,"init":1,"kind":"it_prop","tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{{"Console":false,"FsWrite":["/tmp/a\"b"]}},"snapshot":{{"dir":"/pkg{sep}__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false}},"regression":{{"file":"/pkg{sep}__regressions__/tests.report/sums-prices","shown":"__regressions__/tests.report/sums-prices"}}}}]}}"#
+                r#"{{"program":"tests/report.hd","args":[],"timeLimitMs":300,"programs":null{launcher},"cases":[{{"test":2,"init":1,"kind":"it_prop","tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{{"Console":false,"FsWrite":["/tmp/a\"b"]}},"snapshot":{{"dir":"/pkg{sep}__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false}},"regression":{{"file":"/pkg{sep}__regressions__/tests.report/sums-prices","shown":"__regressions__/tests.report/sums-prices"}}}}]}}"#
             )
         );
     }

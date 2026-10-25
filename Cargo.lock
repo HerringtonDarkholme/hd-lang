@@ -683,8 +683,11 @@ dependencies = [
  "hd_syntax",
  "hd_testkit",
  "nix",
+ "process-wrap",
  "rustyline",
+ "serde_json",
  "signal-hook",
+ "tokio",
 ]
 
 [[package]]

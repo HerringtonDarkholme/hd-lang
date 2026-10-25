@@ -143,6 +143,7 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
   }
   const profile = config.profile ? await import("./profiles.mjs") : null;
   const host = createHost(sink, {
+    processLauncher: config.processLauncher,
     module,
     args,
     program: config.program ?? "",

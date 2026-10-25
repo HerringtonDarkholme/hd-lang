@@ -950,7 +950,10 @@ test("the shared HTTP adapter preserves synchronous browser-style answers", () =
 
 // #812: real children live on a worker even when the guest uses rt.block.
 function processHost(t, env) {
-  const api = netHost(t, "hd:Process", env);
+  const api = netHost(t, "hd:Process", {
+    processLauncher: process.env.HD_PROCESS_LAUNCHER,
+    ...env,
+  });
   const run = (script, options = {}) =>
     api.call("run", {
       program: process.execPath,
@@ -1050,7 +1053,8 @@ function processWorker(t) {
       args: ["-e", script],
       cwd: process.cwd(),
       env: {},
-      input: new Uint8Array(),
+      input: "",
+      launcher: process.env.HD_PROCESS_LAUNCHER,
       timeout: Infinity,
       ...more,
     }).ok;

@@ -1,0 +1,9 @@
+[package]
+name = "process-cancel-successor"
+
+[capabilities]
+Clock = true
+Console = true
+
+[dev-capabilities]
+Process = true

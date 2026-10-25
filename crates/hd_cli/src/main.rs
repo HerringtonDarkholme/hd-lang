@@ -19,6 +19,8 @@ mod new_cmd;
 mod node;
 #[cfg(test)]
 mod pipeline_tests;
+#[cfg(windows)]
+mod process_job;
 mod repl;
 mod report;
 mod snapshot_update;
@@ -73,6 +75,13 @@ fn usage() -> ExitCode {
 }
 
 fn main() -> ExitCode {
+    #[cfg(windows)]
+    if std::env::args_os()
+        .nth(1)
+        .is_some_and(|arg| arg == "--process-job")
+    {
+        return process_job::run();
+    }
     let arguments = format_after_command(std::env::args_os().skip(1).collect());
     let Some(command) = arguments.first().and_then(|c| c.to_str()) else {
         // `cli.repl.open.terminal`: `hd` with no arguments on a terminal

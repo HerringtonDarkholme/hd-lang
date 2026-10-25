@@ -591,7 +591,31 @@ pub fn run_node(
         .join(",");
     let config = scratch.at("run.json");
     let file = scratch.at("program.wasm");
-    fs::write(&config, format!("{{\"grants\":{{{grants}}}}}")).unwrap();
+    // This embedding supplies the launcher explicitly; the public Node
+    // host itself never discovers an executable. CLI integration tests
+    // build hd beside this test target before the Windows parity pass.
+    #[cfg(windows)]
+    let launcher = {
+        let executable = std::env::current_exe().unwrap();
+        let hd = executable
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("hd.exe");
+        assert!(
+            hd.is_file(),
+            "build hd_cli before Windows process parity: {}",
+            hd.display()
+        );
+        format!(
+            ",\"processLauncher\":{}",
+            json_string(&hd.to_string_lossy())
+        )
+    };
+    #[cfg(not(windows))]
+    let launcher = "";
+    fs::write(&config, format!("{{\"grants\":{{{grants}}}{launcher}}}")).unwrap();
     fs::write(&file, wasm).unwrap();
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")

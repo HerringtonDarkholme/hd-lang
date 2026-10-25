@@ -1,0 +1,2 @@
+run: hd test --format json --time-limit 15s
+stdout-json: [{"kind":"test","name":"a process still runs after cancellation of its predecessor","outcome":"passed"},{"kind":"summary","passed":1,"failed":0,"status":0}]

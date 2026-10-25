@@ -105,6 +105,7 @@ class Runner {
         args: this.config.args,
         program: this.config.program,
         programs: this.config.programs ?? null,
+        processLauncher: this.config.processLauncher,
         stdin: null,
         grants: c.grants,
         tempDir: dir,
