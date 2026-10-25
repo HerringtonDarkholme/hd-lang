@@ -8,9 +8,13 @@
 //! object holding its value, and every holder keeps the cell's address.
 
 use crate::op::Op as I;
+use hd_base::HashSet;
 use hd_base::{Hash128, HashMap, NodeIdx, StageResult};
 use hd_mono::Target;
-use hd_tir::ir::{Body, CaptureMode, NONE, Tag, local_flags, sub_flags};
+use hd_tir::ir::{
+    Body, CaptureMode, NONE, PlaceRoot, ReadMode, Role, Tag, Topology, Word, local_flags, ref_word,
+    slots, sub_flags,
+};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -67,6 +71,117 @@ pub(super) fn cell_locals(b: &Body, roots: &[usize]) -> HashMap<usize, u32> {
         }
     }
     cells
+}
+
+/// The locals of `roots` that live in a slot of the function's frame on
+/// the local stack, not in a counted cell (`crates/hd_wasm_linear/DESIGN.md`
+/// §23.38): those whose every `Ref` makes a local reference
+/// (`ref_word::LOCAL`, so no counted `*T` is made of it) that is an
+/// argument of one call, `Call`, `CallValue` or `CallDyn` (never a bang
+/// call's `Await`), and whose `Drop`, if any, follows in the same block,
+/// with nothing between that opens a block or ends, replaces or moves the
+/// whole local. Such a reference ends before the local does, so nothing
+/// needs the slot after the local's own release. A parameter, a local a
+/// closure captures, one in a closure's body and one a `Ref` takes
+/// (`ref_word::TAKES`) keep their cells.
+pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet<usize> {
+    let mut out: HashSet<usize> = roots
+        .iter()
+        .copied()
+        .filter(|&l| {
+            b.local_flags[l] & local_flags::PARAM == 0 && !b.cap_local.iter().any(|c| c.idx() == l)
+        })
+        .collect();
+    if out.is_empty() {
+        return out;
+    }
+    let mut refs: HashMap<u32, usize> = HashMap::default();
+    for i in 0..b.len() {
+        let Some(l) = super::shape::ref_local(b, i).filter(|l| out.contains(l)) else {
+            continue;
+        };
+        let w = b.data[i][1];
+        if w & ref_word::LOCAL == 0 || w & ref_word::TAKES != 0 || topo.sub[i] != 0 {
+            out.remove(&l);
+        }
+        refs.insert(u32::try_from(i).expect("instructions"), l);
+    }
+    // Each reference's calls and drops, and the references used otherwise.
+    let mut calls: HashMap<u32, Vec<u32>> = HashMap::default();
+    let mut drops: HashMap<u32, Vec<u32>> = HashMap::default();
+    let mut other: HashSet<u32> = HashSet::default();
+    for j in 0..b.len() {
+        let j32 = u32::try_from(j).expect("instructions");
+        slots(b, j, |_, v, w| {
+            let Word::Value(role) = w else {
+                return;
+            };
+            if !refs.contains_key(&v) {
+                return;
+            }
+            match (b.tags[j], role) {
+                (Tag::Call | Tag::CallValue | Tag::CallDyn, Role::Arg(_)) => {
+                    calls.entry(v).or_default().push(j32);
+                }
+                (Tag::Drop, Role::Dropped) => drops.entry(v).or_default().push(j32),
+                _ => {
+                    other.insert(v);
+                }
+            }
+        });
+    }
+    let ends_local = |m: usize, l: usize| {
+        let whole = |word: u32| {
+            b.decode_place(word).is_some_and(|p| {
+                matches!(p.root, PlaceRoot::Local(x) if x.idx() == l) && p.proj.is_empty()
+            })
+        };
+        match b.tags[m] {
+            Tag::Drop | Tag::Store => whole(b.data[m][0]),
+            Tag::Read => whole(b.data[m][0]) && b.data[m][1] == ReadMode::Move as u32,
+            Tag::Ref => whole(b.data[m][0]) && b.data[m][1] & ref_word::TAKES != 0,
+            _ => false,
+        }
+    };
+    for (&r, &l) in &refs {
+        if !out.contains(&l) {
+            continue;
+        }
+        let fits = (|| {
+            if other.contains(&r) {
+                return false;
+            }
+            let ([j], d) = (calls.get(&r).map_or(&[][..], Vec::as_slice), drops.get(&r)) else {
+                return false;
+            };
+            let end = match d.map(Vec::as_slice) {
+                None | Some([]) => *j,
+                Some([d]) => *d,
+                Some(_) => return false,
+            };
+            let blk = topo.blk[r as usize];
+            if blk == NONE || topo.blk[*j as usize] != blk || topo.blk[end as usize] != blk {
+                return false;
+            }
+            let (from, call, to) = (
+                topo.pos[r as usize],
+                topo.pos[*j as usize],
+                topo.pos[end as usize],
+            );
+            if !(from < call && call <= to) {
+                return false;
+            }
+            let members = b.record(b.data[blk as usize][0]);
+            members[from as usize + 1..=to as usize].iter().all(|&m| {
+                let m = m as usize;
+                topo.first[m] as usize == m && !ends_local(m, l)
+            })
+        })();
+        if !fits {
+            out.remove(&l);
+        }
+    }
+    out
 }
 
 /// The defining `Closure` of sub-body `sub`, not an instantiation of a
@@ -234,9 +349,100 @@ impl Em<'_, '_, '_> {
         self.b.full_cells.binary_search(&(j, l)).is_ok()
     }
 
+    /// Gives each local [`slot_locals`] picks a slot in the function's
+    /// frame on the local stack (§23.38): a zero count word, as a static
+    /// object's, then the value in its cell's layout, so a count update
+    /// through the slot's address does nothing.
+    pub(super) fn plan_slots(&mut self, roots: &[usize]) -> StageResult<()> {
+        let mut ls: Vec<usize> = slot_locals(self.b, roots, &self.topo).into_iter().collect();
+        if ls.is_empty() {
+            return Ok(());
+        }
+        ls.sort_unstable();
+        let mut size = 0;
+        for l in ls {
+            let (m, _) = self.cell_mem(l)?;
+            let at = size + crate::module::HEADER;
+            size = (at + m.size).next_multiple_of(8);
+            self.slots.insert(l, at);
+        }
+        // The frame's local is made at its first use, after the
+        // parameters' ([`Em::frame_base`]).
+        self.frame = Some((NONE, size));
+        Ok(())
+    }
+
+    /// The local holding the address of the function's frame of slots.
+    fn frame_base(&mut self) -> Option<u32> {
+        let (base, size) = self.frame?;
+        if base != NONE {
+            return Some(base);
+        }
+        let base = self.f.local(Val::I32);
+        self.frame = Some((base, size));
+        Some(base)
+    }
+
+    /// Releases the value in local `l`'s slot, whose address local `c`
+    /// holds, or 0 when it holds none: the slot's end, as the last count
+    /// of a cell is the cell's.
+    fn release_slot(&mut self, l: usize, c: u32) -> StageResult<()> {
+        let t = self.cell_ty(l);
+        if self.counted(t).is_none() {
+            return Ok(());
+        }
+        let (m, _) = self.cell_mem(l)?;
+        self.f.get(c);
+        self.f.op(I::If(BlockType::Empty));
+        let ls: Vec<u32> = m.leaves.iter().map(|x| self.f.local(x.val)).collect();
+        for (leaf, x) in m.leaves.iter().zip(&ls) {
+            self.f.get(c);
+            self.f.op(leaf.load(0));
+            self.f.set(*x);
+        }
+        self.release_locals(&ls, t)?;
+        self.f.op(I::End);
+        Ok(())
+    }
+
+    /// One count less on local `l`'s cell, whose address local `c` holds:
+    /// for a slot, the release of the value in it.
+    pub(super) fn release_cell_of(&mut self, l: usize, c: u32) -> StageResult<()> {
+        if self.slots.contains_key(&l) {
+            return self.release_slot(l, c);
+        }
+        self.f.get(c);
+        self.release_cell();
+        Ok(())
+    }
+
     /// A new cell for local `l` holding `src`, already in the cell's
-    /// layout.
+    /// layout; for a slot local, its slot.
     fn raw_cell(&mut self, l: usize, src: &Src) -> StageResult<u32> {
+        if let Some(&off) = self.slots.get(&l)
+            && let Some(base) = self.frame_base()
+        {
+            let (m, _) = self.cell_mem(l)?;
+            let at = self.f.local(Val::I32);
+            self.f.get(base);
+            self.f.i32(0);
+            self.f.op(I::I32Store(crate::module::mem(
+                crate::module::HEAP,
+                u64::from(off - crate::module::HEADER),
+                2,
+            )));
+            self.f.get(base);
+            self.f.u32(off);
+            self.f.op(I::I32Add);
+            self.f.set(at);
+            let part = Part {
+                first: 0,
+                count: m.leaves.len(),
+                offset: 0,
+            };
+            self.store_part(at, &m, part, src)?;
+            return Ok(at);
+        }
         let (m, walk) = self.cell_mem(l)?;
         let cyclic = self.cyclic_holding(&[self.cell_ty(l)]);
         let at = self.object(&m, walk.as_ref(), cyclic);
@@ -296,8 +502,14 @@ impl Em<'_, '_, '_> {
         };
         if self.cells.get(&l) == Some(&i) {
             let c = self.local(u32::try_from(l).expect("locals"))?[0];
+            // A slot is the same memory each time, so the last value in
+            // it ends before the new one is stored.
+            let slot = self.slots.contains_key(&l);
+            if slot && self.counting {
+                self.release_slot(l, c)?;
+            }
             let at = self.raw_cell(l, &src)?;
-            if self.counting {
+            if self.counting && !slot {
                 self.f.get(c);
                 self.release_cell();
             }

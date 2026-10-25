@@ -321,6 +321,13 @@ pub enum Global {
     /// The shadow stack pointer: the lowest address of the newest frame
     /// (§23.29).
     Stack,
+    /// The local stack pointer: the lowest address of the newest frame of
+    /// locals that only local references lend (§23.38), 0 before the
+    /// first frame.
+    Locals,
+    /// The lowest address of the local stack's newest segment: a frame
+    /// that does not fit above it starts a new one.
+    LocalsBase,
     /// One value of a top-level binding: its item's path hash and the
     /// value's index in its layout.
     Storage(Hash128, u32, Val),
@@ -349,7 +356,9 @@ impl Global {
             | Global::ReleaseHead
             | Global::Releasing
             | Global::Tracing
-            | Global::Stack => Val::I32,
+            | Global::Stack
+            | Global::Locals
+            | Global::LocalsBase => Val::I32,
             Global::HashSeed => Val::I64,
             Global::Storage(_, _, v) => *v,
         }

@@ -27,6 +27,26 @@ fn keep_string(x: *mut string) -> *mut string:
 fn grow(xs: &mut List[string], n: i32) -> void:
     xs.push(label(n))
 
+struct Upto:
+    at: i64
+    end: i64
+
+impl Iterator[i64] for Upto:
+    fn next(&mut self) -> i64?:
+        if self.at >= self.end:
+            return .None
+        self.at = self.at + 1
+        .Some(self.at - 1)
+
+fn add(total: i64, item: i64) -> i64:
+    total + item
+
+fn odd(item: i64) -> bool:
+    item % 2 == 1
+
+fn small(item: i64) -> bool:
+    item < 100
+
 tests:
     use std.testing.{assert, it}
 
@@ -48,6 +68,27 @@ tests:
             round = round + 1
         assert(allocated() == before, "no round allocated a block")
         assert(total == 200, "every round wrote the local twice")
+
+    it("consuming an iterator allocates nothing per call"):
+        # Each consumer's cursor lives in its frame (DESIGN.md §23.38).
+        let round = +0
+        let total: i64 = 0
+        before := allocated()
+        while round < 100:
+            total = total + Upto { at: 0, end: 4 }.fold(0, add)
+            assert(allocated() == before, "fold allocated no block")
+            total = total + Upto { at: 0, end: 4 }.sum()
+            assert(allocated() == before, "sum allocated no block")
+            total = total + i64(Upto { at: 0, end: 4 }.count())
+            assert(allocated() == before, "count allocated no block")
+            if Upto { at: 0, end: 4 }.any(odd) && Upto { at: 0, end: 4 }.all(small):
+                total = total + 1
+            assert(allocated() == before, "any and all allocated no block")
+            if Upto { at: 0, end: 4 }.find(odd) == .Some(1):
+                total = total + 1
+            assert(allocated() == before, "find allocated no block")
+            round = round + 1
+        assert(total == 100 * (6 + 6 + 4 + 2), "every consumer read every item")
 
     it("an element reference pins its list until its last use"):
         let mut xs = [+1, 2, 3]

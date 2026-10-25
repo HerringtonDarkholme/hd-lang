@@ -177,61 +177,7 @@ fn storage(f: &mut Func) -> StageResult<bool> {
                 out.push(Ins::Op(I::LocalGet(t)));
                 out.push(Ins::Op(store(v, slot((l - np) as usize))));
             }
-            Ins::Op(I::Return) => {
-                restore(&mut out);
-                out.push(ins);
-            }
-            Ins::Op(I::Br(d)) if d == depth => {
-                restore(&mut out);
-                out.push(ins);
-            }
-            Ins::Op(I::BrIf(d)) if d == depth => {
-                // Preserve the branch payload below the selector; no
-                // branch crosses the temporary if's operand-stack floor.
-                out.push(Ins::Op(I::LocalTee(selector)));
-                out.push(Ins::Op(I::If(BlockType::Empty)));
-                restore(&mut out);
-                out.push(Ins::Op(I::End));
-                out.push(Ins::Op(I::LocalGet(selector)));
-                out.push(ins);
-            }
-            Ins::Op(I::BrTable(id, default))
-                if default == depth || f.label_list(id).contains(&depth) =>
-            {
-                let labels = f.label_list(id);
-                out.push(Ins::Op(I::LocalSet(selector)));
-                out.push(Ins::Op(I::I32Const(0)));
-                for (k, &label) in labels.iter().enumerate() {
-                    if label == depth {
-                        out.push(Ins::Op(I::LocalGet(selector)));
-                        out.push(Ins::Op(I::I32Const(i32::try_from(k).expect("labels"))));
-                        out.push(Ins::Op(I::I32Eq));
-                        out.push(Ins::Op(I::I32Or));
-                    }
-                }
-                if default == depth {
-                    out.push(Ins::Op(I::LocalGet(selector)));
-                    out.push(Ins::Op(I::I32Const(
-                        i32::try_from(labels.len()).expect("labels"),
-                    )));
-                    out.push(Ins::Op(I::I32GeU));
-                    out.push(Ins::Op(I::I32Or));
-                }
-                out.push(Ins::Op(I::If(BlockType::Empty)));
-                restore(&mut out);
-                out.push(Ins::Op(I::End));
-                out.push(Ins::Op(I::LocalGet(selector)));
-                out.push(ins);
-            }
-            Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => {
-                depth += 1;
-                out.push(ins);
-            }
-            Ins::Op(I::End) => {
-                depth -= 1;
-                out.push(ins);
-            }
-            _ => out.push(ins),
+            ins => exit(f, ins, &mut depth, selector, &restore, &mut out),
         }
         origins.merged(position..position + 1, out.len() - output_start);
     }
@@ -242,6 +188,145 @@ fn storage(f: &mut Func) -> StageResult<bool> {
     origins.finish(f);
     crate::opt::renumber(f);
     Ok(true)
+}
+
+/// Writes `ins` to `out`, with the code `restore` writes before it where
+/// it leaves the function: a `return`, or a branch to the function's own
+/// label at `depth`, conditional and table branches included. `depth`
+/// follows the blocks `ins` opens and closes; `selector` is an `i32`
+/// local that holds a branch's condition or index around the restore.
+fn exit(
+    f: &Func,
+    ins: Ins,
+    depth: &mut u32,
+    selector: u32,
+    restore: &impl Fn(&mut Vec<Ins>),
+    out: &mut Vec<Ins>,
+) {
+    match ins {
+        Ins::Op(I::Return) => {
+            restore(out);
+            out.push(ins);
+        }
+        Ins::Op(I::Br(d)) if d == *depth => {
+            restore(out);
+            out.push(ins);
+        }
+        Ins::Op(I::BrIf(d)) if d == *depth => {
+            // Preserve the branch payload below the selector; no
+            // branch crosses the temporary if's operand-stack floor.
+            out.push(Ins::Op(I::LocalTee(selector)));
+            out.push(Ins::Op(I::If(BlockType::Empty)));
+            restore(out);
+            out.push(Ins::Op(I::End));
+            out.push(Ins::Op(I::LocalGet(selector)));
+            out.push(ins);
+        }
+        Ins::Op(I::BrTable(id, default))
+            if default == *depth || f.label_list(id).contains(depth) =>
+        {
+            let labels = f.label_list(id);
+            out.push(Ins::Op(I::LocalSet(selector)));
+            out.push(Ins::Op(I::I32Const(0)));
+            for (k, &label) in labels.iter().enumerate() {
+                if label == *depth {
+                    out.push(Ins::Op(I::LocalGet(selector)));
+                    out.push(Ins::Op(I::I32Const(i32::try_from(k).expect("labels"))));
+                    out.push(Ins::Op(I::I32Eq));
+                    out.push(Ins::Op(I::I32Or));
+                }
+            }
+            if default == *depth {
+                out.push(Ins::Op(I::LocalGet(selector)));
+                out.push(Ins::Op(I::I32Const(
+                    i32::try_from(labels.len()).expect("labels"),
+                )));
+                out.push(Ins::Op(I::I32GeU));
+                out.push(Ins::Op(I::I32Or));
+            }
+            out.push(Ins::Op(I::If(BlockType::Empty)));
+            restore(out);
+            out.push(Ins::Op(I::End));
+            out.push(Ins::Op(I::LocalGet(selector)));
+            out.push(ins);
+        }
+        Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => {
+            *depth += 1;
+            out.push(ins);
+        }
+        Ins::Op(I::End) => {
+            *depth -= 1;
+            out.push(ins);
+        }
+        _ => out.push(ins),
+    }
+}
+
+/// Reserves a frame of `size` bytes on the local stack (§23.38) at the
+/// entry of `f`, whose address local `base` holds, and gives it back at
+/// every exit. A frame that does not fit in the stack's segment starts a
+/// new one: pages memory 1 grows, which the page table marks static, as
+/// it does every page the allocator did not grow. Each frame gives back
+/// its own top, so a frame in a new segment needs no link to the last.
+pub fn locals_frame(f: &mut Func, base: u32, size: u32) {
+    let pages = size.div_ceil(1 << 16).max(1);
+    let size = i32::try_from(size).expect("frame size");
+    let selector = f.local(Val::I32);
+    let top = f.intern_global(Global::Locals);
+    let bottom = f.intern_global(Global::LocalsBase);
+    let mut out = vec![
+        Ins::GlobalGet(top),
+        Ins::GlobalGet(bottom),
+        Ins::Op(I::I32Sub),
+        Ins::Op(I::I32Const(size)),
+        Ins::Op(I::I32LtU),
+        Ins::Op(I::If(BlockType::Empty)),
+        Ins::Op(I::I32Const(pages.cast_signed())),
+        Ins::Op(I::MemoryGrow(crate::module::HEAP)),
+        Ins::Op(I::LocalTee(base)),
+        Ins::Op(I::I32Const(-1)),
+        Ins::Op(I::I32Eq),
+        Ins::Op(I::If(BlockType::Empty)),
+        Ins::Op(I::Unreachable),
+        Ins::Op(I::End),
+        Ins::Op(I::LocalGet(base)),
+        Ins::Op(I::I32Const(16)),
+        Ins::Op(I::I32Shl),
+        Ins::Op(I::LocalTee(base)),
+        Ins::GlobalSet(bottom),
+        Ins::Op(I::LocalGet(base)),
+        Ins::Op(I::I32Const((pages << 16).cast_signed())),
+        Ins::Op(I::I32Add),
+        Ins::GlobalSet(top),
+        Ins::Op(I::End),
+        Ins::GlobalGet(top),
+        Ins::Op(I::I32Const(size)),
+        Ins::Op(I::I32Sub),
+        Ins::Op(I::LocalTee(base)),
+        Ins::GlobalSet(top),
+    ];
+    let restore = |out: &mut Vec<Ins>| {
+        out.extend([
+            Ins::Op(I::LocalGet(base)),
+            Ins::Op(I::I32Const(size)),
+            Ins::Op(I::I32Add),
+            Ins::GlobalSet(top),
+        ]);
+    };
+    let mut origins = crate::origins::Remap::new(f.origins.as_deref());
+    origins.repeat(f.origin_root, out.len());
+    let body = std::mem::take(&mut f.body);
+    let mut depth = 0;
+    for (position, ins) in body.into_iter().enumerate() {
+        let output_start = out.len();
+        exit(f, ins, &mut depth, selector, &restore, &mut out);
+        origins.merged(position..position + 1, out.len() - output_start);
+    }
+    let output_start = out.len();
+    restore(&mut out);
+    origins.repeat(f.origin_root, out.len() - output_start);
+    f.body = out;
+    origins.finish(f);
 }
 
 fn bug(what: &str) -> NotImplemented {

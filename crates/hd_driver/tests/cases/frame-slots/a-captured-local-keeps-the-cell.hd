@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: v8 release
+# `read` captures `tally`, so `tally` keeps its counted cell though
+# `&mut tally` is lent to one call.
+struct Tally:
+    n: i64
+
+fn bump(t: &mut Tally) -> void:
+    t.n = t.n + 1
+
+fn shared() -> i64:
+    # subject
+    let mut tally = Tally { n: 0 }
+    read := fn() -> i64: tally.n
+    bump(&mut tally)
+    read()

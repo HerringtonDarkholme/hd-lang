@@ -125,19 +125,27 @@ impl Ck<'_, '_> {
     /// Whether the method `name` on a receiver of type `t` takes a
     /// reference receiver, and whether it is `&mut`.
     pub(crate) fn ref_receiver_named(&mut self, t: Ty, name: &str) -> StageResult<Option<bool>> {
+        Ok(self
+            .ref_receiver_kind_named(t, name)?
+            .map(|(mutable, _)| mutable))
+    }
+
+    /// [`Self::ref_receiver_named`] with the receiver's kind
+    /// ([`Self::ref_receiver_kind`]).
+    fn ref_receiver_kind_named(&mut self, t: Ty, name: &str) -> StageResult<Option<(bool, bool)>> {
         let t = self.norm_ty(t);
         if matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
             return Ok(None);
         }
         match self.resolve_method(t, name)? {
-            Some(Hit::Inherent { method, .. }) => self.ref_receiver_of(method),
+            Some(Hit::Inherent { method, .. }) => self.ref_receiver_kind(method),
             // A trait value passes its payload to a reference receiver
             // itself (`trait.dyn.ref.member`), or a bare one has none
             // (`trait.dyn.ref.member`); the call decides.
             Some(Hit::Trait { choice, .. }) if choice.0 == ChoiceKind::TraitValue => Ok(None),
-            Some(Hit::Trait { method, .. }) => self.ref_receiver_of(method),
-            Some(Hit::Choice { method, .. }) => self.ref_receiver_of(method),
-            Some(Hit::Pending { method, .. }) => self.ref_receiver_of(method),
+            Some(Hit::Trait { method, .. }) => self.ref_receiver_kind(method),
+            Some(Hit::Choice { method, .. }) => self.ref_receiver_kind(method),
+            Some(Hit::Pending { method, .. }) => self.ref_receiver_kind(method),
             _ => Ok(None),
         }
     }
@@ -147,10 +155,15 @@ impl Ck<'_, '_> {
     /// the reference to the place, and the type of the value it refers
     /// to. A receiver that already is a reference is passed on. `None`
     /// when the call takes its receiver some other way.
+    ///
+    /// For a call (`call`), not a bound method reference, which keeps its
+    /// receiver, a `&self` or `&mut self` receiver's address is marked
+    /// local ([`hd_tir::ir::ref_word::LOCAL`]).
     pub(crate) fn auto_address(
         &mut self,
         base: NodeRef<'_>,
         name: &str,
+        call: bool,
     ) -> StageResult<Option<(Ref, Ty)>> {
         let Some(bt) = self.peek_place_ty(base) else {
             return Ok(None);
@@ -163,8 +176,8 @@ impl Ck<'_, '_> {
         // A method promoted from an embedded struct takes the address of
         // that part of the place (`names.promoted.path`).
         let mut part = Vec::new();
-        let mut mutable = self.ref_receiver_named(vt, name)?;
-        if mutable.is_none()
+        let mut kind = self.ref_receiver_kind_named(vt, name)?;
+        if kind.is_none()
             && self.is_struct_ty(vt)
             && let Some(path) = self.promoted_method_path(vt, name)
         {
@@ -176,9 +189,9 @@ impl Ck<'_, '_> {
                 part.push((idx, ft));
                 pt = ft;
             }
-            mutable = self.ref_receiver_named(pt, name)?;
+            kind = self.ref_receiver_kind_named(pt, name)?;
         }
-        let Some(mutable) = mutable else {
+        let Some((mutable, counted)) = kind else {
             return Ok(None);
         };
         if via_ref.is_some() && part.is_empty() {
@@ -189,7 +202,20 @@ impl Ck<'_, '_> {
                     .unwrap_or_else(|| self.poisoned(base)),
             ));
         }
-        Ok(Some(self.address_of_place(base, name, mutable, part)?))
+        let (r, t) = self.address_of_place(base, name, mutable, part)?;
+        // The address is counted, but a call's `&self` or `&mut self`
+        // receiver takes it as a local reference, which the `Ref` records
+        // (`ref_word::LOCAL`, `ref.local.self`).
+        if call
+            && !counted
+            && let Some(i) = r.as_inst()
+        {
+            let b = self.b.body_mut();
+            if b.tags[i.0 as usize] == Tag::Ref {
+                b.data[i.0 as usize][1] |= hd_tir::ir::ref_word::LOCAL;
+            }
+        }
+        Ok(Some((r, t)))
     }
 
     /// The reference that a call of `name`, a method taking `&self` or

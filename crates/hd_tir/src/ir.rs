@@ -723,9 +723,10 @@ pub mod ref_word {
     /// reference view makes the referent fresh, and release only that.
     /// The checker never sets it (invariant 22).
     pub const LENT: u32 = 4;
-    /// Set by the checker as it erases the reference kind: the `Ref`
-    /// makes a local reference, `&T` or `&mut T`, which never outlives
-    /// its use (spec/lang/13-values-and-references.md#local-references).
+    /// Set by the checker: the `Ref` makes a local reference, `&T` or
+    /// `&mut T`, or the address a `&self` or `&mut self` receiver takes,
+    /// which never outlives its use
+    /// (spec/lang/13-values-and-references.md#local-references).
     pub const LOCAL: u32 = 8;
 }
 

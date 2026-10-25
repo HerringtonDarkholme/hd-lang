@@ -2065,3 +2065,43 @@ index check, and the retained checks for a pop in the body, a pop in the
 prelude, an aliased pop and an offset index. Checked runtime cases cover
 those panics, an addressable induction variable, typed views, empty and
 nested loops, continue and full-width inclusive endpoints.
+
+### 23.38 Locals In The Frame
+
+Issue #702. A local that a reference refers to lives in memory, since
+the reference is its address (§23.20). It used to be a counted cell
+(`rt:new`), so an iterator consumer's `let mut cursor = self` allocated
+once per call. A local reference never outlives its use: the checker
+keeps every `&T` and `&mut T` from escaping
+(spec/lang/13-values-and-references.md#local-references). So a local
+that only local references lend lives in a slot of its function's
+frame on the **local stack** instead.
+
+- **The bit.** The checker erases the reference kind before TIR, so it
+  records it in the `Ref`'s data word as `ref_word::LOCAL`: a `&T` or
+  `&mut T` expression, and the address a call's `&self` or `&mut self`
+  receiver takes. Nothing reads a callee's body: the bit comes from the
+  declarations alone.
+- **Which locals** (`closure::slot_locals`). Every `Ref` of the local
+  carries the bit. Each one is an argument of a single `Call`,
+  `CallValue` or `CallDyn`, never a bang call's `Await`. Its `Drop`, if
+  any, follows in the same block, and nothing between opens a block or
+  ends, replaces or moves the whole local. The reference then ends
+  before the local does. Every other local keeps its cell: a parameter,
+  a closure's capture, a local of a closure's body or a suspending one,
+  an erased body's, one a counted `*T` refers to, one a `Ref` takes at
+  its last access (`TAKES`), and a reference bound to a local.
+- **The slot** is the cell's layout with a zero count word before it, as
+  a static object has, so `retain_known` and `release_known` do
+  nothing there. The value is stored at the declaration, after the last
+  value in the slot is released. The local's release releases the value,
+  not the slot. A `Ref` of the whole local is a loan, with no count.
+- **The local stack** grows down in memory 1, in pages the program grows
+  itself. The allocator marks those pages static, as it does every page
+  it did not grow (§23.5), so a count update through a slot's address,
+  as a callee's, does nothing. A function with slots reserves its frame
+  at entry and gives it back at every exit (`wide::locals_frame`). A
+  frame that does not fit in the newest segment grows memory 1 by a new
+  one. Each frame gives back its own top, so segments need no links. The
+  stack is never shrunk: its size is the deepest chain of such frames.
+  A module with no slot has none of it.

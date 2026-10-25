@@ -1,0 +1,18 @@
+# @dump: wat
+# @build: v8 release
+# `keep` takes a counted `*mut Tally`, which may outlive the call, so
+# `tally` keeps its counted cell.
+struct Tally:
+    n: i64
+
+struct Holder:
+    tally: *mut Tally
+
+fn keep(t: *mut Tally) -> Holder:
+    Holder { tally: t }
+
+fn kept() -> i64:
+    # subject
+    let mut tally = Tally { n: 0 }
+    h := keep(&mut tally)
+    h.tally.n

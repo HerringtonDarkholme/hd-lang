@@ -1,0 +1,17 @@
+# @dump: counts
+# @build: v8 release
+# `tally` is declared outside the loop, and each iteration's `&mut tally`
+# is only `bump`'s argument, so `tally` lives in a slot of the frame
+# (crates/hd_wasm_linear/DESIGN.md §23.38), whose address no count changes:
+# the reference takes none.
+struct Tally:
+    n: i64
+
+fn bump(t: &mut Tally) -> void:
+    t.n = t.n + 1
+
+fn repeat(n: usize) -> void:
+    let mut tally = Tally { n: 0 }
+    # subject
+    for _ in 0..n:
+        bump(&mut tally)

@@ -188,7 +188,7 @@ impl Ck<'_, '_> {
         }
         // `fn.ref.bound`: the base names a value. A `&self` or `&mut self`
         // method takes the address of a place now (`fn.ref.bound.address`).
-        if let Some((recv, rt)) = self.auto_address(base, &name)? {
+        if let Some((recv, rt)) = self.auto_address(base, &name, false)? {
             self.bound_receiver_kept(recv, base);
             return self.bound_ref(recv, rt, &name, method_targs, want, n);
         }

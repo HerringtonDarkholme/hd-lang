@@ -2922,7 +2922,7 @@ impl Ck<'_, '_> {
         }
         // A `&self` or `&mut self` method on a place takes its address
         // (`fn.method.auto-address`).
-        if let Some((recv, rt)) = self.auto_address(base, &name)? {
+        if let Some((recv, rt)) = self.auto_address(base, &name, true)? {
             self.method_targs = method_targs;
             return self.method_on(recv, rt, &name, args, (n, bang), want);
         }

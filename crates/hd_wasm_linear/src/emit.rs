@@ -109,8 +109,15 @@ fn body_func<'a>(
     } else {
         closure::closure_suspends(input, b, args, sub)?
     };
-    let cells = closure::cell_locals(b, &ref_roots(input, b, item, args, suspending));
+    let roots = ref_roots(input, b, item, args, suspending);
+    let cells = closure::cell_locals(b, &roots);
     let mut em = Em::new(input, m, b, (item, args), targets, cells);
+    // A local only local references lend lives in the frame (§23.38): a
+    // plain function's own, at a runtime that counts.
+    if sub == 0 && !suspending && erased.is_none() && own.cold.is_none() && input.runtime.is_some()
+    {
+        em.plan_slots(&roots)?;
+    }
     em.origin_root = b.sub_root[sub as usize];
     // Every body is the ownership passes' output, whose counts emission
     // follows (`docs/compiler/tir-v2.md`, "Stage 2").
@@ -458,6 +465,9 @@ fn body_func<'a>(
         }
     }
     if !suspending {
+        if let Some((base, size)) = em.frame.filter(|f| f.0 != NONE) {
+            crate::wide::locals_frame(&mut em.f, base, size);
+        }
         return Ok(em.f);
     }
     em.exit_frame();
@@ -964,6 +974,13 @@ struct Em<'i, 'a, 'm> {
     /// parameter moved into its cell, a closure's or a thunk's shared
     /// capture (`closure.rs`, [`Em::cell_made`]).
     entry_cells: hd_base::HashSet<usize>,
+    /// The cell locals that live in a slot of the function's frame on the
+    /// local stack, not in a counted cell (§23.38), each with its slot's
+    /// offset in the frame ([`closure::slot_locals`]).
+    slots: HashMap<usize, u32>,
+    /// With slots: the local holding the frame's address, and the
+    /// frame's size.
+    frame: Option<(u32, u32)>,
     /// In an erased body, the local holding the address of its thunks'
     /// table, read from the witness (`erased.rs`).
     ops: Option<u32>,
@@ -1069,6 +1086,8 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             temps: Vec::new(),
             cells: shared,
             entry_cells: hd_base::HashSet::default(),
+            slots: HashMap::default(),
+            frame: None,
             ops: None,
             owned: false,
             sub_id: 0,

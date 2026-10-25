@@ -1,7 +1,9 @@
 # @dump: counts
 # @build: v8 release
 # The read of `xs` keeps its count: `&mut xs` lets `pick` reach the local,
-# and `pick` replaces it before the index reads the first value.
+# and `pick` replaces it before the index reads the first value. `xs`
+# lives in a slot of the frame (crates/hd_wasm_linear/DESIGN.md §23.38),
+# so the reference itself takes no count.
 fn pick(out: &mut List[usize]) -> usize:
     *out = [7]
     0

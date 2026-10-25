@@ -1,8 +1,9 @@
 # @dump: counts
 # @build: v8 release
 # `tally.n` reads the local after `&mut tally`, so the reference is not
-# its last access: the reference takes a count of its own, and the cell
-# is released after the read.
+# its last access. `tally` lives in a slot of the frame
+# (crates/hd_wasm_linear/DESIGN.md §23.38), so the reference takes no
+# count of its own either.
 struct Tally:
     n: i64
 

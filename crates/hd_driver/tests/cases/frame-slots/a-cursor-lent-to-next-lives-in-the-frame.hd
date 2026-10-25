@@ -1,0 +1,26 @@
+# @dump: wat
+# @build: v8 release
+# Every reference to `cursor` is a `&mut self` receiver of one call, so
+# the local lives in a slot of the function's frame on the local stack
+# (crates/hd_wasm_linear/DESIGN.md §23.38): no `rt:new` cell, and no
+# count of the reference around `next`.
+struct Upto:
+    at: i64
+    end: i64
+
+impl Iterator[i64] for Upto:
+    fn next(&mut self) -> i64?:
+        if self.at >= self.end:
+            return .None
+        self.at = self.at + 1
+        .Some(self.at - 1)
+
+# subject
+fn total(items: Upto) -> i64:
+    let mut cursor = items
+    let sum: i64 = 0
+    while true:
+        match cursor.next():
+            .Some(item) => sum = sum + item
+            .None => break
+    sum

@@ -95,6 +95,15 @@ impl Em<'_, '_, '_> {
                         self.view_loans.insert(x, flag);
                     }
                 }
+                // A reference to all of a local in a slot (§23.38) takes
+                // no count: a count of a slot's address does nothing.
+                Tag::Ref
+                    if super::shape::ref_local(self.b, i)
+                        .is_some_and(|l| self.slots.contains_key(&l))
+                        && self.b.decode_place(a).is_some_and(|p| p.proj.is_empty()) =>
+                {
+                    self.loans.insert(x);
+                }
                 // A reference into what a lent parameter refers to
                 // (`ref_word::LENT`) takes no count where the referent is
                 // physical; a view's projection makes one, which the flag
@@ -285,6 +294,13 @@ impl Em<'_, '_, '_> {
     /// cell's, when it lives in one.
     pub(super) fn count_local(&mut self, l: usize, ls: &[u32], retain: bool) -> StageResult<()> {
         if self.is_cell(l) {
+            // A slot has one holder, its local (`closure::slot_locals`).
+            if self.slots.contains_key(&l) {
+                if retain {
+                    return crate::unsupported("a second count of a local's slot");
+                }
+                return self.release_cell_of(l, ls[0]);
+            }
             self.f.get(ls[0]);
             self.f.helper(if retain {
                 Helper::RetainKnown
