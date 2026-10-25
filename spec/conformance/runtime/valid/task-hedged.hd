@@ -1,0 +1,73 @@
+# test: hedges start a delayed fresh copy, return the first Result and join loser defers
+# Spec std/task: std-task.policy.hedge.race, .first-result, .unneeded-copy, .tie, .cleanup, .cancel.
+# expect-empty-stdout: true
+use std.task.{Hedge, apply, hedged, race}
+use std.time.{Clock, ManualClock, Timestamp, sleep}
+use std.testing.assert_equal
+
+pub fn quick!() -> Result[string, string] $ Clock:
+    apply!(hedged(10ms)):
+        let ready: Result[string, string] = .Ok("ready")
+        ready
+
+struct Copies:
+    started: usize
+    finished: usize
+    closed: usize
+
+fn replica!(copies: *mut Copies, first_wait: mut Suspend[void], second_wait: mut Suspend[void], all_pending: bool) -> Result[string, string]:
+    copies.started += 1
+    number := copies.started
+    defer: copies.closed += 1
+    if number == 1 || all_pending:
+        let wait: mut Suspend[void] = if number == 1: first_wait else: second_wait
+        wait!()
+    copies.finished += 1
+    .Ok("replica $number")
+
+fn cancel!(job: mut Suspend[Result[string, string]]) -> Result[string, string]:
+    assert_equal(job.cancel!(), .Finished, reason="both hedge children finish cancellation")
+    .Ok("canceled")
+
+pub fn configuration() -> Hedge:
+    hedged(10ms)
+
+pub fn main!() -> void $ Clock:
+    let first_wait: mut Suspend[void] = sleep(60s)
+    let second_wait: mut Suspend[void] = sleep(60s)
+    let cancel_first: mut Suspend[void] = sleep(60s)
+    let cancel_second: mut Suspend[void] = sleep(60s)
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    copies := &mut Copies { started: 0, finished: 0, closed: 0 }
+    $.with(Clock=clock):
+        assert_equal(quick!(), .Ok("ready"), reason="the complete public hedge example")
+        result := apply!(configuration()):
+            replica!(copies, first_wait, second_wait, false)
+        assert_equal(result, .Ok("replica 2"), reason="U3 the delayed second copy finishes first")
+    assert_equal((copies.started, copies.finished, copies.closed), (2, 1, 2), reason="one actual winner and both defers, including the canceled loser")
+    assert_equal(clock.now().unix_milliseconds(), 10, reason="the covering clock supplies the hedge delay")
+
+    ready_copies := &mut Copies { started: 0, finished: 0, closed: 0 }
+    ready_clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    $.with(Clock=ready_clock):
+        first_error := apply!(hedged(10ms)):
+            ready_copies.started += 1
+            defer: ready_copies.closed += 1
+            let failed: Result[string, string] = .Err("first-error")
+            failed
+        assert_equal(first_error, .Err("first-error"), reason="first completion wins even when it is an error")
+        first_zero := apply!(hedged(0ms)):
+            ready_copies.started += 1
+            defer: ready_copies.closed += 1
+            let ready: Result[usize, string] = .Ok(7)
+            ready
+        assert_equal(first_zero, .Ok(7), reason="immediate work wins a zero-delay tie")
+    assert_equal((ready_copies.started, ready_copies.closed), (2, 2), reason="neither ready call starts an unneeded second invocation")
+    assert_equal(ready_clock.now().unix_milliseconds(), 0, reason="unneeded delayed children never advance the clock")
+
+    pending_copies := &mut Copies { started: 0, finished: 0, closed: 0 }
+    cancel_clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    $.with(Clock=cancel_clock):
+        let job: mut Suspend[Result[string, string]] = apply(hedged(10ms), work=fn!() -> Result[string, string]: replica!(pending_copies, cancel_first, cancel_second, true))
+        assert_equal(race!(job, cancel(job)), .Ok("canceled"), reason="cancel the hedge after both pending invocations start")
+    assert_equal((pending_copies.started, pending_copies.finished, pending_copies.closed), (2, 0, 2), reason="both active copies are canceled and both defers run exactly once")

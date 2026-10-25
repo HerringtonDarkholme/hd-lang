@@ -95,3 +95,11 @@ std.task.TimeLimit	std/task.md#r-std-task.policy.time-limit.decl
 std.task.Retry	std/task.md#r-std-task.policy.retry.decl
 std.task.SelectiveRetry	std/task.md#r-std-task.policy.selective-retry.decl
 std.task.with_timeout	std/task.md#r-std-task.policy.with-timeout.builder
+std.task.Fallback	std/task.md#r-std-task.policy.fallback.decl
+std.task.fallback	std/task.md#r-std-task.policy.fallback.builder
+std.task.Breaker	std/task.md#r-std-task.policy.breaker.decl
+std.task.CircuitOpen	std/task.md#r-std-task.policy.circuit-open.decl
+std.task.Guard	std/task.md#r-std-task.policy.guard.decl
+std.task.guarded	std/task.md#r-std-task.policy.guard.builder
+std.task.Hedge	std/task.md#r-std-task.policy.hedge.decl
+std.task.hedged	std/task.md#r-std-task.policy.hedge.builder

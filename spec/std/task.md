@@ -8,6 +8,8 @@ ordinary hd over the language tier:
 - the `Layer` trait, unit and binary tuple implementations, and `apply!`;
 - the `retry` builder, its `Retry` and `SelectiveRetry` policies, and `Backoff`;
 - the `timeout` and `with_timeout` builders, their `TimeLimit` policy, and `TimedOut`;
+- the `Fallback`, `Guard`, and `Hedge` policies and their builders;
+- the `Breaker` state and `CircuitOpen` marker;
 - the `map_all!` combinator;
 - the `CleanupEnd` enum, which `cancel!()` returns;
 - the `BlockOn` enum, which `block_on` returns.
@@ -509,3 +511,121 @@ See also: [Associated Types](../lang/09-traits.md#associated-types),
 [Associated Type Bindings](../lang/09-traits.md#associated-type-bindings),
 [Requirement Polymorphism](../lang/11-requirements-and-suspension.md#requirement-polymorphism),
 [Trailing Blocks](../lang/07-functions.md#r-fn.trailing.form).
+
+## Fallback
+
+`fallback` places a backup operation outside an inner policy.
+
+```text
+use std.task.{apply, fallback}
+
+fn backup!() -> Result[string, string]:
+    .Ok("backup")
+
+pub fn read!() -> Result[string, string]:
+    apply!(fallback(backup, ())):
+        let failed: Result[string, string] = .Err("offline")
+        failed
+```
+
+`read!()` returns `.Ok("backup")` without requiring `Clock`.
+The unit inner policy makes fallback the only wrapper.
+
+1. r[std-task.policy.fallback.decl] `std.task` declares public `Fallback[F]` with a private field `other: F`.
+2. r[std-task.policy.fallback.builder] `fallback[F, I](other: F, inner: I) -> (I, Fallback[F])` returns `(inner, Fallback { other: other })`.
+3. r[std-task.policy.fallback.layer] `Fallback[fn!() -> Result[T, E] $ S]` implements `Layer[fn!() -> Result[T, E] $ R]`, with `Wrapped = fn!() -> Result[T, E] $ R + S`.
+4. r[std-task.policy.fallback.completed] A fallback application invokes work once, returning any `.Ok` unchanged without invoking the backup.
+5. r[std-task.policy.fallback.backup] After work returns `.Err`, a fallback application invokes its backup once and returns that Result unchanged.
+6. r[std-task.policy.fallback.cancel] Cancelling a fallback application cancels its active child; cancellation of work does not invoke the backup.
+7. r[std-task.policy.fallback.requirement-free] `fallback` is an ordinary function with an empty requirement row; it neither invokes work nor acquires providers.
+
+> **Why.** The concrete backup function retains its result, error and
+> requirement types. A backup with another error type needs an explicit
+> conversion into the shared error type.
+
+See also: [Policy Layers](#policy-layers), [Unit Layer](#unit-layer).
+
+## Circuit Breaker
+
+`Guard` refuses work after a caller-owned `Breaker` reaches its failure limit.
+
+```text
+use std.convert.From
+use std.task.{Breaker, CircuitOpen, apply, guarded}
+
+enum Failure:
+    Offline
+    Open
+
+impl From[CircuitOpen] for Failure:
+    fn from(error: CircuitOpen) -> Failure: .Open
+
+pub fn guard_counts!() -> (usize, usize):
+    state := &mut Breaker { failures: 0, limit: 2, calls: 0 }
+    guard := guarded(state)
+    for _i in 0..4:
+        _ := apply!(guard):
+            let failed: Result[string, Failure] = .Err(.Offline)
+            failed
+    (state.calls, state.failures)
+```
+
+`guard_counts!()` returns `(2, 2)`: two failures open the breaker,
+and two later applications refuse work.
+
+1. r[std-task.policy.circuit-open.decl] `std.task` declares the public empty struct `CircuitOpen`.
+2. r[std-task.policy.breaker.decl] `std.task` declares public `Breaker` with public fields `failures: usize`, `limit: usize`, and `calls: usize`.
+3. r[std-task.policy.guard.decl] `std.task` declares public `Guard` with a private field `state: *mut Breaker`.
+4. r[std-task.policy.guard.builder] `guarded(state: *mut Breaker) -> Guard` returns a configuration holding that counted reference.
+5. r[std-task.policy.guard.layer] `Guard` implements `Layer[fn!() -> Result[T, E] $ R]`, with `Wrapped = fn!() -> Result[T, E] $ R`, when `E < From[CircuitOpen]`.
+6. r[std-task.policy.guard.bound] The guard's error type must implement `std.convert.From[CircuitOpen]`. Error: `unsatisfied-trait-bound`.
+7. r[std-task.policy.guard.refuse] When `failures >= limit`, a guard application returns `.Err(E::from(CircuitOpen {}))` without invoking work or changing its counters.
+8. r[std-task.policy.guard.calls] Otherwise, a guard application increments `calls` before invoking work once.
+9. r[std-task.policy.guard.success] When work returns `.Ok`, its guard resets `failures` to zero.
+10. r[std-task.policy.guard.failure] When work returns `.Err`, its guard increments `failures` once.
+11. r[std-task.policy.guard.result] A guard application returns the work's completed Result unchanged.
+12. r[std-task.policy.guard.shared] Copies of a `Guard` retain the same counted `Breaker` reference.
+13. r[std-task.policy.guard.cancel] Cancellation before work returns does not perform the guard's completed-result update of `failures`.
+14. r[std-task.policy.guard.requirement-free] `guarded` is an ordinary function with an empty requirement row; it neither invokes work nor acquires providers.
+
+> **Why.** The caller owns and can inspect or change all breaker state.
+> A counted reference keeps that state across applications. The minimal
+> breaker has no timer, automatic reopening or half-open probe.
+
+See also: [Policy Layers](#policy-layers),
+[Reference Types](../lang/13-values-and-references.md#reference-types).
+
+## Hedging
+
+`Hedge` races work against a delayed second invocation of the same work.
+
+```text
+use std.task.{apply, hedged}
+use std.time.Clock
+
+pub fn quick!() -> Result[string, string] $ Clock:
+    apply!(hedged(10ms)):
+        let ready: Result[string, string] = .Ok("ready")
+        ready
+```
+
+`quick!()` returns `.Ok("ready")` on the first poll, before a second
+invocation starts. Its declared row still requires `Clock`.
+
+1. r[std-task.policy.hedge.decl] `std.task` declares public `Hedge` with a private field `delay: Duration`.
+2. r[std-task.policy.hedge.builder] `hedged(delay: Duration) -> Hedge` constructs a configuration holding that delay.
+3. r[std-task.policy.hedge.layer] `Hedge` implements `Layer[fn!() -> Result[T, E] $ R]`, with `Wrapped = fn!() -> Result[T, E] $ R + Clock`.
+4. r[std-task.policy.hedge.race] A hedge application races immediate work against a child that calls the covering `Clock.sleep!(delay)` before invoking fresh work.
+5. r[std-task.policy.hedge.first-result] The first completed Result wins, whether `.Ok` or `.Err`.
+6. r[std-task.policy.hedge.unneeded-copy] If immediate work completes before the delayed child invokes work, the second invocation never starts.
+7. r[std-task.policy.hedge.tie] The immediate child is polled first, so immediately completing work wins even when `delay` is zero.
+8. r[std-task.policy.hedge.cleanup] A hedge application cancels its losing child and waits for its cleanup under the existing `race!` rules.
+9. r[std-task.policy.hedge.cancel] Cancelling a hedge application cancels both children.
+10. r[std-task.policy.hedge.requirement-free] `hedged` is an ordinary function with an empty requirement row; it neither invokes work nor acquires providers.
+
+> **Why.** Each invocation creates fresh work. The existing structured
+> race joins the loser cleanup; no detached operation or new cleanup
+> bound is needed.
+
+See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators),
+[Clock](time.md#clock).

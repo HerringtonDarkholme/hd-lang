@@ -992,3 +992,6 @@ std/task.md	16	type-fragment	-
 std/task.md	17	accept	runtime/valid/task-layer-unit.hd
 std/task.md	18	accept	runtime/valid/task-layer-tuple-order.hd
 lang/04-type-system.md	78	mixed	typing/invalid/impl-trait-recursive.hd
+std/task.md	19	accept	runtime/valid/task-fallback.hd
+std/task.md	20	accept	runtime/valid/task-breaker.hd
+std/task.md	21	accept	runtime/valid/task-hedged.hd

@@ -1,0 +1,7 @@
+# test: applying a hedge requires Clock even when work immediately completes
+use std.task.{apply, hedged}
+
+pub fn missing!() -> Result[usize, string]:
+    apply!(hedged(10ms)): # diagnostic: missing-requirement
+        let value: Result[usize, string] = .Ok(7)
+        value

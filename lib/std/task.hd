@@ -221,6 +221,64 @@ impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for SelectiveRetry[E]:
         fn!() -> Result[T, E] $ R + Clock:
             retry_work!(self.backoff, when=self.when, attempt=work)
 
+## A backup configuration that retains its concrete work function and row.
+## See [std-task.policy.fallback.decl](../../spec/std/task.md#r-std-task.policy.fallback.decl).
+pub struct Fallback[F]:
+    other: F
+
+## See [std-task.policy.fallback.layer](../../spec/std/task.md#r-std-task.policy.fallback.layer).
+impl[T, E, $R, $S] Layer[fn!() -> Result[T, E] $ R] for Fallback[fn!() -> Result[T, E] $ S]:
+    type Wrapped = fn!() -> Result[T, E] $ R + S
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + S):
+        fn!() -> Result[T, E] $ R + S:
+            match work!():
+                .Ok(value) => .Ok(value)
+                .Err(_) => (self.other)!()
+
+## A marker converted into the work's error type when a guard refuses it.
+## See [std-task.policy.circuit-open.decl](../../spec/std/task.md#r-std-task.policy.circuit-open.decl).
+pub struct CircuitOpen: pass
+
+## Caller-owned state for a consecutive-failure circuit breaker.
+## See [std-task.policy.breaker.decl](../../spec/std/task.md#r-std-task.policy.breaker.decl).
+pub struct Breaker:
+    pub failures: usize
+    pub limit: usize
+    pub calls: usize
+
+## A guard retaining shared mutable breaker state across applications.
+## See [std-task.policy.guard.decl](../../spec/std/task.md#r-std-task.policy.guard.decl).
+pub struct Guard:
+    state: *mut Breaker
+
+## See [std-task.policy.guard.layer](../../spec/std/task.md#r-std-task.policy.guard.layer).
+impl[T, E < From[CircuitOpen], $R] Layer[fn!() -> Result[T, E] $ R] for Guard:
+    type Wrapped = fn!() -> Result[T, E] $ R
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R):
+        fn!() -> Result[T, E] $ R:
+            if self.state.failures >= self.state.limit:
+                return .Err(E::from(CircuitOpen {}))
+            self.state.calls += 1
+            result := work!()
+            self.state.failures = if result.is_ok(): 0 else: self.state.failures + 1
+            result
+
+## A delay configuration for racing an immediate invocation against a later copy.
+## See [std-task.policy.hedge.decl](../../spec/std/task.md#r-std-task.policy.hedge.decl).
+pub struct Hedge:
+    delay: Duration
+
+## See [std-task.policy.hedge.layer](../../spec/std/task.md#r-std-task.policy.hedge.layer).
+impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for Hedge:
+    type Wrapped = fn!() -> Result[T, E] $ R + Clock
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
+        fn!() -> Result[T, E] $ R + Clock:
+            race!(work(), late_copy(work, self.delay))
+
+fn late_copy![T, E, $R](work: fn!() -> Result[T, E] $ R, delay: Duration) -> Result[T, E] $ R + Clock:
+    sleep!(delay)
+    work!()
+
 ## Builds a retry configuration without acquiring a provider.
 ## See [std-task.policy.retry.builder](../../spec/std/task.md#r-std-task.policy.retry.builder).
 pub fn retry(backoff: Backoff) -> Retry: Retry { backoff: backoff }
@@ -234,6 +292,19 @@ pub fn timeout(limit: Duration, cleanup: Duration? = .None) -> TimeLimit:
 ## See [std-task.policy.with-timeout.builder](../../spec/std/task.md#r-std-task.policy.with-timeout.builder).
 pub fn with_timeout[I](limit: Duration, inner: I, cleanup: Duration? = .None) -> (I, TimeLimit):
     (inner, timeout(limit, cleanup=cleanup))
+
+## Places a backup outside an inner policy without starting work.
+## See [std-task.policy.fallback.builder](../../spec/std/task.md#r-std-task.policy.fallback.builder).
+pub fn fallback[F, I](other: F, inner: I) -> (I, Fallback[F]):
+    (inner, Fallback { other: other })
+
+## Builds a guard retaining the caller's shared mutable breaker state.
+## See [std-task.policy.guard.builder](../../spec/std/task.md#r-std-task.policy.guard.builder).
+pub fn guarded(state: *mut Breaker) -> Guard: Guard { state: state }
+
+## Builds a hedge configuration without acquiring a clock or starting work.
+## See [std-task.policy.hedge.builder](../../spec/std/task.md#r-std-task.policy.hedge.builder).
+pub fn hedged(delay: Duration) -> Hedge: Hedge { delay: delay }
 
 # The limit, and a note when the cleanup was cut short
 # (r-std-task.timeout.display).

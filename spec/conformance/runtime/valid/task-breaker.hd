@@ -1,0 +1,104 @@
+# test: copied guards share counted breaker state and update failure streaks only on completed work
+# Spec std/task: std-task.policy.guard.refuse, .calls, .success, .failure, .result, .shared, .cancel.
+# expect-empty-stdout: true
+use std.convert.From
+use std.task.{Breaker, CircuitOpen, Guard, apply, guarded, race}
+use std.time.{Clock, sleep}
+use std.testing.assert_equal
+
+@derive(Eq, Debug)
+enum Failure:
+    Offline
+    Open
+
+impl From[CircuitOpen] for Failure:
+    fn from(error: CircuitOpen) -> Failure: .Open
+
+pub fn guard_counts!() -> (usize, usize):
+    state := &mut Breaker { failures: 0, limit: 2, calls: 0 }
+    guard := guarded(state)
+    for _i in 0..4:
+        _ := apply!(guard):
+            let failed: Result[string, Failure] = .Err(.Offline)
+            failed
+    (state.calls, state.failures)
+
+struct Activity:
+    starts: usize
+    closed: usize
+
+fn pending!(state: *mut Breaker, activity: *mut Activity, wait: mut Suspend[void]) -> Result[string, Failure]:
+    assert_equal(state.calls, 1, reason="calls increments before work starts")
+    activity.starts += 1
+    defer: activity.closed += 1
+    wait!()
+    .Err(.Offline)
+
+fn cancel!(job: mut Suspend[Result[string, Failure]]) -> Result[string, Failure]:
+    assert_equal(job.cancel!(), .Finished, reason="guard child cleanup completes")
+    .Ok("canceled")
+
+fn retained() -> Guard:
+    guarded(&mut Breaker { failures: 0, limit: 2, calls: 0 })
+
+pub fn main!() -> void $ Clock:
+    assert_equal(guard_counts!(), (2, 2), reason="U2 two calls run and two are refused")
+    endpoint := &mut Activity { starts: 0, closed: 0 }
+    endpoint_state := &mut Breaker { failures: 0, limit: 2, calls: 0 }
+    endpoint_guard := guarded(endpoint_state)
+    for i in 0..4:
+        outcome := apply!(endpoint_guard):
+            endpoint.starts += 1
+            defer: endpoint.closed += 1
+            let failed: Result[string, Failure] = .Err(.Offline)
+            failed
+        assert_equal(outcome, if i < 2: .Err(.Offline) else: .Err(.Open), reason="U2 two endpoint failures then two typed refusals")
+    assert_equal((endpoint.starts, endpoint.closed), (2, 2), reason="only two actual endpoint invocations run, each closing once")
+    assert_equal((endpoint_state.calls, endpoint_state.failures), (2, 2), reason="breaker counters agree with independent endpoint counters")
+    state := &mut Breaker { failures: 0, limit: 2, calls: 0 }
+    guard := guarded(state)
+    alias := guard
+    failed := apply!(guard):
+        let failed: Result[usize, Failure] = .Err(.Offline)
+        failed
+    assert_equal(failed, .Err(.Offline), reason="completed failure is unchanged")
+    assert_equal((state.calls, state.failures), (1, 1), reason="one failure updates both counters")
+    good := apply!(alias):
+        let good: Result[string, Failure] = .Ok("reused")
+        good
+    assert_equal(good, .Ok("reused"), reason="the same guard supports another success type")
+    assert_equal((state.calls, state.failures), (2, 0), reason="success through a copy resets the shared streak")
+    state.failures = 2
+    refused := apply!(guard):
+        panic("open guard invoked work")
+        let unreachable: Result[usize, Failure] = .Ok(0)
+        unreachable
+    assert_equal(refused, .Err(.Open), reason="typed CircuitOpen conversion is used")
+    assert_equal((state.calls, state.failures), (2, 2), reason="refusal does not change state")
+    state.limit = 0
+    state.failures = 0
+    refused_zero := apply!(alias):
+        panic("zero-limit guard invoked work")
+        let unreachable: Result[usize, Failure] = .Ok(0)
+        unreachable
+    assert_equal(refused_zero, .Err(.Open), reason="zero limit refuses immediately")
+    assert_equal((state.calls, state.failures), (2, 0), reason="zero-limit refusal also preserves counters")
+
+    survivor := retained()
+    for _i in 0..2:
+        result := apply!(survivor):
+            let failed: Result[string, Failure] = .Err(.Offline)
+            failed
+        assert_equal(result, .Err(.Offline), reason="counted state survives the builder's local scope")
+    final := apply!(survivor):
+        let value: Result[string, Failure] = .Ok("must not run")
+        value
+    assert_equal(final, .Err(.Open), reason="retained guard remembers earlier failures")
+
+    cancel_state := &mut Breaker { failures: 1, limit: 3, calls: 0 }
+    activity := &mut Activity { starts: 0, closed: 0 }
+    let wait: mut Suspend[void] = sleep(60s)
+    let job: mut Suspend[Result[string, Failure]] = apply(guarded(cancel_state), work=fn!() -> Result[string, Failure]: pending!(cancel_state, activity, wait))
+    assert_equal(race!(job, cancel(job)), .Ok("canceled"), reason="cancel pending guarded work")
+    assert_equal((activity.starts, activity.closed), (1, 1), reason="the child starts and its defer runs")
+    assert_equal((cancel_state.calls, cancel_state.failures), (1, 1), reason="cancellation counts admission without updating the failure streak")

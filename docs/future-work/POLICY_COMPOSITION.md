@@ -1,6 +1,6 @@
 # Composing Time And Failure Policies
 
-Status: decided 2026-10-24 (#783, owner); domain: standard library API (std.task). #845 implements the foundation and timeout/retry builders; fallback, breaker, hedge and measured guardrails remain later slices.
+Status: decided 2026-10-24 (#783, owner); domain: standard library API (std.task). #845 implements the foundation, timeout/retry builders, fallback, breaker and hedge; measured guardrails remain a later slice.
 It answers [#783](https://github.com/HerringtonDarkholme/hd-lang/issues/783) and replaces the earlier version of this file and Composing Work.
 The owner selected policy values, pipes and one apply block on 2026-10-23.
 The decision: `apply!` is the only public way to apply a policy; `timeout!`, `with_timeout!` and `retry!` become private building blocks in `std.task`. The implementation follows the phasing below, with the std spec rules and fixtures in the same job. No language change is needed.
@@ -48,7 +48,7 @@ Every shape below is judged on the same six use cases.
 Before #845, hd exported `timeout!`, `with_timeout!` and `retry!` as bang functions that take the work last ([std.task](../../spec/std/task.md#timeout)).
 A trailing block supplies the work, so U1 is a staircase of three nested blocks.
 That runs, and the owner accepted it as the interim shape on 2026-10-22.
-There is no fallback, breaker or hedge in std yet.
+`std.task` also supplies fallback, the minimal breaker and hedging policies.
 Policy values run today using generic trait implementations and tuples.
 The separately approved inferred-apply correction is merged; the public library surface is approved.
 
@@ -135,8 +135,8 @@ A TimeLimit execution races the work against a sleep, work first, so work that f
 A retry policy sleeps only before another allowed attempt and requires `Clock` ([`std-task.policy.retry.clock`](../../spec/std/task.md#r-std-task.policy.retry.clock)).
 The recommended policy implementations reuse these atoms privately, preserving their cancellation semantics.
 
-**Ownership.** Values copy; `&mut` references are shared and not exclusive.
-A breaker state passed as `&mut Breaker` keeps its counts across calls, and hedged copies share the caller's `&mut` state.
+**Ownership.** Values copy; counted mutable references are shared and not exclusive.
+A breaker state stored as `*mut Breaker` keeps its counts across calls. A captured mutable state reference is counted when retained by a policy closure.
 A copied policy configuration never shares state unless it holds a reference.
 
 ## Shape 1: policy values and one apply block
@@ -187,12 +187,13 @@ The linked implementation supplies every body.
 | fallback | `pub fn fallback[F, I](other: F, inner: I) -> (I, Fallback[F])` |
 | Breaker | fields `failures: usize`, `limit: usize`, `calls: usize`; mutable caller-owned state |
 | CircuitOpen | `pub struct CircuitOpen: pass` |
-| Guard | field `state: &mut Breaker` |
-| guarded | `pub fn guarded(state: &mut Breaker) -> Guard` |
+| Guard | field `state: *mut Breaker` |
+| guarded | `pub fn guarded(state: *mut Breaker) -> Guard` |
 | Hedge | field `delay: Duration` |
 | hedged | `pub fn hedged(delay: Duration) -> Hedge` |
 
 Configuration fields are private in the proposed public API, except Breaker's observable state.
+Owner correction, 2026-10-25 ([#845](https://github.com/HerringtonDarkholme/hd-lang/issues/845#issuecomment-6402686677)): Guard stores a counted `*mut Breaker`, and `guarded` takes the same type; a call-scoped `&mut` cannot be retained there.
 The local prototype omits pub on these names because it is a single-file program.
 The zero-argument function type inside F is not a row parameter on a data declaration.
 Builders are requirement-free ordinary functions.
@@ -308,7 +309,7 @@ The HTTP program makes two deadline-limited primary attempts and then one backup
 It asserts three recorded requests and zero completed slow replies, so a late successful response cannot masquerade as cancellation.
 The fallback runs outside retry, once after the retrying operation fails.
 
-The breaker retains `&mut Breaker` across four applications.
+The breaker retains `*mut Breaker` across four applications.
 Its first two operations fail, then two are refused without calling Http.
 It is a deliberately minimal consecutive-failure breaker; timed reopening and half-open probing are not implemented or claimed.
 
@@ -447,7 +448,7 @@ The associated-type row prerequisite has already been fixed and tested separatel
 
 **Data structures.** TimeLimit stores duration and optional cleanup duration.
 Retry stores Backoff; SelectiveRetry stores Backoff and a typed predicate.
-Fallback stores its concrete backup closure; Guard stores a shared mutable Breaker reference; Hedge stores its delay.
+Fallback stores its concrete backup closure; Guard stores a counted mutable Breaker reference; Hedge stores its delay.
 A tuple stores two configurations; it has no runtime policy tag or heterogeneous List.
 
 **Data flow.** Plain builders evaluate configuration once, in ordinary expression order.
@@ -504,7 +505,7 @@ Its Wrapped associated type declares new result and row requirements.
 Tuples compose it with std or another user's layer, without registration, a Policy marker or a blanket operator impl.
 
 References inside configuration intentionally share state; ordinary copied configuration values do not imply shared state.
-A breaker copied by value would reset state between applications, so its constructor requires a reference.
+A breaker copied by value would reset state between applications, so its constructor requires a counted mutable reference.
 A user layer can inspect or transform work only with the authority visible in its signature and captured references.
 
 The minimal breaker is not a full half-open circuit-breaker framework.

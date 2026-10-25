@@ -2644,6 +2644,12 @@ runtime/valid/task-layer-tuple-order.hd	runtime	accept	std/task.md#r-std-task.la
 runtime/valid/task-layer-user-polymorphic.hd	runtime	accept	std/task.md#r-std-task.layer.wrap
 runtime/valid/task-layer-output-change.hd	runtime	accept	std/task.md#r-std-task.apply.decl
 runtime/valid/task-policy-builders.hd	runtime	accept	std/task.md#r-std-task.policy.builders.configuration
+runtime/valid/task-fallback.hd	runtime	accept	std/task.md#r-std-task.policy.fallback.backup
+runtime/valid/task-breaker.hd	runtime	accept	std/task.md#r-std-task.policy.guard.shared
+runtime/valid/task-hedged.hd	runtime	accept	std/task.md#r-std-task.policy.hedge.cleanup
+typing/invalid/task-guard-missing-error-conversion.hd	type	reject:unsatisfied-trait-bound	std/task.md#r-std-task.policy.guard.bound
+typing/invalid/task-hedged-missing-clock.hd	type	reject:missing-requirement	std/task.md#r-std-task.policy.hedge.layer
+typing/invalid/task-fallback-missing-backup-requirement.hd	type	reject:missing-requirement	std/task.md#r-std-task.policy.fallback.layer
 runtime/valid/task-retry.hd	runtime	accept	std/task.md#r-std-task.policy.retry.loop
 runtime/valid/task-retry-at-least-once.hd	runtime	accept	std/task.md#r-std-task.policy.retry.zero-once
 typing/valid/task-retry-row.hd	type	accept	std/task.md#r-std-task.policy.retry.layer

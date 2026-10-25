@@ -1,0 +1,8 @@
+# test: a guard requires a conversion from CircuitOpen into the work error type
+use std.task.{Breaker, apply, guarded}
+
+pub fn missing!() -> Result[usize, string]:
+    state := &mut Breaker { failures: 0, limit: 1, calls: 0 }
+    apply!(guarded(state)): # diagnostic: unsatisfied-trait-bound
+        let value: Result[usize, string] = .Ok(7)
+        value

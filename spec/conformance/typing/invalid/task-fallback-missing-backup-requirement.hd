@@ -1,0 +1,13 @@
+# test: the fallback wrapped row includes the backup's requirement
+use std.task.{apply, fallback}
+
+pub trait Backup:
+    fn read(self) -> usize
+
+fn other!() -> Result[usize, string] $ Backup:
+    .Ok($.use(Backup).read())
+
+pub fn missing!() -> Result[usize, string]:
+    apply!(fallback(other, ())): # diagnostic: missing-requirement
+        let value: Result[usize, string] = .Ok(7)
+        value
