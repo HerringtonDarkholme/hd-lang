@@ -10,7 +10,7 @@ struct DiskError:
 @error
 > app/main/error Display for SaveError.to_string
 >   local $0 self: SaveError[error Display for SaveError#0] [param]
->   %15 = Block %14 : string
+>   %14 = Block %13 : string
 > app/main/error Error for SaveError.source
 >   local $0 self: SaveError[error Error for SaveError#0] [param]
 >   local $1 $ref: DiskError [read assigned captured captured-assigned]
@@ -19,7 +19,7 @@ struct DiskError:
 >   local $4 $ref: Ref[DiskError] [read assigned captured]
 >   local $5 $ref: DiskError [read assigned captured captured-assigned]
 >   local $6 $ref: Ref[DiskError] [read assigned captured]
->   %50 = Block %49 : Ref[Error]?
+>   %46 = Block %45 : Ref[Error]?
 > app/main/error From 0.0 for SaveError.from
 >   local $0 value: DiskError [param]
 >   %0 = Read [$0] : DiskError
@@ -28,74 +28,69 @@ struct DiskError:
 enum SaveError[E]:
     @error("cannot save")
 >   %0 = Block "cannot save" : string
->   %12 = Block %11 : string
->   %13 = Read [$0] : SaveError[error Display for SaveError#0]
->   %14 = SwitchTag %13 [#0 %0 %12] : string
->   %10 = Block %9 : Ref[Error]?
->   %47 = Block %46 : Ref[Error]?
->   %48 = Read [$0] : SaveError[error Error for SaveError#0]
->   %49 = SwitchTag %48 [#0 %10 %47] : Ref[Error]?
+>   %11 = Block %10 : string
+>   %12 = Read [$0] : SaveError[error Display for SaveError#0]
+>   %13 = SwitchTag %12 [#0 %0 %11] : string
+>   %9 = Block %8 : Ref[Error]?
+>   %43 = Block %42 : Ref[Error]?
+>   %44 = Read [$0] : SaveError[error Error for SaveError#0]
+>   %45 = SwitchTag %44 [#0 %9 %43] : Ref[Error]?
     Write(@from error: DiskError)
->   %0 = Read [$0] : SaveError[error Error for SaveError#0]
->   %1 = Read [%0 as #0 .0] : DiskError
->   %2 = Store [$1] %1 : ()
->   %3 = Ref [$1] : Ref[DiskError]
->   %4 = Store [$2] %3 : ()
->   %5 = Read [$2] : Ref[DiskError]
->   %6 = Coerce %5 [RefToTraitValue -] : Error
->   %7 = Block %6 : Error
->   %8 = RefDyn %7 : Ref[Error]
->   %9 = Coerce %8 [WrapSome -] : Ref[Error]?
+>   %0 = Read [$0 as #0 .0] : DiskError
+>   %1 = Store [$1] %0 : ()
+>   %2 = Ref [$1] : Ref[DiskError]
+>   %3 = Store [$2] %2 : ()
+>   %4 = Read [$2] : Ref[DiskError]
+>   %5 = Coerce %4 [RefToTraitValue -] : Error
+>   %6 = Block %5 : Error
+>   %7 = RefDyn %6 : Ref[Error]
+>   %8 = Coerce %7 [WrapSome -] : Ref[Error]?
     @error(transparent)
->   %4 = Block %3 : string
->   %9 = Block %8 : string
->   %10 = Read [$0] : SaveError[error Display for SaveError#0]
->   %11 = SwitchTag %10 [#1 %4 %9] : string
->   %14 = Block %13 : Ref[Error]?
->   %44 = Block %43 : Ref[Error]?
->   %45 = Read [$0] : SaveError[error Error for SaveError#0]
->   %46 = SwitchTag %45 [#1 %14 %44] : Ref[Error]?
+>   %3 = Block %2 : string
+>   %8 = Block %7 : string
+>   %9 = Read [$0] : SaveError[error Display for SaveError#0]
+>   %10 = SwitchTag %9 [#1 %3 %8] : string
+>   %12 = Block %11 : Ref[Error]?
+>   %40 = Block %39 : Ref[Error]?
+>   %41 = Read [$0] : SaveError[error Error for SaveError#0]
+>   %42 = SwitchTag %41 [#1 %12 %40] : Ref[Error]?
     Wrap(@source inner: E)
->   %1 = Read [$0] : SaveError[error Display for SaveError#0]
->   %2 = Read [%1 as #1 .0] : error Display for SaveError#0
->   %3 = Call std/format/Display.to_string for error Display for SaveError#0 [] via Bound (%2) : string
->   %11 = Read [$0] : SaveError[error Error for SaveError#0]
->   %12 = Read [%11 as #1 .0] : error Error for SaveError#0
->   %13 = Call std/error/Error.source for error Error for SaveError#0 [] via Bound (%12) : Ref[Error]?
+>   %1 = Read [$0 as #1 .0] : error Display for SaveError#0
+>   %2 = Call std/format/Display.to_string for error Display for SaveError#0 [] via Bound (%1) : string
+>   %10 = Read [$0 as #1 .0] : error Error for SaveError#0
+>   %11 = Call std/error/Error.source for error Error for SaveError#0 [] via Bound (%10) : Ref[Error]?
     @error("two")
->   %5 = Block "two" : string
->   %6 = Block "opt" : string
->   %7 = Read [$0] : SaveError[error Display for SaveError#0]
->   %8 = SwitchTag %7 [#2 %5 %6] : string
->   %25 = Block %24 : Ref[Error]?
->   %41 = Block %40 : Ref[Error]?
->   %42 = Read [$0] : SaveError[error Error for SaveError#0]
->   %43 = SwitchTag %42 [#2 %25 %41] : Ref[Error]?
+>   %4 = Block "two" : string
+>   %5 = Block "opt" : string
+>   %6 = Read [$0] : SaveError[error Display for SaveError#0]
+>   %7 = SwitchTag %6 [#2 %4 %5] : string
+>   %22 = Block %21 : Ref[Error]?
+>   %37 = Block %36 : Ref[Error]?
+>   %38 = Read [$0] : SaveError[error Error for SaveError#0]
+>   %39 = SwitchTag %38 [#2 %22 %37] : Ref[Error]?
     Pair(a: string, @source b: DiskError)
->   %15 = Read [$0] : SaveError[error Error for SaveError#0]
->   %16 = Read [%15 as #2 .1] : DiskError
->   %17 = Store [$3] %16 : ()
->   %18 = Ref [$3] : Ref[DiskError]
->   %19 = Store [$4] %18 : ()
->   %20 = Read [$4] : Ref[DiskError]
->   %21 = Coerce %20 [RefToTraitValue -] : Error
->   %22 = Block %21 : Error
->   %23 = RefDyn %22 : Ref[Error]
->   %24 = Coerce %23 [WrapSome -] : Ref[Error]?
+>   %13 = Read [$0 as #2 .1] : DiskError
+>   %14 = Store [$3] %13 : ()
+>   %15 = Ref [$3] : Ref[DiskError]
+>   %16 = Store [$4] %15 : ()
+>   %17 = Read [$4] : Ref[DiskError]
+>   %18 = Coerce %17 [RefToTraitValue -] : Error
+>   %19 = Block %18 : Error
+>   %20 = RefDyn %19 : Ref[Error]
+>   %21 = Coerce %20 [WrapSome -] : Ref[Error]?
     @error("opt")
     Opt(@source c: DiskError?)
->   %26 = Read [$0] : SaveError[error Error for SaveError#0]
->   %27 = Read [%26 as #3 .0] : DiskError?
->   %28 = Read [%27 as #1 .0] : DiskError
->   %29 = Store [$5] %28 : ()
->   %30 = Ref [$5] : Ref[DiskError]
->   %31 = Store [$6] %30 : ()
->   %32 = Read [$6] : Ref[DiskError]
->   %33 = Coerce %32 [RefToTraitValue -] : Error
->   %34 = Block %33 : Error
->   %35 = RefDyn %34 : Ref[Error]
->   %36 = Coerce %35 [WrapSome -] : Ref[Error]?
->   %37 = Block %36 : Ref[Error]?
->   %38 = NewVariant #0 [] : Ref[Error]?
->   %39 = Block %38 : Ref[Error]?
->   %40 = SwitchTag %27 [#1 %37 %39] : Ref[Error]?
+>   %23 = Read [$0 as #3 .0] : DiskError?
+>   %24 = Read [%23 as #1 .0] : DiskError
+>   %25 = Store [$5] %24 : ()
+>   %26 = Ref [$5] : Ref[DiskError]
+>   %27 = Store [$6] %26 : ()
+>   %28 = Read [$6] : Ref[DiskError]
+>   %29 = Coerce %28 [RefToTraitValue -] : Error
+>   %30 = Block %29 : Error
+>   %31 = RefDyn %30 : Ref[Error]
+>   %32 = Coerce %31 [WrapSome -] : Ref[Error]?
+>   %33 = Block %32 : Ref[Error]?
+>   %34 = NewVariant #0 [] : Ref[Error]?
+>   %35 = Block %34 : Ref[Error]?
+>   %36 = SwitchTag %23 [#1 %33 %35] : Ref[Error]?
