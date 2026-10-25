@@ -1,0 +1,101 @@
+name: Daily goal metrics
+
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-goal-metrics
+  cancel-in-progress: false
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+
+      - name: Build release compiler
+        run: cargo build --release -p hd_cli
+
+      - name: Measure
+        id: metrics
+        continue-on-error: true
+        env:
+          HD_METRICS_RUNNER: ubuntu-latest
+        run: pnpm run metrics -- --suite --json metrics.json
+
+      - name: Store daily results
+        if: ${{ !cancelled() && steps.metrics.outcome != 'skipped' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s metrics.json
+          store="$RUNNER_TEMP/metrics-data"
+          if git ls-remote --exit-code --heads origin metrics-data; then
+            git fetch origin metrics-data
+            git worktree add --detach "$store" FETCH_HEAD
+          else
+            status=$?
+            test "$status" -eq 2
+            git worktree add --detach "$store" HEAD
+            git -C "$store" switch --orphan metrics-data
+          fi
+          git -C "$store" config user.name github-actions[bot]
+          git -C "$store" config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          export METRICS_STORE="$store"
+          render() {
+            node --experimental-strip-types --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from "node:fs";
+          import { storeDailyMetrics } from "./bench/metrics/run.ts";
+          const run = JSON.parse(readFileSync("metrics.json", "utf8"));
+          const summary = storeDailyMetrics(run, process.env.METRICS_STORE);
+          writeFileSync(process.env.RUNNER_TEMP + "/metrics-summary.md", summary);
+          JS
+          }
+          commit_data() {
+            git -C "$store" add daily history.tsv README.md
+            if ! git -C "$store" diff --cached --quiet; then
+              git -C "$store" commit -m "Record daily goal metrics"
+            fi
+          }
+          render
+          commit_data
+          if ! git -C "$store" push origin HEAD:refs/heads/metrics-data; then
+            git -C "$store" fetch origin metrics-data
+            # A competing first run may have created an unrelated orphan root.
+            if git -C "$store" merge-base HEAD FETCH_HEAD >/dev/null; then
+              git -C "$store" rebase -X theirs FETCH_HEAD
+            else
+              git -C "$store" rebase -X theirs --root --onto FETCH_HEAD
+            fi
+            # Rebase can choose our index file on a conflict. Rebuild from the
+            # remote's history, then append this run exactly once.
+            git -C "$store" show FETCH_HEAD:history.tsv > "$store/history.tsv"
+            render
+            commit_data
+            git -C "$store" push origin HEAD:refs/heads/metrics-data
+          fi
+          cat "$RUNNER_TEMP/metrics-summary.md" >> "$GITHUB_STEP_SUMMARY"

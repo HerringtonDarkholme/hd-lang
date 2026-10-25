@@ -17,7 +17,15 @@ import { describe, it } from "node:test";
 
 import { CASES } from "./pathological/cases.ts";
 import { freedBytes, passedCount, perUnit, pickArtifact, printed } from "./lib/artifact.ts";
-import { formatTable, selectMetrics } from "./run.ts";
+import {
+  appendMetricsHistory,
+  formatTable,
+  metricsChanges,
+  metricsReadme,
+  selectMetrics,
+  storeDailyMetrics,
+  type MetricsRun,
+} from "./run.ts";
 import { findCacheCap, findThreadControl } from "./lib/capability.ts";
 import { loadMistakes, parseMistake } from "./lib/corpus.ts";
 import { applyEdits, fixOf, hasFixField } from "./lib/fixit.ts";
@@ -544,5 +552,123 @@ describe("pillar 3 helpers", () => {
       /incremental only: test \| t1 \| passed; clean only: test \| t1 \| failed/,
     );
     assert.match(difference(outcome(0, "", "/w"), outcome(1, "", "/f")) ?? "", /status 0/);
+  });
+});
+
+describe("daily metrics", () => {
+  const run = (
+    value = "100 ms",
+    status: "pass" | "fail" | "n/a" = "pass",
+    finished = "2026-10-25T06:00:00.000Z",
+  ): MetricsRun => ({
+    hd: "hd",
+    commit: "abc123",
+    finished,
+    machine: { runner: "ubuntu-latest", cpus: 4, cpu: "test CPU" },
+    results: [{ metric: "fmt", name: "latency", value, target: "≤ 200 ms", status }],
+  });
+
+  it("keeps same-day runs and expands columns without changing earlier values", () => {
+    const first = run();
+    const second = {
+      ...run("120 ms", "fail", "2026-10-25T07:00:00.000Z"),
+      results: [
+        ...run("120 ms", "fail").results,
+        { metric: "new", name: "target", value: "1 B", target: "≤ 2 B", status: "pass" as const },
+      ],
+    };
+    const history = appendMetricsHistory(appendMetricsHistory("", first), second);
+    const [header, one, two] = history
+      .trimEnd()
+      .split("\n")
+      .map((line) => line.split("\t"));
+    assert.equal(one![header!.indexOf('value ["fmt","latency"]')], "100 ms");
+    assert.equal(one![header!.indexOf('value ["new","target"]')], "");
+    assert.equal(two![header!.indexOf('value ["new","target"]')], "1 B");
+    assert.equal(two![header!.indexOf("fail")], "1");
+    assert.equal(appendMetricsHistory(history, second), history);
+    const absent = appendMetricsHistory(history, {
+      ...run(),
+      finished: "2026-10-26T06:00:00.000Z",
+      results: [],
+    });
+    assert.equal(absent.trimEnd().split("\n").length, 4);
+  });
+
+  it("reports flips and movements strictly greater than ten percent", () => {
+    assert.match(metricsChanges(run()), /First recorded/);
+    assert.doesNotMatch(metricsChanges(run("110 ms"), run().results), /→/);
+    assert.match(metricsChanges(run("111 ms"), run().results), /pass 100 ms → pass 111 ms/);
+    assert.match(metricsChanges(run("100 ms", "fail"), run().results), /pass 100 ms → fail 100 ms/);
+    assert.match(metricsChanges(run("-", "n/a"), run().results), /→ n\/a -/);
+    assert.match(metricsChanges(run("1 ms"), run("0 ms").results), /→/);
+  });
+
+  it("normalizes time, bytes, throughput and composite measurements", () => {
+    for (const [before, after] of [
+      ["1 s", "1000 ms"],
+      ["1 MB", "1048576 B"],
+      ["1M/s", "1000k/s"],
+      ["100 ms, 2 MB", "110 ms, 2 MB"],
+    ])
+      assert.doesNotMatch(metricsChanges(run(after), run(before).results), /→/);
+    assert.match(metricsChanges(run("100 ms, 3 MB"), run("100 ms, 2 MB").results), /→/);
+    assert.doesNotMatch(metricsChanges(run("identical"), run("same").results), /→/);
+  });
+
+  it("groups pillars, marks small timing changes as noise and limits daily links", () => {
+    const days = Array.from({ length: 20 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
+    const text = metricsReadme(run("105 ms"), run().results, days);
+    assert.match(text, /## Pillar 1/);
+    assert.match(text, /ubuntu-latest, 4 CPUs/);
+    assert.match(text, /Timing change ≤10%: noise/);
+    assert.equal(text.match(/\]\(daily\//g)?.length, 14);
+    assert.match(text, /daily\/2026-10-20.json/);
+    assert.doesNotMatch(text, /daily\/2026-10-06.json/);
+  });
+
+  it("escapes metric text in Markdown and keeps TSV cells on one line", () => {
+    const current = {
+      ...run(),
+      results: [{ ...run().results[0]!, name: "a|<b>\nline", note: "one\ttwo" }],
+    };
+    const text = metricsReadme(current, undefined, []);
+    assert.match(text, /a&#124;&lt;b> line/);
+    const history = appendMetricsHistory("", current);
+    assert.equal(history.trimEnd().split("\n").length, 2);
+    assert.match(history, /b>\\nline/);
+  });
+
+  it("stores a first run and compares a second run on the same date", () => {
+    const directory = makeTempDir("daily-store");
+    try {
+      assert.match(storeDailyMetrics(run(), directory), /First recorded run/);
+      const second = run("150 ms", "fail", "2026-10-25T07:00:00.000Z");
+      const summary = storeDailyMetrics(second, directory);
+      assert.match(summary, /pass 100 ms → fail 150 ms/);
+      assert.match(
+        readFileSync(join(directory, "README.md"), "utf8"),
+        new RegExp(summary.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+      );
+      const daily = JSON.parse(
+        readFileSync(join(directory, "daily/2026-10-25.json"), "utf8"),
+      ) as MetricsRun;
+      assert.deepEqual(daily, second);
+      assert.equal(
+        readFileSync(join(directory, "history.tsv"), "utf8").trimEnd().split("\n").length,
+        3,
+      );
+      storeDailyMetrics(second, directory);
+      assert.equal(
+        readFileSync(join(directory, "history.tsv"), "utf8").trimEnd().split("\n").length,
+        3,
+      );
+      assert.throws(
+        () => storeDailyMetrics({ ...second, finished: "../../escape" }, directory),
+        /ISO finished/,
+      );
+    } finally {
+      removeTempDir(directory);
+    }
   });
 });
