@@ -9,6 +9,27 @@ use std.convert.From
 use std.ops.Disposable
 use std.time.{Clock, Duration, Instant, sleep}
 
+## A configuration that wraps work and declares the resulting type.
+## See [std-task.layer.decl](../../spec/std/task.md#r-std-task.layer.decl).
+pub trait Layer[W]:
+    type Wrapped
+    fn wrap(self, work: W) -> Self::Wrapped
+
+impl[W] Layer[W] for ():
+    type Wrapped = W
+    fn wrap(self, work: W) -> W: work
+
+impl[W, I < Layer[W], O < Layer[I::Wrapped]] Layer[W] for (I, O):
+    type Wrapped = O::Wrapped
+    fn wrap(self, work: W) -> O::Wrapped:
+        self._1.wrap(self._0.wrap(work))
+
+## Wraps work with a policy and invokes the returned function once.
+## See [std-task.apply.decl](../../spec/std/task.md#r-std-task.apply.decl).
+pub fn apply![T, U, $R, $S, P < Layer[fn!() -> T $ R, Wrapped = fn!() -> U $ S]](policy: P, work: fn!() -> T $ R) -> U $ S:
+    wrapped := policy.wrap(work)
+    wrapped!()
+
 # The first child to complete wins, and the others are cancelled
 # (r-req.combinator.race-losers-disposed). Its plain signature types every call
 # (r-req.combinator.race-signature). The prototype writes the call in hd:

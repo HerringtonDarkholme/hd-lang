@@ -1,0 +1,31 @@
+# test: public apply infers a different result type from a user's Wrapped function
+# Spec std/task: std-task.apply.decl, std-task.apply.result.
+use std.task.{Layer, apply}
+
+enum Fault:
+    Rejected
+
+struct Render: pass
+
+impl[$R] Layer[fn!() -> Result[usize, Fault] $ R] for Render:
+    type Wrapped = fn!() -> string $ R
+    fn wrap(self, work: fn!() -> Result[usize, Fault] $ R) -> (fn!() -> string $ R):
+        fn!() -> string $ R:
+            match work!():
+                .Ok(value) => "rendered $value"
+                .Err(.Rejected) => "rejected"
+
+fn success!() -> Result[usize, Fault]: .Ok(17)
+fn failure!() -> Result[usize, Fault]: .Err(.Rejected)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a Layer may choose a Wrapped output different from the work result"):
+        policy := Render {}
+        let rendered: string = apply!(policy):
+            success!()
+        let rejected: string = apply!(policy):
+            failure!()
+        assert_equal(rendered, "rendered 17", reason="apply returns the changed output type")
+        assert_equal(rejected, "rejected", reason="the wrapper chooses the output for a typed error too")

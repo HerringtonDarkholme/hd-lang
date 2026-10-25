@@ -1,0 +1,20 @@
+# test: public apply requires the extra provider named by the user's Wrapped row
+# Spec std/task: std-task.apply.row.
+use std.task.{Layer, apply}
+
+pub trait Needed:
+    fn value(&self) -> usize
+
+struct Needs: pass
+
+impl[$R] Layer[fn!() -> usize $ R] for Needs:
+    type Wrapped = fn!() -> usize $ R + Needed
+    fn wrap(self, work: fn!() -> usize $ R) -> (fn!() -> usize $ R + Needed):
+        fn!() -> usize $ R + Needed:
+            work!() + $.use(Needed).value()
+
+fn one!() -> usize: 1
+
+pub fn missing!() -> usize:
+    apply!(Needs {}):  # diagnostic: missing-requirement
+        one!()

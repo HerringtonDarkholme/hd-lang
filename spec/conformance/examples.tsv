@@ -989,4 +989,6 @@ std/regex.md	15	accept	runtime/valid/regex-errors.hd
 lang/01-lexical-structure.md	28	accept	parse/valid/duration-literals.hd
 lang/04-type-system.md	14	accept	typing/valid/duration-literals.hd
 std/task.md	16	accept	runtime/valid/task-with-timeout.hd
+std/task.md	17	accept	runtime/valid/task-layer-unit.hd
+std/task.md	18	accept	runtime/valid/task-layer-tuple-order.hd
 lang/04-type-system.md	78	mixed	typing/invalid/impl-trait-recursive.hd

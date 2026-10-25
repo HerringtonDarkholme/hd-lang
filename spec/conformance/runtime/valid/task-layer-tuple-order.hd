@@ -1,0 +1,61 @@
+# test: public binary tuple layers wrap inner first and outer second
+# Spec std/task: std-task.layer.tuple.impl, std-task.layer.tuple.order.
+use std.task.Layer
+use std.task.apply
+
+struct Prefix:
+    text: string
+
+impl Layer[string] for Prefix:
+    type Wrapped = string
+    fn wrap(self, work: string) -> string:
+        self.text + work
+
+pub fn wrapped() -> string:
+    (Prefix { text: "first:" }, Prefix { text: "second:" }).wrap("work")
+
+struct Double:
+    events: *mut List[string]
+
+impl[$R] Layer[fn!() -> usize $ R] for Double:
+    type Wrapped = fn!() -> usize $ R
+    fn wrap(self, work: fn!() -> usize $ R) -> (fn!() -> usize $ R):
+        self.events.push("wrap double")
+        fn!() -> usize $ R:
+            self.events.push("enter double")
+            value := work!()
+            self.events.push("leave double")
+            value * 2
+
+struct Add:
+    events: *mut List[string]
+    amount: usize
+
+impl[$R] Layer[fn!() -> usize $ R] for Add:
+    type Wrapped = fn!() -> usize $ R
+    fn wrap(self, work: fn!() -> usize $ R) -> (fn!() -> usize $ R):
+        self.events.push("wrap add")
+        fn!() -> usize $ R:
+            self.events.push("enter add")
+            value := work!()
+            self.events.push("leave add")
+            value + self.amount
+
+fn two!(events: *mut List[string]) -> usize:
+    events.push("work")
+    2
+
+tests:
+    use std.testing.assert_equal
+
+    it("ordinary string layers compose in tuple order"):
+        assert_equal(wrapped(), "second:first:work", reason="the outer component receives the inner result")
+
+    it("function wrappers preserve order and run only when applied"):
+        events := &mut []
+        policy := (Double { events: events }, Add { events: events, amount: 3 })
+        assert_equal(events.len(), 0, reason="constructing a configuration calls no wrapper")
+        result := apply!(policy):
+            two!(events)
+        assert_equal(result, 7, reason="double is inside add, rather than add inside double")
+        assert_equal(*events, ["wrap double", "wrap add", "enter add", "enter double", "work", "leave double", "leave add"], reason="each wrapper is built once and each returned function runs once")

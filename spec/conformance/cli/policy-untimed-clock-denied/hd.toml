@@ -1,0 +1,6 @@
+[package]
+name = "untimed_policy"
+
+[capabilities]
+Console = true
+Clock = false

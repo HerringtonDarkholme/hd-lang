@@ -1,0 +1,25 @@
+use std.task.{Layer, apply}
+
+pub struct Counts:
+    runs: usize
+
+struct CountRuns:
+    counts: *mut Counts
+
+impl[T, $R] Layer[fn!() -> T $ R] for CountRuns:
+    type Wrapped = fn!() -> T $ R
+    fn wrap(self, work: fn!() -> T $ R) -> (fn!() -> T $ R):
+        fn!() -> T $ R:
+            self.counts.runs += 1
+            work!()
+
+pub fn answer!(counts: *mut Counts) -> usize:
+    apply!(((), CountRuns { counts: counts })):
+        42
+
+pub fn main!() -> void $ Console:
+    counts := &mut Counts { runs: 0 }
+    value := answer!(counts)
+    if value != 42 || counts.runs != 1:
+        panic("untimed policy returned the wrong value or invocation count")
+    println("untimed $value ${counts.runs}")

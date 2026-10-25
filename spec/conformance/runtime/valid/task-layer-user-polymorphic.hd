@@ -1,0 +1,76 @@
+# test: a public user layer preserves typed results and infers both requirement rows
+# Spec std/task: std-task.layer.wrap, std-task.apply.row, std-task.apply.wrap-once.
+use std.task.{Layer, apply}
+
+pub trait SourceName:
+    fn word(&self) -> string
+
+pub trait Audit:
+    fn note(&mut self, value: string) -> void
+
+struct Name:
+    value: string
+
+impl SourceName for Name:
+    fn word(&self) -> string: self.value
+
+struct Recorder:
+    events: *mut List[string]
+
+impl Audit for Recorder:
+    fn note(&mut self, value: string) -> void: self.events.push(value)
+
+struct Counts:
+    wraps: usize
+    runs: usize
+
+struct UserLayer:
+    counts: *mut Counts
+
+impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for UserLayer:
+    type Wrapped = fn!() -> Result[T, E] $ R + Audit
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Audit):
+        self.counts.wraps += 1
+        fn!() -> Result[T, E] $ R + Audit:
+            self.counts.runs += 1
+            $.use(Audit).note("enter")
+            result := work!()
+            $.use(Audit).note("leave")
+            result
+
+@derive(Eq, Debug)
+enum NumberError:
+    Missing
+
+@derive(Eq, Debug)
+enum WordError:
+    Rejected(word: string)
+
+fn number!() -> Result[usize, NumberError] $ SourceName:
+    if $.use(SourceName).word() == "live": .Ok(7) else: .Err(.Missing)
+
+fn word!(accept: bool) -> Result[string, WordError] $ SourceName:
+    value := $.use(SourceName).word()
+    if accept: .Ok(value) else: .Err(.Rejected(value))
+
+tests:
+    use std.testing.assert_equal
+
+    it("the same policy handles two result types and retains both rows"):
+        counts := &mut Counts { wraps: 0, runs: 0 }
+        events := &mut []
+        audit := &mut Recorder { events: events }
+        policy := UserLayer { counts: counts }
+        $.with(SourceName=&Name { value: "live" }, Audit=audit):
+            number_result := apply!(policy):
+                number!()
+            word_result := apply!(policy):
+                word!(true)
+            error_result := apply!(policy):
+                word!(false)
+            assert_equal(number_result, .Ok(7), reason="the first concrete result type is preserved")
+            assert_equal(word_result, .Ok("live"), reason="the second concrete result type is preserved")
+            assert_equal(error_result, .Err(WordError.Rejected("live")), reason="the user's error stays statically typed")
+        assert_equal(counts.wraps, 3, reason="each application calls wrap once")
+        assert_equal(counts.runs, 3, reason="each returned function is invoked once")
+        assert_equal(*events, ["enter", "leave", "enter", "leave", "enter", "leave"], reason="the added Audit provider and original SourceName provider reach every call")

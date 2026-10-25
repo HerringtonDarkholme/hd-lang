@@ -1,0 +1,31 @@
+# test: the public unit layer preserves ordinary values and applies work once
+# Spec std/task: std-task.layer.unit.identity, std-task.apply.invoke-once.
+use std.task.apply
+use std.task.Layer
+
+struct Calls:
+    count: usize
+
+pub fn answer!() -> usize:
+    apply!(()):
+        42
+
+fn counted!(calls: *mut Calls) -> usize:
+    calls.count += 1
+    17
+
+tests:
+    use std.testing.assert_equal
+
+    it("unit wrap is the identity on ordinary values"):
+        number := 19usize
+        assert_equal(().wrap(number), number, reason="unit accepts work of any type")
+        assert_equal(().wrap("kept"), "kept", reason="unit preserves the original value")
+
+    it("unit apply runs its original function once with an empty row"):
+        calls := &mut Calls { count: 0 }
+        result := apply!(()):
+            counted!(calls)
+        assert_equal(result, 17, reason="unit apply returns the function result")
+        assert_equal(calls.count, 1, reason="the returned function is invoked once")
+        assert_equal(answer!(), 42, reason="the minimal public example needs no Clock")

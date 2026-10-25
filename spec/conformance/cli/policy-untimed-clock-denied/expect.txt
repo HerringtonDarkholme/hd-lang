@@ -1,0 +1,2 @@
+run: hd run --cap Clock=false
+stdout: untimed 42 1

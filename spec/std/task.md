@@ -5,6 +5,7 @@ Status: standard library specification draft.
 This chapter defines the part of `std.task` that `lib/std` writes in
 ordinary hd over the language tier:
 
+- the `Layer` trait, unit and binary tuple implementations, and `apply!`;
 - the `retry!` combinator and its `Backoff` policy;
 - the `timeout!` and `with_timeout!` combinators and their `TimedOut` error;
 - the `map_all!` combinator;
@@ -423,3 +424,70 @@ pub fn with_timeout![T, E < From[TimedOut], $R](limit: Duration, cleanup: Durati
 > **Why.** `timeout!` still accepts any work and keeps its deadline error
 > separate. Result-returning work opts into a conversion explicitly, so
 > retries and nested deadlines keep one statically typed error channel.
+
+## Policy Layers
+
+`Layer` describes work transformations and their resulting types.
+The foundation uses ordinary unit and binary tuple values.
+
+```text
+use std.task.apply
+
+pub fn answer!() -> usize:
+    apply!(()):
+        42
+```
+
+`answer!()` returns `42` without requiring `Clock`.
+
+### Layer
+
+1. r[std-task.layer.decl] `std.task` declares the public trait `Layer[W]`.
+2. r[std-task.layer.wrapped] `Layer[W]` declares the associated type `Wrapped`.
+3. r[std-task.layer.wrap] Its ordinary method is `wrap(self, work: W) -> Self::Wrapped`.
+
+### Unit Layer
+
+1. r[std-task.layer.unit.impl] `()` implements `Layer[W]` for every work type `W`, with `Wrapped = W`.
+2. r[std-task.layer.unit.identity] The unit implementation's `wrap` returns its `work` argument unchanged.
+
+### Tuple Layers
+
+1. r[std-task.layer.tuple.impl] `(I, O)` implements `Layer[W]` when `I` implements `Layer[W]` and `O` implements `Layer[I::Wrapped]`.
+2. r[std-task.layer.tuple.wrapped] That tuple implementation binds `Wrapped` to `O::Wrapped`.
+3. r[std-task.layer.tuple.order] Its `wrap` returns `self._1.wrap(self._0.wrap(work))`, applying the first component's wrapper before the second component's wrapper.
+
+```text
+use std.task.Layer
+
+struct Prefix:
+    text: string
+
+impl Layer[string] for Prefix:
+    type Wrapped = string
+    fn wrap(self, work: string) -> string:
+        self.text + work
+
+pub fn wrapped() -> string:
+    (Prefix { text: "first:" }, Prefix { text: "second:" }).wrap("work")
+```
+
+`wrapped()` returns `"second:first:work"`: the first component wraps before
+the second component.
+
+### Apply
+
+1. r[std-task.apply.decl] `std.task` declares the public function `apply![T, U, $R, $S, P < Layer[fn!() -> T $ R, Wrapped = fn!() -> U $ S]](policy: P, work: fn!() -> T $ R) -> U $ S`.
+2. r[std-task.apply.wrap-once] When executed, `apply!` calls `policy.wrap(work)` exactly once.
+3. r[std-task.apply.invoke-once] It then bang-calls the returned function exactly once.
+4. r[std-task.apply.result] It returns that function call's value unchanged.
+5. r[std-task.apply.row] Its declared requirement row is the wrapped function's row `S`, without an added `Clock` requirement.
+
+> **Why.** The associated output permits different input and output types
+> and requirement rows. Unit preserves work, while a binary tuple composes
+> two ordinary implementations without a separate stack type.
+
+See also: [Associated Types](../lang/09-traits.md#associated-types),
+[Associated Type Bindings](../lang/09-traits.md#associated-type-bindings),
+[Requirement Polymorphism](../lang/11-requirements-and-suspension.md#requirement-polymorphism),
+[Trailing Blocks](../lang/07-functions.md#r-fn.trailing.form).
