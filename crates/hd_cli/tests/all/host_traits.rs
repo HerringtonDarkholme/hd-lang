@@ -875,18 +875,32 @@ pub fn main!() -> void $ Console + Http + Args:
 #[cfg(unix)]
 #[test]
 fn server_sdk_main_keeps_state_and_serves_concurrent_requests() {
+    server_sdk_node_tests(&[
+        "packages/server-sdk/test/node.test.mjs",
+        "packages/server-sdk/test/provider.test.mjs",
+        "packages/server-sdk/test/dispatcher.test.mjs",
+        "packages/server-sdk/test/application.test.mjs",
+        "packages/server-sdk/test/application-client.test.mjs",
+        "packages/server-sdk/test/node-client.test.mjs",
+        "packages/server-sdk/test/http.test.mjs",
+    ]);
+}
+
+/// Fetch mapping and worker termination do not depend on Unix signals.
+#[test]
+fn server_sdk_fetch_and_supervised_application_cleanup() {
+    server_sdk_node_tests(&[
+        "packages/server-sdk/test/fetch.test.mjs",
+        "packages/server-sdk/test/supervisor.test.mjs",
+        "packages/server-sdk/test/supervised-application.test.mjs",
+    ]);
+}
+
+fn server_sdk_node_tests(files: &[&str]) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let out = Command::new("node")
-        .args([
-            "--test",
-            "packages/server-sdk/test/node.test.mjs",
-            "packages/server-sdk/test/provider.test.mjs",
-            "packages/server-sdk/test/dispatcher.test.mjs",
-            "packages/server-sdk/test/application.test.mjs",
-            "packages/server-sdk/test/application-client.test.mjs",
-            "packages/server-sdk/test/node-client.test.mjs",
-            "packages/server-sdk/test/http.test.mjs",
-        ])
+        .arg("--test")
+        .args(files)
         .env("HD_SDK_TEST_HD", env!("CARGO_BIN_EXE_hd"))
         .current_dir(root)
         .output()

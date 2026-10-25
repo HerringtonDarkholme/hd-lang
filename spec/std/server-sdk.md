@@ -57,7 +57,7 @@ These names are also re-exported from the package's root module.
 ## Request Cleanup
 
 1. r[std-server-sdk.lease-clock] The worker binds the source's request clock around the handler and its cleanup bound.
-2. r[std-server-sdk.lease-timeout] The handler has a twenty-second timeout with a hundred-millisecond cooperative cleanup bound.
+2. r[std-server-sdk.lease-handler-timeout] The handler has a twenty-second fallback timeout.
 3. r[std-server-sdk.lease-timeout-response] A handler timeout produces status 504 with body `request timed out`.
 4. r[std-server-sdk.lease-reply] A completed handler's response returns with its original request ID.
 5. r[std-server-sdk.lease-cancel] A source cancellation cancels that handler without cancelling the worker group.
@@ -65,6 +65,11 @@ These names are also re-exported from the package's root module.
 7. r[std-server-sdk.lease-finish] Every accepted lease is finished once after response delivery or cancellation cleanup.
 8. r[std-server-sdk.lease-expired-response] An expired response lease does not end its worker's admission loop.
 9. r[std-server-sdk.lease-client] The worker binds the source's request client around the handler and its cleanup bound.
+10. r[std-server-sdk.lease-cleanup-budget] The SDK bounds cooperative cleanup to one hundred milliseconds from when cleanup begins.
+11. r[std-server-sdk.lease-cleanup-backstop] The host's cancellation watchdog expires two hundred milliseconds after cancellation is sent.
+12. r[std-server-sdk.lease-cleanup-escalation] If cleanup remains unacknowledged at that expiry, the host poisons or terminates the affected instance.
+13. r[std-server-sdk.lease-cleanup-acknowledged] Acknowledged cleanup cancels its host watchdog.
+14. r[std-server-sdk.lease-cleanup-platform] Platform CPU limits apply independently of the cleanup watchdog.
 
 > **Why.** The source's admission deadline can cancel earlier than the
 > handler's fallback timeout. The existing timeout combinator bounds
@@ -107,6 +112,9 @@ SDK application through public runtime and generated binding modules.
 8. r[std-server-sdk.application.fail] `fail(error)` poisons the instance and closes its core host.
 9. r[std-server-sdk.application.client-policy] Source clients use the owning core runtime's Http policy service.
 10. r[std-server-sdk.application.http-guard] An ambient Http send fails instead of substituting a client without a request lease. Boundary failure: `host-contract`.
+11. r[std-server-sdk.application.start] `start()` eagerly drives the retained application's startup.
+12. r[std-server-sdk.application.ready] The optional `onReady` callback runs once after a completed driver turn parks on request acceptance.
+13. r[std-server-sdk.application.stopped] The optional `onStopped` callback runs after stopped main completion closes the core host.
 
 > **Note.** This adapter exchanges plain values. Platform HTTP mapping,
 > admission limits, supervision and deployment
@@ -136,3 +144,69 @@ SDK application through public runtime and generated binding modules.
 > **Why.** Manual redirects enforce grants on every destination and avoid
 > forwarding credentials to another origin. The transport's own timeout
 > requires no ambient HD Clock capability.
+
+
+## Fetch Request Adapter
+
+`adapters/fetch.mjs` maps standard Fetch requests to the ordinary application.
+Its optional timer service supports deterministic hosts and tests without
+changing the profile's limits.
+
+1. r[std-server-sdk.fetch.factory] `createFetchAdapter(options)` constructs one retained application and exposes its Fetch handler.
+2. r[std-server-sdk.fetch.handler] `createFetchHandler(application, options)` adapts an existing application or supervisor.
+3. r[std-server-sdk.fetch.reservation] Admission reserves one of eight slots before reading request headers or body bytes.
+4. r[std-server-sdk.fetch.overload] A ninth active request receives status 503 with `Retry-After: 1`, without waiting for a slot.
+5. r[std-server-sdk.fetch.body-limit] Incoming and outgoing whole bodies are limited to one mebibyte each.
+6. r[std-server-sdk.fetch.declared-body] A declared incoming body exceeding that limit receives status 413 before body reading.
+7. r[std-server-sdk.fetch.actual-body] The adapter counts incoming bytes independently of the declared length.
+8. r[std-server-sdk.fetch.header-limit] Incoming and outgoing headers are limited to 65,536 UTF-8 bytes, including four framing bytes per field.
+9. r[std-server-sdk.fetch.headers-rejected] Oversized incoming headers receive status 431.
+10. r[std-server-sdk.fetch.malformed] Invalid incoming method tokens, lengths, or body streams receive status 400.
+11. r[std-server-sdk.fetch.url] The incoming request retains the platform's absolute URL, with an empty separate query list.
+12. r[std-server-sdk.fetch.method] Standard methods map to their standard variants, and other valid tokens map to `Method.Other`.
+13. r[std-server-sdk.fetch.framing] The adapter removes hop-by-hop fields, Connection-nominated fields, and length or transfer framing on both sides.
+14. r[std-server-sdk.fetch.cookies] Response Set-Cookie values remain separate platform header values.
+15. r[std-server-sdk.fetch.status] Response statuses must be between 200 and 599.
+16. r[std-server-sdk.fetch.bodyless] HEAD responses and statuses 204, 205, and 304 have no platform response body.
+17. r[std-server-sdk.fetch.response-invalid] Invalid or oversized guest responses become generic status 500 before platform response construction.
+18. r[std-server-sdk.fetch.deadline] The twenty-second request deadline starts at admission and includes incoming body reading.
+19. r[std-server-sdk.fetch.deadline-response] Admission deadline cancellation produces status 504.
+20. r[std-server-sdk.fetch.disconnect] A platform disconnect cancels only its admitted request.
+21. r[std-server-sdk.fetch.reader-owner] Native reader cancellation runs in the reader's owning continuation.
+22. r[std-server-sdk.fetch.backstop] The adapter applies the two-hundred-millisecond cancellation watchdog to unacknowledged work and native reader disposal.
+23. r[std-server-sdk.fetch.poison] Watchdog escalation closes admission and poisons the retained application.
+24. r[std-server-sdk.fetch.failure] Application failure exposes a generic status 500 and cancels other active requests.
+25. r[std-server-sdk.fetch.private-log] Failure logs contain event categories without guest details, bodies, or header values.
+26. r[std-server-sdk.fetch.stop] The first `stop()` closes admission and drains already admitted work.
+27. r[std-server-sdk.fetch.stop-again] A second `stop()` cancels admitted work with `Stopping`.
+28. r[std-server-sdk.fetch.stale] Late completions after poisoning cannot reopen admission.
+
+> **Note.** Eight reservations bound the platform layer; an application
+> with fewer accepting workers can still wait internally. A blocking
+> isolate still needs an external supervisor or its platform CPU limit.
+
+## Node Worker Supervisor
+
+`adapters/supervisor.mjs` runs each retained application in a separate
+Node worker. Runtime, generated-binding, and application module URLs are
+explicit public inputs; packaging supplies them independently.
+
+1. r[std-server-sdk.supervisor.factory] `createSupervisor` takes a compiled module, module URLs, grants, explicit lifecycle budgets, and observer callbacks.
+2. r[std-server-sdk.supervisor.worker] Each worker retains one application instance and its state across sequential requests.
+3. r[std-server-sdk.supervisor.capacity] At most one request is active per ready worker, with no waiting request queue.
+4. r[std-server-sdk.supervisor.overload] Unavailable capacity returns status 503 with the configured Retry-After value.
+5. r[std-server-sdk.supervisor.admission-time] Request deadlines include time elapsed since the supplied admission timestamp.
+6. r[std-server-sdk.supervisor.budgets] Startup, request, drain, outer-stop, restart-count, restart-window, and Retry-After values must be supplied explicitly.
+7. r[std-server-sdk.supervisor.outer-floor] The outer-stop budget cannot precede the two-hundred-millisecond cleanup watchdog.
+8. r[std-server-sdk.supervisor.watchdog] The supervisor runs the fixed cleanup watchdog outside the guest's worker thread.
+9. r[std-server-sdk.supervisor.non-yielding] Watchdog expiry terminates an unacknowledged worker even when its guest never yields.
+10. r[std-server-sdk.supervisor.failure] Worker failure returns generic status 500 without private guest diagnostics.
+11. r[std-server-sdk.supervisor.sibling] Retiring one worker does not poison another worker's retained instance.
+12. r[std-server-sdk.supervisor.restart] Replacement respects the supplied restart count and window, reporting exhaustion to the observer.
+13. r[std-server-sdk.supervisor.release] A response result requires a matching worker generation, request ID, and release acknowledgement.
+14. r[std-server-sdk.supervisor.stop] First stop drains active work, while second stop or drain expiry starts cancellation.
+15. r[std-server-sdk.supervisor.join] Stop and close completion join worker termination.
+16. r[std-server-sdk.supervisor.confirmation] Forced termination reports cleanup as unconfirmed.
+
+> **Note.** The component supplies no deployment task, lifecycle budget
+> defaults, application-log routing, or aggregate memory guarantee.

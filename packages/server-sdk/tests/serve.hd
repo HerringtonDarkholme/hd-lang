@@ -182,12 +182,14 @@ it("external cancellation retains the same cleanup bound and releases leases"):
 struct DeadlineClock:
     base: *mut dyn Clock
     tick: i64
+    cleanup_seen: bool = false
 
 impl Clock for DeadlineClock:
     fn now(self) -> Timestamp: Timestamp::from_unix_milliseconds(self.tick)
     fn monotonic(self) -> Instant: Instant::from_milliseconds(self.tick)
     fn sleep!(&mut self, duration: Duration) -> void:
         amount := duration.as_milliseconds()
+        if amount == 100: self.cleanup_seen = true
         if amount == 20000 || amount == 100:
             self.base.sleep!(ms(1))
             self.tick += amount
@@ -200,6 +202,7 @@ it("the handler deadline returns 504 after bounded abandoned cleanup"):
     state := &mut Work { cleanup_ms: 60000, events: [] }
     $.with(HttpServer=server):
         assert(serve!(3, state, cancellable).is_ok(), reason="a deadline is a response, not a group error")
+    assert(clock.cleanup_seen, reason="the SDK cleanup timer remains 100ms; only the host backstop is 200ms")
     assert_equal(server.replies.len(), 3, reason="the timed-out request receives its own response")
     for (sequence, value) in server.replies:
         if sequence == 1:

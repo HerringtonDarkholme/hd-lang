@@ -7,7 +7,15 @@ const expired = () => ({ ok: false, error: { tag: "Expired", fields: {} } });
 // Runtime and signature-generated bindings are explicit inputs. Packaging
 // supplies their public modules; the SDK never reads compiler cache internals.
 // This boundary consumes/returns plain HD values, not platform Request/Response.
-export function createApplication({ module, bindings, createCoreHost, grants, sink }) {
+export function createApplication({
+  module,
+  bindings,
+  createCoreHost,
+  grants,
+  sink,
+  onReady = () => {},
+  onStopped = () => {},
+}) {
   const sources = bindings.interfaces.filter((item) => !item.handle);
   if (sources.length !== 1 || sources[0].identity.trait_path !== "server.HttpServer")
     throw new Error("the application must bind the SDK HttpServer capability");
@@ -20,7 +28,9 @@ export function createApplication({ module, bindings, createCoreHost, grants, si
     driver,
     driving = false,
     stopping = false,
-    ended = false;
+    ended = false,
+    accepting = false,
+    announcedReady = false;
   const dispatcher = createLeaseDispatcher({
     drive,
     failed: () => {
@@ -40,6 +50,7 @@ export function createApplication({ module, bindings, createCoreHost, grants, si
   };
   const provider = {
     accept(context) {
+      accepting = true;
       let held;
       return context.pending(
         () => {
@@ -153,16 +164,42 @@ export function createApplication({ module, bindings, createCoreHost, grants, si
           if (!stopping || leases.size) throw new Error("server main ended before its leases");
           ended = true;
           host.close();
+          try {
+            onStopped();
+          } catch {}
           return;
         }
-        if (!turn.wakes) return;
+        if (!turn.wakes) {
+          if (accepting && !announcedReady) {
+            announcedReady = true;
+            try {
+              onReady();
+            } catch {}
+          }
+          return;
+        }
       }
       throw new Error("server exceeded its ready-turn budget");
     } finally {
       driving = false;
     }
   }
+  const start = () => {
+    try {
+      drive();
+      if (accepting && !ended && !announcedReady) {
+        announcedReady = true;
+        try {
+          onReady();
+        } catch {}
+      }
+    } catch (error) {
+      dispatcher.fail(error);
+      throw error;
+    }
+  };
   return Object.freeze({
+    start,
     async dispatch(request, signal) {
       if (stopping) throw new Error("server admission is closed");
       const lease = dispatcher.open(request);
