@@ -2227,7 +2227,11 @@ pub fn build_packages(
         let mut skims = Vec::new();
         for i in 0..n {
             skims.push(g.add(TaskKind::Skim(u32::try_from(i).expect("files")), &[]));
-            if matches!(goal, Goal::Analyze | Goal::CheckTests) {
+            // The embedded std always parses, so analysis parses it only
+            // where a later stage reads it (`parse_of`).
+            let embedded_std = embedded.is_some()
+                && usize::from(run.table.modules[i].package) + 1 == run.table.packages.len();
+            if matches!(goal, Goal::Analyze | Goal::CheckTests) && !embedded_std {
                 g.add(TaskKind::Parse(u32::try_from(i).expect("files")), &[]);
             }
         }
@@ -3958,28 +3962,10 @@ impl Run<'_> {
         key.finish()
     }
 
-    /// Only attached documentation affects generated metadata. Plain comments
-    /// keep the existing cache reuse; these docs never enter dependency keys.
+    /// Only attached documentation affects generated metadata
+    /// (`FileSkim::doc_hash`).
     fn doc_hash(&self, m: usize) -> Hash128 {
-        let text = &self.texts[m];
-        let mut key = hd_base::StableHasher::new("own-docs-v1");
-        if text.contains("##") {
-            let lexed = hd_syntax::lex(text.as_bytes());
-            let toks = &lexed.tokens;
-            for (i, kind) in toks.com_kind.iter().enumerate() {
-                if *kind != hd_syntax::CommentKind::Doc {
-                    continue;
-                }
-                let token = toks.start.partition_point(|start| *start < toks.com_end[i]);
-                let doc =
-                    hd_syntax::doc_text(text, toks, hd_base::TokenIdx::from_raw(u32_of(token)));
-                if !doc.is_empty() {
-                    key.u32(u32_of(token));
-                    key.str(&doc);
-                }
-            }
-        }
-        key.finish()
+        self.skim_of(m).file.doc_hash
     }
 
     /// The hash of the use roots of folder `fi`'s modules (`UseRoots`):

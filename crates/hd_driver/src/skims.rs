@@ -22,6 +22,9 @@ pub(crate) struct FileSkim {
     /// (`HeaderSkeleton::template_text_hash`).
     pub(crate) template_text_hash: Hash128,
     pub(crate) token_hash: Hash128,
+    /// The hash of the attached documentation, the only comments that
+    /// affect generated metadata; plain comments keep cache reuse.
+    pub(crate) doc_hash: Hash128,
     /// The start of each code line (`HeaderSkeleton::code_lines`).
     pub(crate) code_lines: Vec<u32>,
     /// The byte range of each `use` line outside a `tests:` block
@@ -76,6 +79,7 @@ impl FileSkim {
             api_text_hash: sk.api_text_hash,
             template_text_hash: sk.template_text_hash,
             token_hash: sk.token_hash,
+            doc_hash: doc_hash(text),
             has_tests_block: tests().next().is_some(),
             public_main: main_header(true),
             private_main: main_header(false),
@@ -95,6 +99,7 @@ impl FileSkim {
         w.hash(self.api_text_hash);
         w.hash(self.template_text_hash);
         w.hash(self.token_hash);
+        w.hash(self.doc_hash);
         w.len_of(&self.code_lines);
         for &l in &self.code_lines {
             w.u32(l);
@@ -126,6 +131,7 @@ impl FileSkim {
         let api_text_hash = r.hash();
         let template_text_hash = r.hash();
         let token_hash = r.hash();
+        let doc_hash = r.hash();
         let code_lines = (0..r.count()).map(|_| r.u32()).collect();
         let use_lines = (0..r.count()).map(|_| (r.u32(), r.u32())).collect();
         let test_uses = (0..r.count()).map(|_| r.str().to_owned()).collect();
@@ -138,6 +144,7 @@ impl FileSkim {
             api_text_hash,
             template_text_hash,
             token_hash,
+            doc_hash,
             code_lines,
             use_lines,
             test_uses,
@@ -146,6 +153,29 @@ impl FileSkim {
             private_main,
         }
     }
+}
+
+/// The hash of `text`'s attached documentation: each doc comment's text
+/// and the token it documents.
+fn doc_hash(text: &str) -> Hash128 {
+    let mut key = hd_base::StableHasher::new("own-docs-v1");
+    if text.contains("##") {
+        let lexed = hd_syntax::lex(text.as_bytes());
+        let toks = &lexed.tokens;
+        for (i, kind) in toks.com_kind.iter().enumerate() {
+            if *kind != hd_syntax::CommentKind::Doc {
+                continue;
+            }
+            let token = toks.start.partition_point(|start| *start < toks.com_end[i]);
+            let token = u32::try_from(token).expect("token index");
+            let doc = hd_syntax::doc_text(text, toks, hd_base::TokenIdx::from_raw(token));
+            if !doc.is_empty() {
+                key.u32(token);
+                key.str(&doc);
+            }
+        }
+    }
+    key.finish()
 }
 
 /// The embedded std's file skims, by path, from the `depfiles` entry of
