@@ -224,6 +224,8 @@ Compiled modules may be cached and reused; mutable instances never are. Secret v
 Each SDK task takes the built `build/<profile>/NAME.wasm` and writes the platform wrapper, the Wasm asset, host modules, the generated provider glue (#51) and platform config, under its output directory with atomic replacement.
 A task never uploads, never asks for credentials, and never overwrites unrelated platform files.
 
+The SDK ships a source-hashed portable runtime snapshot. Its deployment tools emit those public host modules from the installed SDK, with package-host ABI identity and source provenance computed by the task. They use the generated binding companion already written by `hd build`; no compiler-cache path or policy-bearing build companion is part of this boundary. Platform wrappers and build validation remain the subsequent slices.
+
 | Use case | Commands and result |
 | --- | --- |
 | U1 | `hd build`; `hd run deploy-cloudflare`; Wrangler dry run; deploy; POST JSON; typed JSON or 400. |

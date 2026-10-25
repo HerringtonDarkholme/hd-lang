@@ -162,3 +162,15 @@ guarantee or select deployment budgets.
 The reader accepts TOML quoted keys, multiline arrays and ordinary escaping through a pinned, vendored parser. It rejects malformed TOML, invalid grant shapes and non-UTF-8 input. Error text omits source excerpts and grant values. Scope paths keep their manifest spelling for the consuming platform adapter to resolve; this helper does not invent a platform filesystem.
 
 The policy conformance inputs are in `test/fixtures/deployment-grants.json`, executed by `node --test packages/server-sdk/test/grants.test.mjs` from the repository root and by the CLI's maintained SDK test wrapper. `hd build` remains policy-free: there is no `NAME.host.json`, and deployment grants are not read from compiler caches or build artifacts. Platform packaging tasks remain the next slice.
+
+## Portable Runtime Snapshot
+
+The SDK carries the platform-neutral host graph and its ABI model in `runtime/runtime-sources.json`. Deployment tools use `packaging/portable-runtime.mjs` to validate this snapshot and emit it into a fresh task-owned staging directory. `readPortableRuntime()` returns the file texts and identity metadata; `emitPortableRuntime(directory)` also returns public module URLs for the emitted core and package-contract reader. Existing output is refused.
+
+Snapshot source text uses LF independently of checkout line endings. Emitted files match those archived bytes.
+
+The fingerprint covers emitted names and bytes, the package-host ABI version and the source base revision. The content hashes identify the actual source even when maintenance runs on an uncommitted host edit. These are integrity and provenance records, not signatures. The package-host ABI version is distinct from a claim that every compiler/runtime ABI is versioned. A task validates its built module and generated bindings before publishing a platform bundle.
+
+The installed SDK needs no compiler checkout, build companion or compiler cache to emit its runtime. The relocation control builds the sample, removes its HD source and SDK development provider, then uses the installed snapshot and production grants to serve counters 1, 2 and 3 and stop normally in a fresh Node process. Platform build validation remains part of each deploy task's acceptance.
+
+Repository maintainers refresh the generated snapshot with `node packages/server-sdk/packaging/sync-runtime.mjs` when the portable host graph changes. The maintained SDK tests reject a snapshot that differs from the current host sources. Application deploy tasks consume the snapshot and never run this repository-maintenance command.
