@@ -904,6 +904,12 @@ fn server_sdk_deployment_grants_are_production_only() {
     server_sdk_node_tests(&["packages/server-sdk/test/grants.test.mjs"]);
 }
 
+/// The SDK's portable host graph is self-contained after installation.
+#[test]
+fn server_sdk_portable_runtime_survives_relocation() {
+    server_sdk_node_tests(&["packages/server-sdk/test/runtime.test.mjs"]);
+}
+
 fn server_sdk_node_tests(files: &[&str]) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     // Each file already exercises real overlapping requests and workers.

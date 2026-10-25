@@ -265,3 +265,20 @@ The SDK JavaScript conformance inputs are in
 [deployment-grants.json](../../packages/server-sdk/test/fixtures/deployment-grants.json);
 its maintained [test runner](../../packages/server-sdk/test/grants.test.mjs)
 also checks root selection, fresh reads, invalid UTF-8 and the SDK task bridge.
+
+## Portable Runtime Packaging
+
+1. r[std-server-sdk.runtime.snapshot] The SDK ships a platform-neutral host graph and its host ABI model as a portable runtime snapshot.
+2. r[std-server-sdk.runtime.identity] The snapshot fingerprint covers its file names, file contents, package-host ABI version and source base revision.
+3. r[std-server-sdk.runtime.validate] The emitter rejects invalid snapshot metadata, an unexpected file list, a checksum mismatch or a fingerprint mismatch before creating output.
+4. r[std-server-sdk.runtime.bytes] Emitted runtime files preserve their snapshot contents byte for byte.
+5. r[std-server-sdk.runtime.fresh-output] The emitter creates only a fresh task-owned directory and refuses an existing destination.
+6. r[std-server-sdk.runtime.installed] Emitting the installed SDK's runtime requires neither a compiler checkout nor compiler-cache access.
+
+> **Why.** SDK-owned distribution gives deploy tasks the host modules they
+> need while the compiler's build output stays platform-neutral and policy-free.
+> Each platform task owns its final bundle and build validation.
+
+The maintained [runtime conformance controls](../../packages/server-sdk/test/runtime.test.mjs)
+check invalid snapshots, source fidelity, output ownership and a compiled
+application running from a relocated SDK after source and provider removal.
