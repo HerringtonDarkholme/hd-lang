@@ -71,9 +71,13 @@ pub fn rename_all(style: RenameCase) -> RenameAll:
 ## Resolves a wire name: member rename, then container rename_all, then source name.
 ## See [std-serde.member-name.precedence](../../spec/std/serde.md#r-std-serde.member-name.precedence).
 pub fn member_name(member: Member, container: Facts) -> string:
-    match member.facts.find::[Rename]():
-        .Some(fact) => return fact.name
-        .None => pass
+    # Most members and containers have no facts, so the searches are skipped.
+    if !member.facts.items.is_empty():
+        match member.facts.find::[Rename]():
+            .Some(fact) => return fact.name
+            .None => pass
+    if container.items.is_empty():
+        return member.name
     match container.find::[RenameAll]():
         .Some(fact) => case_name(member.name, fact.style)
         .None => member.name
@@ -226,13 +230,15 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
         self.member(h, items)
 
     fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
-        if h.fact::[Skip]().is_some():
-            return .Ok(())
-        match h.fact::[SkipNone[F]]():
-            .Some(fact) =>
-                if (fact.absent)(value):
-                    return .Ok(())
-            .None => pass
+        # A member with no facts has neither `Skip` nor `SkipNone`.
+        if !h.info.facts.items.is_empty():
+            if h.fact::[Skip]().is_some():
+                return .Ok(())
+            match h.fact::[SkipNone[F]]():
+                .Some(fact) =>
+                    if (fact.absent)(value):
+                        return .Ok(())
+                .None => pass
         self.out.member(h.info)?
         value.serialize(self.out)
 
@@ -272,11 +278,13 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
 
     # Every unskipped member, in declaration order.
     fn next(&mut self, members: Members[S]) -> Result[Key[S]?, R::Error]:
+        # The member is read in place, not copied out of the list.
         while self.at < members.infos.len():
-            info := members.infos[self.at]
+            at := self.at
             self.at += 1
-            if info.facts.find::[Skip]().is_none():
-                return .Ok(members.at(info.position))
+            if members.infos[at].facts.items.is_empty() || members.infos[at].facts.find::[Skip]().is_none():
+                position := members.infos[at].position
+                return .Ok(members.at(position))
         .Ok(.None)
 
     # An absent member that declares a default takes it, and is not read

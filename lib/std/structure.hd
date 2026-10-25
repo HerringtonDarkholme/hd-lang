@@ -174,10 +174,9 @@ impl[HdS] Members[HdS]:
     ## The key of the member at `position`, or `.None`.
     ## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
     pub fn at(self, position: usize) -> Key[HdS]?:
-        if position < self.infos.len():
-            info := self.infos[position]
-            if info.position == position:
-                return .Some(Key { info: info, hd_type: self.hd_type })
+        # The member is read in place, and copied only into the key.
+        if position < self.infos.len() && self.infos[position].position == position:
+            return .Some(Key { info: self.infos[position], hd_type: self.hd_type })
         for info in self.infos:
             if info.position == position:
                 return .Some(Key { info: info, hd_type: self.hd_type })
