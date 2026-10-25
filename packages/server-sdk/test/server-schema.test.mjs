@@ -276,7 +276,9 @@ test("source hashes match current declaration sources with canonical LF", async 
       await mkdir(join(d, file, ".."), { recursive: true });
       await writeFile(
         join(d, file),
-        (await readFile(join(repository, file), "utf8")).replaceAll("\n", "\r\n"),
+        (await readFile(join(repository, file), "utf8"))
+          .replaceAll("\r\n", "\n")
+          .replaceAll("\n", "\r\n"),
       );
     }
     assert.deepEqual(await sourceInventory(d), current);

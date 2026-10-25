@@ -25,7 +25,7 @@ import {
 const compiled = fixture();
 after(() => rm(compiled.directory, { recursive: true, force: true }));
 const { app, wasmPath, bindingsPath, wasm, companion, manifest, run } = compiled;
-const originalManifest = readFileSync(manifest, "utf8"),
+const originalManifest = readFileSync(manifest, "utf8").replaceAll("\r\n", "\n"),
   contract = contractSection(wasm);
 const interfaces = readPackageContract(contract),
   sdkIdentity = interfaces.find((i) => !i.handle).identity;
