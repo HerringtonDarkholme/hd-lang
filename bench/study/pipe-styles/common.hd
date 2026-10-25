@@ -1,0 +1,45 @@
+use std.text.StringBuilder
+
+pub fn select[T](items: List[T], keep: fn(T) -> bool) -> List[T]:
+    let mut result: List[T] = []
+    for item in items:
+        if keep(item):
+            result.push(item)
+    result
+
+pub fn transform[A, B](items: List[A], change: fn(A) -> B) -> List[B]:
+    let mut result: List[B] = []
+    for item in items:
+        result.push(change(item))
+    result
+
+pub fn select_step[T](keep: fn(T) -> bool) -> fn(List[T]) -> List[T]:
+    fn(items: List[T]) -> List[T]: select(items, keep)
+
+pub fn transform_step[A, B](change: fn(A) -> B) -> fn(List[A]) -> List[B]:
+    fn(items: List[A]) -> List[B]: transform(items, change)
+
+pub fn join_text(items: List[string], separator: string) -> string:
+    builder := StringBuilder::new()
+    let first = true
+    for item in items:
+        if !first:
+            builder.push(separator)
+        builder.push(item)
+        first = false
+    builder.build()
+
+pub fn join_step(separator: string) -> fn(List[string]) -> string:
+    fn(items: List[string]) -> string: join_text(items, separator)
+
+pub fn number_text(value: i64, offset: i64) -> string:
+    "${value * 3 + offset}"
+
+pub fn number_step(offset: i64) -> fn(i64) -> string:
+    fn(value: i64) -> string: number_text(value, offset)
+
+pub fn clean_text(value: string, suffix: string) -> string:
+    "${value.trim().lower()}$suffix"
+
+pub fn clean_step(suffix: string) -> fn(string) -> string:
+    fn(value: string) -> string: clean_text(value, suffix)

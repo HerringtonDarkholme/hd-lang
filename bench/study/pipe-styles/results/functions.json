@@ -1,0 +1,534 @@
+[
+  {
+    "dataset": "numeric",
+    "form": "direct",
+    "engine": "node",
+    "application_functions": [
+      {
+        "index": 8,
+        "name": "pipe_probe/common/select#0"
+      },
+      {
+        "index": 18,
+        "name": "pipe_probe/main/main#0"
+      },
+      {
+        "index": 21,
+        "name": "pipe_probe/common/join_text#0"
+      },
+      {
+        "index": 26,
+        "name": "pipe_probe/common/number_text#0"
+      },
+      {
+        "index": 31,
+        "name": "pipe_probe/main/main#1"
+      },
+      {
+        "index": 33,
+        "name": "pipe_probe/common/transform#0"
+      },
+      {
+        "index": 48,
+        "name": "pipe_probe/main/main#2"
+      }
+    ]
+  },
+  {
+    "dataset": "numeric",
+    "form": "direct",
+    "engine": "wasmtime",
+    "application_functions": [
+      {
+        "index": 8,
+        "name": "pipe_probe/common/select#0"
+      },
+      {
+        "index": 18,
+        "name": "pipe_probe/main/main#0"
+      },
+      {
+        "index": 21,
+        "name": "pipe_probe/common/join_text#0"
+      },
+      {
+        "index": 26,
+        "name": "pipe_probe/common/number_text#0"
+      },
+      {
+        "index": 31,
+        "name": "pipe_probe/main/main#1"
+      },
+      {
+        "index": 33,
+        "name": "pipe_probe/common/transform#0"
+      },
+      {
+        "index": 47,
+        "name": "pipe_probe/main/main#2"
+      }
+    ]
+  },
+  {
+    "dataset": "numeric",
+    "form": "curried",
+    "engine": "node",
+    "application_functions": [
+      {
+        "index": 10,
+        "name": "pipe_probe/common/select_step#1"
+      },
+      {
+        "index": 12,
+        "name": "pipe_probe/common/transform_step#1"
+      },
+      {
+        "index": 25,
+        "name": "pipe_probe/common/transform_step#0"
+      },
+      {
+        "index": 29,
+        "name": "pipe_probe/main/main#0"
+      },
+      {
+        "index": 33,
+        "name": "pipe_probe/common/join_text#0"
+      },
+      {
+        "index": 37,
+        "name": "pipe_probe/common/transform#0"
+      },
+      {
+        "index": 38,
+        "name": "pipe_probe/common/join_step#1"
+      },
+      {
+        "index": 40,
+        "name": "pipe_probe/common/join_step#0"
+      },
+      {
+        "index": 43,
+        "name": "pipe_probe/common/number_text#0"
+      },
+      {
+        "index": 51,
+        "name": "pipe_probe/main/main#1"
+      },
+      {
+        "index": 66,
+        "name": "pipe_probe/common/number_step#1"
+      },
+      {
+        "index": 70,
+        "name": "pipe_probe/common/select_step#0"
+      },
+      {
+        "index": 71,
+        "name": "pipe_probe/common/select#0"
+      },
+      {
+        "index": 76,
+        "name": "pipe_probe/common/number_step#0"
+      }
+    ]
+  },
+  {
+    "dataset": "numeric",
+    "form": "curried",
+    "engine": "wasmtime",
+    "application_functions": [
+      {
+        "index": 10,
+        "name": "pipe_probe/common/select_step#1"
+      },
+      {
+        "index": 12,
+        "name": "pipe_probe/common/transform_step#1"
+      },
+      {
+        "index": 25,
+        "name": "pipe_probe/common/transform_step#0"
+      },
+      {
+        "index": 29,
+        "name": "pipe_probe/main/main#0"
+      },
+      {
+        "index": 33,
+        "name": "pipe_probe/common/join_text#0"
+      },
+      {
+        "index": 37,
+        "name": "pipe_probe/common/transform#0"
+      },
+      {
+        "index": 38,
+        "name": "pipe_probe/common/join_step#1"
+      },
+      {
+        "index": 40,
+        "name": "pipe_probe/common/join_step#0"
+      },
+      {
+        "index": 43,
+        "name": "pipe_probe/common/number_text#0"
+      },
+      {
+        "index": 51,
+        "name": "pipe_probe/main/main#1"
+      },
+      {
+        "index": 65,
+        "name": "pipe_probe/common/number_step#1"
+      },
+      {
+        "index": 69,
+        "name": "pipe_probe/common/select_step#0"
+      },
+      {
+        "index": 70,
+        "name": "pipe_probe/common/select#0"
+      },
+      {
+        "index": 75,
+        "name": "pipe_probe/common/number_step#0"
+      }
+    ]
+  },
+  {
+    "dataset": "numeric",
+    "form": "partial",
+    "engine": "node",
+    "application_functions": [
+      {
+        "index": 8,
+        "name": "pipe_probe/common/select#0"
+      },
+      {
+        "index": 18,
+        "name": "pipe_probe/main/main#0"
+      },
+      {
+        "index": 21,
+        "name": "pipe_probe/common/join_text#0"
+      },
+      {
+        "index": 26,
+        "name": "pipe_probe/common/number_text#0"
+      },
+      {
+        "index": 31,
+        "name": "pipe_probe/main/main#1"
+      },
+      {
+        "index": 33,
+        "name": "pipe_probe/common/transform#0"
+      },
+      {
+        "index": 48,
+        "name": "pipe_probe/main/main#2"
+      }
+    ]
+  },
+  {
+    "dataset": "numeric",
+    "form": "partial",
+    "engine": "wasmtime",
+    "application_functions": [
+      {
+        "index": 8,
+        "name": "pipe_probe/common/select#0"
+      },
+      {
+        "index": 18,
+        "name": "pipe_probe/main/main#0"
+      },
+      {
+        "index": 21,
+        "name": "pipe_probe/common/join_text#0"
+      },
+      {
+        "index": 26,
+        "name": "pipe_probe/common/number_text#0"
+      },
+      {
+        "index": 31,
+        "name": "pipe_probe/main/main#1"
+      },
+      {
+        "index": 33,
+        "name": "pipe_probe/common/transform#0"
+      },
+      {
+        "index": 47,
+        "name": "pipe_probe/main/main#2"
+      }
+    ]
+  },
+  {
+    "dataset": "string",
+    "form": "direct",
+    "engine": "node",
+    "application_functions": [
+      {
+        "index": 12,
+        "name": "pipe_probe/common/transform#0"
+      },
+      {
+        "index": 22,
+        "name": "pipe_probe/main/main#0"
+      },
+      {
+        "index": 25,
+        "name": "pipe_probe/common/join_text#0"
+      },
+      {
+        "index": 29,
+        "name": "pipe_probe/common/select#0"
+      },
+      {
+        "index": 37,
+        "name": "pipe_probe/main/main#1"
+      },
+      {
+        "index": 58,
+        "name": "pipe_probe/common/clean_text#0"
+      },
+      {
+        "index": 59,
+        "name": "pipe_probe/main/main#2"
+      }
+    ]
+  },
+  {
+    "dataset": "string",
+    "form": "direct",
+    "engine": "wasmtime",
+    "application_functions": [
+      {
+        "index": 12,
+        "name": "pipe_probe/common/transform#0"
+      },
+      {
+        "index": 22,
+        "name": "pipe_probe/main/main#0"
+      },
+      {
+        "index": 25,
+        "name": "pipe_probe/common/join_text#0"
+      },
+      {
+        "index": 29,
+        "name": "pipe_probe/common/select#0"
+      },
+      {
+        "index": 37,
+        "name": "pipe_probe/main/main#1"
+      },
+      {
+        "index": 57,
+        "name": "pipe_probe/common/clean_text#0"
+      },
+      {
+        "index": 58,
+        "name": "pipe_probe/main/main#2"
+      }
+    ]
+  },
+  {
+    "dataset": "string",
+    "form": "curried",
+    "engine": "node",
+    "application_functions": [
+      {
+        "index": 19,
+        "name": "pipe_probe/common/transform_step#1"
+      },
+      {
+        "index": 31,
+        "name": "pipe_probe/common/clean_step#1"
+      },
+      {
+        "index": 32,
+        "name": "pipe_probe/main/main#0"
+      },
+      {
+        "index": 36,
+        "name": "pipe_probe/common/join_text#0"
+      },
+      {
+        "index": 39,
+        "name": "pipe_probe/common/transform#0"
+      },
+      {
+        "index": 42,
+        "name": "pipe_probe/common/join_step#1"
+      },
+      {
+        "index": 44,
+        "name": "pipe_probe/common/join_step#0"
+      },
+      {
+        "index": 53,
+        "name": "pipe_probe/common/select_step#1"
+      },
+      {
+        "index": 56,
+        "name": "pipe_probe/main/main#1"
+      },
+      {
+        "index": 60,
+        "name": "pipe_probe/common/clean_step#0"
+      },
+      {
+        "index": 84,
+        "name": "pipe_probe/common/select_step#0"
+      },
+      {
+        "index": 85,
+        "name": "pipe_probe/common/clean_text#0"
+      },
+      {
+        "index": 87,
+        "name": "pipe_probe/common/select#0"
+      },
+      {
+        "index": 88,
+        "name": "pipe_probe/common/transform_step#0"
+      }
+    ]
+  },
+  {
+    "dataset": "string",
+    "form": "curried",
+    "engine": "wasmtime",
+    "application_functions": [
+      {
+        "index": 19,
+        "name": "pipe_probe/common/transform_step#1"
+      },
+      {
+        "index": 31,
+        "name": "pipe_probe/common/clean_step#1"
+      },
+      {
+        "index": 32,
+        "name": "pipe_probe/main/main#0"
+      },
+      {
+        "index": 36,
+        "name": "pipe_probe/common/join_text#0"
+      },
+      {
+        "index": 39,
+        "name": "pipe_probe/common/transform#0"
+      },
+      {
+        "index": 42,
+        "name": "pipe_probe/common/join_step#1"
+      },
+      {
+        "index": 44,
+        "name": "pipe_probe/common/join_step#0"
+      },
+      {
+        "index": 53,
+        "name": "pipe_probe/common/select_step#1"
+      },
+      {
+        "index": 56,
+        "name": "pipe_probe/main/main#1"
+      },
+      {
+        "index": 60,
+        "name": "pipe_probe/common/clean_step#0"
+      },
+      {
+        "index": 83,
+        "name": "pipe_probe/common/select_step#0"
+      },
+      {
+        "index": 84,
+        "name": "pipe_probe/common/clean_text#0"
+      },
+      {
+        "index": 86,
+        "name": "pipe_probe/common/select#0"
+      },
+      {
+        "index": 87,
+        "name": "pipe_probe/common/transform_step#0"
+      }
+    ]
+  },
+  {
+    "dataset": "string",
+    "form": "partial",
+    "engine": "node",
+    "application_functions": [
+      {
+        "index": 12,
+        "name": "pipe_probe/common/transform#0"
+      },
+      {
+        "index": 22,
+        "name": "pipe_probe/main/main#0"
+      },
+      {
+        "index": 25,
+        "name": "pipe_probe/common/join_text#0"
+      },
+      {
+        "index": 29,
+        "name": "pipe_probe/common/select#0"
+      },
+      {
+        "index": 37,
+        "name": "pipe_probe/main/main#1"
+      },
+      {
+        "index": 58,
+        "name": "pipe_probe/common/clean_text#0"
+      },
+      {
+        "index": 59,
+        "name": "pipe_probe/main/main#2"
+      }
+    ]
+  },
+  {
+    "dataset": "string",
+    "form": "partial",
+    "engine": "wasmtime",
+    "application_functions": [
+      {
+        "index": 12,
+        "name": "pipe_probe/common/transform#0"
+      },
+      {
+        "index": 22,
+        "name": "pipe_probe/main/main#0"
+      },
+      {
+        "index": 25,
+        "name": "pipe_probe/common/join_text#0"
+      },
+      {
+        "index": 29,
+        "name": "pipe_probe/common/select#0"
+      },
+      {
+        "index": 37,
+        "name": "pipe_probe/main/main#1"
+      },
+      {
+        "index": 57,
+        "name": "pipe_probe/common/clean_text#0"
+      },
+      {
+        "index": 58,
+        "name": "pipe_probe/main/main#2"
+      }
+    ]
+  }
+]

@@ -27,6 +27,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 - [Policy Composition](POLICY_COMPOSITION.md): decided design of lean policy values, tuple composition and one `apply!` block, the only public way to apply a policy; not yet implemented (#783).
 - [Pipe Steps Without Placeholders](PIPE_STEPS.md): stress-tests standalone unary function steps, compatibility, effects, inference, and all three policy ports; no semantics are accepted (#818).
+- [Pipe Styles For Shell Work](PIPE_STYLES.md): compares Elixir, F#, Hack, and general-placeholder pipes on sixteen shared ports, current inference, std costs, and 21-run V8/Wasmtime measurements; no style is chosen (#822).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
 

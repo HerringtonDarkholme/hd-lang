@@ -1,0 +1,13 @@
+{
+  "branch": "muse/822-pipe-styles",
+  "base": "22ad8e0653b61e86f48f2ff845ecf57edd3cffb0",
+  "compilerSource": "16fd4789bf3dda1ada8cab1710c8f5ff5fc21880",
+  "compilerSha256": "d6dd4dc62db537d98558d3bb0cc1eaf8439c46a4a5ce1b49c4f5eda61fc9c625",
+  "note": "Frozen native dev CLI produced in reviewed827followup tree16fd; root22ad cargo build reused shared target artifact rather than rebuilding. All timed builds used this frozen hash. No executable backend/runtime/std differences22ad..16fd.",
+  "compilerProvenanceAudit": {
+    "shaMatchesFollowupArtifact": true,
+    "candidateSource": "16fd4789bf3dda1ada8cab1710c8f5ff5fc21880",
+    "status": "producer confirmed one-way freeze from shared target, no reverse restore; timings pin16fd",
+    "backendAndStdDiff": "no executable source changes in hd_mono/hd_opt/hd_tir/hd_wasm_linear/hd_run_wasmtime/lib/std between22ad and16fd (only native design doc)"
+  }
+}

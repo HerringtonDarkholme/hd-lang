@@ -1,0 +1,34 @@
+[
+  {
+    "probe": "partial-outside",
+    "check_status": 101,
+    "stdout": "{\"kind\":\"diagnostic\",\"code\":\"unused-local-binding\",\"severity\":\"warning\",\"message\":\"`change` is never read; name it `_change` to keep it\",\"file\":\"<repo>/bench/study/pipe-styles/probes/partial-outside.hd\",\"line\":3,\"column\":5,\"fixes\":[]}\n{\"kind\":\"diagnostic\",\"code\":\"placeholder-outside-pipe\",\"severity\":\"error\",\"message\":\"`_` stands for a pipe's value only in its step\",\"file\":\"<repo>/bench/study/pipe-styles/probes/partial-outside.hd\",\"line\":3,\"column\":19,\"fixes\":[]}\n{\"kind\":\"summary\",\"errors\":1,\"warnings\":1,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":101,\"modules_checked\":1}\n",
+    "stderr": ""
+  },
+  {
+    "probe": "double-placeholder",
+    "check_status": 101,
+    "stdout": "{\"kind\":\"diagnostic\",\"code\":\"unused-local-binding\",\"severity\":\"warning\",\"message\":\"`result` is never read; name it `_result` to keep it\",\"file\":\"<repo>/bench/study/pipe-styles/probes/double-placeholder.hd\",\"line\":4,\"column\":5,\"fixes\":[]}\n{\"kind\":\"diagnostic\",\"code\":\"duplicate-pipe-placeholder\",\"severity\":\"error\",\"message\":\"a pipe step takes exactly one `_`\",\"file\":\"<repo>/bench/study/pipe-styles/probes/double-placeholder.hd\",\"line\":4,\"column\":35,\"fixes\":[]}\n{\"kind\":\"summary\",\"errors\":1,\"warnings\":1,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":101,\"modules_checked\":1}\n",
+    "stderr": ""
+  },
+  {
+    "probe": "effects",
+    "check_status": 0,
+    "stdout": "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0,\"modules_checked\":0}\n",
+    "stderr": "",
+    "runs": [
+      {
+        "engine": "node",
+        "status": 0,
+        "stdout": "a:1 a:1\nb:2 b:1\nc:3 c:1\ncalls 3 1\n",
+        "stderr": ""
+      },
+      {
+        "engine": "wasmtime",
+        "status": 0,
+        "stdout": "a:1 a:1\nb:2 b:1\nc:3 c:1\ncalls 3 1\n",
+        "stderr": ""
+      }
+    ]
+  }
+]

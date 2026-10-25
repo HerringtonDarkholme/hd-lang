@@ -1,0 +1,4 @@
+fn map(items: List[string], change: fn(string) -> string) -> List[string]: items
+fn pad(value: string, width: usize) -> string: value
+pub fn main() -> void:
+    result := ["a"] |> map(_, pad(_, 10))
