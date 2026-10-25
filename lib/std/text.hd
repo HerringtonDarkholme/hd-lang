@@ -269,6 +269,9 @@ impl string:
         size := bytes.len()
         while index < size:
             lead := i32(bytes[index])
+            if lead < 128:
+                index = index + 1
+                continue
             let width: usize = 1
             let point = lead
             let lowest: i32 = 0
@@ -284,7 +287,7 @@ impl string:
                 width = 2
                 point = lead - 192
                 lowest = 128
-            else if lead >= 128:
+            else:
                 return .Err(Utf8Error.InvalidSequence(index))
             let at: usize = 1
             while at < width:

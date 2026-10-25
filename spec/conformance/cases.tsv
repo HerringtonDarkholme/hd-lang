@@ -3192,6 +3192,7 @@ runtime/valid/utf8-invalid-bytes.hd	runtime	accept	std/text.md#r-std-text.utf8.e
 runtime/valid/utf8-truncated.hd	runtime	accept	std/text.md#r-std-text.utf8.error.truncated-position
 runtime/valid/utf8-overlong.hd	runtime	accept	std/text.md#r-std-text.utf8.well-formed
 runtime/valid/utf8-error-traits.hd	runtime	accept	std/text.md#r-std-text.utf8.error.traits
+runtime/valid/utf8-long-inputs.hd	runtime	accept	std/text.md#r-std-text.utf8.error.first
 runtime/valid/time-unix-milliseconds.hd	runtime	accept	std/time.md#r-std-time.timestamp.unix-milliseconds
 runtime/valid/debug-builders-behind-ref.hd	runtime	accept	std/format.md#r-std-format.debug.builder.types-ref
 runtime/valid/string-split-once.hd	runtime	accept	std/text.md#r-std-text.split-once

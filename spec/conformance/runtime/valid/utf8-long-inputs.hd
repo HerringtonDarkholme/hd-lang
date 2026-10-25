@@ -1,0 +1,65 @@
+# test: to_utf8 and string::from_utf8 agree on long mixed text, and report the first error at its offset after a long ASCII run
+# Spec std/text UTF-8 Conversion: std-text.utf8.to-utf8, std-text.utf8.round-trip, std-text.utf8.error.first, std-text.utf8.error.invalid, std-text.utf8.error.truncated-position.
+use std.text.Utf8Error
+
+fn ascii(count: usize) -> List[u8]:
+    let mut bytes: List[u8] = []
+    for _ in 0..count:
+        bytes.push(97)
+    bytes
+
+fn after_ascii(tail: List[u8]) -> Utf8Error?:
+    let mut bytes = ascii(300)
+    bytes.extend(tail)
+    match string::from_utf8(bytes):
+        .Ok(_) => .None
+        .Err(error) => .Some(error)
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("a long mixed text round trips"):
+        let text = ""
+        for _ in 0..200:
+            text = text + "ascii, héllo, 世界, 😀;"
+        bytes := text.to_utf8()
+        assert_equal(bytes.len(), text.len(), reason="one list element per byte")
+        match string::from_utf8(bytes):
+            .Ok(back) => assert_equal(back, text, reason="the same text")
+            .Err(_) => assert(false, reason="the bytes of a string are well formed")
+
+    it("the list is a copy that can grow"):
+        text := "héllo"
+        let mut bytes = text.to_utf8()
+        assert_equal(bytes, [104, 195, 169, 108, 108, 111], reason="the bytes in order")
+        bytes.push(33)
+        assert_equal(bytes.len(), 7, reason="a push past the copied length")
+        assert_equal(text.to_utf8().len(), 6, reason="the string is unchanged")
+        assert_equal("".to_utf8().len(), 0, reason="an empty string gives an empty list")
+        let mut none = "".to_utf8()
+        none.push(1)
+        assert_equal(none, [1], reason="an empty copy can grow")
+
+    it("a slice copies only its own bytes"):
+        text := "a世b"
+        assert_equal(text.slice(1, 4).to_utf8(), [228, 184, 150], reason="the middle character")
+        assert_equal(text.slice(4, 5).to_utf8(), [98], reason="the last byte")
+        assert_equal(text.slice(1, 1).to_utf8(), [], reason="an empty slice")
+
+    it("each category fails at its offset after a long ASCII run"):
+        assert_equal(after_ascii([128]), .Some(Utf8Error.InvalidSequence(300)), reason="a stray continuation byte")
+        assert_equal(after_ascii([192, 175]), .Some(Utf8Error.InvalidSequence(300)), reason="an overlong two-byte form")
+        assert_equal(after_ascii([224, 128, 175]), .Some(Utf8Error.InvalidSequence(300)), reason="an overlong three-byte form")
+        assert_equal(after_ascii([237, 160, 128]), .Some(Utf8Error.InvalidSequence(300)), reason="a surrogate")
+        assert_equal(after_ascii([244, 144, 128, 128]), .Some(Utf8Error.InvalidSequence(300)), reason="above U+10FFFF")
+        assert_equal(after_ascii([245, 128, 128, 128]), .Some(Utf8Error.InvalidSequence(300)), reason="a lead byte above 0xF4")
+        assert_equal(after_ascii([226, 130]), .Some(Utf8Error.Truncated(300)), reason="two of three bytes")
+        assert_equal(after_ascii([240, 159, 152]), .Some(Utf8Error.Truncated(300)), reason="three of four bytes")
+        assert_equal(after_ascii([195, 169, 255]), .Some(Utf8Error.InvalidSequence(302)), reason="after a good two-byte scalar")
+
+    it("a bad continuation byte fails the whole sequence at its start"):
+        assert_equal(after_ascii([226, 40, 161]), .Some(Utf8Error.InvalidSequence(300)), reason="the second byte of three")
+        assert_equal(after_ascii([226, 130, 40]), .Some(Utf8Error.InvalidSequence(300)), reason="the third byte of three")
+        assert_equal(after_ascii([240, 159, 40, 128]), .Some(Utf8Error.InvalidSequence(300)), reason="the third byte of four")
+        assert_equal(after_ascii([240, 159, 152, 40]), .Some(Utf8Error.InvalidSequence(300)), reason="the fourth byte of four")
+        assert_equal(after_ascii([240, 159, 152, 128, 97]), .None, reason="a good four-byte scalar then ASCII")
