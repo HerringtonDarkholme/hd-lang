@@ -341,7 +341,8 @@ fn csv(cells: List[string]) -> string:
 
 - The [tour](../tour/01-hello.md) runs each topic in the browser.
 - [Working With Data](WORKING_WITH_DATA.md) shows everyday jobs: JSON
-  config, files, timeouts, wiring a program, and packages.
+  config, files, [reusable timeout and retry policies](WORKING_WITH_DATA.md#composing-reusable-policies),
+  wiring a program, and packages.
 - The [Language Overview](OVERVIEW.md) covers the purpose and priorities of
   the design.
 - The [specification](../../spec/README.md) is the precise reference, starting

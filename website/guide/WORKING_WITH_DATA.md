@@ -266,6 +266,84 @@ tests:
                 assert_equal(load_with_timeout!(), "fake-user", reason="the lookup wins")
 ```
 
+## Composing Reusable Policies
+
+A policy is configuration for one operation: retry it, set a deadline,
+or call a backup after it fails. Ordinary builders compose
+that configuration; `apply!` supplies the work in one block.
+
+This example makes two attempts before using the backup. Applying the same
+configuration again starts fresh work, and that next call succeeds:
+
+```hd
+use std.convert.From
+use std.task.{Backoff, TimedOut, apply, fallback, retry, with_timeout}
+use std.time.{Clock, ManualClock, Timestamp}
+
+@derive(Debug)
+enum LoadError:
+    Busy
+    Deadline(TimedOut)
+
+impl From[TimedOut] for LoadError:
+    fn from(error: TimedOut) -> LoadError: .Deadline(error)
+
+struct Source:
+    calls: usize
+
+fn read!(source: *mut Source) -> Result[string, LoadError]:
+    source.calls += 1
+    if source.calls < 3: .Err(.Busy) else: .Ok("primary")
+
+fn backup!() -> Result[string, LoadError]:
+    .Ok("cached")
+
+pub fn main!() -> void $ Console:
+    source := &mut Source { calls: 0 }
+    backoff := Backoff { attempts: 2, initial: 0ms }
+    policy := retry(backoff) |> with_timeout(50ms, _) |> fallback(backup, _)
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    $.with(Clock=clock):
+        first := apply!(policy):
+            read!(source)
+        second := apply!(policy):
+            read!(source)
+        println("${debug(first)} ${debug(second)} calls=${source.calls}")
+```
+
+The program prints `Result.Ok("cached") Result.Ok("primary") calls=3`.
+The policy value holds no completed result. Each application invokes fresh work; the fallback runs
+only when the retrying operation returns an error.
+
+The pipe builds from the work outward. Here `retry(backoff)` is inside
+`with_timeout(50ms, _)`, so one deadline covers all attempts and their
+backoff sleeps. `fallback(backup, _)` is outside that deadline and supplies
+the final result if it fails. For a deadline on each attempt instead, use
+`(timeout(50ms), retry(backoff))` as the inner configuration before adding
+the fallback, after importing `timeout` from `std.task`. Tuple components
+wrap in order: the first is innermost.
+
+When the deadline wins, it cancels the work and waits for cleanup.
+That cleanup wait is unbounded unless a `cleanup` bound is supplied;
+see [Cleanup Bound](../../spec/std/task.md#cleanup-bound).
+
+`LoadError` keeps the error channel explicit. The work and backup both
+return `Result[string, LoadError]`; `From[TimedOut]` converts an expired
+deadline into that same error type. For plain work, first lift its value
+into a typed `Result` before returning it from the `apply!` block.
+
+Constructing the policy needs no `Clock`. Executing retry or timeout does,
+even with a zero backoff delay. Here `$.with` supplies a `ManualClock`, so
+`main!` needs only `Console`; without that binding, its row must also name
+`Clock`. The immediately completing attempts make this example
+deterministic; it does not use the manual clock to decide which of two
+pending sleeps wins.
+
+A predicate supplied through `retry(backoff).when(predicate)` chooses which
+errors permit another attempt. Untimed fallback and circuit guarding add
+no `Clock`; hedging does. See [Task policies](../../spec/std/task.md#fallback)
+for these APIs, their typed errors and cancellation behavior.
+
 ## Reading And Writing Files
 
 Importing a CSV, writing a report: the file system is a capability, so a

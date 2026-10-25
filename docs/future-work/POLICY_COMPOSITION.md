@@ -1,10 +1,10 @@
 # Composing Time And Failure Policies
 
-Status: decided 2026-10-24 (#783, owner); domain: standard library API (std.task). #845 implements the foundation, timeout/retry builders, fallback, breaker and hedge; measured guardrails remain a later slice.
+Status: decided 2026-10-24 (#783, owner); domain: standard library API (std.task). #845 implements the public policies, guides and measured allocation/call guardrails described below.
 It answers [#783](https://github.com/HerringtonDarkholme/hd-lang/issues/783) and replaces the earlier version of this file and Composing Work.
 The owner selected policy values, pipes and one apply block on 2026-10-23.
 The decision: `apply!` is the only public way to apply a policy; `timeout!`, `with_timeout!` and `retry!` become private building blocks in `std.task`. The implementation follows the phasing below, with the std spec rules and fixtures in the same job. No language change is needed.
-Under review: [`std.task`](../../spec/std/task.md) (`timeout!`, `with_timeout!`, `retry!`) and [suspending functions](../../spec/lang/11-requirements-and-suspension.md#suspending-functions).
+The implemented surface is specified in [`std.task`](../../spec/std/task.md); [suspending functions](../../spec/lang/11-requirements-and-suspension.md#suspending-functions) retain their existing semantics.
 
 ## Contents
 
@@ -520,17 +520,17 @@ There is no proposed language feature and no rule ID retirement.
 Existing rules cover tuple fields, generic impls, associated outputs, use-site inference, pipes, trailing blocks and cancellation.
 The plain-call and call-operator ideas remain rejected or explicitly postponed.
 
-Each pipe step still needs `_`, under `expr.pipe.bare.needs-placeholder`.
-Writing `policy!:` would need a call-operator trait or generic function values.
-Both are possible future rules recorded as gaps from the ideal, not proposals in this job.
+Bare identifier and path steps already call with the pipe input: `value |> f` means `f(value)` ([`expr.pipe.bare.call`](../../spec/lang/05-expressions.md#r-expr.pipe.bare.call)).
+Configured calls still need a placeholder: `value |> f(a, _)` supplies the input after `a` ([`expr.pipe.bare.needs-placeholder`](../../spec/lang/05-expressions.md#r-expr.pipe.bare.needs-placeholder)).
+Writing `policy!:` would need a call-operator trait or generic function values; that call syntax is not proposed here.
 
-The [#818 stress test](https://github.com/HerringtonDarkholme/hd-lang/blob/b5fe14a15ae610d0e91a4bf4428c027aae101444/docs/future-work/PIPE_STEPS.md) checks a possible zero-placeholder value-step rule separately.
+The historical [#818 stress test](https://github.com/HerringtonDarkholme/hd-lang/blob/b5fe14a15ae610d0e91a4bf4428c027aae101444/docs/future-work/PIPE_STEPS.md) examined zero-placeholder expression steps beyond bare names.
 Its curried factories infer inner configuration types and run all three ports through the expected unary function type.
 The fixed bodies save three placeholders and no lines; the two factory implementations add two lines.
-The uniform rule also changes existing method/default semantics and needs a final-fn! weakening guard.
+That broader rule would change existing method/default semantics and need a final-fn! weakening guard.
 
-This rewrite therefore keeps today's explicit `_` spelling; adopting #818 would be a later owner-approved language change.
-It is not an excuse to alter the selected policy mechanism now.
+The broader #818 expression-step proposal was not adopted; the selected bare-name call is already part of the language.
+Configured builder calls retain explicit `_` placement without altering the selected policy mechanism.
 The separate nested nonempty returned-function row gap does not affect these configuration-only builders.
 
 The soundness condition is ordinary type soundness: a Layer must return its declared Wrapped type and row.
@@ -555,7 +555,78 @@ Capabilities remain visible in Wrapped and the apply call, and a builder acquire
 
 ### Measured per run
 
-The exact inferred-call reference package was built in the dev profile for Node at source baseline `6c0dc2a31`.
+#### Production std policies
+
+The current [workload](composing-work/policy-values-cost.hd) imports the public `std.task` policies instead of declaring local copies.
+Its only user-defined Layer is Trace.
+The complete asserted sequence includes HTTP providers, printing, cancellation, policy reuse and a total retry budget.
+
+The dev compiler and embedded std are pinned to [d8f54b57e](https://github.com/HerringtonDarkholme/hd-lang/commit/d8f54b57e46965342d32b4a43045391bf5aa230b).
+The workload and measurement runner were working-tree inputs on that base, identified separately below.
+Measurements use Node `v24.19.0`, with explicit `Args`, `Clock` and `Console` grants.
+
+| Input | SHA256 |
+| --- | --- |
+| Compiler artifact | `70a24761809fd6977bdf8a0b2bbd273a4459e61386dbd986baec4a52dc3a5348` |
+| Embedded std.task source | `290ee918bd4adf2e27c8dbf6d7a50f72f529148b530478f2873a7ad2074a0e2a` |
+| Public-policy workload | `5a0bc9066a80a92bfb7c08bcd7d85ba73c5f87547c81d9e760e387add3a05e18` |
+| Measurement runner before guardrail checks | `b7f6e2e3f99d54dbfbd5fceeb212560fda416387bbb156c91528156c50370bb4` |
+| Generated manifest | `464385da23c3364b9656205a74269a84c5d05592d84dde11cea057920d237b0f` |
+| Original Wasm | `28efa22ed2d8f6ceca381d979722b7cc07a58ae7b7143ad4890f36e801d18a3d` |
+| Instrumented Wasm | `c5a2836806c24783674397852b2fe13b681acc7bb19d60b0f86a72d8c90c4472` |
+
+The original module is **587,455 bytes**, with **855 defined functions**.
+The instrumented measurement copy is **611,338 bytes**; it is not shipped output.
+Three complete cohorts produced identical counter rows:
+
+| Complete port-sequence repetitions | Guest allocation calls | Defined Wasm function entries | Runtime entries, subset |
+| --- | --- | --- | --- |
+| 0 | 3 | 228 | 215 |
+| 1 | 302 | 28,511 | 27,508 |
+| 5 | 1,487 | 140,365 | 135,306 |
+| 9 | 2,672 | 252,200 | 243,085 |
+
+| Observed per-sequence interval | Guest allocation calls | Defined Wasm function entries | Runtime entries, subset |
+| --- | --- | --- | --- |
+| 0→1, first sequence | 299 | 28,283 | 27,293 |
+| 1→5 | 296.25 | 27,963.5 | 26,949.5 |
+| 5→9 | 296.25 | 27,958.75 | 26,944.75 |
+| 1→9 | 296.25 | 27,961.125 | 26,947.125 |
+
+Each cohort uses fresh original and instrumented instances for every repetition count.
+Their status, stdout and stderr match exactly at every count.
+One uninstrumented Wasmtime sequence also matches the Node outcome; native allocation or entry counts were not measured.
+
+The original receipts are `measurements-1.json`, `measurements-2.json` and `measurements-3.json` in the #845 Slice4 evidence.
+All three have SHA256 `e795ae30cc9d0965bcda737c00698063d9020c093c605bea67f12c6af9b8996c`.
+They retain allocator/emitter/host input hashes alongside the correct raw totals and slopes.
+Their old `byName` diagnostics are lossy because duplicate printed names overwrote earlier entries.
+
+The final runner retains indexed `byFunction` entries and aggregates equal names in `byName`.
+Check mode rejects missing defined-function names.
+Complete per-function evidence requires an indexed check receipt from that runner, rather than the original name maps.
+
+The focused check command is `node docs/future-work/composing-work/measure-values.mjs PATH_TO_HD WORK_PACKAGE --check`.
+Its 15 built-in ceilings use measured maxima for startup, the first sequence and each later interval, without added tolerance.
+The 0→1 delta catches fixed lazy costs that later interval slopes can miss.
+Lower values pass; a changed compiler or std implementation remains comparable and is recorded as provenance.
+The check requires compatible workload, instrumentation, profile, Node version, manifest, grants and counter layout.
+It derives the first-sequence delta and later interval slopes from complete raw rows after original/instrumented outcome parity succeeds.
+Smoke-only data cannot satisfy the check, and the command never updates its baseline.
+
+These are empirical workload guardrails, not standard-library semantic limits or costs for one Layer application.
+Allocation calls are not allocated bytes, maximum live bytes, process RSS or host allocations.
+Defined entries exclude imported host calls; the runtime column is only the runner's name-based subset.
+Counter insertion can affect timer polling; outcome parity does not establish execution-count noninterference.
+No latency, throughput or hosted-runtime claim follows.
+
+Set `HD_CACHE` and `TMPDIR` inside an isolated worktree and supply the intended compiler explicitly.
+A source-input hash does not authenticate the std embedded in a copied compiler; retain its fresh-build provenance separately.
+Review fresh receipts before changing the empirical baseline.
+
+#### Historical local prototype
+
+The historical inferred-call reference package was built in the dev profile for Node at source baseline `6c0dc2a31`.
 The compiler sources match the frozen `424c34c44` compiler; only documentation changed between those bases.
 The unmodified module is **569,376 bytes**, with **862 defined functions**.
 Its measurement-only instrumented copy is **593,453 bytes**; that size is not a shipped-code claim.
@@ -573,7 +644,7 @@ Fractional slopes describe several executions, not a fraction of one allocation.
 Timers can change poll counts; these function-entry counts are observations, not semantic constants or latency measurements.
 
 [measure-values.mjs](composing-work/measure-values.mjs) exports a counter for every defined function and the existing allocator metadata address.
-It reads allocation-call total at heap-metadata offset 244, verified against the current `note_allocation` emitter.
+It reads allocation-call total at heap-metadata offset 244, verified against the pinned allocator and `note_allocation` emitter.
 It does not count imported host calls, host allocations, Wasm instructions, or maximum live bytes.
 Every count uses a fresh instance; the zero-repetition run exposes fixed startup work.
 Instrumentation adds globals and entry increments without changing function indices; its output matches the original asserted program.
@@ -581,10 +652,11 @@ Instrumentation adds globals and entry increments without changing function indi
 The command is `node docs/future-work/composing-work/measure-values.mjs PATH_TO_HD WORK_PACKAGE`.
 Set `HD_CACHE` and `TMPDIR` inside the isolated worktree; the script uses no release build.
 The complete port sequence covers U1–U5, policy reuse and a total retry budget.
-Native execution validates the uninstrumented behavior; the allocation/function-entry observations above use Node only.
+Native execution validated the uninstrumented behavior; these historical allocation/function-entry observations use Node only.
 
 Old tables from compiler 2b0db8db4 are superseded rather than copied as current measurements.
 No latency or speed claim follows from counting allocations and function entries.
+The historical and production tables have different workload implementations; they do not establish a comparative performance win.
 Performance does not decide the chosen composition form.
 
 ### Bottom-up budget
@@ -657,20 +729,21 @@ Retries of non-idempotent work remain the caller's responsibility; transient err
 
 ## Phasing
 
-Each slice targets about an hour of agent work and has a concrete observable test.
+The work shipped in independently validated slices with concrete observable tests.
 The prerequisite associated-output row correction is already merged, with inferred-call, explicit, empty-row and invariant-rejection coverage.
 Keep that runtime regression in both-engine focused checks; do not reopen the compiler fix as a library phase.
 
-Second, introduce Layer, tuple composition and apply with stdlib rules and fixtures.
-The test applies a user layer to two result types and proves an untimed policy needs no Clock.
-Third, expose the timeout/retry builders while making their bang implementations private and migrating every existing caller.
+Layer, tuple composition and apply shipped with stdlib rules and fixtures.
+The tests apply a user layer to two result types and prove an untimed policy needs no Clock.
+The next slice exposed timeout/retry builders, made their bang implementations private and migrated the callers.
 
-Fourth, add fallback, the minimal breaker and hedging with their typed errors and complete signatures.
-Their tests are U1 through U3, including actual cancellation counters and loser defer execution.
-Finally, update guides and add measured allocation/call guardrails from the current prototype, without making historical counts semantic requirements.
+Fallback, the minimal breaker and hedging shipped with typed errors and complete signatures.
+Their tests cover U1 through U3, including actual cancellation counters and loser defer execution.
+The final slice updated the [practical guide](../../website/guide/WORKING_WITH_DATA.md#composing-reusable-policies) and added measured allocation/call guardrails over the public std-policy workload.
+The guardrails remain empirical checks; historical counts are not semantic requirements.
 
-No phase changes the meaning of plain calls or adds an operator trait.
-Each production slice must ship its stdlib rules and conformance cases with the implementation.
+No phase changed the meaning of plain calls or added an operator trait.
+Each public API slice shipped its stdlib rules and conformance cases with the implementation.
 
 ## Recommendation and approvals
 
@@ -683,7 +756,8 @@ The source and exact signatures above are the reference.
 From[TimedOut] remains the current constraint; adopting Either or unions is not requested.
 
 The inferred apply correction is complete under existing rules, rather than an API limitation to normalize.
-No approval for a new plain-call rule, policy call syntax, generic function value or bare pipe step is sought.
+No new plain-call rule, policy call syntax or generic function value is proposed.
+Bare identifier and path steps use the existing pipe-call rule.
 
 ## Prototypes, sources and parse log
 

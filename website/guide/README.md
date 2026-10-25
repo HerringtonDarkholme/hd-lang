@@ -8,7 +8,7 @@ These documents introduce hd-lang from complementary perspectives:
   syntax on one page, with examples that parse.
 - Read the [Language Overview](OVERVIEW.md) for the language's purpose,
   priorities, and core conceptual model.
-- For everyday jobs — JSON config, doc tests, timeouts, files, log
+- For everyday jobs — JSON config, doc tests, timeouts and retries, files, log
   scanning, wiring a program in `main`, and packages — read
   [Working With Data](WORKING_WITH_DATA.md).
 - For the commands day to day, read [The `hd` Command](COMMANDS.md).
