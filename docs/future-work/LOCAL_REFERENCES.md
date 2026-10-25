@@ -1,14 +1,14 @@
 # Local References: Final Design And Implementation Plan
 
-Status: decided design, 2026-10-24; domain: language feature (spec/lang
-chapters 2, 6, 7, 9, 11 and 13, the checker, the ownership passes, the
-linear emitter). The owner decided the rules here on #834
-([Decisions](#9-decisions)). None of it is in the spec yet, so nothing
-here is accepted behavior until slices 1 and 2 of the
-[plan](#8-implementation-plan) land. Rules this document adds beyond
-those decisions are marked **proposed**. The investigation, prototype
-and review that led here are in git history at `d9f79e1a8`. This
-document changes no spec, std or compiler text, and will fold into
+Status: step 1 in progress (#834). The owner cut the first step to two
+changes: today's reference is respelled `*T` / `*mut T`, and `&T` /
+`&mut T` becomes non-escaping, as a checker rule only, with counting
+and codegen unchanged. Step 1's spec (slice 1, a30e29b9d) and parser
+(slice 2, d5fcdd786) are on main; the respelling and the escape check
+are next. Everything else below (uncounted local references, the
+counting rules, overlap, `&fn`, interpolation, frame slots) is a later
+step and needs its own decision. The design is in git history at
+`591ee34a9`; this document will fold into
 [Object Model, Tier 2](OBJECT_MODEL_TIER2.md).
 
 **Step 1.** The owner cut the first step to two changes
