@@ -46,9 +46,12 @@
 //! A **binding local** is a local whose one `Store` is of a read that
 //! borrows: a loop's element binding (`for word in words`), a `:=` of a
 //! field. It is not a parameter, never addressed, captured or changed in
-//! place, no read of it is consumed (that read would copy, where the
-//! binding could take the value), and every read of it lies in the span,
-//! which ends at its last `Drop`. A read of it that another binding local
+//! place, no read of all of it is consumed (that read would copy, where
+//! the binding could take the value), a consumed read of a part of it
+//! only when a read of the local it borrows follows the span (the part
+//! copies alone, where taking the value would copy all of it, unless the
+//! read into the binding could move), and every read of it lies in the
+//! span, which ends at its last `Drop`. A read of it that another binding local
 //! holds, decided first, is not consumed: an arm precedes its match's
 //! bindings, so in `for part in parts: n += part.len()` the inlined `len`'s
 //! `self` borrows `part`, and then `part` borrows the element. The inner
@@ -183,6 +186,8 @@ pub(crate) struct Tables {
     /// Per local: the reads of it of a counted type whose value a use
     /// keeps or a store takes, less those a binding local borrows.
     kept_read: Vec<u32>,
+    /// Per local: those of [`Tables::kept_read`] that read all of it.
+    kept_whole: Vec<u32>,
     /// Per local: a closure's parameter.
     inner: Vec<bool>,
     /// Writes by root (locals, then values), in compressed rows in
@@ -419,13 +424,16 @@ pub(crate) fn run(
     scan(b, cx, t);
     // Per local: the reads of it whose value a use keeps or a store takes.
     fill(&mut t.kept_read, locals, 0);
+    fill(&mut t.kept_whole, locals, 0);
     for i in 0..n {
+        let p = b.view(b.data[i][0]);
         if b.tags[i] == Tag::Read
-            && let Some(l) = b.view(b.data[i][0]).local()
+            && let Some(l) = p.local()
             && (t.keeps[i] || t.stored[i] != NONE)
             && cx.counted(b.ty[i]) != Tri::No
         {
             t.kept_read[l as usize] += 1;
+            t.kept_whole[l as usize] += u32::from(p.whole());
         }
     }
     index_writes(b, cx, t);
@@ -722,8 +730,14 @@ fn decide(
     };
     let keep = keeps_drops(b, cx, r);
     // A binding read for a consumer would copy there: the read copies (or
-    // moves) into the binding instead.
-    if bind != NONE && (keep || t.kept_read[bind as usize] > 0) {
+    // moves) into the binding instead. One of a part of the binding copies
+    // only that part, less than a copy of all of it, unless the read into
+    // the binding could move: no read of its local follows the span.
+    if bind != NONE
+        && (keep
+            || t.kept_whole[bind as usize] > 0
+            || (t.kept_read[bind as usize] > 0 && !read_after(b, t, r, end)))
+    {
         return;
     }
     // The span is the statements of the end's block from the one that
@@ -768,8 +782,10 @@ fn decide(
         // A binding local's read into this one keeps nothing of it, so it
         // may borrow too (`for part in parts` and an inlined `part.len()`
         // binding its `self`).
-        if let Some(l) = b.view(b.data[r][0]).local() {
+        let p = b.view(b.data[r][0]);
+        if let Some(l) = p.local() {
             t.kept_read[l as usize] -= 1;
+            t.kept_whole[l as usize] -= u32::from(p.whole());
         }
         t.holds[bind as usize] = x;
         t.unowned[bind as usize] = true;
@@ -889,6 +905,14 @@ fn lent_refs(b: &mut Body, t: &Tables) {
             b.data[r][1] |= crate::ir::ref_word::LENT;
         }
     }
+}
+
+/// Whether read `r` is of a local's place that a read after `end` reads
+/// again, so that `r` cannot move.
+fn read_after(b: &Body, t: &Tables, r: usize, end: u32) -> bool {
+    b.view(b.data[r][0])
+        .local()
+        .is_some_and(|l| t.last_read[l as usize] > end)
 }
 
 /// Whether instruction `d` is a `Drop` of all of `root`.
