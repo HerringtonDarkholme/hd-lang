@@ -1,5 +1,6 @@
 use pkg.{HttpServer, Incoming, RequestId, ServerError, CancelReason, serve}
 use std.http.{Http, Request, Response, ScriptedHttp}
+use std.console.MemoryConsole
 use std.time.{Clock, Duration, Timestamp, Instant, ms, s, sleep}
 use std.task.race
 use std.ops.Disposable
@@ -33,6 +34,7 @@ impl HttpServer for Scripted:
 
     fn client(&mut self, _id: RequestId) -> *mut dyn Http: self.http
     fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: self.clock
+    fn console(&mut self, _id: RequestId) -> *mut dyn Console: MemoryConsole::new()
     fn finish(&mut self, _id: RequestId, _abandoned: bool) -> void: pass
 
 struct Hits:
@@ -50,6 +52,7 @@ impl HttpServer for FailedSource:
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason: .Stopping
     fn client(&mut self, _id: RequestId) -> *mut dyn Http: panic("no accepted lease")
     fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: panic("no accepted lease")
+    fn console(&mut self, _id: RequestId) -> *mut dyn Console: MemoryConsole::new()
     fn finish(&mut self, _id: RequestId, _abandoned: bool) -> void: pass
 
 
@@ -107,6 +110,7 @@ impl HttpServer for Leases:
         .Disconnected
     fn client(&mut self, _id: RequestId) -> *mut dyn Http: self.http
     fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: self.clock
+    fn console(&mut self, _id: RequestId) -> *mut dyn Console: MemoryConsole::new()
     fn finish(&mut self, id: RequestId, abandoned: bool) -> void:
         self.finished.push((id.sequence, abandoned))
 

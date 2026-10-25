@@ -37,13 +37,14 @@ async function ready(operation) {
   operation.finish();
   return value;
 }
-async function fixture(Http = true) {
+async function fixture(Http = true, Console = true) {
   const instance = new AbortController();
-  const grant = createGrant({ Http });
+  const grant = createGrant({ Http, Console });
   const context = {
     instanceSignal: instance.signal,
     signal: new AbortController().signal,
     pending,
+    console: Object.freeze({ allows: () => grant.allows("Console") }),
     http: Object.freeze({
       coversHost: (host, port) => grant.coversHost("Http", host, port),
       isAsciiUrl,
@@ -93,6 +94,69 @@ async function fixture(Http = true) {
     },
   };
 }
+
+test(
+  "Node Console logs keep source IDs, respect denial and expire with the lease",
+  {
+    timeout: 10000,
+  },
+  async () => {
+    const records = [];
+    const streams = [process.stdout, process.stderr],
+      writes = streams.map((stream) => stream.write);
+    for (const [index, stream] of streams.entries())
+      stream.write = function (text, ...args) {
+        if (typeof text === "string" && text.startsWith('{"version":1,')) {
+          records.push({ channel: index, record: JSON.parse(text) });
+          return true;
+        }
+        return writes[index].call(this, text, ...args);
+      };
+    try {
+      for (const allowed of [true, false]) {
+        const f = await fixture(true, allowed);
+        try {
+          const { id, response } = await f.accept();
+          const console = provider.console(id, f.context);
+          assert.throws(
+            () => provider.console(id, { ...f.context, console: undefined }),
+            /Console policy service/,
+          );
+          const start = records.length;
+          const out = console.write("native stdout\n"),
+            err = console.write_error("native stderr\n");
+          assert.equal(out.ok, allowed);
+          assert.equal(err.ok, allowed);
+          if (!allowed) {
+            assert.equal(out.error.fields.subject, "stdout");
+            assert.equal(err.error.fields.subject, "stderr");
+          }
+          provider.finish(id, false, f.context);
+          assert.equal((await response).status, 503);
+          await tick();
+          const own = records.slice(start);
+          assert.equal(own.length, allowed ? 2 : 0);
+          if (allowed) {
+            assert.deepEqual(
+              own.map(({ channel }) => channel),
+              [0, 1],
+            );
+            assert.ok(own.every(({ record }) => record.lease.generation === String(id.generation)));
+            assert.ok(own.every(({ record }) => record.lease.sequence === String(id.sequence)));
+          }
+          assert.throws(() => console.write("late"), /expired request lease/);
+          assert.throws(() => provider.console(id, f.context), /expired request lease/);
+        } finally {
+          await f.close();
+        }
+      }
+    } finally {
+      streams.forEach((stream, index) => {
+        stream.write = writes[index];
+      });
+    }
+  },
+);
 
 test(
   "Node clients use authoritative false/scoped policy before any fetch",

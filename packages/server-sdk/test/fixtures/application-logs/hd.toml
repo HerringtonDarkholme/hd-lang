@@ -1,0 +1,8 @@
+[package]
+name = "application_logs"
+[dependencies]
+server_sdk = { path = "../../.." }
+[capabilities]
+"dep.server_sdk.server.HttpServer" = true
+Console = true
+Clock = true

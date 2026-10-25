@@ -35,6 +35,8 @@ These names are also re-exported from the package's root module.
 11. r[std-server-sdk.clock-expired] A source clock rejects operations after its lease is finished. Boundary failure: `host-contract`.
 12. r[std-server-sdk.client-decl] Its `client(&mut self, id: RequestId)` method returns a lease-owned `*mut dyn std.http.Http`.
 13. r[std-server-sdk.client-expired] A source client rejects operations after its lease is finished. Boundary failure: `host-contract`.
+14. r[std-server-sdk.console-decl] Its `console(&mut self, id: RequestId)` method returns a lease-owned `*mut dyn Console`.
+15. r[std-server-sdk.console-expired] A source console rejects writes after its lease is finished. Boundary failure: `host-contract`.
 
 > **Why.** The capability identifies request lifetimes without adding an
 > HTTP entry form or an HTTP name known to the compiler. A test can provide
@@ -70,6 +72,7 @@ These names are also re-exported from the package's root module.
 12. r[std-server-sdk.lease-cleanup-escalation] If cleanup remains unacknowledged at that expiry, the host poisons or terminates the affected instance.
 13. r[std-server-sdk.lease-cleanup-acknowledged] Acknowledged cleanup cancels its host watchdog.
 14. r[std-server-sdk.lease-cleanup-platform] Platform CPU limits apply independently of the cleanup watchdog.
+15. r[std-server-sdk.lease-console] The worker binds the source's request console around the handler and its cleanup.
 
 > **Why.** The source's admission deadline can cancel earlier than the
 > handler's fallback timeout. The existing timeout combinator bounds
@@ -92,6 +95,8 @@ the retained guest shares synchronous driver turns.
 9. r[std-server-sdk.dispatch.failure] Instance failure rejects active requests after their queued native disposal runs in their respective owners.
 10. r[std-server-sdk.dispatch.poison] A failed dispatcher rejects new requests.
 11. r[std-server-sdk.dispatch.cancel] Cancellation records the first reason for its lease without cancelling other leases.
+12. r[std-server-sdk.dispatch.effect] `effect(task)` queues a synchronous callback for execution in the lease's owning coroutine.
+13. r[std-server-sdk.dispatch.effect-release] Already captured effects drain before the lease owner's `run()` completes.
 
 > **Why.** A platform may cancel I/O started in another completed request.
 > Only readiness and copied data cross shared guest turns; native I/O stays
@@ -102,7 +107,7 @@ the retained guest shares synchronous driver turns.
 `adapters/application.mjs` connects the dispatcher to an ordinary compiled
 SDK application through public runtime and generated binding modules.
 
-1. r[std-server-sdk.application.inputs] `createApplication` takes a Wasm module, generated bindings, `createCoreHost`, explicit grants, and an output sink.
+1. r[std-server-sdk.application.inputs-with-logs] `createApplication` takes a Wasm module, generated bindings, `createCoreHost`, explicit grants, and an output sink or private log observer.
 2. r[std-server-sdk.application.source] The adapter requires exactly one root package capability named `server.HttpServer` with an explicitly granted selector.
 3. r[std-server-sdk.application.driver] The adapter drives its retained instance through serialized synchronous `createDriver().step()` turns.
 4. r[std-server-sdk.application.values] `dispatch(request, signal)` accepts an HD request value and returns response, cancellation, and cleanup-abandonment values.
@@ -119,6 +124,34 @@ SDK application through public runtime and generated binding modules.
 > **Note.** This adapter exchanges plain values. Platform HTTP mapping,
 > admission limits, supervision and deployment
 > packaging are separate layers.
+
+## Application Logs
+
+The SDK keeps application output separate from protocol and lifecycle events.
+The embedding caller chooses the private log destination.
+
+1. r[std-server-sdk.log.console-policy] SDK request consoles use their owning core runtime's Console authority.
+2. r[std-server-sdk.log.denied] A denied write returns `ConsoleError.NotGranted` for `stdout` or `stderr` without capturing a record.
+3. r[std-server-sdk.log.capture] A permitted Console call completes when it captures its immutable text record.
+4. r[std-server-sdk.log.owner] A captured request record is delivered in that request's owning coroutine.
+5. r[std-server-sdk.log.record] An application record has `version: 1`, `stream` of `out` or `err`, `text`, and a `lease` identity.
+6. r[std-server-sdk.log.identity] A request record's lease contains decimal-string `generation` and `sequence` fields captured from its request ID.
+7. r[std-server-sdk.log.unassociated] Application records without a request console, including startup and runtime diagnostics, have `lease: null`.
+8. r[std-server-sdk.log.fallback] Without a `log(record)` observer, Application forwards text to its output sink's corresponding stream.
+9. r[std-server-sdk.log.observer] Log observers run synchronously and their return values are not awaited.
+10. r[std-server-sdk.log.observer-failure] A throwing observer does not prevent lease completion or later record delivery.
+11. r[std-server-sdk.log.private] The SDK never copies application log text into lifecycle events or generic HTTP error responses.
+12. r[std-server-sdk.log.metadata] The SDK adds no request headers, bodies, environment values, or credentials to log metadata.
+13. r[std-server-sdk.log.supervisor] The supervisor delivers application records through its separate `log(record)` observer.
+14. r[std-server-sdk.log.supervisor-unassociated] An unassociated supervised record has `request: null`.
+15. r[std-server-sdk.log.supervisor-stale] The supervisor ignores log messages from stale worker generations or mismatched active request identities.
+16. r[std-server-sdk.log.node] The development Node provider emits each captured record as one JSON line on its corresponding standard stream.
+17. r[std-server-sdk.log.worker] A supervised record adds `worker: { slot, generation }` identifying its worker.
+18. r[std-server-sdk.log.physical-request] A lease-associated supervised record adds `request` containing its physical request ID.
+
+> **Why.** Another request may cause a shared guest turn, so the current
+> JavaScript turn cannot identify the owner of application output.
+> Lease-bound consoles retain identity through handler cleanup.
 
 ## JavaScript Fetch Transport
 
@@ -209,4 +242,4 @@ explicit public inputs; packaging supplies them independently.
 16. r[std-server-sdk.supervisor.confirmation] Forced termination reports cleanup as unconfirmed.
 
 > **Note.** The component supplies no deployment task, lifecycle budget
-> defaults, application-log routing, or aggregate memory guarantee.
+> defaults, or aggregate memory guarantee.

@@ -1,5 +1,6 @@
 import { createLeaseDispatcher } from "./dispatcher.mjs";
 import { createHttpClient } from "./http.mjs";
+import { createRequestConsole } from "./console.mjs";
 
 const ok = (value) => ({ ok: true, value });
 const expired = () => ({ ok: false, error: { tag: "Expired", fields: {} } });
@@ -13,10 +14,20 @@ export function createApplication({
   createCoreHost,
   grants,
   sink,
+  log = (record) => sink?.[record.stream]?.(record.text),
   onReady = () => {},
   onStopped = () => {},
 }) {
   const sources = bindings.interfaces.filter((item) => !item.handle);
+  const emitLog = (record) => {
+    try {
+      log(record);
+    } catch {
+      // Private observers do not own application lifetime.
+    }
+  };
+  const unassociated = (stream, text) =>
+    emitLog(Object.freeze({ version: 1, lease: null, stream, text }));
   if (sources.length !== 1 || sources[0].identity.trait_path !== "server.HttpServer")
     throw new Error("the application must bind the SDK HttpServer capability");
   if (!grants || !sources[0].selectors.some((name) => grants[name] === true))
@@ -116,6 +127,9 @@ export function createApplication({
         },
       };
     },
+    console(id, context) {
+      return createRequestConsole(lookup(id), { policy: context.console, write: emitLog });
+    },
     finish(id, abandoned) {
       const lease = lookup(id);
       lease.finish(abandoned);
@@ -129,7 +143,7 @@ export function createApplication({
     try {
       if (!driver) {
         host = createCoreHost(
-          sink,
+          { out: (text) => unassociated("out", text), err: (text) => unassociated("err", text) },
           {
             module,
             grants,

@@ -2,7 +2,7 @@ import { parentPort, workerData } from "node:worker_threads";
 
 // An actual infinite Wasm loop stands in for arbitrary guest main/handler/cleanup.
 // Tests isolate supervision behavior; this is not a compiled HD integration claim.
-export function createApplication({ module, grants, onReady, onStopped }) {
+export function createApplication({ module, grants, onReady, onStopped, log }) {
   const spin = new WebAssembly.Instance(module).exports.spin;
   let active = 0,
     stopping = false,
@@ -30,6 +30,34 @@ export function createApplication({ module, grants, onReady, onStopped }) {
             id: 0,
             released: false,
           });
+        }
+        if (request.url === "/log-messages") {
+          const record = {
+            version: 1,
+            lease: { generation: "1", sequence: "1", body: "private nested metadata" },
+            stream: "out",
+            text: "valid log",
+            headers: "private metadata must not be copied",
+          };
+          parentPort.postMessage({
+            type: "log",
+            generation: workerData.generation - 1,
+            request: 1,
+            record: { ...record, text: "old generation" },
+          });
+          parentPort.postMessage({
+            type: "log",
+            generation: workerData.generation,
+            request: 0,
+            record: { ...record, text: "old request" },
+          });
+          parentPort.postMessage({
+            type: "log",
+            generation: workerData.generation,
+            request: 1,
+            record: { ...record, lease: { generation: "invalid", sequence: "1" } },
+          });
+          log(record);
         }
         if (request.url === "/trap") throw new Error("private-error-must-never-leak");
         if (request.url === "/wait" || request.url === "/cleanup-cpu") {

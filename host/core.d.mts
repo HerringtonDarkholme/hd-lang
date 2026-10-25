@@ -16,6 +16,11 @@ export interface ProviderHttpPolicy {
   readonly writtenHost: (text: string) => string;
 }
 
+/** Read-only Console authority from the owning runtime. */
+export interface ProviderConsolePolicy {
+  readonly allows: () => boolean;
+}
+
 export interface Sink {
   out(text: string): void;
   err(text: string): void;
@@ -44,6 +49,7 @@ export interface CoreEnv {
 /** The trailing argument supplied to a generated package-provider method. */
 export interface ProviderContext {
   readonly http: ProviderHttpPolicy;
+  readonly console: ProviderConsolePolicy;
   signal: AbortSignal;
   instanceSignal: AbortSignal;
   /** Owned readiness, cancellation and delivery hooks; no retained Promise is required. */

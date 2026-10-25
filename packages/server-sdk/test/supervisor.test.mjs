@@ -21,7 +21,7 @@ const testPolicy = Object.freeze({
   restartWindowMs: 10000,
   retryAfter: "1",
 });
-function harness(policy = {}, fixture) {
+function harness(policy = {}, fixture, log = () => {}) {
   const events = [],
     watchers = [];
   const supervisor = createSupervisor({
@@ -33,6 +33,7 @@ function harness(policy = {}, fixture) {
       grants: Object.freeze({ fixture }),
     }),
     policy: { ...testPolicy, ...policy },
+    log,
     event(event) {
       events.push(event);
       // Matching watchers remove themselves; iterate a stable snapshot.
@@ -222,6 +223,36 @@ test(
       assert.equal(body(await f.supervisor.dispatch(request("/ok"))), "2");
       assert.equal(f.events.filter((e) => e.kind === "terminated").length, 0);
       assert.equal(f.events.filter((e) => e.kind === "released").length, 2);
+    } finally {
+      await f.supervisor.close();
+    }
+  },
+);
+
+test(
+  "log observers reject stale identities and cannot poison response ownership",
+  {
+    timeout: 10000,
+  },
+  async () => {
+    const records = [];
+    const f = harness({ workers: 1, requestMs: 3000 }, undefined, (record) => {
+      records.push(record);
+      throw new Error("private observer failed");
+    });
+    try {
+      await f.ready();
+      assert.equal(body(await f.supervisor.dispatch(request("/log-messages"))), "1");
+      assert.equal(body(await f.supervisor.dispatch(request("/ok"))), "2");
+      assert.equal(records.length, 1);
+      assert.equal(records[0].text, "valid log");
+      assert.equal(records[0].request, 1);
+      assert.equal(records[0].headers, undefined);
+      assert.deepEqual(records[0].lease, { generation: "1", sequence: "1" });
+      assert.ok(Object.isFrozen(records[0].lease));
+      assert.deepEqual(records[0].worker, { slot: 0, generation: 1 });
+      assert.ok(Object.isFrozen(records[0]) && Object.isFrozen(records[0].worker));
+      assert.equal(f.events.filter((e) => e.kind === "terminated").length, 0);
     } finally {
       await f.supervisor.close();
     }

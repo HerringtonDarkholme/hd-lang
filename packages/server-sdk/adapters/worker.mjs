@@ -34,7 +34,7 @@ try {
     bindings,
     createCoreHost: runtime.createCoreHost,
     grants: program.grants,
-    sink: { out() {}, err() {} },
+    log: (record) => post("log", { record, request: record.lease ? (active?.id ?? null) : null }),
     onReady: ready,
     onStopped: () => {
       stopped = true;

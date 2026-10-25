@@ -808,7 +808,8 @@ export function createCoreHost(sink, env = {}, layer = null) {
       isAsciiUrl,
       writtenHost,
     });
-    packageRuntime = createPackageRuntime({ ...io, http }, env);
+    const console = Object.freeze({ allows: () => grant.allows("Console") });
+    packageRuntime = createPackageRuntime({ ...io, http, console }, env);
     try {
       Object.assign(imports, env.packageBindings(packageRuntime));
     } catch (error) {

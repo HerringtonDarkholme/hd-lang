@@ -637,6 +637,13 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
                 return io.http;
               },
             });
+            Object.defineProperty(context, "console", {
+              enumerable: true,
+              get() {
+                if (!io.console) fail("the host does not provide Console policy services");
+                return io.console;
+              },
+            });
             return f.call(receiver, ...args, context);
           } catch (error) {
             throw new HostContract(`${label}: provider threw ${String(error)}`);

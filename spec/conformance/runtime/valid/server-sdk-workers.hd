@@ -1,6 +1,7 @@
 # test: worker state, lease-local cancellation and bounded cleanup use the actual SDK
 # fixture-package-role: root-application
 use dep.server_sdk.{HttpServer, Incoming, RequestId, ServerError, CancelReason, serve}
+use std.console.MemoryConsole
 use std.http.{Http, Request, Response, ScriptedHttp}
 use std.time.{Clock, Duration, Timestamp, Instant, ms, s, sleep}
 use std.task.race
@@ -35,6 +36,7 @@ impl HttpServer for Scripted:
         .Stopping
 
     fn client(&mut self, _id: RequestId) -> *mut dyn Http: self.http
+    fn console(&mut self, _id: RequestId) -> *mut dyn Console: MemoryConsole::new()
     fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: self.clock
     fn finish(&mut self, _id: RequestId, _abandoned: bool) -> void: pass
 
@@ -52,6 +54,7 @@ impl HttpServer for FailedSource:
     fn respond!(&mut self, _id: RequestId, _response: Response) -> Result[void, ServerError]: .Err(.Closed)
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason: .Stopping
     fn client(&mut self, _id: RequestId) -> *mut dyn Http: panic("no accepted lease")
+    fn console(&mut self, _id: RequestId) -> *mut dyn Console: MemoryConsole::new()
     fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: panic("no accepted lease")
     fn finish(&mut self, _id: RequestId, _abandoned: bool) -> void: pass
 
@@ -80,6 +83,7 @@ impl HttpServer for Leases:
         self.clock.sleep!(ms(if id.sequence == 1: self.cancel_after else: 60000))
         .Disconnected
     fn client(&mut self, _id: RequestId) -> *mut dyn Http: self.http
+    fn console(&mut self, _id: RequestId) -> *mut dyn Console: MemoryConsole::new()
     fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: self.clock
     fn finish(&mut self, id: RequestId, abandoned: bool) -> void:
         self.finished.push((id.sequence, abandoned))

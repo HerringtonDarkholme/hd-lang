@@ -45,9 +45,9 @@ listener, external network service or deployment credentials.
 ## Adapter Boundary
 
 `adapters/application.mjs` exports `createApplication({ module, bindings,
-createCoreHost, grants, sink })`. The caller supplies the built Wasm module,
+createCoreHost, grants, sink, log })`. The caller supplies the built Wasm module,
 its signature-generated `.host.mjs` exports, the public core host factory,
-an explicit capability map and the ordinary output sink. No compiler-cache
+an explicit capability map and an output sink or private log observer. No compiler-cache
 path is an SDK interface.
 
 `dispatch(request, signal)` takes the plain `std.http.Request` JavaScript
@@ -108,7 +108,7 @@ limits remain independent; a blocked isolate needs an external supervisor.
 ## Node Worker Supervision
 
 `adapters/supervisor.mjs` exports `createSupervisor({ program, policy, event,
-exhausted })`. `program` supplies a compiled WebAssembly.Module, explicit
+log, exhausted })`. `program` supplies a compiled WebAssembly.Module, explicit
 runtime/bindings/Application module URLs, and resolved grants. Each worker
 retains its own application state and accepts one active request at a time.
 `createFetchHandler(supervisor)` keeps physical response ownership outside
@@ -127,6 +127,30 @@ and stopped main completion, respectively. A main that never yields cannot
 announce readiness.
 
 These are explicit embedding components. Deployment tasks, runtime graph
-distribution, application-log routing and aggregate memory limits remain
+distribution and aggregate memory limits remain
 separate work. The development `hd run` provider does not automatically
 select the worker supervisor.
+
+## Application Logs
+
+The serving loop binds a request-owned `Console` beside its Http and Clock
+handles. Handler and cleanup writes keep that lease's identity even when
+another request causes the guest turn. Console denial returns `NotGranted`
+before capture; a retained console rejects writes after its lease ends.
+
+`log(record)` receives `{ version: 1, lease, stream, text }`. The stream is
+`out` or `err`; lease generation and sequence are decimal strings. Startup
+and unassociated runtime diagnostics in Application use `lease: null`. Without this
+observer, Application forwards text through its ordinary sink.
+
+Supervision adds `worker: { slot, generation }` and `request`, the physical
+request ID, or null for unassociated output. Its log callback is separate
+from lifecycle `event` callbacks. Both are synchronous observers; return
+values are not awaited, and throwing does not own response or cleanup.
+The SDK adds no headers, bodies or environment values to metadata, and
+never copies private log text into generic HTTP errors.
+
+The development Node provider writes request-console JSON records to their
+corresponding standard streams; ambient CLI output keeps its ordinary Console
+format. This does not add an aggregate memory
+guarantee or select deployment budgets.
