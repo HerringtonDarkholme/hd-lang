@@ -40,7 +40,9 @@
 
 use hd_types::Ty;
 
-use crate::ir::{Body, Callee, IntrinsicOp, NONE, Ref, Tag, Topology, Word, inside, slots, u32_of};
+use crate::ir::{
+    Body, Callee, CaptureMode, IntrinsicOp, NONE, Ref, Tag, Topology, Word, inside, slots, u32_of,
+};
 
 pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
@@ -426,6 +428,108 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     known::run(b, topo, cx, &mut scratch.known, edits);
     hoist::run(b, topo, cx, &mut scratch.hoist, edits);
     splice::apply(b, topo, edits)
+}
+
+/// What the optimized pipeline reads of one body
+/// (`docs/future-work/RELEASE_INTERPROC.md`, "Data structures"): facts of
+/// its code, never of its signature, which type checking never reads.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Summary {
+    /// Bit k: the body may keep parameter k (receiver first) past the
+    /// call. Parameters past 63 and open types are always kept; a
+    /// suspending body has no summary.
+    pub kept: u64,
+    /// The parameter every result of the body is, unchanged: a whole read
+    /// of a parameter the body never stores.
+    pub returns: Option<u8>,
+    /// Whether the body may write memory its caller can reach. Always set
+    /// until the `writes` walk is built.
+    pub writes: bool,
+}
+
+impl Summary {
+    /// The facts that hold of both `self` and `other`.
+    #[must_use]
+    pub fn meet(self, other: Self) -> Self {
+        Self {
+            kept: self.kept | other.kept,
+            returns: self.returns.filter(|&k| other.returns == Some(k)),
+            writes: self.writes || other.writes,
+        }
+    }
+}
+
+/// The locals of `b`'s own parameters, the receiver first; a closure's are
+/// its sub-body's.
+#[must_use]
+pub fn params(b: &Body) -> Vec<u32> {
+    let mut inner = vec![false; b.local_ty.len()];
+    for r in b.sub_params.iter().skip(1) {
+        for k in 0..r.len {
+            inner[b.extra[(r.start + 1 + k) as usize] as usize] = true;
+        }
+    }
+    (0..u32_of(b.local_ty.len()))
+        .filter(|&l| {
+            b.local_flags[l as usize] & crate::ir::local_flags::PARAM != 0 && !inner[l as usize]
+        })
+        .collect()
+}
+
+/// The parameter every result of `b` is ([`Summary::returns`]), read
+/// before the passes: each `Return` of its own sub-body and its root's
+/// tail are a whole read of that parameter, which no `Store`, `Ref`,
+/// change in place or shared capture touches. A root with no tail must
+/// never complete.
+#[must_use]
+pub fn returned_param(b: &Body) -> Option<u8> {
+    let whole = |v: u32| -> Option<u32> {
+        let i = Ref(v).as_inst()?.0 as usize;
+        let p = b.view(b.data[i][0]);
+        (b.tags[i] == Tag::Read && p.whole()).then_some(p.local()?)
+    };
+    let root = *b.sub_root.first()? as usize;
+    let mut at = match b.data[root][1] {
+        NONE if b.ty[root] == Ty::NEVER => NONE,
+        NONE => return None,
+        tail => whole(tail)?,
+    };
+    let topo = Topology::new(b);
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Return && topo.sub[i] == 0) {
+        let l = whole(b.data[i][0])?;
+        if at != NONE && at != l {
+            return None;
+        }
+        at = l;
+    }
+    let shared = |c: usize| b.cap_local[c].raw() == at && b.cap_mode[c] == CaptureMode::Shared;
+    let touched = |i: usize| {
+        matches!(b.tags[i], Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Pin)
+            && b.local_in_place(b.data[i][0]).map(hd_base::LocalId::raw) == Some(at)
+    };
+    if (0..b.cap_local.len()).any(shared) || (0..b.len()).any(touched) {
+        return None;
+    }
+    let k = params(b).iter().position(|&l| l == at)?;
+    u8::try_from(k).ok()
+}
+
+/// The summary of `b` after [`run`] over it, from the borrow pass's tables
+/// in `scratch`, with `returns` from [`returned_param`] of the body before
+/// the passes. `None` for a body that is no function's, or that suspends.
+#[must_use]
+pub fn summary(
+    b: &Body,
+    cx: &dyn OwnCx,
+    scratch: &OwnScratch,
+    returns: Option<u8>,
+) -> Option<Summary> {
+    let kept = borrow::kept(b, cx, &scratch.borrow)?;
+    Some(Summary {
+        kept,
+        returns,
+        writes: true,
+    })
 }
 
 #[cfg(test)]
@@ -1391,6 +1495,106 @@ pub(crate) mod tests {
             text.contains("stable %") && text.contains(" [$0]"),
             "{text}"
         );
+    }
+
+    /// [`Cx`] for a body that does not suspend, which has a summary.
+    struct Flat;
+
+    impl super::OwnCx for Flat {
+        fn counted(&self, ty: Ty) -> Tri {
+            Cx.counted(ty)
+        }
+        fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
+            Cx.pass(callee, k, n)
+        }
+        fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
+            Cx.pass_value(ty, k, n)
+        }
+        fn may_write(&self, callee: &Callee) -> bool {
+            Cx.may_write(callee)
+        }
+        fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
+            Cx.parts(ty, v, out)
+        }
+        fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
+            Cx.received(item, k, n)
+        }
+        fn suspending(&self, _: DefId) -> bool {
+            false
+        }
+        fn holds_coll(&self, ty: Ty) -> bool {
+            Cx.holds_coll(ty)
+        }
+    }
+
+    /// A body of two string parameters built by `f`, its returned
+    /// parameter, and its summary after the passes.
+    fn summarized(
+        f: impl FnOnce(&mut TirBuilder, LocalId, LocalId) -> Option<crate::ir::Ref>,
+        ty: Ty,
+    ) -> (Option<u8>, Option<super::Summary>) {
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let p0 = local(&mut b, local_flags::PARAM);
+        let p1 = local(&mut b, local_flags::PARAM);
+        let tail = f(&mut b, p0, p1);
+        let root = b.close_block(blk, tail, ty, NodeIdx::from_raw(1));
+        let mut body = b.finish(root, &[]).expect("verifies");
+        let returns = super::returned_param(&body);
+        let mut scratch = OwnScratch::default();
+        run(&mut body, &Flat, &mut scratch).expect("passes");
+        (returns, super::summary(&body, &Flat, &scratch, returns))
+    }
+
+    /// A parameter that only lends is not kept, one an owned argument
+    /// takes is; a body whose result is a parameter's whole read returns
+    /// it, unless it stores that parameter. Two summaries meet in what
+    /// both allow.
+    #[test]
+    fn a_summary_keeps_what_the_body_holds_and_names_the_returned_parameter() {
+        let n = NodeIdx::from_raw(1);
+        let (returns, s) = summarized(
+            |b, p0, p1| {
+                let a = b.get(p0, Ty::STRING, n);
+                call(b, 8, &[a], Ty::VOID);
+                let c = b.get(p1, Ty::STRING, n);
+                call(b, 9, &[c], Ty::VOID);
+                None
+            },
+            Ty::VOID,
+        );
+        assert_eq!(returns, None);
+        assert_eq!(s.map(|s| s.kept), Some(0b10));
+        let (returns, s) = summarized(|b, _, p1| Some(b.get(p1, Ty::STRING, n)), Ty::STRING);
+        assert_eq!((returns, s.and_then(|s| s.returns)), (Some(1), Some(1)));
+        let (returns, _) = summarized(
+            |b, p0, _| {
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(p0, s, n);
+                Some(b.get(p0, Ty::STRING, n))
+            },
+            Ty::STRING,
+        );
+        assert_eq!(returns, None);
+        let a = super::Summary {
+            kept: 0b01,
+            returns: Some(0),
+            writes: false,
+        };
+        let b = super::Summary {
+            kept: 0b10,
+            returns: Some(1),
+            writes: true,
+        };
+        assert_eq!(
+            a.meet(b),
+            super::Summary {
+                kept: 0b11,
+                returns: None,
+                writes: true
+            }
+        );
+        assert_eq!(a.meet(a), a);
     }
 
     /// A parameter a push changes stays owned, though no read keeps it:

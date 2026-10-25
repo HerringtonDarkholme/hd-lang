@@ -8,18 +8,58 @@
 //! each answer for the run.
 
 use std::cell::RefCell;
+use std::fmt::Write as _;
 
+use hd_base::HashMap;
 use hd_base::{DefId, Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use hd_mono::ProgramEnv;
 use hd_tir::inline::Site;
 use hd_tir::ir::{Body, Callee, ChoiceKind};
-use hd_tir::own::{OwnCx, OwnScratch, Pass, Tri};
+use hd_tir::own::{OwnCx, OwnScratch, Pass, Summary, Tri};
 use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, ParamEnv, Selection, SolveCx, Solver, TableSolver, TraitRef,
 };
 use hd_types::{Ty, TyData, TyList};
 
 use super::{Env, ProgramTables, Run, lock};
+
+/// The run's release summaries (`docs/future-work/RELEASE_INTERPROC.md`,
+/// "Data structures"): per body the passes ran over, what its code says of
+/// its parameters. Only looked up, never iterated, so output stays
+/// deterministic. Type checking never reads it.
+#[derive(Default)]
+pub(super) struct Summaries {
+    by_item: std::sync::Mutex<HashMap<DefId, Summary>>,
+}
+
+/// The `own` view's line for `body`'s summary `s`: its kept parameters,
+/// by local, and the one every result is; `summary none` for a function
+/// with none (one that suspends), nothing for any other body.
+pub(super) fn summary_line(body: &Body, s: Option<Summary>) -> String {
+    use hd_tir::ir::BodyKind;
+    let Some(s) = s else {
+        let function = matches!(body.kind, BodyKind::Fn | BodyKind::DeriveInstance);
+        return if function { "summary none\n" } else { "" }.to_owned();
+    };
+    let params = hd_tir::own::params(body);
+    let kept: Vec<String> = (params.iter().enumerate())
+        .filter(|&(k, _)| k >= 64 || s.kept & (1 << k) != 0)
+        .map(|(_, l)| format!("${l}"))
+        .collect();
+    let mut line = format!("summary kept [{}]", kept.join(" "));
+    if let Some(&l) = s.returns.and_then(|k| params.get(usize::from(k))) {
+        let _ = write!(line, " returns ${l}");
+    }
+    line.push('\n');
+    line
+}
+
+impl Summaries {
+    /// The summary of `item`'s body, once the passes have run over it.
+    pub(super) fn of(&self, item: DefId) -> Option<Summary> {
+        lock(&self.by_item).get(&item).copied()
+    }
+}
 
 thread_local! {
     /// The passes' tables, reused across every body a thread runs them on.
@@ -233,8 +273,13 @@ impl Env<'_> {
     }
 
     /// Runs the ownership passes over `body`, then, in checked and debug
-    /// builds, verifies their output.
-    pub(super) fn own_passes(&self, mut body: Body) -> StageResult<Body> {
+    /// builds, verifies their output; with `summarize`, also returns the
+    /// body's summary (`hd_tir::own::summary`).
+    pub(super) fn own_passes(
+        &self,
+        mut body: Body,
+        summarize: bool,
+    ) -> StageResult<(Body, Option<Summary>)> {
         // A body's passes never run another's; the tables are taken out
         // anyway, so a nested run would only start from empty ones.
         let mut scratch = SCRATCH.with(RefCell::take);
@@ -244,9 +289,17 @@ impl Env<'_> {
         if body.anchors.is_empty() {
             body.anchors = (0..u32::try_from(body.len()).expect("insts")).collect();
         }
+        let returns = summarize
+            .then(|| hd_tir::own::returned_param(&body))
+            .flatten();
         // Each type's layout once per body, not once per query of it.
-        let refused =
-            hd_wasm_linear::with_layout_cache(|| hd_tir::own::run(&mut body, self, &mut scratch));
+        let (refused, summary) = hd_wasm_linear::with_layout_cache(|| {
+            let refused = hd_tir::own::run(&mut body, self, &mut scratch);
+            let summary = (summarize && refused.is_ok())
+                .then(|| hd_tir::own::summary(&body, self, &scratch, returns))
+                .flatten();
+            (refused, summary)
+        });
         SCRATCH.with(|s| *s.borrow_mut() = scratch);
         let path = || self.run.names().path(body.item);
         if let Err(what) = refused {
@@ -271,7 +324,7 @@ impl Env<'_> {
                 ));
             }
         }
-        Ok(body)
+        Ok((body, summary))
     }
 
     /// Copies into `body` each call of a small std function outside
@@ -455,7 +508,7 @@ impl Env<'_> {
             let open = |t| hd_tir::ir::erasable(types, item, t);
             hd_tir::ir::root_places(&mut body, &open, &mut r.borrow_mut());
         });
-        self.own_passes(body)
+        Ok(self.own_passes(body, false)?.0)
     }
 }
 
@@ -482,8 +535,11 @@ impl Run<'_> {
         };
         let mut body = body;
         let hash = env.inline_calls(&mut body, hash);
-        match env.own_passes(body) {
-            Ok(body) => {
+        match env.own_passes(body, self.summaries.is_some()) {
+            Ok((body, summary)) => {
+                if let (Some(all), Some(s)) = (&self.summaries, summary) {
+                    lock(&all.by_item).insert(body.item, s);
+                }
                 let mut k = StableHasher::new("own-passes");
                 k.hash(hash);
                 Some((body, k.finish()))

@@ -866,6 +866,31 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
     }
 }
 
+/// The kept bits of `b`'s summary (`crate::own::Summary::kept`), from the
+/// tables of its last run: parameter k may outlive the call when the body
+/// owns some of it ([`lent_params`] left it owned) or a read of it keeps
+/// its value. A parameter whose type an instance decides is kept, and one
+/// with no counted leaf keeps nothing. `None` for a body that is no
+/// function's or that suspends.
+pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<u64> {
+    if (b.kind != BodyKind::Fn && b.kind != BodyKind::DeriveInstance) || cx.suspending(b.item) {
+        return None;
+    }
+    let mut kept = 0;
+    for (k, l) in super::params(b).into_iter().enumerate() {
+        let l = l as usize;
+        let keeps = match cx.counted(b.local_ty[l]) {
+            Tri::No => false,
+            Tri::Maybe => true,
+            Tri::Yes => !t.unowned[l] || t.kept_read[l] > 0,
+        };
+        if keeps && k < 64 {
+            kept |= 1 << k;
+        }
+    }
+    Some(kept)
+}
+
 /// The `Ref`s of a field of what a lent parameter refers to, which take no
 /// count (`ref_word::LENT`): `[*$p .f ...]`, or `[*%v .f ...]` with `%v`
 /// a borrowed read of all of `$p`, where `$p` is a parameter the body owns

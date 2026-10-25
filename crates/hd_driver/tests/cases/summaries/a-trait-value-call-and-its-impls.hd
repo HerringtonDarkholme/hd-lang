@@ -1,0 +1,29 @@
+# @dump: own
+# @build: v8 release
+# Release summaries, trait values: `emit` passes `m` to a call through a
+# `dyn` receiver, which keeps the declared (owned) convention, so `m` is
+# kept. Each impl has its own summary: `Count` only reads its argument,
+# `Keep` stores it.
+struct Member:
+    name: string
+
+trait Sink:
+    fn put(&mut self, m: Member) -> void
+
+struct Count:
+    n: usize
+
+struct Keep:
+    all: List[Member]
+
+impl Sink for Count:
+    fn put(&mut self, m: Member) -> void:
+        if m.name == "":
+            self.n = self.n + 1
+
+impl Sink for Keep:
+    fn put(&mut self, m: Member) -> void:
+        self.all.push(m)
+
+fn emit(s: &mut dyn Sink, m: Member) -> void:
+    s.put(m)

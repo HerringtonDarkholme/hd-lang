@@ -1,0 +1,11 @@
+# @dump: own
+# @build: v8 release
+# Release summaries, closures: a captured parameter is kept, since the
+# closure may outlive the call, and so is an argument to a function value,
+# whose callee is unknown, so it reads the function type's owned
+# convention.
+fn later(name: string) -> fn() -> usize:
+    fn() -> usize: name.len()
+
+fn apply(f: fn(string) -> usize, s: string) -> usize:
+    f(s)

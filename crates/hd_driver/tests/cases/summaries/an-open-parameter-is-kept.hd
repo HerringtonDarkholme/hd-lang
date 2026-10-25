@@ -1,0 +1,12 @@
+# @dump: own
+# @build: v8 release
+# Release summaries, generics: a parameter whose type names a type
+# parameter is kept, since an instance decides what it is; a closed one may
+# be lent: `m` is only read. `pick` returns `x` unchanged on every path.
+struct Member:
+    name: string
+
+fn pick[T](x: T, m: Member) -> T:
+    if m.name == "":
+        return x
+    x

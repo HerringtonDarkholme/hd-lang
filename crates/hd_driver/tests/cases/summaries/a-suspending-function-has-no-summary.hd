@@ -1,0 +1,13 @@
+# @dump: own
+# @build: v8 release
+# Release summaries, suspension: a suspending function's frame holds a
+# count of each parameter and its callers already lend every argument, so
+# it has no summary. A function that does not suspend has one as usual.
+struct Member:
+    name: string
+
+fn save!(m: Member) -> void:
+    pass
+
+fn unnamed(m: Member) -> bool:
+    m.name == ""

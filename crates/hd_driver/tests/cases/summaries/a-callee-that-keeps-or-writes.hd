@@ -1,0 +1,27 @@
+# @dump: own
+# @build: v8 release
+# Release summaries, kept parameters: `remember` stores `m` in a list, so it
+# keeps it; `rename` writes through its reference but only reads `m`, so
+# it keeps nothing. `add` returns its receiver unchanged; `other` returns a
+# parameter on one path and a new value on the other, so it returns none.
+struct Member:
+    name: string
+
+struct Tally:
+    count: usize
+
+fn remember(all: &mut List[Member], m: Member) -> void:
+    all.push(m)
+
+fn rename(target: &mut Member, m: Member) -> void:
+    target.name = "${m.name}!"
+
+impl Tally:
+    fn add(*mut self) -> *mut Tally:
+        self.count = self.count + 1
+        self
+
+fn other(a: string, b: string) -> string:
+    if a.len() > 3:
+        return a
+    "${b}"

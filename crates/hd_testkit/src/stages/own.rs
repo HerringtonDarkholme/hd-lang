@@ -61,6 +61,10 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
         for exit in own.text.lines().filter(|l| l.trim().starts_with("exit ")) {
             let _ = writeln!(out, "  {}", exit.trim());
         }
+        // A release build's summary of the body.
+        for summary in own.text.lines().filter(|l| l.starts_with("summary ")) {
+            let _ = writeln!(out, "  {summary}");
+        }
         // The unwind sets of the suspension points shown.
         for unwind in own.text.lines().map(str::trim) {
             let Some(point) = unwind

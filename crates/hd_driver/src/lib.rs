@@ -1436,6 +1436,9 @@ struct Run<'a> {
     /// How each parameter of a callee passes its argument, by the
     /// callee's item, the parameter and the argument count (`own.rs`).
     own_params: Mutex<HashMap<(DefId, u32, u32), hd_tir::own::Pass>>,
+    /// The release summaries of the bodies the passes ran over
+    /// (`own.rs`); `None` in a dev build, which computes none.
+    summaries: Option<own::Summaries>,
     /// The root package's per-body fuel, when a test sets it
     /// ([`Packages::body_fuel`]).
     body_fuel: Option<u64>,
@@ -2141,6 +2144,7 @@ pub fn build_packages(
         checked: packages.checked,
         own_types: Mutex::new(HashMap::default()),
         own_params: Mutex::new(HashMap::default()),
+        summaries: (packages.level == OptLevel::Optimized).then(own::Summaries::default),
         fetched: std::iter::once(false)
             .chain(packages.deps.iter().map(|d| d.fetched))
             .chain(std::iter::once(false))
@@ -8109,8 +8113,12 @@ impl Run<'_> {
                 pool.lower_refs(self.known.ref_cell, ft),
             ))
         };
+        let mut text = hd_check::render(&names, body, &fields);
+        if let Some(all) = &self.summaries {
+            text.push_str(&own::summary_line(body, all.of(body.item)));
+        }
         let own = OwnText {
-            text: hd_check::render(&names, body, &fields),
+            text,
             syn: body.syn.clone(),
         };
         lock(&self.own_text).insert(path, own);

@@ -1,0 +1,26 @@
+# @dump: own
+# @build: v8 release
+# Release summaries, recursion: the first version is conservative, so a
+# parameter passed to a call inside its own strongly connected component is
+# kept. Today the passes still read the declared convention, so `walk`'s
+# `c` is owned by its recursive call and kept; `depth` only reads `c`, so
+# it keeps nothing.
+struct Config:
+    name: string
+    depth: i64
+
+fn walk(c: Config, n: i64) -> i64:
+    if n == 0:
+        return c.depth
+    walk(c, n - 1) + 1
+
+fn ping(c: Config, n: i64) -> i64:
+    if n == 0:
+        return depth(c)
+    pong(c, n - 1)
+
+fn pong(c: Config, n: i64) -> i64:
+    ping(c, n)
+
+fn depth(c: Config) -> i64:
+    c.depth
