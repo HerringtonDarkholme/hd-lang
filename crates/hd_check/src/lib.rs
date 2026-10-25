@@ -36,6 +36,7 @@ mod join;
 mod literals;
 mod local;
 mod local_refs;
+mod opaque;
 mod pat;
 mod privacy;
 mod promote;

@@ -1,0 +1,1 @@
+fn bad() -> impl Iterator[impl Display]: +1  # diagnostic: syntax-error

@@ -1,0 +1,8 @@
+fn values[T](value: T) -> (impl Eq, i32):
+    _ := value
+    (+1, +0)
+fn same[T](a: T, b: T) -> void:
+    _ := a
+    _ := b
+pub fn main() -> void:
+    same(values(+1)._0, values("one")._0) # diagnostic: type-mismatch

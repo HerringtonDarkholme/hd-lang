@@ -172,7 +172,8 @@ impl Ck<'_, '_> {
     pub(crate) fn join_target(&mut self, want: Option<Ty>) -> Ty {
         let pool = self.pool();
         if let Some(w) = want
-            && (!matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_))
+            && (self.strict_opaque_slot(w)
+                || !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_))
                 || self.joins.is_site(w))
         {
             return w;

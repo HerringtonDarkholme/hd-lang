@@ -1626,6 +1626,9 @@ struct Lower<'a, 'r, 'x> {
     kinds: &'a Kinds,
     diags: &'a mut DiagBuf,
     unsupported: Option<String>,
+    /// The named function whose return annotation is being lowered and
+    /// the next opaque occurrence, in source order.
+    opaque_result: Option<(DefId, u32)>,
     /// Type parameters already reported as used in a row: one error per
     /// parameter, at its first use.
     kind_reported: HashSet<u32>,
@@ -2301,12 +2304,42 @@ impl Lower<'_, '_, '_> {
         match n.kind() {
             SyntaxKind::NamedType => self.named(n, gn, referent),
             SyntaxKind::ImplType => {
-                self.diags.error(
-                    Code::TypeMismatch,
-                    self.src.span(n),
-                    "`impl Trait` must be the whole return type of a named function",
-                );
-                Ty::POISON
+                let Some((owner, site)) = self.opaque_result else {
+                    self.diags.error(
+                        Code::TypeMismatch,
+                        self.src.span(n),
+                        "`impl Trait` needs a named function's return annotation",
+                    );
+                    return Ty::POISON;
+                };
+                self.opaque_result = Some((owner, site + 1));
+                let bound = Src::child(n, SyntaxKind::NamedType)
+                    .and_then(|n| self.trait_value(n, gn, None))
+                    .unwrap_or(Ty::POISON);
+                let args: Vec<Ty> = gn
+                    .decls
+                    .iter()
+                    .filter_map(|(name, _)| {
+                        if let Some((_, r)) = gn.rows.iter().find(|(s, _)| s == name) {
+                            return Some(pool.intern_ty(&TyData::Row(pool.row(
+                                &hd_types::RowData {
+                                    keys: vec![],
+                                    params: vec![*r],
+                                },
+                            ))));
+                        }
+                        gn.tys
+                            .iter()
+                            .find(|(s, _, _)| s == name)
+                            .map(|(_, t, _)| *t)
+                    })
+                    .collect();
+                pool.intern_ty(&TyData::Opaque {
+                    owner,
+                    site,
+                    args: pool.list(&args),
+                    bound,
+                })
             }
             SyntaxKind::OptionalType => {
                 let t = first_ty(self, n);
@@ -2936,38 +2969,9 @@ impl Lower<'_, '_, '_> {
                 defaults.push(Src::child(p, SyntaxKind::DefaultValue).is_some());
             }
         }
-        let ret = match Src::type_child(f) {
-            Some(n) if n.kind() == SyntaxKind::ImplType => {
-                let bound = Src::child(n, SyntaxKind::NamedType)
-                    .and_then(|n| self.trait_value(n, gn, None))
-                    .unwrap_or(Ty::POISON);
-                let args: Vec<Ty> = gn
-                    .decls
-                    .iter()
-                    .filter_map(|(name, _)| {
-                        if let Some((_, r)) = gn.rows.iter().find(|(s, _)| s == name) {
-                            return Some(self.names.pool.intern_ty(&TyData::Row(
-                                self.names.pool.row(&hd_types::RowData {
-                                    keys: vec![],
-                                    params: vec![*r],
-                                }),
-                            )));
-                        }
-                        gn.tys
-                            .iter()
-                            .find(|(s, _, _)| s == name)
-                            .map(|(_, t, _)| *t)
-                    })
-                    .collect();
-                self.names.pool.intern_ty(&TyData::Opaque {
-                    owner,
-                    site: 0,
-                    args: self.names.pool.list(&args),
-                    bound,
-                })
-            }
-            n => self.ty(n, gn),
-        };
+        let before = self.opaque_result.replace((owner, 0));
+        let ret = self.ty(Src::type_child(f), gn);
+        self.opaque_result = before;
         let row = self.row(Src::child(f, SyntaxKind::RequirementRow), gn);
         let suspends = f
             .direct_token(&self.src.parse.tokens, TokenKind::Bang)
@@ -3355,7 +3359,10 @@ impl Lower<'_, '_, '_> {
                     let def = self.names.member(owner, PathKind::Member, &text);
                     self.result_required(f, result_required || self.src.is_pub(f));
                     if result_required
-                        && Src::type_child(f).is_some_and(|n| n.kind() == SyntaxKind::ImplType)
+                        && Src::type_child(f).is_some_and(|n| {
+                            n.kind() == SyntaxKind::ImplType
+                                || n.descendants().any(|n| n.kind() == SyntaxKind::ImplType)
+                        })
                     {
                         self.diags.error(
                             Code::TypeMismatch,
@@ -4657,6 +4664,7 @@ fn lower_aliases(
                 kinds: &s.kinds,
                 diags: &mut scratch,
                 unsupported: None,
+                opaque_result: None,
                 kind_reported: HashSet::default(),
                 locals: &locals[mi],
                 at: mods[mi].src.span(h.node).lo,
@@ -4718,6 +4726,7 @@ fn lower_aliases(
                 kinds: &*kinds,
                 diags: if alias { diags } else { &mut dropped },
                 unsupported: None,
+                opaque_result: None,
                 kind_reported: HashSet::default(),
                 locals: &locals[mi],
                 at: 0,
@@ -5845,6 +5854,7 @@ pub fn build_folder(
                     kinds: &kinds,
                     diags,
                     unsupported: None,
+                    opaque_result: None,
                     kind_reported: HashSet::default(),
                     locals: &locals,
                     at: 0,
@@ -5945,6 +5955,7 @@ pub fn build_folder(
                 kinds: &o.kinds,
                 diags,
                 unsupported: None,
+                opaque_result: None,
                 kind_reported: HashSet::default(),
                 locals: &[],
                 at: 0,
@@ -6074,6 +6085,7 @@ fn own_trait_generics(
                 kinds: &s.kinds,
                 diags: &mut scratch,
                 unsupported: None,
+                opaque_result: None,
                 kind_reported: HashSet::default(),
                 locals: &locals,
                 at: m.src.span(h.node).lo,
@@ -6339,6 +6351,7 @@ fn own_trait_supers(
                 kinds: &s.kinds,
                 diags: &mut scratch,
                 unsupported: None,
+                opaque_result: None,
                 kind_reported: HashSet::default(),
                 locals: &locals,
                 at: m.src.span(h.node).lo,

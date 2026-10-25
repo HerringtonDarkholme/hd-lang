@@ -1,0 +1,14 @@
+# expect-stdout: 7 seven 8 eight
+fn pair[T < Display](value: T) -> (impl Display, impl Display):
+    (value, "seven")
+
+struct Factory:
+    marker: i32
+impl Factory:
+    fn make(self) -> (impl Display, impl Display):
+        (self.marker, "eight")
+
+pub fn main() -> void $ Console:
+    values := pair(+7)
+    more := Factory { marker: +8 }.make()
+    println("${values._0} ${values._1} ${more._0} ${more._1}")

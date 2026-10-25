@@ -1,0 +1,6 @@
+# expect-stdout: 3 4
+fn values() -> List[impl Display]:
+    [+3, +4]
+pub fn main() -> void $ Console:
+    parts := values()
+    println("${parts[0]} ${parts[1]}")

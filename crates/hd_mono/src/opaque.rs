@@ -44,41 +44,125 @@ pub struct Fact {
 #[must_use]
 pub fn facts(pool: &InternPool, body: &Body, declared: Option<Ty>) -> Vec<Fact> {
     let mut out = Vec::new();
-    if let Some(opaque) = declared
-        && matches!(pool.get(opaque), TyData::Opaque { .. })
+    if let Some(declared) = declared
+        && pool.has_opaque(declared)
         && let Some(&root) = body.sub_root.first()
     {
-        out.push(Fact {
-            site: 0,
-            opaque,
-            hidden: body.ty[root as usize],
-            syn: body.syn[root as usize],
-        });
+        result_facts(
+            pool,
+            declared,
+            body.ty[root as usize],
+            body.syn[root as usize],
+            &mut out,
+        );
     }
     for (i, tag) in body.tags.iter().enumerate() {
         if *tag != Tag::Closure || body.is_instantiation(i) {
             continue;
         }
-        let TyData::Fn { result: opaque, .. } = pool.get(body.ty[i]) else {
+        let TyData::Fn {
+            result: declared, ..
+        } = pool.get(body.ty[i])
+        else {
             continue;
         };
-        let TyData::Opaque { site, .. } = pool.get(opaque) else {
+        if !pool.has_opaque(declared) {
             continue;
-        };
+        }
         if let Some(&root) = body
             .sub_root
             .iter()
-            .find(|&&r| body.syn[r as usize].raw().checked_add(1) == Some(site))
+            .find(|&&r| body.syn[r as usize] == body.syn[i])
         {
-            out.push(Fact {
-                site,
-                opaque,
-                hidden: body.ty[root as usize],
-                syn: body.syn[root as usize],
-            });
+            result_facts(
+                pool,
+                declared,
+                body.ty[root as usize],
+                body.syn[root as usize],
+                &mut out,
+            );
         }
     }
     out
+}
+
+fn result_facts(pool: &InternPool, declared: Ty, hidden: Ty, syn: NodeIdx, out: &mut Vec<Fact>) {
+    if !pool.has_opaque(declared) {
+        return;
+    }
+    if let TyData::Opaque { site, .. } = pool.get(declared) {
+        out.push(Fact {
+            site,
+            opaque: declared,
+            hidden,
+            syn,
+        });
+        return;
+    }
+    let mut list = |declared, hidden| {
+        for (&declared, &hidden) in pool
+            .list_items(declared)
+            .iter()
+            .zip(pool.list_items(hidden))
+        {
+            result_facts(pool, declared, hidden, syn, out);
+        }
+    };
+    match (pool.get(declared), pool.get(hidden)) {
+        (
+            TyData::Adt {
+                def: a,
+                args: declared,
+            },
+            TyData::Adt {
+                def: b,
+                args: hidden,
+            },
+        ) if a == b => list(declared, hidden),
+        (
+            TyData::Tuple {
+                elems: declared,
+                rest: a,
+            },
+            TyData::Tuple {
+                elems: hidden,
+                rest: b,
+            },
+        ) => {
+            list(declared, hidden);
+            if let (Some(declared), Some(hidden)) = (a, b) {
+                result_facts(pool, declared, hidden, syn, out);
+            }
+        }
+        (TyData::Option(declared), TyData::Option(hidden))
+        | (TyData::Mut(declared), TyData::Mut(hidden))
+        | (
+            TyData::Ref {
+                inner: declared, ..
+            },
+            TyData::Ref { inner: hidden, .. },
+        ) => result_facts(pool, declared, hidden, syn, out),
+        (
+            TyData::TraitValue {
+                def: a,
+                args: declared,
+                bindings: a_bindings,
+            },
+            TyData::TraitValue {
+                def: b,
+                args: hidden,
+                bindings: b_bindings,
+            },
+        ) if a == b => {
+            list(declared, hidden);
+            for ((a, declared), (b, hidden)) in a_bindings.into_iter().zip(b_bindings) {
+                if a == b {
+                    result_facts(pool, declared, hidden, syn, out);
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 struct Reveal<'a> {

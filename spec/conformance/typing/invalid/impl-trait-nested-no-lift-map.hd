@@ -1,0 +1,14 @@
+trait Number:
+    fn number(self) -> i32
+impl Number for i32:
+    fn number(self) -> i32:
+        self
+impl Number for i32?:
+    fn number(self) -> i32:
+        match self:
+            .Some(value) => value
+            .None => +0
+fn mixed(flag: bool) -> Map[i32, impl Number]:
+    if flag:
+        return {+1: .Some(+1)}
+    {+1: +2} # diagnostic: type-mismatch

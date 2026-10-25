@@ -1,0 +1,6 @@
+# expect-stdout: 6 six
+pub fn main() -> void $ Console:
+    fn local[T < Display](x: T) -> (impl Display, impl Display):
+        (x, "six")
+    pair := local(+6)
+    println("${pair._0} ${pair._1}")

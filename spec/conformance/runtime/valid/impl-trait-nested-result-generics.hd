@@ -1,0 +1,11 @@
+# expect-stdout: 1 one
+fn wrap[T < Display](value: T) -> Result[impl Display, string]:
+    .Ok(value)
+pub fn main() -> void $ Console:
+    first := match wrap(+1):
+        .Ok(value) => value.to_string()
+        .Err(message) => message
+    second := match wrap("one"):
+        .Ok(value) => value.to_string()
+        .Err(message) => message
+    println("$first $second")

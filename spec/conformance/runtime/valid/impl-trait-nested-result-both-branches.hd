@@ -1,0 +1,11 @@
+# expect-stdout: 1 failure
+fn choose(fail: bool) -> Result[impl Display, impl Display]:
+    if fail:
+        return .Err("failure")
+    .Ok(+1)
+fn text(fail: bool) -> string:
+    match choose(fail):
+        .Ok(value) => value.to_string()
+        .Err(value) => value.to_string()
+pub fn main() -> void $ Console:
+    println("${text(false)} ${text(true)}")

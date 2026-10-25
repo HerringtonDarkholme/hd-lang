@@ -1,0 +1,1 @@
+fn maybe() -> impl Display?: .Some(+1)

@@ -2551,7 +2551,7 @@ impl Ck<'_, '_> {
         let at = call.unwrap_or(v);
         let name = self.cx.src.text(self.cx.src.last(v)).to_owned();
         let w = want
-            .map(|w| self.infer.resolve(pool, w))
+            .map(|w| self.infer.shallow(pool, w))
             .map(|w| match pool.get(w) {
                 TyData::Mut(i) => i,
                 _ => w,
@@ -2604,7 +2604,7 @@ impl Ck<'_, '_> {
     /// arguments; `Option`'s are `None` 0 and `Some` 1.
     pub(crate) fn variant_fields(&self, enum_ty: Ty, name: &str) -> Option<(u32, Vec<Ty>)> {
         let pool = self.pool();
-        let t = self.infer.resolve(pool, enum_ty);
+        let t = self.infer.shallow(pool, enum_ty);
         let t = match pool.get(t) {
             TyData::Mut(i) => i,
             _ => t,
@@ -4890,6 +4890,17 @@ impl Ck<'_, '_> {
 }
 
 impl Ck<'_, '_> {
+    /// Inspect a constructor expectation without erasing inference-variable
+    /// identities in its arguments (including opaque return occurrences).
+    pub(crate) fn expected_shape(&self, ty: Ty) -> Ty {
+        let pool = self.pool();
+        let ty = self.infer.shallow(pool, ty);
+        match pool.get(ty) {
+            TyData::Mut(inner) => self.infer.shallow(pool, inner),
+            _ => ty,
+        }
+    }
+
     /// A type with its outer `mut` view removed, variables resolved.
     pub(crate) fn strip_mut(&self, t: Ty) -> Ty {
         let pool = self.pool();

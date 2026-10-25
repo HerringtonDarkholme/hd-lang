@@ -59,11 +59,11 @@ impl Cart:
 ### Opaque Results
 
 1. r[fn.opaque.position] A free function, an inherent method, or a nested named function may declare an [opaque result](04-type-system.md#opaque-result-types).
-2. r[fn.opaque.whole] `impl Trait[Args]` must be the whole return annotation.
-3. r[fn.opaque.trait-method] A trait declaration's or trait implementation's method returning `impl Trait` is an error. Error: `type-mismatch`.
-4. r[fn.opaque.same-type] Every completing `return` operand and the body's completing final value must have the same hidden concrete type. Error: `type-mismatch`.
-5. r[fn.opaque.no-join] Checking an opaque result does not join distinct result types or insert conversions between them.
-6. r[fn.opaque.bound] The hidden type must satisfy the declared trait bound and associated-type bindings. Error: `unsatisfied-trait-bound`.
+2. r[fn.opaque.nested] A return annotation may contain multiple opaque type occurrences, including nested type arguments, tuples and optional types.
+3. r[fn.opaque.no-trait-method] A trait declaration's or trait implementation's method must not contain `impl` in its return annotation. Error: `type-mismatch`.
+4. r[fn.opaque.occurrence-same-type] For each opaque occurrence, every value supplied at that occurrence must have the same hidden concrete type. Error: `type-mismatch`.
+5. r[fn.opaque.occurrence-no-join] Distinct hidden types at one occurrence are not joined or converted to choose a common hidden type.
+6. r[fn.opaque.occurrence-bound] Each hidden concrete type must satisfy its occurrence's declared trait bound and associated-type bindings. Error: `unsatisfied-trait-bound`.
 
 ### Recursion Without A Result Type
 

@@ -14,18 +14,20 @@ impl Parser<'_> {
     /// `result_type`: a function type here carries no requirement clause,
     /// so a header's clause belongs to the header.
     pub(crate) fn ty_result(&mut self) -> Done {
-        if self.at(TokenKind::KwImpl) {
-            let marker = self.start();
-            self.bump();
-            self.ty_bound_trait(true);
-            return self.complete(marker, SyntaxKind::ImplType);
-        }
-        self.ty_with(false)
+        let before = self.opaque_result;
+        self.opaque_result = true;
+        let done = self.ty_with(false);
+        self.opaque_result = before;
+        done
     }
 
     /// A closure's result remains an ordinary type in this stage.
     pub(crate) fn ty_result_plain(&mut self) -> Done {
-        self.ty_with(false)
+        let before = self.opaque_result;
+        self.opaque_result = false;
+        let done = self.ty_with(false);
+        self.opaque_result = before;
+        done
     }
 
     fn ty_with(&mut self, rows: bool) -> Done {
@@ -97,6 +99,21 @@ impl Parser<'_> {
 
     fn ty_reference(&mut self, rows: bool) -> Done {
         match self.current() {
+            Some(TokenKind::KwImpl) if self.opaque_result || self.opaque_bound => {
+                let marker = self.start();
+                if self.opaque_bound {
+                    self.error(
+                        Code::SyntaxError,
+                        "an `impl` type may not appear inside another `impl` bound",
+                    );
+                }
+                self.bump();
+                let before = self.opaque_bound;
+                self.opaque_bound = true;
+                self.ty_bound_trait(true);
+                self.opaque_bound = before;
+                self.complete(marker, SyntaxKind::ImplType)
+            }
             Some(TokenKind::KwDyn) => {
                 let marker = self.start();
                 self.bump();
@@ -240,7 +257,11 @@ impl Parser<'_> {
     /// `type | $ row`.
     pub(crate) fn ty_argument(&mut self) -> Done {
         if self.at(TokenKind::Dollar) && self.nth(1) != Some(TokenKind::Dot) {
-            return self.requirement_clause();
+            let before = self.opaque_result;
+            self.opaque_result = false;
+            let done = self.requirement_clause();
+            self.opaque_result = before;
+            return done;
         }
         if self.at(TokenKind::Placeholder) {
             // grammar.primary.placeholder: `_` is no type.
@@ -304,6 +325,8 @@ impl Parser<'_> {
 
     /// `fn [!] ( types ) -> type [$ row]`.
     fn ty_function(&mut self, rows: bool) -> Done {
+        let before = self.opaque_result;
+        self.opaque_result = false;
         let marker = self.start();
         self.bump(); // fn
         if self.at(TokenKind::Bang) {
@@ -346,6 +369,7 @@ impl Parser<'_> {
                 "an optional function type needs parentheses: write '(fn() -> T)?'",
             );
         }
+        self.opaque_result = before;
         done
     }
 

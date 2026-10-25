@@ -1,0 +1,2 @@
+fn bad() -> Result[impl Iterator[i32], string]: # diagnostic: unsatisfied-trait-bound
+    .Ok(+1)

@@ -1,0 +1,4 @@
+fn values() -> (impl Display, i32):
+    ("hidden", +1)
+fn bad() -> usize:
+    values()._0.len() # diagnostic: unknown-method

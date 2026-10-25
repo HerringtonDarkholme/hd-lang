@@ -1,0 +1,20 @@
+trait Number:
+    fn number(self) -> i32
+impl Number for i32:
+    fn number(self) -> i32:
+        self
+impl Number for i32?:
+    fn number(self) -> i32:
+        match self:
+            .Some(value) => value
+            .None => +0
+# expect-stdout: 1 3
+struct Holder[T]:
+    value: T
+fn make(flag: bool) -> Holder[impl Number]:
+    if flag:
+        return Holder::[i32?] { value: +1 }
+    source := Holder::[i32?] { value: .Some(+1) }
+    Holder { ...source, value: +3 }
+pub fn main() -> void $ Console:
+    println("${make(true).value.number()} ${make(false).value.number()}")

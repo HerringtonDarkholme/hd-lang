@@ -1,0 +1,6 @@
+# expect-stdout: first true
+fn values() -> (impl Display, impl Eq):
+    ("first", +2)
+pub fn main() -> void $ Console:
+    pair := values()
+    println("${pair._0} ${pair._1 == values()._1}")

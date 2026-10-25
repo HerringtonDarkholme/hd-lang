@@ -1,0 +1,1 @@
+fn bad() -> Wrapper[$ Key[impl Display]]: +1 # diagnostic: syntax-error

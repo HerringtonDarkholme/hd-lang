@@ -1,0 +1,9 @@
+# expect-stdout: 7
+fn make() -> Result[impl Display, string]:
+    fn local() -> impl Display:
+        +7
+    .Ok(local())
+pub fn main() -> void $ Console:
+    match make():
+        .Ok(value) => println("${value}")
+        .Err(message) => panic(message)

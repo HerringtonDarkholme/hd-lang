@@ -1,0 +1,30 @@
+# expect-stdout: alpha beta
+struct Lines:
+    values: List[string]
+    at: usize
+impl Iterator[string] for Lines:
+    fn next(&mut self) -> string?:
+        if self.at == self.values.len():
+            return .None
+        value := self.values[self.at]
+        self.at = self.at + 1
+        .Some(value)
+
+enum IoError:
+    Missing
+
+fn open(p: string) -> Result[impl Iterator[string], IoError]:
+    if p.len() == 0:
+        return .Err(.Missing)
+    .Ok(Lines { values: ["", "alpha", "beta", ""], at: 0 }.filter(fn(line: string) -> bool: line.len() > 0).filter(fn(line: string) -> bool: line != "skip"))
+
+pub fn main() -> void $ Console:
+    cursor := match open("words"):
+        .Ok(value) => value
+        .Err(_) => panic("unexpected open error")
+    let output = ""
+    for line in cursor:
+        if output.len() > 0:
+            output = output + " "
+        output = output + line
+    println(output)
