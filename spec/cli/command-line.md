@@ -2181,6 +2181,11 @@ hd run --engine node
 39. r[cli.host.package.context-console-allows] Its `allows()` method reports whether Console access is granted.
 40. r[cli.host.package.context-console-readonly] A provider cannot replace the context's `console` view.
 41. r[cli.host.package.context-console-missing] Accessing `context.console` without runtime Console policy services fails. Boundary failure: `host-contract`.
+42. r[cli.host.package.context-interface-identity] A JavaScript package-provider method context exposes a frozen `interfaceIdentity` with its checked nominal `package`, `version` and `trait_path` strings.
+43. r[cli.host.package.context-interface-identity-checked] This identity comes from the method's guest interface after provider identity and schema validation.
+44. r[cli.host.package.context-interface-identity-handle] A handle method's `interfaceIdentity` names its own declared handle interface.
+45. r[cli.host.package.context-interface-identity-readonly] A provider cannot replace or delete the context's `interfaceIdentity`.
+46. r[cli.host.package.context-interface-identity-binding] Changing generated descriptor metadata after binding preserves an existing method's identity and bound receiver.
 
 
 > **Why.** Provider JavaScript has its host realm's authority; an HD grant cannot sandbox arbitrary JavaScript imports.

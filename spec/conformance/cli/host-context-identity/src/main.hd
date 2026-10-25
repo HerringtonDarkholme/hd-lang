@@ -1,0 +1,14 @@
+pub trait Child:
+    fn inspect!(&self) -> string
+
+@host
+pub trait Source:
+    fn inspect(&self) -> string
+    fn child(&self) -> *dyn Child
+
+pub fn main!() -> void $ Source + Console:
+    source := $.use(Source)
+    println(source.inspect())
+    child := source.child()
+    println(child.inspect!())
+    println(source.inspect())
