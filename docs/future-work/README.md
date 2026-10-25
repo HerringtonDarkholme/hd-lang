@@ -19,6 +19,8 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Application and host
 
+- [HTTP Messages](HTTP_MESSAGES.md): proposed symmetric Request/Response values, shared read-once bodies, ordinary header conversions and private wire adapters; owner review before implementation (#847).
+
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
 - [Host Embedding](HOST_EMBEDDING.md): parked proposal for embedding hd in an application; package host capabilities are designed in #51.
 - [Streaming Design](STREAMING_DESIGN.md): one reader and writer shape for HTTP bodies, process pipes, files and `TcpStream`, on plain `Disposable` handles bound with `using` (#350).

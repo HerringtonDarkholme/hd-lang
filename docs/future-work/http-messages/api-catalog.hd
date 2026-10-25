@@ -1,0 +1,371 @@
+# CHECKED SIGNATURE-ONLY CATALOG: every panic is an explicit unimplemented stub.
+# This is not std code, a URL parser, a form decoder or a host provider.
+# Proposed method names/errors remain subject to owner approval.
+use std.convert.From
+use std.http.Method
+use std.hash.Hasher
+use std.json.JsonError
+use std.serde.{Deserialize, Serialize}
+
+# HTTP field names fold ASCII only; non-ASCII remains invalid for wire validation.
+fn fold_header_name(name: string) -> string:
+    let mut bytes = name.to_utf8()
+    for at in 0..bytes.len():
+        if bytes[at] >= 65 && bytes[at] <= 90:
+            bytes[at] = bytes[at] + 32
+    string::from_utf8(bytes).expect("ASCII folding preserves UTF-8")
+
+@derive(Debug)
+pub enum HeaderName:
+    Accept
+    AcceptEncoding
+    Authorization
+    CacheControl
+    Connection
+    ContentEncoding
+    ContentLength
+    ContentType
+    Cookie
+    Host
+    Location
+    Origin
+    ProxyAuthorization
+    RetryAfter
+    SetCookie
+    TransferEncoding
+    UserAgent
+    Vary
+    XForwardedFor
+    XForwardedProto
+    Other(name: string)
+
+impl HeaderName:
+    pub fn wire(&self) -> string:
+        match *self:
+            .Accept => "accept"
+            .AcceptEncoding => "accept-encoding"
+            .Authorization => "authorization"
+            .CacheControl => "cache-control"
+            .Connection => "connection"
+            .ContentEncoding => "content-encoding"
+            .ContentLength => "content-length"
+            .ContentType => "content-type"
+            .Cookie => "cookie"
+            .Host => "host"
+            .Location => "location"
+            .Origin => "origin"
+            .ProxyAuthorization => "proxy-authorization"
+            .RetryAfter => "retry-after"
+            .SetCookie => "set-cookie"
+            .TransferEncoding => "transfer-encoding"
+            .UserAgent => "user-agent"
+            .Vary => "vary"
+            .XForwardedFor => "x-forwarded-for"
+            .XForwardedProto => "x-forwarded-proto"
+            .Other(name) => fold_header_name(name)
+
+    pub fn parse(name: string) -> HeaderName:
+        match fold_header_name(name):
+            "accept" => .Accept
+            "accept-encoding" => .AcceptEncoding
+            "authorization" => .Authorization
+            "cache-control" => .CacheControl
+            "connection" => .Connection
+            "content-encoding" => .ContentEncoding
+            "content-length" => .ContentLength
+            "content-type" => .ContentType
+            "cookie" => .Cookie
+            "host" => .Host
+            "location" => .Location
+            "origin" => .Origin
+            "proxy-authorization" => .ProxyAuthorization
+            "retry-after" => .RetryAfter
+            "set-cookie" => .SetCookie
+            "transfer-encoding" => .TransferEncoding
+            "user-agent" => .UserAgent
+            "vary" => .Vary
+            "x-forwarded-for" => .XForwardedFor
+            "x-forwarded-proto" => .XForwardedProto
+            _ => .Other(name)
+
+impl Eq for HeaderName:
+    fn eq(self, other: HeaderName) -> bool: self.wire() == other.wire()
+
+impl Hash for HeaderName:
+    fn hash(self, state: &mut dyn Hasher) -> void: self.wire().hash(state)
+
+@derive(Debug)
+pub enum HttpStatus:
+    Ok
+    Created
+    PayloadTooLarge
+    NoContent
+    MovedPermanently
+    Found
+    SeeOther
+    NotModified
+    TemporaryRedirect
+    PermanentRedirect
+    BadRequest
+    Unauthorized
+    Forbidden
+    NotFound
+    RequestTimeout
+    TooManyRequests
+    InternalServerError
+    BadGateway
+    ServiceUnavailable
+    GatewayTimeout
+    Other(code: u16)
+
+impl HttpStatus:
+    pub fn code(&self) -> u16:
+        match *self:
+            .Ok => 200
+            .Created => 201
+            .PayloadTooLarge => 413
+            .NoContent => 204
+            .MovedPermanently => 301
+            .Found => 302
+            .SeeOther => 303
+            .NotModified => 304
+            .TemporaryRedirect => 307
+            .PermanentRedirect => 308
+            .BadRequest => 400
+            .Unauthorized => 401
+            .Forbidden => 403
+            .NotFound => 404
+            .RequestTimeout => 408
+            .TooManyRequests => 429
+            .InternalServerError => 500
+            .BadGateway => 502
+            .ServiceUnavailable => 503
+            .GatewayTimeout => 504
+            .Other(code) => code
+
+    pub fn from_code(code: u16) -> HttpStatus:
+        match code:
+            200 => .Ok
+            201 => .Created
+            413 => .PayloadTooLarge
+            204 => .NoContent
+            301 => .MovedPermanently
+            302 => .Found
+            303 => .SeeOther
+            304 => .NotModified
+            307 => .TemporaryRedirect
+            308 => .PermanentRedirect
+            400 => .BadRequest
+            401 => .Unauthorized
+            403 => .Forbidden
+            404 => .NotFound
+            408 => .RequestTimeout
+            429 => .TooManyRequests
+            500 => .InternalServerError
+            502 => .BadGateway
+            503 => .ServiceUnavailable
+            504 => .GatewayTimeout
+            _ => .Other(code)
+
+impl Eq for HttpStatus:
+    fn eq(self, other: HttpStatus) -> bool: self.code() == other.code()
+
+impl Hash for HttpStatus:
+    fn hash(self, state: &mut dyn Hasher) -> void: self.code().hash(state)
+
+pub enum UrlError:
+    Invalid
+
+pub enum BodyError:
+    Used
+    Json(value: JsonError)
+
+pub enum HttpError:
+    Url(value: UrlError)
+    Body(value: BodyError)
+    Transport(message: string)
+    Status(value: Response)
+    InvalidHeader(name: HeaderName)
+
+impl From[UrlError] for HttpError:
+    fn from(value: UrlError) -> HttpError: .Url(value)
+
+impl From[BodyError] for HttpError:
+    fn from(value: BodyError) -> HttpError: .Body(value)
+
+pub struct Url:
+    raw: string
+
+impl Url:
+    pub fn parse(text: string) -> Result[Url, UrlError]: panic("shape-only")
+    pub fn resolve(&self, reference: string) -> Result[Url, UrlError]: panic("shape-only")
+    pub fn path(&self) -> string: panic("shape-only")
+    pub fn query(&self, name: string) -> string?: panic("shape-only")
+    pub fn query_all(&self, name: string) -> List[string]: panic("shape-only")
+    pub fn add_query(&mut self, name: string, value: string) -> void: panic("shape-only")
+
+pub enum HeaderError:
+    Invalid(name: HeaderName)
+
+pub struct Headers:
+    pairs: List[(HeaderName, string)]
+
+impl Headers:
+    pub fn new() -> Headers: panic("shape-only")
+    pub fn validate(&self) -> Result[void, HeaderError]: panic("shape-only")
+    pub fn get(&self, name: HeaderName) -> string?: panic("shape-only")
+    pub fn get_all(&self, name: HeaderName) -> List[string]: panic("shape-only")
+    pub fn append(&mut self, name: HeaderName, value: string) -> void: panic("shape-only")
+    pub fn set(&mut self, name: HeaderName, value: string) -> void: panic("shape-only")
+    pub fn remove(&mut self, name: HeaderName) -> void: panic("shape-only")
+
+pub struct Body:
+    payload: List[u8]
+    used: bool
+
+impl Body:
+    pub fn empty() -> *mut Body: panic("shape-only")
+    pub fn from_bytes(bytes: List[u8]) -> *mut Body: panic("shape-only")
+
+pub struct Request:
+    pub method: Method
+    pub url: Url
+    pub headers: Headers
+    pub body: *mut Body
+
+pub struct Response:
+    pub status: HttpStatus
+    pub headers: Headers
+    pub body: *mut Body
+    pub url: Url?
+
+impl Request:
+    pub fn new(method: Method, url: Url) -> Request: panic("shape-only")
+    pub fn post(url: Url) -> Request: panic("shape-only")
+    pub fn get(url: Url) -> Request: panic("shape-only")
+
+impl Response:
+    pub fn status(code: HttpStatus) -> Response: panic("shape-only")
+    pub fn ok(&self) -> Result[Response, HttpError]: panic("shape-only")
+
+impl Request:
+    pub fn set_bytes(mut self, bytes: List[u8]) -> Request: panic("shape-only")
+    pub fn set_text(mut self, text: string) -> Request: panic("shape-only")
+    pub fn set_json[T < Serialize](mut self, value: T) -> Request: panic("shape-only")
+    pub fn set_form[T < Serialize](mut self, value: T) -> Request: panic("shape-only")
+    pub fn set_header(mut self, name: HeaderName, value: string) -> Request: panic("shape-only")
+    pub fn header(&self, name: HeaderName) -> string?: panic("shape-only")
+    pub fn bytes(&self) -> Result[List[u8], BodyError]: panic("shape-only")
+    pub fn text(&self) -> Result[string, BodyError]: panic("shape-only")
+    pub fn json[T < Deserialize](&self) -> Result[T, BodyError]: panic("shape-only")
+
+impl Response:
+    pub fn set_bytes(mut self, bytes: List[u8]) -> Response: panic("shape-only")
+    pub fn set_text(mut self, text: string) -> Response: panic("shape-only")
+    pub fn set_json[T < Serialize](mut self, value: T) -> Response: panic("shape-only")
+    pub fn set_form[T < Serialize](mut self, value: T) -> Response: panic("shape-only")
+    pub fn set_header(mut self, name: HeaderName, value: string) -> Response: panic("shape-only")
+    pub fn header(&self, name: HeaderName) -> string?: panic("shape-only")
+    pub fn bytes(&self) -> Result[List[u8], BodyError]: panic("shape-only")
+    pub fn text(&self) -> Result[string, BodyError]: panic("shape-only")
+    pub fn json[T < Deserialize](&self) -> Result[T, BodyError]: panic("shape-only")
+
+pub trait Http:
+    fn send!(&mut self, request: Request, redirects: usize) -> Result[Response, HttpError]
+
+impl Request:
+    pub fn send!(&self, redirects: usize = 10) -> Result[Response, HttpError] $ Http: panic("shape-only")
+
+@derive(Serialize, Deserialize)
+pub struct Order:
+    pub quantity: usize
+
+@derive(Serialize, Deserialize)
+pub struct Reply:
+    pub accepted: usize
+
+pub fn server_handler!(request: &Request) -> Result[Response, BodyError]:
+    _ := request.url.path()
+    _ := request.url.query("mode")
+    _ := request.url.query_all("mode")
+    _ := request.header(.ContentType)
+    _ := request.headers.get_all(.SetCookie)
+    order := request.json::[Order]()?
+    .Ok(Response::status(.Created).set_json(Reply { accepted: order.quantity }))
+
+pub fn client_call!() -> Result[Reply, HttpError] $ Http:
+    api := Url::parse("https://example.test/orders")?
+    let mut request = Request::post(api).set_json(Order { quantity: 42 }).set_header(.Other("x-trace"), "demo")
+    request.url.add_query("mode", "fast")
+    request.url = request.url.resolve("../orders")?
+    request.headers.append(.Other("x-repeat"), "a")
+    request.headers.set(.Other("x-trace"), "updated")
+    request.headers.remove(.Other("x-old"))
+    response := request.send!(redirects=3)?
+    response.ok()?.json::[Reply]().map_err(fn(error): HttpError.Body(error))
+
+pub fn outgoing_form(value: Order) -> Response:
+    Response::status(.Ok).set_form(value)
+
+pub fn incoming_form_text(request: &Request) -> Result[string, BodyError]:
+    request.text()
+
+pub fn replace_for_proxy(incoming: &Request) -> Request:
+    (*incoming).set_text("replacement")
+
+pub fn consume_shared_for_proxy(incoming: &Request) -> Result[List[u8], BodyError]:
+    copy := *incoming
+    copy.bytes()
+
+# Standard conversion coverage uses ordinary From, not generic Serialize mapping.
+impl From[List[(string, string)]] for Headers:
+    fn from(pairs: List[(string, string)]) -> Headers: panic("shape-only")
+
+impl From[Map[string, string]] for Headers:
+    fn from(values: Map[string, string]) -> Headers: panic("shape-only")
+
+pub struct UserHeaders:
+    pub content_type: string
+    pub trace: string
+
+impl From[UserHeaders] for Headers:
+    fn from(value: UserHeaders) -> Headers:
+        let mut headers = Headers::new()
+        headers.set(.ContentType, value.content_type)
+        headers.set(.Other("x-trace"), value.trace)
+        headers
+
+impl From[Headers] for UserHeaders:
+    fn from(value: Headers) -> UserHeaders:
+        UserHeaders { content_type: value.get(.ContentType).unwrap_or(""), trace: value.get(.Other("x-trace")).unwrap_or("") }
+
+pub fn user_header_inputs(response: Response) -> Result[Response, HeaderError]:
+    let mut outgoing = response
+    outgoing.headers = Headers::from(UserHeaders { content_type: "application/json", trace: "demo" })
+    outgoing.headers.validate()?
+    _ := UserHeaders::from(outgoing.headers)
+    _ := Headers::from({"x-trace": "plain-map"})
+    _ := Headers::from([("Set-Cookie", "a=1"), ("Set-Cookie", "b=2")])
+    .Ok(outgoing)
+
+# Configuration and deterministic-provider signatures are proposals only.
+pub struct Client:
+    placeholder: usize
+
+impl Client:
+    pub fn new() -> *mut Client: panic("shape-only")
+    pub fn base_url(*mut self, url: Url) -> *mut Client: panic("shape-only")
+    pub fn header(*mut self, name: HeaderName, value: string) -> *mut Client: panic("shape-only")
+    pub fn cookie(&self, url: &Url, name: string) -> string?: panic("shape-only")
+    pub fn send!(&mut self, request: Request, redirects: usize = 10) -> Result[Response, HttpError] $ Http: panic("shape-only")
+
+pub struct ScriptedHttp:
+    placeholder: usize
+
+impl ScriptedHttp:
+    pub fn new() -> *mut ScriptedHttp: panic("shape-only")
+    pub fn reply(*mut self, url: Url, result: Result[Response, HttpError]) -> Result[void, BodyError]: panic("shape-only")
+    pub fn received(&self) -> List[Request]: panic("shape-only")
+
+impl Http for ScriptedHttp:
+    fn send!(&mut self, request: Request, redirects: usize) -> Result[Response, HttpError]: panic("shape-only")

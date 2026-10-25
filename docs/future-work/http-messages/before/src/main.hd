@@ -1,0 +1,29 @@
+# Current public std.http API, matching one typed buffered client/server transaction.
+use std.http.{Http, Request, Response, ScriptedHttp}
+use std.json.{decode, encode}
+use std.serde.{Deserialize, Serialize}
+
+@derive(Serialize, Deserialize)
+struct Order:
+    quantity: usize
+
+@derive(Serialize, Deserialize)
+struct Reply:
+    accepted: usize
+
+fn handle!(request: Request) -> Response:
+    text := string::from_utf8(request.body).expect("request UTF-8")
+    order := decode::[Order](text).expect("typed request JSON")
+    Response { status: 201, headers: [("Content-Type", "application/json")], body: encode(Reply { accepted: order.quantity }).to_utf8() }
+
+fn transaction!() -> usize:
+    request := Request::post("https://example.test/orders?mode=fast").header("x-trace", "demo").json(Order { quantity: 42 })
+    response := handle!(*request)
+    http := ScriptedHttp::new()
+    http.reply("https://example.test/orders?mode=fast", .Ok(response))
+    $.with(Http=http):
+        result := request.redirects(3).send!().expect("request")
+        result.json::[Reply]().expect("typed response JSON").accepted
+
+pub fn main!() -> void $ Console:
+    println(transaction!())
