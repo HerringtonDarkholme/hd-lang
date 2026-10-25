@@ -2,7 +2,7 @@
 # records each container's members, and the typed reader finds keys and
 # steps over values through that index instead of scanning the text again.
 # The conformance runner adds this file to std as `std.rt.json_tests`.
-use std.json.{decode, Json, JsonError}
+use std.json.{decode, parse, Json, JsonError}
 use std.serde.{Deserialize, Deserializer, Serialize}
 
 @derive(Serialize, Deserialize, Debug, Eq)
@@ -90,6 +90,15 @@ tests:
     it("steps over unknown keys that hold nested values"):
         text := "{\"skip\":[{\"a\":[1,[2,{\"b\":\"]}\"}]]}],\"id\":3,\"more\":{\"x\":{\"y\":[[],{}]}},\"name\":\"q\",\"at\":{\"z\":[1],\"x\":4,\"y\":5},\"tags\":[]}"
         assert(decode::[Row](text) == .Ok(Row { id: 3, name: "q", at: Point { x: 4, y: 5 }, tags: [] }), "unknown members skipped")
+
+    it("scans list items of every kind between recorded containers"):
+        texts := ["[ \"a\\\"]\" , \"b\\\\\" ,\"\\u005d\",-1.5e3 , true,false , null,0 ]", "[ [ ] , { } , [ 1 , [ ] , { \"k\" : [ { } ] } ] , \"}\" ]", "{\"a\":[1,\"x\",[2,{\"b\":[]}],{}],\"c\":{ },\"d\":[ ]}", " [ ] ", "17"]
+        for text in texts:
+            assert(decode::[Json](text) == parse(text), "decode reads what parse reads")
+        strings := decode::[List[string]]("[\"a]\",\"b\\\"\", \"c\" ]")
+        assert(strings == .Ok(["a]", "b\"", "c"]), "strings with brackets and escapes")
+        lists := decode::[List[List[i64]]]("[[1, 2], [], [3]]")
+        assert(lists == .Ok([[1, 2], [], [3]]), "lists of lists")
 
     it("takes a repeated key's last value"):
         found := decode::[Point]("{\"x\":1,\"y\":2,\"x\":3}")

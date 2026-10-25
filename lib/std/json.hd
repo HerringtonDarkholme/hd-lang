@@ -500,14 +500,15 @@ pub fn parse(text: string) -> Result[Json, JsonError]:
 #
 # `validate` also writes the structural index that `decode` reads instead
 # of scanning the text again. Each non-empty array or object has one entry,
-# written when it closes: twice its member count (plus 1 for an object
-# whose keys may repeat), then per member its key's
-# opening quote (objects only), its value's first byte, and its value's
-# entry, which is 0 for a scalar or an empty container. `index[0]` is 0,
-# so entry 0 reads as a container with no members. While a container is
-# open, its members wait in `pending`, whose first `held` words are live;
-# both lists are reused across the whole document, so the index costs a
-# few words per value, never a buffer per container.
+# written when it closes. Its first word is twice its member count, plus 1
+# for an object whose keys may repeat; its second is the offset after its
+# closing bracket. An object then has each member's key quote and value
+# offset. Last come the entries of the container values, in order: an
+# array records nothing for a scalar item, so a list of scalars costs two
+# words. An empty container's entry is 0, and `index[0]` is 0, so entry 0
+# reads as a container with no members. While a container is open, its
+# members wait in `pending`, whose first `held` words are live; both lists
+# are reused across the whole document, never a buffer per container.
 struct Parser:
     text: string
     size: usize
@@ -581,17 +582,16 @@ impl Parser:
                 self.hold(entry)
             else:
                 self.skip_space()
-                value := self.at
+                item := if self.at < self.size: bytes_at(self.text, self.at) else: 0
                 entry := self.validate(depth + 1)?
-                self.hold(value)
-                self.hold(entry)
+                if item == 91 || item == 123: self.hold(entry)
             self.skip_space()
             index := self.at
             if index < self.size:
                 next := bytes_at(self.text, index)
                 if next == close:
                     self.at = index + 1
-                    return .Ok(if object: self.close_entry(mark, 3, repeats) else: self.close_entry(mark, 2, 0))
+                    return .Ok(if object: self.close_object(mark, repeats) else: self.close_array(mark))
                 if next == 44:
                     self.at = index + 1
                     if object: self.skip_space()
@@ -605,19 +605,106 @@ impl Parser:
         else: self.pending.push(word)
         self.held = held + 1
 
-    # Move the members held since `mark`, `width` words each, into a new
-    # index entry, and return its position. The entry's first word is
-    # twice the member count, plus 1 when an object's keys may repeat.
-    fn close_entry(&mut self, mark: usize, width: usize, repeats: usize) -> usize:
+    # Move the child entries held since `mark` into a new array entry, and
+    # return its position.
+    fn close_array(&mut self, mark: usize) -> usize:
         entry := self.index.len()
         held := self.held
-        self.index.push((held - mark) / width * 2 + repeats)
+        self.index.push((held - mark) * 2)
+        self.index.push(self.at)
         let word = mark
         while word < held:
             self.index.push(self.pending[word])
             word = word + 1
         self.held = mark
         entry
+
+    # Move the members held since `mark`, as key, value and entry, into a
+    # new object entry, and return its position.
+    fn close_object(&mut self, mark: usize, repeats: usize) -> usize:
+        entry := self.index.len()
+        held := self.held
+        self.index.push((held - mark) / 3 * 2 + repeats)
+        self.index.push(self.at)
+        let word = mark
+        while word < held:
+            self.index.push(self.pending[word])
+            self.index.push(self.pending[word + 1])
+            word = word + 3
+        word = mark
+        while word < held:
+            value := bytes_at(self.text, self.pending[word + 1])
+            if value == 91 || value == 123: self.index.push(self.pending[word + 2])
+            word = word + 3
+        self.held = mark
+        entry
+
+    # The entry of member `slot`'s value at `at`, in the object whose entry
+    # is `object` with `count` members: 0 for a scalar, else the child entry
+    # after those of the container values before it.
+    fn child_of(&self, object: usize, count: usize, slot: usize, at: usize) -> usize:
+        byte := bytes_at(self.text, at)
+        if byte != 91 && byte != 123: return 0
+        let child: usize = 0
+        let before: usize = 0
+        while before < slot:
+            value := bytes_at(self.text, self.index[object + 3 + 2 * before])
+            if value == 91 || value == 123: child = child + 1
+            before = before + 1
+        self.index[object + 2 + 2 * count + child]
+
+    # Move to the next item of a validated list after `cursor`, past any
+    # comma, and return its first byte, which is `]` after the last item.
+    fn list_item(&mut self, cursor: usize) -> u8:
+        self.at = cursor
+        self.skip_space()
+        if bytes_at(self.text, self.at) == 44:
+            self.at = self.at + 1
+            self.skip_space()
+        bytes_at(self.text, self.at)
+
+    # The decoded key whose opening quote is at `quote`.
+    fn key_at(&mut self, quote: usize) -> Result[string, JsonError]:
+        self.at = quote
+        self.string()
+
+    # Whether the key whose opening quote is at `quote` decodes to `name`.
+    # The bytes compare in place; only a key with an escape is decoded.
+    fn key_is(&mut self, quote: usize, name: string) -> Result[bool, JsonError]:
+        size := bytes_len(name)
+        start := quote + 1
+        let offset: usize = 0
+        while offset <= size:
+            byte := bytes_at(self.text, start + offset)
+            if byte == 92: return .Ok(self.key_at(quote)? == name)
+            if byte == 34: return .Ok(offset == size)
+            if offset == size || byte != bytes_at(name, offset): return .Ok(false)
+            offset = offset + 1
+        .Ok(false)
+
+    # The offset after the validated value at `at`, whose entry is
+    # `entry`: a minimal scan with no error checks.
+    fn value_end(&self, at: usize, entry: usize) -> usize:
+        byte := bytes_at(self.text, at)
+        if byte == 91 || byte == 123:
+            if entry > 0: return self.index[entry + 1]
+            let index = at + 1
+            while true:
+                next := bytes_at(self.text, index)
+                if next == 93 || next == 125: return index + 1
+                index = index + 1
+        if byte == 34:
+            let index = at + 1
+            while true:
+                index = bytes_index_json(self.text, index)
+                if bytes_at(self.text, index) == 34: return index + 1
+                index = index + 2
+        let index = at + 1
+        while index < self.size:
+            next := bytes_at(self.text, index)
+            if next == 44 || next == 93 || next == 125 || next == 32 || next == 9 || next == 10 || next == 13: return index
+            index = index + 1
+        index
 
     # Syntax-only scalar readers retain no Json, Number, or decoded string.
     fn validate_word(&mut self, word: string) -> Result[void, JsonError]:
@@ -1080,7 +1167,7 @@ pub fn encode_pretty[T < Serialize](value: T) -> string:
 ## Reads a typed value directly from validated JSON text.
 ## See [std-json.decode.direct](../../spec/std/json.md#r-std-json.decode.direct).
 pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]:
-    let mut parser = Parser { text: text, size: bytes_len(text), at: 0, index: [0], pending: [], held: 0 }
+    let mut parser = Parser { text: text, size: bytes_len(text), at: 0, index: [0, 0], pending: [], held: 0 }
     root := parser.validate(0)?
     parser.skip_space()
     if parser.at != parser.size:
@@ -1928,9 +2015,9 @@ impl Deserializer for JsonReader:
         !self.present
 
 # The text reader keeps offsets, not Json values. It moves through the
-# index that `validate` wrote (see `Parser`): a list steps over its entry's
-# members, a record finds a key among its entry's members, and no value is
-# scanned twice. A map, a record of more than 16 members, and a variant
+# index that `validate` wrote (see `Parser`): a list scans to each item and
+# jumps over a container item to its recorded end, and a record finds a key
+# among its entry's members. A map and a record of more than 16 members
 # list their distinct keys in reusable frame buffers. Frames are reused by
 # depth, so retained storage is the active containers, never the document
 # tree.
@@ -1942,11 +2029,15 @@ struct TextReadFrame:
     # Whether the object's keys may repeat, so a key's last member must be found.
     pub repeats: bool
     pub next: usize
-    # The distinct keys, first occurrence first, and the index position of
-    # each one's last member; filled by `scan_object` only.
+    # A list's offset after its last item read, and its next child entry.
+    pub cursor: usize
+    pub child: usize
+    # The distinct keys, first occurrence first, and the value offset and
+    # entry of each one's last member; filled by `scan_object` only.
     pub keys: List[string]
     pub key_count: usize
     pub offsets: List[usize]
+    pub children: List[usize]
     pub positions: Map[string, usize]
     pub base: usize
     pub home: usize
@@ -2007,30 +2098,12 @@ impl TextReader:
         self.parser.at = self.at
         bytes_at(self.parser.text, self.at)
 
-    # Move to the value of the object member at index position `member`.
-    fn at_member(&mut self, member: usize) -> void:
-        self.at = self.parser.index[member + 1]
-        self.entry = self.parser.index[member + 2]
-
-    # The decoded key whose opening quote is at `quote`.
-    fn key_at(&mut self, quote: usize) -> Result[string, JsonError]:
-        self.parser.at = quote
-        self.parser.string()
-
-    # Whether the key whose opening quote is at `quote` decodes to `name`.
-    # The bytes compare in place; only a key with an escape is decoded.
-    fn key_is(&mut self, quote: usize, name: string) -> Result[bool, JsonError]:
-        text := self.parser.text
-        size := bytes_len(name)
-        start := quote + 1
-        let offset: usize = 0
-        while offset <= size:
-            byte := bytes_at(text, start + offset)
-            if byte == 92: return .Ok(self.key_at(quote)? == name)
-            if byte == 34: return .Ok(offset == size)
-            if offset == size || byte != bytes_at(name, offset): return .Ok(false)
-            offset = offset + 1
-        .Ok(false)
+    # Move to the value of member `slot` of the object whose entry is
+    # `object`, with `count` members.
+    fn at_slot(&mut self, object: usize, count: usize, slot: usize) -> void:
+        at := self.parser.index[object + 3 + 2 * slot]
+        self.at = at
+        self.entry = self.parser.child_of(object, count, slot, at)
 
     # List the distinct keys of the frame's object: the first occurrence
     # fixes key order and the last one the value, matching JsonObject. Small
@@ -2038,10 +2111,16 @@ impl TextReader:
     fn scan_object(&mut self, frame: &mut TextReadFrame) -> Result[void, JsonError]:
         frame.key_count = 0
         if frame.positions.len() > 0: frame.positions = {}
-        let member = frame.entry + 1
-        end := member + 3 * frame.count
-        while member < end:
-            key := self.key_at(self.parser.index[member])?
+        let member: usize = 0
+        let child = frame.entry + 2 + 2 * frame.count
+        while member < frame.count:
+            key := self.parser.key_at(self.parser.index[frame.entry + 2 + 2 * member])?
+            value := self.parser.index[frame.entry + 3 + 2 * member]
+            byte := bytes_at(self.parser.text, value)
+            let entry: usize = 0
+            if byte == 91 || byte == 123:
+                entry = self.parser.index[child]
+                child = child + 1
             let slot = frame.key_count
             if frame.key_count <= 16:
                 let i: usize = 0
@@ -2055,10 +2134,12 @@ impl TextReader:
             if slot == frame.key_count:
                 if slot < frame.keys.len():
                     frame.keys[slot] = key
-                    frame.offsets[slot] = member
+                    frame.offsets[slot] = value
+                    frame.children[slot] = entry
                 else:
                     frame.keys.push(key)
-                    frame.offsets.push(member)
+                    frame.offsets.push(value)
+                    frame.children.push(entry)
                 frame.key_count = slot + 1
                 if frame.key_count == 17:
                     let i: usize = 0
@@ -2068,14 +2149,15 @@ impl TextReader:
                 else if frame.key_count > 17:
                     frame.positions[key] = slot
             else:
-                frame.offsets[slot] = member
-            member = member + 3
+                frame.offsets[slot] = value
+                frame.children[slot] = entry
+            member = member + 1
         .Ok(())
 
-    fn enter(&mut self, entry: usize, kind: ReadKind, base: usize, name: string, facts: Facts) -> Result[void, JsonError]:
+    fn enter(&mut self, at: usize, entry: usize, kind: ReadKind, base: usize, name: string, facts: Facts) -> Result[void, JsonError]:
         slot := self.open
         if slot == self.frames.len():
-            self.frames.push(&mut TextReadFrame { kind: kind, entry: 0, count: 0, repeats: false, next: 0, keys: [], key_count: 0, offsets: [], positions: {}, base: base, home: self.depth, name: name, facts: facts })
+            self.frames.push(&mut TextReadFrame { kind: kind, entry: 0, count: 0, repeats: false, next: 0, cursor: 0, child: 0, keys: [], key_count: 0, offsets: [], children: [], positions: {}, base: base, home: self.depth, name: name, facts: facts })
         frame := self.frames[slot]
         frame.kind = kind
         frame.entry = entry
@@ -2083,6 +2165,8 @@ impl TextReader:
         frame.count = head / 2
         frame.repeats = head % 2 == 1
         frame.next = 0
+        frame.cursor = at + 1
+        frame.child = 0
         frame.key_count = 0
         frame.base = base
         frame.home = self.depth
@@ -2176,7 +2260,7 @@ impl Deserializer for TextReader:
 
     fn begin_list(&mut self) -> Result[void, JsonError]:
         if self.present && self.byte() == 91:
-            return self.enter(self.entry, ReadKind.Items, self.depth, "", self.no_facts)
+            return self.enter(self.at, self.entry, ReadKind.Items, self.depth, "", self.no_facts)
         .Err(self.fail("array"))
 
     fn next_item(&mut self) -> Result[bool, JsonError]:
@@ -2185,14 +2269,21 @@ impl Deserializer for TextReader:
         let found = false
         match frame.kind:
             .Items =>
-                if index < frame.count:
-                    item := frame.entry + 1 + 2 * index
-                    self.at = self.parser.index[item]
-                    self.entry = self.parser.index[item + 1]
+                byte := self.parser.list_item(frame.cursor)
+                at := self.parser.at
+                if byte != 93:
+                    let entry: usize = 0
+                    if byte == 91 || byte == 123:
+                        entry = self.parser.index[frame.entry + 2 + frame.child]
+                        frame.child = frame.child + 1
+                    frame.cursor = self.parser.value_end(at, entry)
+                    self.at = at
+                    self.entry = entry
                     found = true
             .Entries =>
                 if index < frame.key_count:
-                    self.at_member(frame.offsets[index])
+                    self.at = frame.offsets[index]
+                    self.entry = frame.children[index]
                     found = true
             _ => pass
         if found:
@@ -2206,7 +2297,7 @@ impl Deserializer for TextReader:
 
     fn begin_map(&mut self) -> Result[void, JsonError]:
         if self.present && self.byte() == 123:
-            return self.enter(self.entry, ReadKind.Entries, self.depth, "", self.no_facts)
+            return self.enter(self.at, self.entry, ReadKind.Entries, self.depth, "", self.no_facts)
         .Err(self.fail("object"))
 
     fn next_key(&mut self) -> Result[string?, JsonError]:
@@ -2216,14 +2307,15 @@ impl Deserializer for TextReader:
             .Entries =>
                 if index < frame.key_count:
                     key := frame.keys[index]
-                    self.at_member(frame.offsets[index])
+                    self.at = frame.offsets[index]
+                    self.entry = frame.children[index]
                     self.present = true
                     frame.next = index + 1
                     self.step_key(frame.base, key)
                     self.depth = frame.base + 1
                     return .Ok(.Some(key))
             .Items =>
-                if index < frame.count: panic("std.json: next_key in a list")
+                if self.parser.list_item(frame.cursor) != 93: panic("std.json: next_key in a list")
             _ => pass
         self.leave()
         .Ok(.None)
@@ -2231,7 +2323,7 @@ impl Deserializer for TextReader:
     fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
         if choices.len() == 1 && choices[0].of_data:
             if self.present && self.byte() == 123:
-                self.enter(self.entry, ReadKind.Record, self.depth, "", facts)?
+                self.enter(self.at, self.entry, ReadKind.Record, self.depth, "", facts)?
                 return .Ok(0)
             return .Err(self.fail("object"))
         if !self.present: return .Err(self.fail("variant"))
@@ -2246,13 +2338,13 @@ impl Deserializer for TextReader:
             object := self.entry
             count := self.parser.index[object] / 2
             if count == 0: return .Err(self.fail("variant"))
-            name = self.key_at(self.parser.index[object + 1])?
+            name = self.parser.key_at(self.parser.index[object + 2])?
             let other: usize = 1
             while other < count:
-                same := self.key_is(self.parser.index[object + 1 + 3 * other], name)?
+                same := self.parser.key_is(self.parser.index[object + 2 + 2 * other], name)?
                 if !same: return .Err(self.fail("variant"))
                 other = other + 1
-            payload = .Some(object + 1 + 3 * (count - 1))
+            payload = .Some(count - 1)
         else:
             return .Err(self.fail("variant"))
         let index: usize = 0
@@ -2260,14 +2352,16 @@ impl Deserializer for TextReader:
             if choices[index].name == name:
                 let entry: usize = 0
                 match payload:
-                    .Some(member) =>
-                        if bytes_at(self.parser.text, self.parser.index[member + 1]) != 123:
+                    .Some(slot) =>
+                        object := self.entry
+                        at := self.parser.index[object + 3 + 2 * slot]
+                        if bytes_at(self.parser.text, at) != 123:
                             return .Err(JsonError.WrongType(concat_all([self.path_to(self.depth), ".", name]), "object"))
-                        entry = self.parser.index[member + 2]
+                        entry = self.parser.child_of(object, self.parser.index[object] / 2, slot, at)
                     .None => pass
                 depth := self.depth
                 self.step_key(depth, name)
-                self.enter(entry, ReadKind.Tagged, depth + 1, name, facts)?
+                self.enter(0, entry, ReadKind.Tagged, depth + 1, name, facts)?
                 return .Ok(index)
             index = index + 1
         .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
@@ -2275,7 +2369,7 @@ impl Deserializer for TextReader:
     fn member(&mut self, m: Member) -> Result[void, JsonError]:
         frame := self.top()
         name := member_name(m, frame.facts)
-        let found: usize? = .None
+        let found = false
         let record = true
         match frame.kind:
             .Record => pass
@@ -2287,17 +2381,18 @@ impl Deserializer for TextReader:
                 # found, then the first match; when keys may repeat, the
                 # last match holds the value.
                 let slot = frame.next
-                let hit = !frame.repeats && slot < frame.count && self.key_is(self.parser.index[frame.entry + 1 + 3 * slot], name)?
+                let hit = !frame.repeats && slot < frame.count && self.parser.key_is(self.parser.index[frame.entry + 2 + 2 * slot], name)?
                 if !hit:
                     let probe: usize = 0
                     while probe < frame.count:
-                        if self.key_is(self.parser.index[frame.entry + 1 + 3 * probe], name)?:
+                        if self.parser.key_is(self.parser.index[frame.entry + 2 + 2 * probe], name)?:
                             slot = probe
                             hit = true
                             if !frame.repeats: break
                         probe = probe + 1
                 if hit:
-                    found = .Some(frame.entry + 1 + 3 * slot)
+                    self.at_slot(frame.entry, frame.count, slot)
+                    found = true
                     frame.next = slot + 1
             else:
                 let slot = frame.next
@@ -2309,16 +2404,14 @@ impl Deserializer for TextReader:
                         while slot < frame.key_count && frame.keys[slot] != name:
                             slot = slot + 1
                 if slot < frame.key_count:
-                    found = .Some(frame.offsets[slot])
+                    self.at = frame.offsets[slot]
+                    self.entry = frame.children[slot]
+                    found = true
                     frame.next = slot + 1
-        match found:
-            .Some(at) =>
-                self.present = true
-                self.at_member(at)
-            .None =>
-                self.present = false
-                self.at = 0
-                self.entry = 0
+        self.present = found
+        if !found:
+            self.at = 0
+            self.entry = 0
         self.step_key(frame.base, name)
         self.depth = frame.base + 1
         .Ok(())
