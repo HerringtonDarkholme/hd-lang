@@ -85,3 +85,48 @@ they cannot start a later request. The Node provider and Application adapter
 use the core runtime's narrow `context.http` policy view, so explicit denial
 and host scopes are checked before native I/O and on every redirect.
 Admission limits and deployment packaging remain separate adapter layers.
+
+## Fetch Mapping And Cleanup Backstop
+
+`adapters/fetch.mjs` exports `createFetchAdapter(options)` for one retained
+Application, or `createFetchHandler(application, options)` for an existing
+Application or Node supervisor. Both consume standard Fetch requests and
+return standard Fetch responses. Runtime and generated bindings remain
+explicit inputs.
+
+The mapper reserves at most eight requests, including body reading, with a
+one-MiB body limit and 64-KiB header limit on either side. A ninth request
+gets 503 and Retry-After: 1. Its twenty-second deadline includes body reading.
+Native stream cancellation runs in the request's own continuation.
+
+The SDK's cooperative cleanup budget remains **100 ms from cleanup start**.
+The adapter's separate watchdog fires at **200 ms from cancellation**, only
+if no cleanup acknowledgement has arrived. A normal abandoned-cleanup
+acknowledgement around 105 ms keeps the instance healthy. Platform CPU
+limits remain independent; a blocked isolate needs an external supervisor.
+
+## Node Worker Supervision
+
+`adapters/supervisor.mjs` exports `createSupervisor({ program, policy, event,
+exhausted })`. `program` supplies a compiled WebAssembly.Module, explicit
+runtime/bindings/Application module URLs, and resolved grants. Each worker
+retains its own application state and accepts one active request at a time.
+`createFetchHandler(supervisor)` keeps physical response ownership outside
+the interruptible worker.
+
+The cleanup watchdog is fixed at 200 ms and runs on the supervisor's
+thread. Startup, request, drain, outer-stop, restart-count/window, and
+Retry-After values are required caller inputs. An outer-stop budget below
+200 ms is rejected, so it cannot truncate the cleanup contract. First stop
+drains, second stop cancels, and stop/close completion joins termination.
+Forced termination reports cleanup as unconfirmed.
+
+`Application.start()` runs startup eagerly. Optional `onReady` and
+`onStopped` observers report a completed turn parked on request acceptance
+and stopped main completion, respectively. A main that never yields cannot
+announce readiness.
+
+These are explicit embedding components. Deployment tasks, runtime graph
+distribution, application-log routing and aggregate memory limits remain
+separate work. The development `hd run` provider does not automatically
+select the worker supervisor.

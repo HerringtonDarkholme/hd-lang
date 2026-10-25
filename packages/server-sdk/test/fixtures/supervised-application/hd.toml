@@ -1,0 +1,8 @@
+[package]
+name = "lifecycle"
+[dependencies]
+server_sdk = { path = "../../.." }
+[capabilities]
+"dep.server_sdk.server.HttpServer" = true
+Http = true
+Clock = true
