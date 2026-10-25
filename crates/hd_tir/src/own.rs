@@ -6,8 +6,11 @@
 //! decided, the `Drop`s each owned value and local needs, and the exit
 //! set (invariant 23, [`crate::ir::verify_owned`]).
 //!
-//! Built so far: **insertion** (`insert`), over places the checker roots
-//! at their local on this path (`crate::ir::root_places`), the naive,
+//! Built so far: **late operand reads** (`late`), which moves an operand
+//! read of a local's place to just before its consumer when a later
+//! operand reads the local, so the read is its last access; then
+//! **insertion** (`insert`), over places the checker roots at their local
+//! on this path (`crate::ir::root_places`), the naive,
 //! correct ownership of `crates/hd_wasm_linear/DESIGN.md` §23.16 with
 //! releases at last use (§23.20), made explicit, with an `IsUnique` before each change of a
 //! collection place and the pins of element references; then **borrow**
@@ -46,6 +49,7 @@ pub(crate) mod flow;
 pub(crate) mod hoist;
 mod insert;
 mod known;
+mod late;
 mod moves;
 mod pairs;
 pub(crate) mod parts;
@@ -393,17 +397,25 @@ pub struct OwnScratch {
     pub(crate) hoist: hoist::Tables,
     pub(crate) insert: insert::Tables,
     pub(crate) known: known::Tables,
+    pub(crate) late: late::Tables,
     pub(crate) moves: moves::Tables,
     pub(crate) pairs: pairs::Tables,
     pub(crate) splice: splice::Tables,
 }
 
-/// Runs the ownership passes over every sub-body of `b`, in order:
-/// insertion, borrow, move, pair cancellation, known-null, then hoisting.
-/// The last five record their deletions and insertions in one set of
-/// edits, applied once at the end. A body the passes cannot handle is
-/// refused, with what stopped them.
+/// Runs the ownership passes over every sub-body of `b`, in order: late
+/// operand reads, insertion, borrow, move, pair cancellation, known-null,
+/// then hoisting. The last five record their deletions and insertions in
+/// one set of edits, applied once at the end. A body the passes cannot
+/// handle is refused, with what stopped them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
+    late::run(
+        b,
+        &mut scratch.topo,
+        cx,
+        &mut scratch.late,
+        &mut scratch.splice,
+    )?;
     insert::run(b, cx, scratch)?;
     scratch.topo.build(b);
     let (topo, edits) = (&scratch.topo, &mut scratch.splice);

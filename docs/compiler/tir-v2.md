@@ -634,7 +634,9 @@ its parts.
 Stage 2 adds `hd_tir::own`, six passes over one body, in this order:
 insertion, borrow, move, pair cancellation, known-null, hoisting. Each
 pass reads the body and rewrites read modes or adds and removes
-ownership statements; none changes what the program computes.
+ownership statements; none changes what the program computes. Before
+insertion, late operand reads reorder a few pure reads
+([Late operand reads](#late-operand-reads)).
 
 ### Where and when the passes run
 
@@ -748,6 +750,24 @@ source error. Insertion would then mark those reads `move` by type
 (Rust's rule), and the use-after-move check would report through the
 checker. That is a type rule, not a liveness one, and nothing in tier 1
 needs it.
+
+### Late operand reads
+
+A call's or a construction's operand that reads a local's place, or
+takes a reference to it, moves to just before its consumer when a later
+operand reads an overlapping place of the same local and nothing in
+between can change the local. In `m.at(m.infos[i].position)` the
+receiver read is then the local's last access, so move takes it, or a
+reference takes the local's own count (`Ref take`), as in
+`p := m.infos[i].position; m.at(p)`. Read first, it would copy `m`.
+
+Nothing between may store to the local, take a reference to it,
+capture it other than by copy, change a collection, or suspend; when a
+reference or a shared capture elsewhere may reach the local, no call or
+store may stand between either. The place is the local or a field path
+of it: an element's index check may panic, and a dereference reads
+memory a call may change. A read has no effect, so the program computes
+the same values. The pass rebuilds a body only when it moves a read.
 
 ### Insertion
 
