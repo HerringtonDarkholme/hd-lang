@@ -551,10 +551,11 @@ in `src/ir.rs`, so every encoding goes through it.
 - **Blocks list instructions.** A `Block` holds a record in `extra` of
   the instructions it runs, in evaluation order. Every ordinary
   instruction is in exactly one block.
-- **Owned blocks are not siblings.** A `Block` named by an `If`, `Match`
-  or `Loop` child-block operand is owned by that instruction and does not
-  also occur in the enclosing block's list. The owner instruction
-  occupies the enclosing list position.
+- **Owned blocks have their owner as parent.** A `Block` named by an
+  `If`, `Match` or `Loop` child-block operand is owned by that
+  instruction. It is also listed in the enclosing block (invariant 2),
+  and walks skip it there. The structure passes (`ir::topo`) take the
+  owner as its parent, so a loop's body is inside its `Loop`.
 - **Types** are pool indices. While a body is checked they may be
   inference variables; the checker's final pass resolves them.
 - **Capture modes** depend on statements after the closure, so they are

@@ -91,11 +91,13 @@ impl Topology {
                 *slot = u32_of(l);
             }
         }
+        // A child block's parent is the instruction that runs it, not the
+        // block that also lists it, so a loop's body sees its `Loop`.
         for i in (0..n).rev() {
-            let p = if self.blk[i] == NONE {
-                self.owner[i]
-            } else {
+            let p = if self.owner[i] == NONE {
                 self.blk[i]
+            } else {
+                self.owner[i]
             };
             if self.is_root[i] || p == NONE {
                 continue;

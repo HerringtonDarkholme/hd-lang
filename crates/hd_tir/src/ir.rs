@@ -3511,6 +3511,30 @@ mod tests {
         );
     }
 
+    /// Invariant 23: no value a loop's body computes is still owned where
+    /// the loop goes round again.
+    #[test]
+    fn verifier_rejects_a_value_owned_across_a_back_edge() {
+        use super::local_flags::PARAM;
+        use super::{ReadMode, verify_owned};
+        let body = owned_body(|b, n| {
+            b.local(Ty::STRING, Symbol::from_raw(2), PARAM, n);
+            let lp = b.open_loop();
+            let body = b.open_block();
+            let word = b.place(&"[$2]".parse().expect("place"));
+            b.emit(Tag::Read, word, ReadMode::Copy as u32, Ty::STRING, n);
+            let body = b.close_block(body, None, Ty::VOID, n);
+            b.close_loop(lp, body, Ty::VOID, n);
+        });
+        let errs = verify_owned(&body, &Counts);
+        assert_eq!(findings(&errs), [(23, 2)]);
+        assert!(
+            errs[0]
+                .what
+                .contains("%0 is still owned where loop %2 goes round")
+        );
+    }
+
     /// Invariant 23: a borrow lives across no write to an overlapping place
     /// before its value's last use.
     #[test]
