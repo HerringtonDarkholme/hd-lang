@@ -266,7 +266,11 @@ function build(hd, work, name, source, engine, env = process.env, backend = unde
   const dir = join(work, "pkgs", `${flat}-${engine}`);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(join(dir, "src"), { recursive: true });
-  writeFileSync(join(dir, "hd.toml"), `[package]\nname = "${flat}"\n`);
+  // Every study program's main uses Console, and one uses Clock (cli.cap.table.required).
+  writeFileSync(
+    join(dir, "hd.toml"),
+    `[package]\nname = "${flat}"\n\n[capabilities]\nConsole = true\nClock = true\n`,
+  );
   writeFileSync(join(dir, "src", "main.hd"), source);
   execFileSync(
     hd,
