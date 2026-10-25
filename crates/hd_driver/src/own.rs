@@ -34,6 +34,20 @@ thread_local! {
 /// off.
 const INLINE_LIMIT: usize = 8;
 
+/// The intrinsics that read only their arguments and write nothing
+/// (`OwnCx::may_write`): the scalar square root and the byte reads of a
+/// string, which return a scalar and never change memory.
+const PURE_INTRINSICS: &[&str] = &[
+    "sqrt",
+    "bytes_len",
+    "bytes_at",
+    "bytes_index",
+    "bytes_index_json",
+    "bytes_index_pair",
+    "bytes_mismatch",
+    "utf8_valid_len",
+];
+
 impl OwnCx for Env<'_> {
     fn counted(&self, ty: Ty) -> Tri {
         if self.is_open(ty) {
@@ -82,7 +96,8 @@ impl OwnCx for Env<'_> {
 
     fn may_write(&self, callee: &Callee) -> bool {
         // The compiler's scalar square root reaches nothing but its
-        // argument (`list.rs`'s loop proofs allow it the same way).
+        // argument (`list.rs`'s loop proofs allow it the same way), and
+        // the byte reads of a string only read it ([`PURE_INTRINSICS`]).
         match callee {
             // `@intrinsic("sqrt")`, or `f64.sqrt` and `f32.sqrt`, body-less
             // methods of a float's inherent impl (`trait.impl.intrinsic`).
@@ -102,7 +117,10 @@ impl OwnCx for Env<'_> {
                         .is_some_and(|(head, _, _)| {
                             matches!(self.run.pool.get(head), TyData::Prim(p) if p.is_float())
                         });
-                !method && self.intrinsic(*def).as_deref() != Some("sqrt")
+                !method
+                    && !self
+                        .intrinsic(*def)
+                        .is_some_and(|key| PURE_INTRINSICS.contains(&key.as_str()))
             }
             Callee::TraitMethod {
                 method,

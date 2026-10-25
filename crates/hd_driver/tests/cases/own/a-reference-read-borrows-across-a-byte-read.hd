@@ -1,0 +1,18 @@
+# @dump: own
+# @build: std
+# A string read through a parameter reference borrows across a byte read
+# of it: `bytes_at` only reads its arguments, so no count of the string
+# is taken for the call. The read keeps its `Drop`, which releases only
+# what a reference view makes.
+struct Scan:
+    text: string
+    at: usize
+
+impl Scan:
+    fn peek(&mut self) -> u8:
+        # subject
+        bytes_at(self.text, self.at)
+
+@intrinsic("bytes_at")
+fn bytes_at(text: string, index: usize) -> u8:
+    panic("intrinsic")
