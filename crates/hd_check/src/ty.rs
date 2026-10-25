@@ -564,7 +564,11 @@ impl Ck<'_, '_> {
 
     /// The type a type node names.
     pub(crate) fn ty_node(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
-        self.ty_node_as(n, NameRole::Type)
+        let t = self.ty_node_as(n, NameRole::Type)?;
+        // A written type reports its local references itself
+        // (`local_refs::declarations`).
+        self.declared_tys.insert(t);
+        Ok(t)
     }
 
     /// A type written in an explicit type-argument list of an expression:
@@ -859,7 +863,15 @@ impl Ck<'_, '_> {
                     TyData::Mut(i) => i,
                     _ => inner,
                 };
-                pool.intern_ty(&TyData::Ref { inner, mutable })
+                // `ref.type.counted-forms`: `*T` is counted, `&T` local.
+                let counted = n
+                    .direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::Star)
+                    .is_some();
+                pool.intern_ty(&TyData::Ref {
+                    inner,
+                    mutable,
+                    counted,
+                })
             }
             other => return unsupported(format!("the type form {other:?} in a body")),
         })

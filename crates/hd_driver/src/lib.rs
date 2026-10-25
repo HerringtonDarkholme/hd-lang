@@ -5764,6 +5764,8 @@ impl Run<'_> {
         };
         let mut diags = DiagBuf::default();
         hd_check::init::earlier_binding_clashes(&cx, &heads, &mut diags);
+        // `ref.local.escape.*`: written local references that are kept.
+        hd_check::local_ref_declarations(&cx.src, &mut diags);
         // The `tests:` block's use and header diagnostics, which no folder
         // interface reports.
         diags.append(&lowered.test_diags);
@@ -10237,8 +10239,10 @@ fn encode_mentioned(mentions: &[(String, Hash128)]) -> Vec<u8> {
 }
 
 /// Reports a stage-B finding at the span `span_of` gives its slot, with
-/// its fix-it: `&` written before the type at each of its `ref_fix` slots
-/// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`).
+/// its fix-it: `*` written before the type at each of its `ref_fix` slots
+/// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`), a
+/// counted reference, since a field never holds a local one
+/// (`ref.local.escape.field`).
 fn emit_finding(d: &mut DiagBuf, f: &hd_check::header::Finding, span_of: impl Fn(u32) -> Span) {
     d.error(f.code, span_of(f.slot), &f.message);
     if f.ref_fix.is_empty() {
@@ -10249,7 +10253,7 @@ fn emit_finding(d: &mut DiagBuf, f: &hd_check::header::Finding, span_of: impl Fn
         .iter()
         .map(|&slot| {
             let at = span_of(slot);
-            (Span { hi: at.lo, ..at }, "&")
+            (Span { hi: at.lo, ..at }, "*")
         })
         .collect();
     d.add_fix(

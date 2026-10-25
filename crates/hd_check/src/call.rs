@@ -2508,9 +2508,14 @@ impl Ck<'_, '_> {
             },
             TyData::Option(i) => TyData::Option(self.open_projections(i, n)),
             TyData::Mut(i) => TyData::Mut(self.open_projections(i, n)),
-            TyData::Ref { inner, mutable } => TyData::Ref {
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => TyData::Ref {
                 inner: self.open_projections(inner, n),
                 mutable,
+                counted,
             },
             TyData::Fn {
                 params,
@@ -4856,9 +4861,14 @@ impl Ck<'_, '_> {
             },
             TyData::Option(i) => TyData::Option(self.normalize_deep(i)?),
             TyData::Mut(i) => TyData::Mut(self.normalize_deep(i)?),
-            TyData::Ref { inner, mutable } => TyData::Ref {
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => TyData::Ref {
                 inner: self.normalize_deep(inner)?,
                 mutable,
+                counted,
             },
             TyData::Fn {
                 params,

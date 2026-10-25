@@ -189,6 +189,7 @@ impl Ck<'_, '_> {
         // `fn.ref.bound`: the base names a value. A `&self` or `&mut self`
         // method takes the address of a place now (`fn.ref.bound.address`).
         if let Some((recv, rt)) = self.auto_address(base, &name)? {
+            self.bound_receiver_kept(recv, base);
             return self.bound_ref(recv, rt, &name, method_targs, want, n);
         }
         // A bound `push` or `remove` of a `let mut` collection takes the
@@ -201,9 +202,20 @@ impl Ck<'_, '_> {
         }
         let (recv, rt) = self.expr(base, None)?;
         if let Some((recv, rt)) = self.pass_reference_receiver(recv, rt, &name, base)? {
+            self.bound_receiver_kept(recv, base);
             return self.bound_ref(recv, rt, &name, method_targs, want, n);
         }
+        self.bound_receiver_kept(recv, base);
         self.bound_ref(recv, rt, &name, method_targs, want, n)
+    }
+
+    /// A bound method reference keeps its receiver, as a closure keeps
+    /// what it captures, so a local reference receiver escapes
+    /// (`ref.local.escape.capture`).
+    fn bound_receiver_kept(&mut self, recv: Ref, base: NodeRef<'_>) {
+        if recv.0 != NONE && self.ref_counted(self.b.ty_of(recv)) == Some(false) {
+            self.local_ref_escapes(base, crate::local_refs::Escape::Capture);
+        }
     }
 
     /// The address of `base` for a bound reference to a collection method
@@ -854,6 +866,7 @@ impl Ck<'_, '_> {
             pool.intern_ty(&TyData::Ref {
                 inner: self.strip_mut(self_ty),
                 mutable: true,
+                counted: false,
             })
         } else {
             recv_ty

@@ -55,6 +55,8 @@ mod tag {
     pub const REF: u8 = 21;
     pub const REF_MUT: u8 = 22;
     pub const OPAQUE: u8 = 23;
+    pub const CREF: u8 = 24;
+    pub const CREF_MUT: u8 = 25;
 }
 
 impl<'a> TableWriter<'a> {
@@ -230,9 +232,19 @@ impl<'a> TableWriter<'a> {
                 let inner = self.ty(i)?;
                 self.row(tag::MUT, &[inner])
             }
-            TyData::Ref { inner, mutable } => {
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => {
                 let inner = self.ty(inner)?;
-                self.row(if mutable { tag::REF_MUT } else { tag::REF }, &[inner])
+                let t = match (counted, mutable) {
+                    (false, false) => tag::REF,
+                    (false, true) => tag::REF_MUT,
+                    (true, false) => tag::CREF,
+                    (true, true) => tag::CREF_MUT,
+                };
+                self.row(t, &[inner])
             }
             TyData::Fn {
                 params,
@@ -411,10 +423,11 @@ impl Tables {
                     .0
                 }
                 tag::MUT => pool.intern_ty(&TyData::Mut(Ty(row(0)?))).0,
-                tag::REF | tag::REF_MUT => {
+                tag::REF | tag::REF_MUT | tag::CREF | tag::CREF_MUT => {
                     pool.intern_ty(&TyData::Ref {
                         inner: Ty(row(0)?),
-                        mutable: tg == tag::REF_MUT,
+                        mutable: tg == tag::REF_MUT || tg == tag::CREF_MUT,
+                        counted: tg == tag::CREF || tg == tag::CREF_MUT,
                     })
                     .0
                 }

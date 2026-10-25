@@ -592,6 +592,7 @@ pub(crate) fn case_result(cx: &BodyCx<'_>, tries: bool) -> Ty {
     let error = pool.intern_ty(&TyData::Ref {
         inner: error,
         mutable: false,
+        counted: true,
     });
     pool.intern_ty(&TyData::Adt {
         def: cx.names.item("std.core", "Result"),

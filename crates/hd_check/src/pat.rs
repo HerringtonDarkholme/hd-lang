@@ -957,6 +957,7 @@ impl Ck<'_, '_> {
             if let Some(kind) = deferred {
                 self.prim_let_mut.push((l, pat.index(), kind));
             }
+            self.note_ref_origin(l, at, rhs);
             self.set_local(l, r, at.index());
             return Ok(());
         }

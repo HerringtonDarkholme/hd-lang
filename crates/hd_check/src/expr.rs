@@ -3986,6 +3986,7 @@ impl Ck<'_, '_> {
             self.add_flags(l, local_flags::CAPTURED_ASSIGNED);
         }
         self.elem_ref_captures(mark, n);
+        self.local_ref_captures(mark, n);
         Ok((self.b.close_sub(mark, root, ft, n.index()), ft, own))
     }
 
@@ -4247,7 +4248,12 @@ impl Ck<'_, '_> {
             let TyData::TraitValue { def, .. } = pool.get(key) else {
                 return unsupported("a provider key that is not a trait");
             };
-            let (r, t) = self.expr(*vn, None)?;
+            // A provider outlives its scope (`req.use.value.outlives-scope`),
+            // so a `$.use` provider installed again is counted
+            // (`req.use.value.counted`).
+            let hint = (crate::elem_refs::strip_parens(*vn).kind() == SyntaxKind::ContextExpr)
+                .then(|| self.ref_ty(key, self.trait_is_mutable(def, 0), true));
+            let (r, t) = self.expr(*vn, hint)?;
             let r = self.install_provider(r, t, (key, def), *vn);
             pairs.push(Ref(key.0));
             pairs.push(r);
@@ -4371,8 +4377,24 @@ impl Ck<'_, '_> {
         }
         let mut refs = Vec::new();
         let mut tys = Vec::new();
-        for kn in n.children().filter(|c| c.kind().is_type()) {
-            let (r, t) = self.provider_get(kn, n)?;
+        let keys: Vec<NodeRef<'_>> = n.children().filter(|c| c.kind().is_type()).collect();
+        // `req.use.value.counted`: a provider is counted where a counted
+        // reference is expected, for one key or for its tuple element.
+        let want = want.map(|w| self.infer.resolve(pool, w));
+        let counted_at = |me: &Self, i: usize| -> bool {
+            let Some(w) = want else { return false };
+            let w = if keys.len() == 1 {
+                Some(w)
+            } else if let TyData::Tuple { elems, .. } = pool.get(w) {
+                pool.list_items(elems).get(i).copied()
+            } else {
+                None
+            };
+            w.and_then(|w| me.ref_counted(w)).unwrap_or(false)
+        };
+        for (i, &kn) in keys.iter().enumerate() {
+            let counted = counted_at(self, i);
+            let (r, t) = self.provider_get(kn, n, counted)?;
             if t == Ty::POISON {
                 return Ok((Ref(NONE), Ty::POISON));
             }
@@ -4396,7 +4418,12 @@ impl Ck<'_, '_> {
     }
 
     /// The covering provider of the one key `kn` of `$.use` node `n`.
-    fn provider_get(&mut self, kn: NodeRef<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
+    fn provider_get(
+        &mut self,
+        kn: NodeRef<'_>,
+        n: NodeRef<'_>,
+        counted: bool,
+    ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let key = self.key_node(kn)?;
         if key == Ty::POISON {
@@ -4407,7 +4434,7 @@ impl Ck<'_, '_> {
         };
         self.require_key(key, n);
         let at = self.b.refs_record(&[Ref(key.0)]);
-        let (pt, by_ref) = self.provider_ty(key, key_trait);
+        let (pt, by_ref) = self.provider_ty(key, key_trait, counted);
         if by_ref {
             // The provider holds the trait value reference itself
             // (`Coercion::RefAsProvider`).

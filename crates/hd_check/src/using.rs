@@ -104,6 +104,7 @@ impl Ck<'_, '_> {
             let rty = pool.intern_ty(&TyData::Ref {
                 inner,
                 mutable: true,
+                counted: true,
             });
             (self.make_ref(&place, true, rty, s), t)
         } else {

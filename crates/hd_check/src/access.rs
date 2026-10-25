@@ -390,10 +390,12 @@ impl Ck<'_, '_> {
                 TyData::Ref {
                     inner: a,
                     mutable: am,
+                    ..
                 },
                 TyData::Ref {
                     inner: b,
                     mutable: bm,
+                    ..
                 },
             ) => {
                 (am == bm || (weaken && am && !bm))

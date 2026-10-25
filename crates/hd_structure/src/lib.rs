@@ -897,6 +897,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let rt = pool.intern_ty(&TyData::Ref {
             inner: tv,
             mutable: false,
+            counted: true,
         });
         let addr = self.b.open_block();
         let source = self.b.get(held, src_ty, SYN);
@@ -913,6 +914,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let reference = pool.intern_ty(&TyData::Ref {
             inner: ty,
             mutable: true,
+            counted: true,
         });
         let source = self.b.call(
             &Callee::Item {

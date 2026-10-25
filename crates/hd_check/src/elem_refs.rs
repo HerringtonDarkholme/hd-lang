@@ -16,7 +16,7 @@ use hd_base::{HashSet, LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag, TirSink};
-use hd_types::{Prim, Ty, TyData};
+use hd_types::{Prim, Ty};
 
 use crate::body::Ck;
 use crate::expr::Indexed;
@@ -504,7 +504,9 @@ impl Ck<'_, '_> {
         };
         let ok = !mutable || self.place_writable(&place, src);
         let inner = self.strip_mut(self.infer.resolve(self.pool(), vt));
-        let rt = self.pool().intern_ty(&TyData::Ref { inner, mutable });
+        // An element reference loop's binding is counted, as `&e` with no
+        // expected type is (`ref.expr.kind.counted`).
+        let rt = self.ref_ty(inner, mutable, true);
         let item = if ok {
             self.make_ref(&place, mutable, rt, src)
         } else {

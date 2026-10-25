@@ -49,7 +49,7 @@ pub struct Finding {
     pub slot: u32,
     pub code: Code,
     pub message: String,
-    /// The slots of the item's type positions a fix-it writes `&` before:
+    /// The slots of the item's type positions a fix-it writes `*` before:
     /// `recursive-value-type` on each field that holds its own type
     /// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`).
     /// Empty for every other finding.
@@ -1129,7 +1129,7 @@ impl<'a> ItemCheck<'_, 'a> {
             return;
         }
         let message = format!(
-            "the {kind} `{}` holds itself through the {part} `{}`; a value cannot contain itself, so hold it through a reference (`&`), an optional reference, or a collection",
+            "the {kind} `{}` holds itself through the {part} `{}`; a value cannot contain itself, so hold it through a counted reference (`*`), an optional reference, or a collection",
             self.cx.names.display_name(it.def),
             self.cx.names.text(fields[first].name)
         );

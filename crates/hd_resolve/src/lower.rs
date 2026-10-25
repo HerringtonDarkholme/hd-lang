@@ -2513,6 +2513,10 @@ impl Lower<'_, '_, '_> {
                 let mutable = n
                     .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
                     .is_some();
+                // `ref.type.counted-forms`: `*T` is counted, `&T` local.
+                let counted = n
+                    .direct_token(&self.src.parse.tokens, TokenKind::Star)
+                    .is_some();
                 let inner = self.ty_at(n.children().find(|c| c.kind().is_type()), gn, true);
                 let suspend = self.names.known.suspend;
                 let inner = match pool.get(inner) {
@@ -2521,7 +2525,11 @@ impl Lower<'_, '_, '_> {
                     }
                     _ => inner,
                 };
-                pool.intern_ty(&TyData::Ref { inner, mutable })
+                pool.intern_ty(&TyData::Ref {
+                    inner,
+                    mutable,
+                    counted,
+                })
             }
             _ => {
                 self.gap("this type form");
@@ -2863,10 +2871,13 @@ impl Lower<'_, '_, '_> {
                     // `&mut self` is `&mut Self`, for every kind of type.
                     // `fn.method.counted-self`: `*self` and `*mut self` are
                     // today's reference too.
-                    let st = if p.direct_token(toks, TokenKind::Amp).is_some()
-                        || p.direct_token(toks, TokenKind::Star).is_some()
-                    {
-                        pool.intern_ty(&TyData::Ref { inner: st, mutable })
+                    let counted = p.direct_token(toks, TokenKind::Star).is_some();
+                    let st = if p.direct_token(toks, TokenKind::Amp).is_some() || counted {
+                        pool.intern_ty(&TyData::Ref {
+                            inner: st,
+                            mutable,
+                            counted,
+                        })
                     } else if mutable && !own_copy {
                         pool.intern_ty(&TyData::Mut(st))
                     } else {
@@ -4061,6 +4072,7 @@ impl Lower<'_, '_, '_> {
         let cause_ref = pool.intern_ty(&TyData::Ref {
             inner: error_ty,
             mutable: false,
+            counted: true,
         });
         let cause_ty = pool.intern_ty(&TyData::Option(cause_ref));
         let mut heads = Vec::new();

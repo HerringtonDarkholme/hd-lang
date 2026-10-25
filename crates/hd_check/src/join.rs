@@ -487,20 +487,28 @@ impl Ck<'_, '_> {
         match (pool.get(a), pool.get(b)) {
             // Reference permissions weaken at the site, while the
             // referred-to type stays invariant (`ref.convert.weaken`).
+            // A counted reference lends itself as a local one
+            // (`ref.convert.lend`), so the kinds join as the access does.
             (
                 TyData::Ref {
                     inner: x,
                     mutable: xm,
+                    counted: xc,
                 },
                 TyData::Ref {
                     inner: y,
                     mutable: ym,
+                    counted: yc,
                 },
             ) if self.perm_canon(x) == self.perm_canon(y) => Some(pool.intern_ty(&TyData::Ref {
                 inner: x,
                 mutable: match dir {
                     Dir::Least => xm && ym,
                     Dir::Greatest => xm || ym,
+                },
+                counted: match dir {
+                    Dir::Least => xc && yc,
+                    Dir::Greatest => xc || yc,
                 },
             })),
             // `types.variance.mut-invariant`: two mutable views meet only
@@ -635,12 +643,14 @@ impl Ck<'_, '_> {
                 TyData::Ref {
                     inner: x,
                     mutable: xm,
+                    counted: xc,
                 },
                 TyData::Ref {
                     inner: y,
                     mutable: ym,
+                    counted: yc,
                 },
-            ) => self.perm_canon(x) == self.perm_canon(y) && (xm || !ym),
+            ) => self.perm_canon(x) == self.perm_canon(y) && (xm || !ym) && (xc || !yc),
             (TyData::Mut(x), _) => self.perm_canon(x) == t,
             (_, TyData::Mut(_)) => false,
             (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys }) if def == d2 => {

@@ -268,9 +268,14 @@ impl InferTable {
             },
             TyData::Option(i) => TyData::Option(r(i)),
             TyData::Mut(i) => TyData::Mut(r(i)),
-            TyData::Ref { inner, mutable } => TyData::Ref {
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => TyData::Ref {
                 inner: r(inner),
                 mutable,
+                counted,
             },
             TyData::Fn {
                 params,
@@ -402,17 +407,21 @@ impl InferTable {
                 self.bind(pool, self.root(y.raw()), a)
             }
             // `&T` and `&mut T` are distinct types; the conversion from
-            // `&mut T` to `&T` is a coercion (ref.convert.weaken).
+            // `&mut T` to `&T` is a coercion (ref.convert.weaken). So are
+            // `*T` and `&T` (`ref.type.kind-distinct`), whose conversion
+            // is a lend (`ref.convert.lend`).
             (
                 TyData::Ref {
                     inner: x,
                     mutable: mx,
+                    counted: cx,
                 },
                 TyData::Ref {
                     inner: y,
                     mutable: my,
+                    counted: cy,
                 },
-            ) if mx == my => self.unify(pool, x, y),
+            ) if mx == my && cx == cy => self.unify(pool, x, y),
             // A view marker does not change the value's type: `mut T`
             // checks against `T` (mutability is checked separately).
             (TyData::Mut(x), TyData::Mut(y)) => self.unify(pool, x, y),

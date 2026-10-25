@@ -492,6 +492,7 @@ fn init_steps(
         let dyn_error = pool.intern_ty(&hd_types::TyData::Ref {
             inner: dyn_error,
             mutable: false,
+            counted: true,
         });
         pool.intern_ty(&hd_types::TyData::Adt {
             def: known.result,

@@ -220,10 +220,14 @@ pub enum TyData {
         args: TyList,
     },
     Mut(Ty),
-    /// A reference type, `&T` or `&mut T` (spec/lang/13-values-and-references.md).
+    /// A reference type (spec/lang/13-values-and-references.md): a
+    /// counted `*T` or `*mut T`, or a local `&T` or `&mut T`
+    /// (`ref.type.kind-distinct`). Both kinds lower to one `Ref[T]`
+    /// ([`Types::lower_refs`]), so the kind exists only while checking.
     Ref {
         inner: Ty,
         mutable: bool,
+        counted: bool,
     },
     Infer(InferVar),
     /// A canonical placeholder of the solver (`crates/hd_check/DESIGN.md` (trait solver) §2.2).
@@ -254,6 +258,8 @@ enum PoolTag {
     Mut,
     Ref,
     RefMut,
+    CRef,
+    CRefMut,
     Infer,
     Canon,
     List,
@@ -986,8 +992,17 @@ impl<'a> Types<'a> {
                 meta::HAS_ASSOC | self.meta_of(*self_ty) | self.list_meta(*args),
             ),
             TyData::Mut(inner) => (T::Mut, inner.0, self.meta_of(*inner)),
-            TyData::Ref { inner, mutable } => (
-                if *mutable { T::RefMut } else { T::Ref },
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => (
+                match (*counted, *mutable) {
+                    (false, false) => T::Ref,
+                    (false, true) => T::RefMut,
+                    (true, false) => T::CRef,
+                    (true, true) => T::CRefMut,
+                },
                 inner.0,
                 meta::HAS_REF | self.meta_of(*inner),
             ),
@@ -1160,10 +1175,22 @@ impl<'a> Types<'a> {
             PoolTag::Ref => TyData::Ref {
                 inner: Ty(d),
                 mutable: false,
+                counted: false,
             },
             PoolTag::RefMut => TyData::Ref {
                 inner: Ty(d),
                 mutable: true,
+                counted: false,
+            },
+            PoolTag::CRef => TyData::Ref {
+                inner: Ty(d),
+                mutable: false,
+                counted: true,
+            },
+            PoolTag::CRefMut => TyData::Ref {
+                inner: Ty(d),
+                mutable: true,
+                counted: true,
             },
             PoolTag::Infer => TyData::Infer(InferVar::from_raw(d)),
             PoolTag::Canon => TyData::Canon(u8::try_from(d).expect("canon")),
@@ -1283,7 +1310,9 @@ impl<'a> Types<'a> {
             )
         };
         let d = match self.get(t) {
-            TyData::Ref { inner, mutable } => {
+            // Both kinds lower to one `Ref[T]`: the kind is a checking rule
+            // only (`ref.type.kind-runtime`).
+            TyData::Ref { inner, mutable, .. } => {
                 let inner = self.lower_refs(cell, inner);
                 let identity = if mutable {
                     self.intern_ty(&TyData::Mut(inner))
@@ -1415,9 +1444,12 @@ impl<'a> Types<'a> {
                         TyData::Mut(inner) => (inner, true),
                         _ => (*inner, false),
                     };
+                    // The lowering erased the kind; a raised reference is
+                    // counted, the kind trait selection ignores anyway.
                     TyData::Ref {
                         inner: self.raise_refs_in(cell, inner, memo),
                         mutable,
+                        counted: true,
                     }
                 }
                 _ => TyData::Adt { def, args },
@@ -1454,9 +1486,14 @@ impl<'a> Types<'a> {
                 self_ty: self.raise_refs_in(cell, self_ty, memo),
                 args: l(args, memo),
             },
-            TyData::Ref { inner, mutable } => TyData::Ref {
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => TyData::Ref {
                 inner: self.raise_refs_in(cell, inner, memo),
                 mutable,
+                counted,
             },
             TyData::Fn {
                 params,
@@ -1547,9 +1584,14 @@ impl<'a> Types<'a> {
             },
             TyData::Option(i) => TyData::Option(self.subst(i, f)),
             TyData::Mut(i) => TyData::Mut(self.subst(i, f)),
-            TyData::Ref { inner, mutable } => TyData::Ref {
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => TyData::Ref {
                 inner: self.subst(inner, f),
                 mutable,
+                counted,
             },
             TyData::Fn {
                 params,
@@ -1679,12 +1721,14 @@ impl<'a> Types<'a> {
             TyData::Mut(i) => format!("mut {}", self.display(i)),
             TyData::Ref {
                 inner,
-                mutable: false,
-            } => format!("&{}", self.display(inner)),
-            TyData::Ref {
-                inner,
-                mutable: true,
-            } => format!("&mut {}", self.display(inner)),
+                mutable,
+                counted,
+            } => format!(
+                "{}{}{}",
+                if counted { "*" } else { "&" },
+                if mutable { "mut " } else { "" },
+                self.display(inner)
+            ),
             TyData::Infer(v) => format!("?{}", v.raw()),
             TyData::Canon(i) => format!("^{i}"),
             TyData::Row(r) => self.display_row(r),
@@ -1744,9 +1788,14 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
         },
         TyData::Option(i) => TyData::Option(with_assoc_args(pool, i, trait_, args)),
         TyData::Mut(i) => TyData::Mut(with_assoc_args(pool, i, trait_, args)),
-        TyData::Ref { inner, mutable } => TyData::Ref {
+        TyData::Ref {
+            inner,
+            mutable,
+            counted,
+        } => TyData::Ref {
             inner: with_assoc_args(pool, inner, trait_, args),
             mutable,
+            counted,
         },
         TyData::Fn {
             params,
@@ -1874,10 +1923,12 @@ mod tests {
                 TyData::Ref {
                     inner,
                     mutable: false,
+                    counted: false,
                 },
                 TyData::Ref {
                     inner,
                     mutable: true,
+                    counted: false,
                 },
                 TyData::Option(inner),
                 TyData::Tuple {
@@ -2055,10 +2106,12 @@ mod tests {
             TyData::Ref {
                 inner: Ty::STRING,
                 mutable: false,
+                counted: false,
             },
             TyData::Ref {
                 inner: Ty::I32,
                 mutable: true,
+                counted: false,
             },
             TyData::Canon(2),
         ];
@@ -2196,17 +2249,30 @@ mod tests {
     fn reference_lowering_preserves_permission_identity() {
         let pool = InternPool::new();
         let cell = hd_base::DefId::from_raw(777);
+        // Raising restores a counted reference, the kind lowering erases.
         let shared = pool.intern_ty(&TyData::Ref {
             inner: Ty::I32,
             mutable: false,
+            counted: true,
         });
         let writable = pool.intern_ty(&TyData::Ref {
             inner: Ty::I32,
             mutable: true,
+            counted: true,
+        });
+        let local = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: false,
         });
         assert_ne!(
             pool.lower_refs(cell, shared),
             pool.lower_refs(cell, writable)
+        );
+        assert_eq!(
+            pool.lower_refs(cell, local),
+            pool.lower_refs(cell, shared),
+            "both kinds lower to one type"
         );
         let projection = pool.intern_ty(&TyData::Assoc {
             assoc: hd_base::DefId::from_raw(778),

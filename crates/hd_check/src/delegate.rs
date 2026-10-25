@@ -186,7 +186,7 @@ impl Forwarder<'_> {
                         "a forwarding method whose part is not a place",
                     );
                 };
-                let rt = pool.intern_ty(&TyData::Ref { inner: ft, mutable });
+                let rt = ck.ref_ty(ft, mutable, true);
                 refs.push(ck.make_ref(&place, mutable, rt, node));
             } else {
                 let Some((idx, ft)) = ck.field_of(st, part_name) else {

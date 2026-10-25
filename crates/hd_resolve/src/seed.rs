@@ -279,6 +279,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                     pool.intern_ty(&TyData::Ref {
                         inner: p,
                         mutable: true,
+                        counted: false,
                     }),
                 ));
                 let ok = if ret_self {

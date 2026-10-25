@@ -23,6 +23,12 @@ impl Ck<'_, '_> {
     /// takes a reference receiver, and whether it is `&mut`: its declared
     /// receiver is `&self` or `&mut self`.
     pub(crate) fn ref_receiver_of(&self, method: DefId) -> StageResult<Option<bool>> {
+        Ok(self.ref_receiver_kind(method)?.map(|(mutable, _)| mutable))
+    }
+
+    /// [`Self::ref_receiver_of`] with the receiver's kind: whether it is
+    /// `&mut`, and whether it is counted, `*self` or `*mut self`.
+    pub(crate) fn ref_receiver_kind(&self, method: DefId) -> StageResult<Option<(bool, bool)>> {
         let pool = self.pool();
         let sig = self.sig_of(method)?;
         let Some(&(s, st)) = sig.params.first() else {
@@ -31,10 +37,37 @@ impl Ck<'_, '_> {
         if self.cx.names.text(s) != "self" {
             return Ok(None);
         }
-        if let TyData::Ref { mutable, .. } = pool.get(st) {
-            return Ok(Some(mutable));
+        if let TyData::Ref {
+            mutable, counted, ..
+        } = pool.get(st)
+        {
+            return Ok(Some((mutable, counted)));
         }
         Ok(None)
+    }
+
+    /// Whether the method `name` on `t` takes a counted receiver, `*self`
+    /// or `*mut self` (`fn.method.counted-self`).
+    fn counted_receiver_named(&mut self, t: Ty, name: &str) -> StageResult<bool> {
+        let t = self.norm_ty(t);
+        if matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
+            return Ok(false);
+        }
+        let method = match self.resolve_method(t, name)? {
+            Some(Hit::Inherent { method, .. }) => method,
+            Some(Hit::Trait { choice, .. }) if choice.0 == ChoiceKind::TraitValue => {
+                return Ok(false);
+            }
+            Some(
+                Hit::Trait { method, .. }
+                | Hit::Choice { method, .. }
+                | Hit::Pending { method, .. },
+            ) => method,
+            _ => return Ok(false),
+        };
+        Ok(self
+            .ref_receiver_kind(method)?
+            .is_some_and(|(_, counted)| counted))
     }
 
     /// The type a place-shaped receiver expression would read, without
@@ -213,10 +246,10 @@ impl Ck<'_, '_> {
         if receiver && let Root::Elem(coll, ..) = place.root {
             self.begin_access(coll);
         }
-        let pool = self.pool();
         let inner = self.strip_mut(place.ty);
-
-        let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
+        // The address a call takes is counted, and lends itself to a
+        // `&self` receiver (`fn.method.counted-self.address`).
+        let rt = self.ref_ty(inner, mutable, true);
         let r = self.make_ref(&place, mutable, rt, base);
         Ok((r, place.ty))
     }
@@ -258,12 +291,9 @@ impl Ck<'_, '_> {
         }
         match self.ref_of(t) {
             Some((inner, true)) => {
-                let pool = self.pool();
                 let vt = self.deref_ty(inner, true);
-                let rt = pool.intern_ty(&TyData::Ref {
-                    inner: self.strip_mut(inner),
-                    mutable: true,
-                });
+                let counted = self.ref_counted(t).unwrap_or(true);
+                let rt = self.ref_ty(self.strip_mut(inner), true, counted);
                 Some((self.retype(r, rt, base.index()), vt))
             }
             Some((_, false)) => {
@@ -299,11 +329,13 @@ impl Ck<'_, '_> {
             self.read_only_receiver(name, t, base);
             return Ok(Some(self.poisoned(base)));
         }
-        let pool = self.pool();
-        let rt = pool.intern_ty(&TyData::Ref {
-            inner: self.strip_mut(vt),
-            mutable,
-        });
+        let counted = self.ref_counted(t).unwrap_or(true);
+        // `fn.method.counted-self.local-receiver`: a `*self` call through
+        // a local reference would make it counted.
+        if !counted && self.counted_receiver_named(vt, name)? {
+            self.local_ref_escapes(base, crate::local_refs::Escape::CountedSelf);
+        }
+        let rt = self.ref_ty(self.strip_mut(vt), mutable, counted);
         Ok(Some((self.retype(r, rt, base.index()), vt)))
     }
 
@@ -339,12 +371,8 @@ impl Ck<'_, '_> {
             self.not_a_place_receiver(name, n);
             return recv;
         }
-        let pool = self.pool();
         let inner = self.strip_mut(rt);
-        let rty = pool.intern_ty(&TyData::Ref {
-            inner,
-            mutable: false,
-        });
+        let rty = self.ref_ty(inner, false, true);
         let place = self.new_object_place(recv, rt, n);
         self.make_ref(&place, false, rty, n)
     }

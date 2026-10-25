@@ -624,7 +624,8 @@ pub fn canon(
             h.hash(canon(pool, path_hash, memo, i));
         }
         // Not in an instance key: the checker lowers reference types.
-        TyData::Ref { inner, mutable } => {
+        // The kind is erased (`ref.type.kind-runtime`).
+        TyData::Ref { inner, mutable, .. } => {
             h.u8(17);
             h.u8(u8::from(mutable));
             h.hash(canon(pool, path_hash, memo, inner));

@@ -361,6 +361,12 @@ pub(crate) struct Ck<'a, 'c> {
     pub elem_ok: HashMap<hd_base::NodeIdx, crate::elem_refs::ElemUse>,
     pub elem_args: HashSet<hd_base::NodeIdx>,
     pub elem_locals: HashSet<LocalId>,
+    /// Local references (`local_refs.rs`): the `&` each binding inferred
+    /// from another local takes its type from, the locals whose capture
+    /// reported, and the types the body and its signature write.
+    pub ref_origins: HashMap<LocalId, hd_base::TokenIdx>,
+    pub ref_captured: HashSet<LocalId>,
+    pub declared_tys: HashSet<Ty>,
     /// The exclusivity stack of the open calls and element reference
     /// loops, with each frame's start, and the conflicting accesses found
     /// so far by the collection's binding (`ref.elem.conflict`,
@@ -591,6 +597,9 @@ pub(crate) fn new_ck<'a, 'c>(
         elem_ok: HashMap::default(),
         elem_args: HashSet::default(),
         elem_locals: HashSet::default(),
+        ref_origins: HashMap::default(),
+        ref_captured: HashSet::default(),
+        declared_tys: HashSet::default(),
         excl: Vec::new(),
         excl_frames: Vec::new(),
         conflicts: Vec::new(),
@@ -1023,8 +1032,10 @@ fn fn_body_steps(
     // Projections in the signature normalize under the bounds, so
     // `I::Item` and `T` are one type under `I < Supplier[Item = T]`
     // (`trait.binding.interchangeable`).
+    ck.declared_tys.insert(sig.ret);
     for (name, ty) in sig.params.clone() {
         let ty = ck.norm_ty(ty);
+        ck.declared_tys.insert(ty);
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
         ck.scopes[0].insert(name, l);
     }
@@ -1686,6 +1697,15 @@ impl Ck<'_, '_> {
             }
             return r;
         }
+        // `ref.convert.lend`: a counted reference lends itself where a
+        // local one is expected, with no conversion at run time. A local
+        // one never becomes counted (`ref.local.escape.counted`).
+        if self.lends_by_kind(g, w) {
+            return r;
+        }
+        if let Some(out) = self.coerce_ref_kind(r, g, w, n, what, (target, position)) {
+            return out;
+        }
         // A least-common-type site's variable is not a declared type: the
         // value joins the others instead (types.lct).
         if self.joins.is_site(target) {
@@ -1713,12 +1733,18 @@ impl Ck<'_, '_> {
             },
             _ => None,
         };
-        if let TyData::Ref { inner, mutable } = pool.get(g) {
+        if let TyData::Ref {
+            inner,
+            mutable,
+            counted,
+        } = pool.get(g)
+        {
             match (mutable, shared_target(w)) {
                 (true, Some(false)) => {
                     let shared = pool.intern_ty(&TyData::Ref {
                         inner,
                         mutable: false,
+                        counted,
                     });
                     let r = self.b.coerce(Coercion::Weaken, NONE, r, shared, n.index());
                     return self.coerce(r, shared, target, n, what, position);
@@ -1736,7 +1762,13 @@ impl Ck<'_, '_> {
         }
         // A conversion to a trait value reference (`trait.dyn.ref.convert`).
         if let Some(to) = self.dyn_ref_of(w)
-            && let Some(out) = self.convert_to_dyn_ref(r, g, to, n, what)
+            && let Some(out) = self.convert_to_dyn_ref(
+                r,
+                g,
+                (to.0, to.1, self.ref_counted(w).unwrap_or(true)),
+                n,
+                what,
+            )
         {
             return out;
         }
@@ -2369,9 +2401,14 @@ impl Ck<'_, '_> {
             },
             TyData::Mut(t) => TyData::Mut(self.integer_variant(t, replacement, changed)),
             TyData::Option(t) => TyData::Option(self.integer_variant(t, replacement, changed)),
-            TyData::Ref { inner, mutable } => TyData::Ref {
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => TyData::Ref {
                 inner: self.integer_variant(inner, replacement, changed),
                 mutable,
+                counted,
             },
             _ => return self.infer.resolve(pool, t),
         };
@@ -4147,9 +4184,17 @@ impl Ck<'_, '_> {
                 let i = self.zonk(i);
                 pool.intern_ty(&TyData::Mut(i))
             }
-            TyData::Ref { inner, mutable } => {
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => {
                 let inner = self.zonk(inner);
-                pool.intern_ty(&TyData::Ref { inner, mutable })
+                pool.intern_ty(&TyData::Ref {
+                    inner,
+                    mutable,
+                    counted,
+                })
             }
             TyData::Fn {
                 params,
@@ -4651,6 +4696,7 @@ impl Ck<'_, '_> {
         }
         self.check_negated_unsigned();
         self.check_literal_ranges();
+        self.check_local_ref_types();
         if let Some(node) = fun {
             self.check_inferred_result(node, ret);
         }

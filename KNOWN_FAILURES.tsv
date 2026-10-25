@@ -1,7 +1,1 @@
 path	issue	engine	reason
-typing/invalid/local-reference-escapes-field.hd	#834		local-reference-escapes is not checked
-typing/invalid/local-reference-escapes-element.hd	#834		local-reference-escapes is not checked
-typing/invalid/local-reference-escapes-top-level.hd	#834		local-reference-escapes is not checked
-typing/invalid/local-reference-escapes-return.hd	#834		local-reference-escapes is not checked
-typing/invalid/local-reference-escapes-capture.hd	#834		local-reference-escapes is not checked
-typing/invalid/local-reference-escapes-type-argument.hd	#834		local-reference-escapes is not checked

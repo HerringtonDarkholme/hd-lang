@@ -37,16 +37,17 @@ impl Ck<'_, '_> {
     /// (`trait.dyn.ref.written`). `None` when no rule applies, so the
     /// caller reports the mismatch.
     /// The mutability of a reference `got` already matches `mutable`.
+    /// The conversion keeps the kind of the target: `counted` for `*dyn Tr`.
     pub(crate) fn convert_to_dyn_ref(
         &mut self,
         r: Ref,
         got: Ty,
-        (tv, mutable): (Ty, bool),
+        (tv, mutable, counted): (Ty, bool, bool),
         n: NodeRef<'_>,
         what: &str,
     ) -> Option<Ref> {
         let pool = self.pool();
-        let target = pool.intern_ty(&TyData::Ref { inner: tv, mutable });
+        let target = self.ref_ty(tv, mutable, counted);
         let g = self.infer.resolve(pool, got);
         if let Some((inner, _)) = self.ref_of(g) {
             let inner = self.strip_mut(self.infer.resolve(pool, inner));
@@ -86,11 +87,23 @@ impl Ck<'_, '_> {
                     if !self.can_unify(widened, tv) {
                         return None;
                     }
-                    Some(self.build_dyn_ref(r, g, tv, mutable, Coercion::Supertrait, n))
+                    Some(self.build_dyn_ref_kind(
+                        r,
+                        g,
+                        (tv, mutable, counted),
+                        Coercion::Supertrait,
+                        n,
+                    ))
                 }
                 _ => {
                     self.require_dyn_impl(inner, tv, n);
-                    Some(self.build_dyn_ref(r, g, tv, mutable, Coercion::RefToTraitValue, n))
+                    Some(self.build_dyn_ref_kind(
+                        r,
+                        g,
+                        (tv, mutable, counted),
+                        Coercion::RefToTraitValue,
+                        n,
+                    ))
                 }
             };
         }
@@ -224,10 +237,9 @@ impl Ck<'_, '_> {
                 .b
                 .coerce(Coercion::RefAsProvider, NONE, r, key, n.index());
         }
-        let want = pool.intern_ty(&TyData::Ref {
-            inner: key,
-            mutable,
-        });
+        // A provider is kept past the call, as `$.use` may return it
+        // counted (`req.use.value.counted`), so it takes a counted reference.
+        let want = self.ref_ty(key, mutable, true);
         let r = self.coerce(r, t, want, n, "provider", ExpectPosition::General);
         self.b
             .coerce(Coercion::RefAsProvider, NONE, r, key, n.index())
@@ -237,10 +249,7 @@ impl Ck<'_, '_> {
     /// getter/setter closures would become sub-bodies of every provider site.
     fn shared_provider_object(&mut self, value: Ref, ty: Ty, n: NodeRef<'_>) -> (Ref, Ty) {
         let pool = self.pool();
-        let ret = pool.intern_ty(&TyData::Ref {
-            inner: ty,
-            mutable: true,
-        });
+        let ret = self.ref_ty(ty, true, true);
         let callee = Callee::Item {
             def: self.cx.names.item("std.rt", "host_provider"),
             targs: pool.list(&[ty]),
@@ -257,29 +266,21 @@ impl Ck<'_, '_> {
         mutable: bool,
         n: NodeRef<'_>,
     ) -> Ref {
-        let pool = self.pool();
         let syn = n.index();
         let addr = self.b.open_block();
         let value = self.dyn_ref_value(source, source_ty, key, Coercion::RefToTraitValue, syn);
         let addr = self.b.close_block(addr, Some(value), key, syn);
-        let rt = pool.intern_ty(&TyData::Ref {
-            inner: key,
-            mutable,
-        });
+        let rt = self.ref_ty(key, mutable, true);
         self.b.emit(Tag::RefDyn, addr.0, NONE, rt, syn)
     }
 
     /// Every requirement key yields a trait value reference; permission
     /// follows its receiver requirements.
-    pub(crate) fn provider_ty(&self, key: Ty, def: DefId) -> (Ty, bool) {
+    /// The provider is a local reference (`req.use.value.local`), or a
+    /// counted one where one is expected (`req.use.value.counted`).
+    pub(crate) fn provider_ty(&self, key: Ty, def: DefId, counted: bool) -> (Ty, bool) {
         let mutable = self.trait_is_mutable(def, 0);
-        (
-            self.pool().intern_ty(&TyData::Ref {
-                inner: key,
-                mutable,
-            }),
-            true,
-        )
+        (self.ref_ty(key, mutable, counted), true)
     }
 
     /// `trait.dyn.ref.convert.impl`: the concrete type `s` implements the
@@ -306,6 +307,7 @@ impl Ck<'_, '_> {
     /// `src_ty`: a `RefDyn` whose block makes the trait value that
     /// converts `src` with `kind` (`RefToTraitValue`, or `Supertrait` on
     /// the trait value `src` refers to).
+    /// The reference is counted: a fact's list holds it.
     pub(crate) fn build_dyn_ref(
         &mut self,
         src: Ref,
@@ -315,7 +317,18 @@ impl Ck<'_, '_> {
         kind: Coercion,
         n: NodeRef<'_>,
     ) -> Ref {
-        let pool = self.pool();
+        self.build_dyn_ref_kind(src, src_ty, (tv, mutable, true), kind, n)
+    }
+
+    /// [`Self::build_dyn_ref`] of a trait value reference of either kind.
+    pub(crate) fn build_dyn_ref_kind(
+        &mut self,
+        src: Ref,
+        src_ty: Ty,
+        (tv, mutable, counted): (Ty, bool, bool),
+        kind: Coercion,
+        n: NodeRef<'_>,
+    ) -> Ref {
         let syn = n.index();
         let (l, d) = self.hold(src, src_ty, n);
         // As an address, the reference is the trait value itself, whose
@@ -327,7 +340,7 @@ impl Ck<'_, '_> {
         // The closure form this replaced captured the held source; the
         // flag stays as it left it (`refs.rs`, `ref_reads`).
         self.add_flags(l, local_flags::CAPTURED);
-        let rt = pool.intern_ty(&TyData::Ref { inner: tv, mutable });
+        let rt = self.ref_ty(tv, mutable, counted);
         self.b.emit(Tag::RefDyn, addr.0, NONE, rt, syn)
     }
 

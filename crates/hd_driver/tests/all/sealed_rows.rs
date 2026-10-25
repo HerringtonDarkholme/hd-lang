@@ -131,7 +131,7 @@ pub fn main() -> void:
     assert_eq!(
         msgs,
         [
-            "&User does not implement AnyVal",
+            "*User does not implement AnyVal",
             "Owner does not implement AnyVal",
             "fn() -> i32 does not implement Inspectable",
         ],

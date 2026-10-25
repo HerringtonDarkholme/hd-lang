@@ -138,6 +138,7 @@ pub fn printer_body(
     let writer = pool.intern_ty(&TyData::Ref {
         inner: g.format_ty("DebugWriter", &[]),
         mutable: true,
+        counted: true,
     });
     let ft = g.fn_ty(&[ty, writer], Ty::VOID);
     let block = g.b.open_block();
@@ -239,6 +240,7 @@ impl Gen<'_, '_> {
         let writer = self.names.pool.intern_ty(&TyData::Ref {
             inner: self.format_ty("DebugWriter", &[]),
             mutable: true,
+            counted: true,
         });
         let ft = self.fn_ty(&[ty, writer], Ty::VOID);
         self.b.call(

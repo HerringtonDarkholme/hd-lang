@@ -192,9 +192,14 @@ impl Reveal<'_> {
             },
             TyData::Option(t) => TyData::Option(self.ty(t)?),
             TyData::Mut(t) => TyData::Mut(self.ty(t)?),
-            TyData::Ref { inner, mutable } => TyData::Ref {
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => TyData::Ref {
                 inner: self.ty(inner)?,
                 mutable,
+                counted,
             },
             TyData::Fn {
                 params,

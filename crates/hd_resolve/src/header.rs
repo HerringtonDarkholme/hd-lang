@@ -381,13 +381,17 @@ impl<'a> Universe<'a> {
                 self.unify(x, y, oa, ob, sub)
             }
             (
+                // One impl covers both kinds of reference
+                // (`ref.type.kind-runtime`), so they overlap.
                 TyData::Ref {
                     inner: x,
                     mutable: mx,
+                    ..
                 },
                 TyData::Ref {
                     inner: y,
                     mutable: my,
+                    ..
                 },
             ) => mx == my && self.unify(x, y, oa, ob, sub),
             (

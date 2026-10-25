@@ -91,10 +91,31 @@ impl Ck<'_, '_> {
     pub(crate) fn ref_of(&self, t: Ty) -> Option<(Ty, bool)> {
         let pool = self.pool();
         match pool.get(self.infer.resolve(pool, t)) {
-            TyData::Ref { inner, mutable } => Some((inner, mutable)),
+            TyData::Ref { inner, mutable, .. } => Some((inner, mutable)),
             TyData::Mut(i) => self.ref_of(i),
             _ => None,
         }
+    }
+
+    /// Whether the reference type `t` is counted, `*T` or `*mut T`
+    /// (`ref.type.kind-distinct`): `Some(false)` for a local `&T` or
+    /// `&mut T`, `None` for any other type.
+    pub(crate) fn ref_counted(&self, t: Ty) -> Option<bool> {
+        let pool = self.pool();
+        match pool.get(self.infer.resolve(pool, t)) {
+            TyData::Ref { counted, .. } => Some(counted),
+            TyData::Mut(i) => self.ref_counted(i),
+            _ => None,
+        }
+    }
+
+    /// The reference type to `inner` of the given access and kind.
+    pub(crate) fn ref_ty(&self, inner: Ty, mutable: bool, counted: bool) -> Ty {
+        self.pool().intern_ty(&TyData::Ref {
+            inner,
+            mutable,
+            counted,
+        })
     }
 
     /// A read keeps its declared type; `&mut` also grants legacy view access.
@@ -124,13 +145,20 @@ impl Ck<'_, '_> {
         }
         let d = depth + 1;
         match (pool.get(from), pool.get(to)) {
+            // A counted reference lends itself as a local one
+            // (`ref.convert.lend`); a local one never becomes counted.
             (
-                TyData::Ref { inner: a, .. },
+                TyData::Ref {
+                    inner: a,
+                    counted: ka,
+                    ..
+                },
                 TyData::Ref {
                     inner: b,
                     mutable: false,
+                    counted: kb,
                 },
-            ) => self.readonly_view_fits(a, b, d),
+            ) if ka || !kb => self.readonly_view_fits(a, b, d),
             (TyData::Option(a), TyData::Option(b)) => self.readonly_view_fits(a, b, d),
             (
                 TyData::Adt { def, args: a },
@@ -462,7 +490,10 @@ impl Ck<'_, '_> {
             self.elem_ref_value(n, false);
         }
         let inner = self.strip_mut(self.infer.resolve(pool, place.ty));
-        let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
+        // `ref.expr.kind.local`: `&e` is local where a local reference is
+        // expected, and counted everywhere else (`ref.expr.kind.counted`).
+        let counted = want.and_then(|w| self.ref_counted(w)).unwrap_or(true);
+        let rt = self.ref_ty(inner, mutable, counted);
         let r = self.make_ref(&place, mutable, rt, n);
         Ok((r, rt))
     }
@@ -494,9 +525,8 @@ impl Ck<'_, '_> {
             path: vec![],
             ty: t,
         };
-        let pool = self.pool();
         let inner = self.strip_mut(t);
-        let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
+        let rt = self.ref_ty(inner, mutable, true);
         (self.make_ref(&place, mutable, rt, n), rt)
     }
 

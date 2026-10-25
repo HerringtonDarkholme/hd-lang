@@ -1081,9 +1081,14 @@ fn fold_vars(
         },
         TyData::Option(i) => TyData::Option(fold_vars(pool, i, canon, f)?),
         TyData::Mut(i) => TyData::Mut(fold_vars(pool, i, canon, f)?),
-        TyData::Ref { inner, mutable } => TyData::Ref {
+        TyData::Ref {
+            inner,
+            mutable,
+            counted,
+        } => TyData::Ref {
             inner: fold_vars(pool, inner, canon, f)?,
             mutable,
+            counted,
         },
         TyData::Fn {
             params,
@@ -1349,14 +1354,18 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
         (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 }) if d1 == d2 => {
             match_list(pool, owner, a1, a2, binds)
         }
+        // An impl for a reference covers both kinds: they are one type
+        // at run time (`ref.type.kind-runtime`).
         (
             TyData::Ref {
                 inner: p,
                 mutable: m1,
+                ..
             },
             TyData::Ref {
                 inner: x,
                 mutable: m2,
+                ..
             },
         ) if m1 == m2 => match_ty(pool, owner, p, x, binds),
         (
@@ -2817,9 +2826,14 @@ fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, reads: &m
         },
         TyData::Option(i) => TyData::Option(norm_concrete(pool, impls, i, depth, reads)),
         TyData::Mut(i) => TyData::Mut(norm_concrete(pool, impls, i, depth, reads)),
-        TyData::Ref { inner, mutable } => TyData::Ref {
+        TyData::Ref {
+            inner,
+            mutable,
+            counted,
+        } => TyData::Ref {
             inner: norm_concrete(pool, impls, inner, depth, reads),
             mutable,
+            counted,
         },
         TyData::Fn {
             params,

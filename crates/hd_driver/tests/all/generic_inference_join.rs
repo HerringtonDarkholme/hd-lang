@@ -36,7 +36,7 @@ fn readonly_first_variance_points_at_use() {
     assert_eq!(codes(&out), vec![Code::TypeMismatch], "{}", out.render());
     assert!(
         out.render()
-            .contains("expected List[&User], found List[&mut User]"),
+            .contains("expected List[*User], found List[*mut User]"),
         "{}",
         out.render()
     );

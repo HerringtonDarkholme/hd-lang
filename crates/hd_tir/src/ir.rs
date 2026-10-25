@@ -1383,6 +1383,12 @@ impl TirBuilder {
     }
 
     /// The body so far (for the checker's final type pass).
+    #[must_use]
+    pub fn body(&self) -> &Body {
+        &self.body
+    }
+
+    /// The body so far, to change in place.
     pub fn body_mut(&mut self) -> &mut Body {
         &mut self.body
     }

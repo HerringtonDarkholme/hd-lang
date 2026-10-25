@@ -95,6 +95,7 @@ impl Ck<'_, '_> {
         let writer = pool.intern_ty(&TyData::Ref {
             inner: writer,
             mutable: true,
+            counted: true,
         });
         let ft = pool.intern_ty(&TyData::Fn {
             params: pool.list(&[ty, writer]),

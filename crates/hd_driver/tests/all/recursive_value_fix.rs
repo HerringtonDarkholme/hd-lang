@@ -69,27 +69,27 @@ fn each_fix_writes_a_reference_and_checks_clean() {
     let cases = [
         (
             "enum Tree:\n    Leaf(value: i64)\n    Node(left: Tree, right: Tree)\n",
-            "    Node(left: &Tree, right: &Tree)\n",
+            "    Node(left: *Tree, right: *Tree)\n",
         ),
         (
             "enum Chain:\n    End\n    Link(next: Chain?)\n",
-            "    Link(next: &Chain?)\n",
+            "    Link(next: *Chain?)\n",
         ),
         (
             "enum Pairing:\n    Single(value: i32)\n    Both(pair: (i32, Pairing))\n",
-            "    Both(pair: &(i32, Pairing))\n",
+            "    Both(pair: *(i32, Pairing))\n",
         ),
         (
             "enum Branch:\n    Leaf\n    Fork(forest: Forest)\n\nstruct Forest:\n    branch: Branch\n",
-            "    Fork(forest: &Forest)\n",
+            "    Fork(forest: *Forest)\n",
         ),
         (
             "struct Chain:\n    value: i32\n    next: Chain?\n",
-            "    next: &Chain?\n",
+            "    next: *Chain?\n",
         ),
         (
             "enum Expr(parent: Expr?):\n    Num(n: i64)\n",
-            "enum Expr(parent: &Expr?):\n",
+            "enum Expr(parent: *Expr?):\n",
         ),
     ];
     for (decl, fixed) in cases {
