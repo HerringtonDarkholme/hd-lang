@@ -15,6 +15,7 @@ mod engine;
 mod fix_cmd;
 mod fmt_cmd;
 mod help;
+mod install_cmd;
 mod new_cmd;
 mod node;
 #[cfg(test)]
@@ -53,6 +54,9 @@ const USAGE: &str = "usage:
   hd update [NAME[@QUERY]]
   hd remove NAME
   hd fetch
+  hd install [--root DIR] [--deny CAP]... SOURCE
+  hd install [--root DIR] --list
+  hd uninstall [--root DIR] NAME
   hd fmt [--check] [FILE.hd]
   hd fix [--jobs N]
   hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--update] [--format json]
@@ -129,6 +133,9 @@ fn main() -> ExitCode {
         ("update", rest) => dep_cmd::update(rest),
         ("remove", rest) => dep_cmd::remove(rest),
         ("fetch", rest) => dep_cmd::fetch(rest),
+        ("install", rest) => install_cmd::install(rest),
+        ("uninstall", rest) => install_cmd::uninstall(rest),
+        ("--installed", rest) => install_cmd::run(rest),
         ("fmt", rest) => fmt_cmd::command(rest),
         ("fix", rest) => fix_cmd::command(rest),
         ("run", rest) => run_command(rest),
@@ -212,6 +219,8 @@ fn repl_script_command(args: &[OsString]) -> ExitCode {
 fn compiles(command: &str, arguments: &[OsString]) -> bool {
     match command {
         "run" | "build" | "check" | "test" | "doc" | "fix" => true,
+        "install" => !arguments.iter().any(|a| a == "--list"),
+        "uninstall" | "--installed" => false,
         "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt"
         | "cache" | "--repl" => false,
         _ => arguments

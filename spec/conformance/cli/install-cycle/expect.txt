@@ -1,0 +1,14 @@
+run: hd install ./tool --root ./store
+file: store/bin
+file: store/installed/registry.json
+run: hd install ./other --root ./store
+exit: 101
+run: hd install ./tool --root ./store
+run: hd uninstall installed-tool --root ./store
+run: hd install --list --root ./store
+stdout-json: []
+run: hd uninstall installed-tool --root ./store
+exit: 101
+run: hd install ./library --root ./library-store
+exit: 101
+no-file: library-store/installed/registry.json

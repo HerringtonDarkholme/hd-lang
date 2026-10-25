@@ -289,6 +289,41 @@ pub fn select_edited(
     source: &mut dyn Source,
     toolchain: &str,
 ) -> Selection {
+    select_graph(members, edited, None, sum, mode, source, toolchain)
+}
+
+/// Select a fetched executable through `entry`, a direct requirement of
+/// `member`. Only that entry edge may name a package without a library;
+/// actual dependencies retain the ordinary library-presence check.
+pub fn select_executable_entry(
+    member: &Path,
+    entry: &str,
+    sum: &Sum,
+    mode: Mode,
+    source: &mut dyn Source,
+    toolchain: &str,
+) -> Selection {
+    let member = hd_base::path::canonicalize(member).unwrap_or_else(|_| member.to_path_buf());
+    select_graph(
+        std::slice::from_ref(&member),
+        None,
+        Some((&member, entry)),
+        sum,
+        mode,
+        source,
+        toolchain,
+    )
+}
+
+fn select_graph(
+    members: &[PathBuf],
+    edited: Option<Edited<'_>>,
+    executable_entry: Option<(&Path, &str)>,
+    sum: &Sum,
+    mode: Mode,
+    source: &mut dyn Source,
+    toolchain: &str,
+) -> Selection {
     let mut sel = Selection::default();
     let mut nodes: Vec<Node> = Vec::new();
     let mut local_index: HashMap<PathBuf, usize> = HashMap::default();
@@ -580,6 +615,14 @@ pub fn select_edited(
     let mut checked: HashSet<usize> = HashSet::default();
     for &i in &order {
         for e in &nodes[i].edges {
+            if !e.dev
+                && executable_entry
+                    .is_some_and(|(member, entry)| e.at.dir.as_path() == member && e.name == entry)
+            {
+                // Do not mark its target checked: a real dependency edge to
+                // the same package must still require a library.
+                continue;
+            }
             let Some(t) = target_of(&e.target) else {
                 continue;
             };
@@ -1036,5 +1079,74 @@ mod tests {
         let mut fake = Fake::new(&dir);
         let sel = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
         assert_eq!(codes(&sel), []);
+    }
+    #[test]
+    fn executable_entry_accepts_no_library_without_changing_normal_selection() {
+        let dir = temp("executable-entry");
+        let root = root_package(
+            &dir,
+            "[dependencies]\nentry = \"github.com/acme/cli@1.0.0\"\n",
+        );
+        let mut fake = Fake::new(&dir);
+        fake.version("github.com/acme/cli@1.0.0", "cli", "");
+        let files = fake.versions.get_mut("github.com/acme/cli@1.0.0").unwrap();
+        files.retain(|(path, _)| path != "src/lib.hd");
+        files.push(("src/main.hd".into(), "pub fn main() -> void: ()\n".into()));
+        let selected = super::select_executable_entry(
+            &root,
+            "entry",
+            &Sum::default(),
+            Mode::Record,
+            &mut fake,
+            "9.9.9",
+        );
+        assert!(selected.problems.is_empty(), "{:?}", selected.problems);
+        assert!(
+            selected
+                .packages
+                .iter()
+                .any(|p| p.fetched.as_deref() == Some("github.com/acme/cli@1.0.0"))
+        );
+        let ordinary = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
+        assert!(
+            ordinary
+                .problems
+                .iter()
+                .any(|p| p.message.contains("has no library"))
+        );
+    }
+
+    #[test]
+    fn a_real_dependency_on_an_executable_entry_still_requires_a_library() {
+        let dir = temp("executable-dependency");
+        let root = root_package(
+            &dir,
+            "[dependencies]\nentry = \"github.com/acme/cli@1.0.0\"\nhelper = \"github.com/acme/helper@1.0.0\"\n",
+        );
+        let mut fake = Fake::new(&dir);
+        fake.version("github.com/acme/cli@1.0.0", "cli", "");
+        fake.versions
+            .get_mut("github.com/acme/cli@1.0.0")
+            .unwrap()
+            .retain(|(path, _)| path != "src/lib.hd");
+        fake.version(
+            "github.com/acme/helper@1.0.0",
+            "helper",
+            "cli = \"github.com/acme/cli@1.0.0\"\n",
+        );
+        let selected = super::select_executable_entry(
+            &root,
+            "entry",
+            &Sum::default(),
+            Mode::Record,
+            &mut fake,
+            "9.9.9",
+        );
+        assert_eq!(selected.problems.len(), 1, "{:?}", selected.problems);
+        assert!(
+            selected.problems[0]
+                .message
+                .contains("github.com/acme/cli@1.0.0 has no library")
+        );
     }
 }

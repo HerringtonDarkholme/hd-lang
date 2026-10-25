@@ -1,0 +1,9 @@
+[package]
+name = "provider-tool"
+
+[host]
+"main.Probe" = "provider.mjs"
+
+[capabilities]
+Console = true
+"pkg.main.Probe" = true

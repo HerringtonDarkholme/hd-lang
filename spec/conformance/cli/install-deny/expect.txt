@@ -1,0 +1,6 @@
+run: hd install ./tool --root ./store --deny Clock
+exit: 101
+no-file: store/installed/registry.json
+run: hd install ./tool --root ./store
+file: store/installed/registry.json
+run: hd uninstall denied-tool --root ./store

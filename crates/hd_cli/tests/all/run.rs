@@ -480,7 +480,7 @@ fn run_file_is_an_error_that_suggests_run_and_name() {
     assert!(r.err.contains("`hd run NAME`"), "{}", r.err);
 }
 
-/// `cli.command.positional`: a directory is neither NAME nor FILE.
+/// `cli.command.positional.package-directory`: directories select with -p.
 #[test]
 fn run_directory_suggests_the_package_flag() {
     let dir = shop("hd-forms-run-dir");

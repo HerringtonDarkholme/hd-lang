@@ -1,0 +1,40 @@
+commit refs/heads/main
+mark :1
+author Fixture <fixture@example.com> 1790000000 +0000
+committer Fixture <fixture@example.com> 1790000000 +0000
+data <<END
+versioned CLI with sibling library
+END
+M 644 inline tool/hd.toml
+data <<END
+[package]
+name = "mono-tool"
+
+[dependencies]
+common = { path = "../common", version = "1.0.0" }
+
+[capabilities]
+Console = true
+END
+M 644 inline tool/src/main.hd
+data <<END
+use dep.common.value
+
+pub fn main() -> void $ Console:
+    println("${value()}")
+END
+M 644 inline common/hd.toml
+data <<END
+[package]
+name = "common"
+END
+M 644 inline common/src/lib.hd
+data <<END
+pub fn value() -> i32: +41
+END
+
+reset refs/tags/tool/v1.0.0
+from :1
+
+reset refs/tags/common/v1.0.0
+from :1

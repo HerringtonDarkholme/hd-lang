@@ -14,6 +14,11 @@
 pub mod javascript;
 pub mod schema;
 
+/// Compatibility revision for installed Wasm programs. Bump this whenever
+/// the core runtime or host wire ABI changes incompatibly; installation
+/// records are checked before guest initialization (#823).
+pub const RUNTIME_ABI_REVISION: u32 = 1;
+
 /// Scalar Wasm types at the boundary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scalar {

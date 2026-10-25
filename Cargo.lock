@@ -675,6 +675,7 @@ dependencies = [
  "hd_doc",
  "hd_driver",
  "hd_fmt",
+ "hd_host_abi",
  "hd_project",
  "hd_resolve",
  "hd_run",
@@ -686,6 +687,7 @@ dependencies = [
  "process-wrap",
  "rustyline",
  "serde_json",
+ "sha2",
  "signal-hook",
  "tokio",
 ]
