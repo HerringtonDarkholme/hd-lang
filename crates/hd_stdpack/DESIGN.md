@@ -59,7 +59,7 @@ every key in `lib/std` has a row.
 | Key | Declaration in `lib/std` | Lowering |
 | --- | --- | --- |
 | `bytes_len`, `bytes_at`, `bytes_slice`, `bytes_concat` | `text.hd`: `(text: string) -> usize`, `(text, index: usize) -> u8`, `(text, start, end: usize) -> string`, `(left, right: string) -> string` | compiler |
-| `string_from_bytes` | `(bytes: List[u8]) -> string`, in `text.hd` and `format.hd` | compiler |
+| `string_from_bytes` | `(bytes: List[u8]) -> string`, in `text.hd`, `format.hd`, `num.hd`, `encoding.hd` and `json.hd`; it owns its argument and takes over an unshared buffer | compiler |
 | `bytes_index_json` | `(text: string, from: usize) -> usize`, in `json.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index_json` (#428) | compiler |
 | `bytes_index` | `(text: string, from: usize, byte: u8) -> usize`, in `text.hd`, `regex.hd` and `json.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index` (#428) | compiler |
 | `bytes_mismatch` | `(left: string, right: string) -> usize`, in `text.hd` and `cmp.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_mismatch` (#428) | compiler |
@@ -69,7 +69,7 @@ every key in `lib/std` has a row.
 | `char_scalar` | `(value: char) -> u32`, in `text.hd`, `format.hd`, `hash.hd` | compiler |
 | `char_from_scalar` | `(point: u32) -> char?`, in `text.hd` | compiler |
 | `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `IntToStr` helper | compiler |
-| `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections.hd` | compiler |
+| `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections.hd` and `text.hd` | compiler |
 | `panic` | `panic_with(category: string, message: string) -> void`, in `collections.hd`, `num.hd`, `ops.hd`, `testing.hd`, `text.hd` | compiler |
 | `facts_of` | `[F](f: F) -> Facts`, in `annotation.hd` | compiler |
 | `downcast_ref`, `downcast_mut` | inherent methods of `dyn Inspectable` in `inspect.hd` and `dyn Error` in `error.hd` | compiler |

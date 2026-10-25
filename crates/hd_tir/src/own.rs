@@ -80,7 +80,8 @@ pub enum Pass {
     /// A reference parameter, a suspending callee's argument (its cold
     /// constructor counts what it keeps), or an `@intrinsic` callee's
     /// argument (the backend lowers the call in place and counts what it
-    /// keeps): the caller keeps its value.
+    /// keeps), unless the intrinsic takes over its value argument, as
+    /// `string_from_bytes` does: the caller keeps its value.
     Lent,
 }
 

@@ -492,7 +492,8 @@ String operations are emitted by `emit/text.rs` and runtime helpers
 - **Three kinds of view.** A literal's bytes are static data. A built
   string's bytes are a string buffer, `rt:str`: an 8-byte header, which
   reference counting uses, then the bytes; the view's address is the
-  payload's. Every empty string is the one static empty value, address
+  payload's. A string made from an unshared `List[u8]` views that list's
+  buffer from its payload offset 16 instead (§23.17). Every empty string is the one static empty value, address
   `EMPTY` (the first static address) and length 0: an interpolation or a
   concatenation with no bytes, an empty slice and an empty host result all
   give it, so no empty buffer is ever allocated.
@@ -763,10 +764,20 @@ changes preserve collection value semantics (§23.7).
 - **Indexing.** An index is checked against the length before it is
   narrowed: a 64-bit index past 4 GiB is `index-out-of-bounds`, never
   wrapped.
-- **Strings over lists.** `string_from_bytes` and `concat_all` copy a
-  list's bytes, or its strings' bytes, into one new string buffer.
-  `string_to_bytes` is the other way: one list buffer of exactly the
-  string's length and one `memory.copy`.
+- **Strings over lists.** `string_from_bytes` takes over its list: the
+  call consumes the argument, moved in at its last use (the one
+  `@intrinsic` whose value argument is owned, not lent). When that count
+  is the buffer's only one and the owner word is 0, the string is a view
+  of the buffer's bytes in place, at payload offset 16, with no copy
+  (`rt:str_from_bytes`); the capacity past the length stays unused. A
+  shared or pinned buffer is copied into a new string buffer and loses
+  the count. A view into a former list buffer is released as any
+  interior view is: the page table finds the block, and a `List[u8]`
+  buffer has no release glue and no collector word, so its last release
+  frees it as it frees a `rt:str` buffer. `concat_all` copies its
+  strings' bytes into one new string buffer. `string_to_bytes` is the
+  other way: one list buffer of exactly the string's length and one
+  `memory.copy`.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/list_tests.hd`
   builds lists of strings and lists of structs holding lists, and copies
   and changes a list, each in a loop, and checks that the heap does not

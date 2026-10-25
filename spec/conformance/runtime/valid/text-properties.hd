@@ -1,7 +1,7 @@
 # test: text operations agree with naive byte and scalar models on UTF-8 inputs
 # Spec std/text: std-text.string.split, std-text.string.replace, std-text.more.find,
 # std-text.string.trim, std-text.more.trim-ends, std-text.utf8.round-trip,
-# std-text.utf8.well-formed, std-text.builder.build; module.string.chars.
+# std-text.utf8.well-formed, std-text.builder.build-empties; module.string.chars.
 use std.text.{StringBuilder, Utf8Error}
 use std.testing.{Choices, assert_equal, it_each, it_prop_with}
 
@@ -176,12 +176,12 @@ tests:
             else:
                 for c in chunk: builder.push_char(c)
             expected = expected + piece
-            assert_equal(builder.build(), expected, reason="build reads the complete prefix without consuming it")
             index += 1
         kept := builder.build()
+        assert_equal(kept, expected, reason="build joins every piece in push order")
         builder.push("z")
         assert_equal(kept, expected, reason="a previous result remains an independent string")
-        assert_equal(builder.build(), expected + "z", reason="the builder accepts more text after build")
+        assert_equal(builder.build(), "z", reason="build empties the builder, which accepts more text")
     )
 
     it_each("UTF-8 and empty split boundaries", [

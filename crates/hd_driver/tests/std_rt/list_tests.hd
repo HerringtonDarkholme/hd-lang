@@ -1,9 +1,10 @@
 # The hd tests of lists on the linear backend (crates/hd_wasm_linear/DESIGN.md
 # §23.17): a list's buffer grows, copies only when shared, and frees its
 # elements at its last release, so building lists in a loop runs in
-# bounded memory. Only std may read the heap's size, so the conformance
+# bounded memory; `string_from_bytes` takes over a buffer nothing else
+# holds and copies a shared one. Only std may read the heap's size, so the conformance
 # runner adds this file to std as `std.rt.list_tests`.
-use std.rt.memory.pages
+use std.rt.memory.{Ptr, grow, load_u32, pages, string_bytes}
 use std.rt.checked.released
 
 struct Row:
@@ -28,6 +29,25 @@ fn rows(n: i32) -> List[Row]:
         out.push(Row { name: label(i), cells: [i, i + 1] })
         i = i + 1
     out
+
+fn fresh_page() -> usize:
+    match grow(1):
+        .Some(before) => before * 65536
+        .None => panic("the heap cannot grow by one page")
+
+# The address of the buffer of `bytes`, read from a copy of the list
+# written at `at` and moved out again, so the buffer's count is as it was.
+fn buffer_address(at: usize, bytes: List[u8]) -> usize:
+    let p: Ptr[List[u8]] = Ptr { address: at }
+    p.write(bytes)
+    address := usize(load_u32(at))
+    _ := p.read()
+    address
+
+# The string of `bytes`, which the caller has checked are UTF-8.
+@intrinsic("string_from_bytes")
+fn string_from_bytes(bytes: List[u8]) -> string:
+    panic("intrinsic")
 
 tests:
     use std.testing.{assert, it}
@@ -106,3 +126,38 @@ tests:
             xs.push(x)
             seen = seen + 1
         assert(seen == 3 && xs.len() == 6, "the pushes were not visited")
+
+    it("string_from_bytes views an unshared buffer's bytes in place"):
+        at := fresh_page()
+        let mut bytes: List[u8] = [104, 105]
+        bytes.push(33)
+        buffer := buffer_address(at, bytes)
+        text := string_from_bytes(bytes)
+        assert(string_bytes(text).address == buffer + 16, "the string took over the list's buffer")
+        assert(text == "hi!", "the bytes read as the string")
+
+    it("string_from_bytes copies a shared buffer, which a later change misses"):
+        at := fresh_page()
+        let mut bytes: List[u8] = [120, 121]
+        buffer := buffer_address(at, bytes)
+        let mut kept = bytes
+        text := string_from_bytes(bytes)
+        assert(string_bytes(text).address != buffer + 16, "the string has bytes of its own")
+        kept[0] = 122
+        assert(text == "xy", "a change of the other holder misses the string")
+        assert(kept[0] == 122, "the other holder changed")
+
+    it("strings made from lists in a loop run in bounded memory"):
+        let total: usize = 0
+        let round = +0
+        let start: usize = 0
+        while round < 3000:
+            if round == 300:
+                start = pages()
+            let mut bytes: List[u8] = [97, 98]
+            bytes.push(99)
+            total = total + string_from_bytes(bytes).len()
+            round = round + 1
+        assert(total == 9000, "each string was whole while held")
+        if released() == 0:
+            assert(pages() == start, "each taken-over buffer is freed with its string")

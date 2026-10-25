@@ -110,6 +110,12 @@ const PURE_INTRINSICS: &[&str] = &[
     "utf8_valid_len",
 ];
 
+/// The intrinsics that own their value arguments, as a function's value
+/// parameters do: `string_from_bytes` takes over the list's buffer when its
+/// argument is the buffer's one holder (`crates/hd_wasm_linear/DESIGN.md`
+/// §23.17), so the call consumes the list, moved in at its last use.
+const OWNING_INTRINSICS: &[&str] = &["string_from_bytes"];
+
 impl OwnCx for Env<'_> {
     fn counted(&self, ty: Ty) -> Tri {
         if self.is_open(ty) {
@@ -123,12 +129,15 @@ impl OwnCx for Env<'_> {
     }
 
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
-        // Release: a parameter the callee's summary lends.
+        // Release: a parameter the callee's summary lends, unless the
+        // compiler supplies the code of the call (an intrinsic), whose
+        // declared body is no summary of it.
         if self.run.summaries.is_some()
             && let Some(d) = match callee {
                 Callee::Item { def, .. } => Some(*def),
                 c @ Callee::TraitMethod { .. } => self.impl_target(c).map(|(d, _)| d),
             }
+            && self.intrinsic(d).is_none()
             && self.summary_lends(d, k)
         {
             return Pass::Lent;
@@ -270,8 +279,14 @@ impl Env<'_> {
         // A suspending callee's cold constructor counts what its frame
         // keeps; its callers lend every argument. So does a call of an
         // `@intrinsic` function, which the backend lowers in place and
-        // which counts whatever it keeps itself (`Em::intrinsic`).
-        if sig.suspends || sig.params.len() != n || self.intrinsic(def).is_some() {
+        // which counts whatever it keeps itself (`Em::intrinsic`), unless
+        // it takes over its argument ([`OWNING_INTRINSICS`]).
+        if sig.suspends || sig.params.len() != n {
+            return Pass::Lent;
+        }
+        if let Some(key) = self.intrinsic(def)
+            && !OWNING_INTRINSICS.contains(&key.as_str())
+        {
             return Pass::Lent;
         }
         // The declared type decides, unsubstituted: substituting would read

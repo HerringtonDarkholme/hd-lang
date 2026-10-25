@@ -66,13 +66,13 @@ a `char`, or a list.
 | `bytes_slice` | `(s: string, start: usize, end: usize) -> string` | shares the bytes in constant time, as [`module.string.slice.shared`](../lang/10-modules.md#r-module.string.slice.shared) requires |
 | `bytes_concat` | `(a: string, b: string) -> string` | allocates a string's representation; hd has no byte buffer |
 | `concat_all` | `(parts: List[string]) -> string` | allocates one string's representation for every part, sized first, so `join` and `StringBuilder.build` copy each byte once; hd has no byte buffer |
-| `string_from_bytes` | `(bytes: List[u8]) -> string` | builds a string from bytes that the caller has checked are UTF-8 |
+| `string_from_bytes` | `(bytes: List[u8]) -> string` | builds a string from bytes that the caller has checked are UTF-8, taking over the list's buffer with no copy when nothing else holds it |
 | `string_to_bytes` | `(s: string) -> List[u8]` | builds a list of exactly a string's bytes in one sized allocation and one copy, which an hd loop over `bytes_at` and `push` cannot do |
 | `format_int` | `[N < Integer](value: N) -> string` | builds the decimal text of an integer, with `-` when negative, in one string buffer; hd would build a byte list first, which is slower and adds code to every program that shows an integer |
 | `char_scalar`, `char_from_scalar` | `(c: char) -> u32`, `(point: u32) -> char?` | a `char` is its scalar value at run time; `char_from_scalar` gives `.None` for a value that is not a Unicode scalar value, a surrogate or one above `0x10FFFF` |
 | `f64_to_bits`, `f64_from_bits` | `(value: f64) -> u64`, `(bits: u64) -> f64` | the bit cast between an `f64` and its IEEE 754 pattern, one reinterpret instruction; hd has no other way to read a NaN's sign, which [`std-num.float-bits.to`](num.md#r-std-num.float-bits.to) and `total_cmp` need |
 | `f32_to_bits`, `f32_from_bits` | `(value: f32) -> u32`, `(bits: u32) -> f32` | the same bit cast for `f32` |
-| `list_truncate` | `[T](items: &mut List[T], len: usize) -> void` | shortens the list `items` refers to, to its first `len` elements, the one hook under `List.pop`, `insert`, `remove_at`, and `clear`; panics when `len` is greater than the size. Panic: `index-out-of-bounds` |
+| `list_truncate` | `[T](items: &mut List[T], len: usize) -> void` | shortens the list `items` refers to, to its first `len` elements, the one hook under `List.pop`, `insert`, `remove_at`, `clear` and `StringBuilder.reserve`; panics when `len` is greater than the size. Panic: `index-out-of-bounds` |
 
 **Scans.** These search the bytes of a string or a byte list. Each has an hd reference body
 that defines its result, and an implementation may supply a faster body

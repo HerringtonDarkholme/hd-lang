@@ -2726,13 +2726,21 @@ impl Em<'_, '_, '_> {
             }
             "char_from_scalar" => self.char_from_scalar(i, args[0]),
             // The string kernels over lists (§23.17).
-            "string_from_bytes" | "concat_all" => {
+            "concat_all" => {
                 self.comp(args[0], 0)?;
-                self.f.helper(if key == "concat_all" {
-                    Helper::ConcatAll
-                } else {
-                    Helper::StrFromBytes
-                });
+                self.f.helper(Helper::ConcatAll);
+                self.store_owned(i)
+            }
+            // The list's count goes to the helper, which takes over an
+            // unshared buffer: the moved-in argument's, else one of its own.
+            "string_from_bytes" => {
+                let moved = self.take(args[0]);
+                self.comp(args[0], 0)?;
+                if !moved {
+                    self.comp(args[0], 0)?;
+                    self.f.helper(Helper::RetainKnown);
+                }
+                self.f.helper(Helper::StrFromBytes);
                 self.store_owned(i)
             }
             // The bytes of a string as a new list: one sized buffer, one copy.

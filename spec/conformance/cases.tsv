@@ -2979,6 +2979,8 @@ runtime/valid/map-is-empty.hd	runtime	accept	std/collections.md#r-std-collection
 runtime/valid/choices-choose.hd	runtime	accept	std/testing.md#r-std-testing.choices.choose.empty
 runtime/valid/string-more-methods.hd	runtime	accept	std/text.md#more-string-methods
 runtime/valid/text-join-builder.hd	runtime	accept	std/text.md#joining-and-building
+runtime/valid/string-builder-byte-path.hd	runtime	accept	std/text.md#r-std-text.builder.push-ascii
+runtime/panic/string-builder-push-ascii-non-ascii.hd	runtime	panic:explicit-panic	std/text.md#r-std-text.builder.push-ascii.range
 runtime/valid/text-prefix-helpers.hd	runtime	accept	std/text.md#prefix-helpers
 runtime/valid/string-builder-handle-shared.hd	runtime	accept	std/text.md#r-std-text.builder.new-ref
 runtime/valid/escape-error-value-copy.hd	runtime	accept	std/text.md#r-std-text.prefix-helper.escape-error-value

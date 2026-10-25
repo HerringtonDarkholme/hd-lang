@@ -676,18 +676,48 @@ impl StringBuilder:
             self.chars.push(u8(128 + point % 64))
         self
 
-    ## Returns every pushed text in push order, joined with nothing between. It leaves the builder unchanged.
-    ## See [std-text.builder.build](../../spec/std/text.md#r-std-text.builder.build).
-    pub fn build(&self) -> string:
-        if self.chars.len() == 0:
-            return concat_all(self.parts)
-        concat_all(self.pieces())
+    ## Appends the ASCII byte `byte` and returns the builder, so calls chain. A byte of 128 or more panics.
+    ## See [std-text.builder.push-ascii](../../spec/std/text.md#r-std-text.builder.push-ascii).
+    pub fn push_ascii(*mut self, byte: u8) -> *mut StringBuilder:
+        if byte >= 128:
+            panic("push_ascii: the byte must be ASCII, below 128")
+        self.chars.push(byte)
+        self
 
-    # Moves the pushed characters' bytes into `parts` as one string.
+    ## Makes room for at least `count` more bytes of `push_ascii` and `push_char`, appends nothing, and returns the builder.
+    ## See [std-text.builder.reserve](../../spec/std/text.md#r-std-text.builder.reserve).
+    pub fn reserve(*mut self, count: usize) -> *mut StringBuilder:
+        # A push grows the buffer to twice its length plus 4; the bytes
+        # pushed here only make the room and are cut off again.
+        size := self.chars.len()
+        let index: usize = 0
+        while index < count:
+            self.chars.push(0)
+            index = index + 1
+        list_truncate(&mut self.chars, size)
+        self
+
+    ## Returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder.
+    ## See [std-text.builder.build-empties](../../spec/std/text.md#r-std-text.builder.build-empties).
+    pub fn build(*mut self) -> string:
+        # Bytes alone become the string in place: their buffer moves out of
+        # the builder, so `string_from_bytes` takes it over with no copy.
+        if self.parts.len() == 0:
+            chars := self.chars
+            self.chars = []
+            return string_from_bytes(chars)
+        self.flush()
+        text := concat_all(self.parts)
+        self.parts = []
+        text
+
+    # Moves the pushed characters' bytes into `parts` as one string, which
+    # takes over their buffer.
     fn flush(&mut self) -> void:
         if self.chars.len() > 0:
-            self.parts.push(string_from_bytes(self.chars))
+            chars := self.chars
             self.chars = []
+            self.parts.push(string_from_bytes(chars))
 
     # The parts, then the characters pushed since the last text.
     fn pieces(&self) -> List[string]:
@@ -1203,9 +1233,16 @@ fn bytes_concat(left: string, right: string) -> string:
 fn concat_all(parts: List[string]) -> string:
     panic("intrinsic")
 
-# The string of `bytes`, which the caller has checked are UTF-8.
+# The string of `bytes`, which the caller has checked are UTF-8. It takes
+# over the list's buffer when nothing else holds it, else copies the bytes.
 @intrinsic("string_from_bytes")
 fn string_from_bytes(bytes: List[u8]) -> string:
+    panic("intrinsic")
+
+# Shrinks `items` to its first `len` elements, keeping its room; `len` is at
+# most the current length.
+@intrinsic("list_truncate")
+fn list_truncate[T](items: &mut List[T], len: usize) -> void:
     panic("intrinsic")
 
 # The bytes of `text` as a new list, in one sized allocation and one copy.

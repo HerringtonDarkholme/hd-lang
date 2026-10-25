@@ -3108,17 +3108,38 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
     f
 }
 
-/// [`Helper::StrFromBytes`]: no bytes is the static empty string.
+/// [`Helper::StrFromBytes`]: takes a count of the list's buffer. An
+/// unshared buffer (count 1, no owner word) becomes the string's: the view
+/// is its bytes in place. A shared or pinned one is copied into a string
+/// buffer and loses the count. No bytes is the static empty string.
 fn str_from_bytes(m: &Module) -> Func {
     let mut f = m.func("rt:str_from_bytes", vec![Val::I32], vec![Val::I32; 2]);
     let (b, n, s) = (0, f.local(Val::I32), f.local(Val::I32));
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.set(n);
-    f.u32(EMPTY);
-    f.set(s);
     f.get(n);
     f.op(Instruction::If(BlockType::Empty));
+    // A module that counts nothing has no holder count to read.
+    if m.runtime.is_some() {
+        f.get(b);
+        f.u32(HEADER);
+        f.op(Instruction::I32Sub);
+        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.i32(1);
+        f.op(Instruction::I32Eq);
+        f.get(b);
+        f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::I32And);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(b);
+        f.u32(LIST_ELEMS);
+        f.op(Instruction::I32Add);
+        f.get(n);
+        f.op(Instruction::Return);
+        f.op(Instruction::End);
+    }
     f.get(n);
     f.helper(Helper::Str);
     f.set(s);
@@ -3131,7 +3152,12 @@ fn str_from_bytes(m: &Module) -> Func {
         src_mem: HEAP,
         dst_mem: HEAP,
     });
+    f.op(Instruction::Else);
+    f.u32(EMPTY);
+    f.set(s);
     f.op(Instruction::End);
+    f.get(b);
+    f.helper(Helper::ReleaseKnown);
     f.get(s);
     f.get(n);
     f
