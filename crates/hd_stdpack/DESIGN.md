@@ -71,6 +71,7 @@ every key in `lib/std` has a row.
 | `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `IntToStr` helper | compiler |
 | `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections.hd` and `text.hd` | compiler |
 | `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void`, in `collections.hd`; `other` is lent | compiler |
+| `bytes_append` | `(bytes: &mut List[u8], text: string) -> void`, in `text.hd`, under `StringBuilder.push`; `text` is lent | compiler |
 | `panic` | `panic_with(category: string, message: string) -> void`, in `collections.hd`, `num.hd`, `ops.hd`, `testing.hd`, `text.hd` | compiler |
 | `facts_of` | `[F](f: F) -> Facts`, in `annotation.hd` | compiler |
 | `downcast_ref`, `downcast_mut` | inherent methods of `dyn Inspectable` in `inspect.hd` and `dyn Error` in `error.hd` | compiler |

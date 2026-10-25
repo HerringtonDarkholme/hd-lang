@@ -415,6 +415,14 @@ pub enum Helper {
     ListExtend {
         elem: Elem,
     },
+    /// `(list, address, length) -> list`: std's `bytes_append`: the
+    /// `length` bytes at `address`, a string's view, appended to a
+    /// `List[u8]` with one `memory.copy`, after a
+    /// [`Helper::ListReserve`] only when the buffer is shared, pinned or
+    /// short of room.
+    BytesAppend {
+        elem: Elem,
+    },
     /// `() -> TypeId`: a `TypeId` of static strings.
     TypeIdOf(TypeIdParts),
     /// `(data) -> TypeId`: a vtable's `runtime_type` slot, the `TypeId`
@@ -1738,6 +1746,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::ListTruncate { elem } => list_truncate(m, elem),
         Helper::ListReserve { elem } => list_reserve(elem, m),
         Helper::ListExtend { elem } => list_extend(elem, m),
+        Helper::BytesAppend { elem } => bytes_append(elem, m),
         Helper::TypeIdOf(parts) => type_id(parts, vec![], m),
         Helper::RuntimeType(parts) => type_id(parts, vec![Val::I32], m),
         Helper::MapStep {
@@ -3266,10 +3275,7 @@ fn list_extend(elem: &Elem, m: &Module) -> Func {
     buffer_own(&mut f, b);
     f.op(Instruction::I32And);
     f.set(alias);
-    f.get(b);
-    f.get(count);
-    f.helper(Helper::ListReserve { elem: elem.clone() });
-    f.set(b);
+    reserve_room(&mut f, elem, b, count);
     f.get(alias);
     f.op(Instruction::If(BlockType::Empty));
     f.get(b);
@@ -3305,6 +3311,67 @@ fn list_extend(elem: &Elem, m: &Module) -> Func {
     f.get(b);
     f.get(n);
     f.get(count);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    f.op(Instruction::End);
+    f.get(b);
+    f
+}
+
+/// Room for local `extra` more elements in the list in local `b`: the
+/// inline test of a buffer the list owns alone, with no owner word and
+/// room left, else [`Helper::ListReserve`].
+fn reserve_room(f: &mut Func, elem: &Elem, b: u32, extra: u32) {
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
+    f.get(b);
+    f.u32(HEADER);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.i32(1);
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::I32Or);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.get(extra);
+    f.op(Instruction::I32Add);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32GtU);
+    f.op(Instruction::I32Or);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(b);
+    f.get(extra);
+    f.helper(Helper::ListReserve { elem: elem.clone() });
+    f.set(b);
+    f.op(Instruction::End);
+}
+
+/// [`Helper::BytesAppend`]: no bytes changes nothing.
+fn bytes_append(elem: &Elem, m: &Module) -> Func {
+    let mut f = m.func("rt:bytes_append", vec![Val::I32; 3], vec![Val::I32]);
+    let (b, src, len) = (0, 1, 2);
+    let n = f.local(Val::I32);
+    f.get(len);
+    f.op(Instruction::If(BlockType::Empty));
+    reserve_room(&mut f, elem, b, len);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.set(n);
+    f.get(b);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(n);
+    f.op(Instruction::I32Add);
+    f.get(src);
+    f.get(len);
+    f.op(Instruction::MemoryCopy {
+        src_mem: HEAP,
+        dst_mem: HEAP,
+    });
+    f.get(b);
+    f.get(n);
+    f.get(len);
     f.op(Instruction::I32Add);
     f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
     f.op(Instruction::End);

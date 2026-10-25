@@ -343,17 +343,18 @@ fn report(names: List[string]) -> string:
 4. r[std-text.builder.new-ref] `StringBuilder::new() -> *mut StringBuilder` returns an empty builder, a new object. Every copy of the reference pushes to that one builder.
 5. r[std-text.builder.push-ref] `b.push(text: string) -> *mut StringBuilder` appends `text` and returns `b`, so calls chain; it takes `*mut self`. A statement may discard the result, since `StringBuilder` is not a must-use type ([Must-Use Values](../lang/06-control-flow.md#must-use-values)).
 6. r[std-text.builder.push-char-ref] `b.push_char(c: char) -> *mut StringBuilder` appends the UTF-8 encoding of `c`, one to four bytes, as `push` of the one-character string would, and returns `b`. It takes `*mut self`.
-7. r[std-text.builder.push-ascii] `b.push_ascii(byte: u8) -> *mut StringBuilder` appends the one byte `byte`, which encodes an ASCII character, as `push_char` of that character would, and returns `b`. It takes `*mut self`.
-8. r[std-text.builder.push-ascii.range] A `byte` of 128 or more panics. Panic: `explicit-panic`.
-9. r[std-text.builder.reserve] `b.reserve(count: usize) -> *mut StringBuilder` makes room for at least `count` more bytes of `push_ascii` and `push_char`, appends nothing, and returns `b`. It takes `*mut self`.
-10. r[std-text.builder.build-empties] `b.build() -> string` returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder. It takes `*mut self`.
+7. r[std-text.builder.push-byte] `b.push_byte(byte: u8) -> *mut StringBuilder` appends the one byte `byte`, any byte, and returns `b`. A byte below 128 is an ASCII character, appended as `push_char` of it would be. It takes `*mut self`.
+8. r[std-text.builder.reserve] `b.reserve(count: usize) -> *mut StringBuilder` makes room for at least `count` more bytes, appends nothing, and returns `b`. It takes `*mut self`.
+9. r[std-text.builder.build-empties] `b.build() -> string` returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder. It takes `*mut self`.
+10. r[std-text.builder.build-utf8] `build` panics when the bytes pushed since the last build are not valid UTF-8, which only `push_byte` of a byte of 128 or more can cause. Panic: `explicit-panic`.
 
 | Calls on a new builder `b` | `b.build()` gives | A second `b.build()` gives |
 | --- | --- | --- |
 | `b.push("ab").push_char('c')` | `"abc"` | `""` |
-| `b.push_ascii(104).push_ascii(105)` | `"hi"` | `""` |
-| `b.reserve(8).push_ascii(33)` | `"!"` | `""` |
-| `b.push_ascii(200)` | panics `explicit-panic` | |
+| `b.push_byte(104).push_byte(105)` | `"hi"` | `""` |
+| `b.push_byte(195).push_byte(169)` | `"é"` | `""` |
+| `b.reserve(8).push_byte(33)` | `"!"` | `""` |
+| `b.push_byte(200)` | panics `explicit-panic` | |
 
 > **Why.** The method is Rust's `[String].join(sep)`, and agents wrote it
 > in usability probes. There is no free `join(parts, separator)`, since it
@@ -361,12 +362,12 @@ fn report(names: List[string]) -> string:
 > `trait.inherent.unique-unifying.disjoint` already allows an inherent
 > implementation for `List[string]` alone.
 >
-> `build` hands the pushed bytes over and starts again, as Go's
-> `strings.Builder` shares its buffer with the string it returns: a
-> builder that holds only bytes gives them to the string with no copy.
-> `push_ascii` takes only ASCII so that every string the builder makes is
-> valid UTF-8 by construction and `build` checks nothing; other characters
-> go through `push_char` or `push`.
+> A builder is one buffer of bytes. `build` hands it over and starts
+> again, as Go's `strings.Builder` shares its buffer with the string it
+> returns, so the string takes the bytes with no copy. `push` and
+> `push_char` append only UTF-8, so `build` checks nothing unless
+> `push_byte` appended a byte of 128 or more since the last build; then it
+> checks every byte once, as Rust's `String::from_utf8` does.
 
 ## Prefix Helpers
 

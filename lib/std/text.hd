@@ -640,20 +640,22 @@ impl List[string]:
 ## Joins many pieces of text by pushing them, cheaper than repeated concatenation.
 ## See [std-text.builder.decl-struct](../../spec/std/text.md#r-std-text.builder.decl-struct).
 pub struct StringBuilder:
-    parts: List[string]
-    chars: List[u8]
+    # The UTF-8 bytes pushed since the last build, the string `build` takes over.
+    bytes: List[u8]
+    # Whether `push_byte` pushed a byte of 128 or more since the last build,
+    # so `build` checks the bytes are UTF-8.
+    non_ascii: bool
 
 impl StringBuilder:
     ## Returns an empty builder, a new object that `push` changes.
     ## See [std-text.builder.new-ref](../../spec/std/text.md#r-std-text.builder.new-ref).
     pub fn new() -> *mut StringBuilder:
-        &mut StringBuilder { parts: [], chars: [] }
+        &mut StringBuilder { bytes: [], non_ascii: false }
 
     ## Appends `text` and returns the builder, so calls chain.
     ## See [std-text.builder.push-ref](../../spec/std/text.md#r-std-text.builder.push-ref).
     pub fn push(*mut self, text: string) -> *mut StringBuilder:
-        self.flush()
-        self.parts.push(text)
+        bytes_append(&mut self.bytes, text)
         self
 
     ## Appends the character `c` and returns the builder, so calls chain.
@@ -661,72 +663,54 @@ impl StringBuilder:
     pub fn push_char(*mut self, c: char) -> *mut StringBuilder:
         point := i32(char_scalar(c))
         if point < 128:
-            self.chars.push(u8(point))
+            self.bytes.push(u8(point))
         else if point < 2048:
-            self.chars.push(u8(192 + point / 64))
-            self.chars.push(u8(128 + point % 64))
+            self.bytes.push(u8(192 + point / 64))
+            self.bytes.push(u8(128 + point % 64))
         else if point < 65536:
-            self.chars.push(u8(224 + point / 4096))
-            self.chars.push(u8(128 + point / 64 % 64))
-            self.chars.push(u8(128 + point % 64))
+            self.bytes.push(u8(224 + point / 4096))
+            self.bytes.push(u8(128 + point / 64 % 64))
+            self.bytes.push(u8(128 + point % 64))
         else:
-            self.chars.push(u8(240 + point / 262144))
-            self.chars.push(u8(128 + point / 4096 % 64))
-            self.chars.push(u8(128 + point / 64 % 64))
-            self.chars.push(u8(128 + point % 64))
+            self.bytes.push(u8(240 + point / 262144))
+            self.bytes.push(u8(128 + point / 4096 % 64))
+            self.bytes.push(u8(128 + point / 64 % 64))
+            self.bytes.push(u8(128 + point % 64))
         self
 
-    ## Appends the ASCII byte `byte` and returns the builder, so calls chain. A byte of 128 or more panics.
-    ## See [std-text.builder.push-ascii](../../spec/std/text.md#r-std-text.builder.push-ascii).
-    pub fn push_ascii(*mut self, byte: u8) -> *mut StringBuilder:
-        if byte >= 128:
-            panic("push_ascii: the byte must be ASCII, below 128")
-        self.chars.push(byte)
+    ## Appends the byte `b`, any byte, and returns the builder, so calls chain. `build` checks that bytes pushed this way form UTF-8.
+    ## See [std-text.builder.push-byte](../../spec/std/text.md#r-std-text.builder.push-byte).
+    pub fn push_byte(*mut self, b: u8) -> *mut StringBuilder:
+        if b >= 128:
+            self.non_ascii = true
+        self.bytes.push(b)
         self
 
-    ## Makes room for at least `count` more bytes of `push_ascii` and `push_char`, appends nothing, and returns the builder.
+    ## Makes room for at least `count` more bytes, appends nothing, and returns the builder.
     ## See [std-text.builder.reserve](../../spec/std/text.md#r-std-text.builder.reserve).
     pub fn reserve(*mut self, count: usize) -> *mut StringBuilder:
         # A push grows the buffer to twice its length plus 4; the bytes
         # pushed here only make the room and are cut off again.
-        size := self.chars.len()
+        size := self.bytes.len()
         let index: usize = 0
         while index < count:
-            self.chars.push(0)
+            self.bytes.push(0)
             index = index + 1
-        list_truncate(&mut self.chars, size)
+        list_truncate(&mut self.bytes, size)
         self
 
-    ## Returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder.
+    ## Returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder. Bytes from `push_byte` that are not UTF-8 panic.
     ## See [std-text.builder.build-empties](../../spec/std/text.md#r-std-text.builder.build-empties).
     pub fn build(*mut self) -> string:
-        # Bytes alone become the string in place: their buffer moves out of
-        # the builder, so `string_from_bytes` takes it over with no copy.
-        if self.parts.len() == 0:
-            chars := self.chars
-            self.chars = []
-            return string_from_bytes(chars)
-        self.flush()
-        text := concat_all(self.parts)
-        self.parts = []
-        text
-
-    # Moves the pushed characters' bytes into `parts` as one string, which
-    # takes over their buffer.
-    fn flush(&mut self) -> void:
-        if self.chars.len() > 0:
-            chars := self.chars
-            self.chars = []
-            self.parts.push(string_from_bytes(chars))
-
-    # The parts, then the characters pushed since the last text.
-    fn pieces(&self) -> List[string]:
-        let mut found: List[string] = []
-        for part in self.parts:
-            found.push(part)
-        if self.chars.len() > 0:
-            found.push(string_from_bytes(self.chars))
-        found
+        # The buffer moves out of the builder, so `string_from_bytes` takes
+        # it over with no copy. `push` and `push_char` append only UTF-8.
+        bytes := self.bytes
+        self.bytes = []
+        checked := self.non_ascii
+        self.non_ascii = false
+        if checked && utf8_valid_len(bytes) != bytes.len():
+            panic("build: the bytes pushed with push_byte are not valid UTF-8")
+        string_from_bytes(bytes)
 
 # Whether `needle`'s bytes appear in `text` at byte `start`. A valid UTF-8
 # needle can only match at a scalar boundary, so comparing bytes is exact.
@@ -1245,6 +1229,11 @@ fn string_from_bytes(bytes: List[u8]) -> string:
 fn list_truncate[T](items: &mut List[T], len: usize) -> void:
     panic("intrinsic")
 
+# Appends the bytes of `text` to the list `bytes` refers to, in one copy.
+@intrinsic("bytes_append")
+fn bytes_append(bytes: &mut List[u8], text: string) -> void:
+    panic("intrinsic")
+
 # The bytes of `text` as a new list, in one sized allocation and one copy.
 @intrinsic("string_to_bytes")
 fn string_to_bytes(text: string) -> List[u8]:
@@ -1275,10 +1264,14 @@ fn char_scalar(value: char) -> u32:
 fn panic_with(category: string, message: string) -> void:
     panic("intrinsic")
 
-# Keep handwritten Debug: show the pieces as parts, not the reference to private state.
+# Keep handwritten Debug: show the text so far, or its bytes while
+# `push_byte` has left them short of UTF-8.
 impl Debug for StringBuilder:
     fn debug(self, out: *mut DebugWriter) -> void:
-        out.debug_struct("StringBuilder").field("parts", self.pieces()).finish()
+        if utf8_valid_len(self.bytes) == self.bytes.len():
+            out.debug_struct("StringBuilder").field("text", string_from_bytes(self.bytes)).finish()
+        else:
+            out.debug_struct("StringBuilder").field("bytes", self.bytes).finish()
 
 ## The cursor of a string's `chars`: its characters in order.
 ## See [module.string.chars](../../spec/lang/10-modules.md#r-module.string.chars).

@@ -1,0 +1,12 @@
+# test: build of bytes from push_byte that are not valid UTF-8 panics
+# Spec std/text Joining And Building: std-text.builder.build-utf8.
+use std.text.StringBuilder
+
+fn finish(out: *mut StringBuilder) -> string:
+    out.build()  # panic: explicit-panic
+
+tests:
+    it("rejects a lone byte 200"):
+        out := StringBuilder::new()
+        out.push("ok").push_byte(200)
+        _ := finish(out)

@@ -259,9 +259,10 @@ counts 2 toward the bound. std adds boxes the layout does not need:
 
 ### 3.3 String building and concatenation
 
-**Today.** `join` and `StringBuilder.build` copy each byte once through
-`concat_all` (`0b1429b47`). `StringBuilder` keeps a `List[string]` of
-pieces and a `List[u8]` for characters. The costs left are per piece and
+**Today.** `join` copies each byte once through `concat_all`
+(`0b1429b47`). `StringBuilder` is one `List[u8]`: `push` copies a
+string's bytes onto it (`bytes_append`) and `build` hands the buffer to
+the string with no copy (#514). The costs left are per piece and
 per digit: about 8 ns per small piece and 3 ns per byte (#376); integer
 text that prepends a digit string per digit; a getter call per literal
 use; one new string per nesting level of `Display`; and `+` chains in

@@ -493,7 +493,9 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   string's bytes are a string buffer, `rt:str`: an 8-byte header, which
   reference counting uses, then the bytes; the view's address is the
   payload's. A string made from an unshared `List[u8]` views that list's
-  buffer from its payload offset 16 instead (§23.17). Every empty string is the one static empty value, address
+  buffer from its payload offset 16 instead (§23.17), as a
+  `StringBuilder`'s string does; `bytes_append` copies a view's bytes
+  onto a byte list (§23.17). Every empty string is the one static empty value, address
   `EMPTY` (the first static address) and length 0: an interpolation or a
   concatenation with no bytes, an empty slice and an empty host result all
   give it, so no empty buffer is ever allocated.
@@ -762,7 +764,12 @@ changes preserve collection value semantics (§23.7).
   `other`'s elements, which take their own counts (`rt:copy_elems`).
   `other` is lent, so it may be the list's own buffer itself
   (`items.extend(items)`): the copy then reads from wherever the reserve
-  put that buffer, up to the length read first.
+  put that buffer, up to the length read first. std's
+  `bytes_append(bytes: &mut List[u8], text)` (`StringBuilder.push`) is
+  the same through the reference, with the source the string's view
+  (`rt:bytes_append`): a buffer the list owns alone, with no owner word
+  and room for the bytes, takes them inline with one `memory.copy`; any
+  other goes through `rt:list_reserve` first.
 - **Release.** A buffer's release glue (`rt:drop_elems`) releases each element's counted references up to the
   length. A list of strings or of structs holding lists frees everything
   at its last release.
@@ -787,7 +794,10 @@ changes preserve collection value semantics (§23.7).
   the count. A view into a former list buffer is released as any
   interior view is: the page table finds the block, and a `List[u8]`
   buffer has no release glue and no collector word, so its last release
-  frees it as it frees a `rt:str` buffer. `concat_all` copies its
+  frees it as it frees a `rt:str` buffer. `StringBuilder` is one such
+  `List[u8]`: `push` appends a string's bytes (`bytes_append`, above) and
+  `build` moves the list out of the builder into `string_from_bytes`, so
+  the string takes the buffer over. `concat_all` copies its
   strings' bytes into one new string buffer. `string_to_bytes` is the
   other way: one list buffer of exactly the string's length and one
   `memory.copy`.

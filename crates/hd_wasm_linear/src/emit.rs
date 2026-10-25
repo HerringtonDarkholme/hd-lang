@@ -2636,7 +2636,7 @@ impl Em<'_, '_, '_> {
                 Ok(())
             }
             // std's list changes through a reference (`emit/list.rs`).
-            "list_truncate" | "list_extend" => self.list_ref_change(key, args),
+            "list_truncate" | "list_extend" | "bytes_append" => self.list_ref_change(key, args),
             // std's map cursor step closure (`emit/iter.rs`).
             "map_steps" => self.map_iter(i, args[0]),
             "bytes_len" => {

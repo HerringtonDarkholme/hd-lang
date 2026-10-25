@@ -973,7 +973,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// std's changes of a list through a reference: `list_truncate(items:
-    /// &mut List[T], n)` and `list_extend(items, other)`. The list is read
+    /// &mut List[T], n)`, `list_extend(items, other)` and
+    /// `bytes_append(bytes: &mut List[u8], text)`. The list is read
     /// through its reference, changed by its helper, and its buffer
     /// stored back. The other argument is lent: the helper keeps no count
     /// of it.
@@ -984,7 +985,17 @@ impl Em<'_, '_, '_> {
         let (_, elem) = self.elem(lt)?;
         let helper = match key {
             "list_truncate" => Helper::ListTruncate { elem },
-            _ => Helper::ListExtend { elem },
+            "list_extend" => Helper::ListExtend { elem },
+            _ => Helper::BytesAppend { elem },
+        };
+        // A string argument is its view: the address and the length.
+        let rest = |em: &mut Self| -> StageResult<()> {
+            if key == "bytes_append" {
+                em.comp(args[1], 0)?;
+                em.comp(args[1], 1)
+            } else {
+                em.push(args[1])
+            }
         };
         let at = self.f.local(Val::I32);
         self.comp(args[0], 0)?;
@@ -1000,7 +1011,7 @@ impl Em<'_, '_, '_> {
             return unsupported("a list that is not one address");
         };
         self.f.get(list);
-        self.push(args[1])?;
+        rest(self)?;
         self.f.helper(helper.clone());
         self.f.set(list);
         crate::rt::ref_store(&mut self.f, at, &[list], &value);
@@ -1010,7 +1021,7 @@ impl Em<'_, '_, '_> {
         self.f.get(at);
         self.f.get(at);
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.push(args[1])?;
+        rest(self)?;
         self.f.helper(helper);
         self.f.op(I::I32Store(mem(HEAP, 0, 2)));
         self.f.op(I::End);

@@ -6,6 +6,7 @@
 # runner adds this file to std as `std.rt.list_tests`.
 use std.rt.memory.{Ptr, grow, load_u32, pages, string_bytes}
 use std.rt.checked.released
+use std.text.StringBuilder
 
 struct Row:
     name: string
@@ -185,3 +186,21 @@ tests:
         assert(total == 9000, "each string was whole while held")
         if released() == 0:
             assert(pages() == start, "each taken-over buffer is freed with its string")
+
+    it("string builders in a loop run in bounded memory"):
+        let total: usize = 0
+        let round = +0
+        let start: usize = 0
+        while round < 3000:
+            if round == 300:
+                start = pages()
+            out := StringBuilder::new()
+            let i = +0
+            while i < 20:
+                out.push(label(i)).push_char('é').push_byte(33)
+                i = i + 1
+            total = total + out.build().len()
+            round = round + 1
+        assert(total == 3000 * 110, "each built string was whole while held")
+        if released() == 0:
+            assert(pages() == start, "each builder's buffer is freed with its string")
