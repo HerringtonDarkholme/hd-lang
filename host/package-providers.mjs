@@ -471,11 +471,15 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
     handle,
   };
   const bind = (contract, generated, providers) => {
+    const descriptors = generated.map((i) => ({
+      ...i,
+      methods: i.methods.map((m) => ({ ...m, params: [...m.params] })),
+    }));
     const required = readPackageContract(contract);
     const sections = module && WebAssembly.Module.customSections(module, "hd.capabilities");
     if (!sections || sections.length !== 1 || !equalBytes(contract, new Uint8Array(sections[0])))
       fail("generated glue does not match the guest contract");
-    const shapes = generated.map((i) => ({
+    const shapes = descriptors.map((i) => ({
       ...i,
       methods: i.methods.map((m) => ({
         ...m,
@@ -490,7 +494,7 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
       )
     )
       fail("generated method shapes do not match the contract");
-    for (const i of generated.filter((i) => i.handle))
+    for (const i of descriptors.filter((i) => i.handle))
       handleMethods.set(
         i.module,
         i.methods.map((m) => m.member),
@@ -562,7 +566,9 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
           fail(`missing provider method ${named(i)}.${m.member}`);
     }
     const imports = Object.create(null);
-    for (const i of generated) {
+    for (const i of descriptors) {
+      const declared = required.find((r) => r.module === i.module);
+      const interfaceIdentity = Object.freeze({ ...declared.identity });
       const out = Object.create(null);
       if (i.handle)
         out.$release = (id) => {
@@ -572,7 +578,7 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
         };
       for (const m of i.methods) {
         const key = `${i.module} ${m.name}`;
-        const label = `${named(required.find((r) => r.module === i.module))}.${m.member}`;
+        const label = `${named(declared)}.${m.member}`;
         const write = (value) => {
           const tx = [];
           try {
@@ -630,6 +636,10 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
                 return io.prepare(poll, done, abort, finish);
               },
             };
+            Object.defineProperty(context, "interfaceIdentity", {
+              enumerable: true,
+              value: interfaceIdentity,
+            });
             Object.defineProperty(context, "http", {
               enumerable: true,
               get() {

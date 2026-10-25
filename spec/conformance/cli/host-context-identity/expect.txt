@@ -1,0 +1,4 @@
+run: hd run --engine node
+stdout: source
+stdout: child
+stdout: source

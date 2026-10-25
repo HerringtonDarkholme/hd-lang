@@ -153,7 +153,7 @@ test("private Serde values retain numeric kind, deep containers and literal obje
 
 // A tiny module with the real contract custom section and exchange memory.
 // Its methods are driven directly so readiness and delivery can be separated.
-function operationHost(wait, suspends = true, grants = {}, extraEnv = {}) {
+function operationHost(wait, suspends = true, grants = {}, extraEnv = {}, generatedIdentity) {
   const identity = { package: "tests/sdk", version: "1.0.0", trait_path: "Source" };
   const moduleName = "hd:pkg:readiness-test";
   const e = new Enc();
@@ -181,32 +181,34 @@ function operationHost(wait, suspends = true, grants = {}, extraEnv = {}) {
     ...new Enc().leb(0).bytes(custom).leb(5).bytes(memory).leb(7).bytes(exported).done(),
   ]);
   const module = new WebAssembly.Module(bytes);
+  let descriptor;
   const host = createCoreHost(
     { out() {}, err() {} },
     {
       ...extraEnv,
       module,
       grants: { "pkg.Source": true, ...grants },
-      packageBindings: (runtime) =>
-        runtime.bind(
-          contract,
-          [
+      packageBindings(runtime) {
+        descriptor = {
+          identity: generatedIdentity,
+          module: moduleName,
+          handle: false,
+          methods: [
             {
-              module: moduleName,
-              handle: false,
-              methods: [
-                {
-                  name: "wait",
-                  member: "wait",
-                  wait: suspends ? "may" : "never",
-                  params: [],
-                  result: runtime.str,
-                },
-              ],
+              name: "wait",
+              member: "wait",
+              wait: suspends ? "may" : "never",
+              params: [],
+              result: runtime.str,
             },
           ],
+        };
+        return runtime.bind(
+          contract,
+          [descriptor],
           [{ identity, module: moduleName, contract, implementation: { wait } }],
-        ),
+        );
+      },
     },
   );
   const instance = new WebAssembly.Instance(module, host.imports);
@@ -214,6 +216,7 @@ function operationHost(wait, suspends = true, grants = {}, extraEnv = {}) {
   return {
     host,
     contract,
+    descriptor,
     module,
     moduleName,
     identity,
@@ -224,6 +227,58 @@ function operationHost(wait, suspends = true, grants = {}, extraEnv = {}) {
     },
   };
 }
+
+test("provider interface identity stays checked and immutable after metadata changes", () => {
+  const expected = { package: "tests/sdk", version: "1.0.0", trait_path: "Source" };
+  let calls = 0;
+  const h = operationHost((context) => {
+    calls++;
+    const identity = context.interfaceIdentity;
+    assert.deepEqual(identity, expected);
+    assert.equal(Object.isFrozen(identity), true);
+    for (const key of Object.keys(expected))
+      assert.equal(Reflect.set(identity, key, "forged"), false);
+    assert.equal(Reflect.set(context, "interfaceIdentity", {}), false);
+    assert.equal(Reflect.defineProperty(context, "interfaceIdentity", { value: {} }), false);
+    assert.equal(Reflect.deleteProperty(context, "interfaceIdentity"), false);
+    return "checked";
+  }, false);
+  try {
+    h.target.wait();
+    h.descriptor.module = "hd:pkg:forged";
+    h.descriptor.handle = true;
+    h.descriptor.methods[0].member = "forged";
+    h.descriptor.methods[0].params.push({});
+    h.identity.package = "forged";
+    h.contract.fill(0);
+    h.target.wait();
+    assert.equal(calls, 2);
+  } finally {
+    h.host.close();
+  }
+});
+
+test("generated identity claims cannot substitute for the checked interface", () => {
+  let calls = 0;
+  assert.throws(
+    () =>
+      operationHost(
+        () => {
+          calls++;
+        },
+        false,
+        {},
+        {},
+        {
+          package: "forged",
+          version: "",
+          trait_path: "Forged",
+        },
+      ),
+    /generated method shapes do not match/,
+  );
+  assert.equal(calls, 0);
+});
 
 test("pollable package operations retain results until checked delivery", () => {
   let ready = false,

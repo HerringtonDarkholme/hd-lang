@@ -46,8 +46,16 @@ export interface CoreEnv {
     | null;
 }
 
+/** The checked nominal interface that owns a provider method. */
+export interface ProviderInterfaceIdentity {
+  readonly package: string;
+  readonly version: string;
+  readonly trait_path: string;
+}
+
 /** The trailing argument supplied to a generated package-provider method. */
 export interface ProviderContext {
+  readonly interfaceIdentity: ProviderInterfaceIdentity;
   readonly http: ProviderHttpPolicy;
   readonly console: ProviderConsolePolicy;
   signal: AbortSignal;
