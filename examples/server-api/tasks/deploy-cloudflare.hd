@@ -1,0 +1,14 @@
+use dep.server_sdk.deployment.{Artifacts, CloudflareOptions, Deployment, DeploymentError, cloudflare}
+
+pub fn main!() -> Result[void, DeploymentError] $ Console + Deployment:
+    receipt := cloudflare!(CloudflareOptions {
+        name: "server-api",
+        artifacts: Artifacts {
+            wasm: "build/debug/server_api.wasm",
+            bindings: "build/debug/server_api.host.mjs",
+            output: "cloudflare"
+        },
+        compatibility_date: "2026-10-23"
+    })?
+    println(receipt.directory)
+    .Ok(())

@@ -1,6 +1,7 @@
 [package]
 name = "server_sdk"
 [host]
+"deployment.Deployment" = "providers/deployment.mjs"
 "server.HttpServer" = "providers/node.mjs"
 
 [dev-capabilities]

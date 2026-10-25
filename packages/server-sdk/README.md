@@ -9,11 +9,11 @@ request cleanup and a loopback Node listener. A request races its source
 cancellation signal against a handler wrapped in `timeout!(20s, cleanup=100ms)`.
 The source supplies its cleanup clock, so `serve!` adds no ambient Clock row.
 Every accepted lease is released after response delivery or cleanup.
-The public JavaScript adapter supplies retained synchronous turns and
-lease-owned I/O scheduling. Outgoing Http integration, complete admission
-deadlines, supervision and platform packaging remain subsequent #266 slices.
-The current listener is a development adapter, not a completed deployment
-profile.
+The public JavaScript adapters supply retained synchronous turns,
+lease-owned outgoing I/O, admission deadlines, request logs and Node worker
+supervision. The SDK also prepares Cloudflare Worker output through an
+ordinary deployment task. Vercel packaging and hosted deployment acceptance
+remain unfinished in #266.
 
 From the repository root, build `cargo build -p hd_cli --features wasmtime`.
 Then run `hd run` from `examples/server-api`, granting the SDK trait in the
@@ -126,10 +126,9 @@ Forced termination reports cleanup as unconfirmed.
 and stopped main completion, respectively. A main that never yields cannot
 announce readiness.
 
-These are explicit embedding components. Deployment tasks, runtime graph
-distribution and aggregate memory limits remain
-separate work. The development `hd run` provider does not automatically
-select the worker supervisor.
+These are explicit embedding components. The development `hd run` provider
+does not automatically select the worker supervisor. Aggregate memory
+acceptance remains part of each platform's release checks.
 
 ## Application Logs
 
@@ -161,7 +160,7 @@ guarantee or select deployment budgets.
 
 The reader accepts TOML quoted keys, multiline arrays and ordinary escaping through a pinned, vendored parser. It rejects malformed TOML, invalid grant shapes and non-UTF-8 input. Error text omits source excerpts and grant values. Scope paths keep their manifest spelling for the consuming platform adapter to resolve; this helper does not invent a platform filesystem.
 
-The policy conformance inputs are in `test/fixtures/deployment-grants.json`, executed by `node --test packages/server-sdk/test/grants.test.mjs` from the repository root and by the CLI's maintained SDK test wrapper. `hd build` remains policy-free: there is no `NAME.host.json`, and deployment grants are not read from compiler caches or build artifacts. Platform packaging tasks remain the next slice.
+The policy conformance inputs are in `test/fixtures/deployment-grants.json`, executed by `node --test packages/server-sdk/test/grants.test.mjs` from the repository root and by the CLI's maintained SDK test wrapper. `hd build` remains policy-free: there is no `NAME.host.json`, and deployment grants are not read from compiler caches or build artifacts. The Cloudflare task uses this reader before preparing its output.
 
 ## Portable Runtime Snapshot
 
@@ -169,8 +168,78 @@ The SDK carries the platform-neutral host graph and its ABI model in `runtime/ru
 
 Snapshot source text uses LF independently of checkout line endings. Emitted files match those archived bytes.
 
-The fingerprint covers emitted names and bytes, the package-host ABI version and the source base revision. The content hashes identify the actual source even when maintenance runs on an uncommitted host edit. These are integrity and provenance records, not signatures. The package-host ABI version is distinct from a claim that every compiler/runtime ABI is versioned. A task validates its built module and generated bindings before publishing a platform bundle.
+The fingerprint covers emitted names and bytes, the package-host ABI version and the source base revision. The content hashes identify the actual source even when maintenance runs on an uncommitted host edit. These are integrity and provenance records, not signatures. The package-host ABI version is distinct from a claim that every compiler/runtime ABI is versioned. The Cloudflare task validates the built module and companion data before publishing its local output.
 
 The installed SDK needs no compiler checkout, build companion or compiler cache to emit its runtime. The relocation control builds the sample, removes its HD source and SDK development provider, then uses the installed snapshot and production grants to serve counters 1, 2 and 3 and stop normally in a fresh Node process. Platform build validation remains part of each deploy task's acceptance.
 
 Repository maintainers refresh the generated snapshot with `node packages/server-sdk/packaging/sync-runtime.mjs` when the portable host graph changes. The maintained SDK tests reject a snapshot that differs from the current host sources. Application deploy tasks consume the snapshot and never run this repository-maintenance command.
+
+## Cloudflare Deployment Task
+
+The sample includes `tasks/deploy-cloudflare.hd`, an ordinary task using
+`dep.server_sdk.deployment.cloudflare!`. Grant its SDK capability for local
+task execution in the application's manifest:
+
+```toml
+[dev-capabilities]
+"dep.server_sdk.deployment.Deployment" = true
+```
+
+The installed SDK carries the JavaScript provider declared by its own
+`[host]` table, its runtime snapshot and its expected server ABI data. The
+task needs no compiler checkout or compiler-cache path.
+
+From `examples/server-api`, prepare and validate the Worker locally:
+
+```sh
+hd build
+hd run deploy-cloudflare --engine node
+wrangler deploy --dry-run --config cloudflare/wrangler.json
+```
+
+Node runs the SDK's package-declared JavaScript provider. The task reads
+`build/debug/server_api.wasm` and its `.host.mjs` companion
+and writes `cloudflare/wrangler.json` with its complete payload. Artifact
+paths in the task resolve from the application root, including when the
+task is invoked from a nested directory. The task prepares files locally;
+Wrangler performs any later upload separately.
+
+Application permissions come from that root's production `[capabilities]`,
+including explicit consent to `dep.server_sdk.server.HttpServer`. Development
+consent to the Deployment task does not grant the deployed application's
+capabilities. Explicit denial through any alias of the request source
+rejects preparation. An imported primitive Clock or Random capability also
+rejects preparation when production policy explicitly denies it.
+
+For Env, set `CloudflareOptions.env_bindings` to the names the Worker should
+receive and grant those names in production policy. Only selected string
+bindings are exposed; configure their values through Cloudflare separately.
+The task records required names without reading or embedding values.
+
+Preparation checks the captured Wasm against the installed SDK's nominal
+request-source identity and expected boundary ABI. It checks the companion's
+contract header without executing its JavaScript body, then emits SDK-owned
+bindings. These checks establish ABI compatibility and provenance; they do
+not authenticate arbitrary compiler output.
+
+The SDK owns the output marker, generation store and regular `wrangler.json`
+selector. Repeated preparation selects a complete immutable generation and
+retains previous generations for readers already using them. Unrelated root
+files and Wrangler caches are preserved. Preparation refuses an unowned
+output directory or modified SDK payload; other writers must leave the
+reserved paths unchanged while preparation runs.
+
+The maintained deployment, output, schema and binding tests run with the
+other SDK JavaScript tests. Local workerd probes exercised startup Env
+decoding, retained string bindings, outgoing Http grants, Clock and Random.
+They also exercised short and fixed twenty-second timeouts with cleanup
+and recovery.
+The synchronous driver rejected a pending `block_on` before native fetch;
+this profile does not use a JSPI adapter, even when the engine exposes JSPI.
+
+Five fresh local workerd processes reached their first response in a median
+40.183 ms from spawn, measured externally. A private instrumented copy used
+10.9375 MiB across both guest linear memories after eight overlapping
+one-MiB requests. The [design record](../../docs/future-work/SERVER_APPLICATIONS.md#cost-and-measurements)
+records the probe versions, measurements and limits. These probes establish
+local behavior, not hosted acceptance, CPU startup or total isolate memory.

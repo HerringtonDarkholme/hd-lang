@@ -1,0 +1,19 @@
+use dep.server_sdk.server.{HttpServer, RequestId}
+use std.http.{Request, Response}
+use std.time.ms
+
+# Maintenance-only: compile, never execute. Keep every source and handle method reachable.
+pub fn main!() -> void $ HttpServer:
+    server := $.use(HttpServer)
+    id := RequestId { generation: 0u64, sequence: 0u64 }
+    _ := server.accept!()
+    _ := server.respond!(id, Response { status: 200 })
+    _ := server.cancelled!(id)
+    client := server.client(id)
+    _ := client.send!(*Request::get("https://schema.invalid/"))
+    clock := server.clock(id)
+    console := server.console(id)
+    _ := console.write!(debug(clock.now()))
+    _ := console.write_error!(debug(clock.monotonic()))
+    clock.sleep!(ms(1))
+    server.finish(id, false)

@@ -6,3 +6,6 @@ server_sdk = { path = "../../packages/server-sdk" }
 "dep.server_sdk.server.HttpServer" = true
 Console = true
 Clock = true
+
+[dev-capabilities]
+"dep.server_sdk.deployment.Deployment" = true
