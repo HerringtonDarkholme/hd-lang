@@ -680,7 +680,7 @@ fn journal_shape(session: &WasmtimeSession) -> Vec<String> {
 /// The session's journal holds a row per host call of each input, between
 /// the input's `Input` and `End` rows, in the order they happened: its
 /// clock reading, the handle a sleep waits on, woken and then finished,
-/// a line written and the panic report, both by digest.
+/// a line written at once and the panic report, both by digest.
 #[test]
 fn a_session_journal_records_each_input_s_host_calls_in_order() {
     use hd_run::journal::{Event, Request, Value};
@@ -715,8 +715,6 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
                 "end Exit(0)",
                 "input 4",
                 "call hd:Console write.start",
-                "block",
-                "finish",
                 "end Exit(0)",
                 "input 5",
                 "call hd:rt panic",
@@ -768,11 +766,11 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
         assert_eq!(request, &Request::Args(vec![3, b'h', b'i', b'\n']));
         // The panic stub starts its report, then writes it.
         assert!(matches!(
-            &events[17],
+            &events[15],
             Event::Call { request: Request::Args(args), .. } if args.is_empty()
         ));
         assert!(matches!(
-            &events[18],
+            &events[16],
             Event::Call {
                 request: Request::Digest { .. },
                 ..

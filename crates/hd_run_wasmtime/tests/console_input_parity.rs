@@ -39,12 +39,14 @@ fn write(p: &mut Program, line: &[u8]) {
         I::I32Const(i32::try_from(line.len()).unwrap()),
         I::Call(start),
         I::LocalSet(0),
-        I::Drop,
+        // A write that went straight to the stream is ready at its start.
+        I::If(wasm_encoder::BlockType::Empty),
         I::Call(block),
         I::Drop,
         I::LocalGet(0),
         I::Call(finish),
         I::Drop,
+        I::End,
     ]);
 }
 

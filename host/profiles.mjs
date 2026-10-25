@@ -5,7 +5,9 @@
 // `hd` command names a profile.
 //
 // `io` is the host's view of the exchange buffer: `put(enc)` writes an
-// encoded result and returns its length, and `Enc` encodes (core.mjs).
+// encoded result and returns its length, `Enc` encodes, and
+// `pendingConsole()` is the imports of a Console whose every write is
+// pending at its start (core.mjs).
 // Each trait's methods are imported from `hd:<Trait>` by name; every
 // argument and result crosses in the buffer.
 
@@ -80,10 +82,10 @@ export function providers(name, io) {
         },
       };
     }
-    // `pending-write` is the host's own `Console`, whose `write!` is
+    // `pending-write` is the host's own `Console`, but its `write!` is
     // pending on its first poll and writes the line on its second.
     case "pending-write":
-      return {};
+      return { "hd:Console": io.pendingConsole() };
     // `trait Gate: fn wait!(self) -> void`, never resolving: every poll
     // stays pending, dropped when the suspension is cancelled.
     case "pending-gate":

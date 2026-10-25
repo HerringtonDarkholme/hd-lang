@@ -83,6 +83,9 @@ pub struct Host {
     /// Whether standard output and error are dropped: a replayed input's
     /// output was shown when it first ran.
     pub(crate) muted: bool,
+    /// Whether every Console write is pending at its start, written at the
+    /// next reactor poll: the `pending-write` fixture profile.
+    pub(crate) pending_writes: bool,
     /// The host calls made, not served from a replay's record, but for the
     /// `hd:prim` functions: what a session's tests count.
     pub(crate) calls: u64,
@@ -123,6 +126,7 @@ impl Host {
             journal: None,
             replay: None,
             muted: false,
+            pending_writes: false,
             calls: 0,
         }
     }
@@ -336,17 +340,24 @@ impl Host {
         self.output.write(Stream::Err, bytes.to_vec(), None);
     }
 
-    /// A guest bang write completes only when the writer accepted its
-    /// whole chunk. Aborting discards bytes not yet written to the stream.
-    pub(crate) fn write_console(&mut self, to: Stream, line: Vec<u8>) -> i32 {
+    /// A guest bang write, at its first poll: `None` when it completed,
+    /// because every byte went straight to the stream (or the output is
+    /// muted). Otherwise the handle of the pending write of what is left,
+    /// which completes once the writer has written it all. Aborting
+    /// discards bytes not yet written to the stream.
+    pub(crate) fn write_console(&mut self, to: Stream, line: Vec<u8>) -> Option<i32> {
         self.flush();
-        let (handle, wait, done) = self.reactor.output();
         if self.muted {
-            done();
-        } else {
-            self.output.write(to, line, Some((wait, Box::new(done))));
+            return None;
         }
-        handle
+        let rest = if self.pending_writes {
+            line
+        } else {
+            self.output.write_now(to, line)?
+        };
+        let (handle, wait, done) = self.reactor.output();
+        self.output.write(to, rest, Some((wait, Box::new(done))));
+        Some(handle)
     }
 
     pub(crate) fn drain_output(&mut self) {

@@ -164,12 +164,14 @@ impl Program {
             I::I32Const(12),
             I::Call(console),
             I::LocalSet(1),
-            I::Drop,
+            // A write that went straight to the stream is ready at its start.
+            I::If(wasm_encoder::BlockType::Empty),
             I::Call(block),
             I::Drop,
             I::LocalGet(1),
             I::Call(finish),
             I::Drop,
+            I::End,
         ]);
         p
     }

@@ -1775,9 +1775,11 @@ test("Console unreadable input reports Closed", async (t) => {
   call({ op: "wait_finish", operation });
 });
 
-// #816: the real Console ABI must preserve start-then-abort semantics.
+// #652: a Console write whose direct write takes every byte completes in
+// its `.start`, which is the operation's first poll, so it answers ready
+// with its result and leaves nothing to abort.
 for (const method of ["write", "write_error"]) {
-  test(`Console ${method} aborted before polling writes nothing`, async (t) => {
+  test(`Console ${method} that writes every byte at start answers ready`, async (t) => {
     const root = fixture(t, { output: "" });
     const fd = openSync(join(root, "output"), "w");
     t.after(() => closeSync(fd));
@@ -1787,12 +1789,11 @@ for (const method of ["write", "write_error"]) {
     t.after(() => host.close());
     const memory = new WebAssembly.Memory({ initial: 1 });
     host.prime({ exports: { "hd.x": memory } });
-    new Uint8Array(memory.buffer).set(new TextEncoder().encode("must-not-be-written"));
-    const [status, operation] = host.imports["hd:Console"][`${method}.start`](19);
-    assert.equal(status, 1);
-    host.imports["hd:rt"].abort(operation);
+    new Uint8Array(memory.buffer).set(new TextEncoder().encode("written-at-start"));
+    const [status] = host.imports["hd:Console"][`${method}.start`](16);
+    assert.equal(status, 0);
+    assert.equal(readFileSync(join(root, "output"), "utf8"), "written-at-start");
     await output.close();
-    assert.equal(readFileSync(join(root, "output"), "utf8"), "");
   });
 }
 
@@ -1885,7 +1886,7 @@ test(
       const check = (ok, message) => { if (!ok) { log("FAIL " + message); process.exit(1); } };
       const output = createOutput();
       output.out("before\\n");
-      check(output.write(1, "small\\n").poll(), "a direct write is ready at its first poll");
+      check(output.write(1, "small\\n").ok === true, "a direct write is ready at its start");
       check(!output.threaded(), "no thread before the pipe is full");
       const big = output.write(1, "x".repeat(4 << 20));
       let ticks = 0;

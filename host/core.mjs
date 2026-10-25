@@ -424,31 +424,37 @@ function traitImports(module, provider, { view, text, put, pending, finished }) 
   return out;
 }
 
-// `hd:Console`: one text chunk per `write`, written when it completes, at
-// once; `write_error` writes its text to standard error then, after
-// the held output (module.console.write-error.raw).
-function consoleProvider({ st, sink, flush, grant }) {
+// `hd:Console`: one text chunk per `write`; `write_error` writes its text
+// to standard error, after the held output
+// (module.console.write-error.raw). A write that completes during its
+// `.start` answers at once: every write to a captured sink, and a direct
+// write of every byte (output.mjs). Otherwise it is pending. With
+// `pending`, the `pending-write` fixture profile's Console, every write
+// is pending at its start and written when the host completes it.
+function consoleProvider({ st, sink, flush, grant, pending = false }) {
   const denied = (subject) => Err({ tag: "NotGranted", subject });
+  const held = (write) =>
+    later(performance.now(), () => {
+      write();
+      return Ok(undefined);
+    });
   return {
     write: (text) =>
-      grant.allows("Console")
-        ? sink.write
-          ? (flush(), sink.write(1, text))
-          : later(performance.now(), () => {
-              st.out.push(text);
-              return Ok(undefined);
-            })
-        : denied("stdout"),
+      !grant.allows("Console")
+        ? denied("stdout")
+        : pending
+          ? held(() => (sink.write ? (flush(), sink.out(text)) : st.out.push(text)))
+          : sink.write
+            ? (flush(), sink.write(1, text))
+            : (st.out.push(text), Ok(undefined)),
     write_error: (text) =>
-      grant.allows("Console")
-        ? sink.write
-          ? (flush(), sink.write(2, text))
-          : later(performance.now(), () => {
-              flush();
-              sink.err(text);
-              return Ok(undefined);
-            })
-        : denied("stderr"),
+      !grant.allows("Console")
+        ? denied("stderr")
+        : pending
+          ? held(() => (flush(), sink.err(text)))
+          : sink.write
+            ? (flush(), sink.write(2, text))
+            : (flush(), sink.err(text), Ok(undefined)),
   };
 }
 
@@ -795,7 +801,11 @@ export function createCoreHost(sink, env = {}, layer = null) {
 
   // A runtime profile's own providers (`env.providers`, profiles.mjs):
   // `pending` registers a wait the driver wakes, `finish` drops one.
-  if (env.providers) Object.assign(imports, env.providers({ put, Enc, pending, finish }));
+  // `pendingConsole()` is the Console of the `pending-write` profile.
+  const pendingConsole = () =>
+    traitImports("hd:Console", consoleProvider({ st, sink, flush, grant, pending: true }), io);
+  if (env.providers)
+    Object.assign(imports, env.providers({ put, Enc, pending, finish, pendingConsole }));
 
   // Invoker-selected package providers use signature-generated glue. A guest
   // descriptor is data only: it never selects or loads a JavaScript module.

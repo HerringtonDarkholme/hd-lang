@@ -1,5 +1,7 @@
-//! `Console` and `ConsoleInput`. Output stays pending until the ordered
-//! writer thread writes its chunk, so a full pipe cannot block polling.
+//! `Console` and `ConsoleInput`. A write that goes straight to its stream
+//! in full completes at its `.start`. What a full pipe leaves stays
+//! pending until the ordered writer thread writes it, so a full pipe
+//! cannot block polling.
 //! `write_error` uses that same queue after prior standard output
 //! (`module.console.write-error.raw`);
 //! `read_line` and `read_all` are pending until the reactor's reader thread
@@ -48,7 +50,10 @@ pub(crate) fn call(
             } else {
                 Stream::Err
             };
-            Ret::pair(1, caller.data_mut().write_console(to, line))
+            match caller.data_mut().write_console(to, line) {
+                Some(h) => Ret::pair(1, h),
+                None => Ret::ready(crate::codec::encode(&Ok::<(), ConsoleError>(())))?,
+            }
         }
         // `Result[string?, ConsoleError]`: the line, `.None` at the end of
         // input, `.Err(.Closed)` when it cannot be read.

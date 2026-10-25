@@ -1,6 +1,7 @@
 //! Explicit conformance fixture providers, never enabled by the default host.
-//! Their boundary values match `host/profiles.mjs`; the ordinary
-//! Console provider already supplies the `pending-write` behavior. The
+//! Their boundary values match `host/profiles.mjs`; under `pending-write`
+//! the ordinary Console provider answers every write pending at its
+//! start (`Host::pending_writes`). The
 //! `disposed-file` and `pending-gate` providers follow the spec's Runtime
 //! Profiles (`spec/conformance/README.md`) too. `call` is their provider;
 //! `State` is one instance's fixture state.

@@ -2176,6 +2176,15 @@ in one (`drive.rs`).
 - **Cost.** Each vtable of the trait gains one word per driven method,
   and the module one table entry and one function per drive slot. The
   host slot still links the leaf frame for a pending call, so the module
-  does not shrink. Both hosts answer every `Console.write` Pending
-  until their writer has the chunk, so `println` still makes a frame
-  per line today; only a host call answered at once saves one.
+  does not shrink.
+- **Hosts.** Both hosts answer a `Console.write` ready at its `.start`
+  when the write went straight to the stream in full (`host/output.mjs`,
+  `hd_run_wasmtime/src/host/output.rs`). Only a write a full pipe
+  leaves, or one queued behind the writer thread, is pending. So
+  `println` makes no frame unless the pipe is full.
+- **Yielding.** A ready drive continues at once, as a bang call of an
+  hd provider that never waits does. So a print loop under `all!` no
+  longer gives its siblings a turn at each write; no fixture depends on
+  that turn (the `pending-write` profile still answers each write
+  pending). Yielding when a sibling could run is not built: the guest
+  has no run queue to read, and due timers are known only to the host.

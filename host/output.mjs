@@ -129,12 +129,21 @@ export function createOutput(connection = null) {
     threaded: () => remote,
     out: (text) => send(1, text),
     err: (text) => send(2, text),
-    // A pending write: written from its first poll, in its place in the
-    // queue, and ready at once when that direct write completes.
+    // A write that may wait, called at its operation's first poll. A direct
+    // write that writes every byte at once answers its result, not an
+    // operation. Any other write is pending: a short write handed to the
+    // thread, a write queued behind an entry that waits for its poll, or a
+    // write while the thread has the queue. A pending direct entry keeps
+    // its place and is ready at a poll once its direct write completes.
     write: (fd, text) => {
       const e = direct()
         ? queue(fd, text, true)
         : { remote: call({ op: "wait_start", fd, text }).ok };
+      if (e.remote === null) {
+        e.started = true;
+        pump();
+        if (e.remote === null && e.result !== null) return e.result;
+      }
       let result;
       return pendingOperation(
         () => {

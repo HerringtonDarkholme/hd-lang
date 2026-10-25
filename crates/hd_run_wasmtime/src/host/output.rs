@@ -1,8 +1,16 @@
-//! One ordered writer owns both output streams. Polling only queues work;
-//! a full pipe cannot stop a timer or another host operation. Barriers at
-//! run boundaries drain accepted bytes, including output preceding a panic.
+//! One ordered writer owns both output streams. A full pipe cannot stop a
+//! timer or another host operation. Barriers at run boundaries drain
+//! accepted bytes, including output preceding a panic.
+//!
+//! While the writer thread has nothing queued, a write goes straight to
+//! its stream on the program thread, which is nonblocking. What a short
+//! write or `WouldBlock` leaves goes to the thread, and so does every
+//! write while the thread has chunks queued, which keeps both streams in
+//! order. Windows, where a process stream blocks, always uses the thread.
 use std::io::Write;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Sender, channel};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::runtime::reactor::{OutputWait, Stream};
 
@@ -14,8 +22,13 @@ enum Message {
     Drain(Sender<()>),
 }
 
+/// The largest slice passed to one stream write.
+const CHUNK: usize = 65536;
+
 pub(super) struct Output {
-    streams: Option<Streams>,
+    streams: Arc<Mutex<Streams>>,
+    /// Chunks sent to the writer thread that it has not finished.
+    queued: Arc<AtomicUsize>,
     sender: Option<Sender<Message>>,
     thread: Option<std::thread::JoinHandle<()>>,
 }
@@ -23,32 +36,79 @@ pub(super) struct Output {
 impl Output {
     pub(super) fn new(out: Box<dyn Write + Send>, err: Box<dyn Write + Send>) -> Self {
         Self {
-            streams: Some((out, err)),
+            streams: Arc::new(Mutex::new((out, err))),
+            queued: Arc::new(AtomicUsize::new(0)),
             sender: None,
             thread: None,
         }
     }
 
+    /// Writes `bytes` to `to` on the program thread when the writer thread
+    /// has nothing queued: `None` once every byte is written, or the stream
+    /// failed (the thread's broken-stream policy drops the rest too).
+    /// Otherwise the bytes not written, which the caller hands to
+    /// [`Output::write`].
+    pub(super) fn write_now(&mut self, to: Stream, bytes: Vec<u8>) -> Option<Vec<u8>> {
+        if !cfg!(unix) || self.queued.load(Ordering::SeqCst) != 0 {
+            return Some(bytes);
+        }
+        let mut streams = self.streams.lock().unwrap_or_else(PoisonError::into_inner);
+        let stream = match to {
+            Stream::Out => &mut streams.0,
+            Stream::Err => &mut streams.1,
+        };
+        let mut at = 0;
+        while at < bytes.len() {
+            match stream.write(&bytes[at..bytes.len().min(at + CHUNK)]) {
+                Ok(0) => break,
+                Ok(n) => at += n,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(_) => {
+                    at = bytes.len();
+                }
+            }
+        }
+        let _ = stream.flush();
+        if at == bytes.len() {
+            return None;
+        }
+        Some(if at == 0 { bytes } else { bytes[at..].to_vec() })
+    }
+
+    /// Queues `bytes` for `to` after everything already accepted. A write
+    /// with no completion goes straight to the stream when it can
+    /// ([`Output::write_now`]); one with a completion waits for its start.
     pub(super) fn write(&mut self, to: Stream, bytes: Vec<u8>, done: Option<Completion>) {
+        let bytes = match done {
+            None => match self.write_now(to, bytes) {
+                None => return,
+                Some(rest) => rest,
+            },
+            Some(_) => bytes,
+        };
         if self.sender.is_none() {
-            let (mut out, mut err) = self.streams.take().expect("one output writer");
+            let streams = Arc::clone(&self.streams);
+            let queued = Arc::clone(&self.queued);
             let (send, recv) = channel();
             self.thread = Some(std::thread::spawn(move || {
                 while let Ok(message) = recv.recv() {
                     match message {
                         Message::Write(to, bytes, done) => {
-                            let stream = match to {
-                                Stream::Out => &mut out,
-                                Stream::Err => &mut err,
-                            };
                             if let Some((wait, _)) = &done {
                                 wait.wait();
                             }
+                            let mut streams =
+                                streams.lock().unwrap_or_else(PoisonError::into_inner);
+                            let stream = match to {
+                                Stream::Out => &mut streams.0,
+                                Stream::Err => &mut streams.1,
+                            };
                             let cancelled =
                                 || done.as_ref().is_some_and(|(wait, _)| wait.cancelled());
                             let mut rest = bytes.as_slice();
                             while !rest.is_empty() && !cancelled() {
-                                match stream.write(&rest[..rest.len().min(65536)]) {
+                                match stream.write(&rest[..rest.len().min(CHUNK)]) {
                                     Ok(0) => break,
                                     Ok(n) => rest = &rest[n..],
                                     Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
@@ -60,6 +120,8 @@ impl Output {
                                 }
                             }
                             let _ = stream.flush();
+                            drop(streams);
+                            queued.fetch_sub(1, Ordering::SeqCst);
                             if let Some((_, done)) = done {
                                 done();
                             }
@@ -72,14 +134,17 @@ impl Output {
             }));
             self.sender = Some(send);
         }
+        self.queued.fetch_add(1, Ordering::SeqCst);
         if let Err(error) = self
             .sender
             .as_ref()
             .unwrap()
             .send(Message::Write(to, bytes, done))
-            && let Message::Write(_, _, Some((_, done))) = error.0
         {
-            done();
+            self.queued.fetch_sub(1, Ordering::SeqCst);
+            if let Message::Write(_, _, Some((_, done))) = error.0 {
+                done();
+            }
         }
     }
 
