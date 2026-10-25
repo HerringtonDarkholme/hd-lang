@@ -1013,7 +1013,7 @@ impl Debug for JsonObject:
 ## The `Json` that `value`'s `serialize` writes.
 ## See [std-json.to-json](../../spec/std/json.md#r-std-json.to-json).
 pub fn to_json[T < Serialize](value: T) -> Json:
-    writer := &mut JsonWriter { result: Json.Null, pending: "", keys: [], values: [], frames: [] }
+    writer := &mut JsonWriter { result: Json.Null, pending: "", keys: [], values: [], frames: [], no_facts: Facts { items: [] } }
     match value.serialize(writer):
         .Ok(_) => writer.result
         .Err(_) => panic("std.json: the JSON writer never fails")
@@ -1126,7 +1126,7 @@ struct OpenFrame:
     pub key: string
     pub name: string
     pub of_data: bool
-    pub facts: Facts = Facts { items: [] }
+    pub facts: Facts
 
 # Builds the `Json` of one value. The items of every open container sit on
 # one stack, `values`, each beside its key in `keys`; closing a container
@@ -1137,6 +1137,9 @@ struct JsonWriter:
     pub keys: List[string]
     pub values: List[Json]
     pub frames: List[OpenFrame]
+    # The facts of a list or a map frame, and of a member with no frame,
+    # made once per writer.
+    pub no_facts: Facts
 
 impl JsonWriter:
     fn put(&mut self, value: Json) -> Result[void, never]:
@@ -1147,8 +1150,8 @@ impl JsonWriter:
             self.values.push(value)
         .Ok(())
 
-    fn open(&mut self, kind: i32, name: string, of_data: bool) -> Result[void, never]:
-        self.frames.push(OpenFrame { kind: kind, start: self.values.len(), key: self.pending, name: name, of_data: of_data })
+    fn open(&mut self, kind: i32, name: string, of_data: bool, facts: Facts) -> Result[void, never]:
+        self.frames.push(OpenFrame { kind: kind, start: self.values.len(), key: self.pending, name: name, of_data: of_data, facts: facts })
         .Ok(())
 
     # The innermost frame, its items, and its keys, popped.
@@ -1195,14 +1198,14 @@ impl Serializer for JsonWriter:
         self.put(Json.Text(value))
 
     fn begin_list(&mut self, len: usize) -> Result[void, never]:
-        self.open(0, "", false)
+        self.open(0, "", false, self.no_facts)
 
     fn end_list(&mut self) -> Result[void, never]:
         closed := self.close()
         self.put(Json.Array(closed._2))
 
     fn begin_map(&mut self, len: usize) -> Result[void, never]:
-        self.open(1, "", false)
+        self.open(1, "", false, self.no_facts)
 
     fn key(&mut self, key: string) -> Result[void, never]:
         self.pending = key
@@ -1213,12 +1216,10 @@ impl Serializer for JsonWriter:
         self.put(Json.Object(object_of(closed._1, closed._2)))
 
     fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
-        self.open(2, v.name, v.of_data)?
-        self.frames[self.frames.len() - 1].facts = facts
-        .Ok(())
+        self.open(2, v.name, v.of_data, facts)
 
     fn member(&mut self, m: Member) -> Result[void, never]:
-        facts := if self.frames.is_empty(): Facts { items: [] } else: self.frames[self.frames.len() - 1].facts
+        facts := if self.frames.is_empty(): self.no_facts else: self.frames[self.frames.len() - 1].facts
         self.pending = member_name(m, facts)
         .Ok(())
 
@@ -1284,6 +1285,8 @@ struct TextWriter:
     pub counts: List[usize]
     pub key_starts: List[usize]
     pub facts: List[Facts]
+    # The facts of a list or a map frame, made once per writer.
+    pub no_facts: Facts
     pub key_count: usize
     pub keys: List[string]
     pub prints: List[usize]
@@ -1296,7 +1299,7 @@ struct TextWriter:
 
 impl TextWriter:
     fn new(spaced: bool) -> *mut TextWriter:
-        &mut TextWriter { parts: &mut [], depth: 0, kinds: [], names: [], counts: [], key_starts: [], facts: [], key_count: 0, keys: [], prints: [], pending: "", keyed: false, written: false, regular: true, spaced: spaced, indent: 0 }
+        &mut TextWriter { parts: &mut [], depth: 0, kinds: [], names: [], counts: [], key_starts: [], facts: [], no_facts: Facts { items: [] }, key_count: 0, keys: [], prints: [], pending: "", keyed: false, written: false, regular: true, spaced: spaced, indent: 0 }
 
     # The text, or `.None` when the walk was not regular or not complete.
     fn finish(&self) -> string?:
@@ -1389,7 +1392,7 @@ impl TextWriter:
         self.key_count = at + 1
         true
 
-    fn open(&mut self, kind: FrameKind, name: string) -> Result[void, Irregular]:
+    fn open(&mut self, kind: FrameKind, name: string, facts: Facts) -> Result[void, Irregular]:
         self.start()?
         match kind:
             .Items => self.parts.push("[")
@@ -1401,13 +1404,13 @@ impl TextWriter:
             self.names[at] = name
             self.counts[at] = 0
             self.key_starts[at] = self.key_count
-            self.facts[at] = Facts { items: [] }
+            self.facts[at] = facts
         else:
             self.kinds.push(kind)
             self.names.push(name)
             self.counts.push(0)
             self.key_starts.push(self.key_count)
-            self.facts.push(Facts { items: [] })
+            self.facts.push(facts)
         self.depth = at + 1
         self.indent = self.indent + levels_of(kind)
         .Ok(())
@@ -1495,13 +1498,13 @@ impl Serializer for TextWriter:
         .Ok(())
 
     fn begin_list(&mut self, len: usize) -> Result[void, Irregular]:
-        self.open(FrameKind.Items, "")
+        self.open(FrameKind.Items, "", self.no_facts)
 
     fn end_list(&mut self) -> Result[void, Irregular]:
         self.close(FrameKind.Items)
 
     fn begin_map(&mut self, len: usize) -> Result[void, Irregular]:
-        self.open(FrameKind.Entries, "")
+        self.open(FrameKind.Entries, "", self.no_facts)
 
     fn key(&mut self, key: string) -> Result[void, Irregular]:
         self.name_next(key)
@@ -1510,9 +1513,7 @@ impl Serializer for TextWriter:
         self.close(FrameKind.Entries)
 
     fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, Irregular]:
-        self.open(if v.of_data: FrameKind.Record else: FrameKind.Tagged, v.name)?
-        self.facts[self.depth - 1] = facts
-        .Ok(())
+        self.open(if v.of_data: FrameKind.Record else: FrameKind.Tagged, v.name, facts)
 
     fn member(&mut self, m: Member) -> Result[void, Irregular]:
         if !self.regular || self.depth == 0:
@@ -1574,10 +1575,12 @@ struct JsonReader:
     pub homes: List[usize]
     pub variants: List[string]
     pub facts: List[Facts]
+    # The facts of a list or a map frame, made once per reader.
+    pub no_facts: Facts
 
 impl JsonReader:
     fn new(value: Json) -> *mut JsonReader:
-        &mut JsonReader { value: value, present: true, depth: 0, steps: [], names: [], open: 0, containers: [], kinds: [], next: [], bases: [], homes: [], variants: [], facts: [] }
+        &mut JsonReader { value: value, present: true, depth: 0, steps: [], names: [], open: 0, containers: [], kinds: [], next: [], bases: [], homes: [], variants: [], facts: [], no_facts: Facts { items: [] } }
 
     # The path of the first `depth` steps: `$`, then `.key` or `[index]`
     # for each.
@@ -1618,7 +1621,7 @@ impl JsonReader:
             self.names.push(key)
 
     # Opens a frame whose items' container is at path depth `base`.
-    fn enter(&mut self, container: Json, kind: ReadKind, base: usize, name: string) -> void:
+    fn enter(&mut self, container: Json, kind: ReadKind, base: usize, name: string, facts: Facts) -> void:
         at := self.open
         if at < self.containers.len():
             self.containers[at] = container
@@ -1627,7 +1630,7 @@ impl JsonReader:
             self.bases[at] = base
             self.homes[at] = self.depth
             self.variants[at] = name
-            self.facts[at] = Facts { items: [] }
+            self.facts[at] = facts
         else:
             self.containers.push(container)
             self.kinds.push(kind)
@@ -1635,7 +1638,7 @@ impl JsonReader:
             self.bases.push(base)
             self.homes.push(self.depth)
             self.variants.push(name)
-            self.facts.push(Facts { items: [] })
+            self.facts.push(facts)
         self.open = at + 1
 
     # The innermost frame.
@@ -1759,7 +1762,7 @@ impl Deserializer for JsonReader:
         if self.present:
             match self.value:
                 .Array(_) =>
-                    self.enter(self.value, ReadKind.Items, self.depth, "")
+                    self.enter(self.value, ReadKind.Items, self.depth, "", self.no_facts)
                     return .Ok(())
                 _ => pass
         .Err(self.fail("array"))
@@ -1792,7 +1795,7 @@ impl Deserializer for JsonReader:
         if self.present:
             match self.value:
                 .Object(_) =>
-                    self.enter(self.value, ReadKind.Entries, self.depth, "")
+                    self.enter(self.value, ReadKind.Entries, self.depth, "", self.no_facts)
                     return .Ok(())
                 _ => pass
         .Err(self.fail("object"))
@@ -1834,8 +1837,7 @@ impl Deserializer for JsonReader:
             if self.present:
                 match self.value:
                     .Object(_) =>
-                        self.enter(self.value, ReadKind.Record, self.depth, "")
-                        self.facts[self.top()] = facts
+                        self.enter(self.value, ReadKind.Record, self.depth, "", facts)
                         return .Ok(0)
                     _ => pass
             return .Err(self.fail("object"))
@@ -1864,8 +1866,7 @@ impl Deserializer for JsonReader:
                         _ => return .Err(JsonError.WrongType(concat_all([self.path_to(self.depth), ".", name]), "object"))
                 depth := self.depth
                 self.step_key(depth, name)
-                self.enter(payload, ReadKind.Tagged, depth + 1, name)
-                self.facts[self.top()] = facts
+                self.enter(payload, ReadKind.Tagged, depth + 1, name, facts)
                 return .Ok(index)
             index = index + 1
         .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
@@ -1914,7 +1915,7 @@ struct TextReadFrame:
     pub base: usize
     pub home: usize
     pub name: string
-    pub facts: Facts = Facts { items: [] }
+    pub facts: Facts
 
 struct TextObject:
     pub keys: List[string]
@@ -1930,13 +1931,15 @@ struct TextReader:
     pub names: List[string]
     pub open: usize
     pub frames: List[*mut TextReadFrame]
+    # The facts of a list or a map frame, made once per reader.
+    pub no_facts: Facts
 
 impl TextReader:
     fn new(parser: Parser) -> *mut TextReader:
         let mut source = parser
         source.at = 0
         source.skip_space()
-        &mut TextReader { parser: &mut source, at: source.at, present: true, depth: 0, steps: [], names: [], open: 0, frames: [] }
+        &mut TextReader { parser: &mut source, at: source.at, present: true, depth: 0, steps: [], names: [], open: 0, frames: [], no_facts: Facts { items: [] } }
 
     fn path_to(&self, depth: usize) -> string:
         let mut parts: List[string] = ["\$"]
@@ -2001,7 +2004,7 @@ impl TextReader:
     # records need no map, and their unescaped keys remain input slices.
     fn scan_object(&mut self, at: usize, frame: &mut TextReadFrame) -> Result[void, JsonError]:
         frame.key_count = 0
-        frame.positions = {}
+        if frame.positions.len() > 0: frame.positions = {}
         self.parser.at = at + 1
         self.parser.skip_space()
         while bytes_at(self.parser.text, self.parser.at) != 125:
@@ -2043,10 +2046,10 @@ impl TextReader:
             self.parser.skip_space()
         .Ok(())
 
-    fn enter(&mut self, at: usize?, kind: ReadKind, base: usize, name: string) -> Result[void, JsonError]:
+    fn enter(&mut self, at: usize?, kind: ReadKind, base: usize, name: string, facts: Facts) -> Result[void, JsonError]:
         slot := self.open
         if slot == self.frames.len():
-            self.frames.push(&mut TextReadFrame { kind: kind, cursor: 0, next: 0, keys: [], key_count: 0, offsets: [], positions: {}, base: base, home: self.depth, name: name })
+            self.frames.push(&mut TextReadFrame { kind: kind, cursor: 0, next: 0, keys: [], key_count: 0, offsets: [], positions: {}, base: base, home: self.depth, name: name, facts: facts })
         frame := self.frames[slot]
         frame.kind = kind
         frame.cursor = 0
@@ -2055,7 +2058,7 @@ impl TextReader:
         frame.base = base
         frame.home = self.depth
         frame.name = name
-        frame.facts = Facts { items: [] }
+        frame.facts = facts
         match at:
             .Some(start) =>
                 frame.cursor = start + 1
@@ -2146,7 +2149,7 @@ impl Deserializer for TextReader:
 
     fn begin_list(&mut self) -> Result[void, JsonError]:
         if self.present && self.byte() == 91:
-            return self.enter(.Some(self.at), ReadKind.Items, self.depth, "")
+            return self.enter(.Some(self.at), ReadKind.Items, self.depth, "", self.no_facts)
         .Err(self.fail("array"))
 
     fn next_item(&mut self) -> Result[bool, JsonError]:
@@ -2180,7 +2183,7 @@ impl Deserializer for TextReader:
 
     fn begin_map(&mut self) -> Result[void, JsonError]:
         if self.present && self.byte() == 123:
-            return self.enter(.Some(self.at), ReadKind.Entries, self.depth, "")
+            return self.enter(.Some(self.at), ReadKind.Entries, self.depth, "", self.no_facts)
         .Err(self.fail("object"))
 
     fn next_key(&mut self) -> Result[string?, JsonError]:
@@ -2207,8 +2210,7 @@ impl Deserializer for TextReader:
     fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
         if choices.len() == 1 && choices[0].of_data:
             if self.present && self.byte() == 123:
-                self.enter(.Some(self.at), ReadKind.Record, self.depth, "")?
-                self.top().facts = facts
+                self.enter(.Some(self.at), ReadKind.Record, self.depth, "", facts)?
                 return .Ok(0)
             return .Err(self.fail("object"))
         if !self.present: return .Err(self.fail("variant"))
@@ -2234,8 +2236,7 @@ impl Deserializer for TextReader:
                     .None => pass
                 depth := self.depth
                 self.step_key(depth, name)
-                self.enter(payload, ReadKind.Tagged, depth + 1, name)?
-                self.top().facts = facts
+                self.enter(payload, ReadKind.Tagged, depth + 1, name, facts)?
                 return .Ok(index)
             index = index + 1
         .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
