@@ -243,3 +243,25 @@ explicit public inputs; packaging supplies them independently.
 
 > **Note.** The component supplies no deployment task, lifecycle budget
 > defaults, or aggregate memory guarantee.
+
+## Deployment Grants
+
+1. r[std-server-sdk.deploy.root-manifest] The SDK's shared deployment-grant reader reads `hd.toml` in the selected root package directory.
+2. r[std-server-sdk.deploy.production-only] It takes deployment grants only from that manifest's `[capabilities]` table.
+3. r[std-server-sdk.deploy.explicit-grants] It preserves every explicit unrestricted grant, denial and scope list.
+4. r[std-server-sdk.deploy.package-consent] It preserves explicit package-capability consent and denial under the written capability path.
+5. r[std-server-sdk.deploy.no-inheritance] Dependency manifests, development grants, command-line grants and ambient environment values do not add deployment grants.
+6. r[std-server-sdk.deploy.no-default-grants] An absent production table or entry contributes no grant.
+7. r[std-server-sdk.deploy.fresh-manifest] A later deployment read uses the manifest's current contents.
+8. r[std-server-sdk.deploy.invalid-manifest] An unreadable, non-TOML or non-UTF-8 root manifest fails deployment preparation.
+9. r[std-server-sdk.deploy.invalid-grant] A production entry with an invalid capability key or grant value fails deployment preparation.
+10. r[std-server-sdk.deploy.no-value-diagnostics] Manifest-reader errors do not include source excerpts or grant values.
+
+> **Why.** Deploy-time selection keeps the build policy-free and prevents
+> development permissions from becoming production authority. The shared
+> reader gives every platform adapter the same production entries.
+
+The SDK JavaScript conformance inputs are in
+[deployment-grants.json](../../packages/server-sdk/test/fixtures/deployment-grants.json);
+its maintained [test runner](../../packages/server-sdk/test/grants.test.mjs)
+also checks root selection, fresh reads, invalid UTF-8 and the SDK task bridge.
