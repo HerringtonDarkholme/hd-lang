@@ -104,3 +104,101 @@ test(
     }
   },
 );
+
+test(
+  "disconnect releases one lease and the retained workers keep serving",
+  { timeout: 30000 },
+  async () => {
+    const cache = await mkdtemp(join(root, ".cache-muse-266-disconnect-"));
+    const child = spawn(hd, ["run", "--engine", "node"], {
+      cwd: join(root, "examples/server-api"),
+      env: { ...process.env, HD_CACHE: cache, HD_SERVER_PORT: "0" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const closed = once(child, "close");
+    let errors = "",
+      listening,
+      acceptReady,
+      acceptFinished;
+    const ready = new Promise((resolve) => {
+      acceptReady = resolve;
+    });
+    const finished = new Promise((resolve) => {
+      acceptFinished = resolve;
+    });
+    const output = createInterface({ input: child.stdout });
+    child.stderr.setEncoding("utf8").on("data", (text) => {
+      errors += text;
+    });
+    output.on("line", (line) => {
+      if (line.startsWith('{"event":"listening"')) {
+        listening = JSON.parse(line);
+        acceptReady(listening);
+      }
+      if (line.startsWith('{"event":"request-finished"')) acceptFinished(JSON.parse(line));
+    });
+    const deadline = AbortSignal.timeout(15000);
+    const aborted = new Promise((_, reject) =>
+      deadline.addEventListener(
+        "abort",
+        () => reject(new Error("disconnect control timed out: " + errors)),
+        { once: true },
+      ),
+    );
+    let slow;
+    try {
+      const address = await Promise.race([ready, aborted]);
+      const url = `http://127.0.0.1:${address.port}`;
+      const controller = new AbortController();
+      slow = fetch(url + "/slow", {
+        method: "POST",
+        body: '{"message":"cancel me"}',
+        signal: AbortSignal.any([controller.signal, deadline]),
+      }).then(
+        (response) => ({ response }),
+        (error) => ({ error }),
+      );
+      let fast = 0,
+        started = false;
+      // Only these fast requests and the slow request can change the count.
+      // A count above `fast` proves the slow HD handler entered before abort.
+      while (fast < 20 && !started) {
+        const response = await fetch(url, {
+          method: "POST",
+          body: '{"message":"other"}',
+          signal: deadline,
+        });
+        assert.equal(response.status, 200);
+        fast++;
+        started = (await response.json()).count > fast;
+      }
+      assert.ok(started, "the disconnected handler must have started");
+      controller.abort();
+      assert.ok((await slow).error, "the client observes its own abort");
+      const event = await Promise.race([finished, aborted]);
+      assert.equal(event.cancelled, "Disconnected");
+      assert.equal(event.abandoned, false);
+      const after = await fetch(url, {
+        method: "POST",
+        body: '{"message":"after"}',
+        signal: deadline,
+      });
+      assert.equal(after.status, 200);
+      assert.deepEqual(await after.json(), { count: fast + 2, message: "after" });
+      process.kill(listening.pid, "SIGTERM");
+      const [code, signal] = await closed;
+      assert.equal(code, 0, errors);
+      assert.equal(signal, null);
+      assert.equal(errors, "");
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) {
+        if (listening) killProcess(listening.pid);
+        child.kill("SIGKILL");
+        await closed;
+      }
+      await slow;
+      output.close();
+      await rm(cache, { recursive: true, force: true });
+    }
+  },
+);

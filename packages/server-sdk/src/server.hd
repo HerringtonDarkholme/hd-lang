@@ -1,5 +1,7 @@
 use std.http.{Request, Response}
-use std.task.map_all
+use std.task.{map_all, race, timeout, TimedOut, CleanupEnd}
+use std.ops.Disposable
+use std.time.{Clock, ms, s}
 
 pub struct RequestId:
     pub generation: u64
@@ -28,6 +30,52 @@ pub trait HttpServer:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]
     fn respond!(&mut self, id: RequestId, response: Response) -> Result[void, ServerError]
     fn cancelled!(&mut self, id: RequestId) -> CancelReason
+    fn clock(&mut self, id: RequestId) -> &mut dyn Clock
+    fn finish(&mut self, id: RequestId, abandoned: bool) -> void
+
+enum JobEnd:
+    Response(value: Response)
+    Cancelled
+
+struct CleanupState:
+    abandoned: bool
+
+# The timeout owns the handler and bounds its cleanup even when cancelled
+# externally. The lease outlives the race and acknowledges cleanup last.
+struct Lease:
+    server: &mut dyn HttpServer
+    id: RequestId
+    job: mut Suspend[Result[Response, TimedOut]]
+    state: &mut CleanupState
+
+impl Disposable for Lease:
+    fn dispose!(&mut self) -> void:
+        end := self.job.cancel!()
+        self.server.finish(self.id, self.state.abandoned || end == CleanupEnd.Abandoned)
+
+fn cancellation!(server: &mut dyn HttpServer, id: RequestId) -> JobEnd:
+    _ := server.cancelled!(id)
+    .Cancelled
+
+fn response!(job: mut Suspend[Result[Response, TimedOut]], state: &mut CleanupState) -> JobEnd:
+    match job!():
+        .Ok(value) => .Response(value)
+        .Err(error) =>
+            state.abandoned = error.cleanup == CleanupEnd.Abandoned
+            .Response(Response { status: 504, body: "request timed out".to_utf8() })
+
+fn request![S, $R](server: &mut dyn HttpServer, incoming: Incoming, state: &mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R:
+    cleanup := &mut CleanupState { abandoned: false }
+    clock := server.clock(incoming.id)
+    let job: mut Suspend[Result[Response, TimedOut]] = $.with(Clock=clock):
+        timeout(s(20), cleanup=ms(100), work=fn!() -> Response $ R: handler!(incoming.request, state))
+    using lease = Lease { server: server, id: incoming.id, job: job, state: cleanup }
+    end := race!(cancellation(server, incoming.id), response(job, cleanup))
+    match end:
+        .Cancelled => .Ok(())
+        .Response(value) => match server.respond!(incoming.id, value):
+            .Err(.Expired) => .Ok(())
+            result => result
 
 fn worker![S, $R](state: &mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R + HttpServer:
     server := $.use(HttpServer)
@@ -35,8 +83,7 @@ fn worker![S, $R](state: &mut S, handler: fn!(Request, &mut S) -> Response $ R) 
         incoming := match server.accept!()?:
             .Some(incoming) => incoming
             .None => return .Ok(())
-        response := handler!(incoming.request, state)
-        server.respond!(incoming.id, response)?
+        request!(server, incoming, state, handler)?
 
 pub fn serve![S, $R](workers: usize, state: &mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R + HttpServer:
     width := if workers < 1: 1 else: workers
