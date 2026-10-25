@@ -1,0 +1,5 @@
+[package]
+name = "typed-form-research"
+
+[capabilities]
+Console = true

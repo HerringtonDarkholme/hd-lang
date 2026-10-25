@@ -6,6 +6,8 @@ use std.http.Method
 use std.hash.Hasher
 use std.json.JsonError
 use std.serde.{Deserialize, Serialize}
+use std.text.Parse
+use std.time.{Duration, Timestamp}
 
 # HTTP field names fold ASCII only; non-ASCII remains invalid for wire validation.
 fn fold_header_name(name: string) -> string:
@@ -175,10 +177,48 @@ impl Hash for HttpStatus:
 
 pub enum UrlError:
     Invalid
+    Form(value: FormError)
+
+pub enum FormError:
+    Percent(offset: usize)
+    Utf8
+    Missing(field: string)
+    Duplicate(field: string)
+    Parse(field: string, message: string)
+    Unsupported(field: string)
+    Schema(field: string)
+
+pub enum CookieError:
+    Name(name: string)
+    Value(name: string)
+    Attribute(name: string, attribute: string)
+    InsecureSameSiteNone(name: string)
+    Time(name: string)
+
+pub enum SameSite:
+    Strict
+    Lax
+    None
+
+pub struct Cookie:
+    pub name: string
+    pub value: string
+    pub path: string? = .Some("/")
+    pub domain: string? = .None
+    pub max_age: Duration? = .None
+    pub expires: Timestamp? = .None
+    pub secure: bool = true
+    pub http_only: bool = true
+    pub same_site: SameSite = .Lax
+
+impl Cookie:
+    pub fn expired(name: string) -> Cookie:
+        Cookie { name: name, value: "", max_age: .Some(Duration::milliseconds(0)) }
 
 pub enum BodyError:
     Used
     Json(value: JsonError)
+    Form(value: FormError)
 
 pub enum HttpError:
     Url(value: UrlError)
@@ -186,6 +226,8 @@ pub enum HttpError:
     Transport(message: string)
     Status(value: Response)
     InvalidHeader(name: HeaderName)
+    Form(value: FormError)
+    Cookie(value: CookieError)
 
 impl From[UrlError] for HttpError:
     fn from(value: UrlError) -> HttpError: .Url(value)
@@ -195,6 +237,7 @@ impl From[BodyError] for HttpError:
 
 pub struct Url:
     raw: string
+    prepared_query: Result[string, FormError]
 
 impl Url:
     pub fn parse(text: string) -> Result[Url, UrlError]: panic("shape-only")
@@ -202,13 +245,23 @@ impl Url:
     pub fn path(&self) -> string: panic("shape-only")
     pub fn query(&self, name: string) -> string?: panic("shape-only")
     pub fn query_all(&self, name: string) -> List[string]: panic("shape-only")
-    pub fn add_query(&mut self, name: string, value: string) -> void: panic("shape-only")
+    pub fn query_as[T < Parse](&self, name: string) -> Result[T?, FormError]: panic("shape-only")
+    pub fn add_query[T < Display](&mut self, name: string, value: T) -> void: panic("shape-only")
+    pub fn to_string(&self) -> Result[string, FormError]: panic("shape-only")
+    pub fn set_path(&mut self, encoded: string) -> Result[void, UrlError]: panic("shape-only")
 
 pub enum HeaderError:
     Invalid(name: HeaderName)
+    Cookie(value: CookieError)
 
 pub struct Headers:
-    pairs: List[(HeaderName, string)]
+    entries: List[HeaderEntry]
+
+# Proposed ordinary data; original typed cookie components survive until wire validation.
+enum HeaderEntry:
+    Raw(name: HeaderName, value: string)
+    RequestCookies(pairs: List[(string, string)])
+    ResponseCookie(value: Cookie)
 
 impl Headers:
     pub fn new() -> Headers: panic("shape-only")
@@ -220,12 +273,14 @@ impl Headers:
     pub fn remove(&mut self, name: HeaderName) -> void: panic("shape-only")
 
 pub struct Body:
-    payload: List[u8]
+    payload: Result[List[u8], FormError]
     used: bool
 
 impl Body:
     pub fn empty() -> *mut Body: panic("shape-only")
     pub fn from_bytes(bytes: List[u8]) -> *mut Body: panic("shape-only")
+    pub fn bytes(&mut self) -> Result[List[u8], BodyError]: panic("shape-only")
+    pub fn replace_bytes(&mut self, bytes: List[u8]) -> Result[void, BodyError]: panic("shape-only")
 
 pub struct Request:
     pub method: Method
@@ -253,6 +308,12 @@ impl Request:
     pub fn set_text(mut self, text: string) -> Request: panic("shape-only")
     pub fn set_json[T < Serialize](mut self, value: T) -> Request: panic("shape-only")
     pub fn set_form[T < Serialize](mut self, value: T) -> Request: panic("shape-only")
+    pub fn form[T < Deserialize](&self) -> Result[T, BodyError]: panic("shape-only")
+    pub fn set_query[T < Serialize](mut self, value: T) -> Request: panic("shape-only")
+    pub fn query[T < Deserialize](&self) -> Result[T, FormError]: panic("shape-only")
+    pub fn set_cookie(mut self, name: string, value: string) -> Request: panic("shape-only")
+    pub fn cookie(&self, name: string) -> string?: panic("shape-only")
+    pub fn cookies(&self) -> List[(string, string)]: panic("shape-only")
     pub fn set_header(mut self, name: HeaderName, value: string) -> Request: panic("shape-only")
     pub fn header(&self, name: HeaderName) -> string?: panic("shape-only")
     pub fn bytes(&self) -> Result[List[u8], BodyError]: panic("shape-only")
@@ -264,6 +325,9 @@ impl Response:
     pub fn set_text(mut self, text: string) -> Response: panic("shape-only")
     pub fn set_json[T < Serialize](mut self, value: T) -> Response: panic("shape-only")
     pub fn set_form[T < Serialize](mut self, value: T) -> Response: panic("shape-only")
+    pub fn form[T < Deserialize](&self) -> Result[T, BodyError]: panic("shape-only")
+    pub fn set_cookie(mut self, value: Cookie) -> Response: panic("shape-only")
+    pub fn cookies(&self) -> List[Cookie]: panic("shape-only")
     pub fn set_header(mut self, name: HeaderName, value: string) -> Response: panic("shape-only")
     pub fn header(&self, name: HeaderName) -> string?: panic("shape-only")
     pub fn bytes(&self) -> Result[List[u8], BodyError]: panic("shape-only")
@@ -275,6 +339,9 @@ pub trait Http:
 
 impl Request:
     pub fn send!(&self, redirects: usize = 10) -> Result[Response, HttpError] $ Http: panic("shape-only")
+
+pub fn get!(url: string) -> Result[Response, HttpError] $ Http: panic("shape-only")
+pub fn post!(url: string, body: List[u8] = []) -> Result[Response, HttpError] $ Http: panic("shape-only")
 
 @derive(Serialize, Deserialize)
 pub struct Order:
@@ -307,8 +374,38 @@ pub fn client_call!() -> Result[Reply, HttpError] $ Http:
 pub fn outgoing_form(value: Order) -> Response:
     Response::status(.Ok).set_form(value)
 
-pub fn incoming_form_text(request: &Request) -> Result[string, BodyError]:
-    request.text()
+pub fn incoming_form(request: &Request) -> Result[Order, BodyError]:
+    request.form::[Order]()
+
+# Stand-ins for the proposed std.form module; these check signatures, not codecs.
+pub fn form_encode[T < Serialize](value: T) -> Result[string, FormError]: panic("shape-only")
+pub fn form_decode[T < Deserialize](text: string) -> Result[T, FormError]: panic("shape-only")
+
+@derive(Serialize, Deserialize)
+pub struct Bounds:
+    pub minimum: i32
+    pub maximum: i32?
+
+@derive(Serialize, Deserialize)
+pub struct Search:
+    pub bounds: Bounds
+    pub tags: List[string]
+
+pub fn query_shapes(request: Request) -> Result[Search, FormError]:
+    value := Search { bounds: Bounds { minimum: +1, maximum: .None }, tags: ["a", "b"] }
+    encoded := form_encode(value)?
+    _ := form_decode::[Search](encoded)?
+    let mut outgoing = request.set_query(value)
+    outgoing.url.add_query("page", +2)
+    _ := outgoing.url.query_as::[i32]("page")?
+    outgoing.query::[Search]()
+
+pub fn cookie_shapes(request: Request, response: Response) -> Response:
+    outgoing := request.set_cookie("session", "encoded-value")
+    _ := outgoing.cookie("session")
+    _ := outgoing.cookies()
+    _ := response.cookies()
+    response.set_cookie(Cookie { name: "session", value: "encoded-value" }).set_cookie(Cookie::expired("old"))
 
 pub fn replace_for_proxy(incoming: &Request) -> Request:
     (*incoming).set_text("replacement")

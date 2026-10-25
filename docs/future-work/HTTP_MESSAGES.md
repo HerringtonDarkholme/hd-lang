@@ -11,7 +11,15 @@ It follows the owner's [message direction](https://github.com/HerringtonDarkholm
 [deferred header validation](https://github.com/HerringtonDarkholme/hd-lang/issues/847#issuecomment-6403751104),
 [HttpStatus](https://github.com/HerringtonDarkholme/hd-lang/issues/847#issuecomment-6403775715),
 and the final From-only direction above, which supersedes earlier automatic typed-header mapping and decoding proposals.
-The [final form scope](https://github.com/HerringtonDarkholme/hd-lang/issues/847#issuecomment-6404135821) keeps outgoing set_form and excludes a typed form reader.
+The later [Cookie direction](https://github.com/HerringtonDarkholme/hd-lang/issues/847#issuecomment-6404500144)
+adds typed cookie operations in all four directions.
+The [typed form/query direction](https://github.com/HerringtonDarkholme/hd-lang/issues/847#issuecomment-6404502584)
+restores typed form reads and adds whole-query conversion through one ordinary std.form codec.
+The [OpenAPI refinement](https://github.com/HerringtonDarkholme/hd-lang/issues/847#issuecomment-6404542694)
+allows declared nested records with bracket keys, superseding the flat-only restriction.
+The [depth and incoming-cookie clarification](https://github.com/HerringtonDarkholme/hd-lang/issues/847#issuecomment-6404702917)
+limits nesting to one deepObject bracket level and distinguishes incoming attributes from outgoing defaults.
+These later directions replace the earlier outgoing-only form scope; they do not restore automatic typed header mapping.
 Those decisions constrain the proposal; the remaining API and migration details still need approval before implementation.
 The current contract remains [std.http](../../spec/std/http.md).
 
@@ -58,9 +66,9 @@ This does not implement streaming, backpressure, or a transport handle.
 | --- | --- | --- | --- |
 | JSON client | Build a POST, send it, decode a reply into `Order` | Request builder and Response reader have different surfaces | The same `Body` writers and typed readers on both messages |
 | JSON server | Read an incoming order and return a typed receipt | Manual request byte conversion and response construction | `request.json[Order]`, then `Response::status(.Created).set_json(reply)` |
-| Form receiver | Read an incoming URL-encoded body | No Request body reader | Read text/bytes; application parsing stays explicit; no typed std form reader |
+| Form receiver | Read an incoming URL-encoded body and typed query | No Request body reader | Shared std.form codec, typed records, repeated scalar fields and bracketed nested records |
 | Proxy | Change destination and headers while forwarding a body | Value-copy lists are reusable | Head copies are independent; body aliases share consumption |
-| Repeated headers | Preserve two `Set-Cookie` values and look up a field | Pairs plus Response-only lookup | Owned `Headers` with first/all lookup and ordered duplicates |
+| Repeated headers | Read request cookies and append two typed response cookies | Pairs plus Response-only lookup | Ordered duplicates, typed Cookie helpers, separate Set-Cookie lines |
 | Retry | Repeat an operation without a silently empty body | Copies retain body bytes | Construct fresh work and a fresh body for each application attempt |
 
 ## State of the art
@@ -225,7 +233,8 @@ Consuming reads are plain functions while the whole body is already buffered, wi
 
 Reading text should preserve today's lossy UTF-8 behavior.
 Body and format errors remain typed; a malformed client payload should not become a panic or erased Error.
-Incoming form interpretation, multipart files and validation are application concerns here; there is no new typed form reader.
+Typed form interpretation uses the shared std.form codec on both messages.
+Multipart files and application validation remain separate concerns.
 The validation design in #846 must not be implemented incidentally here.
 
 ### URL and header invariants
@@ -286,9 +295,9 @@ The proposed field lists are:
 | --- | --- | --- |
 | Request | `method: Method`, `url: Url`, `headers: Headers`, `body: *mut Body` | Public owned fields; no query or redirect field |
 | Response | `status: HttpStatus`, `headers: Headers`, `body: *mut Body`, `url: Url?` | An absent origin for a locally built response |
-| Url | Written URI-reference plus parsed component ranges | Private invariant; preserve the grant-visible authority spelling |
-| Headers | Ordered `List[(HeaderName, string)]` | Owned duplicate-preserving collection; validate before transport effects |
-| Body | `payload: List[u8]`, `used: bool` | Private state in one counted object; no media hint or enclosing-message pointer |
+| Url | Written non-query components plus prepared query text or FormError | Private invariant; preserve grant-visible authority spelling and pending query failure |
+| Headers | Ordered entries: raw field, typed request-cookie pairs, or typed response Cookie | Owned duplicate-preserving collection; materialize validated fields at the wire |
+| Body | `payload: Result[List[u8], FormError]`, `used: bool` | Proposed preparation state in one counted object; no media hint or enclosing-message pointer |
 
 `Url?` replaces the existing empty-string Response URL sentinel in this proposal.
 Request method and Response status remain ordinary fields; no status-specific Response subclasses or typed endpoint objects appear.
@@ -307,7 +316,8 @@ The lean Body's internal consuming reader takes `&mut self`.
 | Text write | `set_text(mut self, value: string) -> Self` | New Body and text/plain Content-Type |
 | Bytes read | `bytes(&self) -> Result[List[u8], BodyError]` | Claim once without text conversion |
 | Bytes write | `set_bytes(mut self, value: List[u8]) -> Self` | New Body; no invented content encoding |
-| Form write | `set_form[T < Serialize](mut self, value: T) -> Self` | Preserve existing flat form serialization under the message writer name |
+| Form read | `form[T < Deserialize](&self) -> Result[T, BodyError]` | Claim once, then decode through std.form |
+| Form write | `set_form[T < Serialize](mut self, value: T) -> Self` | Encode once; retain bytes or a typed preparation error until the boundary |
 | Header read | `header(&self, name: HeaderName) -> string?` | First case-insensitive match |
 | Header write | `set_header(mut self, name: HeaderName, value: string) -> Self` | Replace that name on the returned owned Headers value |
 
@@ -318,8 +328,26 @@ HttpStatus.code(&self) returns u16; from_code(u16) selects a known variant or Ot
 `Request.send!(&self, redirects: usize = 10) -> Result[Response, HttpError] $ Http` is the terminal.
 Client uses the same redirect argument and retains its base/default-header/cookie state.
 
+| Additional surface | Complete proposed signature | Lifetime effect |
+| --- | --- | --- |
+| Whole query write | Request.set_query[T < Serialize](mut self, value: T) -> Request | Replace query result only |
+| Whole query read | `Request.query[T < Deserialize](&self) -> Result[T, FormError]` | Inspect Url; no Body claim |
+| Per-key typed atom | Url.query_as[T < Parse](&self, name: string) -> Result[T?, FormError] | Propagate pending query error, absence or conversion error |
+| Direct form write | std.form.encode[T < Serialize](value: T) -> Result[string, FormError] | Ordinary value conversion |
+| Direct form read | std.form.decode[T < Deserialize](text: string) -> Result[T, FormError] | Ordinary value conversion |
+
+The proposed FormError variants are Percent(offset), Utf8, Missing(field), Duplicate(field), Parse(field, message), Unsupported(field), and Schema(field).
+These exact error names/payloads are proposals, not new diagnostic codes or compiler rules.
+BodyError wraps a FormError for body reads; HttpError wraps it for deferred query/body preparation.
+CookieError separately distinguishes name, value, attribute, SameSite/Secure, and time failures without including secret values in an automatic message.
+
 An `api` in `Request::post(api).set_json(order)` is an already parsed Url in this proposal.
 The free `get!(url: string)` remains a convenience that parses and sends with defaults.
+The [parsed-Url clarification](https://github.com/HerringtonDarkholme/hd-lang/issues/847#issuecomment-6404777408)
+keeps text conveniences separate from Request's parsed constructors.
+For its matching post helper, the proposed complete signature is `post!(url: string, body: List[u8] = []) -> Result[Response, HttpError] $ Http`.
+It parses the URL, constructs POST, installs byte content, and sends; callers needing JSON or forms use the ordinary message setters.
+The post body argument is a proposal for review; post! does not exist in current std.
 Constructor parsing therefore has an explicit typed error rather than hidden panics or invalid intermediate messages.
 Client resolves relative references before sending; direct send rejects an unresolved reference.
 
@@ -328,22 +356,27 @@ The owned metadata atoms retain the 20% operations:
 | Atom | Inspection / construction | Mutation |
 | --- | --- | --- |
 | Headers | `new() -> Headers`; `get(&self, name: HeaderName) -> string?`; `get_all(&self, name: HeaderName) -> List[string]`; `validate(&self) -> Result[void, HeaderError]` | `append(&mut self, name: HeaderName, value: string) -> void`; `set(&mut self, name: HeaderName, value: string) -> void`; `remove(&mut self, name: HeaderName) -> void` |
-| Url | `parse(text: string) -> Result[Url, UrlError]`; `path(&self) -> string`; `query(&self, name: string) -> string?`; `query_all(&self, name: string) -> List[string]`; `to_string(&self) -> string` | `add_query(&mut self, name: string, value: string) -> void`; `set_path(&mut self, encoded: string) -> Result[void, UrlError]` |
+| Url | `parse(text: string) -> Result[Url, UrlError]`; `path(&self) -> string`; `query(&self, name: string) -> string?`; `query_all(&self, name: string) -> List[string]` | `add_query[T < Display](&mut self, name: string, value: T) -> void`; `set_path(&mut self, encoded: string) -> Result[void, UrlError]` |
 | Body | `from_bytes(bytes: List[u8]) -> *mut Body`; consuming `bytes(&mut self) -> Result[List[u8], BodyError]` | Optional atom `replace_bytes(&mut self, bytes: List[u8]) -> Result[void, BodyError]`, rejecting Used rather than resetting aliases |
 
 `Url.resolve(&self, reference: string) -> Result[Url, UrlError]` returns a new value; it does not mutate its base.
+Under the error-bearing query proposal, resolve propagates a pending failure through proposed UrlError.Form(FormError).
+Client/base resolution and wire snapshots must preserve that cause; they cannot render or send the previous successful query instead.
+Safe status display continues to omit query contents and does not require a fallible complete-URL rendering.
 Header validation runs at the wire boundary, with an optional explicit early validate call.
+Under the tagged-cookie proposal, early Headers.validate checks both raw fields and original typed cookies.
+HeaderError.Invalid(name) covers raw fields; proposed HeaderError.Cookie(CookieError) retains typed cookie failures for the same wire mapping.
 Headers::from, Headers.set and message.set_header remain infallible and hold plain data, with no hidden error state.
 Http sending returns HttpError.InvalidHeader(name); the server responds with 500 and logs the reason instead of emitting bad bytes.
 UrlError details and optional early URL validation remain part of the approval review.
 The complete checked catalog identifies which signatures are implemented in the local model and which have explicit unimplemented stubs.
 
-The body error proposal is BodyError.Used and BodyError.Json(JsonError).
-Only JSON decoding selects a body-read target type; text and bytes return their ordinary concrete types.
-HttpError retains transport/status cases and gains a typed body-preparation cause.
+The body error proposal is BodyError.Used, BodyError.Json(JsonError), and BodyError.Form(FormError).
+JSON and form decoding select a body-read target type; text and bytes return their ordinary concrete types.
+HttpError retains transport/status cases and gains typed body, form/query preparation, and CookieError causes.
 Format failures are not silently converted into transport strings.
 
-A message setter replaces its returned value's Body reference, detaching it from the source message's body aliases.
+A body-writing message setter replaces its returned value's Body reference, detaching it from the source message's body aliases.
 Thus `let mut out = *incoming; out = out.set_json(value)` changes only out's head/body reference.
 An explicit atom that mutates the existing Body instead changes the object shared by all aliases.
 This distinction also avoids using a header-changing message method to mutate a body owned by another head.
@@ -501,16 +534,163 @@ Parse components without decoding the authority or path; an escaped slash remain
 Store outgoing query changes inside Url, replacing the old separate Request.query list.
 A query read decodes each name/value once and keeps repeated names in order; mutation percent-encodes each new pair once.
 
-The exact plus/space policy and malformed-percent handling need approval alongside this API.
-Form bodies use URL-encoded form rules, where plus represents space, rather than assuming every URL query has that meaning.
-There is no std form[T] reader in the final scope.
-A server reads the body through text()/bytes() and performs any application-specific form conversion explicitly.
-The optional plain querystring-to-pairs helper is not added speculatively here.
+The shared codec has proposed signatures `encode[T < Serialize](value: T) -> Result[string, FormError]`
+and `decode[T < Deserialize](text: string) -> Result[T, FormError]` in std.form.
+It serves Request.set_query/query and both messages' set_form/form pairs.
+Query conversion inspects metadata without consuming Body; form conversion claims Body before decoding.
 
-Outgoing set_form preserves today's flat FormWriter, including scalar/optional/list fields and serde wire names.
-It remains a value-returning message setter, setting the form Content-Type immediately.
-Unsupported outgoing shapes retain today's panic behavior, with their existing exact-message tests migrated to the new spelling.
-Multipart uploads and a general typed form decoder are outside this job.
+Request.set_query replaces the complete query, preserving path and fragment.
+Request.query[T] decodes the complete query into T, rather than looking up one named scalar.
+Url retains query(name), query_all(name), and add_query[T < Display](name, value) for individual pairs.
+A proposed `query_as[T < Parse](name)` returns Result[T?, FormError], distinguishing missing text from failed conversion.
+That extra atom fits the same codec; its name and exact error wrapper still need approval.
+
+OpenAPI's form style with explode repeats scalar lists: tag=a&tag=b.
+Its deepObject style supplies bracketed scalar object properties; the examples percent-encode the brackets.
+The selected spelling is field[field]=1 in decoded notation.
+The depth clarification limits this to one bracket level: top-level fields are parameters, and a struct-valued field has scalar or optional-scalar properties.
+Anything deeper, including recursive structures, is a typed error; no recursive nesting extension is proposed.
+[OpenAPI parameter serialization](https://spec.openapis.org/oas/v3.1.1.html#style-values).
+
+The following is the proposed codec profile, subject to the remaining approval details below.
+It builds a flat ordered pair index, never an untyped nested object graph.
+
+| Input shape | Encoding / decoding | Status |
+| --- | --- | --- |
+| Scalar record field | One declared wire-name key; builtin textual conversions use Parse | Owner direction |
+| Struct-valued parameter | One bracket level; properties are scalars or optional scalars | Owner direction; deeper structures are errors |
+| List of scalars | Repeat the same key, preserving occurrence order | Owner direction |
+| Absent Option | None; an explicit empty string remains present text | None is directed; empty-text detail is proposed |
+| Absent defaulted field | Existing serde default applies | Owner direction |
+| Unknown key | Ignore it when constructing the declared target | Owner direction |
+| List of records / dynamic-key map | FormError while reading; deferred preparation failure while writing | Owner direction; empty unsupported values need a shape policy |
+| Duplicate scalar | FormError rather than first/last selection | Proposal; no header/cookie duplicate rule is imported |
+| Missing nondefaulted scalar | FormError naming the declared member path | Proposal |
+| Missing scalar list | Empty list; optional list remains None | Proposal |
+| Payload enum, tuple or nested list | Unsupported shape error | Proposal; no accidental expansion through generic serde callbacks |
+
+Proposed URL-encoded bytes follow the shared form codec: space becomes +, literal + becomes %2B, and brackets become %5B/%5D.
+UTF-8 bytes are percent-encoded once; names and values use the same component encoder.
+This changes today's query encoder, where spaces use %20, and needs migration tests.
+The proposed reader rejects malformed percent sequences and invalid UTF-8 with FormError, including in unknown pairs.
+That strict error policy differs from WHATWG's forgiving parser and needs approval.
+[URL-encoded format](https://url.spec.whatwg.org/#application/x-www-form-urlencoded).
+
+The reader asks only for declared serde member paths and applies existing rename/default metadata.
+It follows Deserializer callbacks with a prefix stack; a pair index supplies ordered matching occurrences.
+Primitive hooks can call Parse, but Deserialize alone does not imply Parse for an arbitrary custom scalar type.
+Custom textual domain types can implement Deserialize by reading text and calling their own Parse implementation.
+A universal automatic Parse bridge is unbuilt and must not be implied by the existing bound.
+
+Literal brackets in renamed fields can collide with generated paths: a root field named a[b] and nested a / b have identical decoded keys.
+Percent encoding does not disambiguate that collision.
+The proposed first profile rejects bracket-bearing member names; an escaping scheme would be a separate approved choice.
+Unknown-key handling recognizes exact declared paths, not prefix strings such as a versus ab.
+
+One bracket level bounds declared nested decoding without traversing an arbitrary recursive schema.
+For a[b][c], the second object level is unsupported, even if its fields have known static types.
+Callback-only serde cannot see an empty list's element type or an absent optional map.
+Whether unsupported shapes fail by declared type or only when visited remains an implementation contract to approve.
+Neither input-length limits nor typed field selection resolves these two gaps by itself.
+
+The existing FormWriter has Error=never and panics on unsupported shapes.
+It is reference code, not a ready implementation of the new fallible shared codec.
+Its unsupported-shape panic expectations must become Result/deferred-error tests; retaining those panics would contradict the new direction.
+Multipart uploads remain outside this job.
+
+### Cookies in all four directions
+
+Cookie is an ordinary value; these operations read or write the head and never consume Body.
+The owner selected the following exact fields and outgoing defaults.
+
+| Field | Type | Outgoing default |
+| --- | --- | --- |
+| name, value | string | Required |
+| path | string? | Some("/") |
+| domain | string? | None |
+| max_age | Duration? | None |
+| expires | Timestamp? | None |
+| secure, http_only | bool | true |
+| same_site | SameSite | Lax; enum variants Strict, Lax, None |
+
+SameSite.None is an enum value, distinct from optional absence.
+Cookie::expired(name: string) -> Cookie sets max_age to zero duration without reading Clock.
+Deleting another Path/Domain scope requires setting those public fields explicitly.
+
+| Direction | Complete signature | Behavior |
+| --- | --- | --- |
+| Request read | cookie(&self, name: string) -> string? | First duplicate cookie name |
+| Request read all | cookies(&self) -> List[(string, string)] | All pairs in encounter order |
+| Response write | set_cookie(mut self, value: Cookie) -> Response | Append one separate Set-Cookie field |
+| Request write | set_cookie(mut self, name: string, value: string) -> Request | Merge into one Cookie field, separated by semicolon-space |
+| Response read | cookies(&self) -> List[Cookie] | Parse each Set-Cookie field and its attributes |
+
+Set-Cookie fields are never comma-joined or split on commas; an Expires date itself contains a comma.
+Unknown incoming attributes are ignored, while CR/LF is rejected at ingress and before outgoing transport.
+Transparent proxies retain raw headers because Cookie has no field for preserving unknown attributes.
+[RFC 6265](https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1).
+
+Wire validation checks the original cookie name, value and attribute strings before formatting them.
+Names use the RFC token grammar; values reject semicolon, comma, whitespace, quote, backslash and CR/LF as directed.
+SameSite.None requires secure=true at the wire.
+The proposal additionally uses the full ASCII cookie-octet grammar, rejecting other controls and non-ASCII values; callers encode explicitly.
+Invalid client output returns a typed HttpError; invalid server output follows the existing safe500 plus escaped-log policy.
+
+A typed value x; Secure cannot be flattened first and then validated by reparsing the resulting header.
+That loses whether the semicolon was original data or an attribute delimiter.
+Headers must preserve typed cookie provenance until wire preparation, including Path/Domain values.
+Ordinary From conversions remain plain raw header data; this does not restore automatic header serialization or a hidden error sentinel.
+
+Incoming parsing must not fabricate outgoing defaults as received attributes.
+The proposal sets absent Path/Domain/lifetime fields to None and absent Secure/HttpOnly to false.
+As approved, absent or unknown SameSite maps to Lax; the fixed enum does not preserve attribute presence.
+Malformed known attributes, quoted values, duplicate attributes and manually constructed CR/LF heads also need an exact accessor policy.
+The fixed infallible cookies() signature cannot silently grow a Result return type.
+
+Duration stores nonnegative milliseconds; incoming negative Max-Age therefore needs explicit deletion normalization.
+The proposal maps nonpositive received values to zero, rejects overflowing lifetimes, and requires integral seconds on outgoing values.
+Subsecond rounding versus rejection remains an approval item.
+Cookie dates need a bounded HTTP-date parser/formatter; Timestamp's RFC3339 parser does not provide it.
+Do not call panicking Duration constructors on hostile text or count this date implementation as existing time-library reuse.
+
+The Client host-only jar remains unchanged: the typed Cookie API does not introduce domain matching, path matching, persistence or a browser jar.
+Browser Fetch may hide Set-Cookie and forbid Cookie mutation; actual Node/Wasmtime/SDK raw-header behavior needs platform proofs.
+The guest API does not override those transport restrictions.
+[Fetch header exposure](https://fetch.spec.whatwg.org/#dom-headers-getsetcookie).
+
+### Deferred preparation and replacement
+
+The recommended mechanism is ordinary component-owned data, not retained generic values or delayed serializer closures.
+Serialization runs once at set_form/set_query time and returns bytes/text or FormError.
+Cookie validation remains at the boundary, preserving original typed values until then.
+
+| Component | Proposed representation | Replacement behavior |
+| --- | --- | --- |
+| Body | Result[List[u8], FormError] plus used flag in the same counted object | set_bytes/text/json/form installs a fresh Body; old aliases retain their own state |
+| Url query | Result[string, FormError] alongside valid non-query components | Replacing the whole query or assigning a fresh Url repairs only that query |
+| Headers | Ordered entries tagged Raw, RequestCookies or ResponseCookie | set/remove of a name replaces/removes its entries; response set_cookie always appends |
+
+Header entries preserve typed provenance, not a sticky error value.
+Raw From/map/pair inputs create Raw entries, and typed cookie writers create their ordinary tagged values.
+Header inspection may render a preview; transport materialization must still validate original typed components.
+Rebuilding a raw header intentionally opts into raw-header semantics rather than claiming to preserve typed provenance.
+
+The error-bearing query proposal changes Url's direct rendering contract: to_string returns Result[string, FormError].
+Typed query reads return the stored failure; untyped per-key lookups see no pairs in a failed query.
+The latter is a proposed absent-data behavior, not permission to send a stale successful query.
+Appending one scalar to a failed query preserves its failure; a complete successful replacement clears it.
+This representation and its observable inspection behavior still need approval.
+
+Alternatives are private per-message error slots, or deferred generic serialization through closures.
+Per-message slots become stale when public body/url fields are assigned directly; clearing one global error can erase another component's failure.
+Deferred closures add allocations, retained type-dependent state and repeated-effect questions.
+Component-owned results make repair follow ordinary replacement while preserving the owner's nongeneric message fields.
+
+Preparation validates headers, original cookies and pending query failures before claiming Body or calling a transport.
+A failed head or query does not consume an otherwise valid shared Body in this proposal.
+A failed form Body is claimed when sent or read, returning BodyError.Form; later body claims return Used.
+Replacing Body cannot erase a query error, and replacing Url cannot erase a body error.
+The server adapter performs equivalent preparation before committing a response.
 
 ### Equality and debug output
 
@@ -538,6 +718,48 @@ An application retry is another logical send.
 It must create another body or explicitly rebuild one from retained bytes.
 A message copy alone does not rewind consumption.
 This must be reconciled with Client, ScriptedHttp and retained status errors during migration.
+
+The new codec and preparation core is proposed as follows; these are algorithms, not new HD syntax.
+The typed reader enforces one bracket level and still needs the empty unsupported-shape contract discussed above.
+
+```rust
+fn encode_form(value) -> Result<Text, FormError> {
+    let mut writer = FormWriter::new();
+    value.serialize(&mut writer)?; // exactly once
+    writer.finish()              // reject unfinished custom protocols
+}
+fn decode_form<T>(text) -> Result<T, FormError> {
+    let pairs = decode_components_once(text)?;
+    let index = index_ordered_occurrences(pairs);
+    let mut reader = FormReader::new(index);
+    let value = T::deserialize(&mut reader)?;
+    reader.finish()?;
+    Ok(value)
+}
+fn read_declared_member(member, prefix, reader) {
+    let path = extend_declared_path(prefix, member.wire_name);
+    reader.select_exact_path_or_declared_subtree(path);
+    // existing DeserializeSource applies defaults on is_absent()
+    // scalar list cursors retain occurrence order
+    // maps / record-list elements return FormError
+}
+fn set_form(message, value) -> Message {
+    message.body = new_body(encode_form(value).map(utf8_bytes));
+    message.headers.set(ContentType, FORM_CONTENT_TYPE);
+    message
+}
+fn prepare_message(message, context) -> Result<WireSnapshot, HttpError> {
+    validate_status_and_raw_head(message)?;
+    let head = materialize_cookie_entries(message.headers)?;
+    let url = render_and_resolve_query_for_role(message, context)?;
+    let bytes = claim_body_once(message.body)?;
+    Ok(WireSnapshot { head, url, bytes })
+}
+```
+
+This proposed error precedence is stable: raw metadata, typed cookies, query, then Body claim checking Used before returning bytes or FormError.
+It preserves a valid body on a failed head check; it does not replay Serialize or partially emit an invalid message.
+One logical send can reuse the resulting snapshot for redirects, while another application send still requires a fresh Body.
 
 ### Private wire boundary and public adapters
 
@@ -577,12 +799,12 @@ The core preparation algorithm is pseudocode, not a new compiler pass or checked
 
 ```rust
 fn prepare(message: &Request, options: SendOptions) -> Result<PreparedRequest, HttpError> {
-    let url = resolve_and_validate(&message.url)?;
-    validate_method(&message.method)?;
-    validate_headers(&message.headers).map_err(HttpError::InvalidHeader)?;
-    let headers = message.headers.to_pairs();
-    let bytes = message.body.bytes().map_err(HttpError::Body)?;
-    Ok(PreparedRequest { method: message.method, url, headers, bytes, options })
+    // shared preparation above validates typed cookies before formatting,
+    // propagates pending query failures, then claims Body exactly once;
+    // a failed form body is reported by that claim without a transport call
+    let snapshot = prepare_message(message, options)?;
+    Ok(PreparedRequest { method: message.method, url: snapshot.url,
+                         headers: snapshot.head, bytes: snapshot.bytes, options })
 }
 fn send_prepared(mut request: PreparedRequest) -> Result<Response, HttpError> {
     let mut remaining = request.options.redirects;
@@ -608,19 +830,15 @@ fn send_prepared(mut request: PreparedRequest) -> Result<Response, HttpError> {
     }
 }
 fn reply_to_host(id: RequestId, response: &Response) -> Result<(), ServerError> {
-    if let Err(reason) = response.headers.validate() {
-        wire.log_safe_response_error(id, escaped_reason(reason));
-        return wire.respond(id, fixed_internal_server_error());
-    }
-    let headers = response.headers.to_pairs();
-    let bytes = match response.body.bytes() {
-        Ok(bytes) => bytes,
+    let snapshot = match prepare_message(response, server_context) {
+        Ok(snapshot) => snapshot,
         Err(reason) => {
             wire.log_safe_response_error(id, escaped_reason(reason));
             return wire.respond(id, fixed_internal_server_error());
         }
     };
-    wire.respond(id, PreparedResponse { status: response.status.code(), headers, bytes })
+    wire.respond(id, PreparedResponse { status: response.status.code(),
+        headers: snapshot.head, bytes: snapshot.bytes })
 }
 ```
 
@@ -718,7 +936,7 @@ This note makes no claim that the existing streaming proposal is already impleme
 ## Cost
 
 Cost evidence is being collected from the pinned compiler and a local model.
-The fresh baseline browser compiler is 5,893,314 raw bytes and 1,970,381 gzip bytes, using the repository build script.
+The original draft's pinned browser compiler is 5,893,314 raw bytes and 1,970,381 gzip bytes, using the repository build script.
 This is a measured baseline, not a prediction for a future complete implementation.
 It must separate the model's overhead from a complete std/host implementation estimate.
 The existing http module is 769 physical lines, 587 nonblank noncomment code lines, and 32,333 bytes.
@@ -736,7 +954,7 @@ Its modeled core subset is 332 code lines; imports, fixture URL, application con
 | Headers, validation and ordinary From | 60 | 90 | Hostile incoming host pair integration |
 | HttpStatus, Eq/Hash | 74 | 111 | No generic enum mechanism |
 | Message fields and constructors | 16 | 24 | Parser implementation |
-| Message setters/readers | 42 | 63 | Existing outgoing form-writer reuse |
+| Message setters/readers | 42 | 63 | Original JSON/byte model only; later form/query/cookie additions excluded |
 | Public Http/send forwarding | 5 | 7 | Default binding and real grants |
 | Primitive wire/internal adapter | 22 | 33 | SDK lease wrappers and host I/O |
 
@@ -748,7 +966,7 @@ The model's simplified UTF-8 conversion cannot be used to claim a smaller correc
 | Existing reusable/reference dependency | Source span | Physical lines | Code lines | Addition accounting |
 | --- | --- | ---: | ---: | --- |
 | Query append/shared encoder | lib/std/http.hd119–151 | 33 | 32 | Shared encoder counted once |
-| Existing flat FormWriter | lib/std/http.hd156–278 | 123 | 104 | Reuse for body form writing only; no smart header writer |
+| Existing flat FormWriter | lib/std/http.hd156–278 | 123 | 104 | Reference for the fallible shared codec; its panic/error contract must change |
 | Client URL/redirect resolution | lib/std/http.hd413–531 | 119 | 113 | Reference/reuse, not a full public parser |
 | Lossy UTF-8 conversion | lib/std/http.hd707–765 | 59 | 58 | Preserve existing code rather than invent strict decoding |
 | Existing ASCII header comparison | lib/std/http.hd687–703 | 17 | 16 | Reuse/check against new canonical name operations |
@@ -803,6 +1021,53 @@ Each implementation slice stops for review above 1.5 times its measured componen
 Unknown adapter/ABI work cannot be hidden in a library-only estimate.
 The web compiler's compressed Wasm must stay below the repository's hard 2 MB limit.
 
+The later Cookie/form/query additions require separate component evidence; the original 332-line core budget does not cover them.
+The old host-only jar subset is 66 code lines, excluding storage initialization and call sites.
+Its measured pieces are ClientCookie4, cookie lookup6, request assembly14, remember25, and cookie_host17.
+None implements the new cookie-date parser or full typed query reader.
+
+| Additional component | Existing measured reference | New work to measure before implementation |
+| --- | --- | --- |
+| Cookie value and four-direction helpers | Existing host-only jar subset66 code lines | Typed attributes, ordered request merge, parsed response attributes and provenance |
+| Cookie time conversion | Duration milliseconds / Timestamp calendar atoms | Nonpanicking Max-Age bounds plus HTTP cookie-date parser and formatter |
+| Shared form writer | Existing FormWriter104 code lines | Fallible completion, nested path stack, unsupported-shape errors |
+| Typed form/query reader | EnvReader98; serde protocols48 and derived source40 code lines | Ordered pair index, record/list cursors, strict decoding and typed member paths |
+| Scalar query atom | Parse and builtin examples37 code lines | query_as conversion and typed error mapping; Display append |
+| Deferred state | Existing one-object Body/reference model | Component result storage, tagged cookie entries, error precedence and repair proofs |
+
+These rows are source references, not additive estimates or complete feature budgets.
+The bounded revision prototypes must report their own exact source counts and exclusions.
+Generic codec/schema discovery and date parsing remain unpriced until measured; implementation must not hide them inside a setter allowance.
+
+The published revision probes now provide these additional measured components.
+Counts exclude blank and whole-line comment lines; tests and unrelated enum machinery are accounted separately.
+
+| Revision reference component | Code lines | 1.5× review threshold | Excluded work |
+| --- | ---: | ---: | --- |
+| Form errors | 7 | 10 | Final error names/cause policy |
+| Pair paths and percent codec | 53 | 79 | Schema-name collisions and global resource limits |
+| Fallible form Serializer | 73 | 109 | Declared empty unsupported-shape preflight |
+| Typed form reader / grouped entry point | 75 | 112 | Complete custom-serde protocol validation and shape preflight |
+| Deferred form/query component model | 15 | 22 | Real shared Body, Url, providers and response path |
+| Cookie/provenance mechanism subset | 139 | 208 | Cookie/date parsing, full formatter, request merging and real host delivery |
+
+The form program is 365 physical lines, 329 code lines, with 208 codec lines and 54 test lines.
+The cookie program is 328 physical lines, 285 code lines, with a 139-line mechanism subset and 50 test lines.
+The cookie subset includes declarations16, limited validation/formatting45, tagged entries9, Headers17, Payload/Body24, Message18 and errors10.
+Copied HeaderName machinery80, fake transport12, main2 and imports2 are excluded.
+These reference thresholds price matched mechanisms only; combining them does not price a complete production codec or HTTP migration.
+
+Revision compiler cc4d7e83, based on 8e7f4a9b4, builds the published form main to 138,704 bytes, with 384 defined functions and 110,654 code-section bytes.
+The program actually encodes/decodes the sample and prints 42 on both engines.
+The cookie main is deliberately empty and strips to 402 bytes, 5 functions and 40 code-section bytes.
+Its behavior lives in six test cases; that tiny main says nothing about the production cookie footprint.
+These are standalone program measurements, not a matched before/after HTTP overhead comparison.
+
+The form reader groups occurrences using a map, but its subtree-presence scan can inspect every distinct key per field.
+Its worst case is proportional to fields times distinct keys times path length, beyond the initial byte scan.
+No linear-time, allocation-free or hot-path performance claim follows from this prototype.
+The implementation budget must include an indexed declared-subtree lookup or measured justification before adopting that scan for large inputs.
+
 ## Stress test
 
 The fixed surface is the owner's message and receiver direction.
@@ -823,9 +1088,13 @@ The cases must exercise actual shared references and both client/server directio
 | S8 encoded path and repeated query | Rust Uri / Go URL | No double decoding, no lost repeated values | Repeated values work in fixture Url; encoded/percent edge cases are unimplemented. |
 | S9 preserved-body redirects | Go GetBody | One logical send can replay its prepared bytes | Unimplemented transport check; the ordinary fake does not follow redirects. |
 | S10 retry after a send | Policy retry and HTTP clients | Fresh work builds a fresh Body; aliases cannot stand in for replay | Friction: alias resend fails before transport; replacing/building fresh work succeeds. |
-| S11 incoming/outgoing forms | Ktor receiveText / existing hd FormWriter | Incoming text/bytes; outgoing typed serialization | Scoped simplification: incoming raw read works; outgoing set_form shape checks and reuses existing writer, with no new typed reader. |
+| S11 incoming/outgoing forms | Ktor typed receive / OpenAPI parameters | Typed shared body/query codec; nested records and repeated scalar keys | New revision proof required; old raw-read model is insufficient. |
 | S12 cancellation and limits | Server SDK | No unbounded buffering, stale lease response or leaked pending operation | Local invalid-response500/log reason works; actual cancellation/lease/limits remain future. |
 | S13 non-ASCII header normalization | RFC token validation / Unicode case mapping | Invalid CooKie stays invalid; ASCII Other("Cookie") equals/hashes as Cookie | Works after ASCII fix: rejected before transport; canonical Eq/Hash controls pass. |
+| S14 typed cookie injection | RFC cookie grammar | Original value x; Secure is rejected before formatting or transport | Cookie model passes; limited validation does not prove the complete RFC/date implementation. |
+| S15 cookie direction and presence | Server session / client reply | First request duplicate, all ordered pairs, separate Set-Cookie, honest incoming flags | Incoming defaults settled; parsing/date/platform proof remains future. |
+| S16 typed query ambiguity | OpenAPI bracket profile | One-level nested fields, repeated scalar lists, deeper rejection and rename collisions | Form model passes the selected depth/repetition cases; rename collisions and empty unsupported schemas remain gaps. |
+| S17 deferred repair | Fluent request construction | Failed form/query never sends stale data; component replacement repairs only itself | Both bounded models pass their complementary state tests; complete Url/Body/provider integration remains future. |
 
 ## Caller migration
 
@@ -835,6 +1104,8 @@ Historical prototypes and measured workloads must be distinguished from live exa
 The guide also describes Request/Client as mutable builders without importing std.http in that paragraph.
 
 The migration must update Request/Response literals, body readers, query construction, redirect settings, and handler signatures.
+The new revision also replaces old nested-form panic expectations with typed errors, and reconciles query escaping with the shared codec.
+Cookie message helpers do not replace Client's existing host-only jar behavior.
 The SDK's HttpServer boundary, schema asset and Node/Fetch adapters need an explicit wire-preservation review.
 Physical source identities in std-server-sdk.host/application.source/cloudflare.nominal-source/vercel.nominal-source change alongside their schema/preflight checks.
 Public requirement rows continue to name HttpServer, while the physical host interface becomes the private wire contract.
@@ -857,7 +1128,9 @@ No phase is an excuse to ship an approved operation behind a known-failure excep
 | --- | --- | --- |
 | 0 | Internal @host pub wire trait plus public adapter/default-profile binding is demonstrated | Actual URL/header/byte wire exchange, public rows, grants and fresh bodies on both engines |
 | 1 | Owned URL/Headers atoms beside existing messages | Round trips, duplicate headers, ASCII grants, encoded paths |
-| 2 | Single-use buffered Body and typed readers/writers | Shared-use, replacement, failed/empty JSON decode and outgoing form cases |
+| 2a | Shared fallible form/query codec beside existing messages | Nested records, scalar lists, defaults/options, unknowns, percent failures and typed unsupported shapes |
+| 2b | Typed Cookie atoms and provenance-preserving head preparation | Four directions, separate lines, original-value rejection, date/duration bounds and incoming attributes |
+| 2c | Single-use buffered Body and message read/write pairs | Shared-use, replacement, failed/empty JSON/form decode, pending preparation errors |
 | 3 | Request/Response, send/SDK boundaries and every compile-dependent caller migrate atomically | Both-engine wire, redirects, grants, maintained SDK tests and generated schema |
 | 4 | Public documentation and remaining nondependent historical examples are reconciled | Guide programs, policy cost reference compatibility and exact outputs |
 
@@ -878,17 +1151,24 @@ Price the narrow profile/adapter binding integration explicitly rather than call
 The approval review must settle the remaining exact signatures, error/empty-body policy, setter replacement/last-writer behavior, URL/query policy, and replay details.
 The private wire route and message-level read/write naming are already decided; they are not reopened.
 Checked examples and component evidence are included, with the unimplemented codecs/profile work called out rather than priced as zero.
-Form scope and registration are settled: outgoing set_form only, and ordinary pub host traits in unreexported internal modules.
-No @host rule change or typed form reader is proposed.
-This draft is pushed for the owner's review before any implementation, as requested in6404135821.
+The later direction includes typed form readers, whole-query conversion, OpenAPI-based nested record paths, and typed cookies in all directions.
+Registration remains ordinary pub host traits in unreexported internal modules; no @host rule change is proposed.
+The component-owned deferred state, exact codec error profile and empty unsupported-shape policy require approval.
+Depth and incoming-cookie defaults are settled by6404702917; no recursive-type mechanism or additional Cookie field is proposed.
+The per-key Parse/Display pair is included as a proposed ordinary-library atom, preserving the untyped query lookups.
+This revised draft is for review under6404693348, before any production implementation.
 Implementation is not authorized by a recommendation alone.
 
 ## Sources and parse log
 
-Source inspection and current-build probes pin `6ad81d02e5002f86b5f97ea2d1508fa11555ffbb`.
+The original draft's source inspection and probes pin `6ad81d02e5002f86b5f97ea2d1508fa11555ffbb`.
 The native dev compiler SHA-256 is `58721916b85652ad9801b45f95b462d5be8e9e97f24e7b263c1b2caf02aa3294`.
 Its features include wasmtime; every HD run uses scratch HD_CACHE inside the isolated worktree.
 The initial current-API probe checks with zero errors/warnings and runs identically on Node and Wasmtime.
+
+The revision source baseline is8e7f4a9b482fbca478c775d8b9c6ad616fd46990.
+Its dev native compiler SHA-256 is cc4d7e8340362f1203d288c8d8f7b4bf68dec9b0185762d2dbf2345ca6792b59, with Wasmtime enabled.
+The prototype README records exact source hashes; both new publication packages were checked directly with that compiler.
 
 The reference APIs above are primary-source observations, not hd semantic authority.
 The parse log distinguishes displayed excerpts, complete executable models and signature-only stubs.
@@ -900,16 +1180,20 @@ No proposed API is claimed to exist in std today.
 | Displayed block1: current API before program | Pass | Complete before package,0errors/warnings; format pass | Both engines:42, empty stderr |
 | Displayed block2: modeled server handler | Pass | Included verbatim in complete model | Exercised by typed loopback cases |
 | Displayed block3: modeled client helpers | Pass | Included verbatim in complete model | Both engines:42, empty stderr |
-| Full model source | Compiler parse during check |0errors/warnings; format pass |13tests on Node and13on Wasmtime pass |
-| API catalog | Compiler parse during check |0errors/warnings; format pass | Not run: explicit shape-only stubs |
+| Original model source | Compiler parse during original check | Original0ca evidence:0errors/warnings; format pass | Original13tests on Node and13on Wasmtime pass; unchanged source |
+| Revised API catalog | Compiler parse during revision check |0errors/warnings; format pass | Not run: explicit shape-only stubs |
+| Cookie/provenance model | Compiler parse during revision check |0errors/warnings; format pass |6tests per engine pass; empty main exits0 on both |
+| Form/query model | Compiler parse during revision check |0errors/warnings; format pass |10tests per engine pass; both mains print42 |
 
 The copied publication packages produce the exact recorded Wasm hashes and sizes, not merely matching stdout.
 The prototype README gives reproduction commands; every run uses a scratch HD_CACHE.
 The three Markdown examples were separately parsed with scripts/hd-conformance.sh.
-A Markdown-it walk checks all30local links and anchors, avoiding false links inside generic method signatures.
+A Markdown-it walk checks local links and anchors, avoiding false links inside generic method signatures.
 
-Current docs gates pass: spec style7616rule IDs, phase audit2324diagnostic rows, spec check, and website83pages.
-The rewrite inventory against6ad81d02e has0added/retired/reused/changed IDs,0lost codes and0lost examples.
+The original0ca publication passed spec style7616rule IDs, phase audit2324diagnostic rows, spec check, and website83pages.
+Its rewrite inventory against6ad81d02e had0added/retired/reused/changed IDs,0lost codes and0lost examples.
+Revision gate receipts are reported separately; these historical totals are not a substitute for checking the changed publication.
 This is a design-only branch: no accepted spec/std/host/compiler implementation or full local test suite.
-The audit log records18actual writing/command mistakes once, including the rejected header-writer prototype's escaped-control mistake.
+The original audit log records18writing/command mistakes once, including the rejected header-writer prototype's escaped-control mistake.
+This revision adds three actual prototype diagnostics once: two let-mut messages and one contains_key correction.
 Expected negative boundary/registration probes are evidence, not programming mistakes.
