@@ -1,0 +1,6 @@
+run: hd run --engine node
+stdout: true,true,true
+run: hd run --engine node --cap Http=false
+stdout: false,false,false
+run: hd run --engine node --cap Http=allowed.test:443
+stdout: true,false,false

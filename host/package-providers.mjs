@@ -613,7 +613,7 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
           const f = receiver?.[m.member];
           if (typeof f !== "function") fail(`missing provider method ${m.member}`);
           try {
-            return f.call(receiver, ...args, {
+            const context = {
               signal,
               instanceSignal: lifetime.signal,
               pending(poll, done, abort = null, finish = null) {
@@ -629,7 +629,15 @@ export function createPackageRuntime(io, { module, grants = {} } = {}) {
                 if (!io.prepare) fail("the host cannot create pending operations");
                 return io.prepare(poll, done, abort, finish);
               },
+            };
+            Object.defineProperty(context, "http", {
+              enumerable: true,
+              get() {
+                if (!io.http) fail("the host does not provide HTTP policy services");
+                return io.http;
+              },
             });
+            return f.call(receiver, ...args, context);
           } catch (error) {
             throw new HostContract(`${label}: provider threw ${String(error)}`);
           }

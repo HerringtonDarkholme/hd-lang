@@ -1,0 +1,6 @@
+@host
+pub trait Policy:
+    fn inspect(&self) -> string
+
+pub fn main() -> void $ Console + Policy:
+    println($.use(Policy).inspect())

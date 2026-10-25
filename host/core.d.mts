@@ -6,6 +6,15 @@ import type { End } from "./journal.mjs";
 /** Whether text can be an `Http` request URL: printable ASCII, and no
  * percent-encoded host (std-http.url.valid). */
 export function isAsciiUrl(text: string): boolean;
+/** The lowercase host as written, without URL parser normalization. */
+export function writtenHost(text: string): string;
+
+/** Read-only Http authority and raw-URL helpers from the owning runtime. */
+export interface ProviderHttpPolicy {
+  readonly coversHost: (host: string, port: number) => boolean;
+  readonly isAsciiUrl: (text: string) => boolean;
+  readonly writtenHost: (text: string) => string;
+}
 
 export interface Sink {
   out(text: string): void;
@@ -34,6 +43,7 @@ export interface CoreEnv {
 
 /** The trailing argument supplied to a generated package-provider method. */
 export interface ProviderContext {
+  readonly http: ProviderHttpPolicy;
   signal: AbortSignal;
   instanceSignal: AbortSignal;
   /** Owned readiness, cancellation and delivery hooks; no retained Promise is required. */

@@ -52,7 +52,9 @@ path is an SDK interface.
 
 `dispatch(request, signal)` takes the plain `std.http.Request` JavaScript
 value and resolves to `{ response, cancelled, abandoned }` after guest
-cleanup. The platform caller constructs its native Response afterward.
+cleanup. An aborted signal preserves the owned `Deadline` or `Stopping`
+reason; other abort reasons become `Disconnected`. The platform caller
+constructs its native Response afterward.
 `stop()` closes admission and joins the retained main after admitted jobs;
 `fail(error)` closes the poisoned host and rejects all active dispatches.
 
@@ -76,6 +78,10 @@ thirty seconds, covering redirects and body reading.
 The transport validates grants before each manual redirect hop and strips
 credentials on cross-origin redirects. Responses preserve raw body bytes,
 non-success statuses and separate Set-Cookie values. Non-cookie headers
-may be combined by the platform according to RFC 9110 §5.3. Connecting
-this transport to the SDK's serving loop is the next integration slice;
-this component does not supply admission limits or deployment packaging.
+may be combined by the platform according to RFC 9110 §5.3. The serving loop
+binds each request's source client and source clock around its handler and
+cleanup. Returned handles expire when the lease finishes;
+they cannot start a later request. The Node provider and Application adapter
+use the core runtime's narrow `context.http` policy view, so explicit denial
+and host scopes are checked before native I/O and on every redirect.
+Admission limits and deployment packaging remain separate adapter layers.

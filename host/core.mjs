@@ -801,7 +801,14 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // descriptor is data only: it never selects or loads a JavaScript module.
   let packageRuntime = null;
   if (env.packageBindings) {
-    packageRuntime = createPackageRuntime(io, env);
+    // A narrow policy view for SDK-owned outgoing Http handles. Reuse the
+    // core's resolved grant, never a provider's reconstructed policy table.
+    const http = Object.freeze({
+      coversHost: (host, port) => grant.coversHost("Http", host, port),
+      isAsciiUrl,
+      writtenHost,
+    });
+    packageRuntime = createPackageRuntime({ ...io, http }, env);
     try {
       Object.assign(imports, env.packageBindings(packageRuntime));
     } catch (error) {

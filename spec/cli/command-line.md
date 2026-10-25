@@ -2113,6 +2113,11 @@ hd run --engine node
 30. r[cli.host.package.poll-close] Closing the instance cancels its outstanding pollable operations.
 31. r[cli.host.package.synchronous-completion] A non-suspending provider method cannot return a Promise or a pollable operation. Boundary failure: `host-contract`.
 32. r[cli.host.package.poll-callback-failure] A pollable operation's callback failure is a host-contract failure. Boundary failure: `host-contract`.
+33. r[cli.host.package.context-http] A JavaScript package-provider context exposes a frozen `http` view of its core runtime's resolved Http policy.
+34. r[cli.host.package.context-http-coverage] Its `coversHost(host, port)` method tests only the Http capability's written host and port.
+35. r[cli.host.package.context-http-helpers] Its `isAsciiUrl(text)` and `writtenHost(text)` methods use the core runtime's URL-validation behavior.
+36. r[cli.host.package.context-http-readonly] A provider cannot replace the context's `http` view.
+37. r[cli.host.package.context-http-missing] Accessing `context.http` without runtime HTTP policy services fails. Boundary failure: `host-contract`.
 
 
 > **Why.** Provider JavaScript has its host realm's authority; an HD grant cannot sandbox arbitrary JavaScript imports.

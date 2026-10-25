@@ -1,0 +1,7 @@
+[package]
+name="application_client_proposal"
+[dependencies]
+server_sdk={path="../../.."}
+[capabilities]
+"dep.server_sdk.server.HttpServer"=true
+Http=true

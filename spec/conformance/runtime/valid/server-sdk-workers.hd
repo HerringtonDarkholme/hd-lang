@@ -1,7 +1,7 @@
 # test: worker state, lease-local cancellation and bounded cleanup use the actual SDK
 # fixture-package-role: root-application
 use dep.server_sdk.{HttpServer, Incoming, RequestId, ServerError, CancelReason, serve}
-use std.http.{Request, Response}
+use std.http.{Http, Request, Response, ScriptedHttp}
 use std.time.{Clock, Duration, Timestamp, Instant, ms, s, sleep}
 use std.task.race
 use std.ops.Disposable
@@ -12,6 +12,7 @@ struct Scripted:
     next: u64
     replies: List[(u64, Response)]
     clock: *mut dyn Clock
+    http: *mut dyn Http
 
 impl HttpServer for Scripted:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]:
@@ -33,6 +34,7 @@ impl HttpServer for Scripted:
         self.clock.sleep!(s(60))
         .Stopping
 
+    fn client(&mut self, _id: RequestId) -> *mut dyn Http: self.http
     fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: self.clock
     fn finish(&mut self, _id: RequestId, _abandoned: bool) -> void: pass
 
@@ -49,6 +51,7 @@ impl HttpServer for FailedSource:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]: .Err(.Closed)
     fn respond!(&mut self, _id: RequestId, _response: Response) -> Result[void, ServerError]: .Err(.Closed)
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason: .Stopping
+    fn client(&mut self, _id: RequestId) -> *mut dyn Http: panic("no accepted lease")
     fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: panic("no accepted lease")
     fn finish(&mut self, _id: RequestId, _abandoned: bool) -> void: pass
 
@@ -56,6 +59,7 @@ impl HttpServer for FailedSource:
 struct Leases:
     next: u64
     clock: *mut dyn Clock
+    http: *mut dyn Http
     cancel_after: i64
     replies: List[(u64, Response)]
     expire_response: bool = false
@@ -75,6 +79,7 @@ impl HttpServer for Leases:
     fn cancelled!(&mut self, id: RequestId) -> CancelReason:
         self.clock.sleep!(ms(if id.sequence == 1: self.cancel_after else: 60000))
         .Disconnected
+    fn client(&mut self, _id: RequestId) -> *mut dyn Http: self.http
     fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: self.clock
     fn finish(&mut self, id: RequestId, abandoned: bool) -> void:
         self.finished.push((id.sequence, abandoned))
@@ -131,7 +136,7 @@ fn clock_value!(_request: Request, _hits: &mut Hits) -> Response $ Clock:
 
 # it("joined workers preserve one application state and typed response per lease"):
 fn case_1!() -> void $ Clock:
-    server := &mut Scripted { next: 1, replies: [], clock: $.use(Clock) }
+    server := &mut Scripted { http: ScriptedHttp::new(), next: 1, replies: [], clock: $.use(Clock) }
     hits := &mut Hits { count: 0 }
     $.with(HttpServer=server):
         assert(serve!(4, hits, handle).is_ok(), reason="all workers finish when the source ends")
@@ -145,7 +150,7 @@ fn case_1!() -> void $ Clock:
 
 # it("zero workers still provides one serving loop"):
 fn case_2!() -> void $ Clock:
-    server := &mut Scripted { next: 1, replies: [], clock: $.use(Clock) }
+    server := &mut Scripted { http: ScriptedHttp::new(), next: 1, replies: [], clock: $.use(Clock) }
     hits := &mut Hits { count: 0 }
     $.with(HttpServer=server):
         assert(serve!(0, hits, handle).is_ok(), reason="the minimum width is one")
@@ -166,7 +171,7 @@ fn case_3!() -> void $ Clock:
 
 # it("a disconnected lease cleans up without cancelling another worker"):
 fn case_4!() -> void $ Clock:
-    server := &mut Leases { next: 1, clock: $.use(Clock), cancel_after: 1, replies: [], finished: [] }
+    server := &mut Leases { http: ScriptedHttp::new(), next: 1, clock: $.use(Clock), cancel_after: 1, replies: [], finished: [] }
     state := &mut Work { cleanup_ms: 5, events: [] }
     $.with(HttpServer=server):
         assert(serve!(3, state, cancellable).is_ok(), reason="a disconnect is local to its request")
@@ -179,7 +184,7 @@ fn case_4!() -> void $ Clock:
 
 # it("a cleanup that keeps waiting is abandoned within the lease bound"):
 fn case_5!() -> void $ Clock:
-    server := &mut Leases { next: 1, clock: $.use(Clock), cancel_after: 1, replies: [], finished: [] }
+    server := &mut Leases { http: ScriptedHttp::new(), next: 1, clock: $.use(Clock), cancel_after: 1, replies: [], finished: [] }
     state := &mut Work { cleanup_ms: 60000, events: [] }
     $.with(HttpServer=server):
         assert(serve!(3, state, cancellable).is_ok(), reason="abandonment does not cancel the worker group")
@@ -195,7 +200,7 @@ fn case_5!() -> void $ Clock:
 
 # it("external cancellation retains the same cleanup bound and releases leases"):
 fn case_6!() -> void $ Clock:
-    server := &mut Leases { next: 1, clock: $.use(Clock), cancel_after: 60000, replies: [], finished: [] }
+    server := &mut Leases { http: ScriptedHttp::new(), next: 1, clock: $.use(Clock), cancel_after: 60000, replies: [], finished: [] }
     state := &mut Work { cleanup_ms: 60000, events: [] }
     assert_equal(race!(working(server, state), stop()), "stopped", reason="outer cancellation joins bounded cleanup")
     assert_equal(server.finished.len(), 3, reason="every accepted lease is released during unwind")
@@ -211,7 +216,7 @@ fn case_6!() -> void $ Clock:
 # it("the handler deadline returns 504 after bounded abandoned cleanup"):
 fn case_7!() -> void $ Clock:
     clock := &mut DeadlineClock { base: $.use(Clock), tick: 0 }
-    server := &mut Leases { next: 1, clock: clock, cancel_after: 60000, replies: [], finished: [] }
+    server := &mut Leases { http: ScriptedHttp::new(), next: 1, clock: clock, cancel_after: 60000, replies: [], finished: [] }
     state := &mut Work { cleanup_ms: 60000, events: [] }
     $.with(HttpServer=server):
         assert(serve!(3, state, cancellable).is_ok(), reason="a deadline is a response, not a group error")
@@ -230,7 +235,7 @@ fn case_7!() -> void $ Clock:
 
 # it("an expired response is released and the worker continues accepting"):
 fn case_8!() -> void $ Clock:
-    server := &mut Leases { next: 1, clock: $.use(Clock), cancel_after: 60000, replies: [], expire_response: true, finished: [] }
+    server := &mut Leases { http: ScriptedHttp::new(), next: 1, clock: $.use(Clock), cancel_after: 60000, replies: [], expire_response: true, finished: [] }
     hits := &mut Hits { count: 0 }
     $.with(HttpServer=server):
         assert(serve!(1, hits, handle).is_ok(), reason="an expired response is local to its lease")
@@ -242,12 +247,28 @@ fn case_8!() -> void $ Clock:
 # it("the handler uses its source clock instead of the caller clock"):
 fn case_9!() -> void $ Clock:
     clock := &mut DeadlineClock { base: $.use(Clock), tick: 1234 }
-    server := &mut Leases { next: 1, clock: clock, cancel_after: 60000, replies: [], finished: [] }
+    server := &mut Leases { http: ScriptedHttp::new(), next: 1, clock: clock, cancel_after: 60000, replies: [], finished: [] }
     hits := &mut Hits { count: 0 }
     $.with(HttpServer=server):
         assert(serve!(1, hits, clock_value).is_ok(), reason="the handler clock is bound per lease")
     for (_, value) in server.replies:
         assert_equal(value.body, "1234".to_utf8(), reason="ambient caller authority is replaced by the lease clock")
+
+
+fn client_value!(_request: Request, _hits: &mut Hits) -> Response $ Http:
+    Request::get("https://upstream.test").send!().expect("the source client")
+
+fn case_10!() -> void $ Clock:
+    http := ScriptedHttp::new()
+    http.reply("https://upstream.test", .Ok(Response { status: 209, body: "lease client".to_utf8() }))
+    ambient := ScriptedHttp::new()
+    server := &mut Leases { http: http, next: 1, clock: $.use(Clock), cancel_after: 60000, replies: [], finished: [] }
+    hits := &mut Hits { count: 0 }
+    $.with(HttpServer=server, Http=ambient):
+        assert(serve!(1, hits, client_value).is_ok(), reason="the source supplies every request client")
+    for (_, value) in server.replies:
+        assert_equal(value.status, 209, reason="the ambient client has no scripted response")
+        assert_equal(value.body, "lease client".to_utf8(), reason="the source client handles the request")
 
 pub fn main!() -> void $ Clock:
     case_1!()
@@ -259,3 +280,4 @@ pub fn main!() -> void $ Clock:
     case_7!()
     case_8!()
     case_9!()
+    case_10!()
