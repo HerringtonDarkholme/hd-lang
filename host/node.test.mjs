@@ -1200,6 +1200,7 @@ async function heldLookupHost(t) {
     "node.mjs",
     "core.mjs",
     "output.mjs",
+    "output-worker.mjs",
     "worker-control.mjs",
     "checked-report.mjs",
     "float.mjs",
@@ -1827,7 +1828,7 @@ for (const abort of [false, true]) {
       reader.destroy();
     });
     const call = netWorker(t, {
-      url: new URL("./output.mjs", import.meta.url),
+      url: new URL("./output-worker.mjs", import.meta.url),
       data: { output: true },
     });
     const fd = writer._handle.fd;

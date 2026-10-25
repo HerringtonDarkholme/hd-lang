@@ -43,6 +43,8 @@ const FS: &str = include_str!("../../../host/fs.mjs");
 const INPUT: &str = include_str!("../../../host/input.mjs");
 /// The ordered output writer.
 const OUTPUT: &str = include_str!("../../../host/output.mjs");
+/// The output writer's thread, started when a pipe is full.
+const OUTPUT_WORKER: &str = include_str!("../../../host/output-worker.mjs");
 /// Correlated replies shared by the Node control clients and workers.
 const WORKER_CONTROL: &str = include_str!("../../../host/worker-control.mjs");
 /// The float text of the host primitives (`core.mjs` imports it).
@@ -251,6 +253,7 @@ impl Scratch {
             ("fs.mjs", FS),
             ("input.mjs", INPUT),
             ("output.mjs", OUTPUT),
+            ("output-worker.mjs", OUTPUT_WORKER),
             ("worker-control.mjs", WORKER_CONTROL),
             ("float.mjs", FLOAT),
             ("journal.mjs", JOURNAL),
