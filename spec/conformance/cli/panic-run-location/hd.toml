@@ -1,2 +1,5 @@
 [package]
 name = "scaler"
+
+[capabilities]
+Console = true

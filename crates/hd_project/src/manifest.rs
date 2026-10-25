@@ -5,6 +5,7 @@
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use hd_diag::{Code, Severity};
 
@@ -1060,5 +1061,128 @@ mod tests {
         ] {
             assert!(key_problem(bad).is_some(), "{bad}");
         }
+    }
+}
+
+/// One insertion that adds missing unrestricted grants without rewriting
+/// existing TOML or changing any grant already present. The caller supplies
+/// valid capability selectors; existing entries, including false, are kept.
+#[must_use]
+pub fn capability_insertion(text: &str, names: &[String]) -> Option<(u32, String)> {
+    let table: toml::Table = text.parse().ok()?;
+    let present = table.get("capabilities").and_then(toml::Value::as_table);
+    let names: std::collections::BTreeSet<_> = names
+        .iter()
+        .filter(|key| grant_problem(key, &Grant::All).is_none())
+        .filter(|key| !present.is_some_and(|t| t.contains_key(key.as_str())))
+        .collect();
+    if names.is_empty() {
+        return None;
+    }
+    let key = |name: &str| {
+        if name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+            name.to_owned()
+        } else {
+            toml::Value::String(name.to_owned()).to_string()
+        }
+    };
+    let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let lines = |prefix: &str| {
+        let mut out = String::new();
+        for name in &names {
+            let _ = write!(out, "{prefix}{} = true{newline}", key(name));
+        }
+        out
+    };
+    let doc = toml::de::DeTable::parse(text).ok()?;
+    let entry = doc
+        .get_ref()
+        .iter()
+        .find(|(k, _)| k.get_ref() == "capabilities");
+    let (at, addition) = if let Some((name, value)) = entry {
+        let start = name.span().start;
+        let line = text[..start].rfind('\n').map_or(0, |i| i + 1);
+        if text[line..start].trim_start().starts_with('[') {
+            // A normal or quoted table heading. Insert immediately after it,
+            // before any nested or subsequent table can change the context.
+            match text[start..].find('\n') {
+                Some(end) => (start + end + 1, lines("")),
+                None => (text.len(), format!("{newline}{}", lines(""))),
+            }
+        } else {
+            let range = value.span();
+            let value_text = text.get(range.clone())?;
+            if value_text.trim_start().starts_with('{') {
+                let at = range.start + value_text.find('{')? + 1;
+                let values = names
+                    .iter()
+                    .map(|name| format!("{} = true", key(name)))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let tail = if present.is_some_and(|t| !t.is_empty()) {
+                    ", "
+                } else {
+                    ""
+                };
+                (at, format!("{values}{tail}"))
+            } else {
+                // Root dotted keys define an implicit table; extending that
+                // table with more dotted keys avoids declaring it twice.
+                (0, lines("capabilities."))
+            }
+        }
+    } else {
+        let gap = if text.is_empty() || text.ends_with('\n') {
+            ""
+        } else {
+            newline
+        };
+        (
+            text.len(),
+            format!("{gap}{newline}[capabilities]{newline}{}", lines("")),
+        )
+    };
+    Some((u32::try_from(at).ok()?, addition))
+}
+
+#[cfg(test)]
+mod capability_insertion_tests {
+    use super::*;
+
+    #[test]
+    fn capability_insertions_preserve_toml_and_existing_denials() {
+        for text in [
+            "# keep\n[package]\nname = \"app\"\n",
+            "# keep\n[package]\nname = \"app\"\n[capabilities]\nConsole = false\n[dependencies]\n",
+            "# keep\r\n[package]\r\nname = \"app\"\r\n[ \"capabilities\" ] # header\r\nConsole = false\r\n",
+            "# keep\ncapabilities = { Console = false, }\n[package]\nname = \"app\"\n",
+            "# keep\ncapabilities = {}\n[package]\nname = \"app\"\n",
+            "# keep\ncapabilities.Console = false\n[package]\nname = \"app\"\n",
+        ] {
+            let keys = vec!["Process".to_owned(), "dep.sdk.server.HttpServer".to_owned()];
+            let (at, add) = capability_insertion(text, &keys).expect(text);
+            let after = format!("{}{}{}", &text[..at as usize], add, &text[at as usize..]);
+            let mut expected: toml::Table = text.parse().unwrap();
+            let caps = expected
+                .entry("capabilities")
+                .or_insert_with(|| toml::Value::Table(toml::Table::new()))
+                .as_table_mut()
+                .unwrap();
+            for key in &keys {
+                caps.insert(key.clone(), toml::Value::Boolean(true));
+            }
+            let actual: toml::Table = after.parse().unwrap_or_else(|e| panic!("{e}: {after}"));
+            assert_eq!(actual, expected, "{after}");
+            assert!(after.contains("# keep"));
+            assert!(capability_insertion(&after, &keys).is_none());
+        }
+    }
+
+    #[test]
+    fn a_present_false_grant_is_never_overwritten() {
+        assert!(
+            capability_insertion("[capabilities]\nProcess = false\n", &["Process".to_owned()])
+                .is_none()
+        );
     }
 }

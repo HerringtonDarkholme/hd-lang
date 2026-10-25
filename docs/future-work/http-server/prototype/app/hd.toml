@@ -1,2 +1,8 @@
 [package]
 name = "muse-http-prototype"
+
+[capabilities]
+Args = true
+Clock = true
+Console = true
+Http = true

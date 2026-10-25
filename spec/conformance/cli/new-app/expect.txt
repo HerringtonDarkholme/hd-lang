@@ -1,5 +1,6 @@
 run: hd new --app --vcs none
 file: hd.toml
+same-text: hd.toml want/hd.toml
 file: src/main.hd
 file: tests/new_app.hd
 run: hd run

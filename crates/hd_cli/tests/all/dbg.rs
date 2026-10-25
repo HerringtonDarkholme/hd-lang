@@ -11,7 +11,11 @@ use hd_testkit::Scratch;
 fn scratch(name: &str) -> Scratch {
     let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
     std::fs::create_dir_all(dir.join("src")).expect("dir");
-    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"probe\"\n").expect("write");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"probe\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("write");
     dir
 }
 
@@ -414,14 +418,18 @@ fn release_rejects_dbg_in_path_dependencies_and_workspace_members() {
     put(
         &dir,
         "app/hd.toml",
-        "[package]\nname = \"app\"\n\n[dependencies]\ntool = { path = \"../tool\" }\n",
+        "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\ntool = { path = \"../tool\" }\n",
     );
     put(
         &dir,
         "app/src/main.hd",
         "use dep.tool.{twice}\n\npub fn main() -> void $ Console:\n    println(twice(2))\n",
     );
-    put(&dir, "tool/hd.toml", "[package]\nname = \"tool\"\n");
+    put(
+        &dir,
+        "tool/hd.toml",
+        "[package]\nname = \"tool\"\n\n[capabilities]\nConsole = true\n",
+    );
     put(
         &dir,
         "tool/src/lib.hd",

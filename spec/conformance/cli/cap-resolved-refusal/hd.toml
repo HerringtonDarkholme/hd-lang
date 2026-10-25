@@ -1,2 +1,8 @@
 [package]
 name = "grant_hint"
+
+[capabilities]
+Args = true
+Console = true
+FsRead = true
+Process = true

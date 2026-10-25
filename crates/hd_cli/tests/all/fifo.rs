@@ -22,7 +22,11 @@ fn package(name: &str) -> Scratch {
     let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
     std::fs::create_dir_all(root.join("src")).expect("src");
     std::fs::create_dir_all(root.join("tests")).expect("tests");
-    std::fs::write(root.join("hd.toml"), "[package]\nname = \"pipes\"\n").expect("hd.toml");
+    std::fs::write(
+        root.join("hd.toml"),
+        "[package]\nname = \"pipes\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("hd.toml");
     std::fs::write(root.join("src/main.hd"), MAIN).expect("main");
     std::fs::write(
         root.join("tests/it.hd"),

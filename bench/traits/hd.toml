@@ -1,2 +1,5 @@
 [package]
 name = "traits"
+
+[capabilities]
+Console = true

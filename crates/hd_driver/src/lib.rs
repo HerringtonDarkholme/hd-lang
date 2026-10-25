@@ -576,8 +576,18 @@ pub fn host_artifacts(wasm: &[u8]) -> Result<Option<HostArtifacts>, &'static str
         .transpose()
 }
 
+/// One capability in a checked root executable's main requirement row.
+/// Selectors are equivalent manifest spellings for the same nominal trait.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MainCapability {
+    pub span: Span,
+    pub selectors: Vec<String>,
+}
+
 /// The result of a run.
 pub struct Output {
+    /// Checked main rows, including capabilities unused by the linked code.
+    pub main_capabilities: Vec<MainCapability>,
     pub wasm: Option<Vec<u8>>,
     pub host_artifacts: Option<HostArtifacts>,
     /// Off-band instruction origins, when `Packages::instruction_origins` is enabled.
@@ -1735,6 +1745,9 @@ pub struct Dependency<'a> {
 pub struct Packages<'a> {
     /// Source/manifest host declaration metadata, with no authority implied.
     pub host_packages: Vec<HostPackage>,
+    /// Expose checked executable main rows for manifest validation. This
+    /// off-band metadata does not change modules or their cache keys.
+    pub main_capabilities: bool,
     /// Development tooling: emit instruction origins without changing module bytes.
     /// Mapped builds bypass the linked-byte cache; checked bodies may still be cached.
     pub instruction_origins: bool,
@@ -2243,6 +2256,11 @@ pub fn build_packages(
         &packages.host_packages,
         &mut lock(&run.diags),
     );
+    let main_capabilities = if packages.main_capabilities {
+        run.main_capabilities()
+    } else {
+        Vec::new()
+    };
     if let Some(hit) = run.files.finish(&run.table) {
         let mut c = lock(&run.counters);
         let kind = EntryKind::Depfiles.as_str();
@@ -2372,6 +2390,7 @@ pub fn build_packages(
         }
     }
     let mut output = Output {
+        main_capabilities,
         tests: cases,
         wasm,
         host_artifacts,
@@ -9142,6 +9161,78 @@ impl Run<'_> {
         )
     }
 
+    /// Read checked signatures after the task graph on cold and warm runs.
+    /// Manifest checks must not depend on imports that dead-code removal kept.
+    fn main_capabilities(&self) -> Vec<MainCapability> {
+        let names = self.names();
+        let mut out = Vec::new();
+        for (m, module) in self.table.modules.iter().enumerate() {
+            if !self.entry_module(m) || module.role == Role::Test {
+                continue;
+            }
+            let Some(Some(checked)) = self.check[m].get() else {
+                continue;
+            };
+            if checked.has_errors {
+                continue;
+            }
+            let Some(sections) = split_sections(&checked.entry) else {
+                continue;
+            };
+            let Some(items) = sections
+                .get(2)
+                .and_then(|b| hd_resolve::decode_items(&names, b))
+            else {
+                continue;
+            };
+            let main = names.item(&module.path, "main");
+            let Some(item) = items.0.iter().find(|i| i.def == main && i.public) else {
+                continue;
+            };
+            let ItemData::Fn(sig) = &item.data else {
+                continue;
+            };
+            let src = self.src(m);
+            let Some(head) = hd_resolve::heads(&names, &src, &module.path, false)
+                .into_iter()
+                .find(|h| h.def == main)
+            else {
+                continue;
+            };
+            let span = hd_resolve::Src::child(head.node, hd_syntax::SyntaxKind::RequirementRow)
+                .map_or_else(|| src.span(head.node), |row| src.span(row));
+            for key in self.pool.row_data(sig.row).keys {
+                let TyData::TraitValue { def, .. } = self.pool.get(key) else {
+                    continue;
+                };
+                let Some((_, identity)) = self.package_trait_identity(def) else {
+                    continue;
+                };
+                let selectors = if identity.package == "std" {
+                    hd_host_abi::TABLE
+                        .iter()
+                        .find(|t| t.std_path == format!("std.{}", identity.trait_path))
+                        .map_or_else(Vec::new, |t| vec![t.key.to_owned()])
+                } else if self.package_host_identity(def).is_some() {
+                    self.package_host_selectors(def)
+                } else {
+                    Vec::new()
+                };
+                if !selectors.is_empty() {
+                    out.push(MainCapability { span, selectors });
+                }
+            }
+        }
+        out.sort_by(|a, b| {
+            (a.span.file.raw(), a.span.lo, &a.selectors).cmp(&(
+                b.span.file.raw(),
+                b.span.lo,
+                &b.selectors,
+            ))
+        });
+        out
+    }
+
     fn package_trait_identity(&self, d: DefId) -> Option<(u16, hd_host_abi::schema::Identity)> {
         let module = &self.table.modules[self.item_module(d)?.idx()];
         let package = module.package;
@@ -11959,5 +12050,99 @@ mod package_host_reexport_tests {
         assert_eq!(c.interfaces[0].identity.package, "example.org/sdk");
         assert_eq!(c.interfaces[0].identity.trait_path, "Server");
         assert_eq!(c.interfaces[0].selectors, ["dep.wrap.Service"]);
+    }
+}
+
+#[cfg(test)]
+mod main_capability_tests {
+    use super::*;
+
+    #[test]
+    fn unused_main_capabilities_are_available_on_cold_and_warm_checks() {
+        let source = "use std.process.Process\npub fn main() -> void $ Process:\n    pass\n";
+        let mut files = MemorySources::default();
+        files.insert("src/main.hd", source);
+        let store = MemoryStore::default();
+        let host = Host {
+            sources: &files,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+            render_tir: &[],
+        };
+        let packages = Packages {
+            main_capabilities: true,
+            entries: vec!["main".to_owned()],
+            ..Packages::default()
+        };
+        for warm in [false, true] {
+            let out = build_packages(&host, "app", &packages, &Goal::Analyze);
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            assert_eq!(out.main_capabilities.len(), 1);
+            let need = &out.main_capabilities[0];
+            assert_eq!(need.selectors, ["Process"]);
+            assert!(source[need.span.lo as usize..need.span.hi as usize].contains("Process"));
+            if warm {
+                assert!(out.counters.modules_checked.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn a_package_trait_named_process_is_not_the_builtin_capability() {
+        let mut files = MemorySources::default();
+        files.insert("src/main.hd", "@host\npub trait Process:\n    fn read(&self) -> string\npub fn main() -> void $ Process: pass\n");
+        let store = MemoryStore::default();
+        let host = Host {
+            sources: &files,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+            render_tir: &[],
+        };
+        let declarations =
+            hd_project::parse_manifest("[host]\n\"main.Process\" = \"provider.mjs\"\n")
+                .unwrap()
+                .host;
+        let packages = Packages {
+            main_capabilities: true,
+            entries: vec!["main".to_owned()],
+            host_packages: vec![HostPackage {
+                package: 0,
+                identity: "app".to_owned(),
+                versioned_source: None,
+                declarations,
+                manifest: "hd.toml".to_owned(),
+            }],
+            ..Packages::default()
+        };
+        let out = build_packages(&host, "app", &packages, &Goal::Analyze);
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        assert_eq!(out.main_capabilities.len(), 1);
+        assert_eq!(out.main_capabilities[0].selectors, ["pkg.main.Process"]);
+    }
+
+    #[test]
+    fn library_rows_do_not_become_main_capabilities() {
+        let mut files = MemorySources::default();
+        files.insert(
+            "src/lib.hd",
+            "use std.process.Process\npub fn main() -> void $ Process: pass\n",
+        );
+        let store = MemoryStore::default();
+        let host = Host {
+            sources: &files,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+            render_tir: &[],
+        };
+        let packages = Packages {
+            main_capabilities: true,
+            ..Packages::default()
+        };
+        let out = build_packages(&host, "app", &packages, &Goal::Analyze);
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        assert!(out.main_capabilities.is_empty());
     }
 }

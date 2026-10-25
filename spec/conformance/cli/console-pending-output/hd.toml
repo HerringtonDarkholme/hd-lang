@@ -1,2 +1,5 @@
 [package]
 name = "console-pending-output"
+
+[capabilities]
+Console = true

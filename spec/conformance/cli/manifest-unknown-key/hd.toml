@@ -4,3 +4,6 @@ version = "1.0.0"
 
 [profile]
 release = true
+
+[capabilities]
+Console = true

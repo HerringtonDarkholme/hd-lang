@@ -36,7 +36,7 @@ spec chapter or `hd doc` the std item instead of guessing again.
 | `hd check [FILE]` | type-check the package, or FILE and the modules it uses; runs nothing |
 | `hd check --tests` / `--all` | also the test code / also the tests and tasks |
 | `hd check --max-errors N`, `--summary` | print fewer lines; the counts stay the same |
-| `hd fix` | apply the package's safe fix-its to its source files, at most 3 rounds; never edits `hd.toml`; no FILE, package only |
+| `hd fix` | apply safe source fix-its and missing-capability grants in `hd.toml`, at most 3 rounds; other manifest fixes are reported only; no FILE, package only |
 | `hd test [FILE]` | run the package's tests, or those of FILE's module |
 | `hd test --filter WORD` | only the cases whose name contains WORD |
 | `hd test --affected` | only the test programs that changed since they last passed |
@@ -54,8 +54,8 @@ Run flags (`hd FILE`, `hd run`, `hd test`, `hd build` where they apply):
 `--release` (overflow wraps instead of panicking), `--engine NAME` (this
 build offers `node` and `wasmtime`; a program behaves the same on each),
 `--time-limit 30s`, `--cap NAME=VALUE` (grant or deny a
-capability, as `--cap FsRead=false`; with no table or flag, everything is
-granted), and `-p NAME` for one workspace member.
+capability, as `--cap FsRead=false`; package mains must list their host capabilities in `[capabilities]`;
+standalone scripts remain unrestricted by default), and `-p NAME` for one workspace member.
 Put flags after the command word: `hd check --format json FILE`.
 
 ## Reading Output

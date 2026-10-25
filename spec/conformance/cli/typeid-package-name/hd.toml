@@ -1,2 +1,5 @@
 [package]
 name = "acme-shop"
+
+[capabilities]
+Console = true

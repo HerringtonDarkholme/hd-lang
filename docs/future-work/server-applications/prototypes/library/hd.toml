@@ -3,3 +3,8 @@ name = "server_library"
 
 [dependencies]
 model = { path = "../model" }
+
+[capabilities]
+Args = true
+Clock = true
+Console = true

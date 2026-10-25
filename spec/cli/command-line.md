@@ -387,6 +387,21 @@ hd run --cap Http=localhost:8080  # this run calls localhost:8080 instead
 14. r[cli.cap.package.path] A package capability path uses its root source-use spelling, such as `pkg.ui.Ui` or `dep.server_sdk.server.HttpServer`.
 15. r[cli.cap.package.boolean] A package capability grant must be `true` or `false`.
 16. r[cli.cap.package.nominal] Package capability paths resolve through the selected dependency graph to complete nominal trait identities.
+17. r[cli.cap.table.required] A package's `[capabilities]` table must list every host capability in each executable `main` requirement row. Error: `missing-capability`.
+18. r[cli.cap.table.required-unused] This check includes declared row capabilities that the program's linked code does not use.
+19. r[cli.cap.table.required-builtins] Console, Args, Clock, Random and ConsoleInput have no exemption from this check.
+20. r[cli.cap.table.required-package] A package-owned host capability is listed by one of its source capability paths.
+21. r[cli.cap.table.required-flags] A command-line grant does not replace a required manifest entry.
+22. r[cli.cap.table.required-message] The diagnostic names the missing capability and points at the `main` row that needs it.
+23. r[cli.cap.table.required-fix] Its exact fix-it inserts unrestricted grants for every missing capability into `hd.toml`.
+24. r[cli.cap.table.unused] Listing a capability that no `main` uses is not an error.
+25. r[cli.cap.table.script] A standalone script with no `hd.toml` needs no capability table.
+
+For example, a package's `main` row `$ Process` with no `Process` key
+fails with `missing-capability`. Its fix-it adds `Process = true` to the
+capability table. A present `Process = false` satisfies the listing rule;
+[Total Deny](#total-deny) still applies to capabilities the module imports.
+
 
 > **Why.** `hd.toml` holds what a program always needs, reviewed in a
 > diff. A flag changes one run, such as an agent's sandbox or a CI job.
@@ -427,10 +442,9 @@ Where a program's grant comes from:
 3. r[cli.cap.source.hd-run] A program that `hd_run!` starts gets the package's `[capabilities]` table, as `hd run NAME` would, with no flags.
 4. r[cli.cap.build] `hd build` writes no grant into its output. Another host that runs the module applies its own policy.
 
-> **Why.** With no table and no flag, every trait has no limit, so a
-> program runs as it always did. A table or a flag narrows only what it
-> names. So `--cap Http=api.example.com` never takes the console away
-> from a program.
+> **Why.** A package's main requirements must appear in its manifest
+> before this runtime policy applies. Standalone scripts and test grants
+> still use the default for traits that neither a table nor a flag names.
 
 #### Grant Scopes
 
@@ -1240,12 +1254,14 @@ hd fmt --check          # writes nothing; lists each file that would change
 hd fix    # applies each safe fix-it, rechecks, and lists the changes and what remains
 ```
 
-1. r[cli.fix.command] `hd fix` checks the package as `hd check` does, and applies each safe fix-it of the diagnostics it reports. It applies fix-its to the package's source files only, and never edits `hd.toml`. So the fix-it of `unlisted-entry` is reported, not applied.
+1. r[cli.fix.command.with-capabilities] `hd fix` checks the package as `hd check` does and applies safe source fix-its and the capability-table fixes described below.
 2. r[cli.fix.safe] A fix-it is **safe** when applying it adds no syntax error and no new diagnostic. `hd fix` applies no other fix-it.
 3. r[cli.fix.overlap] When the edits of two safe fix-its overlap, `hd fix` applies only the one whose diagnostic comes first in output order.
 4. r[cli.fix.rounds] After it applies fix-its, `hd fix` checks the package again and applies the safe fix-its of the new check. It repeats until a check offers none, or a bounded number of rounds has run.
 5. r[cli.fix.report] `hd fix` prints each change it made, with its file and the code of its diagnostic, then the diagnostics that remain.
 6. r[cli.fix.status] `hd fix` exits with status 0 when no error remains, and with status 101 otherwise.
+7. r[cli.fix.manifest.capabilities] `hd fix` applies a `missing-capability` fix-it to the package's `hd.toml`.
+8. r[cli.fix.manifest.other] It reports other manifest fix-its without applying them.
 
 > **Why.** An agent fixes a typo or a missing `use` in one command.
 > A fix-it that breaks the file or brings a new diagnostic is left for a
@@ -1370,6 +1386,7 @@ hd test              # runs tests/hello.hd, which runs the executable
 13. r[cli.new.vcs] Unless the new package's directory is already inside a git repository, `hd new` runs `git init` there and writes a `.gitignore`, as Cargo does.
 14. r[cli.new.vcs.ignore] That `.gitignore` lists only the [build directory](#r-cli.build.directory), as `/build/`. `hd.sum` is not listed, so it is committed.
 15. r[cli.new.vcs-none] `hd new --vcs none` runs no `git init` and writes no `.gitignore`.
+16. r[cli.new.capabilities] The application template lists Console, Args, Clock and Random as `true` in `[capabilities]`.
 
 > **Note.** [Running Executables](../std/testing.md#running-executables)
 > shows the test that `hd new --app` writes.

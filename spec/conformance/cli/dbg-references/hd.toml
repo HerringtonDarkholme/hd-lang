@@ -1,2 +1,5 @@
 [package]
 name = "refs"
+
+[capabilities]
+Console = true

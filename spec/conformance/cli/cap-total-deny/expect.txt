@@ -1,3 +1,5 @@
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 # The module imports Console, which the table denies totally, so hd refuses
 # to start it: status 101, and the program prints nothing. A flag that
 # grants Console does not lift the table's false, since a deny always wins.

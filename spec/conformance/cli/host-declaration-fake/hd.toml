@@ -3,3 +3,6 @@ name = "host_probe"
 
 [host]
 "main.Server" = "provider.mjs"
+
+[capabilities]
+Console = true

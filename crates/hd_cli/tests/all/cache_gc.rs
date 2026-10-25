@@ -24,7 +24,11 @@ const MAIN: &str =
 /// A package `shop` of three modules in `src`.
 fn package(name: &str) -> Scratch {
     let dir = scratch(name);
-    std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("write");
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("write");
     std::fs::create_dir_all(dir.join("src")).expect("src");
     for (file, text) in [("main.hd", MAIN), ("cart.hd", CART), ("tax.hd", TAX)] {
         std::fs::write(dir.join("src").join(file), text).expect("write");
@@ -244,7 +248,11 @@ fn gc_evicts_down_to_the_cap_and_leaves_fetched_versions() {
     // A fetched version and the other cache entries hd owns.
     let version = cache.join("pkg/github.com/acme/json@1.0.0");
     std::fs::create_dir_all(&version).expect("pkg");
-    std::fs::write(version.join("hd.toml"), "[package]\nname = \"json\"\n").expect("write");
+    std::fs::write(
+        version.join("hd.toml"),
+        "[package]\nname = \"json\"\n\n[capabilities]\nConsole = true\n",
+    )
+    .expect("write");
     std::fs::create_dir_all(cache.join("hash")).expect("hash");
     std::fs::write(cache.join("hash/github.com"), "h1").expect("write");
     let r = hd(&pkg, &cache, Some("16K"), &["cache", "gc"]);

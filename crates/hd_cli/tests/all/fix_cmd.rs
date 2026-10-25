@@ -51,7 +51,7 @@ fn modified(dir: &Scratch) -> SystemTime {
 
 const GREET: &str = "pub trait Greet:\n    fn greet(self) -> string\n\npub fn twice(g: Greet) -> string:\n    g.greet() + g.greet()\n";
 
-/// `cli.fix.command`, `cli.fix.report`, `cli.fix.status`: the `dyn` of
+/// `cli.fix.command.with-capabilities`, `cli.fix.report`, `cli.fix.status`: the `dyn` of
 /// `types.trait.value.dyn-required.reference-values` is written, the change is printed with
 /// its file and code, and with no error left the status is 0.
 #[test]
@@ -106,7 +106,7 @@ fn a_fix_that_adds_a_diagnostic_is_not_applied() {
     }
 }
 
-/// `cli.fix.command`, `cli.fix.status`: one round applies the fix-its of
+/// `cli.fix.command.with-capabilities`, `cli.fix.status`: one round applies the fix-its of
 /// two diagnostics, and an error with no fix-it remains, so the status is
 /// 101 and the remaining diagnostic follows the changes.
 #[test]

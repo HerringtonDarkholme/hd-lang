@@ -3,3 +3,6 @@ name = "app"
 
 [dependencies]
 money = { path = "../money" }
+
+[capabilities]
+Console = true

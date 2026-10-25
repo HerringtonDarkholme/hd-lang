@@ -5,8 +5,9 @@
 //! file. `crates/hd_cli/DESIGN.md` §7.6 has the design.
 //!
 //! A fix-it is tried when the compiler marks it exact and every edit lies
-//! in a source file of the package, so `hd.toml`, a dependency and `std`
-//! are never written. It is safe when the check after it has no diagnostic
+//! in a package source file, or when a missing-capability fix inserts
+//! grants into its `hd.toml`. Dependencies and `std` are never written.
+//! It is safe when the check after it has no diagnostic
 //! that the check before it lacked, counting diagnostics by code,
 //! severity, file and message (`cli.fix.safe`); a syntax error is a
 //! diagnostic too. A round first tries all its fix-its together; when that
@@ -112,6 +113,13 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
             original.insert(shown.clone(), text);
             files.insert(shown, (e.path, path));
         }
+    }
+    // Capability fixes may also insert grants into the package manifest.
+    // It remains outside the source list, so it is never parsed as HD.
+    let manifest = root.join("hd.toml");
+    if let Ok(text) = std::fs::read_to_string(&manifest) {
+        original.insert("hd.toml".to_owned(), text);
+        files.insert("hd.toml".to_owned(), ("hd.toml".to_owned(), manifest));
     }
     let check = |now: &Texts| match disk::load_package(&root, "main") {
         Ok(mut program) => {
@@ -284,7 +292,7 @@ fn adds_none(before: &[Diag], after: &[Diag]) -> bool {
 
 /// The fix-its a check offers to apply, in output order: of each
 /// diagnostic, its first exact fix-it not rejected before, when every edit
-/// lies in a source file and fits its text, and no edit overlaps an edit
+/// lies in an allowed package file and fits its text, and no edit overlaps an edit
 /// of a fix-it taken before it (`cli.fix.overlap`).
 fn plan(diags: &[Diag], texts: &Texts, rejected: &BTreeSet<(Key, String)>) -> Vec<Change> {
     let mut taken: Vec<Change> = Vec::new();
@@ -297,6 +305,12 @@ fn plan(diags: &[Diag], texts: &Texts, rejected: &BTreeSet<(Key, String)>) -> Ve
         else {
             continue;
         };
+        // Other manifest edits remain suggestions, as before this exception.
+        if f.edits.iter().any(|e| e.file == "hd.toml")
+            && d.code != Some(hd_diag::Code::MissingCapability)
+        {
+            continue;
+        }
         let fits = |e: &Edit| texts.get(&e.file).is_some_and(|t| fits(t, e));
         let Some(first) = f.edits.first() else {
             continue;

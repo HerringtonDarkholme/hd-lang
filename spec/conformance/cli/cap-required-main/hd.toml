@@ -1,0 +1,4 @@
+[package]
+name = "required"
+[capabilities]
+Console = true

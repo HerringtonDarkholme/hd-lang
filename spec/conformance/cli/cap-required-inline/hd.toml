@@ -1,0 +1,4 @@
+# Existing denial stays in place.
+capabilities = { Process = false }
+[package]
+name = "many"

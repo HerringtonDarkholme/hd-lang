@@ -1,0 +1,4 @@
+# Existing denial stays in place.
+capabilities = {Args = true, Clock = true, Console = true, Http = true, Random = true,  Process = false }
+[package]
+name = "many"

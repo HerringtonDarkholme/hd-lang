@@ -1,2 +1,6 @@
 [package]
 name = "server_state_control"
+
+[capabilities]
+Clock = true
+Console = true

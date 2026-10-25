@@ -1,2 +1,5 @@
 [package]
 name = "status-child"
+
+[capabilities]
+Console = true

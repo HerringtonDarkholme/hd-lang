@@ -1,2 +1,5 @@
 [package]
 name = "std_types"
+
+[capabilities]
+Console = true

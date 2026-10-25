@@ -129,7 +129,8 @@ export async function checkTourSnippets(pages: readonly TourPage[]): Promise<str
     const files = {
       [TOUR_MAIN]: code,
       ...page.files,
-      "hd.toml": '[package]\nname = "playground"\n',
+      "hd.toml":
+        '[package]\nname = "playground"\n\n[capabilities]\nConsole = true\nArgs = true\nClock = true\nRandom = true\n',
     };
     for (const [path, text] of Object.entries(files)) {
       await mkdir(dirname(join(tree, path)), { recursive: true });

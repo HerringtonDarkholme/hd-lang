@@ -1,2 +1,5 @@
 [package]
 name = "records"
+
+[capabilities]
+Console = true

@@ -1,0 +1,4 @@
+run: hd main.hd
+stdout: standalone grant
+run: hd check main.hd --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

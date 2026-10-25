@@ -1,2 +1,5 @@
 [package]
 name = "gaps"
+
+[capabilities]
+Console = true

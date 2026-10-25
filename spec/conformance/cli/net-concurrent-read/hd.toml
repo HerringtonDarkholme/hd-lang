@@ -2,4 +2,5 @@
 name = "net-concurrent-read"
 
 [capabilities]
+Console = true
 Net = ["127.0.0.1"]

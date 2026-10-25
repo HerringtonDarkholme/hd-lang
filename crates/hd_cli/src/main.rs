@@ -508,6 +508,7 @@ pub(crate) fn build_goal_in(
     note_built(&out);
     let as_written = program.as_written.as_deref().filter(|_| rep.json);
     let mut diags = report::from_output(&out, as_written);
+    diags.extend(caps::required(program, &out));
     report::relocate(&mut diags, |f| program.sources.display(f));
     if rep.diags(&diags) {
         return Err(rep.finish(HD_FAILURE));

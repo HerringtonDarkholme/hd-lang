@@ -250,7 +250,10 @@ fn process_runs_a_granted_host_program() {
 #[test]
 fn the_default_test_runner_keeps_snapshot_files() {
     let dir = work("host-snapshots");
-    write(&dir.join("hd.toml"), "[package]\nname = \"shop\"\n");
+    write(
+        &dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nArgs = true\nConsole = true\nConsoleInput = true\nFsRead = true\n",
+    );
     write(
         &dir.join("src/lib.hd"),
         "pub fn greet(name: string) -> string:\n    \"hello, ${name}\"\n\ntests:\n    \
@@ -290,7 +293,10 @@ fn the_default_test_runner_keeps_snapshot_files() {
 #[test]
 fn the_test_runner_runs_a_task_by_name() {
     let dir = work("host-tasks");
-    write(&dir.join("hd.toml"), "[package]\nname = \"shop\"\n");
+    write(
+        &dir.join("hd.toml"),
+        "[package]\nname = \"shop\"\n\n[capabilities]\nArgs = true\nConsole = true\nConsoleInput = true\nFsRead = true\n",
+    );
     write(&dir.join("src/lib.hd"), "pub fn rows() -> i32:\n    2\n");
     write(&dir.join("data.txt"), "from the package");
     write(
@@ -663,7 +669,7 @@ fn http_reaches_a_granted_host_from_an_integration_test() {
     let dir = work("host-http-test");
     write(
         &dir.join("hd.toml"),
-        "[package]\nname = \"fetcher\"\n\n[test.capabilities]\nHttp = [\"127.0.0.1\"]\n",
+        "[package]\nname = \"fetcher\"\n\n[capabilities]\nArgs = true\nConsole = true\nConsoleInput = true\nFsRead = true\n\n[test.capabilities]\nHttp = [\"127.0.0.1\"]\n",
     );
     write(
         &dir.join("src/lib.hd"),

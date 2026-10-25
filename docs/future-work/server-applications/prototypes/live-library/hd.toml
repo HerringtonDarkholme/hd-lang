@@ -4,3 +4,9 @@ name = "server_live_library"
 [dependencies]
 model = { path = "../model" }
 transport = { path = "../transport" }
+
+[capabilities]
+Args = true
+Clock = true
+Console = true
+Net = true

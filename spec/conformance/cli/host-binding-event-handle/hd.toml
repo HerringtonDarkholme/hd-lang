@@ -5,4 +5,5 @@ name = "surface"
 "main.Surface" = "provider.mjs"
 
 [capabilities]
+Console = true
 "pkg.main.Surface" = true

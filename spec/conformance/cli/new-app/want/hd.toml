@@ -1,0 +1,8 @@
+[package]
+name = "new-app"
+
+[capabilities]
+Console = true
+Args = true
+Clock = true
+Random = true

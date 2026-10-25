@@ -1,2 +1,6 @@
 [package]
 name = "greeter"
+
+[capabilities]
+Args = true
+Console = true
