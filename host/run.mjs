@@ -276,8 +276,10 @@ if (isMainThread) {
           else process.off(signal, cancel.request);
         });
   const output = createOutput();
-  // The writer thread boots while the module compiles, not at the first write.
-  output.start();
+  // A supervised run shares the writer thread with its worker, and on
+  // Windows every write uses it, so there it boots while the module
+  // compiles. Otherwise writes go direct and a full pipe starts it.
+  if (limit !== null || output.threaded()) output.start();
   try {
     process.exitCode =
       limit === null

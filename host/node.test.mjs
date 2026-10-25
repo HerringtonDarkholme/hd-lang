@@ -1867,3 +1867,69 @@ for (const abort of [false, true]) {
     }
   });
 }
+
+// A write larger than the pipe buffer while the reader is paused: direct
+// writes come first, the full pipe starts the writer thread with the rest,
+// the program keeps polling, later output stays behind it, and direct
+// writes resume once the thread's queue is empty.
+test(
+  "Output to a held stdout pipe hands off to the thread in order",
+  { skip: process.platform === "win32", timeout: 15000 },
+  async (t) => {
+    const url = new URL("./output.mjs", import.meta.url).href;
+    const script = `
+      import { writeSync } from "node:fs";
+      import { createOutput } from ${JSON.stringify(url)};
+      const log = (line) => writeSync(2, line + "\\n");
+      const check = (ok, message) => { if (!ok) { log("FAIL " + message); process.exit(1); } };
+      const output = createOutput();
+      output.out("before\\n");
+      check(output.write(1, "small\\n").poll(), "a direct write is ready at its first poll");
+      check(!output.threaded(), "no thread before the pipe is full");
+      const big = output.write(1, "x".repeat(4 << 20));
+      let ticks = 0;
+      await new Promise((resolve) => {
+        const step = () => {
+          if (big.poll()) return resolve();
+          check(output.threaded(), "a full pipe hands the rest to the thread");
+          if (++ticks === 1) {
+            output.out("after-full\\n");
+            output.err("err-after-full\\n");
+          }
+          log("tick " + ticks);
+          setTimeout(step, 2);
+        };
+        step();
+      });
+      await output.drain();
+      output.out("end\\n");
+      check(!output.threaded(), "direct writes resume after the thread drains");
+      await output.close();
+      log("done");
+    `;
+    const child = spawn(process.execPath, ["--input-type=module", "-e", script], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    t.after(() => child.kill());
+    child.stdout.pause();
+    let errors = "";
+    const closed = once(child, "close");
+    await new Promise((resolve, reject) => {
+      child.stderr.on("data", (bytes) => {
+        errors += bytes;
+        if (errors.includes("tick 20\n")) resolve();
+      });
+      closed.then(() => reject(new Error(`exited before the reader resumed: ${errors}`)));
+    });
+    const chunks = [];
+    child.stdout.on("data", (bytes) => chunks.push(bytes));
+    child.stdout.resume();
+    const [code] = await closed;
+    assert.equal(code, 0, errors);
+    assert.doesNotMatch(errors, /FAIL/);
+    assert.match(errors, /err-after-full\n(.|\n)*done\n$/);
+    const text = Buffer.concat(chunks).toString();
+    assert.equal(text.length, 4 * 2 ** 20 + "before\nsmall\nafter-full\nend\n".length);
+    assert.equal(text, `before\nsmall\n${"x".repeat(4 << 20)}after-full\nend\n`);
+  },
+);
