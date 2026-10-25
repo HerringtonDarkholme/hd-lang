@@ -33,7 +33,7 @@ fn start() -> fn!(bool) -> void:
 >   %1 = Store [$0] %0 : ()
 >   %17 = Block %16 : fn!(bool) -> ()
     tick(&mut d)
->   %2 = Ref take mut [$0] : Ref[mut Counter]
+>   %2 = Ref take mut local [$0] : Ref[mut Counter]
 >   %3 = Call app/main/tick[] (%2) : ()
 >   %4 = Drop [%2] : ()
 >   %2 finds [$0] full
@@ -50,7 +50,7 @@ fn start() -> fn!(bool) -> void:
 >   %8 = Await app/main/pause[] () : ()
 >   %9 = Block - : ()
         tick(&mut c)
->   %11 = Ref mut [$2] : Ref[mut Counter]
+>   %11 = Ref mut local [$2] : Ref[mut Counter]
 >   %12 = Drop [$2] : ()
 >   %13 = Call app/main/tick[] (%11) : ()
 >   %14 = Drop [%11] : ()

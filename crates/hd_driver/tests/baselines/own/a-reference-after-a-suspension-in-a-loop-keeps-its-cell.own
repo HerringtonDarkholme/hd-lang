@@ -51,7 +51,7 @@ fn run!(n: i32) -> void:
 >   %8 = Prim Add [%7 1:i32] : i32
 >   %9 = Store [$2] %8 : ()
     tick(&mut c)
->   %16 = Ref mut [$1] : Ref[mut Counter]
+>   %16 = Ref mut local [$1] : Ref[mut Counter]
 >   %17 = Drop [$1] : ()
 >   %18 = Call app/main/tick[] (%16) : ()
 >   %19 = Drop [%16] : ()

@@ -54,7 +54,7 @@ impl[T < Tuple] Encode for T by Structure:
 >   %6 = Block %5 : string
         _ := Structure::walk(self, &mut w)
 >   %2 = Read [$0] : T
->   %3 = Ref mut [$1] : Ref[mut Encoder]
+>   %3 = Ref mut local [$1] : Ref[mut Encoder]
 >   %4 = Call std/structure/Structure.walk for T [Encoder] via Bound (%2, %3) : Result[(), never]
         w.out
 >   %5 = Read [$1 .out] : string

@@ -1336,9 +1336,24 @@ impl Ck<'_, '_> {
     /// Lowers every reference type the finished body records to `Ref[T]`,
     /// the data type that represents `&T` and `&mut T` on the backend
     /// (`Types::lower_refs`).
+    ///
+    /// A `Ref` that makes a local reference, `&T` or `&mut T`, keeps its
+    /// kind as `ref_word::LOCAL`, the one fact of the kind the backend
+    /// reads: where the local it refers to may live.
     pub(crate) fn lower_body_refs(&mut self) {
         let pool = self.pool();
         let cell = self.cx.names.known.ref_cell;
+        let b = self.b.body_mut();
+        for i in 0..b.tags.len() {
+            if b.tags[i] == hd_tir::ir::Tag::Ref
+                && matches!(
+                    pool.get(b.ty[i]),
+                    hd_types::TyData::Ref { counted: false, .. }
+                )
+            {
+                b.data[i][1] |= hd_tir::ir::ref_word::LOCAL;
+            }
+        }
         hd_tir::ir::map_body_types(self.b.body_mut(), &|t| pool.lower_refs(cell, t), &|l| {
             pool.lower_refs_list(cell, l)
         });

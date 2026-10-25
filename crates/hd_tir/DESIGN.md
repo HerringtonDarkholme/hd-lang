@@ -800,7 +800,7 @@ path's TIR keeps the base reads.
 | --- | --- | --- |
 | `Read` | a: place, b: `ReadMode` (`Use` from the checker; `Copy`, `Move` or `Borrow` after the ownership passes) | the place's type; the value at the place |
 | `Store` | a: place, b: value | `void`; replaces the value at the place. The place is writable (invariant 21) |
-| `Ref` | a: place, b: `0` shared or `1` mutable (`ref_word::MUT`), plus `2` (`ref_word::TAKES`) after the move pass | `&T` or `&mut T`: the place's address. A mutable one's place is writable (invariant 21). A taking one, of a whole local in a cell at its last access, takes the local's count of the cell and leaves the local empty |
+| `Ref` | a: place, b: `0` shared or `1` mutable (`ref_word::MUT`), plus `8` (`ref_word::LOCAL`) for a local reference, `&T` or `&mut T`, which the checker sets as it erases the kind, and `2` (`ref_word::TAKES`) after the move pass | `&T` or `&mut T`: the place's address. A mutable one's place is writable (invariant 21). A taking one, of a whole local in a cell at its last access, takes the local's count of the cell and leaves the local empty |
 
 `value_operands` of these, and of `IsUnique` and `Pin`, is the place's
 value root and element indices (then a `Store`'s value); a local or

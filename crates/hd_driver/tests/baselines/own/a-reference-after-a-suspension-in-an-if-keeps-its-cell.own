@@ -38,7 +38,7 @@ fn run!(go: bool) -> void:
 >   %3 = Await app/main/pause[] () : ()
 >   %4 = Block - : ()
     tick(&mut c)
->   %6 = Ref mut [$1] : Ref[mut Counter]
+>   %6 = Ref mut local [$1] : Ref[mut Counter]
 >   %7 = Drop [$1] : ()
 >   %8 = Call app/main/tick[] (%6) : ()
 >   %9 = Drop [%6] : ()

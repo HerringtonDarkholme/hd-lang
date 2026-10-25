@@ -37,7 +37,7 @@ fn run!() -> void:
 >   %1 = Store [$0] %0 : ()
 >   %6 = Block - : ()
     bump!(&mut c)
->   %2 = Ref mut [$0] : Ref[mut Counter]
+>   %2 = Ref mut local [$0] : Ref[mut Counter]
 >   %3 = Drop [$0] : ()
 >   %4 = Await app/main/bump[] (%2) : ()
 >   %5 = Drop [%2] : ()
@@ -52,7 +52,7 @@ fn fresh() -> void:
 >   %1 = Store [$0] %0 : ()
 >   %5 = Block - : ()
     tick(&mut c)
->   %2 = Ref take mut [$0] : Ref[mut Counter]
+>   %2 = Ref take mut local [$0] : Ref[mut Counter]
 >   %3 = Call app/main/tick[] (%2) : ()
 >   %4 = Drop [%2] : ()
 >   %2 finds [$0] full

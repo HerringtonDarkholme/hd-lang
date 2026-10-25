@@ -723,6 +723,10 @@ pub mod ref_word {
     /// reference view makes the referent fresh, and release only that.
     /// The checker never sets it (invariant 22).
     pub const LENT: u32 = 4;
+    /// Set by the checker as it erases the reference kind: the `Ref`
+    /// makes a local reference, `&T` or `&mut T`, which never outlives
+    /// its use (spec/lang/13-values-and-references.md#local-references).
+    pub const LOCAL: u32 = 8;
 }
 
 /// An `IsUnique`'s data word b (`docs/compiler/tir-v2.md`, "Hoisting"): 0

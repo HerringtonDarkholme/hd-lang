@@ -20,7 +20,7 @@ fn bump(mut xs: List[i32], i: usize) -> void:
 >   %0 = Read copy [$1] : usize
 >   %1 = IsUnique [$0] : ()
 >   %2 = Pin [$0] : ()
->   %3 = Ref mut [$0 [%0]] : Ref[mut i32]
+>   %3 = Ref mut local [$0 [%0]] : Ref[mut i32]
 >   %4 = Drop [$0] : ()
 >   %5 = Call app/main/add_one[] (%3) : ()
 >   %6 = Drop [%3] : ()

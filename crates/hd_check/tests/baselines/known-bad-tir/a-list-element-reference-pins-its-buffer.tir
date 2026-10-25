@@ -2,6 +2,6 @@
 app/main/borrow
   local $1 index: usize [param read]
   %0 = Read [$1] : usize
-  %1 = Ref [*$0 [%0]] : Ref[Body]
+  %1 = Ref local [*$0 [%0]] : Ref[Body]
   %2 = Call app/main/x_of[] (%1) : f64
   %3 = Block %2 : f64

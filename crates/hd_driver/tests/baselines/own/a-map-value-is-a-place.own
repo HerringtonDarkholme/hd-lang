@@ -28,7 +28,7 @@ fn restock(mut shelves: Map[string, Stock], name: string) -> Map[string, Stock]:
 >   %2 = Intrinsic MapEntry [%0 %1] : usize
 >   %3 = IsUnique [$0] : ()
 >   %4 = Pin [$0] : ()
->   %5 = Ref mut [$0 [%2]] : Ref[mut Stock]
+>   %5 = Ref mut local [$0 [%2]] : Ref[mut Stock]
 >   %6 = Call app/main/add[] (%5, 1:i32) : ()
 >   %7 = Drop [%5] : ()
 >   %15 = Block %13 : Map[string, Stock]
