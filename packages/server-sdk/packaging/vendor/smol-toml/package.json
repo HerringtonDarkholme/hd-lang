@@ -1,0 +1,7 @@
+{
+  "name": "vendored-smol-toml",
+  "version": "1.9.1",
+  "private": true,
+  "license": "BSD-3-Clause",
+  "type": "module"
+}

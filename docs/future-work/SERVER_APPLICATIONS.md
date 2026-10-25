@@ -169,6 +169,8 @@ Local parity mode uses the same set, so an application cannot work locally only 
 Grants come from the package's `[capabilities]` table (#827); the deployment writes the outgoing allowlist into adapter configuration, never into Wasm.
 
 Typed configuration is validated before admission opens, through `env_decode` and an Env provider; invalid values fail startup.
+The SDK deploy tasks read the root production `[capabilities]` directly from `hd.toml` at deploy time, using one shared SDK reader. They preserve explicit true, false and scope lists and exclude `[dev-capabilities]`. There is no `NAME.host.json` build companion; `hd build` remains policy-free. Any deployment fingerprints or ABI identity are computed by the SDK task.
+
 Secrets are named Env bindings read only when granted. They never enter generated JavaScript, caches, error responses, diagnostics or compiler cache keys.
 A `Secret` wrapper without `Serialize` and with a redacting `Debug` prevents accidental formatting, not information flow after an explicit reveal.
 

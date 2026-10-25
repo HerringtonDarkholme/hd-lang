@@ -154,3 +154,11 @@ The development Node provider writes request-console JSON records to their
 corresponding standard streams; ambient CLI output keeps its ordinary Console
 format. This does not add an aggregate memory
 guarantee or select deployment budgets.
+
+## Deploy-Time Production Grants
+
+`packaging/grants.mjs` is the shared manifest reader for the SDK deployment tasks. `readProductionGrants(rootDirectory)` reads exactly that root's `hd.toml` on each call. `parseProductionGrants(text)` provides the same validation for an already-read manifest. Both preserve explicit true, false and scope lists, including package-capability consent; neither imports development grants or supplies missing grants.
+
+The reader accepts TOML quoted keys, multiline arrays and ordinary escaping through a pinned, vendored parser. It rejects malformed TOML, invalid grant shapes and non-UTF-8 input. Error text omits source excerpts and grant values. Scope paths keep their manifest spelling for the consuming platform adapter to resolve; this helper does not invent a platform filesystem.
+
+The policy conformance inputs are in `test/fixtures/deployment-grants.json`, executed by `node --test packages/server-sdk/test/grants.test.mjs` from the repository root and by the CLI's maintained SDK test wrapper. `hd build` remains policy-free: there is no `NAME.host.json`, and deployment grants are not read from compiler caches or build artifacts. Platform packaging tasks remain the next slice.

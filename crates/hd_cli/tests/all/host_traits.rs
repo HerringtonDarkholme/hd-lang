@@ -898,6 +898,12 @@ fn server_sdk_fetch_and_supervised_application_cleanup() {
     ]);
 }
 
+/// Deployment policy is read by SDK tasks from the root production table.
+#[test]
+fn server_sdk_deployment_grants_are_production_only() {
+    server_sdk_node_tests(&["packages/server-sdk/test/grants.test.mjs"]);
+}
+
 fn server_sdk_node_tests(files: &[&str]) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     // Each file already exercises real overlapping requests and workers.

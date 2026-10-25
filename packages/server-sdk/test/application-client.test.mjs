@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { after, before, test } from "node:test";
 import { createCoreHost } from "../../../host/core.mjs";
 import { createApplication } from "../adapters/application.mjs";
+import { readProductionGrants } from "../packaging/grants.mjs";
 
 // This module and its binding companion come from the real HD build. The
 // handler row is Http; main requires no ambient Clock for SDK deadlines.
@@ -53,7 +54,7 @@ const incoming = (url) => ({
   redirects: 10,
 });
 
-async function setup(Http, handler) {
+async function setup(Http, handler, grants) {
   const upstream = http.createServer(handler);
   upstream.listen(0, "127.0.0.1");
   await once(upstream, "listening");
@@ -113,7 +114,7 @@ async function setup(Http, handler) {
         },
       });
     },
-    grants: { [source.selectors[0]]: true, Http },
+    grants: grants ?? { [source.selectors[0]]: true, Http },
     sink: { out() {}, err: (text) => errors.push(text) },
   });
   return {
@@ -315,6 +316,66 @@ test(
       } finally {
         await state.close();
       }
+    }
+  },
+);
+
+test(
+  "deployed applications use current root grants instead of development permissions",
+  { timeout: 10000 },
+  async () => {
+    const rootDirectory = join(directory, "app");
+    const manifest = join(rootDirectory, "hd.toml");
+    const original = readFileSync(manifest, "utf8");
+    const productionManifest = original.replaceAll("\r\n", "\n");
+    const initialGrants = await readProductionGrants(rootDirectory);
+    const selector = source.selectors.find((path) => initialGrants[path] === true);
+    assert.ok(selector, "the root explicitly grants one declared source path");
+    try {
+      for (const [production, development, status] of [
+        [false, true, 502],
+        [true, false, 200],
+        [["127.0.0.1"], false, 200],
+        [["allowed.test"], true, 502],
+      ]) {
+        writeFileSync(
+          manifest,
+          productionManifest.replace("\nHttp=true\n", `\nHttp=${JSON.stringify(production)}\n`) +
+            `\n[dev-capabilities]\nHttp=${development}\n`,
+        );
+        const grants = await readProductionGrants(rootDirectory);
+        assert.equal(grants[selector], true);
+        let hits = 0;
+        const state = await setup(
+          undefined,
+          (_request, response) => {
+            hits++;
+            response.end("production allowed");
+          },
+          grants,
+        );
+        try {
+          const result = await state.app.dispatch(incoming(state.url));
+          assert.equal(result.response.status, status);
+          assert.equal(hits, status === 200 ? 1 : 0);
+          state.check();
+          state.app.stop();
+        } finally {
+          await state.close();
+        }
+      }
+      writeFileSync(
+        manifest,
+        productionManifest.replace(
+          `${JSON.stringify(selector)}=true`,
+          `${JSON.stringify(selector)}=false`,
+        ) + `\n[dev-capabilities]\n${JSON.stringify(selector)}=true\n`,
+      );
+      const grants = await readProductionGrants(rootDirectory);
+      assert.equal(grants[selector], false);
+      assert.throws(() => createApplication({ module, bindings, createCoreHost, grants }), /grant/);
+    } finally {
+      writeFileSync(manifest, original);
     }
   },
 );

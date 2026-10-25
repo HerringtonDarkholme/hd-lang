@@ -1,0 +1,18 @@
+{
+  "package": "smol-toml",
+  "version": "1.9.1",
+  "source": "https://github.com/squirrelchat/smol-toml/tree/v1.9.1",
+  "archive": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.1.tgz",
+  "integrity": "sha512-j7WyPdf0CJoutMzMoPLF/bVXHtKZIT9Rb4eGeEbWw8X2t5oirjPgpL+OpaENZrILYaXqYwnVH+qgUwVbl+pUJQ==",
+  "original_sha256": {
+    "LICENSE": "fa5659948374d4f555594f47f6da073b40dc503e921aeeece30df4362b3051a5",
+    "date.js": "ef924a2a42c7f16761e7098c3ed8e04195ecbcb02d5c369db0aee76f251a409c",
+    "error.js": "76f8e47f5fc57273748242d59570656d7c921a80bceb2291ca5a4d7a723e9f29",
+    "extract.js": "3e6f1e5764a091acf2df6a3f257d0467c37a2b9dbfecab1573f17a6489349c90",
+    "parse.js": "195e33ea068bf6f3acb5b3342792ac4aa954bba7e751519ba869c00da395ecdb",
+    "primitive.js": "be47fe90bf9a410af0b9204b6b34617f4b38e57f08198b10cb024a0272eb5936",
+    "struct.js": "736742cfa645bbd08bc5396c5f7ddbea5c3b7ac5d61fe86031846f5769131deb",
+    "util.js": "6327e40efd957128da15867c3a32293950a925570b457b1b78c735452cebc08e"
+  },
+  "changes": "Parser-only ESM files, formatted with repository oxfmt; two side-effect expression statements in extract.js and date.js rewritten as equivalent if statements for strict lint. SPDX headers and LICENSE retained. util.js omits inline character-label comments to avoid oxfmt moving a comment across parentheses on every format pass."
+}

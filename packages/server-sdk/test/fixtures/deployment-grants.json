@@ -1,0 +1,144 @@
+[
+  {
+    "name": "production entries retain true false scopes and package consent",
+    "toml": "[capabilities]\nClock=true\nConsole=false\nHttp=[\"api.example:443\", \"*.example.org\"]\n\"dep.server_sdk.server.HttpServer\"=true\n\"pkg.blocked.Capability\"=false\n[dev-capabilities]\nConsole=true\nProcess=true\nHttp=false\n",
+    "grants": {
+      "Clock": true,
+      "Console": false,
+      "Http": ["api.example:443", "*.example.org"],
+      "dep.server_sdk.server.HttpServer": true,
+      "pkg.blocked.Capability": false
+    }
+  },
+  {
+    "name": "dev-only grants never become production grants",
+    "toml": "[package]\nname=\"app\"\n[dev-capabilities]\nProcess=true\nEnv=[\"SECRET_*\"]\n",
+    "grants": {}
+  },
+  {
+    "name": "scope order empty lists and path spelling remain intact",
+    "toml": "[capabilities]\nFsRead=[\"../data/\", \"data/#file\"]\nEnv=[]\nSys=[\"os\", \"arch\"]\n",
+    "grants": {
+      "Env": [],
+      "FsRead": ["../data/", "data/#file"],
+      "Sys": ["os", "arch"]
+    }
+  },
+  {
+    "name": "quoted names multiline arrays and escapes follow TOML",
+    "toml": "[\"capabilities\"]\n\"H\\u0074tp\" = [\n \"one.test\", # ignored comment\n 'two#literal.test',\n]\nConsole = true\n",
+    "grants": {
+      "Console": true,
+      "Http": ["one.test", "two#literal.test"]
+    }
+  },
+  {
+    "name": "unrelated large integers dates and text are ignored",
+    "toml": "[tool.other]\nnumber=9223372036854775807\nwhen=1979-05-27T07:32:00Z\ntext=\"[capabilities] Http=true\"\n[capabilities]\nRandom=false\n",
+    "grants": {
+      "Random": false
+    }
+  },
+  {
+    "name": "dev semantic errors are not production input",
+    "toml": "[capabilities]\nConsole=true\n[dev-capabilities]\nConsole=[1]\nMissing=3\n",
+    "grants": {
+      "Console": true
+    }
+  },
+  {
+    "name": "empty table yields no inferred grants",
+    "toml": "[capabilities]\n",
+    "grants": {}
+  },
+  {
+    "name": "inline table has ordinary grant semantics",
+    "toml": "capabilities={Console=true, Http=[\"host.test\"]}\n",
+    "grants": {
+      "Console": true,
+      "Http": ["host.test"]
+    }
+  },
+  {
+    "name": "package selector NFC Unicode is accepted",
+    "toml": "[capabilities]\n\"dep.café.Σervice\"=true\n",
+    "grants": {
+      "dep.café.Σervice": true
+    }
+  },
+  {
+    "name": "duplicate key",
+    "toml": "[capabilities]\nHttp=true\nHttp=false\n",
+    "error": "invalid TOML"
+  },
+  {
+    "name": "non-table",
+    "toml": "capabilities=\"private-value\"\n",
+    "error": "must be a table"
+  },
+  {
+    "name": "date is not a table",
+    "toml": "capabilities=1979-05-27\n",
+    "error": "must be a table"
+  },
+  {
+    "name": "list is not a table",
+    "toml": "capabilities=[]\n",
+    "error": "must be a table"
+  },
+  {
+    "name": "number grant",
+    "toml": "[capabilities]\nHttp=1\n",
+    "error": "needs true, false or a string list"
+  },
+  {
+    "name": "mixed scopes",
+    "toml": "[capabilities]\nHttp=[\"host.test\", false]\n",
+    "error": "needs true, false or a string list"
+  },
+  {
+    "name": "unscoped list",
+    "toml": "[capabilities]\nClock=[]\n",
+    "error": "takes no scope list"
+  },
+  {
+    "name": "package scope list",
+    "toml": "[capabilities]\n\"dep.sdk.Source\"=[]\n",
+    "error": "takes no scope list"
+  },
+  {
+    "name": "unknown core name",
+    "toml": "[capabilities]\nTime=true\n",
+    "error": "unknown capability"
+  },
+  {
+    "name": "unquoted selector",
+    "toml": "[capabilities]\ndep.sdk.Source=true\n",
+    "error": "unknown capability"
+  },
+  {
+    "name": "placeholder selector",
+    "toml": "[capabilities]\n\"dep._.Source\"=true\n",
+    "error": "unknown capability"
+  },
+  {
+    "name": "synthetic selector",
+    "toml": "[capabilities]\n\"pkg.$tasks.Source\"=true\n",
+    "error": "unknown capability"
+  },
+  {
+    "name": "non-NFC selector",
+    "toml": "[capabilities]\n\"dep.café.Source\"=true\n",
+    "error": "unknown capability"
+  },
+  {
+    "name": "prototype name",
+    "toml": "[capabilities]\n__proto__=true\n",
+    "error": "unknown capability"
+  },
+  {
+    "name": "malformed elsewhere",
+    "toml": "[tool.other]\nsecret=\"DONT_ECHO_ME\n",
+    "error": "invalid TOML"
+  }
+]
