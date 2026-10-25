@@ -9213,7 +9213,8 @@ impl Run<'_> {
                         CapabilityEntry::Main
                     };
                     entries.push((main, span, entry, row.is_some()));
-                } else if module.role == Role::Task {
+                }
+                if module.role == Role::Task {
                     let init = hd_check::default_body_def(
                         &names,
                         names.item(&module.path, "init"),
@@ -12308,6 +12309,46 @@ mod main_capability_tests {
         );
         assert_eq!(out.entry_capabilities[0].selectors, ["Console"]);
         assert_eq!(out.entry_capabilities[0].entry, CapabilityEntry::Task);
+    }
+
+    #[test]
+    fn task_init_requirements_survive_an_empty_main_on_cold_and_warm_checks() {
+        for main in ["", "\npub fn main() -> void: pass\n"] {
+            let source = format!("println(\"unlisted\")\n{main}");
+            let mut files = MemorySources::default();
+            files.insert("tasks/probe.hd", source.as_str());
+            let store = MemoryStore::default();
+            let host = Host {
+                sources: &files,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+                render_tir: &[],
+            };
+            let packages = Packages {
+                entry_capabilities: true,
+                ..Packages::default()
+            };
+            for warm in [false, true] {
+                let out = build_packages(&host, "app", &packages, &Goal::Analyze);
+                assert!(!out.diags.has_errors(), "{}", out.render());
+                assert_eq!(
+                    out.entry_capabilities.len(),
+                    1,
+                    "{:?}",
+                    out.entry_capabilities
+                );
+                let need = &out.entry_capabilities[0];
+                assert_eq!(need.selectors, ["Console"]);
+                assert_eq!(need.entry, CapabilityEntry::Task);
+                assert!(!need.written_row);
+                assert_eq!(need.span.lo, 0);
+                assert_eq!(out.files[need.span.file.idx()], "tasks/probe.hd");
+                if warm {
+                    assert!(out.counters.modules_checked.is_empty());
+                }
+            }
+        }
     }
 
     #[test]

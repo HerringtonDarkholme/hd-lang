@@ -1,0 +1,8 @@
+# Checking init requirements must not depend on whether a main is present.
+run: hd check --all --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"missing-capability","file":"tasks/probe.hd","line":1},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd fix
+same-text: hd.toml want.toml
+run: hd check --all --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
