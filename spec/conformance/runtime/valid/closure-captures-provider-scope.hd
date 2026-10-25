@@ -2,7 +2,7 @@
 
 fn make_reader() -> (fn() -> i32) $ Backup:
     $.with(Clock=$.use(Backup)):
-        clock := $.use(Clock)
+        let clock: *dyn Clock = $.use(Clock)
         fn() -> i32:
             _ := clock
             42

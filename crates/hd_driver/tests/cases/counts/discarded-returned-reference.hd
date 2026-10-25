@@ -8,10 +8,10 @@ struct Tally:
 
 # subject
 impl Tally:
-    fn add(&mut self) -> &mut Tally:
+    fn add(*mut self) -> *mut Tally:
         self.count = self.count + 1
         self
 
-    fn fill(&mut self, n: usize) -> void:
+    fn fill(*mut self, n: usize) -> void:
         for _ in 0..n:
             self.add()

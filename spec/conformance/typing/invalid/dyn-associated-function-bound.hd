@@ -9,4 +9,4 @@ fn total[F < Factory[Item = i32]]() -> i32:
     F::count()
 
 fn with_function(factory: &dyn Factory[Item = i32]) -> i32:
-    total::[&dyn Factory[Item = i32]]()  # diagnostic: unsatisfied-trait-bound
+    total::[*dyn Factory[Item = i32]]()  # diagnostic: unsatisfied-trait-bound

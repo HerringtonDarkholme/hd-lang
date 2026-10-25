@@ -19,7 +19,7 @@ impl Bag:
 fn bag_before(bag: Bag, removed: i32?) -> usize: bag.items.len()
 
 struct Holder:
-    items: &mut List[i32]
+    items: *mut List[i32]
 
 tests:
     use std.testing.assert_equal

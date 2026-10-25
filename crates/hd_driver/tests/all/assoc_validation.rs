@@ -91,7 +91,7 @@ const FACTORY: &str = "trait Factory:\n    type Item\n    fn count() -> i32\n\nf
 #[test]
 fn a_dyn_type_does_not_satisfy_a_bound_on_a_trait_with_an_associated_function() {
     let src = format!(
-        "{FACTORY}fn with_function(factory: &dyn Factory[Item = i32]) -> i32:\n    total::[&dyn Factory[Item = i32]]()\n"
+        "{FACTORY}fn with_function(factory: &dyn Factory[Item = i32]) -> i32:\n    total::[*dyn Factory[Item = i32]]()\n"
     );
     assert_eq!(errors(&src), vec![Code::UnsatisfiedTraitBound]);
 }
@@ -99,7 +99,7 @@ fn a_dyn_type_does_not_satisfy_a_bound_on_a_trait_with_an_associated_function() 
 #[test]
 fn a_dyn_type_does_not_satisfy_a_bound_on_a_supertrait_with_an_associated_function() {
     let src = format!(
-        "{FACTORY}trait Named < Factory:\n    fn name(self) -> string\n\nfn with_named(source: &dyn Named[Item = i32]) -> i32:\n    total::[&dyn Named[Item = i32]]()\n"
+        "{FACTORY}trait Named < Factory:\n    fn name(self) -> string\n\nfn with_named(source: &dyn Named[Item = i32]) -> i32:\n    total::[*dyn Named[Item = i32]]()\n"
     );
     assert_eq!(errors(&src), vec![Code::UnsatisfiedTraitBound]);
 }

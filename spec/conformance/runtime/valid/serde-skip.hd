@@ -28,7 +28,7 @@ struct MissingDefault:
     kept: i32
     hidden: i32
 
-fn skip_facts() -> List[&dyn Inspectable]:
+fn skip_facts() -> List[*dyn Inspectable]:
     [&skip()]
 
 impl Deserialize for MissingDefault by Structure:

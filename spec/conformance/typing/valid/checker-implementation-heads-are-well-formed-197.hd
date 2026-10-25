@@ -17,7 +17,7 @@ struct Feed[I]:
     items: I
 type Person = User
 
-impl Marker for List[&dyn Display]
+impl Marker for List[*dyn Display]
 
 pub fn main() -> void:
     pass

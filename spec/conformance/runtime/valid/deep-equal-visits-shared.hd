@@ -6,13 +6,13 @@ use std.cmp.{DeepEq, DeepVisits, deep_equal}
 
 struct Link:
     label: string
-    next: &mut Link?
+    next: *mut Link?
 
 impl DeepEq for Link:
     fn deep_eq(self, other: Link, visits: &mut DeepVisits) -> bool:
         self.label == other.label && self.next.deep_eq(other.next, visits)
 
-fn ring(a: string, b: string) -> &mut Link:
+fn ring(a: string, b: string) -> *mut Link:
     first := &mut Link { label: a, next: .None }
     second := &mut Link { label: b, next: .Some(first) }
     first.next = .Some(second)

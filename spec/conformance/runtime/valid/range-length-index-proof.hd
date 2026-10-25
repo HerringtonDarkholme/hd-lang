@@ -40,7 +40,7 @@ fn constant_bound(xs: &List[i32]) -> i32:
     sum
 
 struct Holder[T]:
-    item: &mut T
+    item: *mut T
 
 trait Factory:
     fn hold[T](self, item: T) -> Holder[T]:

@@ -6,12 +6,12 @@
 @derive(Eq, Hash, Debug)
 enum Expr:
     Num(n: i64)
-    Add(left: &Expr, right: &Expr)
+    Add(left: *Expr, right: *Expr)
 
 @derive(Debug)
 struct Gauge:
-    level: &mut i32
-    name: &string
+    level: *mut i32
+    name: *string
 
 pub fn main() -> void $ Console:
     a := Expr.Add(&Expr.Num(1), &Expr.Num(2))

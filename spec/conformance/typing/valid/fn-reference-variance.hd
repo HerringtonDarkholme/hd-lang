@@ -3,37 +3,37 @@
 struct User:
     name: string
 
-fn widen(f: fn(&User) -> &mut User) -> fn(&mut User) -> &User:
+fn widen(f: fn(&User) -> *mut User) -> fn(&mut User) -> *User:
     f
 
-fn result(f: fn() -> &mut User) -> fn() -> &User:
+fn result(f: fn() -> *mut User) -> fn() -> *User:
     f
 
 fn input(f: fn(&User) -> void) -> fn(&mut User) -> void:
     f
 
-fn nested(f: fn(fn() -> &User) -> void) -> fn(fn() -> &mut User) -> void:
+fn nested(f: fn(fn() -> *User) -> void) -> fn(fn() -> *mut User) -> void:
     f
 
-fn readonly_container(f: &List[fn() -> &mut User]) -> &List[fn() -> &User]:
+fn readonly_container(f: *List[fn() -> *mut User]) -> *List[fn() -> *User]:
     f
 
-fn result_list(f: fn() -> List[&mut User]) -> fn() -> List[&User]:
+fn result_list(f: fn() -> List[*mut User]) -> fn() -> List[*User]:
     f
 
 struct Consumer[-T]:
     consume: fn(T) -> void
 
-fn result_contravariant(f: fn() -> Consumer[&User]) -> fn() -> Consumer[&mut User]:
+fn result_contravariant(f: fn() -> Consumer[*User]) -> fn() -> Consumer[*mut User]:
     f
 
 trait Service
 
-fn widened_row(f: fn() -> &mut User) -> fn() -> &User $ Service:
+fn widened_row(f: fn() -> *mut User) -> fn() -> *User $ Service:
     f
 
-fn list_of_functions(values: List[fn() -> &mut User]) -> List[fn() -> &User]:
+fn list_of_functions(values: List[fn() -> *mut User]) -> List[fn() -> *User]:
     values
 
-fn tuple_of_functions(value: (fn() -> &mut User, i32)) -> (fn() -> &User, i32):
+fn tuple_of_functions(value: (fn() -> *mut User, i32)) -> (fn() -> *User, i32):
     value

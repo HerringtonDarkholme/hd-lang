@@ -5,10 +5,10 @@ struct Point:
     x: i32
     y: i32
 
-fn bump(point: &mut Point) -> fn() -> void:
+fn bump(point: *mut Point) -> fn() -> void:
     fn() -> void: point.x = point.x + 1
 
-fn watch(point: &Point) -> fn() -> i32:
+fn watch(point: *Point) -> fn() -> i32:
     fn() -> i32: point.x
 
 tests:

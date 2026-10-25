@@ -7,8 +7,8 @@
 # copies between locals and the releases of null locals do.
 # tracked by #678, #670
 struct Node:
-    left: (&Node)?
-    right: (&Node)?
+    left: (*Node)?
+    right: (*Node)?
 
-fn leaf() -> &Node:
+fn leaf() -> *Node:
     &Node { left: .None, right: .None }

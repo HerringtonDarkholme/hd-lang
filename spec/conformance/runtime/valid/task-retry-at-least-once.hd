@@ -14,7 +14,7 @@ fn ask!(server: &mut Server) -> Result[string, string]:
         return .Err("busy ${server.calls}")
     .Ok("ready")
 
-fn connect!(server: &mut Server, times: usize) -> Result[string, string] $ Clock:
+fn connect!(server: *mut Server, times: usize) -> Result[string, string] $ Clock:
     retry!(Backoff { attempts: times, initial: 0ms }):
         ask!(server)
 

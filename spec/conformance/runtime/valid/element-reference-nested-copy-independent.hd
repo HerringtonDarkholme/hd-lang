@@ -13,7 +13,7 @@ fn set_after[T](target: &mut i32, copy: T) -> T:
 fn set_in_row(row: &mut List[i32], copy: List[List[i32]]) -> List[List[i32]]:
     set_after(&mut row[0], copy)
 
-fn keep(target: &mut i32) -> &mut i32:
+fn keep(target: *mut i32) -> *mut i32:
     target
 
 fn next_index(calls: &mut usize) -> usize:

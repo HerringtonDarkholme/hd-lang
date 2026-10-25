@@ -13,14 +13,14 @@ impl Reader for Pair:
     fn text(self) -> string: self.text
 
 trait Factory:
-    fn make[T](self, value: T) -> &mut T:
+    fn make[T](self, value: T) -> *mut T:
         let mut local = value
         &mut local
 
-    fn identity[T](self, value: &mut T) -> &mut T:
+    fn identity[T](self, value: *mut T) -> *mut T:
         value
 
-    fn setter[T](self, destination: &mut T) -> fn(T) -> void:
+    fn setter[T](self, destination: *mut T) -> fn(T) -> void:
         fn(value: T) -> void: *destination = value
 
 struct Maker: pass

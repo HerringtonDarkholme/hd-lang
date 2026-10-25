@@ -15,10 +15,10 @@ fn tag(text: string) -> Tag:
 fn note(text: string) -> Note:
     Note { text: text }
 
-let tagged: List[&dyn Inspectable] = [&tag("t")]
-let noted: List[&dyn Inspectable] = [&note("n")]
+let tagged: List[*dyn Inspectable] = [&tag("t")]
+let noted: List[*dyn Inspectable] = [&note("n")]
 
-fn made() -> List[&dyn Inspectable]:
+fn made() -> List[*dyn Inspectable]:
     [&note("made")]
 
 trait Probe:

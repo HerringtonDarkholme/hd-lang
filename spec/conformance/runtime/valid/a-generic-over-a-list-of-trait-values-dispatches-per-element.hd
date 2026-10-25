@@ -45,7 +45,7 @@ fn targets[C < Channel](channels: List[C]) -> List[string]:
     channels.map(C::to_string)
 
 pub fn main() -> void $ Console:
-    let all: List[&dyn Channel] = [&Email { address: "a@example.com" }, &Pager { number: 1 }]
+    let all: List[*dyn Channel] = [&Email { address: "a@example.com" }, &Pager { number: 1 }]
     for line in broadcast(all, "up"):
         println(line)
     for target in targets(all):

@@ -6,7 +6,7 @@ struct Plain:
 struct Custom: pass
 
 impl Debug for Custom:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         out.write("chosen")
 
 struct Outer:
@@ -20,7 +20,7 @@ enum Choice:
 type Wrapped(Plain)
 
 struct Ring:
-    next: &mut Ring?
+    next: *mut Ring?
 
 pub fn main() -> void $ Console:
     value := Plain { x: +7 }

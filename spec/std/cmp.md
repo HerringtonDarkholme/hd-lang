@@ -163,7 +163,7 @@ fn is_before(a: string, b: string) -> bool:
 `std.cmp` implements `Eq` for references by the values they refer to:
 
 ```text
-fn has_value(items: List[&i32], value: &i32) -> bool:
+fn has_value(items: List[*i32], value: *i32) -> bool:
     items.contains(value)  # compares the values the references refer to
 ```
 
@@ -185,7 +185,7 @@ use std.cmp.Id
 struct Node:
     label: string
 
-fn visit(seen: &mut Map[Id[Node], bool], node: &Node) -> bool:
+fn visit(seen: &mut Map[Id[Node], bool], node: *Node) -> bool:
     key := Id { target: node }
     if seen.get(key).is_some():
         return false
@@ -208,7 +208,7 @@ use std.cmp.{DeepEq, deep_equal}
 @derive(DeepEq)
 struct Node:
     value: i32
-    next: &mut Node?
+    next: *mut Node?
 
 fn same_ring(a: &mut Node, b: &mut Node) -> bool:
     deep_equal(a, b)

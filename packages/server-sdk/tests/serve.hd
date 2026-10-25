@@ -8,7 +8,7 @@ use std.testing.{assert, assert_equal}
 struct Scripted:
     next: u64
     replies: List[(u64, Response)]
-    clock: &mut dyn Clock
+    clock: *mut dyn Clock
 
 impl HttpServer for Scripted:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]:
@@ -30,7 +30,7 @@ impl HttpServer for Scripted:
         self.clock.sleep!(s(60))
         .Stopping
 
-    fn clock(&mut self, _id: RequestId) -> &mut dyn Clock: self.clock
+    fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: self.clock
     fn finish(&mut self, _id: RequestId, _abandoned: bool) -> void: pass
 
 struct Hits:
@@ -46,7 +46,7 @@ impl HttpServer for FailedSource:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]: .Err(.Closed)
     fn respond!(&mut self, _id: RequestId, _response: Response) -> Result[void, ServerError]: .Err(.Closed)
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason: .Stopping
-    fn clock(&mut self, _id: RequestId) -> &mut dyn Clock: panic("no accepted lease")
+    fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: panic("no accepted lease")
     fn finish(&mut self, _id: RequestId, _abandoned: bool) -> void: pass
 
 
@@ -81,7 +81,7 @@ it("a source failure is returned after the workers finish"):
 # clock is supplied explicitly to the fake; serve itself adds no Clock row.
 struct Leases:
     next: u64
-    clock: &mut dyn Clock
+    clock: *mut dyn Clock
     cancel_after: i64
     replies: List[(u64, Response)]
     expire_response: bool = false
@@ -101,13 +101,13 @@ impl HttpServer for Leases:
     fn cancelled!(&mut self, id: RequestId) -> CancelReason:
         self.clock.sleep!(ms(if id.sequence == 1: self.cancel_after else: 60000))
         .Disconnected
-    fn clock(&mut self, _id: RequestId) -> &mut dyn Clock: self.clock
+    fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: self.clock
     fn finish(&mut self, id: RequestId, abandoned: bool) -> void:
         self.finished.push((id.sequence, abandoned))
 
 struct Closing:
     wait: mut Suspend[void]
-    events: &mut List[string]
+    events: *mut List[string]
 
 impl Disposable for Closing:
     fn dispose!(&mut self) -> void:
@@ -127,7 +127,7 @@ fn cancellable!(request: Request, state: &mut Work) -> Response $ Clock:
         sleep!(s(60))
     Response { status: 200 }
 
-fn working!(server: &mut Leases, state: &mut Work) -> string $ Clock:
+fn working!(server: *mut Leases, state: *mut Work) -> string $ Clock:
     $.with(HttpServer=server):
         _ := serve!(3, state, cancellable)
     "finished"
@@ -175,7 +175,7 @@ it("external cancellation retains the same cleanup bound and releases leases"):
 # Advance only the two SDK timers in virtual time; long handler sleeps
 # remain cancellable real suspensions. This tests 20s/100ms without waiting.
 struct DeadlineClock:
-    base: &mut dyn Clock
+    base: *mut dyn Clock
     tick: i64
 
 impl Clock for DeadlineClock:

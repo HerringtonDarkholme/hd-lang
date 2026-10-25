@@ -3,11 +3,11 @@
 use std.text.StringBuilder
 use std.testing.assert_equal
 
-fn select(out: &mut StringBuilder, log: &mut List[string]) -> &mut StringBuilder:
+fn select(out: *mut StringBuilder, log: &mut List[string]) -> *mut StringBuilder:
     log.push("receiver")
     out
 
-fn piece(out: &mut StringBuilder, log: &mut List[string], text: string) -> string:
+fn piece(out: *mut StringBuilder, log: &mut List[string], text: string) -> string:
     log.push(text)
     out.push(text)
     text

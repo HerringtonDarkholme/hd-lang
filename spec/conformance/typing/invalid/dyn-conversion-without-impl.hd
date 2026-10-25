@@ -6,5 +6,5 @@ trait Shape:
 struct Square:
     side: i32
 
-fn as_shape(square: Square) -> &dyn Shape:
+fn as_shape(square: Square) -> *dyn Shape:
     square  # diagnostic: type-mismatch

@@ -2,7 +2,7 @@
 
 enum Plain:
     Lit(i64)
-    Add(&Plain, &Plain)
+    Add(*Plain, *Plain)
 
 enum Triple:
     Items(Plain, Plain, Plain)

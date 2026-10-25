@@ -105,18 +105,18 @@ fn every_row_of_the_table_is_inspectable() {
         "Map[string, Plain]",
         "(i32, string)",
         "List[(i32, Map[string, bool])]",
-        "&dyn Display",
-        "&dyn Any",
-        "(&dyn Display, i32)",
+        "*dyn Display",
+        "*dyn Any",
+        "(*dyn Display, i32)",
         // trait.inspectable.reference
-        "&dyn Inspectable",
-        "&dyn Named",
-        "&dyn Deeper",
+        "*dyn Inspectable",
+        "*dyn Named",
+        "*dyn Deeper",
         // trait.inspectable.reference
-        "List[&dyn Display]",
-        "Map[string, &dyn Any]",
-        "Boxed[&dyn Display]",
-        "Boxed[&dyn Any]",
+        "List[*dyn Display]",
+        "Map[string, *dyn Any]",
+        "Boxed[*dyn Display]",
+        "Boxed[*dyn Any]",
     ];
     for ty in valid {
         assert_eq!(errors(&type_id_program(ty)), vec![], "{ty}");

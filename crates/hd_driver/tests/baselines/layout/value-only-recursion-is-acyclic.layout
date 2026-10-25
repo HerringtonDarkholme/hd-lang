@@ -29,7 +29,7 @@ struct RefDir:
 >   kids: List[app.main.RefDir] offset=0 size=4 align=4 counted=0
 >   parent: &mut app.main.RefDir? offset=4 size=8 align=4 counted=8?
     kids: List[RefDir]
-    parent: (&mut RefDir)?
+    parent: (*mut RefDir)?
 
 struct CallbackDir:
 > app.main.CallbackDir size=12 align=4 cycle-capable=true

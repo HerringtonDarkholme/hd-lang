@@ -7,7 +7,7 @@ use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
-    log: &mut List[string]
+    log: *mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -17,7 +17,7 @@ impl Disposable for Conn:
         wait!()
         self.log.push("loser closed")
 
-fn slow!(log: &mut List[string]) -> string $ Clock:
+fn slow!(log: *mut List[string]) -> string $ Clock:
     using conn = &mut Conn { log: log, closing: sleep(ms(5)) }
     sleep!(s(60))
     "late"
@@ -25,7 +25,7 @@ fn slow!(log: &mut List[string]) -> string $ Clock:
 fn ready!() -> string:
     "won"
 
-fn racer!(log: &mut List[string]) -> string $ Clock:
+fn racer!(log: *mut List[string]) -> string $ Clock:
     defer: log.push("racer defer")
     winner := race!(slow(log), ready())
     log.push("racer got ${winner}")

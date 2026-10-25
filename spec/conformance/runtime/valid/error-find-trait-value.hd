@@ -18,5 +18,5 @@ tests:
     use std.testing.assert
 
     it("no supertrait search"):
-        let failure: &dyn Error = & SaveError.Write("notes.txt", DiskError { free: 0 })
+        let failure: *dyn Error = & SaveError.Write("notes.txt", DiskError { free: 0 })
         assert(failure.find::[OtherError]().is_none(), reason="a different concrete error is not in the chain")

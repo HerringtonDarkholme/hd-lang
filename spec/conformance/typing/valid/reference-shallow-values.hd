@@ -3,15 +3,15 @@ struct User:
     age: i32
 
 struct Team:
-    lead: &mut User
+    lead: *mut User
 
-fn lead(source: &Team) -> &mut User:
+fn lead(source: &Team) -> *mut User:
     source.lead
 
 fn copy(source: &Team) -> Team:
     *source
 
-fn element(source: &List[&mut User]) -> &mut User:
+fn element(source: &List[*mut User]) -> *mut User:
     source[0]
 
 fn generic[T](source: &T) -> T:

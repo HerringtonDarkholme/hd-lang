@@ -10,7 +10,7 @@ use std.testing.{Arbitrary, Choices, assert, it_prop, it_prop_with}
 @derive(Debug)
 enum Tree:
     Leaf
-    Node(left: &Tree, right: &Tree)
+    Node(left: *Tree, right: *Tree)
 
 fn tree(c: &mut Choices) -> Tree:
     match c.int(0..=2):
@@ -24,7 +24,7 @@ fn size(t: Tree) -> i32:
 
 @derive(Arbitrary, Debug)
 enum Expr:
-    Add(left: &Expr, right: &Expr)
+    Add(left: *Expr, right: *Expr)
     Num(value: i32)
 
 fn depth(e: Expr) -> i32:

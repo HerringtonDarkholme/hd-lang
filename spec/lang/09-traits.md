@@ -528,7 +528,7 @@ The standard library declares the standard error trait `Error` in
 7. r[trait.error.reference-source] `Error` declares `fn source(self) -> (*dyn Error)?`, which returns the error that caused this one. Its default returns `.None`.
 8. r[trait.error.dyn-methods.reference-values] `std.error` gives `&dyn Error` the inherent methods `chain`, `root_cause`, and `find[T < Error]`, in an `impl dyn Error:` block beside the trait.
 9. r[trait.error.dyn-methods.not-members] They are not members of `Error`, so an implementation of `Error` cannot declare or override them.
-10. r[trait.error.dyn-methods.reference-receiver] They take shared reference receivers, as in `let erased: &dyn Error = &failure; erased.find::[FsError]()`.
+10. r[trait.error.dyn-methods.reference-receiver] They take shared reference receivers, as in `let erased: *dyn Error = &failure; erased.find::[FsError]()`.
 11. r[trait.error.inherent-recovery.reference-values] The inherent `impl dyn Error` declares the recovery methods of `impl dyn Inspectable`, with identical reference signatures.
 12. r[trait.error.std-api] What `chain`, `root_cause`, and `find` return is standard-library API.
 13. r[trait.error.derive] A struct or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
@@ -586,7 +586,7 @@ impl Error for FsError
 fn read_config(path: string) -> Result[string, FsError]:
     .Err(FsError.NotFound(path))
 
-fn load(path: string) -> Result[string, &dyn Error]:
+fn load(path: string) -> Result[string, *dyn Error]:
     text := read_config(path)?
     .Ok(text)
 ```
@@ -603,7 +603,7 @@ show a value's structure:
 
 ```text
 trait Debug:
-    fn debug(self, out: &mut DebugWriter) -> void
+    fn debug(self, out: *mut DebugWriter) -> void
 ```
 
 A type usually derives it:
@@ -619,7 +619,7 @@ fn describe(point: Point) -> string:
 ```
 
 1. r[trait.debug.module] `std.format` declares `Debug` and `DebugWriter`. `Debug` is a prelude name.
-2. r[trait.debug.method-ref] `Debug` declares `fn debug(self, out: &mut DebugWriter) -> void`, which writes the value's structure through `out`, a reference to the one writer of the whole value.
+2. r[trait.debug.method-ref] `Debug` declares `fn debug(self, out: *mut DebugWriter) -> void`, which writes the value's structure through `out`, a reference to the one writer of the whole value.
 3. r[trait.debug.writer] `DebugWriter` is the standard structured writer. An implementation describes the value through its builder calls, such as one call per field, rather than raw text.
 4. r[trait.debug.std-impls] `std` implements `Debug` for the primitives, collections, `T?`, and `Result`, each when its type arguments implement `Debug`.
 5. r[trait.debug.tuples] `std.format` declares a tuple template for `Debug`, so every tuple whose elements implement `Debug` implements it, at every size.
@@ -1793,7 +1793,7 @@ fn total[F < Factory[Item = i32]]() -> i32:
     F::count()
 
 fn with_function(factory: &dyn Factory[Item = i32]) -> i32:
-    total::[&dyn Factory[Item = i32]]()  # error: unsatisfied-trait-bound
+    total::[*dyn Factory[Item = i32]]()  # error: unsatisfied-trait-bound
 ```
 
 > **Why.** Rust accepts `&dyn Iterator<Item = T>`, and hd had simply not
@@ -1877,7 +1877,7 @@ struct User:
 impl Greet for User:
     fn greet(self) -> string: "hi"
 
-fn demo(user: User) -> &dyn Greet:
+fn demo(user: User) -> *dyn Greet:
     &user   # the reference converts through the explicit implementation
 ```
 
@@ -1938,7 +1938,7 @@ trait Counter:
 fn poke(counter: &dyn Counter) -> void:
     counter.bump()  # error: not-writable
 
-fn upgrade(counter: &dyn Counter) -> &mut dyn Counter:
+fn upgrade(counter: *dyn Counter) -> *mut dyn Counter:
     counter  # error: mutable-upgrade
 
 struct Tally:
@@ -1980,7 +1980,7 @@ See also: [Values And References](13-values-and-references.md),
 6. r[trait.any.none.reference-values] A bare `.None` still needs an expected optional type: `let value: &dyn Any = &.None` is an error, while `let value: (&dyn Any)? = .None` is valid. Error: `missing-contextual-enum-type`.
 
 ```text
-let invalid: &dyn Any = &.None  # error: missing-contextual-enum-type
+let invalid: *dyn Any = &.None  # error: missing-contextual-enum-type
 ```
 
 ## Sealed Traits
@@ -2164,12 +2164,11 @@ trait Inspectable:
     fn runtime_type(self) -> TypeId
 
 impl dyn Inspectable:
-    pub fn downcast_ref[T < Inspectable](&self) -> (&T)?
-    pub fn downcast_mut[T < Inspectable](&mut self) -> (&mut T)?
+    pub fn downcast_ref[T < Inspectable](&self) -> (*T)?
+    pub fn downcast_mut[T < Inspectable](&mut self) -> (*mut T)?
 
 impl TypeId:
     pub fn of[T < Inspectable]() -> TypeId
-
 ```
 
 1. r[trait.rtti.module] The standard module `std.inspect` lets a program erase a value so that its concrete type can be recovered later.
@@ -2341,7 +2340,7 @@ use std.inspect.{Inspectable, TypeId}
 struct Box[T]:
     value: T
 
-fn erase[T < Inspectable](value: T) -> &dyn Inspectable:
+fn erase[T < Inspectable](value: T) -> *dyn Inspectable:
     &Box { value: value }
 
 fn is_int_box(value: &dyn Inspectable) -> bool:
@@ -2363,7 +2362,7 @@ branch.
 ```text
 use std.inspect.Inspectable
 
-fn erase[T](value: T) -> &dyn Inspectable:
+fn erase[T](value: T) -> *dyn Inspectable:
     value  # error: type-mismatch
 ```
 
@@ -2415,7 +2414,7 @@ fn number(value: &dyn Inspectable) -> i32:
 ```hd
 use std.inspect.Inspectable
 
-fn get[T < Inspectable](value: &dyn Inspectable) -> (&T)?:
+fn get[T < Inspectable](value: &dyn Inspectable) -> (*T)?:
     value.downcast_ref()
 ```
 

@@ -4,12 +4,12 @@
 use std.time.{Clock, ManualClock, Timestamp, ms, sleep}
 
 trait Factory:
-    fn make![T](self, value: T) -> &mut T $ Clock:
+    fn make![T](self, value: T) -> *mut T $ Clock:
             sleep!(ms(1))
             let mut local = value
             &mut local
 
-    fn share![T](self, source: &mut T) -> &mut T $ Clock:
+    fn share![T](self, source: *mut T) -> *mut T $ Clock:
             sleep!(ms(1))
             source
 

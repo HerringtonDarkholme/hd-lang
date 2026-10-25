@@ -7,7 +7,7 @@ use std.time.{Duration, Instant, ms}
 fn is_busy(error: string) -> bool:
     error == "busy"
 
-fn connect!(replies: &mut List[Result[string, string]]) -> Result[string, string] $ Clock:
+fn connect!(replies: *mut List[Result[string, string]]) -> Result[string, string] $ Clock:
     retry!(Backoff { attempts: 5, initial: 0ms }, when=is_busy):
         replies.remove_at(0)
 

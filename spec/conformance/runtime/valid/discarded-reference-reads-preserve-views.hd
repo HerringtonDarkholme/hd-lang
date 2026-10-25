@@ -8,7 +8,7 @@ struct State:
     writes: usize
 
 trait Factory:
-    fn make[T](self, value: T) -> &mut T:
+    fn make[T](self, value: T) -> *mut T:
         let mut local = value
         &mut local
 

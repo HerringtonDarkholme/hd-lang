@@ -3,5 +3,5 @@
 struct User:
     name: string
 
-fn upgrade(f: fn() -> &User) -> fn() -> &mut User:
+fn upgrade(f: fn() -> *User) -> fn() -> *mut User:
     f  # diagnostic: type-mismatch

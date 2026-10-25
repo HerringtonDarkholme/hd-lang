@@ -3,7 +3,7 @@
 struct User:
     name: string
 
-fn find() -> &mut User?:
+fn find() -> *mut User?:
     .Some(&mut User { name: "Lin" })
 
 fn rename() -> string:

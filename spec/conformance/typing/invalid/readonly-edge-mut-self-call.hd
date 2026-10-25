@@ -9,7 +9,7 @@ impl Child:
         self.name = name
 
 struct Parent:
-    child: &Child
+    child: *Child
 
 fn invalid(parent: &mut Parent) -> void:
     parent.child.rename("new")  # diagnostic: not-writable

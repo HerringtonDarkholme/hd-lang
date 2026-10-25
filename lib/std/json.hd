@@ -998,7 +998,7 @@ fn float_number(text: string, start: usize, end: usize) -> Result[Json, JsonErro
 
 # Keep handwritten Debug: hide the representation variant behind Number(value).
 impl Debug for Number:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         match self.repr:
             .Negative(value) => out.debug_tuple("Number").field(value).finish()
             .NonNegative(value) => out.debug_tuple("Number").field(value).finish()
@@ -1007,7 +1007,7 @@ impl Debug for Number:
 # One `debug_list` entry per member, in insertion order.
 # Keep handwritten Debug: render entries as a list rather than storage fields.
 impl Debug for JsonObject:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         list := out.debug_list()
         for entry in self.entries:
             _ := list.entry(entry)
@@ -1287,7 +1287,7 @@ enum Irregular:
 # text: a list, a map, or a record adds one, and a variant two, for its
 # `{"Variant": {` once a member opens it.
 struct TextWriter:
-    pub parts: &mut List[string]
+    pub parts: *mut List[string]
     pub depth: usize
     pub kinds: List[FrameKind]
     pub names: List[string]
@@ -1305,7 +1305,7 @@ struct TextWriter:
     pub indent: usize
 
 impl TextWriter:
-    fn new(spaced: bool) -> &mut TextWriter:
+    fn new(spaced: bool) -> *mut TextWriter:
         &mut TextWriter { parts: &mut [], depth: 0, kinds: [], names: [], counts: [], key_starts: [], facts: [], key_count: 0, keys: [], prints: [], pending: "", keyed: false, written: false, regular: true, spaced: spaced, indent: 0 }
 
     # The text, or `.None` when the walk was not regular or not complete.
@@ -1586,7 +1586,7 @@ struct JsonReader:
     pub facts: List[Facts]
 
 impl JsonReader:
-    fn new(value: Json) -> &mut JsonReader:
+    fn new(value: Json) -> *mut JsonReader:
         &mut JsonReader { value: value, present: true, depth: 0, steps: [], names: [], open: 0, containers: [], kinds: [], next: [], bases: [], homes: [], variants: [], facts: [] }
 
     # The path of the first `depth` steps: `$`, then `.key` or `[index]`
@@ -1932,17 +1932,17 @@ struct TextObject:
     pub positions: Map[string, usize]
 
 struct TextReader:
-    pub parser: &mut Parser
+    pub parser: *mut Parser
     pub at: usize
     pub present: bool
     pub depth: usize
     pub steps: List[i64]
     pub names: List[string]
     pub open: usize
-    pub frames: List[&mut TextReadFrame]
+    pub frames: List[*mut TextReadFrame]
 
 impl TextReader:
-    fn new(parser: Parser) -> &mut TextReader:
+    fn new(parser: Parser) -> *mut TextReader:
         let mut source = parser
         source.at = 0
         source.skip_space()
@@ -2076,7 +2076,7 @@ impl TextReader:
         self.open = slot + 1
         .Ok(())
 
-    fn top(&self) -> &mut TextReadFrame:
+    fn top(&self) -> *mut TextReadFrame:
         if self.open == 0: panic("std.json: no open container")
         self.frames[self.open - 1]
 

@@ -6,7 +6,7 @@
 @derive(Eq, Hash)
 enum Expr:
     Num(n: i64)
-    Add(left: &Expr, right: &Expr)
+    Add(left: *Expr, right: *Expr)
 
 pub fn main() -> void $ Console:
     let mut names: Map[Expr, string] = {}

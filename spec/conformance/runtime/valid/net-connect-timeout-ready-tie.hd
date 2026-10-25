@@ -12,7 +12,7 @@ pub fn main!() -> void $ Console:
     stream := ScriptedStream::new([])
     net.add_connection("ready.local:25", stream)
     $.with(Net=net, Clock=clock):
-        let result: Result[&mut dyn TcpStream, NetError] = with_timeout!(0ms):
+        let result: Result[*mut dyn TcpStream, NetError] = with_timeout!(0ms):
             connect!("ready.local", 25)
         assert_equal(result.is_ok(), true, reason="ready work wins the zero-limit tie")
         _ := result.expect("connected stream").close()

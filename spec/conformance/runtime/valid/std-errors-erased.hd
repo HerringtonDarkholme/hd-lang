@@ -8,22 +8,22 @@ use std.path.Path
 use std.net.NetError
 use std.time.Timestamp
 
-fn count(text: string) -> Result[i32, &dyn Error]:
+fn count(text: string) -> Result[i32, *dyn Error]:
     value := text.parse::[i32]()?
     .Ok(value)
 
-fn width(text: string) -> Result[i32, &dyn Error]:
+fn width(text: string) -> Result[i32, *dyn Error]:
     text.parse::[i32]().context("reading the width")
 
-fn document(text: string) -> Result[Json, &dyn Error]:
+fn document(text: string) -> Result[Json, *dyn Error]:
     value := parse(text)?
     .Ok(value)
 
-fn stamp(text: string) -> Result[Timestamp, &dyn Error]:
+fn stamp(text: string) -> Result[Timestamp, *dyn Error]:
     value := text.parse::[Timestamp]()?
     .Ok(value)
 
-fn utf8(bytes: List[u8]) -> Result[string, &dyn Error]:
+fn utf8(bytes: List[u8]) -> Result[string, *dyn Error]:
     text := string::from_utf8(bytes)?
     .Ok(text)
 
@@ -36,19 +36,19 @@ fn read_closed() -> Result[string, ConsoleError]:
 fn read_socket() -> Result[i32, NetError]:
     .Err(NetError.Closed)
 
-fn missing(path: string) -> Result[string, &dyn Error]:
+fn missing(path: string) -> Result[string, *dyn Error]:
     text := read_missing(path)?
     .Ok(text)
 
-fn closed() -> Result[string, &dyn Error]:
+fn closed() -> Result[string, *dyn Error]:
     line := read_closed()?
     .Ok(line)
 
-fn socket() -> Result[i32, &dyn Error]:
+fn socket() -> Result[i32, *dyn Error]:
     value := read_socket()?
     .Ok(value)
 
-fn message(result: Result[i32, &dyn Error]) -> string:
+fn message(result: Result[i32, *dyn Error]) -> string:
     match result:
         .Ok(_) => "ok"
         .Err(error) => error.to_string()

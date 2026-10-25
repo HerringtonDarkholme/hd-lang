@@ -6,7 +6,7 @@ struct Agent:
 
 enum Ticket:
     Unassigned
-    Assigned(agent: &mut Agent)
+    Assigned(agent: *mut Agent)
 
 fn workload(ticket: Ticket) -> i32:
     match ticket:

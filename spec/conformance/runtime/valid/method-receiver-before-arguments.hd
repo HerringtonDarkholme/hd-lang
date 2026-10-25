@@ -14,7 +14,7 @@ impl Counter:
     fn plus(&self, first: i32, second: i32) -> i32:
         self.base + first + second
 
-fn counter(log: &mut Log) -> &Counter:
+fn counter(log: &mut Log) -> *Counter:
     log.text = log.text + "r"
     &mut Counter { base: 100 }
 

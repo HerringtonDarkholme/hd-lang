@@ -3,7 +3,7 @@
 fn route_length() -> i32:
     struct Leg:
         from: Stop  # diagnostic: unknown-type
-        next: &Leg?
+        next: *Leg?
 
     struct Stop:
         name: string

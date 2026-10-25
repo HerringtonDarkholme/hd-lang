@@ -91,8 +91,8 @@ pub trait PropertyRunner:
 ## The source of one case's drawn values, which the runner records so it can replay and shrink the case.
 ## See [std-testing.choices.declare-ref](../../spec/std/testing.md#r-std-testing.choices.declare-ref).
 pub struct Choices:
-    runner: &mut dyn PropertyRunner
-    random: &mut dyn Random
+    runner: *mut dyn PropertyRunner
+    random: *mut dyn Random
     size: i32
     replay: List[i64]
     draws: usize
@@ -340,7 +340,7 @@ pub trait Arbitrary:
 # implementation below; the prototype joins neither into a program by
 # itself, because they name `std.structure` (checker/typed-derivation.ts).
 impl[T] Arbitrary for T by Structure:
-    fn arbitrary(c: &mut Choices) -> T:
+    fn arbitrary(c: *mut Choices) -> T:
         let mut s = ArbitrarySource::[T] { c: c, at: 0 }
         match T::build(&mut s):
             .Ok(value) => value
@@ -350,7 +350,7 @@ impl[T] Arbitrary for T by Structure:
 # The fields are public because the prototype checks the instantiated
 # `Source` implementation in the target's module.
 struct ArbitrarySource[S]:
-    pub c: &mut Choices
+    pub c: *mut Choices
     pub at: usize
 
 # The one way an `ArbitrarySource` fails: every variant is recursive.
@@ -513,12 +513,12 @@ impl[T < Arbitrary, E < Arbitrary] Arbitrary for Result[T, E]:
 
 # A reference refers to a new object holding a drawn value
 # (r-std-testing.arbitrary.reference).
-impl[T < Arbitrary] Arbitrary for &T:
-    fn arbitrary(c: &mut Choices) -> &T:
+impl[T < Arbitrary] Arbitrary for *T:
+    fn arbitrary(c: &mut Choices) -> *T:
         &T::arbitrary(c)
 
-impl[T < Arbitrary] Arbitrary for &mut T:
-    fn arbitrary(c: &mut Choices) -> &mut T:
+impl[T < Arbitrary] Arbitrary for *mut T:
+    fn arbitrary(c: &mut Choices) -> *mut T:
         &mut T::arbitrary(c)
 
 impl[A < Arbitrary, B < Arbitrary] Arbitrary for (A, B):
@@ -570,7 +570,7 @@ fn each_case![A, T, $R](_name: string, rows: List[A], _ignore: string?, _expect_
 # fresh `Choices`, shows the input's `Debug` text, and runs `prop`
 # (r-std-testing.runner.show-before-body).
 fn prop_case![T < Arbitrary & Debug, R, $Q](_name: string, _ignore: string?, _expect_panic: string?, _timeout: Duration?, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
-    runner := $.use(PropertyRunner)
+    let runner: *mut dyn PropertyRunner = $.use(PropertyRunner)
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:
         .Some(index) => examples[index]
@@ -580,7 +580,7 @@ fn prop_case![T < Arbitrary & Debug, R, $Q](_name: string, _ignore: string?, _ex
 
 # The same for `it_prop_with`, which draws the input with `gen`.
 fn prop_with_case![T < Debug, R, $Q](_name: string, gen: fn(&mut Choices) -> T, _ignore: string?, _expect_panic: string?, _timeout: Duration?, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
-    runner := $.use(PropertyRunner)
+    let runner: *mut dyn PropertyRunner = $.use(PropertyRunner)
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:
         .Some(index) => examples[index]
@@ -592,7 +592,7 @@ fn prop_with_case![T < Debug, R, $Q](_name: string, gen: fn(&mut Choices) -> T, 
 # `start` returned. It holds the runner's provider value, so a generator
 # records its draws through it with no requirement row
 # (r-std-testing.runner.choices).
-fn choices(runner: &mut dyn PropertyRunner, current: PropertyCase) -> &mut Choices:
+fn choices(runner: *mut dyn PropertyRunner, current: PropertyCase) -> *mut Choices:
     &mut Choices { runner: runner, random: SeededRandom::new(u64(current.seed)), size: current.size, replay: current.replay, draws: 0, edge: edge_plan(current.seed, current.size) }
 
 # The edge of a generated case (r-std-testing.edge.plan): the first four

@@ -117,7 +117,7 @@ fn noisy(value: i32) -> bool $ Logger:
 fn positives(values: List[i32]) -> List[i32] $ Logger:
     values.iter().filter(noisy).collect()  # error: type-mismatch
 
-fn scoped(values: List[i32], logger: &dyn Logger) -> List[i32]:
+fn scoped(values: List[i32], logger: *dyn Logger) -> List[i32]:
     $.with(Logger=logger):
         values.iter().filter(fn(value): noisy(value)).collect()  # error: type-mismatch
 
@@ -133,7 +133,7 @@ trait Logger:
     fn level(self) -> i32
 
 fn above_level(values: List[i32]) -> List[i32] $ Logger:
-    logger := $.use(Logger)
+    let logger: *dyn Logger = $.use(Logger)
     values.iter().filter(fn(value): value > logger.level()).collect()
 ```
 
@@ -194,7 +194,7 @@ fn has_blank(lines: List[string]) -> bool:
 fn joined(first: List[i32], rest: &mut dyn Iterator[i32]) -> List[i32]:
     first.iter().chain(rest).collect()  # error: unsatisfied-trait-bound
 
-fn joined_eagerly(first: List[i32], rest: &mut dyn Iterator[i32]) -> List[i32]:
+fn joined_eagerly(first: List[i32], rest: *mut dyn Iterator[i32]) -> List[i32]:
     let tail: List[i32] = rest.collect()
     first.iter().chain(tail).collect()
 ```
@@ -219,7 +219,7 @@ fn joined_eagerly(first: List[i32], rest: &mut dyn Iterator[i32]) -> List[i32]:
 `by_ref` creates a value cursor that advances an existing cursor:
 
 ```text
-fn first_two[I < Iterator[i32]](source: &mut I) -> List[i32]:
+fn first_two[I < Iterator[i32]](source: *mut I) -> List[i32]:
     source.by_ref().take(2).collect()
 ```
 

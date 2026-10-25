@@ -4,7 +4,7 @@
 use std.time.{Clock, Duration, Instant, Timestamp, ms, now, s, sleep}
 
 struct StepClock:
-    millis: &mut List[i64]
+    millis: *mut List[i64]
 
 impl Clock for StepClock:
     fn now(self) -> Timestamp:

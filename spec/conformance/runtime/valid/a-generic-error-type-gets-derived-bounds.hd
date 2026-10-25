@@ -32,7 +32,7 @@ enum Named[T]:
     Got(value: T)
 
 fn depth[E < Error](error: E) -> usize:
-    let failure: &dyn Error = &error
+    let failure: *dyn Error = &error
     failure.chain().len()
 
 fn show[T < Display](value: Named[T]) -> string:

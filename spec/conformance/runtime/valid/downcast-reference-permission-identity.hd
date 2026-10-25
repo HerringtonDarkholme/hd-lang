@@ -14,8 +14,8 @@ pub fn main() -> void $ Console:
     let user = &User { count: 1 }
     let original = &user
     let erased: &dyn Inspectable = original
-    println(TypeId::of::[&User]() == TypeId::of::[&mut User]())
-    println(erased.downcast_ref::[&mut User]().is_some())
+    println(TypeId::of::[*User]() == TypeId::of::[*mut User]())
+    println(erased.downcast_ref::[*mut User]().is_some())
 tests:
     use std.testing.{assert, assert_equal}
     it("mutable recovery preserves the original mutable reference"):
@@ -32,8 +32,8 @@ tests:
         let mut user = &User { count: 3 }
         original := &mut user
         let erased: &mut dyn Inspectable = original
-        assert(erased.downcast_mut::[&mut User]().is_none(), reason="the referent is a shared reference")
-        match erased.downcast_mut::[&User]():
+        assert(erased.downcast_mut::[*mut User]().is_none(), reason="the referent is a shared reference")
+        match erased.downcast_mut::[*User]():
             .Some(found) =>
                 assert(found is original, reason="the mutable reference to the shared reference")
                 *found = &User { count: 7 }
@@ -51,5 +51,5 @@ tests:
         assert(found is original, reason="sharing code does not replace the reference")
         assert_equal(user.count, 9, reason="the returned reference keeps its actual setter")
     it("reference names retain permission"):
-        assert_equal(TypeId::of::[&i32]().to_string(), "&i32", reason="shared reference spelling")
-        assert_equal(TypeId::of::[&mut i32]().to_string(), "&mut i32", reason="mutable reference spelling")
+        assert_equal(TypeId::of::[*i32]().to_string(), "&i32", reason="shared reference spelling")
+        assert_equal(TypeId::of::[*mut i32]().to_string(), "&mut i32", reason="mutable reference spelling")

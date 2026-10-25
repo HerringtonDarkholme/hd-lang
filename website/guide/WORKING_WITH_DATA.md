@@ -29,13 +29,13 @@ impl User:
 
 pub struct Team:
     name: string
-    owner: &mut User
+    owner: *mut User
 
 impl Team:
-    pub fn lead(&self) -> &User:
+    pub fn lead(&self) -> *User:
         self.owner
 
-    pub fn lead_mut(&mut self) -> &mut User:
+    pub fn lead_mut(&mut self) -> *mut User:
         self.owner
 
 pub fn main() -> void $ Console:

@@ -57,9 +57,9 @@ call returns behind a trait value reference:
 ```text
 pub trait Net:
     fn lookup!(&mut self, host: string) -> Result[List[string], NetError]
-    fn connect!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]
-    fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]
-    fn bind_udp!(&mut self, host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError]
+    fn connect!(&mut self, host: string, port: u16) -> Result[*mut dyn TcpStream, NetError]
+    fn listen!(&mut self, host: string, port: u16) -> Result[*mut dyn TcpListener, NetError]
+    fn bind_udp!(&mut self, host: string, port: u16) -> Result[*mut dyn UdpSocket, NetError]
 ```
 
 1. r[std-net.trait.decl-composed] `std.net` declares the host capability trait `Net` with the methods above.
@@ -85,11 +85,11 @@ For example, `lookup!("example.test")` starts a lookup without an explicit
 
 1. r[std-net.helper.lookup.decl] `std.net` declares `pub fn lookup!(host: string) -> Result[List[string], NetError] $ Net`.
 2. r[std-net.helper.lookup.forward] `lookup!(host)` returns `$.use(Net).lookup!(host)` without changing the result.
-3. r[std-net.helper.connect.decl] `std.net` declares `pub fn connect!(host: string, port: u16) -> Result[&mut dyn TcpStream, NetError] $ Net`.
+3. r[std-net.helper.connect.decl] `std.net` declares `pub fn connect!(host: string, port: u16) -> Result[*mut dyn TcpStream, NetError] $ Net`.
 4. r[std-net.helper.connect.forward] `connect!(host, port)` returns `$.use(Net).connect!(host, port)` without changing the result.
-5. r[std-net.helper.listen.decl] `std.net` declares `pub fn listen!(host: string, port: u16) -> Result[&mut dyn TcpListener, NetError] $ Net`.
+5. r[std-net.helper.listen.decl] `std.net` declares `pub fn listen!(host: string, port: u16) -> Result[*mut dyn TcpListener, NetError] $ Net`.
 6. r[std-net.helper.listen.forward] `listen!(host, port)` returns `$.use(Net).listen!(host, port)` without changing the result.
-7. r[std-net.helper.bind-udp.decl] `std.net` declares `pub fn bind_udp!(host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError] $ Net`.
+7. r[std-net.helper.bind-udp.decl] `std.net` declares `pub fn bind_udp!(host: string, port: u16) -> Result[*mut dyn UdpSocket, NetError] $ Net`.
 8. r[std-net.helper.bind-udp.forward] `bind_udp!(host, port)` returns `$.use(Net).bind_udp!(host, port)` without changing the result.
 
 ## Socket Handles
@@ -110,7 +110,7 @@ pub trait TcpStream < Disposable:
     fn close(&mut self) -> Result[void, NetError]
 
 pub trait TcpListener < Disposable:
-    fn accept!(&mut self) -> Result[&mut dyn TcpStream, NetError]
+    fn accept!(&mut self) -> Result[*mut dyn TcpStream, NetError]
     fn set_timeout(&mut self, timeout: Duration?) -> Result[void, NetError]
     fn local_address(self) -> Result[(string, u16), NetError]
     fn close(&mut self) -> Result[void, NetError]
@@ -161,7 +161,7 @@ use std.task.with_timeout
 use std.time.{Clock, s}
 
 fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net + Clock:
-    net := $.use(Net)
+    let net: *mut dyn Net = $.use(Net)
     connected := with_timeout!(3s):
         net.connect!(host, port)
     stream := connected?
@@ -259,11 +259,11 @@ struct NoNetwork: pass
 impl Net for NoNetwork:
     fn lookup!(&mut self, host: string) -> Result[List[string], NetError]:
         .Err(.Dns(host))
-    fn connect!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]:
+    fn connect!(&mut self, host: string, port: u16) -> Result[*mut dyn TcpStream, NetError]:
         .Err(.Refused("${host}:${port}"))
-    fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]:
+    fn listen!(&mut self, host: string, port: u16) -> Result[*mut dyn TcpListener, NetError]:
         .Err(.Refused("${host}:${port}"))
-    fn bind_udp!(&mut self, host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError]:
+    fn bind_udp!(&mut self, host: string, port: u16) -> Result[*mut dyn UdpSocket, NetError]:
         .Err(.Refused("${host}:${port}"))
 
 fn addresses!(host: string) -> List[string] $ Net:
@@ -330,25 +330,25 @@ tests:
 ```
 
 1. r[std-net.scripted.decl] `std.net` declares `ScriptedNet`, `ScriptedStream`, `ScriptedListener`, and `ScriptedUdp`, with private fields. Each implements `Debug` and its trait: `Net`, `TcpStream`, `TcpListener`, or `UdpSocket`. Code imports them, as in `use std.net.ScriptedNet`.
-2. r[std-net.scripted.new-ref] The constructors below each return a new object behind `&mut`. Adding it to the provider shares the object, so the handle that the provider returns is the one the test holds and checks.
+2. r[std-net.scripted.new-ref] The constructors below each return a new object behind `*mut`. Adding it to the provider shares the object, so the handle that the provider returns is the one the test holds and checks.
 
 | Constructor | Returns |
 | --- | --- |
-| `ScriptedNet::new() -> &mut ScriptedNet` | a provider with nothing scripted |
-| `ScriptedStream::new(reads: List[List[u8]]) -> &mut ScriptedStream` | a stream that returns the chunks of `reads` |
-| `ScriptedStream::failing(reads: List[List[u8]], error: NetError) -> &mut ScriptedStream` | a stream that returns the chunks of `reads`, then fails with `error` |
-| `ScriptedListener::new(connections: List[&mut ScriptedStream]) -> &mut ScriptedListener` | a listener that accepts the streams of `connections` |
-| `ScriptedUdp::new(incoming: List[Datagram]) -> &mut ScriptedUdp` | a UDP socket that receives the datagrams of `incoming` |
+| `ScriptedNet::new() -> *mut ScriptedNet` | a provider with nothing scripted |
+| `ScriptedStream::new(reads: List[List[u8]]) -> *mut ScriptedStream` | a stream that returns the chunks of `reads` |
+| `ScriptedStream::failing(reads: List[List[u8]], error: NetError) -> *mut ScriptedStream` | a stream that returns the chunks of `reads`, then fails with `error` |
+| `ScriptedListener::new(connections: List[*mut ScriptedStream]) -> *mut ScriptedListener` | a listener that accepts the streams of `connections` |
+| `ScriptedUdp::new(incoming: List[Datagram]) -> *mut ScriptedUdp` | a UDP socket that receives the datagrams of `incoming` |
 
 3. r[std-net.scripted.setup-ref] `ScriptedNet` has the setup methods below, and each `address` is `host:port` by [`std-net.error.address`](#r-std-net.error.address).
 
 | Method | Answers |
 | --- | --- |
 | `add_host(&mut self, host: string, addresses: List[string]) -> void` | each `lookup!(host)`, with `.Ok(addresses)` |
-| `add_connection(&mut self, address: string, stream: &mut ScriptedStream) -> void` | one `connect!` of `address`, with `.Ok(stream)` |
+| `add_connection(&mut self, address: string, stream: *mut ScriptedStream) -> void` | one `connect!` of `address`, with `.Ok(stream)` |
 | `fail_connection(&mut self, address: string, error: NetError) -> void` | one `connect!` of `address`, with `.Err(error)` |
-| `add_listener(&mut self, address: string, listener: &mut ScriptedListener) -> void` | one `listen!` of `address`, with `.Ok(listener)` |
-| `add_udp(&mut self, address: string, socket: &mut ScriptedUdp) -> void` | one `bind_udp!` of `address`, with `.Ok(socket)` |
+| `add_listener(&mut self, address: string, listener: *mut ScriptedListener) -> void` | one `listen!` of `address`, with `.Ok(listener)` |
+| `add_udp(&mut self, address: string, socket: *mut ScriptedUdp) -> void` | one `bind_udp!` of `address`, with `.Ok(socket)` |
 
 4. r[std-net.scripted.queue] The connections and failures added for one address are one queue, and each `connect!` of the address takes the next entry. Each `listen!` or `bind_udp!` likewise takes the next handle added for its address.
 5. r[std-net.scripted.lookup-unknown] `lookup!` of a host that no `add_host` names returns `.Err(NetError.Dns(host))`.

@@ -3,7 +3,7 @@
 use std.ops.IndexSet
 
 struct Sink:
-    seen: &mut List[i32]
+    seen: *mut List[i32]
 
 impl IndexSet[usize, i32] for Sink:
     fn index_set(&mut self, key: usize, value: i32) -> void:

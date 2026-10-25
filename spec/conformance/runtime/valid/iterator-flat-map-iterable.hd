@@ -9,7 +9,7 @@ struct Counter:
 
 struct Batch:
     items: List[i32]
-    counter: &mut Counter
+    counter: *mut Counter
 
 impl Iterable[i32] for Batch:
     type IntoIter = ListIter[i32]
@@ -31,7 +31,7 @@ tests:
 
     it("the erased iterator method also accepts optional results"):
         let mut cursor = [+1, 2, 3, 4].iter()
-        let source: &mut dyn Iterator[i32] = &mut cursor
+        let source: *mut dyn Iterator[i32] = &mut cursor
         assert_equal(source.flat_map(even).collect(), [+2, 4], reason="erased adapter")
         assert_equal(cursor.next(), .None, reason="borrowed source drained")
 

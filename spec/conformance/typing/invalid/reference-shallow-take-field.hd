@@ -4,7 +4,7 @@ struct User:
 
 struct Team:
     name: string
-    lead: &mut User
+    lead: *mut User
 
 fn reference(t: &Team) -> void:
     _ := &mut t.lead  # diagnostic: not-writable

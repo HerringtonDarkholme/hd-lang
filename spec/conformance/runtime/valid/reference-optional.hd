@@ -6,7 +6,7 @@ struct Point:
     x: i32
     y: i32
 
-fn first(items: List[&mut Point]) -> &mut Point?:
+fn first(items: List[*mut Point]) -> *mut Point?:
     if items.is_empty():
         return .None
     .Some(items[0])

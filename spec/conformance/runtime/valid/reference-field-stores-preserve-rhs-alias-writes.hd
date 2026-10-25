@@ -25,7 +25,7 @@ impl Pair:
 
 let selections: usize = 0
 
-fn selected(pair: &mut Pair) -> &mut Pair:
+fn selected(pair: *mut Pair) -> *mut Pair:
     selections = selections + 1
     pair
 
@@ -45,7 +45,7 @@ fn assign_items(value: &mut Nested, items: List[string]) -> void:
     value.items = items
 
 trait Factory:
-    fn make[T](self, value: T) -> &mut T:
+    fn make[T](self, value: T) -> *mut T:
         let mut local = value
         &mut local
 

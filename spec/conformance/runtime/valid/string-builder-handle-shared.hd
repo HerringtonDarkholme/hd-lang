@@ -6,7 +6,7 @@
 # expect-stdout: ab
 use std.text.StringBuilder
 
-fn add_line(out: &mut StringBuilder, text: string) -> void:
+fn add_line(out: *mut StringBuilder, text: string) -> void:
     _ := out.push(text).push_char('\n')
 
 pub fn main() -> void $ Console:

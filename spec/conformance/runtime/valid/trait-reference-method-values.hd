@@ -18,7 +18,7 @@ impl Named for Item:
 
 pub fn main() -> void $ Console:
     let rename: fn(&mut dyn Named, i32) -> void = Named::rename
-    let shared: &mut dyn Named = &mut Item { n: 5 }
+    let shared: *mut dyn Named = &mut Item { n: 5 }
     label := shared::label
     rename(shared, 9)
     println(label())

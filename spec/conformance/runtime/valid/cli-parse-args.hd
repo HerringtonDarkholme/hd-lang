@@ -2,7 +2,7 @@
 # Spec std/cli Declaring Arguments and Parsing: std-cli.parser.decl-choices, std-cli.parser.new-help, std-cli.parser.arg, std-cli.parser.arg, std-cli.parser.arg, std-cli.parser.arg, std-cli.parse.parser, std-cli.parse-args.parser, std-cli.parsed.private (task #242).
 use std.cli.{Arg, ArgParser, CliError, Parsed}
 use std.host.{Args, ScriptedArgs}
-fn tool() -> &mut ArgParser:
+fn tool() -> *mut ArgParser:
     ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
 
 fn target() -> string $ Args:

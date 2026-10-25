@@ -10,7 +10,7 @@ use std.format.DebugWriter
 ## The standard error trait: a displayable, inspectable failure that may name its source.
 ## See [trait.error.module](../../spec/lang/09-traits.md#r-trait.error.module).
 pub trait Error < Display & Inspectable:
-    fn source(self) -> (&dyn Error)?: .None
+    fn source(self) -> (*dyn Error)?: .None
 
 # The source-chain helpers are inherent methods of `dyn Error`
 # (spec/lang/09-traits.md#r-trait.own.dyn-inherent.form): every error value
@@ -18,16 +18,16 @@ pub trait Error < Display & Inspectable:
 impl dyn Error:
     ## Recovers the original shared error reference when its concrete type is `T`.
     @intrinsic("downcast_ref")
-    pub fn downcast_ref[T < Inspectable](&self) -> (&T)?: panic("intrinsic")
+    pub fn downcast_ref[T < Inspectable](&self) -> (*T)?: panic("intrinsic")
 
     ## Recovers the original mutable error reference when its concrete type is `T`.
     @intrinsic("downcast_mut")
-    pub fn downcast_mut[T < Inspectable](&mut self) -> (&mut T)?: panic("intrinsic")
+    pub fn downcast_mut[T < Inspectable](&mut self) -> (*mut T)?: panic("intrinsic")
 
     ## Returns this error first, then its `source`, then that error's source, and so on.
     ## See [std-error.chain.reference-method](../../spec/std/error.md#r-std-error.chain.reference-method).
-    pub fn chain(&self) -> List[&dyn Error]:
-        let mut errors: List[&dyn Error] = [self]
+    pub fn chain(*self) -> List[*dyn Error]:
+        let mut errors: List[*dyn Error] = [self]
         let next = self.source()
         while true:
             source := match next:
@@ -39,14 +39,14 @@ impl dyn Error:
     # The last error of `self.chain()` (r-std-error.root-cause.method-chain).
     ## Returns the last error of the source chain.
     ## See [std-error.root-cause.method-chain](../../spec/std/error.md#r-std-error.root-cause.method-chain).
-    pub fn root_cause(&self) -> &dyn Error:
+    pub fn root_cause(*self) -> *dyn Error:
         errors := self.chain()
         errors[errors.len() - 1]
 
     # Recover a reference to the first matching error, then copy its value.
     ## Returns the first error of the source chain whose type is `T`.
     ## See [std-error.find.method-chain-first](../../spec/std/error.md#r-std-error.find.method-chain-first).
-    pub fn find[T < Error](&self) -> T?:
+    pub fn find[T < Error](*self) -> T?:
         for error in self.chain():
             match error.downcast_ref::[T]():
                 .Some(found) => return .Some(*found)
@@ -104,7 +104,7 @@ fn entry_report(error: &dyn Error) -> string:
 ## See [std-error.context.private-wrapper](../../spec/std/error.md#r-std-error.context.private-wrapper).
 struct ContextError:
     message: string
-    error: &dyn Error
+    error: *dyn Error
 
 # Keep handwritten Display: retain the existing Error.source implementation and original reference.
 impl Display for ContextError:
@@ -113,7 +113,7 @@ impl Display for ContextError:
 
 # Keep handwritten Error: return the original erased source reference without wrapping it.
 impl Error for ContextError:
-    fn source(self) -> (&dyn Error)?:
+    fn source(self) -> (*dyn Error)?:
         .Some(self.error)
 
 # The error that `message` returns: only a text (r-std-error.message.reference-struct).
@@ -123,7 +123,7 @@ struct MessageError:
 
 ## Makes an error whose `Display` text is `text` and that has no source.
 ## See [std-error.message.reference](../../spec/std/error.md#r-std-error.message.reference).
-pub fn message(text: string) -> &dyn Error:
+pub fn message(text: string) -> *dyn Error:
     &MessageError { text: text }
 
 # Builtin errors have no declaration on which to place @error.
@@ -134,7 +134,7 @@ impl Error for never
 impl[T, E < Error] Result[T, E]:
     ## For an `.Err`, wraps the error with `message` as its context; an `.Ok` is unchanged.
     ## See [std-error.context.reference-result](../../spec/std/error.md#r-std-error.context.reference-result).
-    pub fn context(self, message: string) -> Result[T, &dyn Error]:
+    pub fn context(self, message: string) -> Result[T, *dyn Error]:
         match self:
             .Ok(value) => .Ok(value)
             .Err(error) => .Err(&ContextError { message: message, error: &error })
@@ -144,7 +144,7 @@ impl[T, E < Error] Result[T, E]:
 impl[T] T?:
     ## `.Ok` of the value for a `.Some`, and `.Err` of `message(text)` for a `.None`.
     ## See [std-option.context.reference-result](../../spec/std/option.md#r-std-option.context.reference-result).
-    pub fn context(self, text: string) -> Result[T, &dyn Error]:
+    pub fn context(self, text: string) -> Result[T, *dyn Error]:
         match self:
             .Some(value) => .Ok(value)
             .None => .Err(message(text))
@@ -153,5 +153,5 @@ impl[T] T?:
 # source has no Debug, so its Display text stands in for it.
 # Keep handwritten Debug: display the erased source, which need not implement Debug.
 impl Debug for ContextError:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         out.debug_struct("ContextError").field("message", self.message).field("source", self.error.to_string()).finish()

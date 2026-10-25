@@ -31,7 +31,7 @@ struct Pair:
     left: Cell
     right: Cell
 
-fn pick(pair: &mut Pair, name: string) -> &mut Cell $ Console:
+fn pick(pair: &mut Pair, name: string) -> *mut Cell $ Console:
     println("pick ${name}")
     &mut pair.left
 

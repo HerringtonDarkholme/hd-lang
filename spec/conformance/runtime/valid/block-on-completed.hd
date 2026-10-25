@@ -9,7 +9,7 @@ use std.task.block_on
 use std.time.{Clock, s, sleep}
 
 struct Channel:
-    log: &mut List[string]
+    log: *mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Channel:
@@ -22,7 +22,7 @@ impl Disposable for Channel:
 
 fn ready!() -> i32: 42
 
-fn quick!(log: &mut List[string], ack: mut Suspend[void]) -> string:
+fn quick!(log: *mut List[string], ack: mut Suspend[void]) -> string:
     using channel = &mut Channel { log: log, ack: ack }
     "value"
 

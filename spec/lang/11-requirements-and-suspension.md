@@ -825,12 +825,12 @@ trait Repo[T]
 
 struct User: pass
 
-fn choose[T, U](first: &dyn Repo[T], second: &dyn Repo[U]) -> void:
+fn choose[T, U](first: *dyn Repo[T], second: *dyn Repo[U]) -> void:
     $.with(Repo[T]=first):
         $.with(Repo[U]=second):  # error: generic-requirement-key-collision
             pass
 
-fn mixed[T](local: &dyn Repo[User]) -> void $ Repo[T]:
+fn mixed[T](local: *dyn Repo[User]) -> void $ Repo[T]:
     $.with(Repo[User]=local):  # error: generic-requirement-key-collision
         pass
 ```
@@ -842,14 +842,14 @@ trait Repo[T]
 
 struct User: pass
 
-fn outer[T](generic: &dyn Repo[T], local: &dyn Repo[User]) -> void:
+fn outer[T](generic: *dyn Repo[T], local: *dyn Repo[User]) -> void:
     $.with(Repo[T]=generic):
         run := fn() -> void:
             $.with(Repo[User]=local):  # valid: the outer block is not compared
                 pass
         run()
 
-fn declared[T](local: &dyn Repo[User]) -> void:
+fn declared[T](local: *dyn Repo[User]) -> void:
     _ := fn() -> void $ Repo[T]:
         $.with(Repo[User]=local):  # error: generic-requirement-key-collision
             pass
@@ -1106,7 +1106,7 @@ impl Counter for Tally:
     fn bump(&mut self) -> void:
         self.n += 1
 
-fn shared(tally: &Tally) -> void:
+fn shared(tally: *Tally) -> void:
     $.with(Counter=tally):  # error: mutable-upgrade
         pass
 ```
@@ -1396,7 +1396,7 @@ Standard-library suspension implementations access the waker of a
 struct PollContext: pass
 
 impl PollContext:
-    fn waker(self) -> &dyn Waker
+    fn waker(self) -> *dyn Waker
 
 trait Waker:
     fn wake(self) -> void
@@ -1558,7 +1558,7 @@ use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
-    log: &mut List[string]
+    log: *mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -1568,7 +1568,7 @@ impl Disposable for Conn:
         wait!()
         self.log.push("closed")
 
-fn session!(log: &mut List[string]) -> string $ Clock:
+fn session!(log: *mut List[string]) -> string $ Clock:
     using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     sleep!(s(60))
     "late"
@@ -1645,7 +1645,7 @@ use std.task.race
 use std.time.{Clock, ms, s, sleep}
 
 struct Release:
-    log: &mut List[string]
+    log: *mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Release:
@@ -1741,11 +1741,11 @@ use std.time.{Clock, ms, s, sleep}
 
 struct Server:
     accepting: bool
-    log: &mut List[string]
+    log: *mut List[string]
 
 struct Connections:
-    server: &mut Server
-    clock: &mut dyn Clock
+    server: *mut Server
+    clock: *mut dyn Clock
 
 impl Disposable for Connections:
     fn dispose!(&mut self) -> void:
@@ -1755,7 +1755,7 @@ impl Disposable for Connections:
             tick!()
         self.server.log.push("connections drained")
 
-fn connections!(server: &mut Server) -> void $ Clock:
+fn connections!(server: *mut Server) -> void $ Clock:
     using open = &mut Connections { server: server, clock: $.use(Clock) }
     sleep!(s(60))
 
@@ -1765,7 +1765,7 @@ fn acceptor!(server: &mut Server) -> void $ Clock:
         server.log.push("acceptor stops accepting")
     sleep!(s(60))
 
-fn serve!(server: &mut Server) -> string $ Clock:
+fn serve!(server: *mut Server) -> string $ Clock:
     defer: server.log.push("serve defer")
     _ := all!(connections(server), acceptor(server))
     "served"
@@ -1775,7 +1775,7 @@ fn shutdown!() -> string $ Clock:
     "shutdown"
 
 pub fn main!() -> void $ Console + Clock:
-    let server: &mut Server = &mut Server { accepting: true, log: &mut [] }
+    let server: *mut Server = &mut Server { accepting: true, log: &mut [] }
     println(race!(serve(server), shutdown()))
     println(server.log.join(", "))
 ```

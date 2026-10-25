@@ -219,13 +219,13 @@ impl[T < Eq] Eq for T?:
 # an error (lang/13 ref.identity.no-equality): a generic `==` and a derived
 # `Eq` reach this impl.
 # Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
-impl[T < Eq] Eq for &T:
-    fn eq(self, other: &T) -> bool:
+impl[T < Eq] Eq for *T:
+    fn eq(self, other: *T) -> bool:
         *self == *other
 
 # Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
-impl[T < Eq] Eq for &mut T:
-    fn eq(self, other: &mut T) -> bool:
+impl[T < Eq] Eq for *mut T:
+    fn eq(self, other: *mut T) -> bool:
         *self == *other
 
 # `.None` is less than every present value
@@ -471,7 +471,7 @@ impl Eq for never:
 pub struct Id[T]:
     ## The reference.
     ## See [std-cmp.id.decl](../../spec/std/cmp.md#r-std-cmp.id.decl).
-    pub target: &T
+    pub target: *T
 
 # Two ids are equal when their references refer to the same place
 # (r-std-cmp.id.eq), and hash alike then (r-std-cmp.id.hash).
@@ -490,7 +490,7 @@ impl[T] Hash for Id[T]:
 # number of its local or new object, and the path of fields from there
 # (crates/hd_wasm_linear/DESIGN.md §15.2, "References").
 struct RefIdentity:
-    base: &dyn Any
+    base: *dyn Any
     serial: i64
     key: string
 
@@ -597,8 +597,8 @@ impl[K < Eq & Hash, V < DeepEq] DeepEq for Map[K, V]:
 # Two references are deeply equal when they refer to one place, when the
 # pair is already being compared, or when the values they refer to are
 # (r-std-cmp.deep-equal.references).
-impl[T < DeepEq] DeepEq for &T:
-    fn deep_eq(self, other: &T, visits: &mut DeepVisits) -> bool:
+impl[T < DeepEq] DeepEq for *T:
+    fn deep_eq(self, other: *T, visits: &mut DeepVisits) -> bool:
         if self is other:
             return true
         pair := (identity_of(self), identity_of(other))
@@ -608,8 +608,8 @@ impl[T < DeepEq] DeepEq for &T:
         visits.pairs[pair] = true
         (*self).deep_eq(*other, visits)
 
-impl[T < DeepEq] DeepEq for &mut T:
-    fn deep_eq(self, other: &mut T, visits: &mut DeepVisits) -> bool:
+impl[T < DeepEq] DeepEq for *mut T:
+    fn deep_eq(self, other: *mut T, visits: &mut DeepVisits) -> bool:
         if self is other:
             return true
         pair := (identity_of(self), identity_of(other))
@@ -622,14 +622,14 @@ impl[T < DeepEq] DeepEq for &mut T:
 # Derived `DeepEq` (r-std-cmp.deep-equal.derive): the same variant, and
 # every member deeply equal, in declaration order.
 impl[T] DeepEq for T by Structure:
-    fn deep_eq(self, other: T, visits: &mut DeepVisits) -> bool:
+    fn deep_eq(self, other: T, visits: *mut DeepVisits) -> bool:
         let mut w = DeepEqualWalker::[T] { other: other, visits: visits }
         match Structure::walk(self, &mut w):
             .Ok(_) => true
             .Err(_) => false
 
 impl[T < Tuple] DeepEq for T by Structure:
-    fn deep_eq(self, other: T, visits: &mut DeepVisits) -> bool:
+    fn deep_eq(self, other: T, visits: *mut DeepVisits) -> bool:
         let mut w = DeepEqualWalker::[T] { other: other, visits: visits }
         match Structure::walk(self, &mut w):
             .Ok(_) => true
@@ -639,7 +639,7 @@ impl[T < Tuple] DeepEq for T by Structure:
 # walker in the deriving module. A walk's `.Err` only stops it.
 struct DeepEqualWalker[S]:
     pub other: S
-    pub visits: &mut DeepVisits
+    pub visits: *mut DeepVisits
 
 impl[S] Walker[S] for DeepEqualWalker[S]:
     type Error = bool

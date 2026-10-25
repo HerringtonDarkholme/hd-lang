@@ -283,7 +283,7 @@ Reusable compositions are ordinary values or lists, not new language syntax:
 ```text
 use std.inspect.Inspectable
 
-let email_metadata: List[&dyn Inspectable] = [
+let email_metadata: List[*dyn Inspectable] = [
     &min_len(3),
     &max_len(320),
     &contains("@"),
@@ -714,7 +714,7 @@ pub struct VariantInfo:
     pub doc: string?
     pub type_doc: string? = .None
     pub of_data: bool
-    pub shared: List[(string, &dyn Any)]
+    pub shared: List[(string, *dyn Any)]
     pub self_ref: SelfRef
 
 pub enum SelfRef:
@@ -1494,21 +1494,21 @@ alone, by the rules below.
 ```text
 enum Expr:
     Num(value: i32)
-    Add(left: &Expr, right: &Expr)
+    Add(left: *Expr, right: *Expr)
     Block(items: List[Expr])
     Wrap(inner: Inner)
     Pick(choice: Choice)
 
 enum Inner:
-    Only(expr: &Expr)
+    Only(expr: *Expr)
 
 enum Choice:
     Skip
-    Take(expr: &Expr)
+    Take(expr: *Expr)
 
 struct Node:
     label: string
-    parent: &Node?
+    parent: *Node?
 ```
 
 | Variant or member | `self_ref` |

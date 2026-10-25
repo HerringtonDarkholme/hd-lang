@@ -3,5 +3,5 @@
 struct User:
     name: string
 
-fn settle(result: Result[&mut User, string]) -> Result[&User, string]:
+fn settle(result: Result[*mut User, string]) -> Result[*User, string]:
     result  # diagnostic: type-mismatch

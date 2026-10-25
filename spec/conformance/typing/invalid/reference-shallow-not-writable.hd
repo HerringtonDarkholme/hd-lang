@@ -4,7 +4,7 @@ struct User:
 
 struct Team:
     name: string
-    lead: &mut User
+    lead: *mut User
 
 fn name(t: &Team) -> void:
     t.name = "changed"  # diagnostic: not-writable

@@ -6,9 +6,9 @@
 # expect-stdout: true
 enum Expr:
     Num(n: i64)
-    Add(left: &Expr, right: &Expr)
-    Mul(left: &Expr, right: &Expr)
-    Neg(inner: &Expr)
+    Add(left: *Expr, right: *Expr)
+    Mul(left: *Expr, right: *Expr)
+    Neg(inner: *Expr)
 
 fn eval(e: &Expr) -> i64:
     match e:

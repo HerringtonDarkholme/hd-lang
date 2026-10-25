@@ -99,8 +99,8 @@ pub fn main!() -> void $ Console:
         .Text(_) => panic("expected count")
     left := &mut Cell { value: "left" }
     right := &mut Cell { value: "right" }
-    let references: List[mut Suspend[&mut Cell]] = [ready(left), ready(right)]
-    let reference_frame: mut Suspend[List[&mut Cell]] = frame(references)
+    let references: List[mut Suspend[*mut Cell]] = [ready(left), ready(right)]
+    let reference_frame: mut Suspend[List[*mut Cell]] = frame(references)
     shared := reference_frame!()
     check(shared[0] is left)
     check(shared[1] is right)
@@ -109,8 +109,8 @@ pub fn main!() -> void $ Console:
     let partial_values: List[mut Suspend[List[string]]] = [ready(["owned", "result"]), pending()]
     let partial_frame: mut Suspend[List[List[string]]] = frame(partial_values)
     _ := race!(discard(partial_frame), ready(0usize))
-    let partial_refs: List[mut Suspend[&mut Cell]] = [ready(left), pending()]
-    let partial_reference_frame: mut Suspend[List[&mut Cell]] = frame(partial_refs)
+    let partial_refs: List[mut Suspend[*mut Cell]] = [ready(left), pending()]
+    let partial_reference_frame: mut Suspend[List[*mut Cell]] = frame(partial_refs)
     _ := race!(discard(partial_reference_frame), ready(0usize))
     check(left.value == "changed")
     println("typed flat results")

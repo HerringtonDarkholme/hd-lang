@@ -3,7 +3,7 @@
 @derive(Debug)
 struct Node:
     value: i32
-    next: &mut Node?
+    next: *mut Node?
 
 pub fn main() -> void:
     first := &mut Node { value: +1, next: .None }

@@ -74,7 +74,7 @@ fn each_fix_compares_places_or_values_and_checks_clean() {
     ];
     for (expr, fixed) in cases {
         let src = format!(
-            "struct Pair:\n    inner: &i32\n\nfn same(a: Pair, b: Pair) -> bool:\n    {expr}\n\npub fn main() -> void:\n    ()\n"
+            "struct Pair:\n    inner: *i32\n\nfn same(a: Pair, b: Pair) -> bool:\n    {expr}\n\npub fn main() -> void:\n    ()\n"
         )
         .replace(
             "fn same(a: Pair, b: Pair)",

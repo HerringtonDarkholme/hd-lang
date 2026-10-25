@@ -40,7 +40,7 @@ fn skip_space(bytes: List[u8], start: usize) -> usize:
         index = index + 1
     index
 
-fn parse_value(bytes: List[u8], start: usize, depth: usize) -> Result[&Parsed, JsonError]:
+fn parse_value(bytes: List[u8], start: usize, depth: usize) -> Result[*Parsed, JsonError]:
     index := skip_space(bytes, start)
     if index >= bytes.len():
         return .Err(unexpected(bytes, index))
@@ -62,7 +62,7 @@ fn parse_value(bytes: List[u8], start: usize, depth: usize) -> Result[&Parsed, J
         return parse_number(bytes, index)
     .Err(unexpected(bytes, index))
 
-fn parse_word(bytes: List[u8], start: usize, word: string, value: Json) -> Result[&Parsed, JsonError]:
+fn parse_word(bytes: List[u8], start: usize, word: string, value: Json) -> Result[*Parsed, JsonError]:
     let index = start
     for expected in word.bytes():
         if index >= bytes.len() || bytes[index] != expected:
@@ -70,7 +70,7 @@ fn parse_word(bytes: List[u8], start: usize, word: string, value: Json) -> Resul
         index = index + 1
     .Ok(&mut Parsed { value: value, end: index })
 
-fn parse_array(bytes: List[u8], open: usize, depth: usize) -> Result[&Parsed, JsonError]:
+fn parse_array(bytes: List[u8], open: usize, depth: usize) -> Result[*Parsed, JsonError]:
     if depth >= 128:
         return .Err(JsonError.NestingTooDeep(open))
     let mut items: List[Json] = []
@@ -88,7 +88,7 @@ fn parse_array(bytes: List[u8], open: usize, depth: usize) -> Result[&Parsed, Js
         else:
             return .Err(unexpected(bytes, index))
 
-fn parse_object(bytes: List[u8], open: usize, depth: usize) -> Result[&Parsed, JsonError]:
+fn parse_object(bytes: List[u8], open: usize, depth: usize) -> Result[*Parsed, JsonError]:
     if depth >= 128:
         return .Err(JsonError.NestingTooDeep(open))
     let mut fields = JsonObject::new()
@@ -113,7 +113,7 @@ fn parse_object(bytes: List[u8], open: usize, depth: usize) -> Result[&Parsed, J
             return .Err(unexpected(bytes, index))
 
 # The string that starts at the quote at `open`.
-fn parse_string(bytes: List[u8], open: usize) -> Result[&ParsedText, JsonError]:
+fn parse_string(bytes: List[u8], open: usize) -> Result[*ParsedText, JsonError]:
     let mut buffer: List[u8] = []
     let index = open + 1
     while true:
@@ -217,7 +217,7 @@ fn u64_max() -> u64:
 # digits. An integer in the i64 or u64 range is exact; `-0` is the float
 # -0.0, as in serde_json. A fraction, an exponent, or an integer past both
 # ranges is the float that `f64` parsing gives (r-std-json.parse.number.float-via-parse).
-fn parse_number(bytes: List[u8], start: usize) -> Result[&Parsed, JsonError]:
+fn parse_number(bytes: List[u8], start: usize) -> Result[*Parsed, JsonError]:
     size := bytes.len()
     let index = start
     negative := bytes[index] == 45
@@ -271,7 +271,7 @@ fn parse_number(bytes: List[u8], start: usize) -> Result[&Parsed, JsonError]:
 # The float of the number text from `start` up to `end`, which the caller
 # has read to the end of its grammar; past the f64 range it is a
 # `NumberOutOfRange` at `start` (r-std-json.parse.number.nonfinite-parse-result).
-fn float_number(bytes: List[u8], start: usize, end: usize) -> Result[&Parsed, JsonError]:
+fn float_number(bytes: List[u8], start: usize, end: usize) -> Result[*Parsed, JsonError]:
     let mut digits: List[u8] = []
     let index = start
     while index < end:
@@ -295,8 +295,8 @@ fn old_bytes_text(bytes: List[u8]) -> string:
 struct OldFrame:
     pub base: string
     pub home: string
-    pub items: &List[Json]
-    pub keys: &List[string]
+    pub items: *List[Json]
+    pub keys: *List[string]
     pub fields: JsonObject
 
 # Reads one `Json` for `from_json`. `value` is the value at the cursor,
@@ -307,7 +307,7 @@ struct OldReader:
     pub value: Json
     pub present: bool
     pub path: string
-    pub frames: List[&OldFrame]
+    pub frames: List[*OldFrame]
     pub at: List[usize]
 
 impl OldReader:
@@ -318,11 +318,11 @@ impl OldReader:
             return JsonError.MissingField(self.path)
         JsonError.WrongType(self.path, expected)
 
-    fn push(&mut self, frame: &OldFrame) -> void:
+    fn push(&mut self, frame: *OldFrame) -> void:
         self.frames.push(frame)
         self.at.push(0)
 
-    fn top(self) -> &OldFrame:
+    fn top(self) -> *OldFrame:
         match self.frames.last():
             .Some(frame) => frame
             .None => panic("std.json: no open container")
@@ -717,11 +717,11 @@ struct User:
     letter: char
     ratio: f32
     big: u64
-    tags: &List[string]
-    scores: &Map[string, i32]
+    tags: *List[string]
+    scores: *Map[string, i32]
     role: Role
-    home: &Address?
-    friends: &List[&User]
+    home: *Address?
+    friends: *List[*User]
     raw: Json
 
 # More than 8 members, so a found key goes through the object's index.
@@ -874,7 +874,7 @@ struct Typed:
     target: i32
     value: Json
 
-fn typed_gen(c: &mut Choices) -> &Typed:
+fn typed_gen(c: &mut Choices) -> *Typed:
     target := c.int(+0..=+5)
     value := match target:
         0 => user_json(c, 0)
@@ -895,9 +895,9 @@ fn typed_gen(c: &mut Choices) -> &Typed:
 
 fn typed_disagreement(typed: &Typed) -> string:
     match typed.target:
-        0 => read_disagreement::[&User](typed.value)
-        1 => read_disagreement::[List[&User]](typed.value)
-        2 => read_disagreement::[&Wide](typed.value)
+        0 => read_disagreement::[*User](typed.value)
+        1 => read_disagreement::[List[*User]](typed.value)
+        2 => read_disagreement::[*Wide](typed.value)
         3 => read_disagreement::[Role](typed.value)
         4 => read_disagreement::[Map[string, Role]](typed.value)
         _ => read_disagreement::[Json](typed.value)
@@ -910,7 +910,7 @@ fn typed_disagreement(typed: &Typed) -> string:
 # `stop` is reached, is its result.
 
 struct ProbeState:
-    pub log: &mut List[string]
+    pub log: *mut List[string]
     pub errors: i32
     pub stop: i32
 
@@ -1103,15 +1103,15 @@ fn probed(stop: i32, value: Json) -> Json:
 # The walk with every error logged, then the walk stopped at each error in
 # turn, so that each error's text and path are compared too.
 fn probe_disagreement(value: Json) -> string:
-    all := read_disagreement::[&Probe](probed(-1, value))
+    all := read_disagreement::[*Probe](probed(-1, value))
     if all != "":
         return all
-    count := match from_json::[&Probe](probed(-1, value)):
+    count := match from_json::[*Probe](probed(-1, value)):
         .Ok(found) => found.errors
         .Err(_) => +0
     let stop = +1
     while stop <= count && stop <= 40:
-        found := read_disagreement::[&Probe](probed(stop, value))
+        found := read_disagreement::[*Probe](probed(stop, value))
         if found != "":
             return found
         stop = stop + 1
@@ -1130,9 +1130,9 @@ OBJECT_KEYS := ["k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9", "k10
 
 @derive(Debug)
 struct Sets:
-    keys: &List[string]
+    keys: *List[string]
 
-fn sets_gen(c: &mut Choices) -> &Sets:
+fn sets_gen(c: &mut Choices) -> *Sets:
     &mut Sets { keys: &c.list(40, fn(inner: &mut Choices) -> string: inner.choose(OBJECT_KEYS)) }
 
 fn object_disagreement(sets: &Sets) -> string:
@@ -1209,12 +1209,12 @@ tests:
         assert_equal("${parse(text).expect("parses")}", "{\"k0\":0,\"k1\":1,\"k2\":2,\"k3\":33,\"k4\":4,\"k5\":5,\"k6\":6,\"k7\":7,\"k8\":8,\"k9\":99}", reason="text")
 
     it("the decode errors of the spec read as before"):
-        assert_equal(read_disagreement::[&User](Json.Array([])), "", reason="data from an array")
+        assert_equal(read_disagreement::[*User](Json.Array([])), "", reason="data from an array")
         assert_equal(read_disagreement::[Role](Json.Text("Admin")), "", reason="a name alone")
         assert_equal(read_disagreement::[Role](Json.Text("Owner")), "", reason="unknown name")
         assert_equal(read_disagreement::[Role](wrap("Member", int_json(3))), "", reason="payload not an object")
         assert_equal(read_disagreement::[Map[string, Role]](wrap("ada", wrap("Member", wrap("since", Json.Text("x"))))), "", reason="map value variant member")
-        assert_equal(read_disagreement::[List[&Wide]](Json.Array([Json.Object(JsonObject::new())])), "", reason="missing in a list item")
+        assert_equal(read_disagreement::[List[*Wide]](Json.Array([Json.Object(JsonObject::new())])), "", reason="missing in a list item")
 
     it_prop_with("random valid texts parse as before", gen=valid_text, cases=300, prop=fn!(text: string):
         assert_equal(parse_disagreement(text), "", reason="valid")

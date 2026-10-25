@@ -11,7 +11,7 @@ impl Counter:
     fn read(&self) -> i32:
         self.value
 
-    fn zero() -> &Counter:
+    fn zero() -> *Counter:
         &mut Counter { value: 0 }
 
     fn pick[V](&self, value: V) -> V:
@@ -30,16 +30,16 @@ impl Store:
 fn apply_all[T, U](items: List[T], transform: fn(T) -> U) -> List[U]:
     [for item in items => transform(item)]
 
-fn readings(counters: List[&Counter]) -> List[i32]:
+fn readings(counters: List[*Counter]) -> List[i32]:
     apply_all(counters, Counter::read)
 
 fn reader() -> fn(&Counter) -> i32:
     Counter::read
 
-fn maker() -> fn() -> &Counter:
+fn maker() -> fn() -> *Counter:
     Counter::zero
 
-fn bumper(counter: &mut Counter) -> fn(i32) -> void:
+fn bumper(counter: *mut Counter) -> fn(i32) -> void:
     counter::bump
 
 fn stepper() -> fn(&mut Counter, i32) -> void:

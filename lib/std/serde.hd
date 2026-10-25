@@ -198,7 +198,7 @@ pub trait Deserializer:
 # `serialize` for each included walked member, then `end_variant`
 # (r-std-serde.derive.serialize.included-order).
 impl[T] Serialize for T by Structure:
-    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](self, out: *mut W) -> Result[void, W::Error]:
         let mut walker = SerializeWalker::[T, W] { out: out, facts: T::facts() }
         Structure::walk(self, &mut walker)?
         out.end_variant()
@@ -206,7 +206,7 @@ impl[T] Serialize for T by Structure:
 # The fields are public because the prototype checks the instantiated
 # walker in the deriving module.
 struct SerializeWalker[S, W < Serializer]:
-    pub out: &mut W
+    pub out: *mut W
     pub facts: Facts
 
 # `skips::[Skip]()` omits a member whose known facts hold `Skip`, so its
@@ -241,7 +241,7 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
 # `deserialize`, or given its declared default when absent, then
 # `end_variant` (r-std-serde.derive.deserialize.unskipped-order).
 impl[T] Deserialize for T by Structure:
-    fn deserialize[R < Deserializer](input: &mut R) -> Result[T, R::Error]:
+    fn deserialize[R < Deserializer](input: *mut R) -> Result[T, R::Error]:
         let mut source = DeserializeSource::[T, R] { input: input, facts: T::facts(), at: 0 }
         built := T::build(&mut source)?
         input.end_variant()?
@@ -250,7 +250,7 @@ impl[T] Deserialize for T by Structure:
 # The fields are public because the prototype checks the instantiated
 # source in the deriving module.
 struct DeserializeSource[S, R < Deserializer]:
-    pub input: &mut R
+    pub input: *mut R
     pub facts: Facts
     pub at: usize
 
@@ -483,25 +483,25 @@ impl[T < Deserialize] Deserialize for T?:
 # A reference writes the value it refers to, and reads into a new object
 # (r-std-serde.std.reference).
 # Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
-impl[T < Serialize] Serialize for &T:
+impl[T < Serialize] Serialize for *T:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         value := *self
         value.serialize(out)
 
 # Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
-impl[T < Serialize] Serialize for &mut T:
+impl[T < Serialize] Serialize for *mut T:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         value := *self
         value.serialize(out)
 
 # Keep handwritten Deserialize: delegate through the reference; structural derivation is for its referent.
-impl[T < Deserialize] Deserialize for &T:
-    fn deserialize[R < Deserializer](input: &mut R) -> Result[&T, R::Error]:
+impl[T < Deserialize] Deserialize for *T:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[*T, R::Error]:
         .Ok(&T::deserialize(input)?)
 
 # Keep handwritten Deserialize: delegate through the reference; structural derivation is for its referent.
-impl[T < Deserialize] Deserialize for &mut T:
-    fn deserialize[R < Deserializer](input: &mut R) -> Result[&mut T, R::Error]:
+impl[T < Deserialize] Deserialize for *mut T:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[*mut T, R::Error]:
         .Ok(&mut T::deserialize(input)?)
 
 # Keep handwritten Serialize: write the collection wire form rather than backing storage.
@@ -566,7 +566,7 @@ impl[T < Eq & Hash & Deserialize] Deserialize for Set[T]:
 # order. A counting pass over the members' types gives `begin_list` its
 # length before the one walk over the values.
 impl[T < Tuple] Serialize for T by Structure:
-    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+    fn serialize[W < Serializer](self, out: *mut W) -> Result[void, W::Error]:
         let mut count = MemberCount { total: 0 }
         _ := T::describe(&mut count)
         out.begin_list(count.total)?
@@ -590,7 +590,7 @@ impl[S] Describer[S] for MemberCount:
         .Ok(())
 
 struct TupleWriter[S, W < Serializer]:
-    pub out: &mut W
+    pub out: *mut W
 
 impl[S, W < Serializer] Walker[S] for TupleWriter[S, W]:
     type Error = W::Error
@@ -606,7 +606,7 @@ impl[S, W < Serializer] Walker[S] for TupleWriter[S, W]:
 # member, in order. A short or a long list is the reader's `invalid`
 # error.
 impl[T < Tuple] Deserialize for T by Structure:
-    fn deserialize[R < Deserializer](input: &mut R) -> Result[T, R::Error]:
+    fn deserialize[R < Deserializer](input: *mut R) -> Result[T, R::Error]:
         input.begin_list()?
         let mut source = TupleReader::[T, R] { input: input, at: 0 }
         built := T::build(&mut source)?
@@ -615,7 +615,7 @@ impl[T < Tuple] Deserialize for T by Structure:
         .Ok(built)
 
 struct TupleReader[S, R < Deserializer]:
-    pub input: &mut R
+    pub input: *mut R
     pub at: usize
 
 impl[S, R < Deserializer] Source[S] for TupleReader[S, R]:

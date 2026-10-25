@@ -5,6 +5,6 @@ trait Label:
 struct Shelf:
     apples: i32
 
-fn demo(shelf: &Shelf) -> void:
+fn demo(shelf: *Shelf) -> void:
     $.with(Label=shelf):  # diagnostic: type-mismatch
         pass

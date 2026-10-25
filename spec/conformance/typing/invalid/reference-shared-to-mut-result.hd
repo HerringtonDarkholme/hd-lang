@@ -3,5 +3,5 @@
 fn view(r: &i32) -> i32:
     *r
 
-fn invalid(r: &i32) -> &mut i32:
+fn invalid(r: *i32) -> *mut i32:
     r  # diagnostic: mutable-upgrade

@@ -20,7 +20,7 @@ struct Panel:
     count: Cell
     frozen: Cell
 
-fn pick(panel: &mut Panel) -> &mut Cell: &mut panel.count
+fn pick(panel: &mut Panel) -> *mut Cell: &mut panel.count
 
 fn run(panel: &mut Panel) -> void:
     pick(panel)() = 3

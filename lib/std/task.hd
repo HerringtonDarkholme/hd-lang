@@ -218,7 +218,7 @@ fn timeout_bound![T](job: mut Suspend[T], cleanup: Duration) -> TimeoutEnd[T] $ 
 struct CleanupBound[T]:
     job: mut Suspend[T]
     cleanup: Duration
-    clock: &mut dyn Clock
+    clock: *mut dyn Clock
 
 # Runs when the work is first cancelled, so the deadline is `cleanup`
 # from now. It waits for the work's cleanup, and abandons the work once

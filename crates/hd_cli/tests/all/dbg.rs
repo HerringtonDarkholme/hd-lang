@@ -109,7 +109,7 @@ fn dbg_prints_structure_for_types_without_debug() {
         "\
 struct Node:
     label: string
-    next: &Node?
+    next: *Node?
 
 struct Pair:
     left: List[Node]
@@ -213,7 +213,7 @@ fn dbg_marks_a_cycle() {
         "\
 struct Ring:
     name: string
-    next: &mut Ring?
+    next: *mut Ring?
 
 pub fn main() -> void $ Console:
     a := &mut Ring { name: \"a\", next: .None }

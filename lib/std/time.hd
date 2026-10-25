@@ -128,7 +128,7 @@ fn fraction_digits(fraction: i64) -> string:
 
 # Keep handwritten Debug: keep the duration/time text instead of structural fields.
 impl Debug for Duration:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         out.write(self.to_string())
 
 # Durations compare by their milliseconds (r-std-time.duration.eq-ord).
@@ -326,7 +326,7 @@ impl Display for Timestamp:
 # (r-std-format.debug.std-types.time).
 # Keep handwritten Debug: keep the duration/time text instead of structural fields.
 impl Debug for Timestamp:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         out.write(self.to_rfc3339())
 
 # Keep handwritten Eq: deriving Eq alone conflicts with the existing order impls.
@@ -594,7 +594,7 @@ fn millis_since(later: i64, earlier: i64) -> Duration:
 # (r-std-format.debug.std-types.time).
 # Keep handwritten Debug: keep the duration/time text instead of structural fields.
 impl Debug for Instant:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         out.write("Instant(${self.millis}ms)")
 
 # Keep handwritten Eq: deriving Eq alone conflicts with the existing order impls.
@@ -627,7 +627,7 @@ pub struct ManualClock:
 impl ManualClock:
     ## Returns a `ManualClock` whose current time starts at `start`.
     ## See [std-time.manual.decl-ref](../../spec/std/time.md#r-std-time.manual.decl-ref).
-    pub fn new(start: Timestamp) -> &mut ManualClock:
+    pub fn new(start: Timestamp) -> *mut ManualClock:
         &mut ManualClock { current: start }
 
 impl Clock for ManualClock:

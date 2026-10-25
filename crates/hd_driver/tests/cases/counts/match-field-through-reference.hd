@@ -4,7 +4,7 @@
 # match; a call or a reference store in an arm must keep ownership (#717).
 struct Node:
     value: i64
-    left: (&Node)?
+    left: (*Node)?
 
 fn left_value(node: &Node) -> i64:
     # subject

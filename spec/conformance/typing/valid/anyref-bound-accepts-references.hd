@@ -5,5 +5,5 @@ struct User:
 
 fn keep[T < AnyRef](value: T) -> T: value
 
-fn check() -> (&User, &List[string]):
+fn check() -> (*User, *List[string]):
     (keep(&mut User { name: "Ada" }), keep(&["Ada"]))

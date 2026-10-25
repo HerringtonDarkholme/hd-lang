@@ -17,7 +17,7 @@ impl Scaler:
     fn apply(&self, value: i32, offset: i32) -> i32:
         self.factor * value + offset
 
-fn scaler(log: &mut Log, factor: i32) -> &Scaler:
+fn scaler(log: &mut Log, factor: i32) -> *Scaler:
     log.text = log.text + "r"
     &mut Scaler { factor: factor }
 

@@ -734,10 +734,10 @@ fn demo(items: List[i32]) -> i32?:
 struct User:
     name: string
 
-fn view(user: (&mut User)?) -> (&User)?:
+fn view(user: (*mut User)?) -> (*User)?:
     user  # error: type-mismatch
 
-fn settle(result: Result[&mut User, string]) -> Result[&User, string]:
+fn settle(result: Result[*mut User, string]) -> Result[*User, string]:
     result  # error: type-mismatch
 
 struct Maybe[+T]:
@@ -1136,7 +1136,7 @@ impl Child:
         self.name = name
 
 struct Parent:
-    child: &Child
+    child: *Child
 
 fn invalid(parent: &mut Parent, child: &Child) -> void:
     parent.child.name = "new"   # error: not-writable
@@ -1874,7 +1874,7 @@ This section defines trait conformance, dynamic trait values, written
 struct User:
     name: string
 
-fn demo(user: User) -> &dyn Any:
+fn demo(user: User) -> *dyn Any:
     &user   # every value satisfies Any
 ```
 

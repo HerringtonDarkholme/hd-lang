@@ -12,7 +12,7 @@ fn body_8() -> void:
     _ := a
 
 fn body_9() -> void:
-    let a: Box[&dyn Factory] = panic("x")
+    let a: Box[*dyn Factory] = panic("x")
     _ := a
 
 fn body_10() -> void:
@@ -20,11 +20,11 @@ fn body_10() -> void:
     _ := f
 
 fn body_11() -> void:
-    f := fn(x: i32) -> &dyn Factory: panic("x")
+    f := fn(x: i32) -> *dyn Factory: panic("x")
     _ := f
 
 fn body_12() -> void:
-    a := id::[&dyn Factory](panic("x"))
+    a := id::[*dyn Factory](panic("x"))
     _ := a
 
 fn body_13() -> void:

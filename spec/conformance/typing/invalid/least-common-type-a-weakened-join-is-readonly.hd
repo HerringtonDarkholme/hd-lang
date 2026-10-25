@@ -4,6 +4,6 @@
 struct User:
     name: string
 
-fn f(editable: &mut User, shared: &User) -> void:
+fn f(editable: *mut User, shared: *User) -> void:
     both := [editable, shared]
     both[0].name = "x" # diagnostic: not-writable

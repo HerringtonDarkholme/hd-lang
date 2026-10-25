@@ -3,5 +3,5 @@
 struct User:
     name: string
 
-fn view(user: (&mut User)?) -> (&User)?:
+fn view(user: (*mut User)?) -> (*User)?:
     user  # diagnostic: type-mismatch

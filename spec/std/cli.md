@@ -22,7 +22,7 @@ A `ArgParser` value lists what a program accepts. Its builder changes one shared
 ```text
 use std.cli.{Arg, ArgParser}
 
-fn tool() -> &mut ArgParser:
+fn tool() -> *mut ArgParser:
     ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
 ```
 
@@ -43,8 +43,8 @@ pub struct Arg:
 ```
 
 1. r[std-cli.parser.decl-choices] `std.cli` declares `ArgParser`, a struct with private fields, and public `ArgKind` and `Arg` as shown above.
-2. r[std-cli.parser.new-help] `ArgParser::new(program: string, about: string = "") -> &mut ArgParser` returns a new parser with automatic help.
-3. r[std-cli.parser.arg] `arg(&mut self, arg: Arg) -> &mut ArgParser` appends a declaration in place and returns the same parser reference.
+2. r[std-cli.parser.new-help] `ArgParser::new(program: string, about: string = "") -> *mut ArgParser` returns a new parser with automatic help.
+3. r[std-cli.parser.arg] `arg(*mut self, arg: Arg) -> *mut ArgParser` appends a declaration in place and returns the same parser reference.
 4. r[std-cli.parser.kind] `ArgKind.Flag` takes no value, `Option` takes one value, and `Positional` takes a positional value.
 5. r[std-cli.parser.names] An argument's `name` is its lookup name; flags and options also accept `--name` and an optional short form.
 6. r[std-cli.parser.duplicate] Declaring any argument name twice, any short option twice, or a short form on a positional panics. Panic: `explicit-panic`.
@@ -63,7 +63,7 @@ pub struct Arg:
 
 A subcommand has its own argument declarations, as in `ArgParser::new("notes").command("clean", *ArgParser::new("notes clean"))`.
 
-1. r[std-cli.command.decl] `command(&mut self, name: string, parser: ArgParser) -> &mut ArgParser` adds a command and returns the parent parser reference.
+1. r[std-cli.command.decl] `command(*mut self, name: string, parser: ArgParser) -> *mut ArgParser` adds a command and returns the parent parser reference.
 2. r[std-cli.command.snapshot] `command` stores the supplied parser by value; later changes to the original builder do not change the stored command.
 3. r[std-cli.command.no-positionals] Declaring a command beside a positional, in either order, panics. Panic: `explicit-panic`.
 4. r[std-cli.command.duplicate] Declaring a command name twice panics. Panic: `explicit-panic`.
@@ -83,7 +83,7 @@ own:
 use std.cli.{Arg, ArgParser, CliError}
 use std.host.Args
 
-fn tool() -> &mut ArgParser:
+fn tool() -> *mut ArgParser:
     ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
 
 fn target() -> string $ Args:
@@ -126,7 +126,7 @@ Each argument is read by its form:
 ```text
 use std.cli.{Arg, ArgParser}
 
-fn tool() -> &mut ArgParser:
+fn tool() -> *mut ArgParser:
     ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
 
 fn out_of(arguments: List[string]) -> string:
@@ -289,9 +289,9 @@ fn compression() -> u8:
 
 | Method | Signature |
 | --- | --- |
-| Declaration | `fn declare(parser: &mut ArgParser, arg: Arg) -> void` |
+| Declaration | `fn declare(parser: *mut ArgParser, arg: Arg) -> void` |
 | Reading | `fn read(parsed: Parsed, arg: Arg) -> Result[Self, CliError]` |
-| Parser | `fn parser() -> &mut ArgParser` |
+| Parser | `fn parser() -> *mut ArgParser` |
 | Pure parsing | `fn parse(arguments: List[string]) -> Result[Self, CliError]` |
 | Host parsing | `fn parse_args() -> Result[Self, CliError] $ Args` |
 

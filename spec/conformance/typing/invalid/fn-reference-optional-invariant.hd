@@ -3,5 +3,5 @@
 struct User:
     name: string
 
-fn invariant(f: fn() -> (&mut User)?) -> fn() -> (&User)?:
+fn invariant(f: fn() -> (*mut User)?) -> fn() -> (*User)?:
     f  # diagnostic: type-mismatch

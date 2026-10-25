@@ -6,7 +6,7 @@ struct Budget:
 
 struct Project:
     name: string
-    budget: &mut Budget
+    budget: *mut Budget
 
 tests:
     use std.testing.assert_equal

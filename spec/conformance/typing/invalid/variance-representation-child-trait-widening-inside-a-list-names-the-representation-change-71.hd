@@ -5,5 +5,5 @@ trait Animal:
 trait Dog < Animal:
     fn bark(self) -> string
 
-fn widen(items: List[&dyn Dog]) -> List[&dyn Animal]:
+fn widen(items: List[*dyn Dog]) -> List[*dyn Animal]:
     items  # diagnostic: variance-representation-change

@@ -3,12 +3,12 @@
 struct User:
     name: i32
 
-fn change(value: (&mut User)?) -> (&mut User)?:
-    let item: &mut User = value?
+fn change(value: (*mut User)?) -> (*mut User)?:
+    let item: *mut User = value?
     item.name = item.name + 2
     item
 
-fn apply(callback: (fn((&mut User)?) -> (&mut User)?)?, value: (&mut User)?) -> (&mut User)?:
+fn apply(callback: (fn((*mut User)?) -> (*mut User)?)?, value: (*mut User)?) -> (*mut User)?:
     function := callback?
     function(value)
 
@@ -17,7 +17,7 @@ tests:
 
     it("closures keep mutable optional arguments"):
         let mut item = &mut User { name: 40 }
-        let pair: ((&mut User)?, (fn((&mut User)?) -> (&mut User)?)?) = (item, .Some(change))
+        let pair: ((*mut User)?, (fn((*mut User)?) -> (*mut User)?)?) = (item, .Some(change))
         match apply(pair._1, pair._0):
             .Some(value) => assert_equal(value.name, 42, reason="payload reached 42")
             .None => assert_equal(1, 2, reason="expected .Some")

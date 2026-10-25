@@ -10,9 +10,9 @@ struct Tags:
     names: List[string]
 
 struct Parent:
-    child: &mut Child
+    child: *mut Child
     label: string
-    tags: &Tags = &Tags { names: [] }
+    tags: *Tags = &Tags { names: [] }
 
 tests:
     use std.testing.{assert, assert_equal}

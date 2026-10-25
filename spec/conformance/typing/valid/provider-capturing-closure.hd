@@ -8,7 +8,7 @@ impl Logger for SilentLogger:
 
 fn make_log() -> fn(string) -> void:
     $.with(Logger=SilentLogger {}):
-        logger := $.use(Logger)
+        let logger: *dyn Logger = $.use(Logger)
         fn(message: string) -> void:
             logger.write(message)
 

@@ -88,7 +88,7 @@ fn names[T < Named](xs: List[T]) -> string:
 
 fn first[A < Tuple](a: A) -> A: a
 
-fn erase[T < Inspectable](x: T) -> &dyn Inspectable: &x
+fn erase[T < Inspectable](x: T) -> *dyn Inspectable: &x
 
 pub fn main() -> void $ Console:
     u := &User { name: \"ann\" }
@@ -115,11 +115,11 @@ fn sealed_rows_reject_what_their_table_excludes() {
 struct User:
     name: string
 
-type Owner(&User)
+type Owner(*User)
 
 fn keep[T < AnyVal](x: T) -> T: x
 
-fn erase[T < Inspectable](x: T) -> &dyn Inspectable: &x
+fn erase[T < Inspectable](x: T) -> *dyn Inspectable: &x
 
 pub fn main() -> void:
     u := &User { name: \"ann\" }
@@ -162,7 +162,7 @@ impl Keyed for i32:
 
 pub fn held(b: Box[i32]) -> i32: 0
 
-pub fn kept(b: Box[&User]) -> i32: 0
+pub fn kept(b: Box[*User]) -> i32: 0
 ";
     let mut src = MemorySources::default();
     src.insert("a/defs.hd", defs);

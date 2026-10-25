@@ -9,7 +9,7 @@ use std.task.with_timeout
 use std.time.{Clock, ManualClock, Timestamp, s, sleep}
 
 struct Close:
-    log: &mut List[string]
+    log: *mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Close:
@@ -24,7 +24,7 @@ impl Disposable for Close:
 fn silent!() -> void $ Clock:
     sleep!(60s)
 
-fn close!(log: &mut List[string], reply: mut Suspend[void], ack: mut Suspend[void]) -> Result[void, HttpError] $ Clock:
+fn close!(log: *mut List[string], reply: mut Suspend[void], ack: mut Suspend[void]) -> Result[void, HttpError] $ Clock:
     with_timeout!(5s, cleanup=0s):
         using close = &mut Close { log: log, ack: ack }
         reply!()

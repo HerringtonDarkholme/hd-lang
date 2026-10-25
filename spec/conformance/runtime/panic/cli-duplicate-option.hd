@@ -2,7 +2,7 @@
 # Spec std/cli Declaring Arguments: std-cli.parser.duplicate (task #242).
 use std.cli.{Arg, ArgParser}
 
-fn tool() -> &mut ArgParser:
+fn tool() -> *mut ArgParser:
     base := ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" })
     base.arg(Arg { name: "version", kind: .Option, short: 'v', help: "the version to check" })  # panic: explicit-panic
 

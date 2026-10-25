@@ -18,5 +18,5 @@ trait Shown < Named:
 trait Tagged < Named:
     fn tag(self) -> string
 
-fn f(s: &dyn Shown, t: &dyn Tagged) -> List[&dyn Named]:
+fn f(s: *dyn Shown, t: *dyn Tagged) -> List[*dyn Named]:
     [s, t]

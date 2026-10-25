@@ -8,7 +8,7 @@
 struct User:
     name: string
 
-fn weak(editable: &mut User, shared: &User) -> List[&User]:
+fn weak(editable: *mut User, shared: *User) -> List[*User]:
     both := [editable, shared]
     both
 

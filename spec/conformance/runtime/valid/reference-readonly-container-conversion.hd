@@ -10,20 +10,20 @@
 struct User:
     name: string
 
-fn first(view: &List[&User]) -> string:
+fn first(view: &List[*User]) -> string:
     view[0].name
 
-fn optional(view: &Option[&User]) -> string:
+fn optional(view: &Option[*User]) -> string:
     match view:
         .Some(user) => user.name
         .None => "missing"
 
-fn nested(view: &List[Option[&User]]) -> string:
+fn nested(view: &List[Option[*User]]) -> string:
     match view[0]:
         .Some(user) => user.name
         .None => "missing"
 
-fn identity(view: &List[&User], expected: &User) -> bool:
+fn identity(view: &List[*User], expected: &User) -> bool:
     view[0] is expected
 
 pub fn main() -> void $ Console:
@@ -34,9 +34,9 @@ pub fn main() -> void $ Console:
     println(identity(&users, &user))
     user.name = "after"
     println(first(&users))
-    let present: Option[&mut User] = .Some(&mut user)
+    let present: Option[*mut User] = .Some(&mut user)
     println(optional(&present))
-    let absent: Option[&mut User] = .None
+    let absent: Option[*mut User] = .None
     println(optional(&absent))
-    let nested_users: List[Option[&mut User]] = [.Some(&mut user)]
+    let nested_users: List[Option[*mut User]] = [.Some(&mut user)]
     println(nested(&nested_users))

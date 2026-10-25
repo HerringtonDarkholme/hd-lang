@@ -12,7 +12,7 @@ use std.time.{Clock, s}
 use std.time.{ManualClock, Timestamp, sleep}
 
 struct Upload:
-    log: &mut List[string]
+    log: *mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Upload:
@@ -22,7 +22,7 @@ impl Disposable for Upload:
         ack!()                          # waits for the peer
         self.log.push("upload acknowledged")
 
-fn send!(log: &mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
+fn send!(log: *mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
     timeout!(5s, cleanup=1s):
         using upload = &mut Upload { log: log, ack: ack }
         reply!()

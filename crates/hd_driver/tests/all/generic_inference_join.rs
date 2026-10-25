@@ -31,7 +31,7 @@ const PICK: &str = "fn pick[T](left: T, right: T) -> T:\n    left\n";
 #[test]
 fn readonly_first_variance_points_at_use() {
     let out = analyze(&format!(
-        "{PICK}\nfn first(shared: List[&User], owned: List[&mut User]) -> List[&User]:\n    pick(shared, owned)\n\nstruct User:\n    name: string\n"
+        "{PICK}\nfn first(shared: List[*User], owned: List[*mut User]) -> List[*User]:\n    pick(shared, owned)\n\nstruct User:\n    name: string\n"
     ));
     assert_eq!(codes(&out), vec![Code::TypeMismatch], "{}", out.render());
     assert!(

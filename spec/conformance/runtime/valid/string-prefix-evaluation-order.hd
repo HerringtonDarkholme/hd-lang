@@ -3,14 +3,14 @@
 use std.ops.{Template, str_prefix}
 
 struct Log:
-    seen: &mut List[i32]
+    seen: *mut List[i32]
 
-fn tick(log: &mut Log, step: i32) -> &mut Log:
+fn tick(log: *mut Log, step: i32) -> *mut Log:
     log.seen.push(step)
     log
 
 @str_prefix
-fn count_seen(t: Template[&mut Log]) -> usize:
+fn count_seen(t: Template[*mut Log]) -> usize:
     t.values[0].seen.len()
 
 tests:

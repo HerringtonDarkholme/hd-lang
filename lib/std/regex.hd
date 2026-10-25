@@ -394,10 +394,10 @@ enum Node:
     Class(items: List[ClassItem], negated: bool)
     Begin
     End
-    Group(body: &Node, index: usize)
+    Group(body: *Node, index: usize)
     Concat(items: List[Node])
     Alternate(branches: List[Node])
-    Repeat(body: &Node, min: usize, max: usize?, greedy: bool)
+    Repeat(body: *Node, min: usize, max: usize?, greedy: bool)
 
 # One member of a bracketed class, or a whole `\d`, `\w`, or `\s` class.
 enum ClassItem:
@@ -1215,16 +1215,16 @@ struct Vm:
     text: string
     size: usize
     slot_count: usize
-    dense: &mut List[usize]
-    sparse: &mut List[usize]
-    slots: &mut List[i64]
+    dense: *mut List[usize]
+    sparse: *mut List[usize]
+    slots: *mut List[i64]
     # The epsilon walk's stack: an entry of at least 0 is an instruction to
     # visit; an entry -1 - s puts `values` at the same place back into slot s.
-    stack: &mut List[i64]
-    values: &mut List[i64]
-    scratch: &mut List[i64]
+    stack: *mut List[i64]
+    values: *mut List[i64]
+    scratch: *mut List[i64]
     # The slots of the match the last search found.
-    found: &mut List[i64]
+    found: *mut List[i64]
     # Where the next search of `advance` starts, where the last match
     # ended (-1 before the first), and whether the series is over.
     from: usize
@@ -1243,7 +1243,7 @@ struct Vm:
 
 # A walk visits each instruction at most once and pushes at most one
 # entry for it, so the stack never holds more than width + 1.
-fn new_vm(regex: Regex, text: string, slot_count: usize) -> &mut Vm:
+fn new_vm(regex: Regex, text: string, slot_count: usize) -> *mut Vm:
     program := regex.program
     filter := regex.filter
     width := program.ops.len()
@@ -1763,7 +1763,7 @@ fn word_char(c: char) -> bool:
 
 # Keep handwritten Debug: show the pattern text and hide compiled instructions.
 impl Debug for Regex:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         out.debug_struct("Regex").field("pattern", self.text).finish()
 
 # Primitives (spec/std/README.md#standard-library-primitives). The compiler

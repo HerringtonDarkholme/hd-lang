@@ -7,7 +7,7 @@ fn fill(xs: &mut List[i32], end: usize) -> void:
         xs[i] = i32(i) + 10
 
 trait Factory:
-    fn make[T](self, value: T) -> &mut T:
+    fn make[T](self, value: T) -> *mut T:
         let mut local = value
         &mut local
 

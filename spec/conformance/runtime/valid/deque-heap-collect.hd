@@ -9,7 +9,7 @@ struct Counter:
 
 struct Counted:
     value: i32
-    counter: &mut Counter
+    counter: *mut Counter
 
 impl Eq for Counted:
     fn eq(self, other: Counted) -> bool:

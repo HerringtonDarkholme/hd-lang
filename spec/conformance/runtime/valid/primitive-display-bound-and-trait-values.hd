@@ -4,7 +4,7 @@
 fn render[T < Display](value: T) -> string:
     "$value"
 
-fn boxed(value: i32) -> &dyn Display:
+fn boxed(value: i32) -> *dyn Display:
     &value
 
 tests:

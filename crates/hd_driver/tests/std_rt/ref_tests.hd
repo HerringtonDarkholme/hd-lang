@@ -10,7 +10,7 @@ use std.rt.memory.pages
 use std.rt.checked.released
 
 struct Holder:
-    slot: &mut i32
+    slot: *mut i32
 
 fn label(n: i32) -> string:
     "r$n"
@@ -18,10 +18,10 @@ fn label(n: i32) -> string:
 fn bump(x: &mut i32) -> void:
     *x = *x + 1
 
-fn keep(x: &mut i32) -> &mut i32:
+fn keep(x: *mut i32) -> *mut i32:
     x
 
-fn keep_string(x: &mut string) -> &mut string:
+fn keep_string(x: *mut string) -> *mut string:
     x
 
 fn grow(xs: &mut List[string], n: i32) -> void:

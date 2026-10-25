@@ -12,7 +12,7 @@ impl Shape for Square:
     fn area(&self) -> f64:
         self.side * self.side
 
-fn total(shapes: List[&dyn Shape]) -> f64:
+fn total(shapes: List[*dyn Shape]) -> f64:
     let sum = 0.0
     for s in shapes:
         sum += s.area()
@@ -21,7 +21,7 @@ fn total(shapes: List[&dyn Shape]) -> f64:
 pub fn main() -> void $ Console:
     let mut small = Square { side: 1.0 }
     let mut shared = Square { side: 0.0 }
-    let shapes: List[&dyn Shape] = [&small, &Square { side: 2.0 }, &shared]
+    let shapes: List[*dyn Shape] = [&small, &Square { side: 2.0 }, &shared]
     small.side = 10.0
     shared.side = 3.0
     println("${shapes[0].area()} ${shapes[1].area()} ${shapes[2].area()}")

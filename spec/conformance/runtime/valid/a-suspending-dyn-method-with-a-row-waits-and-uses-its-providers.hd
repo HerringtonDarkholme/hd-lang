@@ -40,6 +40,6 @@ fn read_twice!(sensor: &dyn Sensor) -> i32 $ Console + Clock:
 
 pub fn main!() -> void $ Console + Clock:
     println(read_twice!(&Thermometer { offset: 10 }))
-    let sensors: List[&dyn Sensor] = [&Barometer { scale: 3 }, &Thermometer { offset: 0 }]
+    let sensors: List[*dyn Sensor] = [&Barometer { scale: 3 }, &Thermometer { offset: 0 }]
     for s in sensors:
         println("${s.name()} ${s.sample!(5)}")

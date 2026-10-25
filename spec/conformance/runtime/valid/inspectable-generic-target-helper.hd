@@ -4,7 +4,7 @@ struct User:
     name: string
 struct Post:
     title: string
-fn first_of[T < Inspectable](items: List[&dyn Inspectable]) -> (&T)?:
+fn first_of[T < Inspectable](items: List[*dyn Inspectable]) -> (*T)?:
     for item in items:
         match item.downcast_ref::[T]():
             .Some(found) => return .Some(found)
@@ -14,7 +14,7 @@ tests:
     use std.testing.{assert, assert_equal}
     it("the first matching reference is returned"):
         user := &User { name: "Ada" }
-        let items: List[&dyn Inspectable] = [&Post { title: "Intro" }, user, &User { name: "Grace" }]
+        let items: List[*dyn Inspectable] = [&Post { title: "Intro" }, user, &User { name: "Grace" }]
         match first_of::[User](items):
             .Some(found) => assert(found is user, reason="first matching place")
             .None => assert(false, reason="User is present")

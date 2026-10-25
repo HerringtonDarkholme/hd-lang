@@ -3,7 +3,7 @@
 fn load_orders() -> i32: 40
 fn load_refunds() -> i32: 2
 
-fn schedule[T](jobs: &mut List[fn() -> T], job: fn() -> T) -> &mut List[fn() -> T]:
+fn schedule[T](jobs: *mut List[fn() -> T], job: fn() -> T) -> *mut List[fn() -> T]:
     jobs.push(job)
     jobs
 

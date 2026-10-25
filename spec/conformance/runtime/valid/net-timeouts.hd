@@ -9,7 +9,7 @@ use std.task.with_timeout
 use std.time.{Clock, ManualClock, Timestamp, s}
 
 fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net + Clock:
-    net := $.use(Net)
+    let net: *mut dyn Net = $.use(Net)
     connected := with_timeout!(3s):
         net.connect!(host, port)
     stream := connected?

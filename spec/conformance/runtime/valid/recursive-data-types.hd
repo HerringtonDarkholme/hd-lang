@@ -6,7 +6,7 @@ struct Comment:
 
 struct Department:
     name: string
-    head: &Employee?
+    head: *Employee?
 
 struct Employee:
     name: string

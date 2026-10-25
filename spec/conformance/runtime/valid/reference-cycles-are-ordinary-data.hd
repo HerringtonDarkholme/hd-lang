@@ -2,7 +2,7 @@
 # Spec 08 Representation: data.repr.gc.
 struct Stop:
     name: string
-    next: &mut Stop?
+    next: *mut Stop?
 
 fn ring(size: i32) -> i32:
     let visited = +0

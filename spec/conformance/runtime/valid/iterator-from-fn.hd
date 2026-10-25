@@ -2,14 +2,14 @@
 # Spec 06 Iteration Protocols: std-iter.from-fn.value, std-iter.from-fn.every-next (Chaining Study CS9, CS11).
 
 use std.iter.{from_fn}
-fn countdown(start: i32) -> &mut dyn Iterator[i32]:
+fn countdown(start: i32) -> *mut dyn Iterator[i32]:
     let left: i32 = start
     &mut from_fn(fn() -> i32?:
         left = left - 1
         if left < 0: .None else: left + 1
     )
 
-fn gappy() -> &mut dyn Iterator[i32]:
+fn gappy() -> *mut dyn Iterator[i32]:
     let calls = +0
     &mut from_fn(fn() -> i32?:
         calls = calls + 1

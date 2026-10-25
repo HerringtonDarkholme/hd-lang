@@ -198,7 +198,7 @@ fn item[S < NamedSupplier](s: S) -> S::Item:
 fn read(s: &dyn NamedSupplier[Item = i32]) -> i32:
     s.get() + item(s)
 
-fn counted(s: &dyn Count) -> &dyn Count[Item = i32]:
+fn counted(s: &dyn Count) -> *dyn Count[Item = i32]:
     &s
 
 pub fn main() -> void:
@@ -222,7 +222,7 @@ fn item[S < NamedSupplier](s: S) -> S::Item:
 fn read(s: &dyn NamedSupplier[Item = i32]) -> i32:
     s.get() + 1
 
-fn widen(s: &dyn NamedSupplier[Item = i32]) -> &dyn Supplier[Item = i32]:
+fn widen(s: &dyn NamedSupplier[Item = i32]) -> *dyn Supplier[Item = i32]:
     &s
 
 fn twice(c: &dyn Count) -> i32:

@@ -27,7 +27,7 @@ trait Make:
     fn make(log: &mut List[string]) -> Result[Self, string]
 
 struct Partial[S]:
-    pub log: &mut List[string]
+    pub log: *mut List[string]
     pub named: bool
 
 impl[S] Source[S] for Partial[S]:
@@ -55,7 +55,7 @@ impl[S] Source[S] for Partial[S]:
             .None => .Err("no ${h.info.name}")
 
 impl[T] Make for T by Structure:
-    fn make(log: &mut List[string]) -> Result[T, string]:
+    fn make(log: *mut List[string]) -> Result[T, string]:
         let mut s = Partial::[T] { log: log, named: false }
         T::build(&mut s)
 

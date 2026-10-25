@@ -18,7 +18,7 @@ fn run_handler(value: &dyn Inspectable) -> i32:
         .None => 0
 
 fn joined(value: &dyn Inspectable) -> string:
-    match value.downcast_ref::[List[&dyn Display]]().map(fn(found): *found):
+    match value.downcast_ref::[List[*dyn Display]]().map(fn(found): *found):
         .Some(parts) =>
             let text: string = ""
             for part in parts:
@@ -35,7 +35,7 @@ tests:
         assert_equal(run_handler(&handler), 7, reason="the function field is called after recovery")
 
     it("a trait value type argument matches exactly"):
-        let shown: List[&dyn Display] = [&Label { text: "a" }, &Label { text: "b" }]
+        let shown: List[*dyn Display] = [&Label { text: "a" }, &Label { text: "b" }]
         assert_equal(joined(&shown), "ab", reason="List[Display] matches List[Display]")
         let labels: List[Label] = [Label { text: "c" }]
         assert_equal(joined(&labels), "no match", reason="List[Label] is not List[Display]")

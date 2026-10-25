@@ -9,7 +9,7 @@ pub trait FileHandle:
     fn close(&mut self) -> Result[void, IoError]
 
 pub trait Files:
-    fn open!(self) -> &mut dyn FileHandle
+    fn open!(self) -> *mut dyn FileHandle
 
 pub fn main!() -> void $ Files:
     let handle: &mut dyn FileHandle = $.use(Files).open!()

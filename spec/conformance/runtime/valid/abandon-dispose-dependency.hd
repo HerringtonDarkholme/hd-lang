@@ -11,7 +11,7 @@ use std.task.race
 use std.time.{Clock, s, sleep}
 
 struct Channel:
-    log: &mut List[string]
+    log: *mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Channel:
@@ -23,19 +23,19 @@ impl Disposable for Channel:
         self.log.push("acked")
 
 struct Plain:
-    log: &mut List[string]
+    log: *mut List[string]
 
 impl Disposable for Plain:
     fn dispose!(&mut self) -> void:
         self.log.push("plain closed")
 
-fn talk!(log: &mut List[string], ack: mut Suspend[void]) -> string $ Clock:
+fn talk!(log: *mut List[string], ack: mut Suspend[void]) -> string $ Clock:
     using plain = &mut Plain { log: log }
     using channel = &mut Channel { log: log, ack: ack }
     sleep!(s(60))
     "late"
 
-fn quick!(log: &mut List[string], ack: mut Suspend[void]) -> string:
+fn quick!(log: *mut List[string], ack: mut Suspend[void]) -> string:
     using channel = &mut Channel { log: log, ack: ack }
     "value"
 

@@ -22,7 +22,7 @@ fn parse() -> Result[i32, Parse]:
 fn word() -> Result[i32, i64]:
     .Err(1)
 
-fn f() -> Result[i32, &dyn Error]:
+fn f() -> Result[i32, *dyn Error]:
     .Ok(parse()?)
 
 pub fn main() -> void:

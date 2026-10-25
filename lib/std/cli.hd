@@ -42,11 +42,11 @@ pub struct ArgParser:
     command_field: string? = .None
 
 impl ArgParser:
-    pub fn new(program: string, about: string = "") -> &mut ArgParser:
+    pub fn new(program: string, about: string = "") -> *mut ArgParser:
         parser := &mut ArgParser { program: program, about: about, declarations: [], options: {}, names: {}, positional_slots: [], commands: {} }
         parser.arg(Arg { name: "help", kind: .Flag, short: 'h', help: "Print this help." })
 
-    pub fn arg(&mut self, arg: Arg) -> &mut ArgParser:
+    pub fn arg(*mut self, arg: Arg) -> *mut ArgParser:
         if self.names.get(arg.name).is_some():
             panic("std.cli: argument ${arg.name} declared twice")
         index := self.declarations.len()
@@ -74,7 +74,7 @@ impl ArgParser:
         self
 
     ## Adds a command's parser by value; its options belong only to that command.
-    pub fn command(&mut self, name: string, parser: ArgParser) -> &mut ArgParser:
+    pub fn command(*mut self, name: string, parser: ArgParser) -> *mut ArgParser:
         if self.positional_slots.len() > 0: panic("std.cli: a parser with positionals takes no commands")
         if self.commands.get(name).is_some(): panic("std.cli: command $name declared twice")
         self.commands[name] = parser
@@ -100,7 +100,7 @@ impl ArgParser:
         let mut flags: Map[string, bool] = {}
         let mut flag_counts: Map[string, usize] = {}
         let mut values: Map[string, string] = {}
-        let mut histories: Map[string, &mut List[string]] = {}
+        let mut histories: Map[string, *mut List[string]] = {}
         let mut positionals: List[string] = []
         let only_positionals = false
         let mut selected: List[(string, Parsed)] = []
@@ -219,7 +219,7 @@ fn argument_term(arg: Arg) -> string:
         .Some(short) => "-${short}, --${arg.name}${suffix}"
         .None => "    --${arg.name}${suffix}"
 
-fn write_entry(text: &mut StringBuilder, term: string, arg: Arg, width: usize) -> void:
+fn write_entry(text: *mut StringBuilder, term: string, arg: Arg, width: usize) -> void:
     text.push("\n  ").push(term)
     if arg.help != "" || !arg.choices.is_empty():
         text.push("".pad_end(width - term.chars().count(), ' ')).push("  ").push(arg.help)
@@ -229,7 +229,7 @@ fn write_entry(text: &mut StringBuilder, term: string, arg: Arg, width: usize) -
 
 # Repeated values append through a private shared buffer while parsing;
 # Parsed exposes copies, so no caller can mutate a parsed result through it.
-fn store_value(arg: Arg, value: string, values: &mut Map[string, string], histories: &mut Map[string, &mut List[string]]) -> Result[void, CliError]:
+fn store_value(arg: Arg, value: string, values: &mut Map[string, string], histories: &mut Map[string, *mut List[string]]) -> Result[void, CliError]:
     if !arg.repeated && values.get(arg.name).is_some():
         return .Err(CliError.InvalidValue(arg.name, "argument cannot be repeated"))
     if !arg.choices.is_empty() && !arg.choices.contains(value):
@@ -245,7 +245,7 @@ fn store_value(arg: Arg, value: string, values: &mut Map[string, string], histor
 pub struct Parsed:
     present_flags: Map[string, bool]
     option_values: Map[string, string]
-    value_histories: Map[string, &mut List[string]]
+    value_histories: Map[string, *mut List[string]]
     position_values: List[string]
     selected_command: List[(string, Parsed)]
     flag_counts: Map[string, usize] = {}
@@ -370,21 +370,21 @@ impl CliError:
 
 # Keep handwritten Debug: show declarations as arguments and omit lookup indexes.
 impl Debug for ArgParser:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         fields := out.debug_struct("ArgParser").field("program", self.program).field("about", self.about).field("arguments", self.declarations)
         if self.commands.len() > 0: fields.field("commands", self.commands)
         fields.finish()
 
 # Keep handwritten Debug: keep public-facing field labels instead of private storage names.
 impl Debug for Parsed:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         fields := out.debug_struct("Parsed").field("flags", self.present_flags).field("values", self.option_values).field("positionals", self.position_values)
         if !self.selected_command.is_empty(): fields.field("command", self.command())
         fields.finish()
 
 # Keep handwritten Debug: empty tuple builders apply dbg depth limits to these variants.
 impl Debug for ArgKind:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         match self:
             .Flag => out.debug_tuple("ArgKind.Flag").finish()
             .Option => out.debug_tuple("ArgKind.Option").finish()
@@ -393,10 +393,10 @@ impl Debug for ArgKind:
 ## A type read from command-line declarations and parsed values.
 ## See [std-cli.typed.trait](../../spec/std/cli.md#r-std-cli.typed.trait).
 pub trait Cli:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void
     fn read(parsed: Parsed, arg: Arg) -> Result[Self, CliError]
 
-    fn parser() -> &mut ArgParser:
+    fn parser() -> *mut ArgParser:
         parser := ArgParser::new("")
         Self::declare(parser, Arg { name: "", required: true })
         parser
@@ -433,7 +433,7 @@ pub fn positional[F < Cli]() -> Positional[F]:
     Positional::[F] {}
 
 impl[T] Cli for T by Structure:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         if arg.name.is_empty():
             parser.program = cli_name(T::name())
         let mut describer = CliDescriber::[T] { parser: parser, arg: arg, record: false, choices: [], choice_help: [], payload: false, commands: [], current: .None, variant_name: "", members: 0, valid_shape: true }
@@ -474,14 +474,14 @@ impl[T] Cli for T by Structure:
         T::build(&mut source)
 
 struct CliDescriber[S]:
-    pub parser: &mut ArgParser
+    pub parser: *mut ArgParser
     pub arg: Arg
     pub record: bool
     pub choices: List[string]
     pub choice_help: List[string]
     pub payload: bool
-    pub commands: List[(string, &mut ArgParser)]
-    pub current: Option[&mut ArgParser]
+    pub commands: List[(string, *mut ArgParser)]
+    pub current: Option[*mut ArgParser]
     pub variant_name: string
     pub members: usize
     pub valid_shape: bool
@@ -614,7 +614,7 @@ fn scalar_arg(arg: Arg) -> Arg:
         return arg
     Arg { ...arg, kind: .Option }
 
-fn declare_scalar(parser: &mut ArgParser, arg: Arg, name: string) -> void:
+fn declare_scalar(parser: *mut ArgParser, arg: Arg, name: string) -> void:
     if arg.name.is_empty():
         parser.program = name
     _ := parser.arg(scalar_arg(arg))
@@ -626,7 +626,7 @@ fn read_scalar[T < Parse[Error = E], E < Display](parsed: Parsed, arg: Arg) -> R
         .None => .Err(.MissingArgument(argument_name(declared)))
 
 impl Cli for bool:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         if arg.name.is_empty() || arg.kind == .Positional:
             declare_scalar(parser, arg, "bool")
         else:
@@ -638,7 +638,7 @@ impl Cli for bool:
         .Ok(parsed.flag(arg.name))
 
 impl[T < Cli] Cli for T?:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         T::declare(parser, Arg { ...arg, required: false })
 
     fn read(parsed: Parsed, arg: Arg) -> Result[T?, CliError]:
@@ -648,7 +648,7 @@ impl[T < Cli] Cli for T?:
         .Ok(.Some(T::read(parsed, arg)?))
 
 impl[T < Cli] Cli for List[T]:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         T::declare(parser, Arg { ...arg, repeated: true, required: false })
 
     fn read(parsed: Parsed, arg: Arg) -> Result[List[T], CliError]:
@@ -659,105 +659,105 @@ impl[T < Cli] Cli for List[T]:
         .Ok(values)
 
 impl Cli for string:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "string")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[string, CliError]:
         read_scalar::[string](parsed, arg)
 
 impl Cli for char:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "char")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[char, CliError]:
         read_scalar::[char](parsed, arg)
 
 impl Cli for i8:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "i8")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[i8, CliError]:
         read_scalar::[i8](parsed, arg)
 
 impl Cli for i16:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "i16")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[i16, CliError]:
         read_scalar::[i16](parsed, arg)
 
 impl Cli for i32:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "i32")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[i32, CliError]:
         read_scalar::[i32](parsed, arg)
 
 impl Cli for i64:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "i64")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[i64, CliError]:
         read_scalar::[i64](parsed, arg)
 
 impl Cli for u8:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "u8")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[u8, CliError]:
         read_scalar::[u8](parsed, arg)
 
 impl Cli for u16:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "u16")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[u16, CliError]:
         read_scalar::[u16](parsed, arg)
 
 impl Cli for u32:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "u32")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[u32, CliError]:
         read_scalar::[u32](parsed, arg)
 
 impl Cli for u64:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "u64")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[u64, CliError]:
         read_scalar::[u64](parsed, arg)
 
 impl Cli for usize:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "usize")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[usize, CliError]:
         read_scalar::[usize](parsed, arg)
 
 impl Cli for f32:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "f32")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[f32, CliError]:
         read_scalar::[f32](parsed, arg)
 
 impl Cli for f64:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "f64")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[f64, CliError]:
         read_scalar::[f64](parsed, arg)
 
 impl Cli for Path:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "Path")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[Path, CliError]:
         read_scalar::[Path](parsed, arg)
 
 impl Cli for Duration:
-    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+    fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         declare_scalar(parser, arg, "Duration")
 
     fn read(parsed: Parsed, arg: Arg) -> Result[Duration, CliError]:

@@ -7,7 +7,7 @@ use std.task.race
 use std.time.{Clock, ms, s, sleep}
 
 struct Release:
-    log: &mut List[string]
+    log: *mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Release:

@@ -24,15 +24,15 @@ fn key(log: &mut Log, tag: string, value: string) -> string:
     log.text = log.text + tag
     value
 
-fn list_of(log: &mut Log, target: &mut List[i32]) -> &mut List[i32]:
+fn list_of(log: &mut Log, target: *mut List[i32]) -> *mut List[i32]:
     log.text = log.text + "r"
     target
 
-fn map_of(log: &mut Log, target: &mut Map[string, i32]) -> &mut Map[string, i32]:
+fn map_of(log: &mut Log, target: *mut Map[string, i32]) -> *mut Map[string, i32]:
     log.text = log.text + "r"
     target
 
-fn counter_of(log: &mut Log, target: &mut Counter) -> &mut Counter:
+fn counter_of(log: &mut Log, target: *mut Counter) -> *mut Counter:
     log.text = log.text + "r"
     target
 

@@ -4,7 +4,7 @@ use std.cli.{Arg, ArgParser, CliError}
 use std.process.ExitCode
 use std.console.MemoryConsole
 
-fn notes() -> &mut ArgParser:
+fn notes() -> *mut ArgParser:
     build := ArgParser::new("notes build", "Convert the notes to HTML.").arg(Arg { name: "format", choices: ["json", "markdown"] }).arg(Arg { name: "file", kind: .Positional, required: true })
     clean := ArgParser::new("notes clean", "Remove the output directory.")
     ArgParser::new("notes", "Build a static site from Markdown notes.").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "Print each file as it is converted." }).command("build", *build).command("clean", *clean)

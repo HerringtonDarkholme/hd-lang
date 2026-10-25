@@ -77,7 +77,7 @@ pub struct MemoryConsole:
 impl MemoryConsole:
     ## Returns an empty recording provider.
     ## See [std-console.buffer.install-ref](../../spec/std/console.md#r-std-console.buffer.install-ref).
-    pub fn new() -> &mut MemoryConsole:
+    pub fn new() -> *mut MemoryConsole:
         &mut MemoryConsole { lines: [], error_lines: [] }
 
     # The lines `write!` received, in order (r-std-console.buffer.output-text).
@@ -159,7 +159,7 @@ pub struct ScriptedInput:
 impl ScriptedInput:
     ## Returns the provider that answers `lines` in order, then the end of input.
     ## See [std-console.scripted.new-ref](../../spec/std/console.md#r-std-console.scripted.new-ref).
-    pub fn new(lines: List[string]) -> &mut ScriptedInput:
+    pub fn new(lines: List[string]) -> *mut ScriptedInput:
         &mut ScriptedInput { lines: lines, next: 0 }
 
 impl ConsoleInput for ScriptedInput:

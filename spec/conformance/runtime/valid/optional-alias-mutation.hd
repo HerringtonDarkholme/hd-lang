@@ -5,8 +5,8 @@ struct User:
 
 type Maybe[T] = T?
 
-fn change(value: Maybe[&mut User]) -> Maybe[&mut User]:
-    let item: &mut User = value?
+fn change(value: Maybe[*mut User]) -> Maybe[*mut User]:
+    let item: *mut User = value?
     item.name = item.name + 1
     item
 
@@ -17,8 +17,8 @@ tests:
 
     it("mutation through aliases and matches reaches the payload"):
         let mut item = &mut User { name: 40 }
-        let present: Option[&mut User] = keep(item)
-        let nested: Option[Option[&mut User]] = .Some(change(present))
+        let present: Option[*mut User] = keep(item)
+        let nested: Option[Option[*mut User]] = .Some(change(present))
         match nested:
             .Some(inner) =>
                 match inner:

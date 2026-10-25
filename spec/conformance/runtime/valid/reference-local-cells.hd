@@ -5,12 +5,12 @@
 # expect-stdout: 20
 # expect-stdout: 6
 # expect-stdout: 42
-fn counter() -> &mut i32:
+fn counter() -> *mut i32:
     let mut n = +41
     &mut n
 
 pub fn main() -> void $ Console:
-    let mut refs: List[&mut usize] = []
+    let mut refs: List[*mut usize] = []
     for i in 0..3:
         let mut v = i
         refs.push(&mut v)

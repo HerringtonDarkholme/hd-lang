@@ -7,9 +7,9 @@ fn chain(a: i32, b: i32 = a * 2, c: i32 = b + 1) -> i32:
     a * 100 + b * 10 + c
 
 struct Bag:
-    items: &List[i32]
+    items: *List[i32]
 
-fn fresh(bag: &Bag = &mut Bag { items: &[] }) -> &Bag:
+fn fresh(bag: *Bag = &mut Bag { items: &[] }) -> *Bag:
     bag
 
 tests:

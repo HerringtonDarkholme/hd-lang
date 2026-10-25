@@ -41,14 +41,14 @@ enum SaveError:
     Write(path: string, @source error: DiskError)
 
 fn messages(failure: SaveError) -> List[string]:
-    let error: &dyn Error = &failure
+    let error: *dyn Error = &failure
     error.chain().map(fn(error: &dyn Error) -> string: error.to_string())
 ```
 
 For `SaveError.Write("notes.txt", DiskError { free: 0 })`, `messages`
 returns `["cannot save notes.txt", "disk full"]`.
 
-1. r[std-error.chain.reference-method] `std.error` declares `pub fn chain(&self) -> List[&dyn Error]` in its `impl dyn Error:` block, so `e.chain()` lists the causes of an `&dyn Error` reference `e`.
+1. r[std-error.chain.reference-method] `std.error` declares `pub fn chain(*self) -> List[*dyn Error]` in its `impl dyn Error:` block, so `e.chain()` lists the causes of an `&dyn Error` reference `e`.
 2. r[std-error.chain.method-only] `std.error` exports no free `chain` function.
 3. r[std-error.chain.source-order] `error.chain()` returns `error` first, then the error that its `source` returns, then that error's source, and so on.
 4. r[std-error.chain.source-end] The list ends with the first error whose `source` returns `.None`.
@@ -82,10 +82,10 @@ enum SaveError:
     @error("cannot save $path")
     Write(path: string, @source error: DiskError)
 
-fn innermost(failure: &dyn Error) -> string:
+fn innermost(failure: *dyn Error) -> string:
     failure.root_cause().to_string()
 
-fn free_space(failure: &dyn Error) -> i64?:
+fn free_space(failure: *dyn Error) -> i64?:
     match failure.find::[DiskError]():
         .Some(disk) => .Some(disk.free)
         .None => .None
@@ -105,7 +105,7 @@ returns `"disk full"`, and `free_space` returns `.Some(0)`.
 ```text
 use std.error.Error
 
-fn code(failure: &dyn Error) -> i32?:
+fn code(failure: *dyn Error) -> i32?:
     failure.find::[i32]()  # error: unsatisfied-trait-bound
 ```
 
@@ -160,7 +160,7 @@ fn summary() -> string:
 ```text
 use std.error.{Error, message}
 
-fn parse_port(text: string) -> Result[i32, &dyn Error]:
+fn parse_port(text: string) -> Result[i32, *dyn Error]:
     if text == "":
         return .Err(message("empty port"))
     .Ok(80)
@@ -168,7 +168,7 @@ fn parse_port(text: string) -> Result[i32, &dyn Error]:
 
 For `parse_port("")`, the error displays as `empty port`.
 
-1. r[std-error.message.reference] `std.error` declares `pub fn message(text: string) -> &dyn Error`. Code imports it, as in `use std.error.message`.
+1. r[std-error.message.reference] `std.error` declares `pub fn message(text: string) -> *dyn Error`. Code imports it, as in `use std.error.message`.
 2. r[std-error.message.reference-struct] The returned reference points to a private struct, whose type code cannot name or match on.
 3. r[std-error.message.display] The error displays as `text`, unchanged.
 4. r[std-error.message.source] Its `source` returns `.None`, so `chain` lists only that error.
@@ -192,7 +192,7 @@ struct NotFound:
 fn read(path: string) -> Result[string, NotFound]:
     .Err(NotFound { path: path })
 
-fn load() -> Result[string, &dyn Error]:
+fn load() -> Result[string, *dyn Error]:
     text := read("app.toml").context("loading config")?
     .Ok(text)
 
@@ -202,7 +202,7 @@ fn summary() -> string:
         .Err(failure) => report_of(failure).to_string()  # "loading config\nsource: not found: app.toml"
 ```
 
-1. r[std-error.context.reference-result] `std.error` declares the inherent method `pub fn context(self, message: string) -> Result[T, &dyn Error]` on `Result[T, E]` for every `E < Error`.
+1. r[std-error.context.reference-result] `std.error` declares the inherent method `pub fn context(self, message: string) -> Result[T, *dyn Error]` on `Result[T, E]` for every `E < Error`.
 2. r[std-error.context.no-use] Calling `context` needs no `use`, by [`trait.own.inherent.std.no-use`](../lang/09-traits.md#r-trait.own.inherent.std.no-use).
 3. r[std-error.context.ok] `.Ok(value).context(message)` returns `.Ok(value)`.
 4. r[std-error.context.erased-wrapper] `.Err(error).context(message)` returns `.Err` of a shared reference to a wrapper containing `&error` and that message.
@@ -224,11 +224,11 @@ Every std error type implements `Error`, so `?` and `context` accept it:
 ```text
 use std.error.Error
 
-fn count(text: string) -> Result[i32, &dyn Error]:
+fn count(text: string) -> Result[i32, *dyn Error]:
     value := text.parse::[i32]()?
     .Ok(value)
 
-fn width(text: string) -> Result[i32, &dyn Error]:
+fn width(text: string) -> Result[i32, *dyn Error]:
     text.parse::[i32]().context("reading the width")
 ```
 

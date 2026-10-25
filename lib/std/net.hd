@@ -41,9 +41,9 @@ impl From[TimedOut] for NetError:
 ## See [std-net.trait.decl-composed](../../spec/std/net.md#r-std-net.trait.decl-composed).
 pub trait Net:
     fn lookup!(&mut self, host: string) -> Result[List[string], NetError]
-    fn connect!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]
-    fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]
-    fn bind_udp!(&mut self, host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError]
+    fn connect!(&mut self, host: string, port: u16) -> Result[*mut dyn TcpStream, NetError]
+    fn listen!(&mut self, host: string, port: u16) -> Result[*mut dyn TcpListener, NetError]
+    fn bind_udp!(&mut self, host: string, port: u16) -> Result[*mut dyn UdpSocket, NetError]
 
 ## Resolves `host` through the covering `Net` provider.
 ## See [std-net.helper.lookup.decl](../../spec/std/net.md#r-std-net.helper.lookup.decl).
@@ -52,17 +52,17 @@ pub fn lookup!(host: string) -> Result[List[string], NetError] $ Net:
 
 ## Connects through the covering `Net` provider.
 ## See [std-net.helper.connect.decl](../../spec/std/net.md#r-std-net.helper.connect.decl).
-pub fn connect!(host: string, port: u16) -> Result[&mut dyn TcpStream, NetError] $ Net:
+pub fn connect!(host: string, port: u16) -> Result[*mut dyn TcpStream, NetError] $ Net:
     $.use(Net).connect!(host, port)
 
 ## Listens through the covering `Net` provider.
 ## See [std-net.helper.listen.decl](../../spec/std/net.md#r-std-net.helper.listen.decl).
-pub fn listen!(host: string, port: u16) -> Result[&mut dyn TcpListener, NetError] $ Net:
+pub fn listen!(host: string, port: u16) -> Result[*mut dyn TcpListener, NetError] $ Net:
     $.use(Net).listen!(host, port)
 
 ## Binds a UDP socket through the covering `Net` provider.
 ## See [std-net.helper.bind-udp.decl](../../spec/std/net.md#r-std-net.helper.bind-udp.decl).
-pub fn bind_udp!(host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError] $ Net:
+pub fn bind_udp!(host: string, port: u16) -> Result[*mut dyn UdpSocket, NetError] $ Net:
     $.use(Net).bind_udp!(host, port)
 
 ## A TCP stream: a closable handle that a `using` binding disposes.
@@ -78,7 +78,7 @@ pub trait TcpStream < Disposable:
 ## A TCP listener: a closable handle that a `using` binding disposes.
 ## See [std-net.handles.decl-ref](../../spec/std/net.md#r-std-net.handles.decl-ref).
 pub trait TcpListener < Disposable:
-    fn accept!(&mut self) -> Result[&mut dyn TcpStream, NetError]
+    fn accept!(&mut self) -> Result[*mut dyn TcpStream, NetError]
     fn set_timeout(&mut self, timeout: Duration?) -> Result[void, NetError]
     fn local_address(self) -> Result[(string, u16), NetError]
     fn close(&mut self) -> Result[void, NetError]
@@ -124,12 +124,12 @@ pub struct ScriptedStream:
 impl ScriptedStream:
     ## Returns a stream that returns the chunks of `reads` in order, one per `read!`.
     ## See [std-net.scripted.new-ref](../../spec/std/net.md#r-std-net.scripted.new-ref).
-    pub fn new(reads: List[List[u8]]) -> &mut ScriptedStream:
+    pub fn new(reads: List[List[u8]]) -> *mut ScriptedStream:
         &mut ScriptedStream { reads: reads, next: 0, offset: 0, ended: false, error: .None, failed: false, bytes: [], bound: .None, nodelay_on: false, keepalive_idle: .None, closed: false }
 
     ## Returns a stream that returns the chunks of `reads`, then fails every `read!` and `write!` with `error`.
     ## See [std-net.scripted.failing](../../spec/std/net.md#r-std-net.scripted.failing).
-    pub fn failing(reads: List[List[u8]], error: NetError) -> &mut ScriptedStream:
+    pub fn failing(reads: List[List[u8]], error: NetError) -> *mut ScriptedStream:
         &mut ScriptedStream { reads: reads, next: 0, offset: 0, ended: false, error: .Some(error), failed: false, bytes: [], bound: .None, nodelay_on: false, keepalive_idle: .None, closed: false }
 
     ## Every byte written to the stream, in order.
@@ -231,7 +231,7 @@ impl Disposable for ScriptedStream:
 ## A scripted TCP listener: it accepts its streams in order.
 ## See [std-net.scripted.decl](../../spec/std/net.md#r-std-net.scripted.decl).
 pub struct ScriptedListener:
-    connections: List[&mut ScriptedStream]
+    connections: List[*mut ScriptedStream]
     next: usize
     error: NetError?
     bound: Duration?
@@ -241,12 +241,12 @@ pub struct ScriptedListener:
 impl ScriptedListener:
     ## Returns a listener that accepts the streams of `connections` in order.
     ## See [std-net.scripted.new-ref](../../spec/std/net.md#r-std-net.scripted.new-ref).
-    pub fn new(connections: List[&mut ScriptedStream]) -> &mut ScriptedListener:
+    pub fn new(connections: List[*mut ScriptedStream]) -> *mut ScriptedListener:
         &mut ScriptedListener { connections: connections, next: 0, error: .None, bound: .None, address: .None, closed: false }
 
     ## Returns a listener that accepts the streams of `connections`, then fails every `accept!` with `error`.
     ## A test scripts an `accept!` that times out with `NetError.Timeout`.
-    pub fn failing(connections: List[&mut ScriptedStream], error: NetError) -> &mut ScriptedListener:
+    pub fn failing(connections: List[*mut ScriptedStream], error: NetError) -> *mut ScriptedListener:
         &mut ScriptedListener { connections: connections, next: 0, error: .Some(error), bound: .None, address: .None, closed: false }
 
     ## The timeout that `set_timeout` stored last, or `.None` before any call.
@@ -265,7 +265,7 @@ impl ScriptedListener:
         self.closed
 
 impl TcpListener for ScriptedListener:
-    fn accept!(&mut self) -> Result[&mut dyn TcpStream, NetError]:
+    fn accept!(&mut self) -> Result[*mut dyn TcpStream, NetError]:
         if self.closed:
             return .Err(.Closed)
         if self.next >= self.connections.len():
@@ -315,12 +315,12 @@ pub struct ScriptedUdp:
 impl ScriptedUdp:
     ## Returns a socket that receives the datagrams of `incoming` in order.
     ## See [std-net.scripted.new-ref](../../spec/std/net.md#r-std-net.scripted.new-ref).
-    pub fn new(incoming: List[Datagram]) -> &mut ScriptedUdp:
+    pub fn new(incoming: List[Datagram]) -> *mut ScriptedUdp:
         &mut ScriptedUdp { incoming: incoming, next: 0, error: .None, outgoing: [], bound: .None, address: .None, closed: false }
 
     ## Returns a socket that receives the datagrams of `incoming`, then fails every `receive!` with `error`; `send_to!` still works.
     ## A test scripts a `receive!` that times out with `NetError.Timeout`.
-    pub fn failing(incoming: List[Datagram], error: NetError) -> &mut ScriptedUdp:
+    pub fn failing(incoming: List[Datagram], error: NetError) -> *mut ScriptedUdp:
         &mut ScriptedUdp { incoming: incoming, next: 0, error: .Some(error), outgoing: [], bound: .None, address: .None, closed: false }
 
     ## The timeout that `set_timeout` stored last, or `.None` before any call.
@@ -388,7 +388,7 @@ impl Disposable for ScriptedUdp:
 
 # One entry of a connect queue: a stream to return or an error.
 enum ScriptedConnection:
-    Stream(stream: &mut ScriptedStream)
+    Stream(stream: *mut ScriptedStream)
     Failure(error: NetError)
 
 ## The deterministic `Net` provider: it answers from what the test added, records every call, and opens no socket.
@@ -396,14 +396,14 @@ enum ScriptedConnection:
 pub struct ScriptedNet:
     hosts: Map[string, List[string]]
     connections: Map[string, List[ScriptedConnection]]
-    listeners: Map[string, List[&mut ScriptedListener]]
-    sockets: Map[string, List[&mut ScriptedUdp]]
+    listeners: Map[string, List[*mut ScriptedListener]]
+    sockets: Map[string, List[*mut ScriptedUdp]]
     calls: List[string]
 
 impl ScriptedNet:
     ## Returns a provider with nothing scripted.
     ## See [std-net.scripted.new-ref](../../spec/std/net.md#r-std-net.scripted.new-ref).
-    pub fn new() -> &mut ScriptedNet:
+    pub fn new() -> *mut ScriptedNet:
         &mut ScriptedNet { hosts: {}, connections: {}, listeners: {}, sockets: {}, calls: [] }
 
     ## Answers each `lookup!(host)` with `addresses`.
@@ -413,7 +413,7 @@ impl ScriptedNet:
 
     ## Queues `stream` for one `connect!` of `address` (`host:port`).
     ## See [std-net.scripted.setup-ref](../../spec/std/net.md#r-std-net.scripted.setup-ref).
-    pub fn add_connection(&mut self, address: string, stream: &mut ScriptedStream) -> void:
+    pub fn add_connection(&mut self, address: string, stream: *mut ScriptedStream) -> void:
         self.queue_connection(address, .Stream(stream))
 
     ## Queues `error` for one `connect!` of `address` (`host:port`).
@@ -423,14 +423,14 @@ impl ScriptedNet:
 
     ## Queues `listener` for one `listen!` of `address` (`host:port`).
     ## See [std-net.scripted.setup-ref](../../spec/std/net.md#r-std-net.scripted.setup-ref).
-    pub fn add_listener(&mut self, address: string, listener: &mut ScriptedListener) -> void:
+    pub fn add_listener(&mut self, address: string, listener: *mut ScriptedListener) -> void:
         match self.listeners.get(address):
             .Some(_) => self.listeners[address].push(listener)
             .None => self.listeners[address] = [listener]
 
     ## Queues `socket` for one `bind_udp!` of `address` (`host:port`).
     ## See [std-net.scripted.setup-ref](../../spec/std/net.md#r-std-net.scripted.setup-ref).
-    pub fn add_udp(&mut self, address: string, socket: &mut ScriptedUdp) -> void:
+    pub fn add_udp(&mut self, address: string, socket: *mut ScriptedUdp) -> void:
         match self.sockets.get(address):
             .Some(_) => self.sockets[address].push(socket)
             .None => self.sockets[address] = [socket]
@@ -442,7 +442,7 @@ impl ScriptedNet:
 
     # One connect of `host:port`: it records the address and takes the next
     # entry of the address's queue (r-std-net.scripted.queue).
-    fn take_connection(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]:
+    fn take_connection(&mut self, host: string, port: u16) -> Result[*mut dyn TcpStream, NetError]:
         address := "${host}:${port}"
         self.calls.push(address)
         match self.connections.get(address):
@@ -464,17 +464,17 @@ impl Net for ScriptedNet:
             .Some(addresses) => .Ok(addresses)
             .None => .Err(.Dns(host))
 
-    fn connect!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]:
+    fn connect!(&mut self, host: string, port: u16) -> Result[*mut dyn TcpStream, NetError]:
         self.take_connection(host, port)
 
-    fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]:
+    fn listen!(&mut self, host: string, port: u16) -> Result[*mut dyn TcpListener, NetError]:
         address := "${host}:${port}"
         self.calls.push(address)
         match self.listeners.get(address):
             .Some(queue) if !queue.is_empty() => .Ok(self.listeners[address].remove_at(0))
             _ => .Err(.Refused(address))
 
-    fn bind_udp!(&mut self, host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError]:
+    fn bind_udp!(&mut self, host: string, port: u16) -> Result[*mut dyn UdpSocket, NetError]:
         address := "${host}:${port}"
         self.calls.push(address)
         match self.sockets.get(address):
@@ -483,27 +483,27 @@ impl Net for ScriptedNet:
 
 # Keep handwritten Debug: label bytes as written and omit pending read state.
 impl Debug for ScriptedStream:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         out.debug_struct("ScriptedStream").field("reads", self.reads).field("written", self.bytes).field("closed", self.closed).finish()
 
 # Keep handwritten Debug: omit consumed-connection bookkeeping.
 impl Debug for ScriptedListener:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         out.debug_struct("ScriptedListener").field("connections", self.connections).field("closed", self.closed).finish()
 
 # Keep handwritten Debug: label outgoing as sent and omit read bookkeeping.
 impl Debug for ScriptedUdp:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         out.debug_struct("ScriptedUdp").field("incoming", self.incoming).field("sent", self.outgoing).field("closed", self.closed).finish()
 
 # Keep handwritten Debug: keep positional payloads instead of declared named fields.
 impl Debug for ScriptedConnection:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         match self:
             .Stream(stream) => out.debug_tuple("ScriptedConnection.Stream").field(stream).finish()
             .Failure(error) => out.debug_tuple("ScriptedConnection.Failure").field(error).finish()
 
 # Keep handwritten Debug: label calls as requested and omit internal cursors.
 impl Debug for ScriptedNet:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         out.debug_struct("ScriptedNet").field("hosts", self.hosts).field("connections", self.connections).field("listeners", self.listeners).field("sockets", self.sockets).field("requested", self.calls).finish()

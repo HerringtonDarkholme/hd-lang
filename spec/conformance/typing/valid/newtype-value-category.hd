@@ -11,7 +11,7 @@ type Mile(i32)
 struct User:
     name: string
 
-type Owner(&User)
+type Owner(*User)
 
 fn use_both() -> void:
     _ := by_value(Mile(1))

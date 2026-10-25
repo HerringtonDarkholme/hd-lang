@@ -37,7 +37,7 @@ pub struct SeededRandom:
 impl SeededRandom:
     ## Returns the provider of `seed`; two providers of one seed answer the same.
     ## See [std-random.seeded.new-ref](../../spec/std/random.md#r-std-random.seeded.new-ref).
-    pub fn new(seed: u64) -> &mut SeededRandom:
+    pub fn new(seed: u64) -> *mut SeededRandom:
         let z: u64 = low32(seed ^ (seed >> 32))
         z = low32(z + 0x9E3779B9)
         a := mix32(z)
@@ -90,12 +90,12 @@ fn advanced(state: SeededRandom) -> SeededRandom:
 ## See [std-random.rng.decl-struct](../../spec/std/random.md#r-std-random.rng.decl-struct).
 @derive(Debug)
 pub struct Rng:
-    source: &mut SeededRandom
+    source: *mut SeededRandom
 
 impl Rng:
     ## Returns the generator of `seed`.
     ## See [std-random.rng.new-ref](../../spec/std/random.md#r-std-random.rng.new-ref).
-    pub fn new(seed: u64) -> &mut Rng:
+    pub fn new(seed: u64) -> *mut Rng:
         &mut Rng { source: SeededRandom::new(seed) }
 
     ## The next random `u64`.
@@ -201,7 +201,7 @@ impl Rng:
 # An `Rng` that one draw of the `Random` provider seeds (r-std-random.rng.from-random-ref).
 ## Returns a generator seeded from the `Random` provider that covers the call.
 ## See [std-random.rng.from-random-ref](../../spec/std/random.md#r-std-random.rng.from-random-ref).
-pub fn rng() -> &mut Rng $ Random:
+pub fn rng() -> *mut Rng $ Random:
     Rng::new($.use(Random).next_u64())
 
 fn low32(x: u64) -> u64:

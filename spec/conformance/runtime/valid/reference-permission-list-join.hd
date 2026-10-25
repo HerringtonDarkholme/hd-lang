@@ -3,7 +3,7 @@
 struct Point:
     x: i32
 
-fn total(points: List[&Point]) -> i32:
+fn total(points: List[*Point]) -> i32:
     let result = +0
     for p in points:
         result += p.x
@@ -29,7 +29,7 @@ tests:
         b := Point { x: 2 }
         p := &mut a
         q := &b
-        let maybe: (&Point)? = .Some(q)
+        let maybe: (*Point)? = .Some(q)
         points := [p, maybe]
         reversed := [maybe, p]
         first := match points[0]:

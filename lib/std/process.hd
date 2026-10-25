@@ -110,37 +110,37 @@ pub trait Process:
 impl Command:
     ## Returns a command for `program` with no arguments, no environment, the program's own directory, and no standard input.
     ## See [std-process.command.new-ref](../../spec/std/process.md#r-std-process.command.new-ref).
-    pub fn new(program: string) -> &mut Command:
+    pub fn new(program: string) -> *mut Command:
         &mut Command { program: program }
 
     ## Appends one argument and returns the command, so calls chain.
     ## See [std-process.command.arg-ref](../../spec/std/process.md#r-std-process.command.arg-ref).
-    pub fn arg(&mut self, value: string) -> &mut Command:
+    pub fn arg(*mut self, value: string) -> *mut Command:
         self.args.push(value)
         self
 
     ## Appends each of `values` as its own argument and returns the command.
     ## See [std-process.command.args-ref](../../spec/std/process.md#r-std-process.command.args-ref).
-    pub fn args(&mut self, values: List[string]) -> &mut Command:
+    pub fn args(*mut self, values: List[string]) -> *mut Command:
         for value in values:
             self.args.push(value)
         self
 
     ## Appends one environment pair and returns the command.
     ## See [std-process.command.env-ref](../../spec/std/process.md#r-std-process.command.env-ref).
-    pub fn env(&mut self, name: string, value: string) -> &mut Command:
+    pub fn env(*mut self, name: string, value: string) -> *mut Command:
         self.env.push((name, value))
         self
 
     ## Sets the directory the child starts in and returns the command.
     ## See [std-process.command.current-dir-ref](../../spec/std/process.md#r-std-process.command.current-dir-ref).
-    pub fn current_dir(&mut self, dir: Path) -> &mut Command:
+    pub fn current_dir(*mut self, dir: Path) -> *mut Command:
         self.current_dir = .Some(dir)
         self
 
     ## Sets the text written to the child's standard input and returns the command.
     ## See [std-process.command.stdin-ref](../../spec/std/process.md#r-std-process.command.stdin-ref).
-    pub fn stdin(&mut self, text: string) -> &mut Command:
+    pub fn stdin(*mut self, text: string) -> *mut Command:
         self.stdin = text
         self
 
@@ -169,7 +169,7 @@ impl ScriptedProcess:
     # A provider that has no answer yet (r-std-process.scripted.empty-ref).
     ## Returns a provider with no replies and no recorded commands.
     ## See [std-process.scripted.empty-ref](../../spec/std/process.md#r-std-process.scripted.empty-ref).
-    pub fn new() -> &mut ScriptedProcess:
+    pub fn new() -> *mut ScriptedProcess:
         &mut ScriptedProcess { answers: {}, served: {}, seen: [] }
 
     # Queues one answer for `program` (r-std-process.scripted.reply-ref).
@@ -208,10 +208,10 @@ impl Process for ScriptedProcess:
 
 # Keep handwritten Debug: keep the ExitCode wrapper; derived Debug delegates to u8.
 impl Debug for ExitCode:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         out.debug_tuple("ExitCode").field(u8(self)).finish()
 
 # Keep handwritten Debug: show seen requests and omit queued results.
 impl Debug for ScriptedProcess:
-    fn debug(self, out: &mut DebugWriter) -> void:
+    fn debug(self, out: *mut DebugWriter) -> void:
         out.debug_struct("ScriptedProcess").field("seen", self.seen).finish()

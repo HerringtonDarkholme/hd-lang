@@ -12,9 +12,9 @@ use std.task.{all, race}
 use std.time.{Clock, s, sleep}
 
 struct Channel:
-    socket: &mut ScriptedStream
+    socket: *mut ScriptedStream
     acked: mut Suspend[void]
-    log: &mut List[string]
+    log: *mut List[string]
 
 impl Disposable for Channel:
     fn dispose!(&mut self) -> void:
@@ -25,7 +25,7 @@ impl Disposable for Channel:
         wait!()
         self.log.push("ack received")
 
-fn serve!(socket: &mut ScriptedStream, log: &mut List[string]) -> string $ Clock:
+fn serve!(socket: *mut ScriptedStream, log: *mut List[string]) -> string $ Clock:
     using channel = &mut Channel { socket: socket, acked: sleep(s(60)), log: log }
     sleep!(s(60))
     "late"

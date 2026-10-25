@@ -91,12 +91,12 @@ impl[T < Hash] Hash for T?:
                 value.hash(state)
 
 # Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
-impl[T < Hash] Hash for &T:
+impl[T < Hash] Hash for *T:
     fn hash(self, state: &mut dyn Hasher) -> void:
         (*self).hash(state)
 
 # Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
-impl[T < Hash] Hash for &mut T:
+impl[T < Hash] Hash for *mut T:
     fn hash(self, state: &mut dyn Hasher) -> void:
         (*self).hash(state)
 
@@ -199,7 +199,7 @@ impl DefaultHasher:
     # `finish` then reads (r-std-hash.default.new-ref).
     ## Returns a fresh hasher, a new object that `value.hash` and `finish` share.
     ## See [std-hash.default.new-ref](../../spec/std/hash.md#r-std-hash.default.new-ref).
-    pub fn new() -> &mut DefaultHasher:
+    pub fn new() -> *mut DefaultHasher:
         &mut DefaultHasher { state: 14695981039346656037 }
 
     # The state, unchanged (r-std-hash.default.finish).
@@ -290,14 +290,14 @@ pub fn hash_of[T < Hash](value: T) -> u64:
 # Derived `Hash` (spec/std/hash.md#derived-hashing): an enum's variant index
 # as a `u32`, then each member in declaration order.
 impl[T] Hash for T by Structure:
-    fn hash(self, state: &mut dyn Hasher) -> void:
+    fn hash(self, state: *mut dyn Hasher) -> void:
         let mut w = HashWalker::[T] { state: state }
         _ := Structure::walk(self, &mut w)
 
 # The field is public because the prototype checks the instantiated walker
 # in the deriving module.
 struct HashWalker[S]:
-    pub state: &mut dyn Hasher
+    pub state: *mut dyn Hasher
 
 impl[S] Walker[S] for HashWalker[S]:
     type Error = never
@@ -320,7 +320,7 @@ impl[S] Walker[S] for HashWalker[S]:
 # every size. A rest element hashes as its `List`, so a rest tuple is
 # hashable when its rest's items are (r-std-hash.tuple.rest-list).
 impl[T < Tuple] Hash for T by Structure:
-    fn hash(self, state: &mut dyn Hasher) -> void:
+    fn hash(self, state: *mut dyn Hasher) -> void:
         let mut w = HashWalker::[T] { state: state }
         _ := Structure::walk(self, &mut w)
 

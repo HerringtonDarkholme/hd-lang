@@ -15,7 +15,7 @@ struct User:
     name: string
 
 struct Team:
-    lead: &mut User
+    lead: *mut User
     size: i32
 
 fn describe(t: &Team) -> string:
@@ -24,7 +24,7 @@ fn describe(t: &Team) -> string:
 fn rename(t: &mut Team, name: string) -> void:
     t.lead.name = name
 
-fn maybe(u: &User?) -> string:
+fn maybe(u: *User?) -> string:
     match u:
         .Some(found) => found.name
         .None => "none"

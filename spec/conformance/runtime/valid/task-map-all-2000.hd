@@ -15,7 +15,7 @@ fn work!(gauge: &mut Gauge, item: usize) -> usize $ Clock:
     sleep!(60s)
     item
 
-fn batch!(gauge: &mut Gauge, items: List[usize]) -> List[usize] $ Clock:
+fn batch!(gauge: *mut Gauge, items: List[usize]) -> List[usize] $ Clock:
     map_all!(items, items.len(), fn!(item: usize) -> usize $ Clock: work!(gauge, item))
 
 pub fn main!() -> void $ Console + Clock:

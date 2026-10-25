@@ -170,7 +170,7 @@ tests:
 ```
 
 1. r[std-console.buffer.decl] `std.console` declares `MemoryConsole`, which implements `Console` and `Debug`, with private fields. Code imports it, as in `use std.console.MemoryConsole`.
-2. r[std-console.buffer.install-ref] `MemoryConsole::new() -> &mut MemoryConsole` returns a new object holding a console that has recorded nothing. `MemoryConsole` is a struct used behind that reference, and it implements `Console`'s `&mut self` methods. So installing it as `Console=console` shares the object, by [`req.ref.install-ref`](../lang/11-requirements-and-suspension.md#r-req.ref.install-ref), and the code that installed it reads what was written.
+2. r[std-console.buffer.install-ref] `MemoryConsole::new() -> *mut MemoryConsole` returns a new object holding a console that has recorded nothing. `MemoryConsole` is a struct used behind that reference, and it implements `Console`'s `&mut self` methods. So installing it as `Console=console` shares the object, by [`req.ref.install-ref`](../lang/11-requirements-and-suspension.md#r-req.ref.install-ref), and the code that installed it reads what was written.
 3. r[std-console.buffer.output-text] `c.output() -> List[string]` returns each `write!` text unchanged, in call order, including any newline supplied by the caller.
 4. r[std-console.buffer.error-text] `c.error_output() -> List[string]` returns each `write_error!` text unchanged, in call order, including any newline supplied by the caller. `MemoryConsole` overrides `write_error!`, so error lines are not in `output()`.
 5. r[std-console.buffer.never-fails] Every write returns `.Ok(())`.
@@ -199,7 +199,7 @@ tests:
 ```
 
 1. r[std-console.scripted.decl] `std.console` declares `ScriptedInput`, which implements `ConsoleInput` and `Debug`, with private fields. Code imports it, as in `use std.console.ScriptedInput`.
-2. r[std-console.scripted.new-ref] `ScriptedInput::new(lines: List[string]) -> &mut ScriptedInput` returns a new object holding a provider that has read none of `lines`. Installing it shares the object, so later reads continue where earlier ones stopped.
+2. r[std-console.scripted.new-ref] `ScriptedInput::new(lines: List[string]) -> *mut ScriptedInput` returns a new object holding a provider that has read none of `lines`. Installing it shares the object, so later reads continue where earlier ones stopped.
 3. r[std-console.scripted.read] Each `read_line!` returns `.Ok(.Some(line))` for the next unread line, in order.
 4. r[std-console.scripted.end] Once every line is read, `read_line!` returns `.Ok(.None)`, on every later call too.
 5. r[std-console.scripted.read-all] `ScriptedInput` overrides `read_all!`: it returns each unread line followed by `\n`, then has read every line. A scripted line has no ending of its own, so this is the text a host gives for input whose every line ends.

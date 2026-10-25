@@ -7,7 +7,7 @@ enum Maybe[T]:
 
 enum Tree[T]:
     Leaf(value: T)
-    Branch(left: &Tree[T], right: &Tree[T])
+    Branch(left: *Tree[T], right: *Tree[T])
 
 fn keep[T](value: Maybe[T]) -> Maybe[T]: value
 

@@ -154,7 +154,7 @@ fn labels[T < Named](items: List[T]) -> List[string]:
     items.map(fn(item: T) -> string: item.label())
 
 pub fn main() -> void $ Console:
-    let items: List[&mut dyn Named] = [&mut Item { n: 1 }]
+    let items: List[*mut dyn Named] = [&mut Item { n: 1 }]
     println(labels(items)[0])
     println(items.map(Named::label)[0])
     let greet: fn(&dyn Named, string) -> string = Named::greet
@@ -167,7 +167,7 @@ pub fn main() -> void $ Console:
     let mutable: &mut dyn Named = &mut Item { n: 5 }
     rename(mutable, 9)
     println(mutable.label())
-    let shared: &dyn Named = &Item { n: 9 }
+    let shared: *dyn Named = &Item { n: 9 }
     let bound = shared::label
     println(bound())
     let pick: fn(&dyn Named, i32) -> i32 = Named::pick

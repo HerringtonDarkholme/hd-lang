@@ -2,7 +2,7 @@
 # Spec std/cli Typed Values: std-cli.parsed.value-as, std-cli.value-as.absent, std-cli.value-as.present, std-cli.value-as.invalid, std-cli.value-as.display, std-cli.error.required-argument, std-text.parse.never-traits (task #372).
 use std.cli.{Arg, ArgParser, CliError, Parsed}
 
-fn tool() -> &mut ArgParser:
+fn tool() -> *mut ArgParser:
     ArgParser::new("tail").arg(Arg { name: "max", kind: .Option, short: 'm', help: "lines to show" }).arg(Arg { name: "name", kind: .Option, short: 'n', help: "a label" }).arg(Arg { name: "on", kind: .Option, short: 'o', help: "a switch" })
 
 fn parsed_from(arguments: List[string]) -> Parsed:

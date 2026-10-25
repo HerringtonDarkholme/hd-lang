@@ -5,7 +5,7 @@ trait Animal:
 trait Cat:
     fn meow(self) -> string
 
-fn widen(items: List[&dyn Dog]) -> List[&dyn Cat]:
+fn widen(items: List[*dyn Dog]) -> List[*dyn Cat]:
     items  # diagnostic: type-mismatch
 
 trait Dog:

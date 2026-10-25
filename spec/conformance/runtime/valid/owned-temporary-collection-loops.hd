@@ -8,7 +8,7 @@ fn words() -> List[string]: ["first", "second"]
 
 fn returned(values: List[i32]) -> List[i32]: values
 
-fn shared(values: &mut List[i32]) -> &mut List[i32]: values
+fn shared(values: *mut List[i32]) -> *mut List[i32]: values
 
 fn referenced(values: &mut List[i32]) -> i32:
     let total = +0

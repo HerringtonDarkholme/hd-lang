@@ -38,7 +38,7 @@ fn read_tag() -> string $ Tag:
 fn read_tag_later!() -> string $ Tag:
     $.use(Tag).name()
 
-fn runner() -> &dyn Runner:
+fn runner() -> *dyn Runner:
     &Plain {}
 
 fn later!() -> string $ Tag:

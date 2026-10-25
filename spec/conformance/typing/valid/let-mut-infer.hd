@@ -2,7 +2,7 @@
 struct User:
     name: string
 
-fn fresh() -> &mut User:
+fn fresh() -> *mut User:
     &mut User { name: "Lin" }
 
 fn edit(user: &User) -> string:

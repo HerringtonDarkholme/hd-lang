@@ -259,7 +259,7 @@ The standard library declares one prefix, in `std.text`:
 
 | Rule | Declaration | Meaning |
 | --- | --- | --- |
-| r[std-text.prefix.std.r.reference-values] Raw text | `@str_prefix pub fn r(t: Template[&dyn Display]) -> string` | the pieces joined with the values' `Display` text, with no escape processed |
+| r[std-text.prefix.std.r.reference-values] Raw text | `@str_prefix pub fn r(t: Template[*dyn Display]) -> string` | the pieces joined with the values' `Display` text, with no escape processed |
 
 1. r[std-text.prefix.std.r-meaning] So `r"\d+ $n"` is the text `\d+ ` followed by the `Display` text of `n`, and `r"a\"b"` keeps its backslash.
 2. r[std-text.prefix.std.only-r] `r` is the only standard prefix. `std` declares no `b`, so `b"..."` names nothing until a bytes type exists.
@@ -340,9 +340,9 @@ fn report(names: List[string]) -> string:
 1. r[std-text.join.list-method] `std.text` gives `List[string]` the method `join(self, separator: string) -> string`. Calling it needs no import.
 2. r[std-text.join.list-result] `join` returns the parts in order with `separator` between each two, so one part gives that part and no part gives `""`.
 3. r[std-text.builder.decl-struct] `std.text` declares the struct `StringBuilder`, with private fields, which implements `Debug`. Code imports it, as in `use std.text.StringBuilder`.
-4. r[std-text.builder.new-ref] `StringBuilder::new() -> &mut StringBuilder` returns an empty builder, a new object. Every copy of the reference pushes to that one builder.
-5. r[std-text.builder.push-ref] `b.push(text: string) -> &mut StringBuilder` appends `text` and returns `b`, so calls chain; it takes `&mut self`. A statement may discard the result, since `StringBuilder` is not a must-use type ([Must-Use Values](../lang/06-control-flow.md#must-use-values)).
-6. r[std-text.builder.push-char-ref] `b.push_char(c: char) -> &mut StringBuilder` appends the UTF-8 encoding of `c`, one to four bytes, as `push` of the one-character string would, and returns `b`. It takes `&mut self`.
+4. r[std-text.builder.new-ref] `StringBuilder::new() -> *mut StringBuilder` returns an empty builder, a new object. Every copy of the reference pushes to that one builder.
+5. r[std-text.builder.push-ref] `b.push(text: string) -> *mut StringBuilder` appends `text` and returns `b`, so calls chain; it takes `*mut self`. A statement may discard the result, since `StringBuilder` is not a must-use type ([Must-Use Values](../lang/06-control-flow.md#must-use-values)).
+6. r[std-text.builder.push-char-ref] `b.push_char(c: char) -> *mut StringBuilder` appends the UTF-8 encoding of `c`, one to four bytes, as `push` of the one-character string would, and returns `b`. It takes `*mut self`.
 7. r[std-text.builder.build] `b.build() -> string` returns every pushed text in push order, joined with nothing between. It leaves the builder unchanged.
 
 > **Why.** The method is Rust's `[String].join(sep)`, and agents wrote it

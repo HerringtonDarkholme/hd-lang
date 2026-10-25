@@ -7,7 +7,7 @@ use std.cmp.{DeepEq, deep_equal}
 @derive(DeepEq)
 enum Tree:
     Leaf(value: i32)
-    Pair(left: &Tree, right: &Tree)
+    Pair(left: *Tree, right: *Tree)
 
 pub fn main() -> void $ Console:
     a := [Tree.Leaf(+1), Tree.Pair(&Tree.Leaf(+2), &Tree.Leaf(+3))]

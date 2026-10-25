@@ -30,7 +30,7 @@ pub fn main() -> void $ Console:
     let named: &dyn Named = shape
     let again: &dyn Named = &sq
     println("${named.name()} ${named is again}")
-    let maybe: &dyn Shape? = &sq
+    let maybe: *dyn Shape? = &sq
     sq.side = 3.0
     match maybe:
         .Some(s) => println("${s.area()}")

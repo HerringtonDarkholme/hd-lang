@@ -13,15 +13,15 @@ enum Index:
 
 @derive(Arbitrary, Debug)
 enum Chain:
-    Link(next: &Chain?)
+    Link(next: *Chain?)
 
 @derive(Arbitrary, Debug)
 enum Pairing:
-    Both(pair: (i32, &Pairing?))
+    Both(pair: (i32, *Pairing?))
 
 @derive(Arbitrary, Debug)
 enum Outcome:
-    Done(result: Result[i32, &Outcome])
+    Done(result: Result[i32, *Outcome])
 
 tests:
     it_prop("a list member ends a tree", cases=10, prop=fn!(tree: Tree):

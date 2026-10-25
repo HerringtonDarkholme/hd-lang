@@ -5,9 +5,9 @@
 use std.process.ExitCode
 use std.error.Error
 
-fn count_changes() -> Result[i32, &dyn Error]:
+fn count_changes() -> Result[i32, *dyn Error]:
     .Ok(3)
 
-pub fn main() -> Result[ExitCode, &dyn Error]:
+pub fn main() -> Result[ExitCode, *dyn Error]:
     changes := count_changes()?
     if changes > 0: .Ok(ExitCode(1)) else: .Ok(ExitCode(0))

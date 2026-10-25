@@ -5,7 +5,7 @@ struct User:
 fn rename(user: &mut User) -> void:
     user.name = "Grace"
 
-fn new_mutable_user() -> &mut User:
+fn new_mutable_user() -> *mut User:
     &mut User { name: "Ada" }
 
 fn valid() -> void:

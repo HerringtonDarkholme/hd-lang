@@ -6,7 +6,7 @@ trait Entity < AnyRef
 struct User:
     name: string
 
-type Owner(&User)
+type Owner(*User)
 
 impl Entity for Owner
 

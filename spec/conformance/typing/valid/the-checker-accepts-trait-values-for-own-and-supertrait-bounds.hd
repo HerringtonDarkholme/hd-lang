@@ -46,5 +46,5 @@ pub fn main() -> void:
     _ := label(channel)
     let shown: &dyn Display = &Pager { number: 7 }
     _ := label(shown)
-    let all: List[&dyn Channel] = [&Email { address: "a@example.com" }, &Pager { number: 1 }]
+    let all: List[*dyn Channel] = [&Email { address: "a@example.com" }, &Pager { number: 1 }]
     _ := broadcast(all, "up")

@@ -17,7 +17,7 @@ BOUND := 32
 
 struct Stop:
     name: string
-    next: &mut Stop?
+    next: *mut Stop?
 
 fn ring(round: i32) -> i32:
     first := &mut Stop { name: "first $round", next: .None }
@@ -85,9 +85,9 @@ fn directory_total(dir: Dir) -> i32:
 
 struct ListRing:
     value: i32
-    next: List[&mut ListRing]
+    next: List[*mut ListRing]
 
-fn list_count(xs: List[&mut ListRing]) -> usize:
+fn list_count(xs: List[*mut ListRing]) -> usize:
     xs.len()
 
 fn copied_list_ring(n: i32) -> i32:

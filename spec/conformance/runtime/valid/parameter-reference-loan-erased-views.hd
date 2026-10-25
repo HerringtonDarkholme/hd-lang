@@ -3,7 +3,7 @@
 use std.testing.assert_equal
 
 struct Holder[T]:
-    item: &mut T
+    item: *mut T
 
 trait Factory:
     fn hold[T](self, value: T) -> Holder[T]:

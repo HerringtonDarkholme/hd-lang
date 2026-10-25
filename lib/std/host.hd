@@ -66,7 +66,7 @@ pub fn env_decode[T < Deserialize]() -> Result[T, HostError] $ Env:
 # or a comma-separated list for each member. The default Deserialize source
 # supplies declared defaults after is_absent reports an unset variable.
 struct EnvReader:
-    vars: &dyn Env
+    vars: *dyn Env
     record: bool = false
     positioned: bool = false
     name: string = ""

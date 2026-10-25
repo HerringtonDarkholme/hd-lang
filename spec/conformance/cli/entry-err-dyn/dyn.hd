@@ -11,7 +11,7 @@ impl Error for Usage
 fn parse() -> Result[void, Usage]:
     .Err(Usage { text: "bad flag" })
 
-pub fn main() -> Result[void, &dyn Error] $ Console:
+pub fn main() -> Result[void, *dyn Error] $ Console:
     println("starting")
     parse()?
     .Ok(())

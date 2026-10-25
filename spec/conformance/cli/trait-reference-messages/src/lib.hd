@@ -11,17 +11,17 @@ trait Sampler[T]:
 struct Reading:
     value: i32
 
-fn upgrade(gauge: &dyn Gauge) -> &mut dyn Gauge:
+fn upgrade(gauge: *dyn Gauge) -> *mut dyn Gauge:
     gauge
 
-fn generic_upgrade(sampler: &dyn Sampler[i32]) -> &mut dyn Sampler[i32]:
+fn generic_upgrade(sampler: *dyn Sampler[i32]) -> *mut dyn Sampler[i32]:
     sampler
 
-fn nested(gauges: List[&dyn Gauge]) -> List[&mut dyn Gauge]:
+fn nested(gauges: List[*dyn Gauge]) -> List[*mut dyn Gauge]:
     gauges
 
-fn concrete(reading: &Reading) -> &mut Reading:
+fn concrete(reading: *Reading) -> *mut Reading:
     reading
 
-fn qualified(gauge: &dyn left.Gauge) -> &dyn right.Gauge:
+fn qualified(gauge: *dyn left.Gauge) -> *dyn right.Gauge:
     gauge

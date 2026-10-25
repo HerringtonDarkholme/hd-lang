@@ -2,7 +2,7 @@
 # Spec 06 Element Reference Loops: flow.for.ref.binding; Spec 13: ref.elem.callee-copy.declared.
 fn demo() -> usize:
     scores := [+1, 2]
-    let mut kept: List[&i32] = []
+    let mut kept: List[*i32] = []
     for score in &scores:
         kept.push(score)  # diagnostic: element-reference-outlives-call
     kept.len()

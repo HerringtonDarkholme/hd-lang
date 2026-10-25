@@ -268,7 +268,7 @@ tests:
 ```
 
 1. r[std-fs.memory.decl] `std.fs` declares `MemoryFs`, which implements `FsRead` and `FsWrite`, with private fields. Code imports it, as in `use std.fs.MemoryFs`.
-2. r[std-fs.memory.new-ref] `MemoryFs::new() -> &mut MemoryFs` returns a new object holding a file system with no files and no directories. `MemoryFs` is a struct used behind that reference: installing it as `FsRead=files, FsWrite=files` makes both providers refer to the one object, so a test reads back through `files` what the code under test wrote.
+2. r[std-fs.memory.new-ref] `MemoryFs::new() -> *mut MemoryFs` returns a new object holding a file system with no files and no directories. `MemoryFs` is a struct used behind that reference: installing it as `FsRead=files, FsWrite=files` makes both providers refer to the one object, so a test reads back through `files` what the code under test wrote.
 3. r[std-fs.memory.normalized-keys] Every `MemoryFs` operation drops empty and `.` components from its path keys, so `./a.txt` and `a.txt` name one entry.
 4. r[std-fs.memory.rooted-keys] A normalized key keeps a leading `/` when the supplied path starts with `/`.
 5. r[std-fs.memory.literal-parent] Normalization leaves `..` components unchanged, without resolving parent directories.

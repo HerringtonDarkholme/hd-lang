@@ -5,13 +5,13 @@ struct User:
     name: string
 
 struct Inner:
-    lead: &mut User
+    lead: *mut User
 
 struct Outer:
     inner: Inner
     hook: fn() -> void
 
-fn first(items: List[&User]) -> &User?:
+fn first(items: List[*User]) -> *User?:
     if items.len() > 0:
         .Some(items[0])
     else:

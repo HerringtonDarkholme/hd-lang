@@ -37,7 +37,7 @@ fn negated(a: &User, b: &User) -> bool:
 fn mixed_refs(a: &User, b: &mut User) -> bool:
     a is b
 
-fn inner(a: &Box[&mut User], b: &Box[&User]) -> bool:
+fn inner(a: &Box[*mut User], b: &Box[*User]) -> bool:
     b.item is a.item
 
 fn same_trait(a: &dyn Named, b: &dyn Named) -> bool:

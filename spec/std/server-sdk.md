@@ -28,7 +28,7 @@ These names are also re-exported from the package's root module.
 4. r[std-server-sdk.respond-decl] Its `respond!(&mut self, id: RequestId, response: Response)` method returns `Result[void, ServerError]`.
 5. r[std-server-sdk.cancelled-decl] Its `cancelled!(&mut self, id: RequestId)` method returns `CancelReason`.
 6. r[std-server-sdk.cancelled-wait] `cancelled!` waits until that request's source reports a cancellation reason.
-7. r[std-server-sdk.clock-decl] Its `clock(&mut self, id: RequestId)` method returns a lease-owned `&mut dyn std.time.Clock`.
+7. r[std-server-sdk.clock-decl] Its `clock(&mut self, id: RequestId)` method returns a lease-owned `*mut dyn std.time.Clock`.
 8. r[std-server-sdk.finish-decl] Its `finish(&mut self, id: RequestId, abandoned: bool)` method returns void.
 9. r[std-server-sdk.finish-lifetime] `finish` acknowledges that the worker has finished or abandoned cleanup and no longer needs the lease.
 10. r[std-server-sdk.finish-abandoned] Its `abandoned` argument reports whether cleanup was cut short.
@@ -40,7 +40,7 @@ These names are also re-exported from the package's root module.
 
 ## Serving
 
-1. r[std-server-sdk.serve-decl] The SDK declares `serve![S, $R](workers: usize, state: &mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R + HttpServer`.
+1. r[std-server-sdk.serve-decl] The SDK declares `serve![S, $R](workers: usize, state: *mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R + HttpServer`.
 2. r[std-server-sdk.serve-width] The worker count is `workers`, or one when `workers` is zero.
 3. r[std-server-sdk.serve-lease-loop] Each worker repeatedly accepts one request and runs a job-local race between its handler and the source's cancellation signal.
 4. r[std-server-sdk.serve-state] Every handler receives the same explicit state reference.

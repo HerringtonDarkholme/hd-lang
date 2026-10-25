@@ -12,7 +12,7 @@ fn note(log: &mut Log, tag: string, value: i32) -> i32:
     log.text = log.text + tag
     value
 
-fn source(log: &mut Log, value: &Record) -> &Record:
+fn source(log: &mut Log, value: *Record) -> *Record:
     log.text = log.text + "s"
     value
 

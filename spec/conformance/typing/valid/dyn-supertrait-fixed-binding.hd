@@ -9,11 +9,11 @@ trait Super:
 trait Sub < Super[Item = i32]:
     fn name(self) -> string
 
-fn widen(value: &dyn Sub) -> &dyn Sub[Item = i32]:
+fn widen(value: *dyn Sub) -> *dyn Sub[Item = i32]:
     value
 
-fn narrow(value: &dyn Sub[Item = i32]) -> &dyn Sub:
+fn narrow(value: *dyn Sub[Item = i32]) -> *dyn Sub:
     value
 
-fn read(value: &dyn Sub) -> i32:
+fn read(value: *dyn Sub) -> i32:
     narrow(widen(value)).get()

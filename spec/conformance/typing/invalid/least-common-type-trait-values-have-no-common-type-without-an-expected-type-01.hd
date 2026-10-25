@@ -17,5 +17,5 @@ trait Shown < Named:
 trait Tagged < Named:
     fn tag(self) -> string
 
-fn f(u: User, d: &dyn Display) -> void:
+fn f(u: User, d: *dyn Display) -> void:
     _v := [d, u] # diagnostic: no-common-type

@@ -15,7 +15,7 @@ fn wait!() -> void $ Clock:
 
 struct DelayedHttp:
     wait: mut Suspend[void]
-    attempts: &mut List[usize]
+    attempts: *mut List[usize]
 
 impl Http for DelayedHttp:
     fn send!(&mut self, request: Request) -> Result[Response, HttpError]:

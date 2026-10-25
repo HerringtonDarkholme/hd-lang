@@ -8,5 +8,5 @@ impl Counter:
         self.value = self.value + by
 
 # subject
-fn bumper(counter: &mut Counter) -> fn(i32) -> void:
+fn bumper(counter: *mut Counter) -> fn(i32) -> void:
     counter::bump

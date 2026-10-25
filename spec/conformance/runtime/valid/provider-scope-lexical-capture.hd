@@ -22,11 +22,11 @@ fn at_noon[$R](callback: fn() -> i32 $ R + Clock) -> i32 $ R:
 
 fn lexical() -> i32:
     $.with(Clock=Fixed { hour: 9 }):
-        clock := $.use(Clock)
+        let clock: *dyn Clock = $.use(Clock)
         at_noon(fn(): clock.now())
 
 fn make_reader() -> fn() -> i32 $ Clock:
-    clock := $.use(Clock)
+    let clock: *dyn Clock = $.use(Clock)
     fn() -> i32: clock.now()
 
 pub fn main() -> void $ Console:

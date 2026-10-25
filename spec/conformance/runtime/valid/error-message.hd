@@ -2,12 +2,12 @@
 # Spec std/error One-Off Errors: std-error.message.display, std-error.message.source, std-error.message.reference-result; std/option Optional Context: std-option.context.some, std-option.context.none-reference.
 use std.error.{Error, message, report_of}
 
-fn parse_port(text: string) -> Result[i32, &dyn Error]:
+fn parse_port(text: string) -> Result[i32, *dyn Error]:
     if text == "":
         return .Err(message("empty port"))
     .Ok(80)
 
-fn first_word(words: List[string]) -> Result[string, &dyn Error]:
+fn first_word(words: List[string]) -> Result[string, *dyn Error]:
     word := words.first().context("no words")?
     .Ok(word)
 

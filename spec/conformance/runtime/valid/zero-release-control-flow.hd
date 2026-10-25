@@ -4,10 +4,10 @@
 
 struct Tree:
     word: string
-    left: (&Tree)?
-    right: (&Tree)?
+    left: (*Tree)?
+    right: (*Tree)?
 
-fn tree(depth: i32, word: string) -> &Tree:
+fn tree(depth: i32, word: string) -> *Tree:
     if depth == 0:
         &Tree { word: word, left: .None, right: .None }
     else:

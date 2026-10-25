@@ -63,7 +63,7 @@ fn adder(a: i32) -> fn(i32) -> fn(i32) -> i32:
 
 fn halves(pair: (i32, string)) -> (string, i32): (pair._1, pair._0 / 2)
 
-fn show(value: &dyn Display?) -> string:
+fn show(value: *dyn Display?) -> string:
     match value:
         .Some(shown) => "shown: ${shown}"
         .None => "nothing"

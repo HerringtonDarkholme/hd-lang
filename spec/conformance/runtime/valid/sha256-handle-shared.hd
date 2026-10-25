@@ -4,7 +4,7 @@
 # expect-stdout: true
 use std.digest.{Sha256, sha256}
 
-fn feed(hasher: &mut Sha256, bytes: List[u8]) -> void:
+fn feed(hasher: *mut Sha256, bytes: List[u8]) -> void:
     _ := hasher.update(bytes)
 
 pub fn main() -> void $ Console:

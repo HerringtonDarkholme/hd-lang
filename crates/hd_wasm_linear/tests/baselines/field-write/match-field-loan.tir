@@ -4,7 +4,7 @@
 # caller-owned node for the match span, without retain/release pairs.
 struct Node:
     value: i64
-    left: (&Node)?
+    left: (*Node)?
 
 fn value(node: &Node) -> i64:
     alias := node

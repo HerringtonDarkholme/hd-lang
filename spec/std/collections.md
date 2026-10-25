@@ -47,7 +47,7 @@ fn joined(first: List[i32], second: List[i32]) -> List[i32]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `view(&self, start: usize, end: usize) -> ListView[T]`; `chunks(&self, size: usize) -> List[ListView[T]]` |
+| `List[T]` | `view(*self, start: usize, end: usize) -> ListView[T]`; `chunks(*self, size: usize) -> List[ListView[T]]` |
 
 1. r[std-collections.list.chunks.views] `chunks(size)` returns consecutive read-only `ListView[T]` values in order; only the last view may be shorter than `size`.
 2. r[std-collections.list.chunks.size] A `size` below 1 panics. Panic: `explicit-panic`.
@@ -57,7 +57,7 @@ fn joined(first: List[i32], second: List[i32]) -> List[i32]:
 ```text
 use std.collections.ListView
 
-fn pairs(items: &List[i32]) -> List[ListView[i32]]:
+fn pairs(items: *List[i32]) -> List[ListView[i32]]:
     items.chunks(2)  # views of [1, 2] and [3] for [1, 2, 3]
 ```
 
@@ -121,7 +121,7 @@ fn invalid(mut view: ListView[i32]) -> void:
 ```
 
 ```text
-fn stale(items: &mut List[i32]) -> usize:
+fn stale(items: *mut List[i32]) -> usize:
     window := items.view(0, 2)
     items.push(4)
     window.len()  # panics with iterator-invalidated
@@ -156,7 +156,7 @@ fn by_owner(tasks: List[Task]) -> Map[string, List[Task]]:
 fn has_long(tasks: List[Task]) -> bool:
     tasks.any(fn(task: Task) -> bool: task.hours > 8)
 
-fn steps(readings: &List[i32]) -> List[ListView[i32]]:
+fn steps(readings: *List[i32]) -> List[ListView[i32]]:
     readings.windows(2)  # views of [1, 4] and [4, 9] for [1, 4, 9]
 
 fn shortest(tasks: List[Task]) -> Task?:
@@ -168,7 +168,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]`; `group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]`; `partition(self, keep: fn(T) -> bool) -> (List[T], List[T])`; `any(self, test: fn(T) -> bool) -> bool`; `all(self, test: fn(T) -> bool) -> bool`; `find(self, test: fn(T) -> bool) -> T?`; `flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]`; `windows(&self, size: usize) -> List[ListView[T]]` |
+| `List[T]` | `sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]`; `group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]`; `partition(self, keep: fn(T) -> bool) -> (List[T], List[T])`; `any(self, test: fn(T) -> bool) -> bool`; `all(self, test: fn(T) -> bool) -> bool`; `find(self, test: fn(T) -> bool) -> T?`; `flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]`; `windows(*self, size: usize) -> List[ListView[T]]` |
 | `List[T]` | `min_by_key[K < Ord](self, key: fn(T) -> K) -> T?`; `max_by_key[K < Ord](self, key: fn(T) -> K) -> T?` |
 | `List[T]`, when `T < Eq` | `contains(self, value: T) -> bool`; `index_of(self, value: T) -> usize?`; `dedup(self) -> List[T]` |
 | `List[T]`, when `T < Eq & Hash` | `unique(self) -> List[T]` |

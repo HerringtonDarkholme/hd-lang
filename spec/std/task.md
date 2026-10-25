@@ -47,7 +47,7 @@ fn ask!(server: &mut Server) -> Result[string, string]:
         return .Err("busy")
     .Ok("ready")
 
-fn connect!(server: &mut Server) -> Result[string, string] $ Clock:
+fn connect!(server: *mut Server) -> Result[string, string] $ Clock:
     retry!(Backoff { initial: 0ms }):
         ask!(server)
 ```
@@ -63,7 +63,7 @@ use std.time.Clock
 fn is_busy(error: string) -> bool:
     error == "busy"
 
-fn connect!(replies: &mut List[Result[string, string]]) -> Result[string, string] $ Clock:
+fn connect!(replies: *mut List[Result[string, string]]) -> Result[string, string] $ Clock:
     retry!(Backoff { attempts: 5, initial: 0ms }, when=is_busy):
         replies.remove_at(0)
 ```
@@ -116,7 +116,7 @@ fn ask!(server: &mut Server) -> Result[string, string]:
         return .Err("busy")
     .Ok("ready")
 
-fn connect!(server: &mut Server) -> Result[string, string] $ Clock:
+fn connect!(server: *mut Server) -> Result[string, string] $ Clock:
     policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 5s }
     retry!(policy):
         ask!(server)
@@ -222,7 +222,7 @@ use std.task.{TimedOut, timeout}
 use std.time.{Clock, s}
 
 struct Upload:
-    log: &mut List[string]
+    log: *mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Upload:
@@ -232,7 +232,7 @@ impl Disposable for Upload:
         ack!()                          # waits for the peer
         self.log.push("upload acknowledged")
 
-fn send!(log: &mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
+fn send!(log: *mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
     timeout!(5s, cleanup=1s):
         using upload = &mut Upload { log: log, ack: ack }
         reply!()

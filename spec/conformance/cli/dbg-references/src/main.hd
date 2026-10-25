@@ -5,7 +5,7 @@ struct Parcel:
 @derive(Debug)
 enum Expr:
     Num(n: i64)
-    Add(left: &Expr, right: &Expr)
+    Add(left: *Expr, right: *Expr)
 
 pub fn main() -> void $ Console:
     let mut parcel = Parcel { label: "mug", weight: 3 }

@@ -2,7 +2,7 @@
 # Spec 13 Element References: ref.elem.copy, ref.elem.slot.
 struct Holder:
     items: List[i32]
-    at: &mut i32
+    at: *mut i32
 
 fn set(target: &mut i32, value: i32) -> void:
     *target = value

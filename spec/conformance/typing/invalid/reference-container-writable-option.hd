@@ -1,5 +1,5 @@
 # Spec 13: ref.convert.readonly-covariant
 struct User:
     name: string
-fn invalid(view: &mut Option[&mut User]) -> &mut Option[&User]:
+fn invalid(view: *mut Option[*mut User]) -> *mut Option[*User]:
     view  # diagnostic: type-mismatch

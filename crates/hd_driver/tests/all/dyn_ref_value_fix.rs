@@ -78,7 +78,7 @@ fn each_fix_writes_the_reference_and_checks_clean() {
             "count(&mut tally)",
         ),
         (
-            "fn demo() -> List[&dyn Shape]:\n    [Square { side: 1.0 }]\n",
+            "fn demo() -> List[*dyn Shape]:\n    [Square { side: 1.0 }]\n",
             "[&Square { side: 1.0 }]",
         ),
         (
@@ -86,7 +86,7 @@ fn each_fix_writes_the_reference_and_checks_clean() {
             "$.with(Counter=&mut tally)",
         ),
         (
-            "fn demo() -> f64:\n    let mut big = Square { side: 2.0 }\n    let shapes: List[&dyn Shape] = [Square { side: 1.0 }, big]\n    big.side = 3.0\n    shapes[1].area()\n",
+            "fn demo() -> f64:\n    let mut big = Square { side: 2.0 }\n    let shapes: List[*dyn Shape] = [Square { side: 1.0 }, big]\n    big.side = 3.0\n    shapes[1].area()\n",
             "[&Square { side: 1.0 }, &big]",
         ),
     ];

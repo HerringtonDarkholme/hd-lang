@@ -9,6 +9,6 @@ impl Counter for Tally:
     fn bump(&mut self) -> void:
         self.n += 1
 
-fn shared(tally: &Tally) -> void:
+fn shared(tally: *Tally) -> void:
     $.with(Counter=tally):  # diagnostic: mutable-upgrade
         pass

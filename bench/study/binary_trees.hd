@@ -3,10 +3,10 @@ MAX := +14
 MIN := +4
 
 struct Node:
-    left: (&Node)?
-    right: (&Node)?
+    left: (*Node)?
+    right: (*Node)?
 
-fn make(depth: i32) -> &Node:
+fn make(depth: i32) -> *Node:
     if depth == 0:
         &Node { left: .None, right: .None }
     else:

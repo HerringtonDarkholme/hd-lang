@@ -9,11 +9,11 @@ use std.inspect.{Inspectable, TypeId}
 struct UserError:
     count: i32
 
-fn erase[T < Inspectable](value: &T) -> &dyn Inspectable:
+fn erase[T < Inspectable](value: *T) -> *dyn Inspectable:
     value
 
 pub fn main() -> void $ Console:
-    let original: &dyn Error = &UserError { count: 3 }
+    let original: *dyn Error = &UserError { count: 3 }
     erased := erase(original)
     println(erased.runtime_type() == TypeId::of::[UserError]())
     match erased.downcast_ref::[UserError]():

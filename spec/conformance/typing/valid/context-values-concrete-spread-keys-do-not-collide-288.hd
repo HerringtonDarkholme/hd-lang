@@ -4,7 +4,7 @@ trait Repo[T]
 struct User: pass
 struct Post: pass
 
-fn choose(users: &dyn Repo[User], posts: &dyn Repo[Post]) -> void:
+fn choose(users: *dyn Repo[User], posts: *dyn Repo[Post]) -> void:
     base := $.context(Repo[User]=users)
     $.with(base..., Repo[Post]=posts):
         pass

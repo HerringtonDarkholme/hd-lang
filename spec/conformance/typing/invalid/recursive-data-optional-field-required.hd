@@ -2,6 +2,6 @@
 # Spec 08 Recursive Data Types: data.recursive.required-fields.
 struct Category:
     name: string
-    parent: &Category?
+    parent: *Category?
 
 root := Category { name: "books" }  # diagnostic: missing-required-field

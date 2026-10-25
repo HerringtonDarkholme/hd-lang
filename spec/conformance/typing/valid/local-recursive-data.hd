@@ -6,7 +6,7 @@ fn route_length() -> i32:
 
     struct Leg:
         from: Stop
-        next: &Leg?
+        next: *Leg?
 
     last := Leg { from: Stop { name: "Utrecht" }, next: .None }
     first := Leg { from: Stop { name: "Amsterdam" }, next: .Some(&last) }

@@ -5,10 +5,10 @@ trait Logger:
     fn level(self) -> i32
 
 fn above_level(values: List[i32]) -> List[i32] $ Logger:
-    logger := $.use(Logger)
+    let logger: *dyn Logger = $.use(Logger)
     values.iter().filter(fn(value): value > logger.level()).collect()
 
-fn scoped(values: List[i32], logger: &dyn Logger) -> List[i32]:
+fn scoped(values: List[i32], logger: *dyn Logger) -> List[i32]:
     $.with(Logger=logger):
-        captured := $.use(Logger)
+        let captured: *dyn Logger = $.use(Logger)
         values.iter().filter(fn(value): value > captured.level()).collect()

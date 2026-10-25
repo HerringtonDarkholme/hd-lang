@@ -2,7 +2,7 @@
 use std.error.{Error, message}
 
 fn message_field() -> string:
-    let failed: Result[i32, &dyn Error] = .Err(message("source"))
+    let failed: Result[i32, *dyn Error] = .Err(message("source"))
     match failed.context("context"):
         .Ok(_) => "unexpected"
         .Err(error) => error.message  # diagnostic: unknown-field

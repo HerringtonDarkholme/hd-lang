@@ -5,5 +5,5 @@ struct Word:
     text: string
 
 impl Iterable[List[Word]] for string:  # diagnostic: orphan-impl
-    fn iter(self) -> &mut dyn Iterator[List[Word]]:
+    fn iter(self) -> *mut dyn Iterator[List[Word]]:
         panic("unimplemented")

@@ -136,9 +136,9 @@ fn bucket(key: string) -> u64:
 | each byte `b`, in order | XOR `b` into the state, then multiply by the FNV prime `0x100000001b3`, modulo 2^64 |
 | `finish` | returns the state |
 
-1. r[std-hash.default.decl-struct] `std.hash` declares the struct `DefaultHasher` with private fields, used behind `&mut`, and the function `hash_of`. Code imports them, as in `use std.hash.{DefaultHasher, hash_of}`.
+1. r[std-hash.default.decl-struct] `std.hash` declares the struct `DefaultHasher` with private fields, used behind `*mut`, and the function `hash_of`. Code imports them, as in `use std.hash.{DefaultHasher, hash_of}`.
 2. r[std-hash.default.algorithm] `DefaultHasher` computes 64-bit FNV-1a over the bytes written to it, by the table above.
-3. r[std-hash.default.new-ref] `DefaultHasher::new() -> &mut DefaultHasher` returns a new object, a hasher whose state is the offset basis. Copies of the reference share it, so `value.hash(hasher)` changes the state that `hasher.finish()` then returns.
+3. r[std-hash.default.new-ref] `DefaultHasher::new() -> *mut DefaultHasher` returns a new object, a hasher whose state is the offset basis. Copies of the reference share it, so `value.hash(hasher)` changes the state that `hasher.finish()` then returns.
 4. r[std-hash.default.write] `DefaultHasher` implements `Hasher`. Its `write(bytes)` processes each byte in order, so two writes give the state of one write of both byte lists joined.
 5. r[std-hash.default.finish] `finish(self) -> u64` returns the state and does not change it.
 6. r[std-hash.default.typed-writes] `DefaultHasher` overrides every [typed `Hasher` method](../lang/09-traits.md#r-trait.hash.typed-methods) to process the specified bytes without building a list.

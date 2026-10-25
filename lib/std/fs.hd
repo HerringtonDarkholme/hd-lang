@@ -359,7 +359,7 @@ impl MemoryFs:
     # one file system (r-std-fs.memory.new-ref).
     ## Returns an empty in-memory file system, as a new object behind `&mut`.
     ## See [std-fs.memory.new-ref](../../spec/std/fs.md#r-std-fs.memory.new-ref).
-    pub fn new() -> &mut MemoryFs:
+    pub fn new() -> *mut MemoryFs:
         &mut MemoryFs { files: {}, dirs: [], modified: {} }
 
     ## Scripts an existing entry's modification time without a clock.

@@ -7,7 +7,7 @@ use std.ops.Disposable
 
 struct Conn:
     name: string
-    log: &mut List[string]
+    log: *mut List[string]
     open: bool
 
 impl Disposable for Conn:
@@ -21,7 +21,7 @@ trait Session < Disposable:
 impl Session for Conn:
     fn name(&self) -> string: self.name
 
-fn by_value!(log: &mut List[string]) -> void:
+fn by_value!(log: *mut List[string]) -> void:
     using conn = Conn { name: "value", log: log, open: true }
     log.push("open ${conn.open}")
 

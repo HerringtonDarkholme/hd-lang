@@ -4,7 +4,7 @@ use std.task.{Backoff, retry}
 use std.time.{Clock, Duration, Instant, Timestamp, ms}
 
 struct RecordingClock:
-    slept: &mut List[i64]
+    slept: *mut List[i64]
 
 impl Clock for RecordingClock:
     fn now(self) -> Timestamp:
@@ -27,7 +27,7 @@ fn ask!(server: &mut Server) -> Result[string, string]:
         return .Err("busy ${server.calls}")
     .Ok("ready")
 
-fn connect!(server: &mut Server) -> Result[string, string] $ Clock:
+fn connect!(server: *mut Server) -> Result[string, string] $ Clock:
     policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 300ms }
     retry!(policy):
         ask!(server)

@@ -322,7 +322,7 @@ fn largest[T < Shape](shapes: List[T]) -> f64:
             best = shape.area()
     best
 
-fn total_area(shapes: List[&dyn Shape]) -> f64:
+fn total_area(shapes: List[*dyn Shape]) -> f64:
     let sum = 0.0
     for shape in shapes:
         sum = sum + shape.area()
@@ -338,7 +338,7 @@ impl Add for Money:
         Money { cents: self.cents + rhs.cents }
 
 pub fn main() -> void $ Console:
-    let shapes: List[&dyn Shape] = [&Circle { radius: 1.0 }, &Rect { width: 2.0, height: 3.0 }]
+    let shapes: List[*dyn Shape] = [&Circle { radius: 1.0 }, &Rect { width: 2.0, height: 3.0 }]
     println("total: ${total_area(shapes)}")
     println("largest: ${largest([Rect { width: 1.0, height: 1.0 }])}")
     println(debug(Money { cents: 250 } + Money { cents: 100 }))

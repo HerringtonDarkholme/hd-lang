@@ -71,7 +71,7 @@ fn a_generic_binary_tree_inserts_walks_and_derives() {
 @derive(Eq, Debug)
 enum Tree[T]:
     Leaf
-    Node(left: &Tree[T], value: T, right: &Tree[T])
+    Node(left: *Tree[T], value: T, right: *Tree[T])
 
 fn insert[T < Ord](tree: Tree[T], x: T) -> Tree[T]:
     match tree:
@@ -186,18 +186,18 @@ fn a_linked_list_through_an_optional_field() {
     let main = "\
 struct Node:
     value: i32
-    next: &Node?
+    next: *Node?
 
-fn push(list: &Node?, value: i32) -> &Node:
+fn push(list: *Node?, value: i32) -> *Node:
     &Node { value: value, next: list }
 
-fn total(list: &Node?) -> i32:
+fn total(list: *Node?) -> i32:
     match list:
         .Some(node) => node.value + total(node.next)
         .None => 0
 
-fn reverse(list: &Node?) -> &Node?:
-    let out: &Node? = .None
+fn reverse(list: *Node?) -> *Node?:
+    let out: *Node? = .None
     let at = list
     while true:
         match at:
@@ -206,13 +206,13 @@ fn reverse(list: &Node?) -> &Node?:
                 at = node.next
             .None => return out
 
-fn first(list: &Node?) -> i32:
+fn first(list: *Node?) -> i32:
     match list:
         .Some(node) => node.value
         .None => -1
 
 pub fn main() -> void $ Console:
-    let list: &Node? = .None
+    let list: *Node? = .None
     list = push(list, 1)
     list = push(list, 2)
     list = push(list, 3)
@@ -230,13 +230,13 @@ fn mutually_recursive_expressions_and_statements() {
 enum Expr:
     Lit(value: i64)
     Var(name: string)
-    Add(left: &Expr, right: &Expr)
-    Block(body: &Stmt, result: &Expr)
+    Add(left: *Expr, right: *Expr)
+    Block(body: *Stmt, result: *Expr)
 
 @derive(Eq, Debug)
 enum Stmt:
     Let(name: string, value: Expr)
-    Seq(first: &Stmt, second: &Stmt)
+    Seq(first: *Stmt, second: *Stmt)
 
 fn lookup(env: List[(string, i64)], name: string) -> i64:
     let found: i64 = 0
@@ -296,15 +296,15 @@ fn weigh(step: Step) -> i32:
 
 trait Link:
     fn label(&self) -> string
-    fn next(&self) -> &dyn Link?
+    fn next(&self) -> *dyn Link?
 
 struct Stop:
     name: string
-    after: &dyn Link?
+    after: *dyn Link?
 
 impl Link for Stop:
     fn label(&self) -> string: self.name
-    fn next(&self) -> &dyn Link?: self.after
+    fn next(&self) -> *dyn Link?: self.after
 
 fn walk(link: &dyn Link) -> string:
     let out = link.label()
@@ -317,9 +317,9 @@ fn walk(link: &dyn Link) -> string:
             .None => return out
 
 struct Pair:
-    left: (&Pair?, &Pair?, string, i32)
+    left: (*Pair?, *Pair?, string, i32)
 
-fn depth(p: &Pair?) -> i32:
+fn depth(p: *Pair?) -> i32:
     match p:
         .Some(x) =>
             a := depth(x.left._0)
@@ -330,8 +330,8 @@ fn depth(p: &Pair?) -> i32:
 pub fn main() -> void $ Console:
     s := Step { name: \"s\", weight: 7, then: fn(x: Step) -> i32: x.weight * 6 }
     println(weigh(s))
-    let c: &dyn Link = &Stop { name: \"c\", after: .None }
-    let b: &dyn Link = &Stop { name: \"b\", after: .Some(c) }
+    let c: *dyn Link = &Stop { name: \"c\", after: .None }
+    let b: *dyn Link = &Stop { name: \"b\", after: .Some(c) }
     let a: &dyn Link = &Stop { name: \"a\", after: .Some(b) }
     println(walk(a))
     leaf := &Pair { left: (.None, .None, \"leaf\", 0) }
@@ -346,7 +346,7 @@ fn an_enum_reference_at_growing_arguments() {
     // `E[T]` holds `&E[T?]`: the reference ends every value layout.
     let main = "\
 enum Grow[T]:
-    More(inner: &Grow[T?])
+    More(inner: *Grow[T?])
     Done(value: T)
 
 fn depth[T](g: Grow[T]) -> i32:
@@ -381,7 +381,7 @@ fn a_large_recursion_group_and_long_chains_of_types() {
         } else {
             ("i32".to_owned(), "i32".to_owned())
         };
-        writeln!(main, "struct R{i}:\n    v: i32\n    next: &R{ring}?\n").expect("write");
+        writeln!(main, "struct R{i}:\n    v: i32\n    next: *R{ring}?\n").expect("write");
         writeln!(main, "struct C{i}:\n    v: i32\n    next: {chain}?\n").expect("write");
         writeln!(main, "enum E{i}:\n    Stop\n    Go(next: {held})\n").expect("write");
     }

@@ -32,7 +32,7 @@ impl[T] FromIterator[T] for First[T]:
         let mut cursor = items
         First { value: cursor.next() }
 
-fn evens(xs: &List[i32]) -> &mut dyn Iterator[i32]:
+fn evens(xs: &List[i32]) -> *mut dyn Iterator[i32]:
     &mut xs.iter().filter(fn(value: i32) -> bool: value % 2 == 0)
 
 tests:

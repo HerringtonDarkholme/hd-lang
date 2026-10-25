@@ -12,7 +12,7 @@ struct Other:
 impl Name for Tag:
     fn name(self) -> string: "a"
 
-fn pick() -> &dyn Name:
+fn pick() -> *dyn Name:
     &Tag { n: 1 }
 
 first := pick().name() # diagnostic: top-level-read-before-initialization

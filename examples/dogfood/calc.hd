@@ -34,8 +34,8 @@ impl Op:
 @derive(Eq, Debug, Arbitrary)
 enum Expr:
     Lit(value: i32)
-    Neg(inner: &Expr)
-    Bin(op: Op, left: &Expr, right: &Expr, pos: usize)
+    Neg(inner: *Expr)
+    Bin(op: Op, left: *Expr, right: *Expr, pos: usize)
 
 @derive(Eq, Debug)
 enum CalcError:
@@ -91,7 +91,7 @@ impl Parser:
     fn bump(&mut self) -> void:
         self.at = self.at + 1
 
-    fn expr(&mut self) -> Result[&Expr, CalcError]:
+    fn expr(&mut self) -> Result[*Expr, CalcError]:
         let left = self.term()?
         while true:
             match self.peek():
@@ -106,7 +106,7 @@ impl Parser:
                 .None => break
         .Ok(left)
 
-    fn term(&mut self) -> Result[&Expr, CalcError]:
+    fn term(&mut self) -> Result[*Expr, CalcError]:
         let left = self.unary()?
         while true:
             match self.peek():
@@ -121,7 +121,7 @@ impl Parser:
                 .None => break
         .Ok(left)
 
-    fn unary(&mut self) -> Result[&Expr, CalcError]:
+    fn unary(&mut self) -> Result[*Expr, CalcError]:
         match self.peek():
             .Some(s) =>
                 match s.token:
@@ -132,7 +132,7 @@ impl Parser:
                     _ => self.atom()
             .None => .Err(CalcError.UnexpectedEnd)
 
-    fn atom(&mut self) -> Result[&Expr, CalcError]:
+    fn atom(&mut self) -> Result[*Expr, CalcError]:
         match self.peek():
             .None => .Err(CalcError.UnexpectedEnd)
             .Some(s) =>
@@ -153,7 +153,7 @@ impl Parser:
                             .None => .Err(CalcError.UnexpectedEnd)
                     _ => .Err(CalcError.Unexpected(s.pos))
 
-fn parse(src: string) -> Result[&Expr, CalcError]:
+fn parse(src: string) -> Result[*Expr, CalcError]:
     toks := tokenize(src)?
     let mut p = Parser { toks: toks, at: 0 }
     e := p.expr()?
@@ -204,7 +204,7 @@ fn show(e: &Expr) -> string:
 # Positions depend on the text, and a negative literal parses back as a
 # negation, so compare trees with positions cleared and literals made
 # non-negative. i32 MIN normalizes to its printed expression form.
-fn strip(e: &Expr) -> &Expr:
+fn strip(e: &Expr) -> *Expr:
     match e:
         .Lit(v) =>
             if v == -2147483648:
@@ -240,7 +240,7 @@ tests:
         match parse(show(e)):
             .Ok(back) => assert_equal(strip(back), e, reason="round trip")
             .Err(_) => assert(false, reason="reparse failed")
-    it_prop("show then parse is the identity on trees", prop=fn!(e: &Expr):
+    it_prop("show then parse is the identity on trees", prop=fn!(e: *Expr):
         match parse(show(e)):
             .Ok(back) => assert_equal(strip(back), strip(e), reason="round trip")
             .Err(_) => assert(false, reason="reparse failed")

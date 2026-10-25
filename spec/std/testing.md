@@ -158,7 +158,7 @@ use std.testing.Choices
 
 enum Tree:
     Leaf
-    Node(left: &Tree, right: &Tree)
+    Node(left: *Tree, right: *Tree)
 
 fn tree(c: &mut Choices) -> Tree:
     match c.int(0..=2):
@@ -262,7 +262,7 @@ struct Item:
 
 @derive(Arbitrary, Debug)
 enum Expr:
-    Add(left: &Expr, right: &Expr)
+    Add(left: *Expr, right: *Expr)
     Num(value: i32)
 
 tests:
@@ -322,11 +322,11 @@ enum Tree:
 
 @derive(Arbitrary, Debug)
 enum Loop:
-    More(next: &Loop)
+    More(next: *Loop)
 
 @derive(Arbitrary, Debug)
 struct Ring:
-    next: &Ring
+    next: *Ring
 ```
 
 `Tree`'s one variant is not recursive: its `self_ref` is `.Optional`,

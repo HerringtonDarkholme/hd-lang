@@ -2,14 +2,14 @@
 # Spec 13 References: ref.expr.allocate. REFCOUNT_RUNTIME job 19: iterative release.
 # expect: test
 struct Node:
-    next: (&mut Node)?
+    next: (*mut Node)?
 
 struct Branch:
-    left: (&mut Node)?
-    right: (&mut Node)?
+    left: (*mut Node)?
+    right: (*mut Node)?
 
-fn chain(count: usize) -> (&mut Node)?:
-    let head: (&mut Node)? = .None
+fn chain(count: usize) -> (*mut Node)?:
+    let head: (*mut Node)? = .None
     let index = 0
     while index < count:
         head = .Some(&mut Node { next: head })
@@ -31,6 +31,6 @@ tests:
             .None => panic("expected a nonempty chain")
         first = .None
         assert_equal(suffix.is_some(), true, reason="a second owner keeps the suffix alive")
-        let branch: (&mut Branch)? = .Some(&mut Branch { left: suffix, right: suffix })
+        let branch: (*mut Branch)? = .Some(&mut Branch { left: suffix, right: suffix })
         branch = .None
         assert_equal(branch.is_none(), true, reason="both owned fields release through the same worklist")

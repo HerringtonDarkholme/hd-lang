@@ -497,7 +497,7 @@ fn counter() -> mut fn() -> i32:  # error: syntax-error
 ```text
 fn count() -> i32: 1
 
-fn erase() -> fn() -> &dyn Display:
+fn erase() -> fn() -> *dyn Display:
     count  # error: variance-representation-change
 ```
 
@@ -598,7 +598,7 @@ fn reader() -> fn(Counter) -> i32:
 fn maker() -> fn() -> Counter:
     Counter::zero
 
-fn bumper(counter: &mut Counter) -> fn(i32) -> void:
+fn bumper(counter: *mut Counter) -> fn(i32) -> void:
     counter::bump
 ```
 
@@ -753,7 +753,7 @@ trait Clock:
     fn now(self) -> i32
 
 fn make_reader() -> fn() -> i32 $ Clock:
-    clock := $.use(Clock)
+    let clock: *dyn Clock = $.use(Clock)
     fn() -> i32: clock.now()
 ```
 

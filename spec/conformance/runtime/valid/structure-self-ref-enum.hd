@@ -32,11 +32,11 @@ impl[T] Shape for T by Structure:
         d.out
 
 enum Inner:
-    Only(expr: &Expr)
+    Only(expr: *Expr)
 
 enum Choice:
     Skip
-    Take(expr: &Expr)
+    Take(expr: *Expr)
 
 @derive(Shape)
 enum Expr:

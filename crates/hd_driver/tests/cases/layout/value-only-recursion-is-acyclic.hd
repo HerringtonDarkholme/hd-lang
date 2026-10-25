@@ -14,7 +14,7 @@ struct Catalog:
 
 struct RefDir:
     kids: List[RefDir]
-    parent: (&mut RefDir)?
+    parent: (*mut RefDir)?
 
 struct CallbackDir:
     kids: List[CallbackDir]

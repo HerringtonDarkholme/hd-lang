@@ -2,7 +2,7 @@
 # Spec std/cli: std-cli.command.decl, std-cli.command.scope, std-cli.parsed.command.
 use std.cli.{Arg, ArgParser, CliError, Parsed}
 
-fn tool() -> &mut ArgParser:
+fn tool() -> *mut ArgParser:
     build := ArgParser::new("notes build", "Convert the notes to HTML.").arg(Arg { name: "exclude", short: 'x', repeated: true }).arg(Arg { name: "pattern", kind: .Positional, required: true })
     clean := ArgParser::new("notes clean", "Remove the output directory.")
     ArgParser::new("notes", "Build a static site from Markdown notes.").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "Print each file as it is converted." }).command("build", *build).command("clean", *clean)

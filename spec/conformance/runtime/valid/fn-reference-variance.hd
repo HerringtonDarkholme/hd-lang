@@ -4,16 +4,16 @@
 struct User:
     name: string
 
-fn identity(user: &User) -> &User:
+fn identity(user: *User) -> *User:
     user
 
-fn new_user() -> &mut User:
+fn new_user() -> *mut User:
     &mut User { name: "Ada" }
 
-fn widen_input(f: fn(&User) -> &User) -> fn(&mut User) -> &User:
+fn widen_input(f: fn(*User) -> *User) -> fn(*mut User) -> *User:
     f
 
-fn widen_result(f: fn() -> &mut User) -> fn() -> &User:
+fn widen_result(f: fn() -> *mut User) -> fn() -> *User:
     f
 
 tests:

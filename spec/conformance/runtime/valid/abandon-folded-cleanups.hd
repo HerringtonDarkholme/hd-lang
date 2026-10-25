@@ -8,7 +8,7 @@ use std.time.{Clock, s, sleep}
 
 struct Conn:
     name: string
-    log: &mut List[string]
+    log: *mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -19,12 +19,12 @@ impl Disposable for Conn:
         wait!()
         self.log.push("${self.name} closed")
 
-fn worker!(name: string, log: &mut List[string]) -> i32 $ Clock:
+fn worker!(name: string, log: *mut List[string]) -> i32 $ Clock:
     using conn = &mut Conn { name: name, log: log, closing: sleep(s(60)) }
     sleep!(s(60))
     +1
 
-fn pair!(log: &mut List[string]) -> i32 $ Clock:
+fn pair!(log: *mut List[string]) -> i32 $ Clock:
     let (a, b) = all!(worker("a", log), worker("b", log))
     a + b
 

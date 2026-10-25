@@ -18,12 +18,12 @@ struct SyncError:
     @source
     repo: RepoError
 
-fn load() -> Result[i32, &dyn Error]:
+fn load() -> Result[i32, *dyn Error]:
     let failed: Result[i32, RepoError] = .Err(RepoError.Write("a.txt", .Some(DiskError { free: 0 })))
     value := failed?
     .Ok(value)
 
-fn texts(error: &dyn Error) -> List[string]:
+fn texts(error: *dyn Error) -> List[string]:
     error.chain().map(fn(item: &dyn Error) -> string: item.to_string())
 
 tests:

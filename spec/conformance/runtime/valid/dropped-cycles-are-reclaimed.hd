@@ -2,7 +2,7 @@
 # Spec 08 Representation: data.repr.gc. Spec 07 Recursive Closures: fn.recursion.closure.binding.
 struct Stop:
     name: string
-    next: &mut Stop?
+    next: *mut Stop?
 
 # A ring of two stops, dropped at the return: only the cycle holds it.
 fn ring(round: i32) -> i32:

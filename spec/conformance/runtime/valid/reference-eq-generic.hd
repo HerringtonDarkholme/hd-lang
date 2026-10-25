@@ -4,7 +4,7 @@
 # expect-stdout: true false
 use std.hash.hash_of
 
-fn has_value(items: List[&i32], value: &i32) -> bool:
+fn has_value(items: List[*i32], value: *i32) -> bool:
     items.contains(value)
 
 fn same_hash(a: &string, b: &string) -> bool:

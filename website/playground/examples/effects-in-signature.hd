@@ -25,5 +25,5 @@ impl Mailer for Outbox:
     fn send!(&mut self, to: string, body: string) -> void:
         self.sent.push("$to|$body")
 
-fn epoch() -> &mut ManualClock:
+fn epoch() -> *mut ManualClock:
     ManualClock::new(Timestamp::from_unix_milliseconds(0))

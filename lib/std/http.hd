@@ -51,52 +51,52 @@ pub struct Request:
 impl Request:
     ## Returns a GET request for `url` with the default fields.
     ## See [std-http.request.get](../../spec/std/http.md#r-std-http.request.get).
-    pub fn get(url: string) -> &mut Request:
+    pub fn get(url: string) -> *mut Request:
         Request::new(.Get, url)
 
     ## Returns a POST request for `url` with the default fields.
     ## See [std-http.request.post](../../spec/std/http.md#r-std-http.request.post).
-    pub fn post(url: string) -> &mut Request:
+    pub fn post(url: string) -> *mut Request:
         Request::new(.Post, url)
 
     ## Returns a request with `method`, `url`, and the other default fields.
     ## See [std-http.request.new](../../spec/std/http.md#r-std-http.request.new).
-    pub fn new(method: Method, url: string) -> &mut Request:
+    pub fn new(method: Method, url: string) -> *mut Request:
         &mut Request { method: method, url: url }
 
     ## Appends a header and returns this builder.
     ## See [std-http.request.header](../../spec/std/http.md#r-std-http.request.header).
-    pub fn header(&mut self, name: string, value: string) -> &mut Request:
+    pub fn header(*mut self, name: string, value: string) -> *mut Request:
         self.headers.push((name, value))
         self
 
     ## Appends an unencoded query pair and returns this builder.
     ## See [std-http.request.query](../../spec/std/http.md#r-std-http.request.query).
-    pub fn query[T < Display](&mut self, name: string, value: T) -> &mut Request:
+    pub fn query[T < Display](*mut self, name: string, value: T) -> *mut Request:
         self.query.push((name, "$value"))
         self
 
     ## Replaces the body and returns this builder.
     ## See [std-http.request.body](../../spec/std/http.md#r-std-http.request.body).
-    pub fn body(&mut self, bytes: List[u8]) -> &mut Request:
+    pub fn body(*mut self, bytes: List[u8]) -> *mut Request:
         self.body = bytes
         self
 
     ## Encodes the typed value as JSON and returns this builder.
     ## See [std-http.request.json-serialize](../../spec/std/http.md#r-std-http.request.json-serialize).
-    pub fn json[T < Serialize](&mut self, value: T) -> &mut Request:
+    pub fn json[T < Serialize](*mut self, value: T) -> *mut Request:
         self.body = encode(value).to_utf8()
         self.content_type("application/json")
 
     ## Encodes a flat typed record or string map as form fields.
     ## See [std-http.request.form-serialize](../../spec/std/http.md#r-std-http.request.form-serialize).
-    pub fn form[T < Serialize](&mut self, value: T) -> &mut Request:
+    pub fn form[T < Serialize](*mut self, value: T) -> *mut Request:
         writer := FormWriter::new()
         _ := value.serialize(writer)
         self.body = writer.finish().to_utf8()
         self.content_type("application/x-www-form-urlencoded")
 
-    fn content_type(&mut self, value: string) -> &mut Request:
+    fn content_type(*mut self, value: string) -> *mut Request:
         for (name, _) in self.headers:
             if ascii_case_equal(name, "Content-Type"):
                 return self
@@ -105,7 +105,7 @@ impl Request:
 
     ## Sets the redirect limit and returns this builder.
     ## See [std-http.request.redirects](../../spec/std/http.md#r-std-http.request.redirects).
-    pub fn redirects(&mut self, count: usize) -> &mut Request:
+    pub fn redirects(*mut self, count: usize) -> *mut Request:
         self.redirects = count
         self
 
@@ -134,7 +134,7 @@ fn query_url(url: string, pairs: List[(string, string)]) -> string:
         out.push(fragment)
     out.build()
 
-fn encode_component(out: &mut StringBuilder, text: string, form: bool) -> void:
+fn encode_component(out: *mut StringBuilder, text: string, form: bool) -> void:
     digits := "0123456789ABCDEF"
     let index = 0
     for byte in text.to_utf8():
@@ -154,7 +154,7 @@ fn encode_component(out: &mut StringBuilder, text: string, form: bool) -> void:
 # values (or one list of them) write pairs. Buffer a variant's name until
 # its end, so a payload member can reject it before it writes a value.
 struct FormWriter:
-    pub out: &mut StringBuilder
+    pub out: *mut StringBuilder
     pub started: bool
     pub finished: bool
     pub map: bool
@@ -167,7 +167,7 @@ struct FormWriter:
     pub facts: Facts = Facts { items: [] }
 
 impl FormWriter:
-    fn new() -> &mut FormWriter:
+    fn new() -> *mut FormWriter:
         &mut FormWriter { out: StringBuilder::new(), started: false, finished: false, map: false, keyed: false, name: "\$", repeated: false, tagged: false, tag: "", written: false }
 
     fn unsupported(&self) -> never:
@@ -292,18 +292,18 @@ struct ClientCookie:
 impl Client:
     ## Returns a client without a base URL, default headers or cookies.
     ## See [std-http.client.new-empty-jar](../../spec/std/http.md#r-std-http.client.new-empty-jar).
-    pub fn new() -> &mut Client:
+    pub fn new() -> *mut Client:
         &mut Client { base: "", headers: [], cookies: {} }
 
     ## Sets the base URL and returns this client.
     ## See [std-http.client.base-url](../../spec/std/http.md#r-std-http.client.base-url).
-    pub fn base_url(&mut self, url: string) -> &mut Client:
+    pub fn base_url(*mut self, url: string) -> *mut Client:
         self.base = url
         self
 
     ## Appends a default header and returns this client.
     ## See [std-http.client.default-header](../../spec/std/http.md#r-std-http.client.default-header).
-    pub fn header(&mut self, name: string, value: string) -> &mut Client:
+    pub fn header(*mut self, name: string, value: string) -> *mut Client:
         self.headers.push((name, value))
         self
 
@@ -649,13 +649,13 @@ struct HttpReplies:
 ## See [std-http.scripted.decl](../../spec/std/http.md#r-std-http.scripted.decl).
 @derive(Debug)
 pub struct ScriptedHttp:
-    responses: Map[string, &mut HttpReplies]
+    responses: Map[string, *mut HttpReplies]
     requests: List[Request]
 
 impl ScriptedHttp:
     ## Returns a new provider with no replies or received requests.
     ## See [std-http.scripted.new-empty](../../spec/std/http.md#r-std-http.scripted.new-empty).
-    pub fn new() -> &mut ScriptedHttp:
+    pub fn new() -> *mut ScriptedHttp:
         &mut ScriptedHttp { responses: {}, requests: [] }
 
     ## Appends a result to this URL's reply queue.

@@ -9,13 +9,13 @@ fn logged(total: i32, value: i32) -> i32 $ Logger:
 fn first_evens(values: List[i32]) -> List[(usize, i32)]:
     values.iter().filter(fn(value): value % 2 == 0).enumerate().take(2).collect()
 
-fn head(source: &mut dyn Iterator[i32]) -> List[i32]:
+fn head(source: *mut dyn Iterator[i32]) -> List[i32]:
     source.take(2).collect()
 
-fn through_value(source: &mut dyn Iterator[string]) -> &mut dyn Iterator[(usize, string)]:
+fn through_value(source: *mut dyn Iterator[string]) -> *mut dyn Iterator[(usize, string)]:
     &mut source.filter(fn(name): name.len() > 0).enumerate()
 
-fn lengths(names: List[string]) -> &mut dyn Iterator[usize]:
+fn lengths(names: List[string]) -> *mut dyn Iterator[usize]:
     &mut names.iter().map(fn(name): name.len())
 
 fn logged_sum(values: List[i32]) -> i32 $ Logger:

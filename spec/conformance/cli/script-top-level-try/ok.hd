@@ -1,7 +1,7 @@
 use std.error.{Error, message}
 use std.time.{ms, sleep}
 
-fn halve(n: i32) -> Result[i32, &dyn Error]:
+fn halve(n: i32) -> Result[i32, *dyn Error]:
     if n % +2 == +0: .Ok(n / +2) else: .Err(message("odd"))
 
 sleep!(ms(1))

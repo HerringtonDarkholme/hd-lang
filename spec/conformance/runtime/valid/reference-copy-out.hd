@@ -15,7 +15,7 @@ impl User:
         self.age += +1
 
 struct Team:
-    lead: &mut User
+    lead: *mut User
 
 struct Outer:
     team: Team
@@ -43,7 +43,7 @@ fn field(source: &Team) -> void:
     copy := source.lead
     copy.age = +8
 
-fn indexed(source: &List[&mut User]) -> void:
+fn indexed(source: &List[*mut User]) -> void:
     source[0].age = +9
 
 pub fn main() -> void $ Console:

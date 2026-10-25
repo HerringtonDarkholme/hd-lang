@@ -329,7 +329,7 @@ tests:
 
 1. r[std-time.manual.decl-ref] `std.time` declares the struct `ManualClock`, which implements `Clock`, with private fields. Code imports it, as in `use std.time.ManualClock`. Its `sleep!` takes `&mut self`, as the trait's does, so a `ManualClock` serves as a provider through a reference to it.
 2. r[std-time.manual.state] A `ManualClock`'s only state is its current time, a `Timestamp`.
-3. r[std-time.manual.new-ref] `ManualClock::new(start: Timestamp) -> &mut ManualClock` returns a clock whose current time is `start`, a new object. A provider installed from that reference, and every copy of it, share the one clock, so a sleep through the provider moves the clock the caller holds.
+3. r[std-time.manual.new-ref] `ManualClock::new(start: Timestamp) -> *mut ManualClock` returns a clock whose current time is `start`, a new object. A provider installed from that reference, and every copy of it, share the one clock, so a sleep through the provider moves the clock the caller holds.
 4. r[std-time.manual.now] `now` returns the current time.
 5. r[std-time.manual.monotonic] `monotonic` returns `Instant::from_milliseconds(m)`, where `m` is the current time in milliseconds since the Unix epoch.
 6. r[std-time.manual.sleep] `sleep!(duration)` completes without waiting. The `duration` is added to the current time.

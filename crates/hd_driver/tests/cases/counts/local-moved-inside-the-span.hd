@@ -7,7 +7,7 @@ struct Box:
     n: usize
 
 struct Holder:
-    b: &Box
+    b: *Box
 
 fn keep(b: &Box, n: usize) -> usize:
     b.n + n

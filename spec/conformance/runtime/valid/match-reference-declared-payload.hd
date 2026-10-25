@@ -3,7 +3,7 @@
 # expect-stdout: 0
 enum Holder:
     Empty
-    Cell(value: &mut i64)
+    Cell(value: *mut i64)
 
 fn reset(h: &Holder) -> void:
     match h:

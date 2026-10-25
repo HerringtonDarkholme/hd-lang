@@ -3,7 +3,7 @@
 # expect: test
 use std.process.{Command, Process, ProcessOutput, ScriptedProcess}
 
-fn verbose(command: &mut Command) -> void:
+fn verbose(command: *mut Command) -> void:
     _ := command.arg("-v")
 
 fn status!(command: Command) -> i32 $ Process:

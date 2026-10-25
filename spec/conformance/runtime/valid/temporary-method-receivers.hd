@@ -35,7 +35,7 @@ impl Builder:
     fn new(name: string) -> Builder:
         Builder { args: [name] }
 
-    fn arg(&mut self, value: string) -> &mut Self:
+    fn arg(*mut self, value: string) -> *mut Self:
         self.args.push(value)
         self
 
@@ -43,7 +43,7 @@ impl Builder:
         self.args
 
 struct Appender:
-    into: &mut List[i32]
+    into: *mut List[i32]
 
 impl Appender:
     fn add(&mut self, value: i32) -> void:

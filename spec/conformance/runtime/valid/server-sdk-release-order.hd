@@ -7,7 +7,7 @@ use std.testing.assert_equal
 
 struct Source:
     next: u64
-    clock: &mut dyn Clock
+    clock: *mut dyn Clock
     events: List[string]
 
 impl HttpServer for Source:
@@ -24,7 +24,7 @@ impl HttpServer for Source:
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason:
         self.clock.sleep!(s(60))
         .Stopping
-    fn clock(&mut self, _id: RequestId) -> &mut dyn Clock: self.clock
+    fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: self.clock
     fn finish(&mut self, id: RequestId, abandoned: bool) -> void:
         assert_equal(abandoned, false, reason="normal replies finish cleanup")
         self.events.push("finish ${id.sequence}")

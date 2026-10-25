@@ -3,7 +3,7 @@
 use std.ops.{Index, IndexSet}
 
 struct Ring:
-    items: &mut List[i32]
+    items: *mut List[i32]
 
 impl Index[usize] for Ring:
     type Out = i32

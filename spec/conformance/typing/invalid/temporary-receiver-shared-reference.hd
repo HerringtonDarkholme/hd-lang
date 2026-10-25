@@ -6,7 +6,7 @@ impl Point:
     fn shift(&mut self) -> void:
         self.x += 1
 
-fn shared(point: &Point) -> &Point:
+fn shared(point: *Point) -> *Point:
     point
 
 fn demo() -> void:

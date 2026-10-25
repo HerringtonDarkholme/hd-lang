@@ -8,7 +8,7 @@ use std.task.{TimedOut, timeout}
 use std.time.{Clock, ManualClock, Timestamp, ms, s, sleep}
 
 struct Close:
-    log: &mut List[string]
+    log: *mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Close:

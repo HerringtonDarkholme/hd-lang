@@ -202,12 +202,12 @@ fn a_result_whose_error_is_not_error_is_an_error() {
 fn a_result_whose_value_is_not_termination_is_an_error() {
     assert_eq!(
         single(
-            "use std.error.Error\npub fn main() -> Result[string, &dyn Error]:\n    .Ok(\"x\")\n"
+            "use std.error.Error\npub fn main() -> Result[string, *dyn Error]:\n    .Ok(\"x\")\n"
         ),
         [(Code::UnsatisfiedTraitBound, 2, 18)]
     );
     assert_eq!(
-        single("use std.error.Error\npub fn main!() -> Result[i32, &dyn Error]:\n    .Ok(1)\n"),
+        single("use std.error.Error\npub fn main!() -> Result[i32, *dyn Error]:\n    .Ok(1)\n"),
         [(Code::UnsatisfiedTraitBound, 2, 19)]
     );
 }
@@ -246,12 +246,12 @@ fn exit_code_is_an_entry_result() {
 #[test]
 fn a_result_with_an_explicit_message_error_is_an_entry_result() {
     accepts(
-        "use std.error.{Error, message}\n\npub fn main() -> Result[void, &dyn Error]:\n    .Err(message(\"oops\"))\n",
+        "use std.error.{Error, message}\n\npub fn main() -> Result[void, *dyn Error]:\n    .Err(message(\"oops\"))\n",
     );
     accepts(
-        "use std.error.Error\nuse std.process.ExitCode\n\npub fn main() -> Result[ExitCode, &dyn Error]:\n    .Ok(ExitCode(3))\n",
+        "use std.error.Error\nuse std.process.ExitCode\n\npub fn main() -> Result[ExitCode, *dyn Error]:\n    .Ok(ExitCode(3))\n",
     );
-    accepts("use std.error.Error\n\npub fn main!() -> Result[void, &dyn Error]:\n    .Ok(())\n");
+    accepts("use std.error.Error\n\npub fn main!() -> Result[void, *dyn Error]:\n    .Ok(())\n");
 }
 
 #[test]
@@ -265,7 +265,7 @@ fn a_string_error_is_not_an_entry_result() {
 #[test]
 fn a_result_of_a_result_is_an_entry_result() {
     accepts(
-        "use std.error.Error\n\npub fn main() -> Result[Result[void, &dyn Error], &dyn Error]:\n    .Ok(.Ok(()))\n",
+        "use std.error.Error\n\npub fn main() -> Result[Result[void, *dyn Error], *dyn Error]:\n    .Ok(.Ok(()))\n",
     );
 }
 
@@ -288,7 +288,7 @@ fn a_user_error_with_only_display_is_not_an_entry_error() {
 
 #[test]
 fn the_erased_error_satisfies_display() {
-    accepts("use std.error.Error\n\npub fn main() -> Result[void, &dyn Error]:\n    .Ok(())\n");
+    accepts("use std.error.Error\n\npub fn main() -> Result[void, *dyn Error]:\n    .Ok(())\n");
 }
 
 // Where the rules do not apply.

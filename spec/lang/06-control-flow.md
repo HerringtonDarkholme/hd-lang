@@ -385,7 +385,7 @@ fn invalid(prices: Map[string, i32]) -> void:
     for score in &mut scores:
         *score += scores[0]  # reads and element writes are allowed
         scores.push(*score)  # error: conflicting-access
-    let mut kept: List[&i32] = []
+    let mut kept: List[*i32] = []
     for score in &scores:
         kept.push(score)  # error: element-reference-outlives-call
 ```
@@ -1105,17 +1105,17 @@ use std.ops.Disposable
 
 struct Lock:
     name: string
-    held: &mut List[string]
+    held: *mut List[string]
 
 impl Disposable for Lock:
     fn dispose!(&mut self) -> void:
         self.held.push("released ${self.name}")
 
-fn acquire(name: string, held: &mut List[string]) -> &mut Lock:
+fn acquire(name: string, held: *mut List[string]) -> *mut Lock:
     held.push("acquired ${name}")
     &mut Lock { name: name, held: held }
 
-fn transfer!(held: &mut List[string]) -> void:
+fn transfer!(held: *mut List[string]) -> void:
     using first = acquire("a", held)
     using second = acquire("b", held)
     held.push("work")   # then b is released, then a

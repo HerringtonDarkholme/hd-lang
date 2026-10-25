@@ -16,10 +16,10 @@ struct Node:
 
 struct Holder:
     node: Node
-    peers: &mut List[Node]
+    peers: *mut List[Node]
 
 struct Log:
-    lines: &mut List[string]
+    lines: *mut List[string]
 
 fn note(log: Log, line: string) -> void:
     log.lines.push(line)

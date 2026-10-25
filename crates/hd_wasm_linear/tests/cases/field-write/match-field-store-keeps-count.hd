@@ -3,7 +3,7 @@
 # field; keep ownership of the option and payload until their last uses.
 struct Node:
     value: i64
-    left: (&Node)?
+    left: (*Node)?
 
 fn value(node: &Node, other: &mut Node) -> i64:
     match node.left:

@@ -11,31 +11,31 @@ enum SaveError:
     Write(path: string, @source error: DiskError)
 
 struct ManualError:
-    inner: &dyn Error
+    inner: *dyn Error
 
 impl Display for ManualError:
     fn to_string(self) -> string: "manual wrapper"
 
 impl Error for ManualError:
-    fn source(self) -> (&dyn Error)?: .Some(self.inner)
+    fn source(self) -> (*dyn Error)?: .Some(self.inner)
 
-fn texts(errors: List[&dyn Error]) -> List[string]:
+fn texts(errors: List[*dyn Error]) -> List[string]:
     errors.map(fn(error: &dyn Error) -> string: error.to_string())
 
 tests:
     use std.testing.assert_equal
 
     it("the method lists the error, then its sources"):
-        let failure: &dyn Error = &SaveError.Write("notes.txt", DiskError { free: 0 })
+        let failure: *dyn Error = &SaveError.Write("notes.txt", DiskError { free: 0 })
         assert_equal(texts(failure.chain()), ["cannot save notes.txt", "disk full"], reason="the chain in order")
 
     it("a converted concrete reference retains the original error"):
-        let failure: &dyn Error = &SaveError.Write("notes.txt", DiskError { free: 0 })
+        let failure: *dyn Error = &SaveError.Write("notes.txt", DiskError { free: 0 })
         assert_equal(texts(failure.chain()), ["cannot save notes.txt", "disk full"], reason="a concrete error converts")
         assert_equal(failure.chain()[0] is failure, true, reason="the original shared reference")
 
     it("a handwritten Error implementation overrides source"):
         root := &DiskError { free: 0 }
-        let failure: &dyn Error = &ManualError { inner: root }
+        let failure: *dyn Error = &ManualError { inner: root }
         assert_equal(failure.source().map(fn(error): error.to_string()), .Some("disk full"), reason="source is the public override point")
         assert_equal(texts(failure.chain()), ["manual wrapper", "disk full"], reason="the chain follows a handwritten source implementation")

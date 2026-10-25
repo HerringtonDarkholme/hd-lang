@@ -1,7 +1,7 @@
 # test: storing an element reference in a field is an error, since an element reference lives for one call
 # Spec 13 Call-Scoped Access: ref.elem.kept.
 struct Holder:
-    slot: &mut i32
+    slot: *mut i32
 
 fn demo() -> i32:
     let mut xs = [+1, 2]

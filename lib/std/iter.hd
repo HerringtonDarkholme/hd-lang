@@ -11,7 +11,7 @@ pub trait Iterator[T]:
     fn product[P < Product[T]](self) -> P:
         P::product(self)
 
-    fn by_ref(&mut self) -> ByRef[Self]:
+    fn by_ref(*mut self) -> ByRef[Self]:
         ByRef { inner: self }
 
     fn map[U](self, transform: fn(T) -> U) -> MapIter[Self, T, U]:
@@ -113,7 +113,7 @@ pub trait Iterator[T]:
 
 ## A cursor that borrows another cursor and shares its progress.
 pub struct ByRef[I]:
-    inner: &mut I
+    inner: *mut I
 
 impl[I < Iterator[T], T] Iterator[T] for ByRef[I]:
     fn next(&mut self) -> T?:
@@ -147,72 +147,72 @@ impl[T < Num] Product[T] for T:
                 .None => break
         total
 
-impl[T, I < Iterator[T]] Iterator[T] for &mut I:
+impl[T, I < Iterator[T]] Iterator[T] for *mut I:
     fn next(&mut self) -> T?:
         (*self).next()
 
 
 ## A concrete cursor forwarding to an erased iterator reference.
 pub struct DynIterator[T]:
-    source: &mut dyn Iterator[T]
+    source: *mut dyn Iterator[T]
 
 impl[T] Iterator[T] for DynIterator[T]:
     fn next(&mut self) -> T?:
         self.source.next()
 
 impl[T] dyn Iterator[T]:
-    pub fn sum[S < Sum[T]](&mut self) -> S:
+    pub fn sum[S < Sum[T]](*mut self) -> S:
         DynIterator { source: self }.sum::[S]()
 
-    pub fn product[P < Product[T]](&mut self) -> P:
+    pub fn product[P < Product[T]](*mut self) -> P:
         DynIterator { source: self }.product::[P]()
 
-    pub fn by_ref(&mut self) -> DynIterator[T]:
+    pub fn by_ref(*mut self) -> DynIterator[T]:
         DynIterator { source: self }
 
-    pub fn map[U](&mut self, transform: fn(T) -> U) -> MapIter[DynIterator[T], T, U]:
+    pub fn map[U](*mut self, transform: fn(T) -> U) -> MapIter[DynIterator[T], T, U]:
         DynIterator { source: self }.map::[U](transform)
 
-    pub fn filter(&mut self, keep: fn(T) -> bool) -> Filter[DynIterator[T], T]:
+    pub fn filter(*mut self, keep: fn(T) -> bool) -> Filter[DynIterator[T], T]:
         DynIterator { source: self }.filter(keep)
 
-    pub fn take(&mut self, count: usize) -> Take[DynIterator[T], T]:
+    pub fn take(*mut self, count: usize) -> Take[DynIterator[T], T]:
         DynIterator { source: self }.take(count)
 
-    pub fn enumerate(&mut self) -> Enumerate[DynIterator[T], T]:
+    pub fn enumerate(*mut self) -> Enumerate[DynIterator[T], T]:
         DynIterator { source: self }.enumerate()
 
-    pub fn skip(&mut self, count: usize) -> Skip[DynIterator[T], T]:
+    pub fn skip(*mut self, count: usize) -> Skip[DynIterator[T], T]:
         DynIterator { source: self }.skip(count)
 
-    pub fn take_while(&mut self, keep: fn(T) -> bool) -> TakeWhile[DynIterator[T], T]:
+    pub fn take_while(*mut self, keep: fn(T) -> bool) -> TakeWhile[DynIterator[T], T]:
         DynIterator { source: self }.take_while(keep)
 
-    pub fn zip[U, J < Iterable[U]](&mut self, other: J) -> Zip[DynIterator[T], T, U]:
+    pub fn zip[U, J < Iterable[U]](*mut self, other: J) -> Zip[DynIterator[T], T, U]:
         DynIterator { source: self }.zip::[U, J](other)
 
-    pub fn chain[J < Iterable[T]](&mut self, other: J) -> Chain[DynIterator[T], T]:
+    pub fn chain[J < Iterable[T]](*mut self, other: J) -> Chain[DynIterator[T], T]:
         DynIterator { source: self }.chain::[J](other)
 
-    pub fn flat_map[U, J < Iterable[U]](&mut self, transform: fn(T) -> J) -> FlatMap[DynIterator[T], T, U, J]:
+    pub fn flat_map[U, J < Iterable[U]](*mut self, transform: fn(T) -> J) -> FlatMap[DynIterator[T], T, U, J]:
         DynIterator { source: self }.flat_map::[U, J](transform)
 
-    pub fn any(&mut self, test: fn(T) -> bool) -> bool:
+    pub fn any(*mut self, test: fn(T) -> bool) -> bool:
         DynIterator { source: self }.any(test)
 
-    pub fn all(&mut self, test: fn(T) -> bool) -> bool:
+    pub fn all(*mut self, test: fn(T) -> bool) -> bool:
         DynIterator { source: self }.all(test)
 
-    pub fn find(&mut self, test: fn(T) -> bool) -> T?:
+    pub fn find(*mut self, test: fn(T) -> bool) -> T?:
         DynIterator { source: self }.find(test)
 
-    pub fn count(&mut self) -> usize:
+    pub fn count(*mut self) -> usize:
         DynIterator { source: self }.count()
 
-    pub fn fold[A, $R](&mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
+    pub fn fold[A, $R](*mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
         DynIterator { source: self }.fold::[A](initial, step)
 
-    pub fn collect[C < FromIterator[T] = List[T]](&mut self) -> C:
+    pub fn collect[C < FromIterator[T] = List[T]](*mut self) -> C:
         DynIterator { source: self }.collect::[C]()
 
 pub struct FromFn[T]:
@@ -304,7 +304,7 @@ impl[I < Iterator[T], T] Iterator[T] for TakeWhile[I, T]:
 
 pub struct Zip[I < Iterator[T], T, U]:
     source: I
-    rest: &mut dyn Iterator[U]
+    rest: *mut dyn Iterator[U]
 
 impl[I < Iterator[T], T, U] Iterator[(T, U)] for Zip[I, T, U]:
     fn next(&mut self) -> (T, U)?:
@@ -317,7 +317,7 @@ impl[I < Iterator[T], T, U] Iterator[(T, U)] for Zip[I, T, U]:
 
 pub struct Chain[I < Iterator[T], T]:
     source: I
-    rest: &mut dyn Iterator[T]
+    rest: *mut dyn Iterator[T]
     first: bool
 
 impl[I < Iterator[T], T] Iterator[T] for Chain[I, T]:
@@ -379,7 +379,7 @@ impl[K < Eq & Hash, V] FromIterator[(K, V)] for Map[K, V]:
 
 struct ResultItems[I, T, E]:
     source: I
-    failure: &mut Option[E]
+    failure: *mut Option[E]
 
 impl[I < Iterator[Result[T, E]], T, E] Iterator[T] for ResultItems[I, T, E]:
     fn next(&mut self) -> T?:
@@ -403,7 +403,7 @@ impl[T, E, C < FromIterator[T]] FromIterator[Result[T, E]] for Result[C, E]:
 
 struct OptionItems[I, T]:
     source: I
-    missing: &mut bool
+    missing: *mut bool
 
 impl[I < Iterator[T?], T] Iterator[T] for OptionItems[I, T]:
     fn next(&mut self) -> T?:

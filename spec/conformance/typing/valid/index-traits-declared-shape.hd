@@ -3,7 +3,7 @@
 use std.ops.{Index, IndexSet}
 
 struct Names:
-    items: &mut List[string]
+    items: *mut List[string]
 
 impl Index[usize] for Names:
     type Out = string

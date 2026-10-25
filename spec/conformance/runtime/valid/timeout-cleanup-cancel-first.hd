@@ -7,7 +7,7 @@ use std.task.{all, race, timeout}
 use std.time.{Clock, Duration, ms, s, sleep}
 
 struct Close:
-    log: &mut List[string]
+    log: *mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Close:
@@ -18,14 +18,14 @@ impl Disposable for Close:
         ack!()
         self.log.push("acknowledged")
 
-fn session!(log: &mut List[string]) -> string $ Clock:
+fn session!(log: *mut List[string]) -> string $ Clock:
     using close = &mut Close { log: log, ack: sleep(s(60)) }
     sleep!(s(60))
     "reply"
 
 # The caller cancels at 50 ms, long before the limit, so the deadline is
 # 250 ms.
-fn request!(log: &mut List[string]) -> string $ Clock:
+fn request!(log: *mut List[string]) -> string $ Clock:
     result := timeout!(s(60), cleanup=ms(200)):
         session!(log)
     match result:

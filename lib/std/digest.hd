@@ -28,12 +28,12 @@ impl Sha256:
     # A new object, so `update` calls chain on it (r-std-digest.sha256.new-ref).
     ## Returns a hasher that has seen no bytes, a new object that `update` changes.
     ## See [std-digest.sha256.new-ref](../../spec/std/digest.md#r-std-digest.sha256.new-ref).
-    pub fn new() -> &mut Sha256:
+    pub fn new() -> *mut Sha256:
         &mut Sha256 { state: initial_state(), block: [], length: 0, rounds: round_constants(), outer: [] }
 
     ## Returns a hasher whose `finish` gives HMAC-SHA256 of the message under `key`.
     ## See [std-digest.hmac-ref](../../spec/std/digest.md#r-std-digest.hmac-ref).
-    pub fn hmac(key: List[u8]) -> &mut Sha256:
+    pub fn hmac(key: List[u8]) -> *mut Sha256:
         # A key longer than the 64-byte block is hashed first; a shorter one
         # is padded with zeros to the block (RFC 2104, section 2).
         let mut block_key: List[u8] = []
@@ -58,7 +58,7 @@ impl Sha256:
     # write through the reference happens once per call, not once per byte.
     ## Adds `bytes` to the message and returns the hasher, so calls chain.
     ## See [std-digest.sha256.update-ref](../../spec/std/digest.md#r-std-digest.sha256.update-ref).
-    pub fn update(&mut self, bytes: List[u8]) -> &mut Sha256:
+    pub fn update(*mut self, bytes: List[u8]) -> *mut Sha256:
         let mut block = self.block
         let state = self.state
         rounds := self.rounds

@@ -7,7 +7,7 @@ use std.task.{all, race}
 use std.time.{Clock, ms, sleep}
 
 struct Conn:
-    log: &mut List[string]
+    log: *mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -17,7 +17,7 @@ impl Disposable for Conn:
         wait!()
         self.log.push("closed")
 
-fn session!(log: &mut List[string], open: bool) -> string $ Clock:
+fn session!(log: *mut List[string], open: bool) -> string $ Clock:
     if open:
         using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
         log.push("leaving")

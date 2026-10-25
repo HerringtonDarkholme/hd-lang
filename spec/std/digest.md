@@ -110,8 +110,8 @@ never holds the whole message.
 pub struct Sha256: ...
 
 impl Sha256:
-    pub fn new() -> &mut Sha256
-    pub fn update(&mut self, bytes: List[u8]) -> &mut Sha256
+    pub fn new() -> *mut Sha256
+    pub fn update(*mut self, bytes: List[u8]) -> *mut Sha256
     pub fn finish(self) -> Digest
 ```
 
@@ -125,9 +125,9 @@ fn digest_of_chunks(chunks: List[List[u8]]) -> Digest:
     hasher.finish()
 ```
 
-1. r[std-digest.sha256.decl-struct] `Sha256` is a struct with private fields, used behind `&mut`. Code cannot build one except with `Sha256::new`.
+1. r[std-digest.sha256.decl-struct] `Sha256` is a struct with private fields, used behind `*mut`. Code cannot build one except with `Sha256::new`.
 2. r[std-digest.sha256.new-ref] `Sha256::new() -> &mut Sha256` returns a new object, a hasher that has seen no bytes. Copies of the reference share it.
-3. r[std-digest.sha256.update-ref] `h.update(bytes: List[u8]) -> &mut Sha256` adds `bytes` to the end of the message and returns `h`, so calls chain; it takes `&mut self`. The message is the bytes of all calls in call order, so how it is split across calls does not change the digest.
+3. r[std-digest.sha256.update-ref] `h.update(bytes: List[u8]) -> *mut Sha256` adds `bytes` to the end of the message and returns `h`, so calls chain; it takes `*mut self`. The message is the bytes of all calls in call order, so how it is split across calls does not change the digest.
 4. r[std-digest.sha256.finish] `h.finish() -> Digest` returns the digest of the message added so far, as [`sha256`](#r-std-digest.sha256) defines it. It takes `self`, so it leaves `h` as it was: `h` takes more `update` calls, and a second `finish` returns the same digest.
 5. r[std-digest.sha256.memory] `Sha256` keeps at most one partial block of the message, fewer than 64 bytes. `update` hashes each full block as it arrives, and `finish` pads only the last block.
 
@@ -143,7 +143,7 @@ computes the same MAC under the shared secret and compares.
 
 ```text
 impl Sha256:
-    pub fn hmac(key: List[u8]) -> &mut Sha256
+    pub fn hmac(key: List[u8]) -> *mut Sha256
 ```
 
 ```text

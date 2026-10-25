@@ -6,7 +6,7 @@ use std.task.{all, block_on}
 use std.time.{Clock, ms, sleep}
 
 struct Pause:
-    clock: &mut dyn Clock
+    clock: *mut dyn Clock
 
 impl Disposable for Pause:
     fn dispose!(&mut self) -> void:

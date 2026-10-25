@@ -5,8 +5,8 @@ struct Child:
     name: string
 
 struct Parent:
-    child: &mut Child
-    snapshot: &Child
+    child: *mut Child
+    snapshot: *Child
 
 fn rename(parent: &mut Parent) -> void:
     parent.child.name = "Grace"

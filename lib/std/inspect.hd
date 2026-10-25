@@ -15,11 +15,11 @@ pub trait Inspectable:
 impl dyn Inspectable:
     ## Recovers the original shared reference when its concrete type is `T`.
     @intrinsic("downcast_ref")
-    pub fn downcast_ref[T < Inspectable](&self) -> (&T)?: panic("intrinsic")
+    pub fn downcast_ref[T < Inspectable](&self) -> (*T)?: panic("intrinsic")
 
     ## Recovers the original mutable reference when its concrete type is `T`.
     @intrinsic("downcast_mut")
-    pub fn downcast_mut[T < Inspectable](&mut self) -> (&mut T)?: panic("intrinsic")
+    pub fn downcast_mut[T < Inspectable](&mut self) -> (*mut T)?: panic("intrinsic")
 
 # `key` is the type's identity, which `Eq` compares; `name` is its canonical
 # printable name (trait.typeid.name), which `Display` prints. Two types of

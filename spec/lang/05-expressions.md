@@ -870,7 +870,7 @@ Other types get `[]` by implementing the `std.ops` traits `Index` and
 use std.ops.{Index, IndexSet}
 
 struct Ring:
-    items: &mut List[i32]
+    items: *mut List[i32]
 
 impl Index[usize] for Ring:
     type Out = i32

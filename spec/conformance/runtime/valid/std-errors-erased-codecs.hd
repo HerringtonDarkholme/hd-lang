@@ -4,15 +4,15 @@ use std.cli.{Arg, ArgParser}
 use std.encoding.hex_decode
 use std.error.Error
 use std.regex.Regex
-fn bytes(text: string) -> Result[List[u8], &dyn Error]:
+fn bytes(text: string) -> Result[List[u8], *dyn Error]:
     value := hex_decode(text)?
     .Ok(value)
 
-fn pattern(text: string) -> Result[Regex, &dyn Error]:
+fn pattern(text: string) -> Result[Regex, *dyn Error]:
     value := Regex::new(text)?
     .Ok(value)
 
-fn verbose(arguments: List[string]) -> Result[bool, &dyn Error]:
+fn verbose(arguments: List[string]) -> Result[bool, *dyn Error]:
     parsed := ArgParser::new("tool").arg(Arg { name: "verbose", kind: .Flag, short: .None, help: "say more" }).parse(arguments)?
     .Ok(parsed.flag("verbose"))
 

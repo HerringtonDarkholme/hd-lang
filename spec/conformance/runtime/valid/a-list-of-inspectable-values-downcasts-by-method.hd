@@ -19,6 +19,6 @@ fn describe(value: &dyn Inspectable) -> string:
             .None => "other"
 
 pub fn main() -> void $ Console:
-    let values: List[&dyn Inspectable] = [&User { name: "Ada" }, &Tag { label: "hi" }, &3]
+    let values: List[*dyn Inspectable] = [&User { name: "Ada" }, &Tag { label: "hi" }, &3]
     for value in values:
         println(describe(value))

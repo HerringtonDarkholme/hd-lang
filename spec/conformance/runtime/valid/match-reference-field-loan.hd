@@ -2,7 +2,7 @@
 # Spec 13 References: ref.read.auto; Reference Lifetime: ref.place.lifetime.
 struct Node:
     value: i64
-    left: (&Node)?
+    left: (*Node)?
 
 fn value(node: &Node) -> i64:
     match node.left:
@@ -26,7 +26,7 @@ fn across_store(node: &Node, alias: &mut Node) -> i64:
             alias.left = .None
             left.value
 
-fn selected(node: &Node) -> &Node:
+fn selected(node: *Node) -> *Node:
     match node.left:
         .None => node
         .Some(left) => left
@@ -46,13 +46,13 @@ trait HasValue:
 impl HasValue for Node:
     fn number(&self) -> i64: self.value
 
-fn selected_erased(node: &Node) -> &dyn HasValue:
+fn selected_erased(node: *Node) -> *dyn HasValue:
     match node.left:
         .None => node
         .Some(left) => left
 
 struct Holder[T]:
-    item: &mut T
+    item: *mut T
 
 trait Factory:
     fn hold[T](self, item: T) -> Holder[T]:

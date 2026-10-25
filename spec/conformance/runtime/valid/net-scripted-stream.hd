@@ -37,7 +37,7 @@ fn outcome[T](result: Result[T, NetError]) -> string:
         .Err(.Other(message)) => "other: ${message}"
         .Err(error) => "error: ${error}"
 
-fn open_stream!(address: string, port: u16) -> &mut dyn TcpStream $ Net:
+fn open_stream!(address: string, port: u16) -> *mut dyn TcpStream $ Net:
     net := $.use(Net)
     match net.connect!(address, port):
         .Ok(stream) => stream

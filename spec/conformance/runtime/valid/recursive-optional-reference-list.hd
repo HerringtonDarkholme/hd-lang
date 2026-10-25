@@ -4,18 +4,18 @@
 # expect-stdout: 6 3
 struct Cell:
     value: i64
-    next: &Cell?
+    next: *Cell?
 
-fn sum(list: &Cell?) -> i64:
+fn sum(list: *Cell?) -> i64:
     match list:
         .Some(cell) => cell.value + sum(cell.next)
         .None => 0
 
-fn length(list: &Cell?) -> i64:
+fn length(list: *Cell?) -> i64:
     match list:
         .Some(cell) => 1 + length(cell.next)
         .None => 0
 
 pub fn main() -> void $ Console:
-    let list: &Cell? = &Cell { value: 1, next: &Cell { value: 2, next: &Cell { value: 3, next: .None } } }
+    let list: *Cell? = &Cell { value: 1, next: &Cell { value: 2, next: &Cell { value: 3, next: .None } } }
     println("${sum(list)} ${length(list)}")

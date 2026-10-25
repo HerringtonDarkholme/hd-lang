@@ -3,7 +3,7 @@
 # Passing a reference the caller holds to a `&` parameter lends it for
 # the call (#676; binary_trees: check(left)).
 struct Node:
-    left: (&Node)?
+    left: (*Node)?
 
 fn depth(node: &Node) -> i64:
     match node.left:

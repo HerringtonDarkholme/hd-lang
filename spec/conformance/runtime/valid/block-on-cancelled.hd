@@ -8,7 +8,7 @@ use std.task.{all, block_on}
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
-    log: &mut List[string]
+    log: *mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -34,7 +34,7 @@ fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
 # `job` turns out cancelled when `all!` polls it again, so `all!` is
 # cancelled, and so is `both`, the suspension that block_on drives. Its
 # cleanup waits in the dispose of `conn`, and block_on drives it to its end.
-fn both!(job: mut Suspend[string], log: &mut List[string]) -> string $ Clock:
+fn both!(job: mut Suspend[string], log: *mut List[string]) -> string $ Clock:
     defer: log.push("both defer")
     using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     let (worked, stopped) = all!(job, stop(job, log))
@@ -46,7 +46,7 @@ fn ended[T](pending: mut Suspend[T]) -> string:
         .Cancelled => "cancelled"
         .Abandoned => "abandoned"
 
-fn inside(log: &mut List[string]) -> string $ Clock:
+fn inside(log: *mut List[string]) -> string $ Clock:
     let job: mut Suspend[string] = work(log)
     ended(both(job, log))
 

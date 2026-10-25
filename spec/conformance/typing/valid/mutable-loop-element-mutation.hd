@@ -2,6 +2,6 @@
 struct User:
     name: string
 
-fn rename_all(users: List[&mut User]) -> void:
+fn rename_all(users: List[*mut User]) -> void:
     for user in users:
         user.name = "Grace"

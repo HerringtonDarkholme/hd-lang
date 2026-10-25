@@ -2,7 +2,7 @@
 # Spec 13 Reference lifetime: ref.place.lifetime; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
 # expect-stdout: 2 updated 4 changed
 trait Factory:
-    fn make[T](self, value: T) -> &mut T:
+    fn make[T](self, value: T) -> *mut T:
         let mut local = value
         &mut local
 

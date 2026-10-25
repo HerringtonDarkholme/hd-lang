@@ -10,8 +10,8 @@ use std.time.{Clock, Duration, ManualClock, Timestamp, ms, s, sleep}
 # The flush spends 200 ms of the manual clock without waiting, then waits
 # for an acknowledgement.
 struct Flush:
-    log: &mut List[string]
-    clock: &mut dyn Clock
+    log: *mut List[string]
+    clock: *mut dyn Clock
     ack: mut Suspend[void]
 
 impl Disposable for Flush:
@@ -30,7 +30,7 @@ fn silent!() -> void $ Clock:
 fn quick!() -> void:
     pass
 
-fn flush!(log: &mut List[string], ack: mut Suspend[void], bound: Duration) -> Result[void, TimedOut] $ Clock:
+fn flush!(log: *mut List[string], ack: mut Suspend[void], bound: Duration) -> Result[void, TimedOut] $ Clock:
     let reply: mut Suspend[void] = silent()
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):

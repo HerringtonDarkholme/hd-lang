@@ -9,7 +9,7 @@ use std.task.{all, block_on, race}
 use std.time.{Clock, s, sleep}
 
 struct Conn:
-    log: &mut List[string]
+    log: *mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -20,7 +20,7 @@ impl Disposable for Conn:
         wait!()
         self.log.push("closed")
 
-fn session!(log: &mut List[string]) -> string $ Clock:
+fn session!(log: *mut List[string]) -> string $ Clock:
     defer: log.push("session defer")
     using conn = &mut Conn { log: log, closing: sleep(s(60)) }
     sleep!(s(60))
@@ -45,7 +45,7 @@ fn trio!(job: mut Suspend[string], log: &mut List[string]) -> string:
     let (winner, waited, stopped) = all!(race(job, ready()), waiter(job, log), stop(job, log))
     "${winner} ${waited} ${stopped}"
 
-fn drive(log: &mut List[string]) -> string $ Clock:
+fn drive(log: *mut List[string]) -> string $ Clock:
     let job: mut Suspend[string] = session(log)
     match block_on(trio(job, log)):
         .Completed(value) => value

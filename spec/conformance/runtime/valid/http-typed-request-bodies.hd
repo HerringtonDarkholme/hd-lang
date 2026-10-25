@@ -34,7 +34,7 @@ struct Form:
 struct Empty: pass
 
 struct Once:
-    calls: &mut List[usize]
+    calls: *mut List[usize]
 
 impl Serialize for Once:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:

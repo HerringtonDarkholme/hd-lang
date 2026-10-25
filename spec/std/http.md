@@ -67,13 +67,13 @@ pub struct Response:
 A request builder accumulates fields before its terminal `send!` call.
 For example, `Request::get(url).query("page", 2).header("Accept", "text/plain").send!()` sends a GET with an encoded page number.
 
-1. r[std-http.request.new] `Request::new(method: Method, url: string) -> &mut Request` returns a new request with those fields and the other defaults.
-2. r[std-http.request.get] `Request::get(url: string) -> &mut Request` returns `Request::new(.Get, url)`.
-3. r[std-http.request.post] `Request::post(url: string) -> &mut Request` returns `Request::new(.Post, url)`.
-4. r[std-http.request.header] `header(&mut self, name: string, value: string) -> &mut Request` appends the header pair and returns the same builder.
+1. r[std-http.request.new] `Request::new(method: Method, url: string) -> *mut Request` returns a new request with those fields and the other defaults.
+2. r[std-http.request.get] `Request::get(url: string) -> *mut Request` returns `Request::new(.Get, url)`.
+3. r[std-http.request.post] `Request::post(url: string) -> *mut Request` returns `Request::new(.Post, url)`.
+4. r[std-http.request.header] `header(*mut self, name: string, value: string) -> *mut Request` appends the header pair and returns the same builder.
 5. r[std-http.request.query] `query[T < Display](&mut self, name: string, value: T) -> &mut Request` appends `(name, "$value")` and returns the same builder.
-6. r[std-http.request.body] `body(&mut self, bytes: List[u8]) -> &mut Request` replaces the body and returns the same builder.
-7. r[std-http.request.redirects] `redirects(&mut self, count: usize) -> &mut Request` sets the redirect limit and returns the same builder.
+6. r[std-http.request.body] `body(*mut self, bytes: List[u8]) -> *mut Request` replaces the body and returns the same builder.
+7. r[std-http.request.redirects] `redirects(*mut self, count: usize) -> *mut Request` sets the redirect limit and returns the same builder.
 8. r[std-http.request.send] `send!(self) -> Result[Response, HttpError] $ Http` sends a copy with its encoded URL through the covering `Http` provider.
 9. r[std-http.request.query-encoding] Query names and values encode their UTF-8 bytes with uppercase percent escapes, keeping only RFC 3986 unreserved bytes.
 10. r[std-http.request.query-order] Encoding preserves query pair order and repeated names, joining each encoded name and value with `=` and pairs with `&`.
@@ -114,9 +114,9 @@ A client shares a base URL, default headers and host-only cookies across request
 adds a deadline by composing `std.task.timeout!` around `client.send!`.
 
 1. r[std-http.client.http-only] `std.http` exports the struct `Client` with private fields.
-2. r[std-http.client.new-empty-jar] `Client::new() -> &mut Client` returns a new client without a base URL, default headers or cookies.
-3. r[std-http.client.base-url] `base_url(&mut self, url: string) -> &mut Client` replaces the base URL and returns the same client.
-4. r[std-http.client.default-header] `header(&mut self, name: string, value: string) -> &mut Client` appends a default header pair and returns the same client.
+2. r[std-http.client.new-empty-jar] `Client::new() -> *mut Client` returns a new client without a base URL, default headers or cookies.
+3. r[std-http.client.base-url] `base_url(*mut self, url: string) -> *mut Client` replaces the base URL and returns the same client.
+4. r[std-http.client.default-header] `header(*mut self, name: string, value: string) -> *mut Client` appends a default header pair and returns the same client.
 5. r[std-http.client.send-http-only] `send!(&mut self, request: Request) -> Result[Response, HttpError] $ Http` sends through the covering `Http` provider.
 6. r[std-http.client.resolve-root-url] A request URL starting with `/` resolves against the configured base URL.
 7. r[std-http.client.absolute-url] An absolute request URL is used unchanged.
@@ -263,7 +263,7 @@ struct Created:
 fn notes!() -> Result[string, HttpError] $ Http:
     .Ok(get!("https://example.com/notes.txt")?.text())   # a 404 is .Err(HttpError.Status(response))
 
-fn create!(name: string) -> Result[Created, &dyn Error] $ Http:
+fn create!(name: string) -> Result[Created, *dyn Error] $ Http:
     request := Request::post("https://example.com/users").json(NewUser { name: name })
     .Ok(request.send!()?.ok()?.json::[Created]()?)              # a bad body is a JsonError
 ```
@@ -301,7 +301,7 @@ tests:
 ```
 
 1. r[std-http.scripted.decl] `std.http` declares `ScriptedHttp`, which implements `Http` and `Debug`, with private fields. Code imports it, as in `use std.http.ScriptedHttp`.
-2. r[std-http.scripted.new-empty] `ScriptedHttp::new() -> &mut ScriptedHttp` returns a new provider with no replies and no received requests.
+2. r[std-http.scripted.new-empty] `ScriptedHttp::new() -> *mut ScriptedHttp` returns a new provider with no replies and no received requests.
 3. r[std-http.scripted.reply] `reply(&mut self, url: string, result: Result[Response, HttpError]) -> void` appends a result for that URL.
 4. r[std-http.scripted.key-text] Replies match the complete request URL exactly, after query encoding, whatever the request method.
 5. r[std-http.scripted.queue-order] Sends consume queued results in insertion order, independently for each URL.

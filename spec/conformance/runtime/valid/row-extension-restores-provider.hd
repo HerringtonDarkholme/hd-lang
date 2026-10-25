@@ -32,7 +32,7 @@ tests:
 
     it("a closure that captured a provider value keeps it inside the removing callee"):
         reader := $.with(Tag=FixedTag { value: "captured" }):
-            tag := $.use(Tag)
+            let tag: *dyn Tag = $.use(Tag)
             fn() -> string: tag.name()
         seen := provide_inner(fn() -> string $ Tag: reader())
         assert_equal(seen, "captured", reason="a captured provider value is not looked up again")

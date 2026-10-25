@@ -117,7 +117,7 @@ use std.process.ExitCode
 use std.testing.TestRunner
 use std.time.s
 
-fn check_port(port: i32) -> Result[void, &dyn Error]:
+fn check_port(port: i32) -> Result[void, *dyn Error]:
     if port > 0: .Ok(()) else: .Err(message(\"bad port: ${port}\"))
 
 fn exit_zero() -> ExitCode:
@@ -133,9 +133,9 @@ tests:
 
     it(\"fails with code three\", body=fn!() -> ExitCode: ExitCode(3))
 
-    it(\"passes an ok port\", fn!() -> Result[void, &dyn Error]: check_port(80))
+    it(\"passes an ok port\", fn!() -> Result[void, *dyn Error]: check_port(80))
 
-    it(\"fails a bad port\", body=fn!() -> Result[void, &dyn Error]: check_port(0))
+    it(\"fails a bad port\", body=fn!() -> Result[void, *dyn Error]: check_port(0))
 
     it(\"takes a function\", body=exit_zero)
 

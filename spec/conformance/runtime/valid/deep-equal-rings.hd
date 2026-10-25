@@ -8,9 +8,9 @@ use std.cmp.{DeepEq, deep_equal}
 @derive(DeepEq)
 struct Node:
     value: i32
-    next: &mut Node?
+    next: *mut Node?
 
-fn ring(a: i32, b: i32) -> &mut Node:
+fn ring(a: i32, b: i32) -> *mut Node:
     first := &mut Node { value: a, next: .None }
     second := &mut Node { value: b, next: .Some(first) }
     first.next = .Some(second)

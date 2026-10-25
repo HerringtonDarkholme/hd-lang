@@ -7,7 +7,7 @@ use std.task.{all, block_on}
 use std.time.{Clock, s, sleep}
 
 struct Channel:
-    log: &mut List[string]
+    log: *mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Channel:
@@ -31,13 +31,13 @@ fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
 
 # `job` turns out cancelled when `all!` polls it again, so `all!` and
 # `both` are cancelled, and the dispose of `channel` cannot finish.
-fn both!(job: mut Suspend[string], ack: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
+fn both!(job: mut Suspend[string], ack: mut Suspend[void], log: *mut List[string]) -> string $ Clock:
     defer: log.push("both defer")
     using channel = &mut Channel { log: log, ack: ack }
     let (worked, stopped) = all!(job, stop(job, log))
     "${worked} ${stopped}"
 
-fn drive(log: &mut List[string]) -> string $ Clock:
+fn drive(log: *mut List[string]) -> string $ Clock:
     let ack: mut Suspend[void] = sleep(s(60))
     ack.abandon()
     let job: mut Suspend[string] = work(log)

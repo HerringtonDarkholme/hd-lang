@@ -7,7 +7,7 @@ trait FileHandle:
     fn read!(&mut self) -> Result[string, FileError]
 
 trait Files:
-    fn open!(self, path: string) -> Result[&mut dyn FileHandle, FileError]
+    fn open!(self, path: string) -> Result[*mut dyn FileHandle, FileError]
 
 fn read_first!(path: string) -> Result[string, FileError] $ Files:
     let handle: &mut dyn FileHandle = $.use(Files).open!(path)?

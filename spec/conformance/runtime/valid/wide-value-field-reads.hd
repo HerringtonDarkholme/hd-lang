@@ -216,7 +216,7 @@ fn repeated_ref(value: &Wide, stop: bool) -> usize:
     sum
 
 struct Holder[T]:
-    item: &mut T
+    item: *mut T
 
 trait Factory:
     fn hold[T](self, value: T) -> Holder[T]:

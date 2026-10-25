@@ -23,7 +23,7 @@ pub trait FileHandle:
 
 const MAIN: &str = "
 pub trait Files:
-    fn open!(self) -> &mut dyn FileHandle
+    fn open!(self) -> *mut dyn FileHandle
 
 pub fn main!() -> void $ Files:
     let handle: &mut dyn FileHandle = $.use(Files).open!()
@@ -104,7 +104,7 @@ fn a_returned_profile_trait_value_is_a_handle_whose_methods_take_its_number() {
 #[test]
 fn a_handle_trait_that_its_own_method_returns_stops_at_link() {
     let text = format!(
-        "{FILES}    fn again(&mut self) -> &mut dyn FileHandle\n{MAIN}    let _ = handle.again()\n"
+        "{FILES}    fn again(&mut self) -> *mut dyn FileHandle\n{MAIN}    let _ = handle.again()\n"
     );
     let out = build(&text, &["Files", "FileHandle"]);
     assert!(out.wasm.is_none());
@@ -123,7 +123,7 @@ fn an_uncalled_self_returning_handle_method_links_after_the_handle_free_build() 
     let traits = ["Files", "FileHandle"];
     let free = build_in(&store, &format!("{FILES}{MAIN}"), &traits);
     let free = free.wasm.as_deref().expect("the handle-free program links");
-    let text = format!("{FILES}    fn again(self) -> &mut dyn FileHandle\n{MAIN}");
+    let text = format!("{FILES}    fn again(self) -> *mut dyn FileHandle\n{MAIN}");
     let out = build_in(&store, &text, &traits);
     let wasm = out.wasm.as_deref().expect("the program links");
     assert_eq!(profile_imports(wasm), profile_imports(free));

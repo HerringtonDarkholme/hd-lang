@@ -35,16 +35,16 @@ tests:
     it("the target names the actual referent"):
         user := &User { name: "Lin" }
         let erased: &dyn Inspectable = user
-        assert(erased.downcast_ref::[&User]().is_none(), reason="the referent is User")
+        assert(erased.downcast_ref::[*User]().is_none(), reason="the referent is User")
         nested := &user
         let reference_value: &dyn Inspectable = nested
-        match reference_value.downcast_ref::[&User]():
+        match reference_value.downcast_ref::[*User]():
             .Some(found) =>
                 assert(found is nested, reason="the original reference to the reference")
                 assert(*found is user, reason="the reference-valued referent")
             .None => assert(false, reason="the referent is &User")
         let dynamic: &dyn Inspectable = user
         let dynamic_reference: &dyn Inspectable = &dynamic
-        match dynamic_reference.downcast_ref::[&dyn Inspectable]():
+        match dynamic_reference.downcast_ref::[*dyn Inspectable]():
             .Some(found) => assert(*found is dynamic, reason="a trait-reference-valued referent")
             .None => assert(false, reason="the referent is &dyn Inspectable")

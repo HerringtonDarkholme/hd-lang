@@ -5,7 +5,7 @@ use std.error.{Error, message, report_of}
 fn describe[E < Error](error: E) -> string:
     error.to_string()
 
-fn fail(text: string) -> Result[void, &dyn Error]:
+fn fail(text: string) -> Result[void, *dyn Error]:
     .Err(message(text))
 
 tests:
@@ -22,7 +22,7 @@ tests:
                 assert_equal(report_of(error).sources.len(), 0, reason="no source")
 
     it("context accepts an explicit message error"):
-        let failed: Result[i32, &dyn Error] = .Err(message("disk full"))
+        let failed: Result[i32, *dyn Error] = .Err(message("disk full"))
         match failed.context("saving"):
             .Ok(_) => assert_equal(true, false, reason="expected an error")
             .Err(error) =>

@@ -6,7 +6,7 @@ struct Worker:
 
 enum Job:
     Queued(attempts: i32)
-    Running(worker: &mut Worker)
+    Running(worker: *mut Worker)
     Finished
 
 fn describe(job: Job) -> string:

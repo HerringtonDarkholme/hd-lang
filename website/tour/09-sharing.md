@@ -18,7 +18,7 @@ struct Stock:
 
 struct Lane:
     name: string
-    stock: &mut Stock  # ← every lane holds the same object
+    stock: *mut Stock  # ← every lane holds the same object
 
 fn sell(lane: Lane, units: i32) -> void $ Console:
     if lane.stock.units < units:

@@ -4,5 +4,5 @@ trait Db
 
 trait Cache
 
-fn same(handlers: &mut List[fn() -> void $ Db + Cache]) -> &mut List[fn() -> void $ Cache + Db]:
+fn same(handlers: *mut List[fn() -> void $ Db + Cache]) -> *mut List[fn() -> void $ Cache + Db]:
     handlers

@@ -69,7 +69,7 @@ fn plain() -> string: "plain"
 fn double(x: i32) -> i32 $ Tag:
     x * 2
 
-fn runner(prefix: string) -> &dyn Runner:
+fn runner(prefix: string) -> *dyn Runner:
     &Plain { prefix: prefix }
 
 tests:

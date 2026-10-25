@@ -8,7 +8,7 @@ use std.serde.{Serialize, Deserialize}
 @derive(Serialize, Deserialize)
 struct Cell:
     value: i64
-    next: &Cell?
+    next: *Cell?
 
 fn last(cell: &Cell) -> i64:
     match cell.next:
