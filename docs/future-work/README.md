@@ -39,6 +39,8 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Memory model and performance
 
+- [Embedded V8](EMBEDDED_V8.md): measured engine size, build time, startup, runtime, shared host code and install-cache gaps (#826); no engine change is decided.
+
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
 - [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1. Part 3 is its first cut, local references: step 1 is applied (#834), and the later steps need approval (#704).
 - [Refcount Runtime](REFCOUNT_RUNTIME.md): the linear-memory runtime of reference counting with cycle detection, priced on Wasm; it is the only backend (#426).
