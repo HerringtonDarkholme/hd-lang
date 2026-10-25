@@ -2593,6 +2593,11 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::BytesMismatch);
                 self.store(i)
             }
+            "utf8_valid_len" => {
+                self.comp(args[0], 0)?;
+                self.f.helper(Helper::Utf8ValidLen);
+                self.store(i)
+            }
             // A `char` is its scalar value at run time.
             "char_scalar" => {
                 self.comp(args[0], 0)?;

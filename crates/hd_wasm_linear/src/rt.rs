@@ -438,6 +438,10 @@ pub enum Helper {
     /// shorter length (#428). [`Helper::StrEq`] and [`Helper::StrCmp`] call
     /// it.
     BytesMismatch,
+    /// `(list) -> len`: std's `utf8_valid_len`, the length of the longest
+    /// well-formed UTF-8 prefix of a `List[u8]` that ends at a scalar
+    /// boundary (#428).
+    Utf8ValidLen,
     /// `(args) -> result`: the `hd:prim` import `name` (spec/std/README.md,
     /// "Standard library primitives"). A string argument goes in the
     /// exchange buffer, its length the import's parameter; a string result
@@ -1714,6 +1718,11 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::BytesMismatch => {
             let mut f = m.func("rt:bytes_mismatch", vec![Val::I32; 4], vec![Val::I32]);
             f.raw = Some(crate::scan::mismatch_code());
+            f
+        }
+        Helper::Utf8ValidLen => {
+            let mut f = m.func("rt:utf8_valid_len", vec![Val::I32], vec![Val::I32]);
+            f.raw = Some(crate::scan::utf8_valid_len_code());
             f
         }
         Helper::HostPrim { name, args, result } => host_prim(m, name, args, *result),

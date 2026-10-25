@@ -322,3 +322,194 @@ pub fn mismatch_code() -> Vec<u8> {
     s.local_get(n).end();
     f.into_raw_body()
 }
+
+/// The code of `Helper::Utf8ValidLen`, `(list) -> len`: the length of the
+/// longest prefix of a `List[u8]`'s elements that is well-formed UTF-8 and
+/// ends at a scalar boundary, so the element count when all are valid.
+///
+/// ASCII passes 64 bytes per step while 64 remain (four `v128.load`s
+/// or-ed, one `i8x16.bitmask`), then 16. In a block with a byte of 128 or
+/// more, the bytes before it are ASCII, so the scan jumps to it and runs
+/// the scalar decoder of std's reference body from there: up to the next
+/// ASCII byte, or to the end once fewer than 16 bytes remain. Every return
+/// is the offset of a sequence's first byte, as in the reference, and no
+/// load reaches past the last element.
+#[must_use]
+pub fn utf8_valid_len_code() -> Vec<u8> {
+    let list = 0;
+    let (at, len, i, mask, lead, point, byte) = (1, 2, 3, 4, 5, 6, 7);
+    let mut f = Function::new([(7, ValType::I32)]);
+    let mut s = f.instructions();
+    let ascii_at = |s: &mut wasm_encoder::InstructionSink<'_>, off: u64| {
+        s.local_get(at).local_get(i).i32_add().v128_load(MemArg {
+            offset: off,
+            ..V128
+        });
+    };
+    // Return `i` when the value on the stack is not 0.
+    let fail_if = |s: &mut wasm_encoder::InstructionSink<'_>| {
+        s.if_(BlockType::Empty).local_get(i).return_().end();
+    };
+    s.local_get(list)
+        .i32_load(MemArg {
+            offset: crate::rt::LIST_LEN,
+            align: 2,
+            memory_index: HEAP,
+        })
+        .local_set(len);
+    s.local_get(list)
+        .i32_const(crate::rt::LIST_ELEMS.cast_signed())
+        .i32_add()
+        .local_set(at);
+    s.loop_(BlockType::Empty);
+    // 64 ASCII bytes at a time while 64 remain: the high bits of four
+    // blocks or-ed together.
+    s.block(BlockType::Empty).loop_(BlockType::Empty);
+    s.local_get(len)
+        .local_get(i)
+        .i32_sub()
+        .i32_const(64)
+        .i32_lt_u()
+        .br_if(1);
+    ascii_at(&mut s, 0);
+    ascii_at(&mut s, 16);
+    s.v128_or();
+    ascii_at(&mut s, 32);
+    s.v128_or();
+    ascii_at(&mut s, 48);
+    s.v128_or().i8x16_bitmask().br_if(1);
+    s.local_get(i).i32_const(64).i32_add().local_set(i).br(0);
+    s.end().end();
+    // Then 16 at a time while 16 remain; in a block that is not all
+    // ASCII, the bytes before the first one that is not are.
+    s.block(BlockType::Empty).loop_(BlockType::Empty);
+    s.local_get(len)
+        .local_get(i)
+        .i32_sub()
+        .i32_const(16)
+        .i32_lt_u()
+        .br_if(1);
+    ascii_at(&mut s, 0);
+    s.i8x16_bitmask().local_tee(mask).if_(BlockType::Empty);
+    s.local_get(i)
+        .local_get(mask)
+        .i32_ctz()
+        .i32_add()
+        .local_set(i)
+        .br(2)
+        .end();
+    s.local_get(i).i32_const(16).i32_add().local_set(i).br(0);
+    s.end().end();
+    // The scalar decoder, from a scalar boundary: to the end once fewer
+    // than 16 bytes remain, else up to the next ASCII byte.
+    s.loop_(BlockType::Empty);
+    s.local_get(i)
+        .local_get(len)
+        .i32_ge_u()
+        .if_(BlockType::Empty);
+    s.local_get(len).return_().end();
+    s.local_get(at)
+        .local_get(i)
+        .i32_add()
+        .i32_load8_u(U8)
+        .local_tee(lead)
+        .i32_const(0x80)
+        .i32_lt_u()
+        .if_(BlockType::Empty);
+    s.local_get(i).i32_const(1).i32_add().local_set(i);
+    s.local_get(len)
+        .local_get(i)
+        .i32_sub()
+        .i32_const(16)
+        .i32_ge_u()
+        .br_if(2);
+    s.else_();
+    // Return `i` unless `n` bytes from `i` are within `len`.
+    let fits = |s: &mut wasm_encoder::InstructionSink<'_>, n: i32| {
+        s.local_get(i)
+            .i32_const(n)
+            .i32_add()
+            .local_get(len)
+            .i32_gt_u();
+        fail_if(s);
+    };
+    // Continuation byte `n` into `point`, returning `i` unless it is
+    // 10xxxxxx.
+    let next = |s: &mut wasm_encoder::InstructionSink<'_>, n: u64| {
+        s.local_get(at)
+            .local_get(i)
+            .i32_add()
+            .i32_load8_u(MemArg { offset: n, ..U8 })
+            .local_tee(byte)
+            .i32_const(0xc0)
+            .i32_and()
+            .i32_const(0x80)
+            .i32_ne()
+            .if_(BlockType::Empty)
+            .local_get(i)
+            .return_()
+            .end();
+        s.local_get(point)
+            .i32_const(6)
+            .i32_shl()
+            .local_get(byte)
+            .i32_const(0x3f)
+            .i32_and()
+            .i32_or()
+            .local_set(point);
+    };
+    s.local_get(lead)
+        .i32_const(0xe0)
+        .i32_lt_u()
+        .if_(BlockType::Empty);
+    // Two bytes: C0 and C1 lead nothing, and C2 and up never give an
+    // overlong scalar.
+    s.local_get(lead).i32_const(0xc2).i32_lt_u();
+    fail_if(&mut s);
+    fits(&mut s, 2);
+    next(&mut s, 1);
+    s.local_get(i).i32_const(2).i32_add().local_set(i);
+    s.else_();
+    s.local_get(lead)
+        .i32_const(0xf0)
+        .i32_lt_u()
+        .if_(BlockType::Empty);
+    // Three bytes: neither overlong nor a surrogate.
+    fits(&mut s, 3);
+    s.local_get(lead).i32_const(0x0f).i32_and().local_set(point);
+    next(&mut s, 1);
+    next(&mut s, 2);
+    s.local_get(point).i32_const(0x800).i32_lt_u();
+    fail_if(&mut s);
+    s.local_get(point)
+        .i32_const(0xd800)
+        .i32_sub()
+        .i32_const(0x800)
+        .i32_lt_u();
+    fail_if(&mut s);
+    s.local_get(i).i32_const(3).i32_add().local_set(i);
+    s.else_();
+    // Four bytes: F5 to FF lead nothing; neither overlong nor past
+    // U+10FFFF.
+    s.local_get(lead).i32_const(0xf4).i32_gt_u();
+    fail_if(&mut s);
+    fits(&mut s, 4);
+    s.local_get(lead).i32_const(0x07).i32_and().local_set(point);
+    next(&mut s, 1);
+    next(&mut s, 2);
+    next(&mut s, 3);
+    s.local_get(point)
+        .i32_const(0x1_0000)
+        .i32_sub()
+        .i32_const(0x10_0000)
+        .i32_ge_u();
+    fail_if(&mut s);
+    s.local_get(i).i32_const(4).i32_add().local_set(i);
+    s.end().end();
+    s.end();
+    s.br(0);
+    s.end();
+    s.end();
+    s.local_get(len).end();
+    f.into_raw_body()
+}

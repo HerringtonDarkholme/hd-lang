@@ -73,7 +73,7 @@ a `char`, or a list.
 | `f32_to_bits`, `f32_from_bits` | `(value: f32) -> u32`, `(bits: u32) -> f32` | the same bit cast for `f32` |
 | `list_truncate` | `[T](items: &mut List[T], len: usize) -> void` | shortens the list `items` refers to, to its first `len` elements, the one hook under `List.pop`, `insert`, `remove_at`, and `clear`; panics when `len` is greater than the size. Panic: `index-out-of-bounds` |
 
-**Scans.** These search a string's bytes. Each has an hd reference body
+**Scans.** These search the bytes of a string or a byte list. Each has an hd reference body
 that defines its result, and an implementation may supply a faster body
 that gives the same result. The owner approved them in
 [#428](https://github.com/HerringtonDarkholme/hd-lang/issues/428).
@@ -83,6 +83,7 @@ that gives the same result. The owner approved them in
 | `bytes_index_json` | `(s: string, from: usize) -> usize` | the offset of the first byte at or after `from` that JSON must escape (a byte below `0x20`, `"` or `\`), or `bytes_len(s)` when there is none; SIMD reads 16 bytes per step where an hd loop reads one, and JSON encoding and parsing scan every string byte |
 | `bytes_index` | `(s: string, from: usize, byte: u8) -> usize` | the offset of the first byte at or after `from` equal to `byte`, or `bytes_len(s)` when there is none; SIMD compares 16 bytes per step where an hd loop compares one, and one-byte `find`, `split`, `count`, `replace` and `lines`, the regex literal prefilter and the JSON pointer scan are all this search |
 | `bytes_mismatch` | `(left: string, right: string) -> usize` | the offset of the first position where `left` and `right` differ; when one is a prefix of the other, the shorter length, and when they are equal, their common length; SIMD compares 16 bytes of each per step where an hd loop compares one, and string `==` and ordering, `starts_with` and `ends_with` are all this comparison |
+| `utf8_valid_len` | `(bytes: List[u8]) -> usize` | the length of the longest prefix of `bytes` that is well-formed UTF-8 and ends at a scalar boundary, so `bytes.len()` exactly when all of it is valid; SIMD passes 16 ASCII bytes per step where an hd loop decodes one, and `string::from_utf8`, and through it HTTP bodies, file reads and `std.encoding`, validates every byte |
 
 **Panic.** One primitive raises every checked runtime panic that `lib/std`
 raises with a category other than `explicit-panic`.

@@ -265,7 +265,9 @@ impl string:
     ## Decodes well-formed UTF-8 bytes into a string, or the first malformed sequence.
     ## See [std-text.utf8.round-trip](../../spec/std/text.md#r-std-text.utf8.round-trip).
     pub fn from_utf8(bytes: List[u8]) -> Result[string, Utf8Error]:
-        let index: usize = 0
+        # The bytes before `index` are valid; the loop only names the error
+        # of the sequence that starts there.
+        let index = utf8_valid_len(bytes)
         size := bytes.len()
         while index < size:
             lead := i32(bytes[index])
@@ -1224,3 +1226,44 @@ fn bytes_mismatch(left: string, right: string) -> usize:
             return index
         index = index + 1
     shorter
+
+# The length of the longest prefix of `bytes` that is well-formed UTF-8 and
+# ends at a scalar boundary: `bytes.len()` exactly when all of it is valid,
+# else the offset where the first malformed sequence starts. This body
+# defines the result; the compiler supplies a SIMD128 one (#428).
+@intrinsic("utf8_valid_len")
+fn utf8_valid_len(bytes: List[u8]) -> usize:
+    let index: usize = 0
+    size := bytes.len()
+    while index < size:
+        lead := i32(bytes[index])
+        if lead < 128:
+            index = index + 1
+            continue
+        let width: usize = 1
+        let point = lead
+        let lowest: i32 = 0
+        if lead >= 240 && lead <= 244:
+            width = 4
+            point = lead - 240
+            lowest = 65536
+        else if lead >= 224 && lead < 240:
+            width = 3
+            point = lead - 224
+            lowest = 2048
+        else if lead >= 194 && lead < 224:
+            width = 2
+            point = lead - 192
+            lowest = 128
+        else:
+            return index
+        let at: usize = 1
+        while at < width:
+            if index + at >= size || !continuation_byte(bytes[index + at]):
+                return index
+            point = point * 64 + i32(bytes[index + at]) - 128
+            at = at + 1
+        if point < lowest || !scalar_value(point):
+            return index
+        index = index + width
+    size

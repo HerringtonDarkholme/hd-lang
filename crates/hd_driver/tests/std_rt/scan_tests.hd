@@ -7,6 +7,7 @@
 # `STD_RT_TESTS`).
 use std.format.debug
 use std.testing.Choices
+use std.text.Utf8Error
 
 @intrinsic("bytes_len")
 fn bytes_len(text: string) -> usize:
@@ -36,6 +37,10 @@ fn bytes_index(text: string, from: usize, byte: u8) -> usize:
 
 @intrinsic("bytes_mismatch")
 fn bytes_mismatch(left: string, right: string) -> usize:
+    panic("intrinsic")
+
+@intrinsic("utf8_valid_len")
+fn utf8_valid_len(bytes: List[u8]) -> usize:
     panic("intrinsic")
 
 # The reference body of `bytes_index_json` in lib/std/json.hd.
@@ -227,6 +232,163 @@ fn mismatch_case(c: &mut Choices) -> Mismatch:
     let pick: usize = c.int(0..8)
     Mismatch { left_start: left_start, left_len: left_len, right_start: right_start, right_len: right_len, at: at, pick: pick }
 
+fn continuation(byte: u8) -> bool:
+    byte >= 128 && byte < 192
+
+fn scalar(point: i32) -> bool:
+    point >= 0 && point <= 1114111 && (point < 55296 || point > 57343)
+
+# The `from_utf8` loop before `utf8_valid_len` (lib/std/text.hd), with the
+# length of the list for a valid one. Its reference body is this loop with
+# each error replaced by its offset.
+fn reference_decode(bytes: List[u8]) -> Result[usize, Utf8Error]:
+    let index: usize = 0
+    size := bytes.len()
+    while index < size:
+        lead := i32(bytes[index])
+        if lead < 128:
+            index = index + 1
+            continue
+        let width: usize = 1
+        let point = lead
+        let lowest: i32 = 0
+        if lead >= 240 && lead <= 244:
+            width = 4
+            point = lead - 240
+            lowest = 65536
+        else if lead >= 224 && lead < 240:
+            width = 3
+            point = lead - 224
+            lowest = 2048
+        else if lead >= 194 && lead < 224:
+            width = 2
+            point = lead - 192
+            lowest = 128
+        else:
+            return .Err(Utf8Error.InvalidSequence(index))
+        let at: usize = 1
+        while at < width:
+            if index + at >= size:
+                return .Err(Utf8Error.Truncated(index))
+            if !continuation(bytes[index + at]):
+                return .Err(Utf8Error.InvalidSequence(index))
+            point = point * 64 + i32(bytes[index + at]) - 128
+            at = at + 1
+        if point < lowest || !scalar(point):
+            return .Err(Utf8Error.InvalidSequence(index))
+        index = index + width
+    .Ok(size)
+
+# The reference body of `utf8_valid_len` in lib/std/text.hd.
+fn reference_valid_len(bytes: List[u8]) -> usize:
+    match reference_decode(bytes):
+        .Ok(size) => size
+        .Err(.InvalidSequence(at)) => at
+        .Err(.Truncated(at)) => at
+
+# What `string::from_utf8` gives, with the string's length for `.Ok`.
+fn decode(bytes: List[u8]) -> Result[usize, Utf8Error]:
+    match string::from_utf8(bytes):
+        .Ok(text) => .Ok(text.len())
+        .Err(error) => .Err(error)
+
+# Valid characters, by `k`: ASCII, then 2-, 3- and 4-byte scalars, with the
+# least and greatest of each width and both sides of the surrogates.
+fn utf8_char(k: usize) -> List[u8]:
+    match k % 14:
+        0 => [97]
+        1 => [195, 169]
+        2 => [226, 130, 172]
+        3 => [240, 159, 152, 128]
+        4 => [194, 128]
+        5 => [223, 191]
+        6 => [224, 160, 128]
+        7 => [239, 191, 191]
+        8 => [237, 159, 191]
+        9 => [238, 128, 128]
+        10 => [240, 144, 128, 128]
+        11 => [244, 143, 191, 191]
+        12 => [127]
+        _ => [0]
+
+# A malformed sequence of category `kind`, variant `pick`: overlong (0, 1,
+# 2), surrogate (3), out of range (4), truncated (5, only at the end), stray
+# continuation (6), and a bad continuation at byte 2 (7), 3 (8) or 4 (9).
+fn bad_sequence(kind: usize, pick: usize) -> List[u8]:
+    p := pick % 2
+    match kind:
+        0 => if p == 0: [192, 128] else: [193, 191]
+        1 => if p == 0: [224, 128, 128] else: [224, 159, 191]
+        2 => if p == 0: [240, 128, 128, 128] else: [240, 143, 191, 191]
+        3 => if p == 0: [237, 160, 128] else: [237, 191, 191]
+        4 => match pick % 3:
+            0 => [244, 144, 128, 128]
+            1 => [245, 128, 128, 128]
+            _ => [255]
+        5 => match pick % 3:
+            0 => [195]
+            1 => [226, 130]
+            _ => [240, 159, 152]
+        6 => if p == 0: [128] else: [191]
+        7 => if p == 0: [226, 65, 172] else: [195, 195]
+        8 => if p == 0: [226, 130, 65] else: [240, 159, 65, 128]
+        _ => if p == 0: [240, 159, 152, 65] else: [244, 143, 191, 240]
+
+# The `k`th character of fill style `mix`: all ASCII (0), ASCII with a
+# multibyte character every 7 (1), all multibyte (2), or every kind (3).
+fn fill_char(mix: usize, k: usize) -> List[u8]:
+    match mix % 4:
+        0 => utf8_char(if k % 3 == 0: 12 else: 0)
+        1 => if k % 7 == 6: utf8_char(k / 7 % 11 + 1) else: utf8_char(0)
+        2 => utf8_char(k % 11 + 1)
+        _ => utf8_char(k)
+
+# Valid characters of style `mix` from `bytes.len()` up to exactly `target`
+# bytes, ASCII filling the last gap.
+fn fill_to(bytes: &mut List[u8], mix: usize, target: usize, seed: usize) -> void:
+    let k = seed
+    let more = true
+    while more:
+        piece := fill_char(mix, k)
+        if bytes.len() + piece.len() <= target:
+            for byte in piece:
+                bytes.push(byte)
+            k = k + 1
+        else:
+            more = false
+    while bytes.len() < target:
+        bytes.push(97)
+
+# `len` bytes of style `mix`, with the malformed sequence `kind`/`pick` at
+# byte `at` when `kind` is below 10 (a truncated one ends the list).
+fn utf8_bytes(mix: usize, at: usize, kind: usize, pick: usize, len: usize) -> List[u8]:
+    let mut bytes: List[u8] = []
+    if kind >= 10:
+        fill_to(&mut bytes, mix, len, at)
+        return bytes
+    fill_to(&mut bytes, mix, at, 0)
+    for byte in bad_sequence(kind, pick):
+        bytes.push(byte)
+    if kind != 5:
+        fill_to(&mut bytes, mix, len, at)
+    bytes
+
+@derive(Debug)
+struct Utf8Case:
+    mix: usize
+    at: usize
+    kind: usize
+    pick: usize
+    len: usize
+
+fn utf8_case(c: &mut Choices) -> Utf8Case:
+    let mix: usize = c.int(0..4)
+    let at: usize = c.int(0..=96)
+    let kind: usize = c.int(0..=11)
+    let pick: usize = c.int(0..6)
+    let len: usize = c.int(at..=at + 48)
+    Utf8Case { mix: mix, at: at, kind: kind, pick: pick, len: len }
+
 tests:
     use std.testing.{assert_equal, it, it_prop_with}
 
@@ -400,3 +562,82 @@ tests:
         assert_equal("ab" < "abc", true, reason="prefix is smaller")
         assert_equal("abc" == "abc", true, reason="equal")
         assert_equal("abc" == "abd", false, reason="not equal")
+
+    it_prop_with("utf8_valid_len and from_utf8 give what the reference loop gives", gen=utf8_case, cases=2000, prop=fn!(u: Utf8Case):
+        bytes := utf8_bytes(u.mix, u.at, u.kind, u.pick, u.len)
+        assert_equal(utf8_valid_len(bytes), reference_valid_len(bytes), reason=debug(u))
+        assert_equal(decode(bytes), reference_decode(bytes), reason=debug(u))
+    )
+
+    it("utf8_valid_len and from_utf8 agree for every malformed category at every offset"):
+        let mix: usize = 0
+        while mix < 4:
+            let kind: usize = 0
+            while kind < 10:
+                let pick: usize = 0
+                while pick < 3:
+                    let at: usize = 0
+                    while at < 70:
+                        bytes := utf8_bytes(mix, at, kind, pick, at + 37)
+                        got := utf8_valid_len(bytes)
+                        want := reference_valid_len(bytes)
+                        if got != want || want != at:
+                            assert_equal(got, want, reason="mix $mix, kind $kind, pick $pick, at $at")
+                            assert_equal(want, at, reason="the sequence starts at $at")
+                        decoded := decode(bytes)
+                        expected := reference_decode(bytes)
+                        if decoded != expected:
+                            assert_equal(decoded, expected, reason="mix $mix, kind $kind, pick $pick, at $at")
+                        at = at + 1
+                    pick = pick + 1
+                kind = kind + 1
+            mix = mix + 1
+
+    it("utf8_valid_len accepts valid input of every length and characters across each 16-byte edge"):
+        let mix: usize = 0
+        while mix < 4:
+            let len: usize = 0
+            while len < 140:
+                let seed: usize = 0
+                while seed < 4:
+                    bytes := utf8_bytes(mix, seed, 10, 0, len)
+                    assert_equal(utf8_valid_len(bytes), len, reason="mix $mix, length $len, seed $seed")
+                    seed = seed + 1
+                len = len + 1
+            mix = mix + 1
+        # One character of each width starting at every offset, so each
+        # straddles a 16-byte edge somewhere, in ASCII on both sides.
+        let k: usize = 1
+        while k < 12:
+            let at: usize = 0
+            while at < 70:
+                let mut bytes: List[u8] = []
+                while bytes.len() < at:
+                    bytes.push(97)
+                for byte in utf8_char(k):
+                    bytes.push(byte)
+                while bytes.len() < 90:
+                    bytes.push(97)
+                assert_equal(utf8_valid_len(bytes), 90, reason="character $k at $at")
+                # Cut inside the character: valid up to its start.
+                width := utf8_char(k).len()
+                let cut: usize = 1
+                while cut < width:
+                    let mut short: List[u8] = []
+                    let j: usize = 0
+                    while j < at + cut:
+                        short.push(bytes[j])
+                        j = j + 1
+                    assert_equal(utf8_valid_len(short), at, reason="character $k at $at cut after $cut")
+                    assert_equal(decode(short), reference_decode(short), reason="character $k at $at cut after $cut")
+                    cut = cut + 1
+                at = at + 1
+            k = k + 1
+
+    it("utf8_valid_len and from_utf8 on small cases"):
+        assert_equal(utf8_valid_len([]), 0, reason="empty")
+        assert_equal(utf8_valid_len([104, 105]), 2, reason="hi")
+        assert_equal(utf8_valid_len([104, 255, 105]), 1, reason="255")
+        assert_equal(decode([104, 255, 105]), .Err(Utf8Error.InvalidSequence(1)), reason="255")
+        assert_equal(decode([97, 226, 130]), .Err(Utf8Error.Truncated(1)), reason="truncated")
+        assert_equal(decode([226, 130, 172]), .Ok(3), reason="euro")

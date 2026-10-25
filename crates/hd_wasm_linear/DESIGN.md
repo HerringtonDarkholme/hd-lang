@@ -515,7 +515,12 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   bitmask of the lanes that differ, over the shorter length; the views may
   start at different alignments. `rt:str_eq` (equal lengths, then no
   mismatch before the end) and `rt:str_cmp` (the bytes at the mismatch
-  decide, else the lengths) call it.
+  decide, else the lengths) call it. `utf8_valid_len`
+  (`rt:utf8_valid_len`) takes the list and passes ASCII 64 bytes per step
+  (four loads or-ed, one bitmask), then 16; in a block with a byte of 128
+  or more it jumps to that byte (`i32.ctz`) and decodes scalars one by one,
+  as std's reference body does, until the next ASCII byte or, once fewer
+  than 16 bytes remain, the end.
 - **Host primitives.** Float text, `to_fixed`, `lower`, `upper`, float
   parsing and the snapshot hook are `hd:prim` imports. A string argument goes into the exchange buffer at 0, its
   length the parameter; a string result comes back there in the host
