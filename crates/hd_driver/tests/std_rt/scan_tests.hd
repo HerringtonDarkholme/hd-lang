@@ -43,6 +43,10 @@ fn bytes_mismatch(left: string, right: string) -> usize:
 fn utf8_valid_len(bytes: List[u8]) -> usize:
     panic("intrinsic")
 
+@intrinsic("bytes_index_pair")
+fn bytes_index_pair(text: string, from: usize, first: u8, last: u8, gap: usize) -> usize:
+    panic("intrinsic")
+
 # The reference body of `bytes_index_json` in lib/std/json.hd.
 fn reference_json(text: string, from: usize) -> usize:
     size := bytes_len(text)
@@ -389,6 +393,152 @@ fn utf8_case(c: &mut Choices) -> Utf8Case:
     let len: usize = c.int(at..=at + 48)
     Utf8Case { mix: mix, at: at, kind: kind, pick: pick, len: len }
 
+# The reference body of `bytes_index_pair` in lib/std/text.hd.
+fn reference_pair(text: string, from: usize, first: u8, last: u8, gap: usize) -> usize:
+    size := bytes_len(text)
+    let index = from
+    while index < size && gap < size - index:
+        if bytes_at(text, index) == first && bytes_at(text, index + gap) == last:
+            return index
+        index = index + 1
+    size
+
+# The gaps `bytes_index_pair` is checked at: a needle's length minus 1.
+fn pair_gap(k: usize) -> usize:
+    match k % 8:
+        0 => 1
+        1 => 2
+        2 => 3
+        3 => 15
+        4 => 16
+        5 => 17
+        6 => 31
+        _ => 0
+
+# A byte that is neither `first` nor `last`, varied by position.
+fn background(k: usize, first: u8, last: u8) -> u8:
+    let j = k
+    while edge_byte(j) == first || edge_byte(j) == last:
+        j = j + 1
+    edge_byte(j)
+
+# A view of `len` bytes, `start` bytes into its buffer, with no `first` or
+# `last` in it except `first` at offsets `a` and `d`, and `last` at offset
+# `a + gap`, each when inside the view. The buffer outside the view is
+# `first` (fill 0), `last` (fill 1), or alternating runs of `gap` of each
+# (fill 2), so that a scan that reads outside the view finds a pair there.
+fn pair_view(start: usize, len: usize, gap: usize, first: u8, last: u8, fill: usize, a: usize, d: usize) -> string:
+    let mut bytes: List[u8] = []
+    let g = if gap == 0: 1 else: gap
+    let k: usize = 0
+    while k < start + len + gap + 32:
+        if k < start || k >= start + len:
+            if fill == 0:
+                bytes.push(first)
+            else if fill == 1:
+                bytes.push(last)
+            else if (k / g) % 2 == 0:
+                bytes.push(first)
+            else:
+                bytes.push(last)
+        else if k - start == a + gap:
+            bytes.push(last)
+        else if k - start == a || k - start == d:
+            bytes.push(first)
+        else:
+            bytes.push(background(k, first, last))
+        k = k + 1
+    bytes_slice(string_from_bytes(bytes), start, start + len)
+
+@derive(Debug)
+struct PairCase:
+    start: usize
+    len: usize
+    gap: usize
+    first: u8
+    last: u8
+    fill: usize
+    a: usize
+    d: usize
+    from: usize
+
+fn pair_case(c: &mut Choices) -> PairCase:
+    let start: usize = c.int(0..32)
+    let len: usize = c.int(0..=80)
+    let gap: usize = pair_gap(c.int(0..8))
+    let first: u8 = edge_byte(c.int(0..8))
+    # Often the same byte as `first`.
+    let last: u8 = if c.int(0..4) == 0: first else: edge_byte(c.int(0..8))
+    let fill: usize = c.int(0..3)
+    let a: usize = c.int(0..=len + 1)
+    let d: usize = c.int(0..=len + 1)
+    let from: usize = c.int(0..=len + 2)
+    PairCase { start: start, len: len, gap: gap, first: first, last: last, fill: fill, a: a, d: d, from: from }
+
+# A text of `len` bytes over `a` and `b` (or only `a` when `wide` is 1),
+# `start` bytes into its buffer, from a counter.
+fn ab_text(start: usize, len: usize, seed: usize, wide: usize) -> string:
+    let mut bytes: List[u8] = []
+    let state = seed * 2654435761 + 1
+    let k: usize = 0
+    while k < start + len + 3:
+        state = state * 1103515245 + 12345
+        bytes.push(if wide == 1 || (state >> 16) % 3 == 0: 97 else: 98)
+        k = k + 1
+    bytes_slice(string_from_bytes(bytes), start, start + len)
+
+# The naive search: the first offset at or after `from` where `needle` is.
+fn naive_find(text: string, needle: string, from: usize) -> usize?:
+    size := bytes_len(text)
+    width := bytes_len(needle)
+    let at = from
+    while at + width <= size:
+        let k: usize = 0
+        while k < width && bytes_at(text, at + k) == bytes_at(needle, k):
+            k = k + 1
+        if k == width:
+            return .Some(at)
+        at = at + 1
+    .None
+
+# The naive split around non-overlapping, left to right occurrences.
+fn naive_split(text: string, needle: string) -> List[string]:
+    let mut pieces: List[string] = []
+    width := bytes_len(needle)
+    let from: usize = 0
+    let searching = true
+    while searching:
+        match naive_find(text, needle, from):
+            .Some(at) =>
+                pieces.push(bytes_slice(text, from, at))
+                from = at + width
+            .None =>
+                pieces.push(bytes_slice(text, from, bytes_len(text)))
+                searching = false
+    pieces
+
+@derive(Debug)
+struct Search:
+    start: usize
+    len: usize
+    seed: usize
+    wide: usize
+    needle_start: usize
+    needle_len: usize
+    needle_seed: usize
+
+fn search_case(c: &mut Choices) -> Search:
+    let start: usize = c.int(0..32)
+    # Long enough for the adaptive fallback in `search_from` to switch
+    # between the prefilter and plain windows.
+    let len: usize = c.int(0..=700)
+    let seed: usize = c.int(0..1000)
+    let wide: usize = c.int(0..4)
+    let needle_start: usize = c.int(0..32)
+    let needle_len: usize = c.int(2..=20)
+    let needle_seed: usize = c.int(0..1000)
+    Search { start: start, len: len, seed: seed, wide: wide, needle_start: needle_start, needle_len: needle_len, needle_seed: needle_seed }
+
 tests:
     use std.testing.{assert_equal, it, it_prop_with}
 
@@ -641,3 +791,111 @@ tests:
         assert_equal(decode([104, 255, 105]), .Err(Utf8Error.InvalidSequence(1)), reason="255")
         assert_equal(decode([97, 226, 130]), .Err(Utf8Error.Truncated(1)), reason="truncated")
         assert_equal(decode([226, 130, 172]), .Ok(3), reason="euro")
+
+    it_prop_with("bytes_index_pair gives what its reference body gives", gen=pair_case, cases=3000, prop=fn!(s: PairCase):
+        text := pair_view(s.start, s.len, s.gap, s.first, s.last, s.fill, s.a, s.d)
+        assert_equal(bytes_index_pair(text, s.from, s.first, s.last, s.gap), reference_pair(text, s.from, s.first, s.last, s.gap), reason=debug(s))
+    )
+
+    it("bytes_index_pair agrees at every length, view start, gap and match position"):
+        let start: usize = 0
+        while start < 32:
+            let len: usize = 0
+            while len < 50:
+                let g: usize = 0
+                while g < 8:
+                    gap := pair_gap(g)
+                    let m: usize = 0
+                    while m < 6:
+                        # Matches at the start, around the last full vector
+                        # and the end, and none (`len + 1` is outside).
+                        a := match m:
+                            0 => 0
+                            1 => if len > gap: len - gap - 1 else: 0
+                            2 => if len > gap: len - gap else: 0
+                            3 => len / 2
+                            4 => len
+                            _ => len + 1
+                        first := edge_byte(a + g)
+                        last := if m == 3: first else: edge_byte(a + g + 3)
+                        text := pair_view(start, len, gap, first, last, (start + m) % 3, a, len)
+                        got := bytes_index_pair(text, 0, first, last, gap)
+                        want := reference_pair(text, 0, first, last, gap)
+                        if got != want:
+                            assert_equal(got, want, reason="start $start, length $len, gap $gap, match $a, bytes $first $last")
+                        m = m + 1
+                    g = g + 1
+                len = len + 1
+            start = start + 1
+
+    it("bytes_index_pair starts at every offset, and past the end gives the length"):
+        let start: usize = 0
+        while start < 32:
+            let len: usize = 0
+            while len < 50:
+                let g: usize = 0
+                while g < 8:
+                    gap := pair_gap(g)
+                    text := pair_view(start, len, gap, 255, 128, (start + g) % 3, len / 3, len / 2)
+                    let from: usize = 0
+                    while from <= len + 2:
+                        got := bytes_index_pair(text, from, 255, 128, gap)
+                        want := reference_pair(text, from, 255, 128, gap)
+                        if got != want:
+                            assert_equal(got, want, reason="start $start, length $len, gap $gap, from $from")
+                        from = from + 1
+                    g = g + 1
+                len = len + 1
+            start = start + 1
+
+    it("bytes_index_pair finds the first pair, and needs room for the gap"):
+        text := string_from_bytes([1, 9, 1, 9, 1, 1, 9, 9, 1, 9, 1, 9, 1, 9, 1, 9, 1, 9, 1, 9, 5])
+        assert_equal(bytes_index_pair(text, 0, 1, 9, 1), 0, reason="from 0, gap 1")
+        assert_equal(bytes_index_pair(text, 1, 1, 9, 1), 2, reason="from 1, gap 1")
+        assert_equal(bytes_index_pair(text, 0, 1, 9, 3), 0, reason="from 0, gap 3")
+        assert_equal(bytes_index_pair(text, 4, 1, 9, 3), 4, reason="from 4, gap 3")
+        assert_equal(bytes_index_pair(text, 0, 1, 5, 20), 0, reason="gap 20, last byte")
+        assert_equal(bytes_index_pair(text, 1, 1, 5, 20), 21, reason="gap 20 from 1")
+        assert_equal(bytes_index_pair(text, 0, 9, 5, 19), 1, reason="gap 19")
+        assert_equal(bytes_index_pair(text, 0, 1, 5, 21), 21, reason="gap 21 needs 22 bytes")
+        assert_equal(bytes_index_pair(text, 0, 1, 9, 99), 21, reason="gap past the end")
+        assert_equal(bytes_index_pair(text, 99, 1, 9, 1), 21, reason="from past the end")
+        assert_equal(bytes_index_pair("", 0, 1, 9, 0), 0, reason="empty")
+
+    it_prop_with("find and split with a multi-byte needle give what a naive search gives", gen=search_case, cases=3000, prop=fn!(s: Search):
+        text := ab_text(s.start, s.len, s.seed, s.wide)
+        needle := ab_text(s.needle_start, s.needle_len, s.needle_seed, s.wide % 2)
+        assert_equal(text.find(needle), naive_find(text, needle, 0), reason="find in ${debug(s)}")
+        assert_equal(text.split(needle), naive_split(text, needle), reason="split in ${debug(s)}")
+        assert_equal(text.contains(needle), naive_find(text, needle, 0) != .None, reason="contains in ${debug(s)}")
+    )
+
+    it("find and split agree with a naive search on overlapping and repeated patterns"):
+        texts := ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "abababababababababababababababababababab", "aabaabaabaabaabaabaabaabaabaabaab", "abaababaabaababaabaababaabaababaab", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"]
+        needles := ["aa", "aaa", "ab", "aba", "abab", "aab", "aabaab", "abaab", "ba", "aaaaaaaaaaaaaaaaaab", "abababababababababab", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab", "abaababaabaababaab", "b", "baab"]
+        for text in texts:
+            for needle in needles:
+                assert_equal(text.find(needle), naive_find(text, needle, 0), reason="find $needle in $text")
+                assert_equal(text.split(needle), naive_split(text, needle), reason="split $needle in $text")
+
+    it("find and split agree with a naive search on long dense texts, across the hand-over between loops"):
+        let wide: usize = 0
+        while wide < 3:
+            text := ab_text(5, 30000, 7 + wide, wide)
+            let at: usize = 0
+            while at < 29000:
+                let width: usize = 2
+                while width <= 12:
+                    needle := bytes_slice(text, at, at + width)
+                    assert_equal(text.find(needle), naive_find(text, needle, 0), reason="find $width bytes at $at, wide $wide")
+                    width = width + 5
+                at = at + 3989
+            needle := bytes_slice(text, 29000, 29011)
+            assert_equal(text.split(needle), naive_split(text, needle), reason="split wide $wide")
+            # A `c` inside the needle: no match in the text, then one at the end.
+            for pattern in ["acb", "abcbbbbbba", "aaacaaaa", "bcbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]:
+                assert_equal(text.find(pattern), naive_find(text, pattern, 0), reason="find $pattern, wide $wide")
+                ended := text + pattern
+                assert_equal(ended.find(pattern), .Some(30000), reason="find $pattern at the end, wide $wide")
+                assert_equal(ended.split(pattern), [text, ""], reason="split $pattern at the end, wide $wide")
+            wide = wide + 1

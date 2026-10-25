@@ -577,6 +577,7 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("bytes_concat", Lowering::Compiler),
     ("bytes_index_json", Lowering::Compiler),
     ("bytes_index", Lowering::Compiler),
+    ("bytes_index_pair", Lowering::Compiler),
     ("bytes_mismatch", Lowering::Compiler),
     ("utf8_valid_len", Lowering::Compiler),
     ("concat_all", Lowering::Compiler),

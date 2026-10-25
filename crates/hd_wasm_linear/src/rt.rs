@@ -433,6 +433,11 @@ pub enum Helper {
     /// `(at, len, from, byte) -> index`: std's `bytes_index`, the first
     /// byte at or after `from` equal to `byte`, or `len` (#428).
     BytesIndex,
+    /// `(at, len, from, first, last, gap) -> index`: std's
+    /// `bytes_index_pair`, the first offset `i` at or after `from` with
+    /// `i + gap < len`, byte `i` equal to `first` and byte `i + gap` equal
+    /// to `last`, or `len` (#428).
+    BytesIndexPair,
     /// `(left_at, left_len, right_at, right_len) -> index`: std's
     /// `bytes_mismatch`, the offset of the first differing byte, else the
     /// shorter length (#428). [`Helper::StrEq`] and [`Helper::StrCmp`] call
@@ -1708,6 +1713,11 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::BytesIndexJson => {
             let mut f = m.func("rt:bytes_index_json", vec![Val::I32; 3], vec![Val::I32]);
             f.raw = Some(crate::scan::json_index_code());
+            f
+        }
+        Helper::BytesIndexPair => {
+            let mut f = m.func("rt:bytes_index_pair", vec![Val::I32; 6], vec![Val::I32]);
+            f.raw = Some(crate::scan::index_pair_code());
             f
         }
         Helper::BytesIndex => {

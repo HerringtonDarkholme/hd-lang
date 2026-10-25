@@ -520,7 +520,12 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   (four loads or-ed, one bitmask), then 16; in a block with a byte of 128
   or more it jumps to that byte (`i32.ctz`) and decodes scalars one by one,
   as std's reference body does, until the next ASCII byte or, once fewer
-  than 16 bytes remain, the end.
+  than 16 bytes remain, the end. `bytes_index_pair`
+  (`rt:bytes_index_pair`) steps over candidate offsets `i < len - gap`: it
+  loads 16 bytes at `i` and 16 at `i + gap`, compares them with splats of
+  `first` and `last`, ands the masks and takes the bitmask; the last 16
+  candidates are loaded once, from `len - gap - 16`, and fewer than 16 go
+  byte by byte. No load leaves the view.
 - **Host primitives.** Float text, `to_fixed`, `lower`, `upper`, float
   parsing and the snapshot hook are `hd:prim` imports. A string argument goes into the exchange buffer at 0, its
   length the parameter; a string result comes back there in the host

@@ -513,3 +513,124 @@ pub fn utf8_valid_len_code() -> Vec<u8> {
     s.local_get(len).end();
     f.into_raw_body()
 }
+
+/// The code of `Helper::BytesIndexPair`, `(at, len, from, first, last, gap)
+/// -> index`: the offset `i` of the first byte at or after `from` among the
+/// `len` bytes at address `at` with `i + gap < len`, byte `i` equal to
+/// `first` and byte `i + gap` equal to `last`, else `len`.
+#[must_use]
+pub fn index_pair_code() -> Vec<u8> {
+    let (at, len, i, first, last, gap) = (0, 1, 2, 3, 4, 5);
+    let (mask, limit, cur) = (6, 7, 8);
+    let (first_lanes, last_lanes) = (9, 10);
+    let mut f = Function::new([(3, ValType::I32), (2, ValType::V128)]);
+    let mut s = f.instructions();
+    // With nothing at or after `i` that leaves room for `gap`: no match.
+    s.local_get(i)
+        .local_get(len)
+        .i32_ge_u()
+        .if_(BlockType::Empty);
+    s.local_get(len).return_().end();
+    s.local_get(gap)
+        .local_get(len)
+        .local_get(i)
+        .i32_sub()
+        .i32_ge_u()
+        .if_(BlockType::Empty);
+    s.local_get(len).return_().end();
+    // Candidates start before `limit`: `i + gap < len`.
+    s.local_get(len).local_get(gap).i32_sub().local_set(limit);
+    s.local_get(first).i8x16_splat().local_set(first_lanes);
+    s.local_get(last).i8x16_splat().local_set(last_lanes);
+    // With the candidate offset `i` (or the last 16 candidates) on the
+    // stack: the lanes where both bytes match, as a bit mask. Loads start
+    // at `i` and `i + gap` and end by `limit + 15` and `len`.
+    let lanes = |s: &mut wasm_encoder::InstructionSink<'_>, base: u32| {
+        s.local_get(at)
+            .local_get(base)
+            .i32_add()
+            .v128_load(V128)
+            .local_get(first_lanes)
+            .i8x16_eq();
+        s.local_get(at)
+            .local_get(base)
+            .i32_add()
+            .local_get(gap)
+            .i32_add()
+            .v128_load(V128)
+            .local_get(last_lanes)
+            .i8x16_eq();
+        s.v128_and().i8x16_bitmask();
+    };
+    // 16 candidates at a time while 16 remain.
+    s.block(BlockType::Empty).loop_(BlockType::Empty);
+    s.local_get(limit)
+        .local_get(i)
+        .i32_sub()
+        .i32_const(16)
+        .i32_lt_u()
+        .br_if(1);
+    lanes(&mut s, i);
+    s.local_tee(mask).if_(BlockType::Empty);
+    s.local_get(i)
+        .local_get(mask)
+        .i32_ctz()
+        .i32_add()
+        .return_()
+        .end();
+    s.local_get(i).i32_const(16).i32_add().local_set(i).br(0);
+    s.end().end();
+    // Fewer than 16 candidates remain, and at least one.
+    s.local_get(limit)
+        .i32_const(16)
+        .i32_ge_u()
+        .if_(BlockType::Empty);
+    // The last 16 candidates, from `limit - 16`; the lanes before `i`
+    // shift out.
+    s.local_get(limit).i32_const(16).i32_sub().local_set(cur);
+    lanes(&mut s, cur);
+    s.local_get(i)
+        .i32_const(16)
+        .i32_add()
+        .local_get(limit)
+        .i32_sub()
+        .i32_shr_u()
+        .local_tee(mask)
+        .if_(BlockType::Empty);
+    s.local_get(i)
+        .local_get(mask)
+        .i32_ctz()
+        .i32_add()
+        .return_()
+        .end();
+    s.local_get(len).return_().end();
+    // Fewer than 16 candidates in all: one at a time.
+    s.local_get(first)
+        .i32_const(0xff)
+        .i32_and()
+        .local_set(first);
+    s.local_get(last).i32_const(0xff).i32_and().local_set(last);
+    s.block(BlockType::Empty).loop_(BlockType::Empty);
+    s.local_get(i).local_get(limit).i32_ge_u().br_if(1);
+    s.local_get(at)
+        .local_get(i)
+        .i32_add()
+        .i32_load8_u(U8)
+        .local_get(first)
+        .i32_eq()
+        .if_(BlockType::Empty);
+    s.local_get(at)
+        .local_get(i)
+        .i32_add()
+        .local_get(gap)
+        .i32_add()
+        .i32_load8_u(U8)
+        .local_get(last)
+        .i32_eq()
+        .if_(BlockType::Empty);
+    s.local_get(i).return_().end().end();
+    s.local_get(i).i32_const(1).i32_add().local_set(i).br(0);
+    s.end().end();
+    s.local_get(len).end();
+    f.into_raw_body()
+}

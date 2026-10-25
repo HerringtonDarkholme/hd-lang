@@ -752,6 +752,8 @@ fn byte_rfind(text: string, needle: string) -> usize?:
 # time, constant space. `periodic`: the needle has period `period`, so a
 # shift keeps `size - period` bytes matched. `byteset` has bit `b % 64`
 # for each needle byte, to skip windows whose last byte is not in it.
+# `search_from` also skips to a window whose first and last bytes are the
+# needle's (`bytes_index_pair`) while that pays.
 struct Searcher:
     needle: string
     split: usize
@@ -822,11 +824,92 @@ fn search_from(finder: Searcher, text: string, from: usize) -> usize?:
     if size == 1:
         at := bytes_index(text, from, bytes_at(needle, 0))
         return if at < end: .Some(at) else: .None
+    # Two loops share the Two-Way steps: `pair_windows` skips to a window
+    # whose first and last bytes are the needle's (`bytes_index_pair`), and
+    # `plain_windows` tries each window, skipping those whose last byte is
+    # not the needle's. Where matching starts are dense the prefilter costs
+    # more than it saves, so `pair_windows` hands over after eight calls
+    # that skipped under 64 bytes each on average, and `plain_windows` takes
+    # the next 4096 bytes.
+    let position = from
+    while position + size <= end:
+        match pair_windows(finder, text, position):
+            .Found(at) => return .Some(at)
+            .Missing => return .None
+            .Resume(at) =>
+                match plain_windows(finder, text, at, at + 4096):
+                    .Found(found) => return .Some(found)
+                    .Missing => return .None
+                    .Resume(next) => position = next
+    .None
+
+# How a window loop of `search_from` ended: a match, the end of the text,
+# or a hand-over to the other loop at a position.
+enum Window:
+    Found(at: usize)
+    Missing
+    Resume(at: usize)
+
+# The Two-Way windows from `from`, each reached by a prefilter skip, until
+# one matches, the text ends or the prefilter pays too little.
+fn pair_windows(finder: Searcher, text: string, from: usize) -> Window:
+    needle := finder.needle
+    size := bytes_len(needle)
+    end := bytes_len(text)
     split := finder.split
+    first := bytes_at(needle, 0)
+    last := bytes_at(needle, size - 1)
     let position = from
     # The needle's first `memory` bytes match at `position`.
     let memory: usize = 0
+    let calls: usize = 0
+    let skipped: usize = 0
     while position + size <= end:
+        candidate := bytes_index_pair(text, position, first, last, size - 1)
+        calls = calls + 1
+        skipped = skipped + candidate - position
+        if candidate != position:
+            position = candidate
+            memory = 0
+            if position + size > end:
+                return .Missing
+        let index = if memory > split: memory else: split
+        while index < size && bytes_at(needle, index) == bytes_at(text, position + index):
+            index = index + 1
+        if index < size:
+            position = position + index - split + 1
+            memory = 0
+        else:
+            let left = split
+            while left > memory && bytes_at(needle, left - 1) == bytes_at(text, position + left - 1):
+                left = left - 1
+            if left > memory:
+                position = position + finder.period
+                if finder.periodic:
+                    memory = size - finder.period
+                else:
+                    memory = 0
+            else:
+                return .Found(position)
+        if calls == 8:
+            if skipped < 512:
+                return .Resume(position)
+            calls = 0
+            skipped = 0
+    .Missing
+
+# The Two-Way windows from `from` whose start is below `stop`, until one
+# matches or the text ends.
+fn plain_windows(finder: Searcher, text: string, from: usize, stop: usize) -> Window:
+    needle := finder.needle
+    size := bytes_len(needle)
+    end := bytes_len(text)
+    # No window that starts at or after `stop` is tried.
+    bound := if stop + size - 1 < end: stop + size - 1 else: end
+    split := finder.split
+    let position = from
+    let memory: usize = 0
+    while position + size <= bound:
         tail := bytes_at(text, position + size - 1)
         if (finder.byteset >> u64(tail & 63)) & 1 == 0:
             position = position + size
@@ -849,8 +932,11 @@ fn search_from(finder: Searcher, text: string, from: usize) -> usize?:
                     else:
                         memory = 0
                 else:
-                    return .Some(position)
-    .None
+                    return .Found(position)
+    if position + size > end:
+        .Missing
+    else:
+        .Resume(position)
 
 # The number of scalars in `text`.
 fn scalar_count(text: string) -> usize:
@@ -1266,4 +1352,18 @@ fn utf8_valid_len(bytes: List[u8]) -> usize:
         if point < lowest || !scalar_value(point):
             return index
         index = index + width
+    size
+
+# The first offset `i` at or after `from` with `i + gap < bytes_len(text)`,
+# byte `i` equal to `first` and byte `i + gap` equal to `last`, or
+# `bytes_len(text)` when there is none. This body defines the result; the
+# compiler supplies a SIMD128 one (#428).
+@intrinsic("bytes_index_pair")
+fn bytes_index_pair(text: string, from: usize, first: u8, last: u8, gap: usize) -> usize:
+    size := bytes_len(text)
+    let index = from
+    while index < size && gap < size - index:
+        if bytes_at(text, index) == first && bytes_at(text, index + gap) == last:
+            return index
+        index = index + 1
     size

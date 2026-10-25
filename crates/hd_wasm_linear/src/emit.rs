@@ -2577,6 +2577,15 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::BytesIndexJson);
                 self.store(i)
             }
+            "bytes_index_pair" => {
+                self.comp(args[0], 0)?;
+                self.comp(args[0], 1)?;
+                for arg in &args[1..5] {
+                    self.comp(*arg, 0)?;
+                }
+                self.f.helper(Helper::BytesIndexPair);
+                self.store(i)
+            }
             "bytes_index" => {
                 self.comp(args[0], 0)?;
                 self.comp(args[0], 1)?;
