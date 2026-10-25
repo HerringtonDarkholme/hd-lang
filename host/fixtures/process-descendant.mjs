@@ -6,6 +6,9 @@ import net from "node:net";
 const [mode, root, port] = process.argv.slice(2);
 if (mode !== "descendant") {
   const child = spawn(process.execPath, [import.meta.filename, "descendant", root, port], {
+    // libuv otherwise kills its own non-detached child on leader exit.
+    // A detached Windows child still inherits the enclosing hd Job.
+    detached: process.platform === "win32",
     stdio: mode === "detached" ? "ignore" : ["ignore", "inherit", "inherit"],
   });
   child.unref();

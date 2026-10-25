@@ -125,11 +125,13 @@ function beginWindows(request) {
     resolveClosed();
   };
   let aborted = false;
+  let settle = () => {};
   const abort = () => {
     clearTimeout(state.timer);
     if (aborted || state.result !== null) return;
     aborted = true;
     state.child?.stdin.destroy();
+    settle();
   };
   state.abort = abort;
   if (typeof request.launcher !== "string" || request.launcher.length === 0) {
@@ -148,6 +150,9 @@ function beginWindows(request) {
       timeout = false,
       size = 0;
     const output = [];
+    let exited = false,
+      ended = false,
+      framed = false;
     const failed = (reason) => {
       error ??= reason;
     };
@@ -166,10 +171,16 @@ function beginWindows(request) {
       if (size > 12 * MAX_BUFFER + 1024) {
         failed(new Error("Windows processLauncher output exceeds its protocol bound"));
         abort();
-      } else output.push(bytes);
+      } else {
+        output.push(bytes);
+        framed ||= bytes.includes(10);
+        settle();
+      }
     });
     child.stderr.resume();
-    child.on("close", () => {
+    settle = () => {
+      if (state.result !== null || !exited || (!framed && !ended && !timeout && !error && !aborted))
+        return;
       clearTimeout(state.timer);
       try {
         if (timeout) state.result = { timeout: true };
@@ -195,8 +206,31 @@ function beginWindows(request) {
       } catch {
         state.result = failure(new Error("invalid Windows processLauncher result"));
       } finally {
+        // A Windows descendant can inherit the helper's protocol handles.
+        // The framed reply already contains all guest output. After the
+        // helper exits, waiting for protocol EOF would wait for unrelated
+        // detached descendants too (including a live HTTP fixture server).
+        child.stdin.destroy();
+        child.stdout.destroy();
+        child.stderr.destroy();
         closed();
       }
+    };
+    child.on("exit", (status, signal) => {
+      exited = true;
+      if (status !== 0 && !aborted && !timeout) {
+        failed(new Error(`Windows processLauncher exited with ${signal ?? status}`));
+      }
+      settle();
+    });
+    child.stdout.on("end", () => {
+      ended = true;
+      settle();
+    });
+    child.on("close", () => {
+      exited = true;
+      ended = true;
+      settle();
     });
     // Keep stdin open after the single request; EOF is cancellation, not the
     // end of the guest's stdin (the helper owns that separately).

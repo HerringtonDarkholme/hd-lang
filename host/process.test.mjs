@@ -143,6 +143,39 @@ test(
   },
 );
 
+test(
+  "Windows processLauncher result does not wait for inherited protocol pipes",
+  protocol,
+  async (t) => {
+    const { root, call, start, helper } = windowsWorker(t);
+    const ready = join(root, "grandchild"),
+      release = join(root, "release");
+    const script = `const fs=require('node:fs');fs.writeFileSync(${JSON.stringify(ready)},String(process.pid));const timer=setInterval(()=>{if(fs.existsSync(${JSON.stringify(release)})){clearInterval(timer);}},10);setTimeout(()=>process.exit(3),15000).unref();`;
+    const launcher = helper(
+      `const child=require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(script)}],{stdio:['ignore','inherit','inherit']});child.unref();process.stdout.write(JSON.stringify({ok:{stdout:'complete',stderr:'',status:0}})+'\\n');`,
+    );
+    t.after(() => {
+      if (existsSync(ready)) {
+        try {
+          process.kill(Number(readFileSync(ready, "utf8")), "SIGKILL");
+        } catch {}
+      }
+    });
+    const operation = start({ launcher });
+    await t.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
+    await t.waitFor(
+      () =>
+        assert.deepEqual(call({ op: "wait_poll", operation }), {
+          ok: { stdout: "complete", stderr: "", status: 0 },
+        }),
+      { timeout: 5000 },
+    );
+    process.kill(Number(readFileSync(ready, "utf8")), 0);
+    call({ op: "wait_finish", operation });
+    writeFileSync(release, "");
+  },
+);
+
 function netHost(t, trait = "hd:Net", env = {}, make = createHost) {
   const host = make({ out() {}, err() {} }, env);
   host.core.st.deadline = performance.now() + 5000;

@@ -1052,7 +1052,9 @@ function processWorker(t) {
       program: process.execPath,
       args: ["-e", script],
       cwd: process.cwd(),
-      env: {},
+      // The provider supplies the full environment; Rust does not apply
+      // libuv's implicit Windows essential-variable injection.
+      env: { ...process.env },
       input: "",
       launcher: process.env.HD_PROCESS_LAUNCHER,
       timeout: Infinity,
