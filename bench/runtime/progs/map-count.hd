@@ -10,7 +10,7 @@ fn tally(n: i32, buckets: i32) -> i32:
     let total = +0
     let b = +0
     while b < buckets:
-        total = total + counts.get_or(b, 0)
+        total = total + counts.get(b).unwrap_or(0)
         b = b + 1
     total
 
