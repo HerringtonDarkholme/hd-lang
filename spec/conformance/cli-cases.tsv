@@ -272,3 +272,5 @@ cap-dev-deny	cli.cap.dev.deny,cli.cap.order.deny,cli.cap.total.test
 cap-dev-dependency	cli.cap.dev.dependencies,cli.cap.dev.fix
 cap-dev-local-provider	cli.cap.dev.required
 cap-dev-task-init-main	cli.cap.dev.required,cli.cap.dev.fix
+cap-dev-task-mod-deny	cli.cap.dev.deny,cli.cap.dev.entries
+cap-dev-task-mod-scopes	cli.cap.dev.scopes,cli.cap.dev.entries

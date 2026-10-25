@@ -997,7 +997,7 @@ pub fn test_capabilities(root: &Path) -> Result<Vec<(String, Grant)>, String> {
 
 impl Program {
     pub fn execution_capabilities(&self) -> Vec<(String, Grant)> {
-        if self.entry.starts_with("$tasks.") {
+        if self.entry == "$tasks" || self.entry.starts_with("$tasks.") {
             crate::caps::development_grants(&self.capabilities, &self.dev_capabilities)
         } else {
             self.capabilities.clone()
