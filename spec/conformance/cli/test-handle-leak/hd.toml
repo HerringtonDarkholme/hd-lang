@@ -1,5 +1,5 @@
 [package]
 name = "relay"
 
-[test.capabilities]
+[dev-capabilities]
 Net = ["127.0.0.1"]

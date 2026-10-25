@@ -224,7 +224,7 @@ impl Grants {
         Grants { limits }
     }
 
-    /// The test grant (`cli.test.env.grant.*`): `[test.capabilities]` and
+    /// The test grant (`cli.test.env.grant.*`): the combined production/development tables and
     /// the flags of `hd test`, by Grant Precedence, where `FsRead` also
     /// covers the package directory and the test case's temporary
     /// directory, and `FsWrite` that temporary directory, unless the

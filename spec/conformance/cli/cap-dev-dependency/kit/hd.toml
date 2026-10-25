@@ -1,0 +1,5 @@
+[package]
+name = "kit"
+
+[dev-capabilities]
+Console = false

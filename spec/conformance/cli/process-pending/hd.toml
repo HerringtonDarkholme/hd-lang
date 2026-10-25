@@ -4,3 +4,6 @@ name = "process-pending"
 [capabilities]
 Console = true
 Clock = true
+
+[dev-capabilities]
+Process = true

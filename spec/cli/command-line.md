@@ -392,10 +392,22 @@ hd run --cap Http=localhost:8080  # this run calls localhost:8080 instead
 19. r[cli.cap.table.required-builtins] Console, Args, Clock, Random and ConsoleInput have no exemption from this check.
 20. r[cli.cap.table.required-package] A package-owned host capability is listed by one of its source capability paths.
 21. r[cli.cap.table.required-flags] A command-line grant does not replace a required manifest entry.
-22. r[cli.cap.table.required-message] The diagnostic names the missing capability and points at the `main` row that needs it.
-23. r[cli.cap.table.required-fix] Its exact fix-it inserts unrestricted grants for every missing capability into `hd.toml`.
+22. r[cli.cap.table.required-entry-message] The diagnostic names the missing capability and points at its written entry row or test registration.
+23. r[cli.cap.table.required-entry-fix] Its exact fix-it inserts unrestricted grants for missing capabilities into the applicable tables of `hd.toml`.
 24. r[cli.cap.table.unused] Listing a capability that no `main` uses is not an error.
 25. r[cli.cap.table.script] A standalone script with no `hd.toml` needs no capability table.
+26. r[cli.cap.dev.table] `[dev-capabilities]` accepts the same keys and values as `[capabilities]`.
+27. r[cli.cap.dev.entries] Tests and tasks use the root package's production and development grants together.
+28. r[cli.cap.dev.main] An executable `main` uses only production grants.
+29. r[cli.cap.dev.required] Every test or task host capability must appear in either root grant table. Error: `missing-capability`.
+30. r[cli.cap.dev.deny] A `false` entry in either table denies the capability for tests and tasks.
+31. r[cli.cap.dev.all] Otherwise, `true` in either table grants the capability without resource limits.
+32. r[cli.cap.dev.scopes] Otherwise, tests and tasks receive the union of both tables' scope entries before command flags apply.
+33. r[cli.cap.dev.dependencies] A dependency's development grants never contribute to the root program's grants.
+34. r[cli.cap.dev.shipping] Installation and deployment adapters read production grants alone.
+35. r[cli.cap.dev.fix] A missing test or task capability receives an exact fix-it inserting its grant into `[dev-capabilities]`.
+36. r[cli.cap.dev.test-internal] Test-runner capabilities supplied by the testing harness require no manifest entry.
+
 
 For example, a package's `main` row `$ Process` with no `Process` key
 fails with `missing-capability`. Its fix-it adds `Process = true` to the
@@ -431,19 +443,20 @@ Where a program's grant comes from:
 
 | Program | Its grant comes from |
 | --- | --- |
-| an executable or a task under `hd run`, or `hd FILE` for a FILE in a package | the package's `[capabilities]` table, and the command's `--cap` flags |
+| an executable under `hd run`, or `hd FILE` for a FILE in a package | the package's `[capabilities]` table, and the command's `--cap` flags |
+| a task under `hd run` | both root grant tables and the command's `--cap` flags |
 | `hd FILE` outside any package, `hd FILE.wasm`, and `hd` with no FILE | the command's `--cap` flags alone |
-| a program that [`hd_run!`](../std/testing.md#running-executables) starts | the package's `[capabilities]` table, with no flags |
-| an integration test case, or a doc test | the [test grant](#r-cli.test.env.grant) |
+| a program that [`hd_run!`](../std/testing.md#running-executables) starts | its executable or task grant tables, with no flags |
+| an integration test case, or a doc test | the [test grant](#r-cli.test.env.grant.combined) |
 | a unit test | none, since it gets no host provider |
 
-1. r[cli.cap.source.package] `hd run`, and `hd FILE` for a FILE in a package, apply the package's `[capabilities]` table and the command's flags.
+1. r[cli.cap.source.production] Executables under `hd run`, and `hd FILE` in a package, apply production grants and command flags.
 2. r[cli.cap.source.flags-only] `hd FILE` outside any package, and `hd` with no FILE, apply only the command's flags, so the REPL takes its grant from them.
-3. r[cli.cap.source.hd-run] A program that `hd_run!` starts gets the package's `[capabilities]` table, as `hd run NAME` would, with no flags.
+3. r[cli.cap.source.hd-run.entry] A program that `hd_run!` starts gets its executable or task grant tables, as `hd run NAME` would, without flags.
 4. r[cli.cap.build] `hd build` writes no grant into its output. Another host that runs the module applies its own policy.
 
 > **Why.** A package's main requirements must appear in its manifest
-> before this runtime policy applies. Standalone scripts and test grants
+> before this runtime policy applies. Standalone scripts
 > still use the default for traits that neither a table nor a flag names.
 
 #### Grant Scopes
@@ -756,11 +769,10 @@ file lies:
 6. r[cli.test.env.stdin] Its standard input is closed, so every `read_line!` returns `.Ok(.None)`, as at the end of input.
 7. r[cli.test.env.temp-dir] `hd test` gives each test case its own fresh, empty temporary directory, which [`temp_dir`](../std/testing.md#temporary-directories) returns. No other test case shares it, in the same run or in another run at the same time.
 8. r[cli.test.env.temp-dir.removed] `hd test` removes that directory and everything in it once the test case ends, whether it passed or failed.
-9. r[cli.test.env.grant] An integration test case or a doc test gets the **test grant**, which [Grant Precedence](#grant-precedence) builds from `[test.capabilities]` and the flags of `hd test`.
-10. r[cli.test.env.grant.table] `[test.capabilities]` in `hd.toml` takes the keys and values of `[capabilities]`, and `[capabilities]` itself does not apply to a test case.
-11. r[cli.test.env.grant.fs-read] When neither the table nor a flag names `FsRead`, it covers the package directory and the test case's temporary directory.
-12. r[cli.test.env.grant.fs-write] When neither the table nor a flag names `FsWrite`, it covers the test case's temporary directory.
-13. r[cli.test.env.grant.fs-added] When they give `FsRead` or `FsWrite` a list, the entries of the two rules above are added to it.
+9. r[cli.test.env.grant.combined] An integration test case or doc test gets the **test grant**, combining both root grant tables before [Grant Precedence](#grant-precedence) applies command flags.
+10. r[cli.test.env.grant.fs-read] When neither the table nor a flag names `FsRead`, it covers the package directory and the test case's temporary directory.
+11. r[cli.test.env.grant.fs-write] When neither the table nor a flag names `FsWrite`, it covers the test case's temporary directory.
+12. r[cli.test.env.grant.fs-added] When they give `FsRead` or `FsWrite` a list, the entries of the two rules above are added to it.
 
 ```sh
 hd test                    # tests/report.hd reads fixtures/orders.csv from the package
@@ -769,7 +781,7 @@ cd src && hd test          # the same: the working directory is still the packag
 
 ```toml
 # hd.toml
-[test.capabilities]
+[dev-capabilities]
 Http = ["localhost"]
 ```
 
@@ -1254,7 +1266,7 @@ hd fmt --check          # writes nothing; lists each file that would change
 hd fix    # applies each safe fix-it, rechecks, and lists the changes and what remains
 ```
 
-1. r[cli.fix.command.with-capabilities] `hd fix` checks the package as `hd check` does and applies safe source fix-its and the capability-table fixes described below.
+1. r[cli.fix.command.all-entries] `hd fix` checks the package as `hd check --all` does and applies safe source and capability-table fix-its.
 2. r[cli.fix.safe] A fix-it is **safe** when applying it adds no syntax error and no new diagnostic. `hd fix` applies no other fix-it.
 3. r[cli.fix.overlap] When the edits of two safe fix-its overlap, `hd fix` applies only the one whose diagnostic comes first in output order.
 4. r[cli.fix.rounds] After it applies fix-its, `hd fix` checks the package again and applies the safe fix-its of the new check. It repeats until a check offers none, or a bounded number of rounds has run.
@@ -1387,6 +1399,7 @@ hd test              # runs tests/hello.hd, which runs the executable
 14. r[cli.new.vcs.ignore] That `.gitignore` lists only the [build directory](#r-cli.build.directory), as `/build/`. `hd.sum` is not listed, so it is committed.
 15. r[cli.new.vcs-none] `hd new --vcs none` runs no `git init` and writes no `.gitignore`.
 16. r[cli.new.capabilities] The application template lists Console, Args, Clock and Random as `true` in `[capabilities]`.
+17. r[cli.new.dev-capabilities] The application template lists Process as `true` in `[dev-capabilities]`.
 
 > **Note.** [Running Executables](../std/testing.md#running-executables)
 > shows the test that `hd new --app` writes.

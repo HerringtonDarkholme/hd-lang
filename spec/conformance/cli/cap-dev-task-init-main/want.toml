@@ -1,0 +1,5 @@
+[package]
+name = "task-init-main"
+
+[dev-capabilities]
+Console = true

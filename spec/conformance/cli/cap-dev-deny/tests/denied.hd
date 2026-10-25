@@ -1,0 +1,2 @@
+it("must not run"):
+    println("denied")

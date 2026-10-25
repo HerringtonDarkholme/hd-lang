@@ -1,0 +1,8 @@
+[package]
+name = "task-mod-scopes"
+
+[capabilities]
+Console = true
+
+[dev-capabilities]
+FsRead = ["allowed.txt"]

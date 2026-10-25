@@ -1,2 +1,8 @@
 [package]
 name = "shop"
+
+[dev-capabilities]
+Args = true
+ConsoleInput = true
+FsRead = true
+FsWrite = true

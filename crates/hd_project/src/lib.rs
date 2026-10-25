@@ -20,8 +20,8 @@ pub use doctest::{DocTest, doc_tests};
 pub use manifest::{
     CAPABILITY_KEYS, Executable, Grant, HostDeclarations, HostPath, HostProvider, Manifest,
     ManifestError, Problem, Requirement, Version, Workspace, capability_insertion,
-    compatibility_line, grant_problem, host_path, is_capability_selector, key_problem,
-    parse_manifest, problems, requirement_problem,
+    capability_insertion_for, compatibility_line, grant_problem, host_path, is_capability_selector,
+    key_problem, parse_manifest, problems, requirement_problem,
 };
 
 /// One file of a source set: its package-relative path with `/`.

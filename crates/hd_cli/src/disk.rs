@@ -244,8 +244,10 @@ pub struct Program {
     /// (`trait.typeid.name.single-file`).
     pub single_file: bool,
     /// The `[capabilities]` table of its package, the valid keys
-    /// (`cli.cap.source.package`); empty outside a package.
+    /// (`cli.cap.source.production`); empty outside a package.
     pub capabilities: Vec<(String, Grant)>,
+    /// Root-only additional grants for tasks and tests.
+    pub dev_capabilities: Vec<(String, Grant)>,
     /// Its package's directory, which the table's path entries are
     /// relative to; `None` outside a package.
     pub package_dir: Option<PathBuf>,
@@ -284,7 +286,7 @@ impl Program {
     pub fn packages(&self) -> Packages<'_> {
         Packages {
             host_packages: self.host_packages.clone(),
-            main_capabilities: true,
+            entry_capabilities: true,
             instruction_origins: false,
             checked: false,
             requires: self.requires.clone(),
@@ -815,6 +817,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
             Some(r) => capabilities(&r)?,
             None => Vec::new(),
         },
+        dev_capabilities: Vec::new(),
         package_dir: package_root(root),
         entries: Vec::new(),
     })
@@ -845,6 +848,7 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
         single_file: true,
         as_written: None,
         capabilities: Vec::new(),
+        dev_capabilities: Vec::new(),
         package_dir: None,
         entries: Vec::new(),
     })
@@ -877,6 +881,7 @@ pub fn load_session(cwd: &Path) -> Result<Program, String> {
         single_file: false,
         as_written: None,
         capabilities: Vec::new(),
+        dev_capabilities: Vec::new(),
         package_dir: None,
         entries: Vec::new(),
     })
@@ -909,6 +914,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
             single_file: false,
             as_written: None,
             capabilities: Vec::new(),
+            dev_capabilities: Vec::new(),
             package_dir: Some(root.to_path_buf()),
             entries: Vec::new(),
         });
@@ -939,6 +945,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
         single_file: false,
         as_written: None,
         capabilities: capabilities(root)?,
+        dev_capabilities: dev_capabilities(root)?,
         package_dir: Some(root.to_path_buf()),
         entries,
     })
@@ -971,15 +978,31 @@ fn capabilities(root: &Path) -> Result<Vec<(String, Grant)>, String> {
     ))
 }
 
-/// The valid keys of a package's `[test.capabilities]` table, which the
-/// test grant reads instead of `[capabilities]`
-/// (`cli.test.env.grant.table`).
-pub fn test_capabilities(root: &Path) -> Result<Vec<(String, Grant)>, String> {
+/// Root-only additional grants; dependency manifests never supply these.
+fn dev_capabilities(root: &Path) -> Result<Vec<(String, Grant)>, String> {
     Ok(valid_grants(
         manifest_of(root)?
-            .map(|m| m.test_capabilities)
+            .map(|m| m.dev_capabilities)
             .unwrap_or_default(),
     ))
+}
+
+/// Tests share production and development grants, with deny winning.
+pub fn test_capabilities(root: &Path) -> Result<Vec<(String, Grant)>, String> {
+    Ok(crate::caps::development_grants(
+        &capabilities(root)?,
+        &dev_capabilities(root)?,
+    ))
+}
+
+impl Program {
+    pub fn execution_capabilities(&self) -> Vec<(String, Grant)> {
+        if self.entry == "$tasks" || self.entry.starts_with("$tasks.") {
+            crate::caps::development_grants(&self.capabilities, &self.dev_capabilities)
+        } else {
+            self.capabilities.clone()
+        }
+    }
 }
 
 /// The entries of a grant table whose key and value are valid.

@@ -1,0 +1,4 @@
+run: hd check --all
+run: hd run mod
+stdout: true
+stdout: true

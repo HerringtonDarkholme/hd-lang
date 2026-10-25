@@ -1,0 +1,5 @@
+run: hd check --all
+run: hd run mod --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","code":"denied-capability"},{"kind":"summary","errors":1,"warnings":0,"status":101}]

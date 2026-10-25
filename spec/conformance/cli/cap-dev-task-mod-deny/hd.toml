@@ -1,0 +1,5 @@
+[package]
+name = "task-mod-deny"
+
+[dev-capabilities]
+Console = false

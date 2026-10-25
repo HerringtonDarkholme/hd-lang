@@ -1,0 +1,4 @@
+use std.time.Clock
+
+pub fn main() -> void $ Clock:
+    pass

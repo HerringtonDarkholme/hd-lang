@@ -1,5 +1,6 @@
 [package]
 name = "relay"
 
-[test.capabilities]
+[dev-capabilities]
+Clock = true
 Net = ["127.0.0.1"]

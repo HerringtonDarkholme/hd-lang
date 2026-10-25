@@ -1,0 +1,6 @@
+use std.fs.{FsRead, read_text}
+use std.path.Path
+
+pub fn main!() -> void $ Console + FsRead:
+    println(read_text!(Path("allowed.txt")).is_ok())
+    println(read_text!(Path("outside.txt")).is_err())

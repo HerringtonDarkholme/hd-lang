@@ -295,7 +295,7 @@ fn the_test_runner_runs_a_task_by_name() {
     let dir = work("host-tasks");
     write(
         &dir.join("hd.toml"),
-        "[package]\nname = \"shop\"\n\n[capabilities]\nArgs = true\nConsole = true\nConsoleInput = true\nFsRead = true\n",
+        "[package]\nname = \"shop\"\n\n[capabilities]\nArgs = true\nConsole = true\nConsoleInput = true\nFsRead = true\n\n[dev-capabilities]\nProcess = true\n",
     );
     write(&dir.join("src/lib.hd"), "pub fn rows() -> i32:\n    2\n");
     write(&dir.join("data.txt"), "from the package");
@@ -387,7 +387,10 @@ fn the_test_runner_fails_a_body_past_its_timeout() {
 #[test]
 fn a_sleep_past_the_timeout_fails_the_case() {
     let dir = work("host-test-sleep");
-    write(&dir.join("hd.toml"), "[package]\nname = \"naps\"\n");
+    write(
+        &dir.join("hd.toml"),
+        "[package]\nname = \"naps\"\n\n[dev-capabilities]\nClock = true\nConsole = true\n",
+    );
     write(&dir.join("src/lib.hd"), "pub fn naps() -> i32:\n    2\n");
     write(
         &dir.join("tests/naps.hd"),
@@ -660,7 +663,7 @@ fn http_sends_requests_inside_the_grant() {
 }
 
 /// `Http` in an integration test (`cli.test.env.integration`) under the
-/// test grant of `[test.capabilities]` (`cli.test.env.grant.table`), and
+/// test grant of `[dev-capabilities]` (`cli.cap.dev.entries`), and
 /// in a plain function through `block_on`, which the request never leaves
 /// waiting on the event loop.
 #[test]
@@ -669,7 +672,7 @@ fn http_reaches_a_granted_host_from_an_integration_test() {
     let dir = work("host-http-test");
     write(
         &dir.join("hd.toml"),
-        "[package]\nname = \"fetcher\"\n\n[capabilities]\nArgs = true\nConsole = true\nConsoleInput = true\nFsRead = true\n\n[test.capabilities]\nHttp = [\"127.0.0.1\"]\n",
+        "[package]\nname = \"fetcher\"\n\n[capabilities]\nArgs = true\nConsole = true\nConsoleInput = true\nFsRead = true\n\n[dev-capabilities]\nHttp = [\"127.0.0.1\"]\n",
     );
     write(
         &dir.join("src/lib.hd"),

@@ -461,7 +461,7 @@ cancelled and holds the worker until it ends.
   ([`cli.cap.scope.rename`](../../spec/cli/command-line.md#r-cli.cap.scope.rename)).
   The test runner's `Process` provider starts the package's executables
   and tasks, built by `hd test` with the package's `[capabilities]` table
-  ([`cli.cap.source.hd-run`](../../spec/cli/command-line.md#r-cli.cap.source.hd-run)),
+  ([`cli.cap.source.hd-run.entry`](../../spec/cli/command-line.md#r-cli.cap.source.hd-run.entry)),
   in the package directory.
 - **`Http` on Node.** `send!` finishes inside its `.start`: the program's
   thread hands the request to a client thread (`host/http.mjs`) and waits

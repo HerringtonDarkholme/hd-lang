@@ -1,6 +1,6 @@
 //! The integration test environment of `hd test` (spec/cli/command-line.md,
-//! "Test Environments"): the test grant from `[test.capabilities]` and the
-//! `--cap` flags of `hd test` (`cli.test.env.grant`), the refusal of a
+//! "Test Environments"): the test grant from `[dev-capabilities]` and the
+//! `--cap` flags of `hd test` (`cli.test.env.grant.combined`), the refusal of a
 //! totally denied need with status 101 (`cli.cap.total.test`), each case's
 //! temporary directory removed once the run ends
 //! (`cli.test.env.temp-dir.removed`), `--seed` (`cli.test.seed.flag`), and
@@ -55,28 +55,32 @@ fn text(b: &[u8]) -> String {
 
 const PASSED: &str = "test result: ok. 1 passed; 0 failed; 0 ignored\n";
 
-/// `cli.test.env.grant.table`: `[capabilities]` does not apply to a test
-/// case, so its `Console = false` refuses nothing under `hd test`.
+/// Production denial remains effective even when development grants allow it.
 #[test]
-fn the_run_table_does_not_apply_to_a_test() {
-    let root = package("hd-env-run-table", "[capabilities]\nConsole = false\n");
+fn the_run_table_denial_applies_to_tests() {
+    let root = package(
+        "hd-env-run-table",
+        "[capabilities]\nConsole = false\n[dev-capabilities]\nConsole = true\n",
+    );
     let out = hd(&root, None, &["test"]);
-    assert_eq!(text(&out.stdout), PASSED, "{}", text(&out.stderr));
-    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.status.code(), Some(101));
+    assert!(
+        text(&out.stderr).contains("denied-capability"),
+        "{}",
+        text(&out.stderr)
+    );
+    assert_eq!(text(&out.stdout), "");
 }
 
 /// `cli.cap.total.test`, `cli.cap.total.message`, `cli.cap.order.deny`:
-/// `[test.capabilities]` denies Console totally, so the integration test
+/// `[dev-capabilities]` denies Console totally, so the integration test
 /// program never starts, a flag that grants it does not lift the deny, and
 /// the command ends with status 101.
 #[test]
 fn the_test_table_refuses_a_denied_need() {
-    let root = package(
-        "hd-env-test-table",
-        "[test.capabilities]\nConsole = false\n",
-    );
+    let root = package("hd-env-test-table", "[dev-capabilities]\nConsole = false\n");
     let want = "error: denied-capability: the test program tests/sum.hd needs Console, \
-                which `Console = false` in `[test.capabilities]` of hd.toml denies, so it \
+                which `Console = false` in `[capabilities]` or `[dev-capabilities]` of hd.toml denies, so it \
                 does not start\n";
     for args in [&["test"][..], &["test", "--cap", "Console=true"]] {
         let out = hd(&root, None, args);
@@ -94,11 +98,11 @@ fn the_test_table_refuses_a_denied_need() {
     assert!(stdout.ends_with("\"status\":101}\n"), "{stdout}");
 }
 
-/// `cli.cap.flag.commands`, `cli.test.env.grant`: a `--cap` flag of
+/// `cli.cap.flag.commands`, `cli.test.env.grant.combined`: a `--cap` flag of
 /// `hd test` joins the test grant, and its deny refuses the program.
 #[test]
 fn a_cap_flag_of_hd_test_refuses_a_denied_need() {
-    let root = package("hd-env-flag", "");
+    let root = package("hd-env-flag", "[dev-capabilities]\nConsole = true\n");
     let out = hd(&root, None, &["test", "--cap", "Console=false"]);
     assert_eq!(out.status.code(), Some(101));
     assert_eq!(
@@ -117,7 +121,7 @@ fn a_cap_flag_of_hd_test_refuses_a_denied_need() {
 /// system's temporary directory, neither a case's directory nor the run's.
 #[test]
 fn the_temporary_directories_are_removed() {
-    let root = package("hd-env-temp", "");
+    let root = package("hd-env-temp", "[dev-capabilities]\nConsole = true\n");
     let temp = tmp("hd-env-temp.tmpdir");
     let _ = std::fs::remove_dir_all(&temp);
     std::fs::create_dir_all(&temp).expect("TMPDIR");
@@ -133,7 +137,7 @@ fn the_temporary_directories_are_removed() {
 /// `cli.test.seed.flag`: `--seed N` takes a whole number.
 #[test]
 fn seed_takes_a_whole_number() {
-    let root = package("hd-env-seed", "");
+    let root = package("hd-env-seed", "[dev-capabilities]\nConsole = true\n");
     let out = hd(&root, None, &["test", "--seed", "7"]);
     assert_eq!(text(&out.stdout), PASSED, "{}", text(&out.stderr));
     let out = hd(&root, None, &["test", "--seed=7"]);

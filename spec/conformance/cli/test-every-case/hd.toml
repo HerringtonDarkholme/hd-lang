@@ -1,5 +1,5 @@
 [package]
 name = "shop"
 
-[test.capabilities]
+[dev-capabilities]
 FsWrite = true

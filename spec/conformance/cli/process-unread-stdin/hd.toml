@@ -3,3 +3,6 @@ name = "unread"
 
 [capabilities]
 Console = true
+
+[dev-capabilities]
+Process = true

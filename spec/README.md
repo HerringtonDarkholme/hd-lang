@@ -314,7 +314,7 @@ The stdlib chapters' terms are in the
 | **suffixed literal** | A numeric literal with a literal suffix, such as `250ms`, which calls the suffix function, as `ms(250)`. See [Literal Suffixes](lang/05-expressions.md#literal-suffixes). |
 | **task** | A development program of a package, a file `tasks/NAME.hd` that `hd run NAME` runs and the package never ships. See [Tasks](cli/command-line.md#tasks). |
 | **template** | A trait's one derived implementation, written `impl[T] Trait for T by Structure:` in the trait's module. See [Templates](lang/14-annotations.md#templates). |
-| **test grant** | The capability grant of an integration test case or a doc test, built from `[test.capabilities]`, the flags of `hd test`, and fixed file system entries. See [`cli.test.env.grant`](cli/command-line.md#r-cli.test.env.grant). |
+| **test grant** | The capability grant of an integration test case or a doc test, built from `[capabilities]` plus `[dev-capabilities]`, the flags of `hd test`, and fixed file system entries. See [`cli.test.env.grant.combined`](cli/command-line.md#r-cli.test.env.grant.combined). |
 | **totally denied** | A trait whose grant is `false`; a module that imports it never starts. See [Total Deny](cli/command-line.md#total-deny). |
 | **tuple template** | A trait's derivation for every tuple type, written `impl[T < Tuple] Trait for T by Structure:` in the trait's module. See [Tuple Templates](lang/14-annotations.md#tuple-templates). |
 | **test case** | One test, registered by a call of the prelude function `it` in test position, by one row of an `it_each` call, or by an `it_prop` or `it_prop_with` call. See [Test Cases](lang/10-modules.md#test-cases). |
