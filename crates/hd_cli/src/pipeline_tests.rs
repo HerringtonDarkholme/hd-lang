@@ -144,6 +144,11 @@ fn a_test_run_and_its_executables_build_for_its_engine() {
     let dir = package(
         "pipeline-test",
         &[
+            // Let the integration program reach the deliberately broken task.
+            (
+                "hd.toml",
+                "[package]\nname = \"shop\"\n[dev-capabilities]\nProcess = true\n",
+            ),
             ("tasks/seed.hd", BROKEN),
             (
                 "tests/seed.hd",
