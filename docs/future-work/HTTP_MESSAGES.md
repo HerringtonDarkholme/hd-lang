@@ -19,6 +19,8 @@ The [OpenAPI refinement](https://github.com/HerringtonDarkholme/hd-lang/issues/8
 allows declared nested records with bracket keys, superseding the flat-only restriction.
 The [depth and incoming-cookie clarification](https://github.com/HerringtonDarkholme/hd-lang/issues/847#issuecomment-6404702917)
 limits nesting to one deepObject bracket level and distinguishes incoming attributes from outgoing defaults.
+The [visited-value clarification](https://github.com/HerringtonDarkholme/hd-lang/issues/847#issuecomment-6404818736)
+rejects unsupported values when visited, permitting empty record lists and absent optional records without schema preflight.
 These later directions replace the earlier outgoing-only form scope; they do not restore automatic typed header mapping.
 Those decisions constrain the proposal; the remaining API and migration details still need approval before implementation.
 The current contract remains [std.http](../../spec/std/http.md).
@@ -563,7 +565,7 @@ It builds a flat ordered pair index, never an untyped nested object graph.
 | Absent Option | None; an explicit empty string remains present text | None is directed; empty-text detail is proposed |
 | Absent defaulted field | Existing serde default applies | Owner direction |
 | Unknown key | Ignore it when constructing the declared target | Owner direction |
-| List of records / dynamic-key map | FormError while reading; deferred preparation failure while writing | Owner direction; empty unsupported values need a shape policy |
+| Visited record-list element / dynamic map | FormError while reading; deferred preparation failure while writing | Owner direction; empty record lists and absent optional values are accepted |
 | Duplicate scalar | FormError rather than first/last selection | Proposal; no header/cookie duplicate rule is imported |
 | Missing nondefaulted scalar | FormError naming the declared member path | Proposal |
 | Missing scalar list | Empty list; optional list remains None | Proposal |
@@ -590,8 +592,10 @@ Unknown-key handling recognizes exact declared paths, not prefix strings such as
 One bracket level bounds declared nested decoding without traversing an arbitrary recursive schema.
 For a[b][c], the second object level is unsupported, even if its fields have known static types.
 Callback-only serde cannot see an empty list's element type or an absent optional map.
-Whether unsupported shapes fail by declared type or only when visited remains an implementation contract to approve.
-Neither input-length limits nor typed field selection resolves these two gaps by itself.
+The owner selected visited-value rejection rather than an additional declared-schema mechanism.
+An empty list of records and an absent optional record therefore encode/decode as empty/absent without error.
+An actual unsupported record element or deeper present record still fails when visited.
+The one-level deepObject scalar-property restriction still rejects a visited child list container, even when that child list is empty.
 
 The existing FormWriter has Error=never and panics on unsupported shapes.
 It is reference code, not a ready implementation of the new fallible shared codec.
@@ -720,7 +724,7 @@ A message copy alone does not rewind consumption.
 This must be reconciled with Client, ScriptedHttp and retained status errors during migration.
 
 The new codec and preparation core is proposed as follows; these are algorithms, not new HD syntax.
-The typed reader enforces one bracket level and still needs the empty unsupported-shape contract discussed above.
+The typed reader enforces one bracket level and rejects unsupported shapes when visited, as clarified above.
 
 ```rust
 fn encode_form(value) -> Result<Text, FormError> {
@@ -1037,7 +1041,8 @@ None implements the new cookie-date parser or full typed query reader.
 
 These rows are source references, not additive estimates or complete feature budgets.
 The bounded revision prototypes must report their own exact source counts and exclusions.
-Generic codec/schema discovery and date parsing remain unpriced until measured; implementation must not hide them inside a setter allowance.
+Date parsing and complete integration remain unpriced until measured; implementation must not hide them inside a setter allowance.
+Declared-schema discovery is unnecessary under the approved visited-value rule.
 
 The published revision probes now provide these additional measured components.
 Counts exclude blank and whole-line comment lines; tests and unrelated enum machinery are accounted separately.
@@ -1046,12 +1051,14 @@ Counts exclude blank and whole-line comment lines; tests and unrelated enum mach
 | --- | ---: | ---: | --- |
 | Form errors | 7 | 10 | Final error names/cause policy |
 | Pair paths and percent codec | 53 | 79 | Schema-name collisions and global resource limits |
-| Fallible form Serializer | 73 | 109 | Declared empty unsupported-shape preflight |
-| Typed form reader / grouped entry point | 75 | 112 | Complete custom-serde protocol validation and shape preflight |
+| Fallible form Serializer | 73 | 109 | Complete custom-serde protocol and limit handling |
+| Typed form reader / grouped entry point | 75 | 112 | Complete custom-serde protocol validation |
 | Deferred form/query component model | 15 | 22 | Real shared Body, Url, providers and response path |
 | Cookie/provenance mechanism subset | 139 | 208 | Cookie/date parsing, full formatter, request merging and real host delivery |
 
-The form program is 365 physical lines, 329 code lines, with 208 codec lines and 54 test lines.
+The initial form program is 365 physical lines, 329 code lines, with 208 codec lines and 54 test lines.
+The later visited-shape regression changes test/example counts, leaving the 208-line codec unchanged.
+The updated program is 379 physical lines, 341 code lines, with 63 test lines and eleven test cases.
 The cookie program is 328 physical lines, 285 code lines, with a 139-line mechanism subset and 50 test lines.
 The cookie subset includes declarations16, limited validation/formatting45, tagged entries9, Headers17, Payload/Body24, Message18 and errors10.
 Copied HeaderName machinery80, fake transport12, main2 and imports2 are excluded.
@@ -1093,7 +1100,7 @@ The cases must exercise actual shared references and both client/server directio
 | S13 non-ASCII header normalization | RFC token validation / Unicode case mapping | Invalid CooKie stays invalid; ASCII Other("Cookie") equals/hashes as Cookie | Works after ASCII fix: rejected before transport; canonical Eq/Hash controls pass. |
 | S14 typed cookie injection | RFC cookie grammar | Original value x; Secure is rejected before formatting or transport | Cookie model passes; limited validation does not prove the complete RFC/date implementation. |
 | S15 cookie direction and presence | Server session / client reply | First request duplicate, all ordered pairs, separate Set-Cookie, honest incoming flags | Incoming defaults settled; parsing/date/platform proof remains future. |
-| S16 typed query ambiguity | OpenAPI bracket profile | One-level nested fields, repeated scalar lists, deeper rejection and rename collisions | Form model passes the selected depth/repetition cases; rename collisions and empty unsupported schemas remain gaps. |
+| S16 typed query ambiguity | OpenAPI bracket profile | One-level fields, repeated lists, present deeper rejection, empty record lists and absent records | Form model covers the selected callback profile; renamed bracket collisions remain an implementation gap. |
 | S17 deferred repair | Fluent request construction | Failed form/query never sends stale data; component replacement repairs only itself | Both bounded models pass their complementary state tests; complete Url/Body/provider integration remains future. |
 
 ## Caller migration
@@ -1153,8 +1160,9 @@ The private wire route and message-level read/write naming are already decided; 
 Checked examples and component evidence are included, with the unimplemented codecs/profile work called out rather than priced as zero.
 The later direction includes typed form readers, whole-query conversion, OpenAPI-based nested record paths, and typed cookies in all directions.
 Registration remains ordinary pub host traits in unreexported internal modules; no @host rule change is proposed.
-The component-owned deferred state, exact codec error profile and empty unsupported-shape policy require approval.
+The component-owned deferred state and exact codec error profile require approval.
 Depth and incoming-cookie defaults are settled by6404702917; no recursive-type mechanism or additional Cookie field is proposed.
+Visited-value shape rejection is settled by6404818736; no empty-element schema preflight is proposed.
 The per-key Parse/Display pair is included as a proposed ordinary-library atom, preserving the untyped query lookups.
 This revised draft is for review under6404693348, before any production implementation.
 Implementation is not authorized by a recommendation alone.
@@ -1183,7 +1191,7 @@ No proposed API is claimed to exist in std today.
 | Original model source | Compiler parse during original check | Original0ca evidence:0errors/warnings; format pass | Original13tests on Node and13on Wasmtime pass; unchanged source |
 | Revised API catalog | Compiler parse during revision check |0errors/warnings; format pass | Not run: explicit shape-only stubs |
 | Cookie/provenance model | Compiler parse during revision check |0errors/warnings; format pass |6tests per engine pass; empty main exits0 on both |
-| Form/query model | Compiler parse during revision check |0errors/warnings; format pass |10tests per engine pass; both mains print42 |
+| Form/query model | Compiler parse during revision check |0errors/warnings; format pass |11tests per engine pass after the visited-shape follow-up; original mains print42 |
 
 The copied publication packages produce the exact recorded Wasm hashes and sizes, not merely matching stdout.
 The prototype README gives reproduction commands; every run uses a scratch HD_CACHE.
@@ -1196,4 +1204,5 @@ Revision gate receipts are reported separately; these historical totals are not 
 This is a design-only branch: no accepted spec/std/host/compiler implementation or full local test suite.
 The original audit log records18writing/command mistakes once, including the rejected header-writer prototype's escaped-control mistake.
 This revision adds three actual prototype diagnostics once: two let-mut messages and one contains_key correction.
+The visited-shape follow-up separately records two expect/Display diagnostics once.
 Expected negative boundary/registration probes are evidence, not programming mistakes.

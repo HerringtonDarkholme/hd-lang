@@ -1,6 +1,6 @@
 # Mechanism probe only: duplicate scalar rejection, strict percent/UTF8,
 # absent Lists empty; one bracket level per owner 6404702917.
-# Empty unsupported-type preflight remains unimplemented.
+# Unsupported values reject when visited; empty record lists/absent records are allowed.
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer, ValueKind, member_name, rename}
 use std.structure.{Facts, VariantInfo, Member}
 use std.text.{Parse, StringBuilder}
@@ -284,6 +284,10 @@ impl Deferred:
 struct Deep:
     outer: Outer
 
+@derive(Serialize, Deserialize)
+struct OptionalDeep:
+    outer: Outer?
+
 struct Once:
     calls: *mut List[usize]
 
@@ -363,3 +367,13 @@ tests:
     it("deepObject child lists reject even when empty"):
         assert_equal(encode(NestedList { details: NumberList { values: [] } }), .Err(.Shape("details[values]")), reason="deepObject properties must be scalars")
         assert_equal(decode::[NestedList]("details[values]=1").is_err(), true, reason="reader uses identical child shape restriction")
+
+    it("empty record lists and absent deeper records are allowed"):
+        assert_equal(encode(BadList { items: [] }), .Ok(""), reason="no unsupported element is visited")
+        match decode::[BadList](""):
+            .Ok(empty) => assert_equal(empty.items.len(), 0, reason="empty record list remains empty")
+            .Err(_) => panic("empty record list must decode")
+        assert_equal(encode(OptionalDeep { outer: .None }), .Ok(""), reason="absent record does not descend")
+        match decode::[OptionalDeep](""):
+            .Ok(absent) => assert_equal(absent.outer.is_none(), true, reason="no deeper value is visited")
+            .Err(_) => panic("absent optional record must decode")
