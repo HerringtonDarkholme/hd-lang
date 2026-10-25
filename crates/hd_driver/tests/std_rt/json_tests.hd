@@ -1,0 +1,133 @@
+# The hd tests of `std.json.decode`'s structural index (#165): `validate`
+# records each container's members, and the typed reader finds keys and
+# steps over values through that index instead of scanning the text again.
+# The conformance runner adds this file to std as `std.rt.json_tests`.
+use std.json.{decode, Json, JsonError}
+use std.serde.{Deserialize, Deserializer, Serialize}
+
+@derive(Serialize, Deserialize, Debug, Eq)
+struct Point:
+    x: i64
+    y: i64
+
+@derive(Serialize, Deserialize, Debug, Eq)
+struct Row:
+    id: i64
+    name: string
+    at: Point
+    tags: List[string]
+
+@derive(Serialize, Deserialize, Debug, Eq)
+struct Node:
+    label: string
+    kids: List[Node]
+
+# More than 16 members, so the reader lists its keys in a map.
+@derive(Serialize, Deserialize, Debug, Eq)
+struct Wide:
+    a0: i64
+    a1: i64
+    a2: i64
+    a3: i64
+    a4: i64
+    a5: i64
+    a6: i64
+    a7: i64
+    a8: i64
+    a9: i64
+    b0: i64
+    b1: i64
+    b2: i64
+    b3: i64
+    b4: i64
+    b5: i64
+    b6: i64
+    b7: i64
+
+# A reader that must never run: decode validates the whole text first.
+struct Guarded:
+    value: i64
+
+impl Deserialize for Guarded:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Guarded, R::Error]:
+        panic("Guarded read malformed text")
+
+fn nested(depth: i32) -> string:
+    let mut parts: List[string] = []
+    let i = +0
+    while i < depth:
+        parts.push("{\"skip\":{\"deep\":[1,{\"a\":[]}]},\"kids\":[")
+        i = i + 1
+    let j = +0
+    parts.push("{\"label\":\"leaf\",\"kids\":[]}")
+    while j < depth:
+        parts.push("],\"label\":\"n$j\"}")
+        j = j + 1
+    parts.join("")
+
+fn brackets(depth: i32) -> string:
+    let mut parts: List[string] = []
+    let i = +0
+    while i < depth:
+        parts.push("[")
+        i = i + 1
+    while i > 0:
+        parts.push("]")
+        i = i - 1
+    parts.join("")
+
+fn depth_of(node: Node) -> i32:
+    if node.kids.len() == 0: return +0
+    1 + depth_of(node.kids[0])
+
+tests:
+    use std.testing.{assert, it}
+
+    it("reads keys in any order"):
+        found := decode::[Row]("{\"tags\":[\"t\"],\"at\":{\"y\":2,\"x\":1},\"name\":\"n\",\"id\":7}")
+        assert(found == .Ok(Row { id: 7, name: "n", at: Point { x: 1, y: 2 }, tags: ["t"] }), "every member found")
+
+    it("steps over unknown keys that hold nested values"):
+        text := "{\"skip\":[{\"a\":[1,[2,{\"b\":\"]}\"}]]}],\"id\":3,\"more\":{\"x\":{\"y\":[[],{}]}},\"name\":\"q\",\"at\":{\"z\":[1],\"x\":4,\"y\":5},\"tags\":[]}"
+        assert(decode::[Row](text) == .Ok(Row { id: 3, name: "q", at: Point { x: 4, y: 5 }, tags: [] }), "unknown members skipped")
+
+    it("takes a repeated key's last value"):
+        found := decode::[Point]("{\"x\":1,\"y\":2,\"x\":3}")
+        assert(found == .Ok(Point { x: 3, y: 2 }), "last value wins")
+
+    it("matches escaped keys"):
+        found := decode::[Point]("{\"\\u0078\":1,\"y\\u0000\":9,\"y\":2}")
+        assert(found == .Ok(Point { x: 1, y: 2 }), "escaped key decoded")
+
+    it("reads a record of more than 16 members in any order"):
+        text := "{\"b7\":17,\"b6\":16,\"b5\":15,\"b4\":14,\"b3\":13,\"b2\":12,\"b1\":11,\"b0\":10,\"a9\":9,\"a8\":8,\"a7\":7,\"a6\":6,\"a5\":5,\"a4\":4,\"a3\":3,\"a2\":2,\"a1\":1,\"a0\":0,\"a0\":-1}"
+        match decode::[Wide](text):
+            .Ok(wide) => assert(wide.a0 == -1 && wide.a1 == 1 && wide.b0 == 10 && wide.b7 == 17, "wide record read")
+            .Err(_) => assert(false, "wide record failed")
+
+    it("reads deep nesting with skipped members at every level"):
+        match decode::[Node](nested(40)):
+            .Ok(node) =>
+                assert(node.label == "n39", "outer label")
+                assert(depth_of(node) == 40, "every level read")
+            .Err(_) => assert(false, "deep record failed")
+        assert(decode::[Json](brackets(128)).is_ok(), "128 levels read")
+        assert(decode::[Json](brackets(129)) == .Err(JsonError.NestingTooDeep(128)), "129 levels rejected")
+
+    it("reports a decode error's path through the index"):
+        found := decode::[List[Row]]("[{\"id\":1,\"name\":\"a\",\"at\":{\"x\":1,\"y\":2},\"tags\":[]},{\"at\":{\"y\":\"no\",\"x\":1},\"id\":2,\"name\":\"b\",\"tags\":[]}]")
+        assert(found == .Err(JsonError.WrongType("\$[1].at.x", "i64")) || found == .Err(JsonError.WrongType("\$[1].at.y", "i64")), "path of the bad member")
+        missing := decode::[Row]("{\"id\":1,\"at\":{\"x\":1,\"y\":2},\"tags\":[]}")
+        assert(missing == .Err(JsonError.MissingField("\$.name")), "missing member")
+
+    it("reports a syntax error after a member that would fail decoding"):
+        found := decode::[Row]("{\"id\":\"wrong\",\"name\":\"a\",\"at\":{\"x\":1,\"y\":2},\"tags\":[] x}")
+        assert(found == .Err(JsonError.UnexpectedCharacter(54)), "the parse error wins")
+        nested_bad := decode::[Row]("{\"id\":true,\"at\":{\"x\":1,\"y\":2,},\"name\":\"a\",\"tags\":[]}")
+        assert(nested_bad == .Err(JsonError.UnexpectedCharacter(29)), "a nested parse error wins")
+
+    it("never runs a reader on malformed text"):
+        found := decode::[Guarded]("{\"value\":1")
+        assert(found.is_err(), "the parse error returned")
+        list := decode::[List[Guarded]]("[{\"value\":1},]")
+        assert(list.is_err(), "the parse error returned")

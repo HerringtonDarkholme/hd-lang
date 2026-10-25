@@ -1843,6 +1843,7 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
     ),
     ("rt/cycle_tests.hd", include_str!("std_rt/cycle_tests.hd")),
     ("rt/scan_tests.hd", include_str!("std_rt/scan_tests.hd")),
+    ("rt/json_tests.hd", include_str!("std_rt/json_tests.hd")),
 ];
 
 /// Every case of each [`STD_RT_TESTS`] file passes on the linear backend,
