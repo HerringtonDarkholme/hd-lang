@@ -41,6 +41,9 @@ export function createSupervisor({
   ])
     if (!Number.isSafeInteger(policy[key]) || policy[key] < (key === "restartLimit" ? 0 : 1))
       throw new TypeError(`explicit positive ${key} required`);
+  for (const key of ["startupMs", "requestMs", "drainMs", "stopKillMs"])
+    if (policy[key] > 2147483647)
+      throw new TypeError(`${key} must not exceed 2147483647 milliseconds`);
   if (policy.stopKillMs < CLEANUP_BACKSTOP_MS)
     throw new TypeError("the outer stop budget cannot precede the cleanup backstop");
   if (typeof policy.retryAfter !== "string")

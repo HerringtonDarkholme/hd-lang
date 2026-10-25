@@ -240,6 +240,7 @@ explicit public inputs; packaging supplies them independently.
 14. r[std-server-sdk.supervisor.stop] First stop drains active work, while second stop or drain expiry starts cancellation.
 15. r[std-server-sdk.supervisor.join] Stop and close completion join worker termination.
 16. r[std-server-sdk.supervisor.confirmation] Forced termination reports cleanup as unconfirmed.
+17. r[std-server-sdk.supervisor.timer-upper-bound] Scheduled supervisor budgets `startupMs`, `requestMs`, `drainMs`, and `stopKillMs` must not exceed 2,147,483,647 milliseconds.
 
 > **Note.** The component supplies no deployment task, lifecycle budget
 > defaults, or aggregate memory guarantee.
@@ -390,6 +391,7 @@ uses the existing Deployment capability.
 11. r[std-server-sdk.vercel.name] `name` must match `[a-z0-9][a-z0-9-]{0,62}`.
 12. r[std-server-sdk.vercel.retry-after] `supervisor.retry_after` must be nonempty and contain only printable ASCII characters from U+0020 through U+007E.
 13. r[std-server-sdk.vercel.reexports] The package root reexports `SupervisorPolicy`, `VercelOptions`, and `vercel!`.
+14. r[std-server-sdk.vercel.timer-upper-bound] Vercel preparation rejects startup, request, drain, or outer-stop budgets greater than 2,147,483,647 milliseconds.
 
 | SupervisorPolicy field | Type | Meaning |
 | --- | --- | --- |

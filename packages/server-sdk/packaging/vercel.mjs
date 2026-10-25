@@ -19,6 +19,8 @@ export function validatePolicy(policy) {
   ])
     if (!Number.isSafeInteger(policy?.[name]) || policy[name] < (name === "restartLimit" ? 0 : 1))
       throw bad("explicit lifecycle policy " + name + " required");
+  for (const name of ["startupMs", "requestMs", "drainMs", "stopKillMs"])
+    if (policy[name] > 2147483647) throw bad(name + " must not exceed 2147483647 milliseconds");
   if (
     policy.workers > 8 ||
     policy.requestMs !== 20000 ||

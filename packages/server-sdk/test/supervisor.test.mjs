@@ -352,3 +352,51 @@ test(
     }
   },
 );
+
+test("scheduled lifecycle timer budgets reject MAX+1 before starting workers", () => {
+  for (const key of ["startupMs", "requestMs", "drainMs", "stopKillMs"])
+    assert.throws(
+      () => harness({ [key]: 2147483648 }),
+      new RegExp(`${key} must not exceed 2147483647 milliseconds`),
+    );
+});
+
+test(
+  "scheduled lifecycle timer budgets accept MAX and leave restart window uncapped",
+  { timeout: 10000 },
+  async () => {
+    const warnings = [];
+    const warned = (warning) => warnings.push(warning);
+    process.on("warning", warned);
+    const f = harness({
+      workers: 1,
+      startupMs: 2147483647,
+      requestMs: 2147483647,
+      drainMs: 2147483647,
+      stopKillMs: 2147483647,
+      restartWindowMs: 2147483648,
+      restartLimit: 0,
+    });
+    try {
+      await f.ready();
+      assert.equal(body(await f.supervisor.dispatch(request("/ok"))), "1");
+      const pending = f.supervisor.dispatch(request("/wait"));
+      const draining = f.supervisor.stop();
+      const stopping = f.supervisor.stop();
+      assert.equal((await pending).cancelled, "Stopping");
+      await Promise.all([draining, stopping]);
+      assert.equal(f.supervisor.state(), "Stopped");
+      assert.equal(
+        f.events.some((e) => e.kind === "terminated"),
+        false,
+      );
+      assert.equal(
+        warnings.some((w) => w.name === "TimeoutOverflowWarning"),
+        false,
+      );
+    } finally {
+      await f.supervisor.close();
+      process.off("warning", warned);
+    }
+  },
+);

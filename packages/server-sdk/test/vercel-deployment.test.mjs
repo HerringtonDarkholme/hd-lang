@@ -6,7 +6,7 @@ import { rm } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { packageVercelNode } from "../packaging/vercel.mjs";
+import { packageVercelNode, validatePolicy } from "../packaging/vercel.mjs";
 import { readPackageContract } from "../../../host/package-providers.mjs";
 import { fixture, environment } from "./helpers/deployment-fixture.mjs";
 import {
@@ -305,3 +305,32 @@ test(
     );
   },
 );
+
+test("Vercel scheduled lifecycle budgets reject MAX+1 before creating output", async () => {
+  for (const name of ["startupMs", "requestMs", "drainMs", "stopKillMs"]) {
+    const input = options("timer-overflow-" + name.toLowerCase());
+    input.policy[name] = 2147483648;
+    await assert.rejects(
+      packageVercelNode(input),
+      new RegExp(name + " must not exceed 2147483647 milliseconds"),
+    );
+    assert.equal(existsSync(input.outputDirectory), false);
+  }
+});
+
+test("Vercel scheduled lifecycle budgets accept MAX while request budget stays fixed", () => {
+  assert.doesNotThrow(() =>
+    validatePolicy({
+      ...policy(),
+      startupMs: 2147483647,
+      drainMs: 2147483647,
+      stopKillMs: 2147483647,
+      restartWindowMs: 2147483648,
+    }),
+  );
+  // The public supervisor accepts MAX requestMs; this deployed profile keeps20s.
+  assert.throws(
+    () => validatePolicy({ ...policy(), requestMs: 2147483647 }),
+    /fixed server bounds/,
+  );
+});
