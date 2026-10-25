@@ -713,9 +713,7 @@ fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
                     p,
                     Ins::Op(I::LocalGet(_) | I::I32Const(_) | I::I64Const(_)) | Ins::GlobalGet(_)
                 )
-                && let Some(s) = (0..q)
-                    .rev()
-                    .find(|&s| net(b, s, q, arity, &f.symbols) == Some(1))
+                && let Some(s) = run_start(b, q, arity, &f.symbols)
                 && !b[s..q].iter().any(|x| clobbers(p, x))
             {
                 let mut body = b[..s].to_vec();
@@ -783,6 +781,23 @@ fn net(b: &[Ins], from: usize, to: usize, arity: &Arity, symbols: &Symbols) -> O
         depth = depth.checked_sub(pops)? + pushes;
     }
     Some(depth)
+}
+
+/// The latest `s` before `q` whose run `b[s..q]` ends one deeper than it
+/// starts without reaching below its start: what `net(b, s, q) == Some(1)`
+/// finds, in one backward walk. Each step prepends an instruction to the
+/// run, keeping the depth the run needs at its start and its net change.
+fn run_start(b: &[Ins], q: usize, arity: &Arity, symbols: &Symbols) -> Option<usize> {
+    let (mut need, mut net) = (0usize, 0isize);
+    for s in (0..q).rev() {
+        let (pops, pushes) = effect(&b[s], arity, symbols)?;
+        need = pops + need.saturating_sub(pushes);
+        net += pushes.cast_signed() - pops.cast_signed();
+        if need == 0 && net == 1 {
+            return Some(s);
+        }
+    }
+    None
 }
 
 /// The store that takes the address below the straight-line run from
