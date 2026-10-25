@@ -197,7 +197,7 @@ tests:
             out := StringBuilder::new()
             let i = +0
             while i < 20:
-                out.push(label(i)).push_char('é').push_byte(33)
+                out.push(label(i)).push_char('é').push_ascii(33)
                 i = i + 1
             total = total + out.build().len()
             round = round + 1

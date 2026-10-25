@@ -642,15 +642,12 @@ impl List[string]:
 pub struct StringBuilder:
     # The UTF-8 bytes pushed since the last build, the string `build` takes over.
     bytes: List[u8]
-    # Whether `push_byte` pushed a byte of 128 or more since the last build,
-    # so `build` checks the bytes are UTF-8.
-    non_ascii: bool
 
 impl StringBuilder:
     ## Returns an empty builder, a new object that `push` changes.
     ## See [std-text.builder.new-ref](../../spec/std/text.md#r-std-text.builder.new-ref).
     pub fn new() -> *mut StringBuilder:
-        &mut StringBuilder { bytes: [], non_ascii: false }
+        &mut StringBuilder { bytes: [] }
 
     ## Appends `text` and returns the builder, so calls chain.
     ## See [std-text.builder.push-ref](../../spec/std/text.md#r-std-text.builder.push-ref).
@@ -678,12 +675,12 @@ impl StringBuilder:
             self.bytes.push(u8(128 + point % 64))
         self
 
-    ## Appends the byte `b`, any byte, and returns the builder, so calls chain. `build` checks that bytes pushed this way form UTF-8.
-    ## See [std-text.builder.push-byte](../../spec/std/text.md#r-std-text.builder.push-byte).
-    pub fn push_byte(*mut self, b: u8) -> *mut StringBuilder:
-        if b >= 128:
-            self.non_ascii = true
-        self.bytes.push(b)
+    ## Appends the ASCII byte `byte` and returns the builder, so calls chain. A byte of 128 or more panics.
+    ## See [std-text.builder.push-ascii](../../spec/std/text.md#r-std-text.builder.push-ascii).
+    pub fn push_ascii(*mut self, byte: u8) -> *mut StringBuilder:
+        if byte >= 128:
+            panic("push_ascii: the byte must be ASCII, below 128")
+        self.bytes.push(byte)
         self
 
     ## Makes room for at least `count` more bytes, appends nothing, and returns the builder.
@@ -699,17 +696,13 @@ impl StringBuilder:
         list_truncate(&mut self.bytes, size)
         self
 
-    ## Returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder. Bytes from `push_byte` that are not UTF-8 panic.
+    ## Returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder.
     ## See [std-text.builder.build-empties](../../spec/std/text.md#r-std-text.builder.build-empties).
     pub fn build(*mut self) -> string:
         # The buffer moves out of the builder, so `string_from_bytes` takes
-        # it over with no copy. `push` and `push_char` append only UTF-8.
+        # it over with no copy. Every push appends only UTF-8, so it checks nothing.
         bytes := self.bytes
         self.bytes = []
-        checked := self.non_ascii
-        self.non_ascii = false
-        if checked && utf8_valid_len(bytes) != bytes.len():
-            panic("build: the bytes pushed with push_byte are not valid UTF-8")
         string_from_bytes(bytes)
 
 # Whether `needle`'s bytes appear in `text` at byte `start`. A valid UTF-8
@@ -1264,14 +1257,10 @@ fn char_scalar(value: char) -> u32:
 fn panic_with(category: string, message: string) -> void:
     panic("intrinsic")
 
-# Keep handwritten Debug: show the text so far, or its bytes while
-# `push_byte` has left them short of UTF-8.
+# Keep handwritten Debug: show the text pushed so far.
 impl Debug for StringBuilder:
     fn debug(self, out: *mut DebugWriter) -> void:
-        if utf8_valid_len(self.bytes) == self.bytes.len():
-            out.debug_struct("StringBuilder").field("text", string_from_bytes(self.bytes)).finish()
-        else:
-            out.debug_struct("StringBuilder").field("bytes", self.bytes).finish()
+        out.debug_struct("StringBuilder").field("text", string_from_bytes(self.bytes)).finish()
 
 ## The cursor of a string's `chars`: its characters in order.
 ## See [module.string.chars](../../spec/lang/10-modules.md#r-module.string.chars).

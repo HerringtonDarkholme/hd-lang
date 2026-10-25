@@ -1,5 +1,5 @@
-# test: push_byte appends any one byte, reserve appends nothing, and build hands over everything pushed since the last build, checks bytes from push_byte form UTF-8, and empties the builder
-# Spec std/text Joining And Building: std-text.builder.push-byte, std-text.builder.reserve, std-text.builder.build-empties, std-text.builder.build-utf8.
+# test: push_ascii appends one ASCII byte, reserve appends nothing, and build hands over everything pushed since the last build and empties the builder
+# Spec std/text Joining And Building: std-text.builder.push-ascii, std-text.builder.reserve, std-text.builder.build-empties.
 use std.text.StringBuilder
 
 # The decimal digits of `n`, pushed as bytes after room for them.
@@ -11,45 +11,37 @@ fn digits(n: u32) -> string:
     while rest >= 10:
         backward.push(u8(48 + rest % 10))
         rest = rest / 10
-    out.push_byte(u8(48 + rest))
+    out.push_ascii(u8(48 + rest))
     let index = backward.len()
     while index > 0:
         index = index - 1
-        out.push_byte(backward[index])
+        out.push_ascii(backward[index])
     out.build()
 
 tests:
     use std.testing.assert_equal
 
-    it("pushes bytes"):
+    it("pushes ASCII bytes"):
         assert_equal(digits(0), "0", reason="one digit")
         assert_equal(digits(4096), "4096", reason="digits in order")
-        assert_equal(StringBuilder::new().push_byte(104).push_byte(105).build(), "hi", reason="push_byte chains")
-        assert_equal(StringBuilder::new().push_byte(0).push_byte(127).build().len(), 2, reason="ASCII bytes")
-        assert_equal(StringBuilder::new().push_byte(97).push_char('a').build(), "aa", reason="as push_char of the same character")
-
-    it("pushes the bytes of a UTF-8 sequence one by one"):
-        assert_equal(StringBuilder::new().push_byte(195).push_byte(169).build(), "é", reason="two bytes of one character")
-        out := StringBuilder::new()
-        out.push("caf").push_byte(195).push_byte(169).push_char('!')
-        assert_equal(out.build(), "café!", reason="mixed with push and push_char")
-        out.push_byte(240).push_byte(159).push_byte(152).push_byte(128)
-        assert_equal(out.build(), "😀", reason="four bytes, after a build")
+        assert_equal(StringBuilder::new().push_ascii(104).push_ascii(105).build(), "hi", reason="push_ascii chains")
+        assert_equal(StringBuilder::new().push_ascii(0).push_ascii(127).build().len(), 2, reason="ASCII bytes")
+        assert_equal(StringBuilder::new().push_ascii(97).push_char('a').build(), "aa", reason="as push_char of the same character")
 
     it("reserves room and appends nothing"):
         out := StringBuilder::new()
         out.push("ab").reserve(100)
         assert_equal(out.build(), "ab", reason="reserve appends nothing")
-        out.push_byte(33).reserve(0).push_byte(63)
+        out.push_ascii(33).reserve(0).push_ascii(63)
         assert_equal(out.build(), "!?", reason="reserve chains, and 0 is allowed")
 
     it("build empties the builder"):
         out := StringBuilder::new()
-        out.push_byte(120).push("y").push_char('z')
+        out.push_ascii(120).push("y").push_char('z')
         first := out.build()
         assert_equal(first, "xyz", reason="everything pushed")
         assert_equal(out.build(), "", reason="the builder is empty after build")
-        out.push_byte(49)
+        out.push_ascii(49)
         assert_equal(out.build(), "1", reason="only what was pushed since the last build")
         assert_equal(first, "xyz", reason="an earlier result is its own string")
 
