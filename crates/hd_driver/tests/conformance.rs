@@ -63,7 +63,6 @@ use hd_driver::{
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 use hd_syntax::parse;
-use hd_testkit::Scratch;
 use hd_testkit::known_failures::{self, Outcome};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1093,6 +1092,19 @@ fn report_runtime(cases: &[Case], results: &[Verdict], elapsed: Duration) {
 /// same verdict a fresh process's non-zero exit gives. The test harness
 /// below still spawns a fresh process per program.
 fn run_wasm(wasm: &[u8], serial: usize, profile: Option<&str>) -> std::io::Result<Ran> {
+    in_worker(wasm, serial, profile, None)
+}
+
+/// Runs one request on this thread's Node worker: an entry run, or with
+/// `tests` (`test:init:kind,...`) those cases of a test program, as
+/// `host/test.mjs` runs them. A request that kills the worker is tried
+/// once more on a fresh one.
+fn in_worker(
+    wasm: &[u8],
+    serial: usize,
+    profile: Option<&str>,
+    tests: Option<&str>,
+) -> std::io::Result<Ran> {
     ENTRY_WORKER.with(|slot| {
         let mut slot = slot.borrow_mut();
         ensure_worker(&mut slot)?;
@@ -1102,6 +1114,7 @@ fn run_wasm(wasm: &[u8], serial: usize, profile: Option<&str>) -> std::io::Resul
             serial,
             profile,
             None,
+            tests,
         ) {
             Ok(ran)
         } else {
@@ -1115,6 +1128,7 @@ fn run_wasm(wasm: &[u8], serial: usize, profile: Option<&str>) -> std::io::Resul
                 serial,
                 profile,
                 None,
+                tests,
             ) {
                 Ok(ran)
             } else {
@@ -1212,6 +1226,7 @@ fn request_header(
     wasm_len: usize,
     profile: Option<&str>,
     scenario: Option<&str>,
+    tests: Option<&str>,
 ) -> Vec<u8> {
     let mut header = String::from("{\"id\":");
     header.push_str(&serial.to_string());
@@ -1226,6 +1241,10 @@ fn request_header(
     match scenario {
         Some(name) => json_string(name, &mut header),
         None => header.push_str("null"),
+    }
+    if let Some(list) = tests {
+        header.push_str(",\"tests\":");
+        json_string(list, &mut header);
     }
     header.push_str(",\"args\":[],\"stdinLen\":0}");
     header.into_bytes()
@@ -1285,8 +1304,9 @@ fn worker_run(
     serial: usize,
     profile: Option<&str>,
     scenario: Option<&str>,
+    tests: Option<&str>,
 ) -> std::io::Result<Ran> {
-    let header = request_header(serial, wasm.len(), profile, scenario);
+    let header = request_header(serial, wasm.len(), profile, scenario, tests);
     let expected = serial;
     worker
         .stdin
@@ -1431,29 +1451,19 @@ fn run_tests(
     let node = if mode == EngineMode::WasmtimeOnly {
         None
     } else {
-        let path = Scratch::unmade(
-            env!("CARGO_TARGET_TMPDIR"),
-            &format!("conformance-{serial}.wasm"),
-        );
         let node_wasm = modules.node().map_err(|e| Verdict::Crash(e.to_string()))?;
-        std::fs::write(&path, node_wasm).map_err(|e| Verdict::Crash(e.to_string()))?;
         let list: Vec<String> = runs
             .iter()
             .map(|(case, (test, init))| format!("{test}:{init}:{}", case.kind))
             .collect();
         let started = Instant::now();
-        let result = Command::new("node")
-            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.mjs"))
-            .arg(&path)
-            .arg(list.join(","))
-            .output();
+        let result = in_worker(node_wasm, serial, None, Some(&list.join(",")));
         {
             let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");
             let stats = stats.entry(tier(case)).or_default();
             stats.node_elapsed += started.elapsed();
             *stats.node_harness.entry(case.path.clone()).or_default() += 1;
         }
-        drop(path);
         let output = result.map_err(|e| Verdict::Crash(e.to_string()))?;
         Some(String::from_utf8_lossy(&output.stdout).into_owned())
     };
@@ -1755,6 +1765,7 @@ fn scenario_run(
                 serial,
                 profile,
                 Some(scenario),
+                None,
             )
         });
         let mut stats = RUNTIME_STATS.lock().expect("runtime stats lock");

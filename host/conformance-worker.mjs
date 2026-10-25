@@ -9,7 +9,9 @@
 // or null, the runtime scenario name or null (driven by `runScenario`
 // instead of `run`), the program arguments (always empty in conformance)
 // and the stdin byte count (always empty in conformance, accepted for
-// protocol completeness).
+// protocol completeness). A header with a `tests` field, the `hd test`
+// case list `test:init:kind,...`, runs those cases of the test program as
+// `test.mjs` does (`test-run.mjs`); its stdout is their result lines.
 // It returns one framed message per case over stdout: a 4-byte big-endian
 // header length, the header JSON `{"id","status","stdoutLen","stderrLen"}`,
 // then the stdout and stderr bytes.
@@ -40,6 +42,7 @@ import { entryCancel } from "./core.mjs";
 import { cycleReport } from "./checked-report.mjs";
 import { createHost } from "./node.mjs";
 import { providers } from "./profiles.mjs";
+import { configOf, supervise } from "./test-run.mjs";
 
 const IN = 0;
 const OUT = 1;
@@ -218,10 +221,28 @@ async function runEntry(header, wasm, stdinText) {
   }
 }
 
+// Runs the listed test cases of a test program, each in a fresh instance
+// in a supervised worker thread, and returns their result lines.
+async function runTests(header, wasm) {
+  let stdoutStr = "";
+  try {
+    const module = await WebAssembly.compile(wasm);
+    await supervise(module, configOf(header.tests), (text) => {
+      stdoutStr += text;
+    });
+    return { status: 0, stdoutStr, stderrStr: "" };
+  } catch (e) {
+    return { status: 1, stdoutStr, stderrStr: (e?.stack ?? String(e)) + "\n" };
+  }
+}
+
 for (;;) {
   const msg = readFrame();
   if (msg === null) break;
   const { header, wasm, stdinText } = msg;
-  const { status, stdoutStr, stderrStr } = await runEntry(header, wasm, stdinText);
+  const { status, stdoutStr, stderrStr } =
+    typeof header.tests === "string"
+      ? await runTests(header, wasm)
+      : await runEntry(header, wasm, stdinText);
   writeFrame(header.id, status, Buffer.from(stdoutStr, "utf8"), Buffer.from(stderrStr, "utf8"));
 }
