@@ -11,7 +11,9 @@ export function createOutput(connection = null) {
   let client = connection;
   let worker = null;
   let nextCall = 1;
-  const call = (request, transfer = []) => {
+  let used = false;
+  // Starts the writer thread; the first write otherwise waits for it.
+  const start = () => {
     if (client === null) {
       const { port1, port2 } = new MessageChannel();
       const flag = new Int32Array(new SharedArrayBuffer(4));
@@ -29,6 +31,10 @@ export function createOutput(connection = null) {
       port1.unref();
       client = { port: port1, flag };
     }
+  };
+  const call = (request, transfer = []) => {
+    start();
+    used = true;
     Atomics.store(client.flag, 0, 0);
     const id = nextCall++;
     const deadline = performance.now() + 5000;
@@ -39,6 +45,7 @@ export function createOutput(connection = null) {
   };
   const send = (fd, text) => call({ op: "enqueue", fd, text });
   const output = {
+    start,
     out: (text) => send(1, text),
     err: (text) => send(2, text),
     write: (fd, text) => {
@@ -69,6 +76,15 @@ export function createOutput(connection = null) {
       while (!call({ op: "idle" }).ok) await new Promise((resolve) => setTimeout(resolve, 1));
     },
     close: async () => {
+      // A writer that was started but never written to has nothing to
+      // flush; its unref'd thread need not delay the exit.
+      if (!used) {
+        client?.port.close();
+        client = null;
+        void worker?.terminate();
+        worker = null;
+        return;
+      }
       await output.drain();
       client?.port.close();
       client = null;

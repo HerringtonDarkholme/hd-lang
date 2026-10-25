@@ -276,6 +276,8 @@ if (isMainThread) {
           else process.off(signal, cancel.request);
         });
   const output = createOutput();
+  // The writer thread boots while the module compiles, not at the first write.
+  output.start();
   try {
     process.exitCode =
       limit === null
