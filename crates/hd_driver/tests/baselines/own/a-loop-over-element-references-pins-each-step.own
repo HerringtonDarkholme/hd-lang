@@ -8,7 +8,7 @@ app/main/bump_all
   %0 = Read copy [$1] : usize
   %1 = IsUnique [$0] : ()
   %2 = Pin [$0] : ()
-  %3 = Read copy [$0 [%0]] : List[i64]
+  %3 = Read borrow [$0 [%0]] : List[i64]
   %4 = Intrinsic ListLen [%3] : usize
   %5 = Store [$2] %4 : ()
   %6 = Store [$3] 0:usize : ()
@@ -38,7 +38,6 @@ app/main/bump_all
   %31 = If %9 [%28 %30] : ()
   %32 = Block - : ()
   %33 = Loop %32 - : ()
-  %34 = Drop [%3] : ()
-  %35 = Drop [$0] : ()
-  %36 = Block - : ()
+  %34 = Drop [$0] : ()
+  %35 = Block - : ()
   exit sub 0 drops [$0]

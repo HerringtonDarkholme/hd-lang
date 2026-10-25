@@ -788,6 +788,9 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
                     let mode = ReadMode::Borrow as u32;
                     let e = edits.insert(blk, pos, Tag::Read, [w, mode], b.ty[v as usize], syn);
                     edits.rewrite(u32_of(i), super::Loc::Extra(a + 2), e);
+                    if lone_root_read(b, topo, t, i).is_some() {
+                        edits.remove(v);
+                    }
                 }
                 // A change through a dereference reaches the referent, not
                 // the reads the reference came from.
@@ -819,6 +822,17 @@ type Change = (u32, u32, u32, Option<bool>);
 fn changes(b: &Body, topo: &Topology, t: &mut Tables, i: usize) {
     if topo.blk[i] == NONE {
         return;
+    }
+    // The read a store's or a reference's place is rooted at, which
+    // [`uniqueness`] replaces with a new `borrow` read, no longer needs a
+    // count at the change: one only the place uses holds none, and goes;
+    // any other is dropped after its last other use.
+    if let Some(v) = lone_root_read(b, topo, t, i) {
+        t.tracked[v as usize] = false;
+    } else if let Some(v) = rerooted_read(b, topo, i)
+        && t.reread[v as usize] == NONE
+    {
+        t.reread[v as usize] = u32_of(i);
     }
     // A store or a reference through a read of a local's place names
     // that place in its checks ([`uniqueness`]): an access of the local.
@@ -884,6 +898,51 @@ fn changes(b: &Body, topo: &Topology, t: &mut Tables, i: usize) {
             }
         }
     }
+}
+
+/// The read that the place of `Store` or `Ref` `i` is rooted at, when
+/// [`uniqueness`] gives that place a new `borrow` read and nothing else
+/// needs the old one: the place has an element step, the read names a
+/// local's or a top-level binding's place with no element step (whose
+/// index check must stay), and the place is the read's one use. Kept, the
+/// read would hold a count of the list across the `IsUnique`, which then
+/// always copies the buffer: an open element type keeps such reads
+/// unfolded (`crate::ir::root`, rule 3).
+fn lone_root_read(b: &Body, topo: &Topology, t: &Tables, i: usize) -> Option<u32> {
+    let v = rerooted_read(b, topo, i)?;
+    let r = v as usize;
+    (named_root(b, b.data[r][0]).is_some()
+        && !has_elem(b, b.data[r][0])
+        && t.start[r + 1] - t.start[r] == 1)
+        .then_some(v)
+}
+
+/// The read that the place of `Store` or `Ref` `i` is rooted at, when
+/// [`uniqueness`] roots the place at a new `borrow` read instead: the
+/// read's chain starts at a place ([`read_place`]), and the place has an
+/// element step, which gets an `IsUnique`.
+fn rerooted_read(b: &Body, topo: &Topology, i: usize) -> Option<u32> {
+    if !matches!(b.tags[i], Tag::Store | Tag::Ref) {
+        return None;
+    }
+    let a = b.data[i][0];
+    let v = b.view(a).value()?;
+    (b.tags[v as usize] == Tag::Read && read_root(b, topo, v).is_some() && has_elem(b, a))
+        .then_some(v)
+}
+
+/// Whether the place at `word` has an element projection.
+fn has_elem(b: &Body, word: u32) -> bool {
+    let PlaceView {
+        from: mut x, to, ..
+    } = b.view(word);
+    while x < to {
+        match b.extra[x as usize] & place::PROJ_KIND {
+            place::PROJ_ELEM => return true,
+            _ => x += 1,
+        }
+    }
+    false
 }
 
 /// Rule 5 for a collection change ([`changes`]). An operand read from a

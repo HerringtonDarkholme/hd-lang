@@ -1,0 +1,20 @@
+# @dump: own
+# A list of an open element type keeps its base reads unfolded, so a
+# store's place is rooted at a read of the local. The store reads the
+# local again after its `IsUnique`, and the base read holds no count
+# across that check: alone it goes, and beside an element read it is a
+# borrow that ends before the check. A count there would make the check
+# copy the whole buffer at every store.
+struct Cell[T]:
+    value: T
+    hits: usize
+
+fn shift[T](items: List[T], i: usize) -> List[T]:
+    let mut xs = items
+    xs[i] = xs[i + 1]
+    xs
+
+fn bump[T](cells: List[Cell[T]], i: usize) -> List[Cell[T]]:
+    let mut all = cells
+    all[i].hits += 1
+    all
