@@ -73,6 +73,15 @@ a `char`, or a list.
 | `f32_to_bits`, `f32_from_bits` | `(value: f32) -> u32`, `(bits: u32) -> f32` | the same bit cast for `f32` |
 | `list_truncate` | `[T](items: &mut List[T], len: usize) -> void` | shortens the list `items` refers to, to its first `len` elements, the one hook under `List.pop`, `insert`, `remove_at`, and `clear`; panics when `len` is greater than the size. Panic: `index-out-of-bounds` |
 
+**Scans.** These search a string's bytes. Each has an hd reference body
+that defines its result, and an implementation may supply a faster body
+that gives the same result. The owner approved them in
+[#428](https://github.com/HerringtonDarkholme/hd-lang/issues/428).
+
+| Primitive | Signature | Why it is a primitive |
+| --- | --- | --- |
+| `bytes_index_json` | `(s: string, from: usize) -> usize` | the offset of the first byte at or after `from` that JSON must escape (a byte below `0x20`, `"` or `\`), or `bytes_len(s)` when there is none; SIMD reads 16 bytes per step where an hd loop reads one, and JSON encoding and parsing scan every string byte |
+
 **Panic.** One primitive raises every checked runtime panic that `lib/std`
 raises with a category other than `explicit-panic`.
 

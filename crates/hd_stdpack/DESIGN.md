@@ -60,6 +60,7 @@ every key in `lib/std` has a row.
 | --- | --- | --- |
 | `bytes_len`, `bytes_at`, `bytes_slice`, `bytes_concat` | `text.hd`: `(text: string) -> usize`, `(text, index: usize) -> u8`, `(text, start, end: usize) -> string`, `(left, right: string) -> string` | compiler |
 | `string_from_bytes` | `(bytes: List[u8]) -> string`, in `text.hd` and `format.hd` | compiler |
+| `bytes_index_json` | `(text: string, from: usize) -> usize`, in `json.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index_json` (#428) | compiler |
 | `char_scalar` | `(value: char) -> u32`, in `text.hd`, `format.hd`, `hash.hd` | compiler |
 | `char_from_scalar` | `(point: u32) -> char?`, in `text.hd` | compiler |
 | `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `IntToStr` helper | compiler |

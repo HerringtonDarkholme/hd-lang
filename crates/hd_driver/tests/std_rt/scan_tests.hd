@@ -1,0 +1,141 @@
+# The hd tests of std's byte scans (#428,
+# docs/future-work/PERFORMANCE_ROADMAP.md §3.9): the compiler supplies a
+# SIMD128 body for each scan primitive, and that body must give what the
+# primitive's hd reference body gives. Only std may declare a primitive,
+# so the conformance runner adds this file to std as
+# `std.rt.scan_tests` (crates/hd_driver/tests/conformance.rs,
+# `STD_RT_TESTS`).
+use std.format.debug
+use std.testing.Choices
+
+@intrinsic("bytes_len")
+fn bytes_len(text: string) -> usize:
+    panic("intrinsic")
+
+@intrinsic("bytes_at")
+fn bytes_at(text: string, index: usize) -> u8:
+    panic("intrinsic")
+
+@intrinsic("bytes_slice")
+fn bytes_slice(text: string, start: usize, end: usize) -> string:
+    panic("intrinsic")
+
+# Raw bytes, which here are not always UTF-8: a scan reads bytes only, and
+# 128 and 255 check that its compares are unsigned.
+@intrinsic("string_from_bytes")
+fn string_from_bytes(bytes: List[u8]) -> string:
+    panic("intrinsic")
+
+@intrinsic("bytes_index_json")
+fn bytes_index_json(text: string, from: usize) -> usize:
+    panic("intrinsic")
+
+# The reference body of `bytes_index_json` in lib/std/json.hd.
+fn reference_json(text: string, from: usize) -> usize:
+    size := bytes_len(text)
+    let index = from
+    while index < size:
+        byte := bytes_at(text, index)
+        if byte < 32 || byte == 34 || byte == 92:
+            return index
+        index = index + 1
+    size
+
+# The byte values the scans are checked at.
+fn edge_byte(k: usize) -> u8:
+    match k % 8:
+        0 => 0
+        1 => 31
+        2 => 32
+        3 => 34
+        4 => 92
+        5 => 127
+        6 => 128
+        _ => 255
+
+# A byte that no JSON scan stops at, varied by position.
+fn plain_byte(k: usize) -> u8:
+    match k % 5:
+        0 => 32
+        1 => 127
+        2 => 128
+        3 => 255
+        _ => 97
+
+# A view of `len` plain bytes, `start` bytes into its buffer, with `byte`
+# at offset `at` when `at < len`. The buffer's bytes before the view are
+# `"`, which a scan stops at; after it come 1 to 7 plain bytes, then `"`.
+# A scan that reads outside the view gives a wrong answer.
+fn view(start: usize, len: usize, at: usize, byte: u8) -> string:
+    let mut bytes: List[u8] = []
+    let k: usize = 0
+    while k < start + len + 16:
+        if k < start || k >= start + len + 1 + start % 7:
+            bytes.push(34)
+        else if k >= start + len:
+            bytes.push(plain_byte(k))
+        else if k - start == at:
+            bytes.push(byte)
+        else:
+            bytes.push(plain_byte(k))
+        k = k + 1
+    bytes_slice(string_from_bytes(bytes), start, start + len)
+
+@derive(Debug)
+struct Scan:
+    start: usize
+    len: usize
+    at: usize
+    byte: u8
+    from: usize
+
+fn scan(c: &mut Choices) -> Scan:
+    let start: usize = c.int(0..32)
+    let len: usize = c.int(0..=80)
+    let at: usize = c.int(0..=len)
+    let byte_at: usize = c.int(0..8)
+    let from: usize = c.int(0..=len + 2)
+    Scan { start: start, len: len, at: at, byte: edge_byte(byte_at), from: from }
+
+tests:
+    use std.testing.{assert_equal, it, it_prop_with}
+
+    it_prop_with("bytes_index_json gives what its reference body gives", gen=scan, cases=2000, prop=fn!(s: Scan):
+        text := view(s.start, s.len, s.at, s.byte)
+        assert_equal(bytes_index_json(text, s.from), reference_json(text, s.from), reason=debug(s))
+    )
+
+    it("bytes_index_json agrees at every length, view start and 16-byte edge"):
+        let start: usize = 0
+        while start < 32:
+            let len: usize = 0
+            while len < 50:
+                let at: usize = 0
+                while at <= len:
+                    let k: usize = 0
+                    while k < 8:
+                        text := view(start, len, at, edge_byte(k))
+                        got := bytes_index_json(text, 0)
+                        want := reference_json(text, 0)
+                        if got != want:
+                            assert_equal(got, want, reason="start $start, length $len, byte ${edge_byte(k)} at $at")
+                        k = k + 1
+                    at = at + 1
+                len = len + 1
+            start = start + 1
+
+    it("bytes_index_json starts at every offset, and past the end gives the length"):
+        let start: usize = 0
+        while start < 32:
+            let len: usize = 0
+            while len < 50:
+                text := view(start, len, len / 2, 92)
+                let from: usize = 0
+                while from <= len + 2:
+                    got := bytes_index_json(text, from)
+                    want := reference_json(text, from)
+                    if got != want:
+                        assert_equal(got, want, reason="start $start, length $len, from $from")
+                    from = from + 1
+                len = len + 1
+            start = start + 1

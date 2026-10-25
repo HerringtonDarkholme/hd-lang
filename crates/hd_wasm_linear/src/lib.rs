@@ -22,6 +22,7 @@ mod origins;
 mod pow;
 mod rem;
 mod rt;
+mod scan;
 mod task;
 pub mod views;
 mod wide;

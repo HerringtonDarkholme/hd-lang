@@ -412,17 +412,13 @@ fn push_quoted(parts: &mut List[string], text: string) -> void:
 fn push_escaped(parts: &mut List[string], text: string) -> void:
     size := bytes_len(text)
     let plain: usize = 0
-    let index: usize = 0
+    let index = bytes_index_json(text, 0)
     while index < size:
-        byte := bytes_at(text, index)
-        if byte >= 32 && byte != 34 && byte != 92:
-            index = index + 1
-            continue
         if index > plain:
             parts.push(bytes_slice(text, plain, index))
-        parts.push(escape_text(byte))
-        index = index + 1
-        plain = index
+        parts.push(escape_text(bytes_at(text, index)))
+        plain = index + 1
+        index = bytes_index_json(text, plain)
     if plain == 0:
         if size > 0:
             parts.push(text)
@@ -791,18 +787,16 @@ impl Parser:
         text := self.text
         size := self.size
         start := self.at + 1
-        let index = start
-        while index < size:
-            byte := bytes_at(text, index)
-            if byte == 34:
-                self.at = index + 1
-                return .Ok(bytes_slice(text, start, index))
-            if byte == 92:
-                return self.escaped(start, index)
-            if byte < 32:
-                return .Err(JsonError.ControlCharacter(index))
-            index = index + 1
-        .Err(JsonError.UnexpectedEnd(index))
+        index := bytes_index_json(text, start)
+        if index >= size:
+            return .Err(JsonError.UnexpectedEnd(index))
+        byte := bytes_at(text, index)
+        if byte == 34:
+            self.at = index + 1
+            return .Ok(bytes_slice(text, start, index))
+        if byte == 92:
+            return self.escaped(start, index)
+        .Err(JsonError.ControlCharacter(index))
 
     # The rest of a string that starts at `start` and has its first escape
     # at `index`. Each run between escapes is a slice of the input, each
@@ -814,6 +808,7 @@ impl Parser:
         let plain = start
         let index = first
         while true:
+            index = bytes_index_json(text, index)
             if index >= size:
                 return .Err(JsonError.UnexpectedEnd(index))
             byte := bytes_at(text, index)
@@ -824,9 +819,6 @@ impl Parser:
                 return .Ok(concat_all(parts))
             if byte < 32:
                 return .Err(JsonError.ControlCharacter(index))
-            if byte != 92:
-                index = index + 1
-                continue
             if index > plain:
                 parts.push(bytes_slice(text, plain, index))
             backslash := index
@@ -2314,3 +2306,18 @@ fn concat_all(parts: List[string]) -> string:
 @intrinsic("string_from_bytes")
 fn string_from_bytes(bytes: List[u8]) -> string:
     panic("intrinsic")
+
+# The offset of the first byte at or after `from` that JSON must escape,
+# a control byte below 0x20, `"` or `\`, or `bytes_len(text)` when there
+# is none. This body defines the result; the compiler supplies a SIMD128
+# one (#428).
+@intrinsic("bytes_index_json")
+fn bytes_index_json(text: string, from: usize) -> usize:
+    size := bytes_len(text)
+    let index = from
+    while index < size:
+        byte := bytes_at(text, index)
+        if byte < 32 || byte == 34 || byte == 92:
+            return index
+        index = index + 1
+    size
