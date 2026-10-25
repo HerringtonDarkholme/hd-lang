@@ -81,6 +81,7 @@ that gives the same result. The owner approved them in
 | Primitive | Signature | Why it is a primitive |
 | --- | --- | --- |
 | `bytes_index_json` | `(s: string, from: usize) -> usize` | the offset of the first byte at or after `from` that JSON must escape (a byte below `0x20`, `"` or `\`), or `bytes_len(s)` when there is none; SIMD reads 16 bytes per step where an hd loop reads one, and JSON encoding and parsing scan every string byte |
+| `bytes_index` | `(s: string, from: usize, byte: u8) -> usize` | the offset of the first byte at or after `from` equal to `byte`, or `bytes_len(s)` when there is none; SIMD compares 16 bytes per step where an hd loop compares one, and one-byte `find`, `split`, `count`, `replace` and `lines`, the regex literal prefilter and the JSON pointer scan are all this search |
 
 **Panic.** One primitive raises every checked runtime panic that `lib/std`
 raises with a category other than `explicit-panic`.

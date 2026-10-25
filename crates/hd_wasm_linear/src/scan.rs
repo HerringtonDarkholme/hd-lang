@@ -134,3 +134,91 @@ pub fn json_index_code() -> Vec<u8> {
     s.local_get(len).end();
     f.into_raw_body()
 }
+
+/// The code of `Helper::BytesIndex`, `(at, len, from, byte) -> index`: the
+/// offset of the first byte equal to `byte` at or after `from` among the
+/// `len` bytes at address `at`, else `len`.
+#[must_use]
+pub fn index_code() -> Vec<u8> {
+    let (at, len, i, byte) = (0, 1, 2, 3);
+    let (mask, cur, needle) = (4, 5, 6);
+    let mut f = Function::new([(2, ValType::I32), (1, ValType::V128)]);
+    let mut s = f.instructions();
+    // With 16 bytes on the stack: the lanes that equal `byte`, as a bit
+    // mask.
+    let lanes = |s: &mut wasm_encoder::InstructionSink<'_>| {
+        s.local_get(needle).i8x16_eq().i8x16_bitmask();
+    };
+    // Nothing at or after `len`.
+    s.local_get(i)
+        .local_get(len)
+        .i32_ge_u()
+        .if_(BlockType::Empty);
+    s.local_get(len).return_().end();
+    s.local_get(byte).i8x16_splat().local_set(needle);
+    // 16 bytes at a time while 16 remain.
+    s.block(BlockType::Empty).loop_(BlockType::Empty);
+    s.local_get(len)
+        .local_get(i)
+        .i32_sub()
+        .i32_const(16)
+        .i32_lt_u()
+        .br_if(1);
+    s.local_get(at).local_get(i).i32_add().v128_load(V128);
+    lanes(&mut s);
+    s.local_tee(mask).if_(BlockType::Empty);
+    s.local_get(i)
+        .local_get(mask)
+        .i32_ctz()
+        .i32_add()
+        .return_()
+        .end();
+    s.local_get(i).i32_const(16).i32_add().local_set(i).br(0);
+    s.end().end();
+    // Fewer than 16 remain, and at least one.
+    s.local_get(len)
+        .i32_const(16)
+        .i32_ge_u()
+        .if_(BlockType::Empty);
+    // The string's last 16 bytes; the lanes before `i` shift out.
+    s.local_get(at)
+        .local_get(len)
+        .i32_add()
+        .i32_const(16)
+        .i32_sub()
+        .v128_load(V128);
+    lanes(&mut s);
+    s.local_get(i)
+        .i32_const(16)
+        .i32_add()
+        .local_get(len)
+        .i32_sub()
+        .i32_shr_u()
+        .local_tee(mask)
+        .if_(BlockType::Empty);
+    s.local_get(i)
+        .local_get(mask)
+        .i32_ctz()
+        .i32_add()
+        .return_()
+        .end();
+    s.local_get(len).return_().end();
+    // A string of fewer than 16 bytes: one byte at a time.
+    s.local_get(byte).i32_const(0xff).i32_and().local_set(byte);
+    s.block(BlockType::Empty).loop_(BlockType::Empty);
+    s.local_get(i).local_get(len).i32_ge_u().br_if(1);
+    s.local_get(at)
+        .local_get(i)
+        .i32_add()
+        .i32_load8_u(U8)
+        .local_set(cur);
+    s.local_get(cur)
+        .local_get(byte)
+        .i32_eq()
+        .if_(BlockType::Empty);
+    s.local_get(i).return_().end();
+    s.local_get(i).i32_const(1).i32_add().local_set(i).br(0);
+    s.end().end();
+    s.local_get(len).end();
+    f.into_raw_body()
+}

@@ -2577,6 +2577,14 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::BytesIndexJson);
                 self.store(i)
             }
+            "bytes_index" => {
+                self.comp(args[0], 0)?;
+                self.comp(args[0], 1)?;
+                self.comp(args[1], 0)?;
+                self.comp(args[2], 0)?;
+                self.f.helper(Helper::BytesIndex);
+                self.store(i)
+            }
             // A `char` is its scalar value at run time.
             "char_scalar" => {
                 self.comp(args[0], 0)?;

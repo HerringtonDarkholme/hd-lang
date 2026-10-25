@@ -30,6 +30,10 @@ fn string_from_bytes(bytes: List[u8]) -> string:
 fn bytes_index_json(text: string, from: usize) -> usize:
     panic("intrinsic")
 
+@intrinsic("bytes_index")
+fn bytes_index(text: string, from: usize, byte: u8) -> usize:
+    panic("intrinsic")
+
 # The reference body of `bytes_index_json` in lib/std/json.hd.
 fn reference_json(text: string, from: usize) -> usize:
     size := bytes_len(text)
@@ -37,6 +41,16 @@ fn reference_json(text: string, from: usize) -> usize:
     while index < size:
         byte := bytes_at(text, index)
         if byte < 32 || byte == 34 || byte == 92:
+            return index
+        index = index + 1
+    size
+
+# The reference body of `bytes_index` in lib/std/text.hd.
+fn reference_index(text: string, from: usize, byte: u8) -> usize:
+    size := bytes_len(text)
+    let index = from
+    while index < size:
+        if bytes_at(text, index) == byte:
             return index
         index = index + 1
     size
@@ -97,6 +111,44 @@ fn scan(c: &mut Choices) -> Scan:
     let from: usize = c.int(0..=len + 2)
     Scan { start: start, len: len, at: at, byte: edge_byte(byte_at), from: from }
 
+# A byte that is not `needle`, varied by position, over the edge values.
+fn other_byte(k: usize, needle: u8) -> u8:
+    byte := edge_byte(k)
+    if byte == needle: edge_byte(k + 1) else: byte
+
+# A view of `len` bytes, `start` bytes into its buffer, none of them
+# `needle` except one at offset `at` when `at < len`. Every byte of the
+# buffer outside the view is `needle`, so a scan that reads outside the
+# view gives a wrong answer.
+fn needle_view(start: usize, len: usize, at: usize, needle: u8) -> string:
+    let mut bytes: List[u8] = []
+    let k: usize = 0
+    while k < start + len + 16:
+        if k < start || k >= start + len:
+            bytes.push(needle)
+        else if k - start == at:
+            bytes.push(needle)
+        else:
+            bytes.push(other_byte(k, needle))
+        k = k + 1
+    bytes_slice(string_from_bytes(bytes), start, start + len)
+
+@derive(Debug)
+struct Index:
+    start: usize
+    len: usize
+    at: usize
+    needle: u8
+    from: usize
+
+fn index_case(c: &mut Choices) -> Index:
+    let start: usize = c.int(0..32)
+    let len: usize = c.int(0..=80)
+    let at: usize = c.int(0..=len)
+    let needle_at: usize = c.int(0..8)
+    let from: usize = c.int(0..=len + 2)
+    Index { start: start, len: len, at: at, needle: edge_byte(needle_at), from: from }
+
 tests:
     use std.testing.{assert_equal, it, it_prop_with}
 
@@ -139,3 +191,54 @@ tests:
                     from = from + 1
                 len = len + 1
             start = start + 1
+
+    it_prop_with("bytes_index gives what its reference body gives", gen=index_case, cases=2000, prop=fn!(s: Index):
+        text := needle_view(s.start, s.len, s.at, s.needle)
+        assert_equal(bytes_index(text, s.from, s.needle), reference_index(text, s.from, s.needle), reason=debug(s))
+    )
+
+    it("bytes_index agrees at every length, view start and 16-byte edge"):
+        let start: usize = 0
+        while start < 32:
+            let len: usize = 0
+            while len < 50:
+                let at: usize = 0
+                while at <= len:
+                    let k: usize = 0
+                    while k < 8:
+                        needle := edge_byte(k)
+                        text := needle_view(start, len, at, needle)
+                        got := bytes_index(text, 0, needle)
+                        want := reference_index(text, 0, needle)
+                        if got != want:
+                            assert_equal(got, want, reason="start $start, length $len, byte $needle at $at")
+                        k = k + 1
+                    at = at + 1
+                len = len + 1
+            start = start + 1
+
+    it("bytes_index starts at every offset, and past the end gives the length"):
+        let start: usize = 0
+        while start < 32:
+            let len: usize = 0
+            while len < 50:
+                text := needle_view(start, len, len / 2, 255)
+                let from: usize = 0
+                while from <= len + 2:
+                    got := bytes_index(text, from, 255)
+                    want := reference_index(text, from, 255)
+                    if got != want:
+                        assert_equal(got, want, reason="start $start, length $len, from $from")
+                    from = from + 1
+                len = len + 1
+            start = start + 1
+
+    it("bytes_index finds the first of several matches, and any byte but the needle is skipped"):
+        text := string_from_bytes([7, 9, 7, 9, 7, 9, 7, 9, 7, 9, 7, 9, 7, 9, 7, 9, 7, 9, 7, 9])
+        assert_equal(bytes_index(text, 0, 9), 1, reason="bytes_index(text, 0, 9)")
+        assert_equal(bytes_index(text, 2, 9), 3, reason="bytes_index(text, 2, 9)")
+        assert_equal(bytes_index(text, 0, 8), 20, reason="bytes_index(text, 0, 8)")
+        assert_equal(bytes_index(text, 19, 9), 19, reason="bytes_index(text, 19, 9)")
+        assert_equal(bytes_index(text, 20, 9), 20, reason="bytes_index(text, 20, 9)")
+        assert_equal(bytes_index(text, 99, 9), 20, reason="bytes_index(text, 99, 9)")
+        assert_equal(bytes_index("", 0, 9), 0, reason="bytes_index(\"\", 0, 9)")

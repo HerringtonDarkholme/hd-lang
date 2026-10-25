@@ -282,9 +282,7 @@ impl Json:
         let current = self
         let start: usize = 1
         while start <= size:
-            let end = start
-            while end < size && bytes_at(path, end) != 47:
-                end = end + 1
+            end := bytes_index(path, start, 47)
             match pointer_step(current, pointer_token(path, start, end)):
                 .Some(next) => current = next
                 .None => return .None
@@ -2318,6 +2316,19 @@ fn bytes_index_json(text: string, from: usize) -> usize:
     while index < size:
         byte := bytes_at(text, index)
         if byte < 32 || byte == 34 || byte == 92:
+            return index
+        index = index + 1
+    size
+
+# The offset of the first byte at or after `from` that equals `byte`, or
+# `bytes_len(text)` when there is none. This body defines the result; the
+# compiler supplies a SIMD128 one (#428).
+@intrinsic("bytes_index")
+fn bytes_index(text: string, from: usize, byte: u8) -> usize:
+    size := bytes_len(text)
+    let index = from
+    while index < size:
+        if bytes_at(text, index) == byte:
             return index
         index = index + 1
     size

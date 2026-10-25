@@ -430,6 +430,9 @@ pub enum Helper {
     /// `(at, len, from) -> index`: std's `bytes_index_json`, the first
     /// byte at or after `from` that JSON must escape, or `len` (#428).
     BytesIndexJson,
+    /// `(at, len, from, byte) -> index`: std's `bytes_index`, the first
+    /// byte at or after `from` equal to `byte`, or `len` (#428).
+    BytesIndex,
     /// `(args) -> result`: the `hd:prim` import `name` (spec/std/README.md,
     /// "Standard library primitives"). A string argument goes in the
     /// exchange buffer, its length the import's parameter; a string result
@@ -1696,6 +1699,11 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::BytesIndexJson => {
             let mut f = m.func("rt:bytes_index_json", vec![Val::I32; 3], vec![Val::I32]);
             f.raw = Some(crate::scan::json_index_code());
+            f
+        }
+        Helper::BytesIndex => {
+            let mut f = m.func("rt:bytes_index", vec![Val::I32; 4], vec![Val::I32]);
+            f.raw = Some(crate::scan::index_code());
             f
         }
         Helper::HostPrim { name, args, result } => host_prim(m, name, args, *result),

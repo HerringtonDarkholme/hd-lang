@@ -823,13 +823,8 @@ fn search_from(finder: Searcher, text: string, from: usize) -> usize?:
     if size == 0:
         return .Some(from)
     if size == 1:
-        byte := bytes_at(needle, 0)
-        let at = from
-        while at < end:
-            if bytes_at(text, at) == byte:
-                return .Some(at)
-            at = at + 1
-        return .None
+        at := bytes_index(text, from, bytes_at(needle, 0))
+        return if at < end: .Some(at) else: .None
     split := finder.split
     let position = from
     # The needle's first `memory` bytes match at `position`.
@@ -1216,3 +1211,16 @@ impl Iterator[u8] for Bytes:
             return .None
         self.at = self.at + 1
         .Some(bytes_at(self.text, self.at - 1))
+
+# The offset of the first byte at or after `from` that equals `byte`, or
+# `bytes_len(text)` when there is none. This body defines the result; the
+# compiler supplies a SIMD128 one (#428).
+@intrinsic("bytes_index")
+fn bytes_index(text: string, from: usize, byte: u8) -> usize:
+    size := bytes_len(text)
+    let index = from
+    while index < size:
+        if bytes_at(text, index) == byte:
+            return index
+        index = index + 1
+    size

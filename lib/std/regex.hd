@@ -1523,13 +1523,8 @@ fn find_literal(text: string, literal: string, from: usize) -> i64:
     size := bytes_len(text)
     width := bytes_len(literal)
     if width == 1:
-        byte := bytes_at(literal, 0)
-        let at = from
-        while at < size:
-            if bytes_at(text, at) == byte:
-                return i64(at)
-            at = at + 1
-        return -1
+        at := bytes_index(text, from, bytes_at(literal, 0))
+        return if at < size: i64(at) else: -1
     let index: usize = 0
     while index < width && from + index < size && bytes_at(text, from + index) == bytes_at(literal, index):
         index = index + 1
@@ -1788,3 +1783,16 @@ fn bytes_slice(text: string, start: usize, end: usize) -> string:
 @intrinsic("char_scalar")
 fn char_scalar(value: char) -> u32:
     panic("intrinsic")
+
+# The offset of the first byte at or after `from` that equals `byte`, or
+# `bytes_len(text)` when there is none. This body defines the result; the
+# compiler supplies a SIMD128 one (#428).
+@intrinsic("bytes_index")
+fn bytes_index(text: string, from: usize, byte: u8) -> usize:
+    size := bytes_len(text)
+    let index = from
+    while index < size:
+        if bytes_at(text, index) == byte:
+            return index
+        index = index + 1
+    size
