@@ -487,6 +487,26 @@ pub enum Helper {
     },
     /// `(frame)`: a leaf's cancel, which aborts a waiting call.
     HostCancel,
+    /// A host provider's drive slot for a method that may wait (§23.39):
+    /// `(data, arguments) -> (frame, results)`. It calls `.start` at once;
+    /// only a call the host left pending gets a leaf frame, whose handle
+    /// is that call's, and the results are zero then.
+    HostDrive {
+        module: String,
+        method: String,
+        args: Vec<crate::task::HostArg>,
+        area: Elem,
+        res: crate::task::HostRes,
+    },
+    /// The drive slot beside cold slot `cold` (§23.39): `(params) ->
+    /// (frame, results)`. It calls `cold` and polls its frame once; a
+    /// Ready frame is released and 0 returned with the results, a Pending
+    /// one returned with zero results.
+    Drive {
+        cold: Box<Helper>,
+        params: Vec<Val>,
+        results: Vec<Val>,
+    },
     /// A host provider's vtable slot for a method that never waits:
     /// `(data, arguments) -> results`, one import call, its structured
     /// arguments and result in the exchange buffer (`boundary.rs`).
@@ -1061,7 +1081,7 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
             input, m, host.key, &row, method, false, None,
         )?));
     }
-    Ok(m.vtable(slots))
+    crate::drive::vtable(input, m, def, slots, Vec::new())
 }
 
 /// The vtable of a host trait that a runtime profile declares itself
@@ -1214,7 +1234,7 @@ fn profile_tree(
         }
     }
     seen.pop();
-    Ok(m.vtable_with(slots, parents))
+    crate::drive::vtable(input, m, def, slots, parents)
 }
 
 /// Adds `by` to the forbidden-context counter.
@@ -1348,6 +1368,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::HostCold { .. }
         | Helper::HostPoll { .. }
         | Helper::HostCancel
+        | Helper::HostDrive { .. }
+        | Helper::Drive { .. }
         | Helper::HostCall { .. }
         | Helper::EntryCancel { .. }
         | Helper::ChildDrop

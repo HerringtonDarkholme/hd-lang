@@ -522,7 +522,10 @@ impl Em<'_, '_, '_> {
                         // A generic method's erased body finishes with an
                         // open value (`erased.rs`).
                         let open = self.dyn_open_ret(a)?;
-                        self.await_stored(i, k, true, open, &|em| em.push_dyn(a, &args, None))
+                        if open.is_none() && self.shield == 0 && self.drives(a) {
+                            return self.await_driven(i, k, a, &args);
+                        }
+                        self.await_stored(i, k, true, open, &|em| em.push_dyn(a, &args, None, None))
                     }
                     _ => unsupported("a bang call that collection did not resolve"),
                 }
@@ -719,6 +722,81 @@ impl Em<'_, '_, '_> {
             Some(et) => self.unerase(tmp[0], et, self.ty(i), true)?,
             None => tmp,
         };
+        for l in &tmp {
+            self.f.get(*l);
+        }
+        self.store_owned(i)
+    }
+
+    /// Whether a dynamic bang call of the callee record at `a` goes
+    /// through its method's drive slot (§23.39).
+    fn drives(&self, a: u32) -> bool {
+        crate::drive::callee(self.b, a).is_some_and(|(trait_, method)| {
+            self.m.driven.contains(&method) && crate::drive::drivable(self.env(), trait_, method)
+        })
+    }
+
+    /// `x.m!(args)` through `m`'s drive slot (§23.39), as
+    /// [`Em::await_stored`] awaits the cold call's frame: a fresh start
+    /// calls the drive slot, whose frame is 0 when the call is done and
+    /// was then released by the slot; a Pending frame becomes the child,
+    /// and a resume polls it as before.
+    fn await_driven(&mut self, i: u32, k: u32, a: u32, args: &[u32]) -> StageResult<()> {
+        let pc = self.pc();
+        let (s, held) = (self.f.local(Val::I32), self.f.local(Val::I32));
+        let res = self.vals(self.ty(i))?;
+        let tmp: Vec<u32> = res.iter().map(|v| self.f.local(*v)).collect();
+        let ready = self.f.local(Val::I32);
+        self.f.get(pc);
+        self.f.u32(k);
+        self.f.op(I::I32Eq);
+        self.f.op(I::If(BlockType::Empty));
+        self.ctl.push(Ctl::Plain);
+        self.f.get(FRAME);
+        self.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
+        self.f.set(s);
+        self.f.i32(1);
+        self.f.set(held);
+        self.f.get(s);
+        self.f.get(s);
+        self.f.op(I::I32Load(mem(HEAP, F_POLL, 2)));
+        self.f
+            .call_indirect(vec![Val::I32], [vec![Val::I32], res.clone()].concat());
+        for l in tmp.iter().rev() {
+            self.f.set(*l);
+        }
+        self.f.set(ready);
+        self.f.op(I::Else);
+        self.push_dyn(a, args, None, Some(self.ty(i)))?;
+        for l in tmp.iter().rev() {
+            self.f.set(*l);
+        }
+        self.f.set(s);
+        self.f.i32(0);
+        self.f.set(held);
+        self.f.get(s);
+        self.f.op(I::I32Eqz);
+        self.f.set(ready);
+        self.close();
+        self.f.get(ready);
+        self.f.op(I::I32Eqz);
+        self.f.op(I::If(BlockType::Empty));
+        self.ctl.push(Ctl::Plain);
+        if self.susp.as_ref().is_some_and(|x| x.cancel_to.is_some()) {
+            self.is_cancelled(s);
+            self.f.op(I::If(BlockType::Empty));
+            self.ctl.push(Ctl::Plain);
+            self.cancel_here(Some(s))?;
+            self.close();
+        }
+        self.suspend(k, s)?;
+        self.close();
+        self.f.get(held);
+        self.f.op(I::If(BlockType::Empty));
+        self.release_child(s);
+        self.f.op(I::End);
+        self.f.i32(0);
+        self.f.set(pc);
         for l in &tmp {
             self.f.get(*l);
         }

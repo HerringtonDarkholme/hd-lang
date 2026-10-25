@@ -258,7 +258,7 @@ impl Em<'_, '_, '_> {
                 }
             }));
         }
-        Ok(self.m.vtable_with(slots, parents))
+        crate::drive::vtable(self.input, self.m, table.trait_, slots, parents)
     }
 
     /// How a slot reads the value behind the reference payload of type

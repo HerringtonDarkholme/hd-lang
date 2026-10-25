@@ -1,0 +1,15 @@
+# @dump: wat
+# Control: work between the cold call and `block_on` keeps the cold
+# slot (offset 0, one frame), so the first poll still runs at `block_on`.
+use std.task.block_on
+
+trait Sink:
+    fn put!(&mut self, text: string) -> i32
+
+fn drive_put(s: &mut dyn Sink, text: string, log: &mut List[string]) -> i32:
+    let call: mut Suspend[i32] = s.put(text)
+    log.push("started")
+    match block_on(call):
+        .Completed(n) => n
+        .Cancelled => 0
+        .Abandoned => 0

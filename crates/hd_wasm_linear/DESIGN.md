@@ -2131,3 +2131,51 @@ frame on the **local stack** instead.
   one. Each frame gives back its own top, so segments need no links. The
   stack is never shrunk: its size is the deepest chain of such frames.
   A module with no slot has none of it.
+
+### 23.39 Drive Slots
+
+Issue #652. A bang method's vtable slot is its cold constructor
+(§23.21). So a call awaited at once, such as `println`'s
+`Console.write` through `&mut dyn Console`, made a frame even when the
+host finishes the call at once. Such a call goes through a second slot
+instead, the method's **drive slot**: the cold call and its first poll
+in one (`drive.rs`).
+
+- **Awaited at once.** A bang call `x.m!(args)` of a trait value, at a
+  point that no `using` suite shields. Or a cold call `x.m(args)` that
+  `block_on` drives, either as its argument or through a local. The
+  call is stored in the local, and `block_on` moves it out. Only drops
+  of other values may run between (`drive::block_on_of`). Any other cold
+  call, such as a suspension kept for `all!`, uses the cold slot. Only
+  a method that is not generic, of a trait with no type arguments and no
+  supertraits, has a drive slot, so all of the trait's vtables have the
+  same shape.
+- **The vtable.** Before any vtable is built, `drive::collect` reads
+  every body for the methods that some call awaits at once. Each vtable
+  of their trait gets their drive slots after its method slots, in
+  method order (`Module::vtable_full`). A program with no such call has
+  no drive slot, and its module is unchanged.
+- **The slot.** `(data, arguments) -> (frame, results)`. Frame 0 means
+  the call is done, and the results come with a count each. Otherwise
+  the frame is Pending, the results are zero, and the caller holds the
+  frame's count. A host provider's slot (`Helper::HostDrive`) calls
+  `.start` itself. Only a call the host leaves pending gets the leaf
+  frame that the cold slot would make. Its handle is stored and
+  registered with the current waker, as the first poll leaves it. An hd
+  provider's slot (`Helper::Drive`) calls the cold slot's function,
+  polls the frame once, and releases it when it is done. That is the
+  same work and the same allocations as before. A trapping cold slot
+  gets a trapping drive slot.
+- **The caller.** At a bang point, a fresh start calls the drive slot.
+  A Pending frame becomes the child and the task suspends as before; a
+  resume polls the child. For `block_on`, the forbidden-context check
+  moves to the cold call, ahead of the drive. The call's value is the
+  frame, or 0. `block_on` waits only while the frame is Pending, and
+  polls after each wait. Releasing 0 does nothing, so the local and its
+  drops stay as they were.
+- **Cost.** Each vtable of the trait gains one word per driven method,
+  and the module one table entry and one function per drive slot. The
+  host slot still links the leaf frame for a pending call, so the module
+  does not shrink. Both hosts answer every `Console.write` Pending
+  until their writer has the chunk, so `println` still makes a frame
+  per line today; only a host call answered at once saves one.

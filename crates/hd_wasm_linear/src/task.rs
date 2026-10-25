@@ -244,6 +244,18 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             res,
         } => host_poll(m, module, method, args, area, res),
         Helper::HostCancel => host_cancel(m),
+        Helper::HostDrive {
+            module,
+            method,
+            args,
+            area,
+            res,
+        } => host_drive(m, module, method, args, area, res),
+        Helper::Drive {
+            cold,
+            params,
+            results,
+        } => drive(m, cold, params, results),
         Helper::HostCall {
             module,
             method,
@@ -1250,6 +1262,13 @@ fn host_poll(
     f.op(Instruction::End);
     flags_or(&mut f, 0, DONE);
     f.i32(1);
+    host_result(&mut f, res, n);
+    f
+}
+
+/// Pushes a finished host call's results from the exchange buffer, whose
+/// length is local `n`.
+fn host_result(f: &mut Func, res: &HostRes, n: u32) {
     match res {
         HostRes::Void => {}
         HostRes::Tags => {
@@ -1274,6 +1293,109 @@ fn host_poll(
             f.helper(Helper::Dec(b.clone()));
             f.op(Instruction::Drop);
         }
+    }
+}
+
+/// [`Helper::HostDrive`]: `(data, arguments) -> (frame, results)`, a
+/// host method that may wait, awaited at once (§23.39). It calls `.start`
+/// with the arguments as the leaf's first poll would. A call that
+/// finished at once answers frame 0 and its results, with no frame made.
+/// A pending one gets the leaf frame that [`Helper::HostCold`] makes,
+/// holding the arguments as today, with the call's handle in place and
+/// registered with the current waker, as that first poll leaves it.
+fn host_drive(
+    m: &Module,
+    module: &str,
+    method: &str,
+    args: &[HostArg],
+    area: &Elem,
+    res: &HostRes,
+) -> Func {
+    let rvals = res.vals();
+    let mut params = vec![Val::I32];
+    params.extend(args.iter().flat_map(HostArg::vals));
+    let mut results = vec![Val::I32];
+    results.extend(rvals.iter().copied());
+    let nparams = u32::try_from(params.len()).expect("params");
+    let mut f = m.func(format!("rt:{module}/{method}.drive"), params, results);
+    let (st, n, fr) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    let imp = crate::boundary::push_args(&mut f, args, &|f, k| f.get(k + 1));
+    f.call(Sym::Import(Import::new(
+        module,
+        &format!("{method}.start"),
+        &imp,
+        &[Val::I32, Val::I32],
+    )));
+    f.set(n);
+    f.set(st);
+    f.get(st);
+    f.op(Instruction::If(BlockType::Empty));
+    for k in 0..nparams {
+        f.get(k);
+    }
+    f.helper(Helper::HostCold {
+        module: module.to_owned(),
+        method: method.to_owned(),
+        args: args.to_vec(),
+        area: area.clone(),
+        res: res.clone(),
+    });
+    f.set(fr);
+    f.get(fr);
+    f.get(n);
+    f.op(Instruction::I32Store(mem(HEAP, u64::from(F_SAVED), 2)));
+    f.get(n);
+    f.helper(Helper::WakeRegister);
+    f.get(fr);
+    for v in &rvals {
+        zero(&mut f, *v);
+    }
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.i32(0);
+    host_result(&mut f, res, n);
+    f
+}
+
+/// [`Helper::Drive`]: `(params) -> (frame, results)`, the cold slot
+/// `cold` and its frame's first poll (§23.39), so a provider written in
+/// hd behaves and allocates as a cold call polled at once does. A Ready
+/// frame is released here, its results handed on; a Pending one is
+/// handed on with zero results.
+fn drive(m: &Module, cold: &Helper, params: &[Val], results: &[Val]) -> Func {
+    let mut all = vec![Val::I32];
+    all.extend(results.iter().copied());
+    let mut f = m.func("rt:drive", params.to_vec(), all);
+    let fr = f.local(Val::I32);
+    let tmp: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
+    for k in 0..u32::try_from(params.len()).expect("params") {
+        f.get(k);
+    }
+    f.helper(cold.clone());
+    f.set(fr);
+    f.get(fr);
+    f.get(fr);
+    f.op(Instruction::I32Load(mem(HEAP, F_POLL, 2)));
+    let mut polled = vec![Val::I32];
+    polled.extend(results.iter().copied());
+    f.call_indirect(vec![Val::I32], polled);
+    for l in tmp.iter().rev() {
+        f.set(*l);
+    }
+    f.op(Instruction::If(BlockType::Empty));
+    if m.runtime.is_some() {
+        f.get(fr);
+        f.helper(Helper::ReleaseRef);
+    }
+    f.i32(0);
+    for l in &tmp {
+        f.get(*l);
+    }
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(fr);
+    for v in results {
+        zero(&mut f, *v);
     }
     f
 }

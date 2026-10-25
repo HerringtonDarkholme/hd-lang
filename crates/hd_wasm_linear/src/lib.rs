@@ -12,6 +12,7 @@
 mod asm;
 mod boundary;
 mod cycle;
+mod drive;
 mod emit;
 mod layout;
 mod map;
@@ -545,6 +546,7 @@ fn link(input: &Input<'_>, track_origins: bool) -> StageResult<MappedModule> {
         }
     }
     address_globals(input, &mut m)?;
+    drive::collect(input, &mut m);
     for id in input.order {
         let f = emit::instance(input, &mut m, *id)?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);

@@ -31,6 +31,7 @@ mod closure;
 mod count;
 mod ctx;
 pub(crate) use ctx::ctx_lookup;
+pub(crate) use ctx::slot_ctx;
 mod dyn_value;
 mod erased;
 mod iter;
@@ -1012,6 +1013,9 @@ struct Em<'i, 'a, 'm> {
     /// change left, which the thunk returns for its caller to store
     /// ([`Em::put_back`]); `NONE` until the change leaves one.
     changed: Option<u32>,
+    /// Each `block_on` whose cold dynamic call went through its drive
+    /// slot (§23.39): the locals holding that call's results.
+    driven: HashMap<u32, Vec<u32>>,
 }
 
 impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
@@ -1098,6 +1102,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             deref_physical: false,
             walked: None,
             changed: None,
+            driven: HashMap::default(),
         };
         em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
         em
@@ -2130,8 +2135,37 @@ impl Em<'_, '_, '_> {
     /// method's position in the trait names.
     fn call_dyn(&mut self, i: u32, a: u32, args: &[u32]) -> StageResult<()> {
         let ty = self.ty(i);
-        self.push_dyn(a, args, Some(ty))?;
+        if let Some(on) = self.drive_target(i, a) {
+            return self.call_drive(i, a, args, on);
+        }
+        self.push_dyn(a, args, Some(ty), None)?;
         self.call_results(i, ty)
+    }
+
+    /// The `block_on` that drives cold dynamic call `i` at once through
+    /// the method's drive slot (§23.39), if one does.
+    fn drive_target(&self, i: u32, a: u32) -> Option<u32> {
+        let (trait_, method) = crate::drive::callee(self.b, a)?;
+        if !self.m.driven.contains(&method) || !crate::drive::drivable(self.env(), trait_, method) {
+            return None;
+        }
+        crate::drive::block_on_of(self.b, &self.topo, self.calls, i)
+    }
+
+    /// Cold dynamic call `i`, which `block_on` `on` drives at once
+    /// (§23.39): the forbidden-context check `on` would make, then the
+    /// drive slot. The call's value is the frame, 0 when the call is done;
+    /// its results wait in locals for `on`.
+    fn call_drive(&mut self, i: u32, a: u32, args: &[u32], on: u32) -> StageResult<()> {
+        let inner = self.susp_inner(self.ty(i))?;
+        let res: Vec<u32> = self.vals(inner)?.iter().map(|v| self.f.local(*v)).collect();
+        self.f.helper(Helper::ForbidCheck);
+        self.push_dyn(a, args, None, Some(inner))?;
+        for l in res.iter().rev() {
+            self.f.set(*l);
+        }
+        self.driven.insert(on, res);
+        self.store_owned(i)
     }
 
     /// Pushes a dynamic call's results, of type `result`, or its cold frame
@@ -2140,7 +2174,13 @@ impl Em<'_, '_, '_> {
     /// method's slot takes its open arguments as open values and the
     /// witness of the call's type arguments, and an open result comes
     /// back as an open value (`erased.rs`).
-    fn push_dyn(&mut self, a: u32, args: &[u32], result: Option<Ty>) -> StageResult<()> {
+    fn push_dyn(
+        &mut self,
+        a: u32,
+        args: &[u32],
+        result: Option<Ty>,
+        drive: Option<Ty>,
+    ) -> StageResult<()> {
         let Some(Callee::TraitMethod {
             trait_,
             method,
@@ -2163,13 +2203,22 @@ impl Em<'_, '_, '_> {
             return unsupported("a dynamic call of a method whose row is a trait's row parameter");
         }
         let open = self.dyn_open(trait_, method, targs)?;
+        if drive.is_some() && open.is_some() {
+            return unsupported("a drive slot of a generic method");
+        }
         // A suspension kept as a value is polled where its result type is
         // concrete: a frame over the erased one unboxes its open result.
         let kept = result.is_some() && self.env().suspends(method);
-        let results = match (result, &open) {
-            (Some(_), Some(o)) if o.ret => vec![Val::I32],
-            (Some(t), _) => self.vals(t)?,
-            (None, _) => vec![Val::I32],
+        let results = match (result, &open, drive) {
+            // The drive slot (§23.39): the frame or 0, then the results.
+            (_, _, Some(t)) => [vec![Val::I32], self.vals(t)?].concat(),
+            (Some(_), Some(o), _) if o.ret => vec![Val::I32],
+            (Some(t), _, _) => self.vals(t)?,
+            (None, _, _) => vec![Val::I32],
+        };
+        let slot = match drive {
+            Some(_) => crate::drive::index(self.env(), self.m, trait_, method) as usize,
+            None => slot,
         };
         let Some((&recv, rest)) = args.split_first() else {
             return unsupported("a dynamic call without a receiver");
@@ -2779,14 +2828,23 @@ impl Em<'_, '_, '_> {
     fn block_on(&mut self, i: u32, s: u32) -> StageResult<()> {
         let inner = self.susp_inner(self.ty_of(s))?;
         let result = self.vals(inner)?;
-        self.f.helper(Helper::ForbidCheck);
+        // Through a drive slot (§23.39), the cold call made the
+        // forbidden-context check and the first poll, and left its results
+        // in locals: `frame` is 0 when it is done.
+        let fused = self.driven.remove(&i);
+        if fused.is_none() {
+            self.f.helper(Helper::ForbidCheck);
+        }
         let (frame, ready, flags, seen) = (
             self.f.local(Val::I32),
             self.f.local(Val::I32),
             self.f.local(Val::I32),
             self.f.local(Val::I32),
         );
-        let tmp: Vec<u32> = result.iter().map(|v| self.f.local(*v)).collect();
+        let tmp: Vec<u32> = match &fused {
+            Some(ls) => ls.clone(),
+            None => result.iter().map(|v| self.f.local(*v)).collect(),
+        };
         self.comp(s, 0)?;
         self.f.set(frame);
         self.f.i32(0);
@@ -2798,19 +2856,27 @@ impl Em<'_, '_, '_> {
         // have ended a cleanup that a party waits on with no wake, and the
         // completions a host wait hands over may be an outer driver's,
         // which no later wait repeats: poll again, and hand the request on
-        // to the outer driver.
+        // to the outer driver. After a drive the loop polls last.
+        let poll = |em: &mut Self| {
+            em.f.get(frame);
+            em.f.get(frame);
+            em.f.op(Instruction::I32Load(mem(HEAP, crate::task::F_POLL, 2)));
+            em.f.call_indirect(vec![Val::I32], [vec![Val::I32], result.clone()].concat());
+            for l in tmp.iter().rev() {
+                em.f.set(*l);
+            }
+            em.f.set(ready);
+        };
+        if fused.is_some() {
+            self.f.get(frame);
+            self.f.op(Instruction::I32Eqz);
+            self.f.set(ready);
+        }
         self.f.op(Instruction::Block(BlockType::Empty));
         self.f.op(Instruction::Loop(BlockType::Empty));
-        self.f.get(frame);
-        self.f.get(frame);
-        self.f
-            .op(Instruction::I32Load(mem(HEAP, crate::task::F_POLL, 2)));
-        self.f
-            .call_indirect(vec![Val::I32], [vec![Val::I32], result.clone()].concat());
-        for l in tmp.iter().rev() {
-            self.f.set(*l);
+        if fused.is_none() {
+            poll(self);
         }
-        self.f.set(ready);
         self.f.get(ready);
         self.f.op(Instruction::BrIf(1));
         self.f.helper(Helper::CanCancel);
@@ -2830,10 +2896,14 @@ impl Em<'_, '_, '_> {
         self.f.op(Instruction::If(BlockType::Empty));
         self.f.i32(0);
         self.f.global_set(Global::Rewake);
-        self.f.i32(1);
-        self.f.set(seen);
-        self.f.op(Instruction::Br(1));
-        self.f.op(Instruction::End);
+        if fused.is_some() {
+            self.f.op(Instruction::Else);
+        } else {
+            self.f.i32(1);
+            self.f.set(seen);
+            self.f.op(Instruction::Br(1));
+            self.f.op(Instruction::End);
+        }
         self.f.call(Sym::Import(crate::module::Import::new(
             "hd:rt",
             "block",
@@ -2841,8 +2911,14 @@ impl Em<'_, '_, '_> {
             &[Val::I32],
         )));
         self.f.helper(Helper::WakeMark);
+        if fused.is_some() {
+            self.f.op(Instruction::End);
+        }
         self.f.i32(1);
         self.f.set(seen);
+        if fused.is_some() {
+            poll(self);
+        }
         self.f.op(Instruction::Br(0));
         self.f.op(Instruction::End);
         self.f.op(Instruction::End);

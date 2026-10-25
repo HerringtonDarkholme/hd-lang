@@ -731,8 +731,11 @@ pub struct Module {
     data: Vec<u8>,
     data_at: BTreeMap<Vec<u8>, u32>,
     /// Static vtables: each one's slots, then the vtables of its direct
-    /// supertraits, laid out after the data.
-    vtables: Vec<(Vec<SymId>, Vec<usize>)>,
+    /// supertraits, then its drive slots (§23.39), laid out after the data.
+    vtables: Vec<(Vec<SymId>, Vec<usize>, Vec<SymId>)>,
+    /// The bang methods that some call awaits at once through a trait
+    /// value, whose vtables carry a drive slot (§23.39).
+    pub driven: hd_base::HashSet<hd_base::DefId>,
     exports: Vec<(String, SymId)>,
     /// Development fixture roots, independent of the public export ABI.
     retained: Vec<SymId>,
@@ -901,9 +904,16 @@ impl Module {
     /// indices, then the addresses of the vtables `parents`, one `i32`
     /// each.
     pub fn vtable_with(&mut self, slots: Vec<Sym>, parents: Vec<usize>) -> usize {
+        self.vtable_full(slots, parents, Vec::new())
+    }
+
+    /// [`Module::vtable_with`] with the drive slots `drives` after the
+    /// parents (§23.39).
+    pub fn vtable_full(&mut self, slots: Vec<Sym>, parents: Vec<usize>, drives: Vec<Sym>) -> usize {
         let v = (
             slots.into_iter().map(|s| self.symbols.intern(s)).collect(),
             parents,
+            drives.into_iter().map(|s| self.symbols.intern(s)).collect(),
         );
         if let Some(k) = self.vtables.iter().position(|x| *x == v) {
             return k;
@@ -969,7 +979,12 @@ impl Module {
         let mut seen = Reached::default();
         let mut work: Vec<SymId> = self.exports.iter().map(|(_, s)| *s).collect();
         work.extend(self.retained.iter().copied());
-        work.extend(self.vtables.iter().flat_map(|v| v.0.iter()).copied());
+        work.extend(
+            self.vtables
+                .iter()
+                .flat_map(|v| v.0.iter().chain(&v.2))
+                .copied(),
+        );
         while let Some(s) = work.pop() {
             if matches!(&*self.symbols.get(s), Sym::Import(_)) || !seen.insert(s) {
                 continue;
@@ -990,7 +1005,10 @@ impl Module {
             for edge in &f.callees {
                 match edge {
                     Edge::Function(c) => work.push(*c),
-                    Edge::VTable(k) => work.extend(self.vtables[*k].0.iter().copied()),
+                    Edge::VTable(k) => {
+                        let v = &self.vtables[*k];
+                        work.extend(v.0.iter().chain(&v.2).copied());
+                    }
                 }
             }
         }
@@ -1254,6 +1272,10 @@ impl Module {
             for p in &v.1 {
                 self.data.extend_from_slice(&vtable_at[*p].to_le_bytes());
             }
+            for s in &v.2 {
+                let k = slot(s, &mut slots)?;
+                self.data.extend_from_slice(&k.to_le_bytes());
+            }
         }
         let static_end = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
         let heap_base = static_end.next_multiple_of(8);
@@ -1476,11 +1498,12 @@ impl Module {
                 for i in &f.body {
                     match i {
                         Ins::VTable(k) => {
-                            let slots = self.vtables[*k]
-                                .0
-                                .iter()
-                                .map(|s| index.get(*s).copied().ok_or_else(|| undefined(s)))
-                                .collect::<StageResult<_>>()?;
+                            let v = &self.vtables[*k];
+                            let slots =
+                                v.0.iter()
+                                    .chain(&v.2)
+                                    .map(|s| index.get(*s).copied().ok_or_else(|| undefined(s)))
+                                    .collect::<StageResult<_>>()?;
                             statics.insert(vtable_at[*k], crate::StaticData::VTable(slots));
                         }
                         Ins::GlobalGet(g) | Ins::GlobalSet(g) => {

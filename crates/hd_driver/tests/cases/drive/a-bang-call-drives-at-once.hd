@@ -1,0 +1,11 @@
+# @dump: wat
+# `x.put!(text)` through a provider calls the drive slot (offset 4,
+# frame and result) on a fresh start; a Pending frame becomes the child,
+# and a resume polls it.
+trait Sink:
+    fn put!(&mut self, text: string) -> i32
+
+fn relay!(text: string) -> i32 $ Sink:
+    let mut s = $.use(Sink)
+    s.put!(text)
+    #^^^^^^^^^^^
