@@ -37,13 +37,13 @@ pub fn main() -> void $ Console:
 
 # Delete `&mut ` from the `stock :=` line and Run. A plain
 # value is no reference, so no lane could share it:
-#     type-mismatch: in field: expected &mut Stock, found Stock
+#     type-mismatch: in field: expected *mut Stock, found Stock
 ```
 
 ```edit
 replace:     stock := &mut Stock { units: 5 }  # ← one new object
 with:     stock := Stock { units: 5 }
-error: type-mismatch: in field: expected &mut Stock, found Stock
+error: type-mismatch: in field: expected *mut Stock, found Stock
 ```
 
 ```output
