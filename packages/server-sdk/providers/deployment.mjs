@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { packageVercelNode } from "../packaging/vercel.mjs";
 import { packageCloudflare } from "../packaging/cloudflare.mjs";
 
 function paths(options, context) {
@@ -42,6 +43,26 @@ const result = async (operation) => {
 };
 
 export default {
+  vercel(options, context) {
+    const p = options.supervisor;
+    return result(() =>
+      packageVercelNode({
+        ...paths(options, context),
+        envBindings: [...options.env_bindings],
+        signal: context.signal,
+        policy: {
+          workers: p.workers,
+          startupMs: p.startup_ms,
+          requestMs: 20000,
+          drainMs: p.drain_ms,
+          stopKillMs: p.stop_kill_ms,
+          restartLimit: p.restart_limit,
+          restartWindowMs: p.restart_window_ms,
+          retryAfter: p.retry_after,
+        },
+      }),
+    );
+  },
   cloudflare(options, context) {
     return result(() =>
       packageCloudflare({

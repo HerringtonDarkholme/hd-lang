@@ -367,3 +367,102 @@ output. [Output controls](../../packages/server-sdk/test/output.test.mjs)
 cover ownership and publication; [binding controls](../../packages/server-sdk/test/contract-bindings.test.mjs)
 and [schema controls](../../packages/server-sdk/test/server-schema.test.mjs)
 cover companion pairing, value codecs and the SDK's expected ABI data.
+
+## Vercel Node Deployment
+
+The SDK's `deployment` module prepares a supervised Node function in Vercel
+Build Output format. The sample's ordinary
+[deployment task](../../examples/server-api/tasks/deploy-vercel.hd)
+uses the existing Deployment capability.
+
+### Vercel API
+
+1. r[std-server-sdk.vercel.supervisor-fields] `SupervisorPolicy` has the public fields in the following table.
+2. r[std-server-sdk.vercel.options] `VercelOptions` has public fields `name: string`, `artifacts: Artifacts`, `supervisor: SupervisorPolicy`, and `env_bindings: List[string] = []`.
+3. r[std-server-sdk.vercel.method] `Deployment` declares `vercel!(&mut self, options: VercelOptions) -> Result[DeploymentReceipt, DeploymentError]`.
+4. r[std-server-sdk.vercel.function] `vercel!(options: VercelOptions)` requires `Deployment` and forwards to that capability's method with the same result type.
+5. r[std-server-sdk.vercel.shared-values] Vercel preparation uses the existing `Artifacts`, `DeploymentReceipt`, and `DeploymentError` types.
+6. r[std-server-sdk.vercel.worker-count] `supervisor.workers` must be between one and eight.
+7. r[std-server-sdk.vercel.positive-budgets] Startup, drain, outer-stop and restart-window milliseconds must be positive.
+8. r[std-server-sdk.vercel.outer-stop-floor] `supervisor.stop_kill_ms` must be at least 200.
+9. r[std-server-sdk.vercel.explicit-policy] All supervisor policy fields must be supplied explicitly.
+10. r[std-server-sdk.vercel.request-budget] The Vercel task fixes the supervisor request budget at 20,000 milliseconds.
+11. r[std-server-sdk.vercel.name] `name` must match `[a-z0-9][a-z0-9-]{0,62}`.
+12. r[std-server-sdk.vercel.retry-after] `supervisor.retry_after` must be nonempty and contain only printable ASCII characters from U+0020 through U+007E.
+13. r[std-server-sdk.vercel.reexports] The package root reexports `SupervisorPolicy`, `VercelOptions`, and `vercel!`.
+
+| SupervisorPolicy field | Type | Meaning |
+| --- | --- | --- |
+| `workers` | `u32` | Number of supervised worker instances. |
+| `startup_ms` | `u32` | Worker startup budget in milliseconds. |
+| `drain_ms` | `u32` | Drain budget in milliseconds. |
+| `stop_kill_ms` | `u32` | Outer-stop budget in milliseconds. |
+| `restart_limit` | `u32` | Maximum restarts within the restart window. |
+| `restart_window_ms` | `u32` | Restart window in milliseconds. |
+| `retry_after` | `string` | Retry-After value for unavailable capacity. |
+
+### Vercel Preparation
+
+1. r[std-server-sdk.vercel.root] The Vercel provider resolves relative artifact and output paths from the invoking task's root package directory.
+2. r[std-server-sdk.vercel.production] Vercel preparation reads only that root's production grants through the shared [deployment-grant reader](#deployment-grants).
+3. r[std-server-sdk.vercel.nominal-source] The Vercel contract must have exactly one source interface, matching the Deployment provider's validated SDK package, version and `server.HttpServer` identity.
+4. r[std-server-sdk.vercel.source-consent] The Vercel source requires explicit production consent `true`.
+5. r[std-server-sdk.vercel.source-veto] Any production selector for that source with value `false` rejects Vercel preparation.
+6. r[std-server-sdk.vercel.captured-artifacts] Vercel validation and emission use one captured copy of each input Wasm and binding companion.
+7. r[std-server-sdk.vercel.shared-preflight] Vercel applies Cloudflare's driver-export, package-host ABI, expected-schema, companion-header, and supported-import validation requirements.
+8. r[std-server-sdk.vercel.data-bindings] Vercel rebuilds SDK-owned bindings from validated contract data without evaluating or shipping the companion's JavaScript body.
+9. r[std-server-sdk.vercel.preflight-effects] Vercel preflight must not instantiate the application or invoke application providers and outgoing I/O.
+10. r[std-server-sdk.vercel.primitive-denial] Vercel rejects a required Clock or Random import when its production grant is explicitly `false`.
+11. r[std-server-sdk.vercel.env-selection] Vercel Env names must be distinct binding identifiers covered by production grants, using the Cloudflare name-selection requirements.
+12. r[std-server-sdk.vercel.env-capture] The generated Node entry captures only the selected named environment values at module initialization.
+13. r[std-server-sdk.vercel.env-access] Each worker's Env provider exposes selected string values only when the production grant covers the requested name.
+14. r[std-server-sdk.vercel.no-env-values] Vercel preparation emits selected names without reading or embedding their environment values.
+15. r[std-server-sdk.vercel.receipt-values] Its receipt records the output directory, portable runtime fingerprint, captured Wasm SHA-256, and emitted binding-module SHA-256.
+16. r[std-server-sdk.vercel.output-root] The Vercel output directory must not equal or contain the selected root package directory.
+17. r[std-server-sdk.vercel.local-only] The Vercel task prepares local output without uploading or requesting deployment credentials.
+
+> **Note.** Shared preflight uses the same portable runtime and expected ABI
+> data as Cloudflare preparation. Those records establish compatibility and
+> provenance, without authenticating arbitrary compiler output.
+
+### Node Hosting
+
+1. r[std-server-sdk.vercel.retained-supervisor] Each generated Node function process retains one supervisor with the explicitly selected policy.
+2. r[std-server-sdk.vercel.retained-state] Each supervisor worker retains its own application instance and state across requests.
+3. r[std-server-sdk.vercel.admission] Ingress returns 503 with the selected Retry-After value when no worker is ready, without queuing requests for startup.
+4. r[std-server-sdk.vercel.shared-mapper] Native Node requests and responses pass through the SDK's existing [Fetch mapper](#fetch-request-adapter).
+5. r[std-server-sdk.vercel.native-body] Native request bodies retain stream backpressure and reach the shared mapper for byte-limit enforcement.
+6. r[std-server-sdk.vercel.get-head-body] GET and HEAD request bodies reach the guest when the native Node request supplies them.
+7. r[std-server-sdk.vercel.cookies] Separate response Set-Cookie values remain separate native header values.
+8. r[std-server-sdk.vercel.disconnect] Native request abortion or premature response closure cancels only the owned request.
+9. r[std-server-sdk.vercel.malformed-native] An admitted native request with malformed authority, target or headers receives 400 before guest dispatch.
+10. r[std-server-sdk.vercel.shared-cleanup] The existing hundred-millisecond SDK cleanup bound and two-hundred-millisecond supervisor watchdog remain in effect.
+
+> **Why.** Native transport adaptation preserves physical response ownership
+> outside the worker that the supervisor can terminate. Per-worker state
+> remains independent, including across replacement and parallel requests.
+
+### Vercel Output
+
+1. r[std-server-sdk.vercel.build-output] Preparation emits Build Output version 3 with a catch-all route selecting one complete immutable Node function generation.
+2. r[std-server-sdk.vercel.output-layout] Function generations use `functions/<name>-<hash>.func`, where `hash` is the first 48 hexadecimal characters of the complete generation SHA-256.
+3. r[std-server-sdk.vercel.route-path] The catch-all route sets `request.path` to `/$1` so the Node runtime receives its matched pathname.
+4. r[std-server-sdk.vercel.function-config] Each function declares runtime `nodejs24.x`, handler `index.mjs`, launcher type `Nodejs`, and disabled launcher helpers.
+5. r[std-server-sdk.vercel.function-payload] A function generation includes captured Wasm, rebuilt bindings, the portable runtime, Node adapters, production grants and provenance.
+6. r[std-server-sdk.vercel.output-owned] Vercel preparation refuses existing output without its SDK Vercel ownership record.
+7. r[std-server-sdk.vercel.output-integrity] Modified generations, unknown function directories, or an externally modified selector reject publication.
+8. r[std-server-sdk.vercel.output-selector] Publication atomically replaces regular `config.json` with a selector for the complete generation under `functions/`.
+9. r[std-server-sdk.vercel.output-digest] Each Node generation record must store `generation` as a full 64-character hexadecimal SHA-256 digest equal to the recomputed configuration and payload digest.
+10. r[std-server-sdk.vercel.output-retain] Prior function generations remain available to readers using an earlier selector.
+11. r[std-server-sdk.vercel.output-extras] Files outside the reserved ownership record, function store and selector remain untouched and are not traversed.
+12. r[std-server-sdk.vercel.output-lock] SDK Vercel writers must acquire the output lock before publishing.
+13. r[std-server-sdk.vercel.output-reserved] Other writers must not concurrently modify the ownership record, `functions/` store, or `config.json` selector.
+
+> **Note.** Local official builder and launcher checks do not establish
+> remote build or hosted deployment acceptance.
+
+The maintained [Vercel deployment controls](../../packages/server-sdk/test/vercel-deployment.test.mjs)
+cover ordinary tasks, artifact and policy checks, relocation, and emitted
+Node HTTP behavior. [Vercel output controls](../../packages/server-sdk/test/vercel-output.test.mjs)
+cover ownership, immutable function generations, selector publication and
+cancellation.

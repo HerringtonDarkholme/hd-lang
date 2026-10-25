@@ -4,7 +4,9 @@ Status: design record, 2026-10-24; direction decided (#806, #266).
 
 Implemented: readiness, joined SDK workers, synchronous host turns and lease-owned I/O. Fetch transport, admission, bounded cleanup, Node supervision and request-associated logs are also implemented. The installed SDK carries its portable runtime.
 
-Cloudflare task preparation, Wrangler dry runs and local workerd correctness probes are implemented on the current branch. The probes cover named Env, outgoing Http policy, Clock/Random, timeouts, cleanup and retained-state recovery. External cold wall latency and guest linear-memory observations are recorded below. Vercel packaging, hosted acceptance, CPU startup and aggregate isolate memory remain unproven.
+Cloudflare task preparation, Wrangler dry runs and local workerd correctness probes are implemented on the current branch. The probes cover named Env, outgoing Http policy, Clock/Random, timeouts, cleanup and retained-state recovery. External cold wall latency and guest linear-memory observations are recorded below.
+
+Vercel Node packaging also has local official builder and launcher evidence. Hosted acceptance, CPU startup and aggregate isolate memory remain unproven.
 
 Package-declared host capabilities ([#51](https://github.com/HerringtonDarkholme/hd-lang/issues/51)) come first, then the adapters of [#266](https://github.com/HerringtonDarkholme/hd-lang/issues/266).
 
@@ -65,7 +67,7 @@ Rejected shapes, each for one reason: a registered hook convention adds a host-o
 | Case | End-to-end requirement |
 | --- | --- |
 | U1: Cloudflare JSON API | Validate configuration, become ready, decode a typed JSON body, return JSON or 400. |
-| U2: same app on Vercel | Rebuild the same source for Node or Edge; same responses and capability restrictions. |
+| U2: same app on Vercel | Rebuild the same source for Vercel Node; same responses and capability restrictions. |
 | U3: local outgoing HTTP | `hd run`; a request awaits a granted upstream Http call; inspect the response and request log. |
 | U4: timeout and disconnect | A handler uses `timeout!`; cleanup completes; the handler returns 504; a disconnect cancels outstanding work. |
 | U5: load and shutdown | Bounded admission; on stop, reject queued work, finish admitted work, close resources, exit. |
@@ -84,7 +86,7 @@ Current-compiler controls on Node and workerd 1.20261023.1 run the retained-inst
 These controls use a private Console bridge, not the public capability ([prototype](http-server/prototype/README.md)).
 Node Net reads, accepts and receives return Pending and keep unread bytes across cancellation (#810), so several worker loops can wait at once.
 The [server-application controls](server-applications/README.md) cover the lifecycle cases: two admitted jobs finish under a stop while one queued job is left, a stale read across an await, a poisoned instance, and typed JSON handling, on both engines.
-The maintained SDK controls now cover disconnect and deadline cleanup, body limits, outgoing grants and Node supervision. Cloudflare packaging has local Wrangler dry-run, retained-application, policy and timeout evidence. Local probes also measure external cold wall latency and both guest linear memories. Vercel packaging and hosted deployment remain unproven.
+The maintained SDK controls now cover disconnect and deadline cleanup, body limits, outgoing grants and Node supervision. Cloudflare packaging has local Wrangler dry-run, retained-application, policy and timeout evidence. Local probes also measure external cold wall latency and both guest linear memories. Vercel Node packaging has local official builder and launcher evidence; hosted deployment remains unproven.
 
 ## Prior Art
 
@@ -127,7 +129,7 @@ Per-request cancellation is a job-local race whose result records cancellation; 
 No request starts detached background work or relies on `waitUntil` in the first version.
 
 A CPU loop never returns to JavaScript, so no in-isolate timer can stop it.
-Node local hosting uses a bounded worker pool with one active request per worker and replaces a worker that misses its hard deadline; edge hosting relies on platform CPU limits.
+Vercel Node hosting uses a bounded worker pool with one active request per worker. It replaces a worker that misses its hard deadline under the supplied restart policy. Cloudflare hosting relies on platform CPU limits.
 
 ## Application State
 
@@ -185,20 +187,19 @@ A killed instance and a gracefully drained one report different outcomes.
 
 ## Platforms And JSPI
 
-Published limits as of 2026-10-23; deployment validation reports the selected profile's current limits.
+Published limits recorded on 2026-10-23; Cloudflare Worker size rechecked on 2026-10-25. Deployment validation reports the selected profile's current limits.
 
 | Platform | Limits and packaging |
 | --- | --- |
-| Cloudflare Workers | 64 MiB uncompressed bundle, 128 MB per isolate including Wasm, one-second startup; static precompiled Wasm import. |
+| Cloudflare Workers | [64 MiB uncompressed bundle](https://developers.cloudflare.com/workers/platform/limits/#worker-size), 128 MB per isolate including Wasm, one-second startup; static precompiled Wasm import. |
 | Vercel Node | 250 MB uncompressed bundle, 4.5 MB request/response payload. The default Vercel target. |
-| Vercel Edge | Static Wasm imports only, response start within 25 s, 1/2/4 MB gzip by plan; targeted through the Build Output API, not Next.js `runtime = 'edge'`. |
-| Node (local) | The SDK's development listener; the only place package host capabilities run outside the edge. |
+| Node (local) | The SDK's development listener and worker-supervision components. |
 | wasmtime (`hd` CLI) | A program that needs a package `@host` capability is refused before it starts (#51); there is no wasmtime listener. |
 
 An ordinary bang call returns Pending from its poll function, so JavaScript awaits I/O outside Wasm without JSPI.
 `block_on` over real JavaScript I/O is different: waiting on the same thread prevents the Promise from completing.
-The runtime checks for a ready completion inside `rt.block`; without JSPI an actually pending synchronous wait fails that request with an explicit host error and never spins.
-workerd 1.20261023.1 exposes JSPI (`Suspending`, `promising`); the Edge VM test runtime does not. JSPI support is an optional, separately tested adapter feature.
+The runtime checks for a ready completion inside `rt.block`. Without JSPI, a pending synchronous wait fails the request with an explicit host error and never spins.
+The workerd 1.20261023.1 runtime exposes JSPI (`Suspending`, `promising`). The historical Edge VM probe lacked JSPI. JSPI support is an optional, separately tested adapter feature.
 workerd rejects `fetch(..., {redirect: "error"})`, so the provider implements hd's redirect policy with manual redirects.
 
 ## Architecture
@@ -231,22 +232,30 @@ Preparation captures the artifact bytes once, checks source consent and nominal 
 
 Cloudflare output uses immutable payload generations and an atomically replaced regular `wrangler.json` selector. Previous generations remain available to old readers. Preparation validates SDK-owned paths and preserves unrelated root files and platform caches. The SDK lock coordinates SDK writers; other writers must not edit reserved paths concurrently.
 
-The SDK ships the source-hashed portable runtime and expected server ABI data with its provider. No compiler checkout, compiler-cache path, new build flag or policy-bearing build companion is required. Wrangler dry runs and local workerd requests validate this branch's Cloudflare output. Vercel output and hosted acceptance remain later work.
+The SDK ships the source-hashed portable runtime and expected server ABI data with its provider. No compiler checkout, compiler-cache path, new build flag or policy-bearing build companion is required. Wrangler dry runs and local workerd requests validate this branch's Cloudflare output. The Vercel Node task uses the same safe artifact validation path. Hosted acceptance remains unproven.
+
+The ordinary `deploy-vercel` task emits Build Output version 3 for the Node runtime through the same Deployment capability. Its explicit supervisor policy selects one to eight retained worker instances; state belongs to each worker. Unavailable capacity returns 503 immediately, including while workers start. Request deadlines remain twenty seconds, with the existing cleanup and watchdog bounds.
+
+Vercel's `config.json` selects a complete immutable function generation under `functions/`. The SDK retains old generations, validates reserved paths and preserves unrelated root files and caches. Selected Env string values are captured at Node entry initialization and checked against production grants in each worker. No values enter generated output.
 
 | Use case | Commands and result |
 | --- | --- |
 | U1 | `hd build`; `hd run deploy-cloudflare`; Wrangler dry run; deploy; POST JSON; typed JSON or 400. |
-| U2 Node | Planned: `hd run deploy-vercel` writes `.vercel/output`; `vercel deploy --prebuilt`. |
-| U2 Edge | Planned: the Vercel task with an Edge option writes the static Wasm import and Edge config. |
+| U2 Node | `hd run deploy-vercel` writes `.vercel/output`; `vercel deploy --prebuilt` is the separate upload step. |
 | U3, U4 | `hd run` starts the local Node listener; `/timeout` returns 504; a disconnect aborts the fetch. |
 
 | Artifact | Contents |
 | --- | --- |
 | Cloudflare | Entry ES module, static Wasm module, host graph, Wrangler config with named bindings. |
-| Vercel Node (planned) | Build Output v3 config, catch-all route, Node function directory, `.vc-config.json`, JS entry and Wasm. |
-| Vercel Edge (planned) | Build Output v3 config, Edge function with `runtime: "edge"`, explicit env names, static Wasm import. |
+| Vercel Node | Build Output v3 config, catch-all route, Node function directory, `.vc-config.json`, JS entry and Wasm. |
 
-Each target must pass the platform's own build validation before it ships; a local VM run is not evidence that hosted bundling handles the Wasm import.
+Vercel Node local controls use official `@vercel/node` 3.2.23 and `@vercel/build-utils` 8.4.11 under local Node 24. The ZIP builder packages 26 files into 208,580 bytes; the launcher serves retained counts one, two and three. Four slow requests overlap, oversized input returns 413, and HEAD has no physical response body. Separate ordinary-task controls verify named Env, Clock, Random and outgoing Http grant enforcement.
+
+The catch-all route uses Vercel's documented [`request.path` transform](https://vercel.com/docs/build-output-api/configuration#source-route-transform) to pass its matched pathname to the runtime. It follows the pattern in Vercel's official [Hono builder](https://github.com/vercel/vercel/blob/main/packages/hono/src/build.ts). The older local launcher invokes the function directly, bypassing deployment-wide routing. Hosted routing remains acceptance work.
+
+Malformed native authority, request-target or header metadata receives 400 before guest dispatch. The SDK targets Cloudflare Workers and Vercel Node.
+
+Each target still requires hosted validation; local builder and launcher success does not establish remote build or deployment acceptance.
 Generated files work on macOS, Linux and Windows without shell-specific steps.
 
 ## Queue And Cron Adapters
@@ -266,7 +275,7 @@ Earlier prototype controls, recorded before SDK packaging:
 | Initial memory | 64 KiB heap plus 64 KiB exchange after a small request. |
 | Fresh instantiation (Node 24, same compiled module) | median 0.046 ms, p95 0.070 ms. |
 | JS host graph | 116,692 bytes before bundling; JS + Wasm 149,310 bytes gzip. |
-| Concurrent fetch | Eight active upstream requests on Node, workerd and the Edge VM. |
+| Concurrent fetch | Historical prototype: eight active upstream requests on Node, workerd and the Edge VM. |
 
 Local SDK packaging probes on 2026-10-25 used Node 24.19.0, Wrangler 4.152.0 and workerd 2026-10-23. The frozen compiler used the 9a5ac48b5 base plus the validated interface-identity prerequisite. It was not rebuilt from the later 581b165de base. These are local probe results, separate from final integrated gates.
 
@@ -284,6 +293,15 @@ Cold latency uses an external monotonic clock, with file caches uncontrolled. It
 
 The memory total covers both guest linear memories, excluding JavaScript/native buffers, compiled code and aggregate isolate RSS. It does not establish the 100 MiB total-isolate target. Eight large requests succeeded, but aggregate isolate memory and platform CPU startup still require measurement before release.
 
+Separate final-source Cloudflare probes used the fresh 581b165de compiler and the typed JSON sample on macOS arm64. Three fresh workerd processes each served eight warm requests, then eight overlapping requests with 1,048,462-byte bodies. All twenty-four large responses returned 200 with exact counts nine through sixteen and matching message bytes.
+
+| Whole workerd process measurement | Peak RSS across three fresh processes |
+| --- | --- |
+| Eight warm requests only | 46.44–48.48 MiB. |
+| Eight warm requests, then eight overlapping large requests | 138.17–146.80 MiB. |
+
+These are macOS `wait4` process high-water measurements, including engine and host overhead, not billable per-isolate allocation. They neither prove nor disprove the 100 MiB isolate target. The guest-memory probe above used a different guest and workload, so these values are not a direct comparison.
+
 Eight large requests can hold several body copies, so an aggregate byte budget remains necessary. Measure peak isolate memory before release, and lower the limits if it exceeds 100 MiB.
 
 A program that links no server SDK pays nothing: no exports, helpers or imports, and its Wasm is byte-identical.
@@ -294,7 +312,7 @@ The web compiler's two MB gzip cap is hard; host-only SDK code is never bundled 
 
 | Case (real shape) | Status |
 | --- | --- |
-| Hono JSON route; Axum malformed JSON → 400 | Control passes on the three JS hosts. |
+| Hono JSON route; Axum malformed JSON → 400 | Historical prototype passes on the three JS hosts. |
 | Invalid UTF-8 body reaches the decoder as bytes | Node control returns 400. |
 | Fetch proxy; eight concurrent handlers | Controls pass without JSPI. |
 | Tower timeout → 504 | Local workerd short-timeout and fixed twenty-second deadline probes return 504, clean up once and retain a healthy instance. |
@@ -309,7 +327,7 @@ The web compiler's two MB gzip cap is hard; host-only SDK code is never bundled 
 | Wake after disposal, slot reused | Required generation test. |
 | CPU loop or trap | Trap fails every active request on the instance; Node hard timeouts and supervision required. |
 
-Local Cloudflare probes exercise startup `env_decode`, per-request Env lookup and name listing, with only the granted APP_MODE string visible. Later changes to the outer binding object leave the retained instance's captured value unchanged. Denied, differently scoped and nonstring bindings fail privately with 500, then 503. No synthetic binding value appears in responses or logs.
+Local Cloudflare probes exercise startup `env_decode`, per-request Env lookup and name listing, with only the granted APP_MODE string visible. Later changes to the outer binding object leave the retained instance's captured value unchanged. Denied, differently scoped and nonstring bindings fail privately with 500, then 503. Failed-startup responses and logs omit synthetic binding values.
 
 An allowed loopback Http request causes exactly one upstream effect; a denied written hostname causes none. Clock sleep, wall time, monotonic time and four Random bytes succeed. Explicit Clock or Random denial rejects the ordinary deployment task before creating output.
 
@@ -323,21 +341,22 @@ The highest risks are unbounded buffering, delayed cancellation and capability b
 
 Each slice is about an hour, keeps existing commands green, and ships its spec rules and fixtures with its code.
 
+Vercel Edge was retired because [standalone Edge Functions are deprecated](https://vercel.com/docs/functions/runtimes/edge/edge-functions.rsc); a later request requires its own issue.
+
 | Slice | Deliverable | Acceptance |
 | --- | --- | --- |
 | 0 | #51: package-declared host capabilities. | Owned by #51. |
 | 1 | `HttpServer` capability and SDK worker loops over `main!`. | Typed request/response round trip; one instance serves sequential requests. |
 | 2 | Lease-scoped I/O dispatcher and cleanup. | Pending/wake/cancel/abandon, late completion, trap; adversarial interleaving. |
-| 3 | Fetch provider over platform APIs. | Http cases for redirects, grants, errors and bodies on Node, workerd and the Edge VM. |
+| 3 | Fetch provider over platform APIs. | Http cases for redirects, grants, errors and bodies on Node and workerd. |
 | 4 | Bounded adapter, admission, lifecycle. | Limits, cookies, bodyless statuses, overload, drain on stop, eight concurrent requests. |
 | 5 | Node development listener and supervision. | U3, U4, U5; disconnect; CPU-loop termination; macOS, Linux and Windows coverage. |
 | 6 | `deploy-cloudflare`, implemented on the current branch. | Local packaging, policy and timeout probes pass; bundle size, external cold wall latency and both guest memories measured; hosted/CPU/aggregate-memory acceptance remains. |
-| 7 | `deploy-vercel`, Node. | Build Output validation; payload cap and deadline behavior. |
-| 8 | `deploy-vercel`, Edge. | Platform build validation; Edge VM U1–U4 without JSPI; the pending-sync-wait error. |
+| 7 | `deploy-vercel`, Node, implemented on the current branch. | Local official builder/launcher and production-policy controls; hosted routing, deployment and lifecycle acceptance remain. |
 | 9 | Optional JSPI driver. | workerd pending `block_on` fetch, cancellation during suspension. |
 | 10 | Queue and cron adapters. | Commit/acknowledge, duplicates, retry; overlap policy and tick IDs. |
 
 ## Open Approvals
 
-The owner delegated implementation choices inside #266 and decided deploy-time production grants. The [Server SDK specification](../../spec/std/server-sdk.md) records the implemented SDK boundaries. Vercel platform profiles and any behavior requiring a language change remain separate work.
-Local VM, Wrangler dry runs and workerd requests do not replace deployed acceptance tests. Cloudflare local policy, timeout, recovery, external cold wall latency and guest-memory probes are recorded above. Hosted use cases, platform CPU startup and aggregate isolate memory remain unproven; #266 remains unfinished.
+The owner delegated implementation choices inside #266 and decided deploy-time production grants. The [Server SDK specification](../../spec/std/server-sdk.md) records the implemented SDK boundaries. Any behavior requiring a language change remains separate work.
+Local VM, Wrangler dry runs and workerd requests do not replace deployed acceptance tests. Cloudflare local policy, timeout, recovery, external cold wall latency and guest-memory probes are recorded above. Hosted use cases, platform CPU startup and aggregate isolate memory remain unproven.

@@ -1,0 +1,22 @@
+use dep.server_sdk.deployment.{Artifacts, Deployment, DeploymentError, SupervisorPolicy, VercelOptions, vercel}
+
+pub fn main!() -> Result[void, DeploymentError] $ Console + Deployment:
+    receipt := vercel!(VercelOptions {
+        name: "server-api",
+        artifacts: Artifacts {
+            wasm: "build/debug/server_api.wasm",
+            bindings: "build/debug/server_api.host.mjs",
+            output: ".vercel/output"
+        },
+        supervisor: SupervisorPolicy {
+            workers: 8,
+            startup_ms: 3000,
+            drain_ms: 1000,
+            stop_kill_ms: 300,
+            restart_limit: 2,
+            restart_window_ms: 60000,
+            retry_after: "1"
+        }
+    })?
+    println(receipt.directory)
+    .Ok(())

@@ -12,8 +12,8 @@ Every accepted lease is released after response delivery or cleanup.
 The public JavaScript adapters supply retained synchronous turns,
 lease-owned outgoing I/O, admission deadlines, request logs and Node worker
 supervision. The SDK also prepares Cloudflare Worker output through an
-ordinary deployment task. Vercel packaging and hosted deployment acceptance
-remain unfinished in #266.
+ordinary deployment task. A second task prepares supervised Vercel Node
+functions. Hosted deployment acceptance remains unproven.
 
 From the repository root, build `cargo build -p hd_cli --features wasmtime`.
 Then run `hd run` from `examples/server-api`, granting the SDK trait in the
@@ -243,3 +243,62 @@ Five fresh local workerd processes reached their first response in a median
 one-MiB requests. The [design record](../../docs/future-work/SERVER_APPLICATIONS.md#cost-and-measurements)
 records the probe versions, measurements and limits. These probes establish
 local behavior, not hosted acceptance, CPU startup or total isolate memory.
+
+## Vercel Node Deployment Task
+
+The sample's `tasks/deploy-vercel.hd` uses
+`dep.server_sdk.deployment.vercel!` through the same Deployment capability
+as the Cloudflare task. Keep its development capability consent and the
+application's separate production grants in the root manifest.
+
+From `examples/server-api`, prepare the Node function locally:
+
+```sh
+hd build
+hd run deploy-vercel --engine node
+```
+
+The task reads the built Wasm and binding companion and writes
+`.vercel/output/config.json` with an immutable function generation. Vercel
+uploads are a separate step using its ordinary prebuilt-output workflow.
+The task performs no upload and requires no credentials. Its generated
+function declares `nodejs24.x`, a [supported Vercel Node version](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions).
+
+`VercelOptions` selects the function name, `Artifacts`, explicit
+`SupervisorPolicy`, and named `env_bindings`. The policy supplies worker
+count, startup, drain, outer-stop, restart count/window and Retry-After.
+Retry-After must be nonempty printable ASCII.
+Choose one to eight workers; each retains its own application state and
+accepts one active request. The request budget stays twenty seconds, with
+the existing hundred-millisecond SDK cleanup and two-hundred-millisecond
+host backstop.
+
+Unavailable worker capacity returns 503 with the selected Retry-After
+value, including during startup. Native Node streams feed the SDK's
+bounded Fetch mapper, preserving request cancellation and separate
+Set-Cookie values. Whole-body limits remain one MiB in either direction.
+
+Production source consent, SDK identity, ABI and companion validation use
+the same preparation checks as Cloudflare. Only explicitly selected
+string environment bindings reach the Env provider, subject to production
+grants. Their values are captured at Node entry initialization rather than
+embedded in generated output.
+
+Repeated preparation atomically changes `config.json` to select a complete
+immutable function under `functions/`. Earlier generations remain available
+to existing readers; unrelated root files and caches are preserved. An
+unowned output directory, changed SDK payload, or unknown function directory
+is refused. Other writers must leave the SDK's reserved paths unchanged
+during publication.
+
+Local controls use the official `@vercel/node` launcher and build-utils ZIP
+builder, exercising retained requests, overlapping work, body limits and
+production policy. The generated route uses a documented `request.path`
+transform to pass the matched pathname to the Node runtime. Local launcher
+controls bypass deployment-wide routing and do not establish hosted
+build/deployment acceptance. Malformed native authority,
+targets and headers receive 400 before guest dispatch.
+
+Vercel Edge is outside this SDK's scope because Vercel deprecated standalone
+[Edge Functions](https://vercel.com/docs/functions/runtimes/edge/edge-functions.rsc);
+a later request requires its own issue.
