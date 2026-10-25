@@ -1,4 +1,4 @@
-# test: a linked list through Option[&Cell] is built with &Cell literals and walked by matching each optional reference
+# test: a linked list through Option[*Cell] is built with &Cell literals and walked by matching each optional reference
 # Spec 08 Struct Declarations: data.struct.contains.reference; Generic And Recursive Enums: data.enum.recursive. Spec 13 Identity: ref.identity.optional.
 # Spec 13 Matching Through A Reference: ref.match.binding.
 # expect-stdout: 6 3

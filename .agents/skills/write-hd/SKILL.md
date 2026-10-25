@@ -495,7 +495,7 @@ the code `hd check` reports today.
 | `pair.0` | `syntax-error` | `pair._0` |
 | `defer save()` | `syntax-error` | `defer: save()` |
 | `println` inside `defer:` | `suspension-forbidden-context` | record into a list; print after |
-| `List[Shape]` for a trait | `trait-used-as-type` | `List[&dyn Shape]`, filled with `&Circle { ... }` |
+| `List[Shape]` for a trait | `trait-used-as-type` | `List[*dyn Shape]`, filled with `&Circle { ... }` |
 | `impl Add for Money` with no import | `unknown-trait` | `use std.ops.Add` |
 | `type Output = Money` | `extra-trait-member` | `type Out = Money` |
 | `assert_equal(a, b)` | `argument-count` | `assert_equal(a, b, reason="...")` |
@@ -509,14 +509,14 @@ the code `hd check` reports today.
 | `Item(name: "a")` | `trailing-block-position` | `Item { name: "a" }` |
 | a second `tests:` block | `duplicate-tests-block` | one `tests:` block per file |
 | a trait in a public row | `private-type-leak` | `pub trait` |
-| keeping an element reference, `r := &mut xs[i]` | `element-reference-outlives-call` | keep the list reference and the index (`xs[i] = v` later), copy the value out (`v := xs[i]`), or store references in the list (`List[&mut T]`) and copy a reference out |
+| keeping an element reference, `r := &mut xs[i]` | `element-reference-outlives-call` | keep the list reference and the index (`xs[i] = v` later), copy the value out (`v := xs[i]`), or store references in the list (`List[*mut T]`) and copy a reference out |
 
 ## Recovering An Erased Concrete Type
 
 Import `std.inspect.Inspectable`. Store an erased shared reference as
 `&dyn Inspectable`, or a mutable one as `&mut dyn Inspectable`.
-`value.downcast_ref::[User]()` returns `Option[&User]`;
-`value.downcast_mut::[User]()` returns `Option[&mut User]`.
+`value.downcast_ref::[User]()` returns `(*User)?`;
+`value.downcast_mut::[User]()` returns `(*mut User)?`.
 The target names the referent: use `User` for an erased `&User`.
 If the referent itself is a reference value, its reference type is the
 target instead. The recovered reference keeps identity with the original reference. Copy its value with `*found`, or with

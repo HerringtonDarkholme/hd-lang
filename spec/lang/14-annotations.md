@@ -290,7 +290,7 @@ let email_metadata: List[*dyn Inspectable] = [
 ]
 ```
 
-Different concrete metadata types coexist in one `List[&dyn Inspectable]`. A member
+Different concrete metadata types coexist in one `List[*dyn Inspectable]`. A member
 line may name such a list directly, as `email = email_metadata`, since its
 right side is [any list-typed expression](#r-annot.line.right-typed).
 
@@ -529,9 +529,9 @@ fn later!(id: i64) -> i64:
     id
 ```
 
-The generic `wrap` has the monomorphic type `fn(i64) -> List[&dyn Any]`, where
+The generic `wrap` has the monomorphic type `fn(i64) -> List[*dyn Any]`, where
 `Any` is one fixed type, so its line is
-`let f: Handler[fn(i64) -> List[&dyn Any]] = handler()`. Likewise
+`let f: Handler[fn(i64) -> List[*dyn Any]] = handler()`. Likewise
 `fn ms[M < Integer, R](n: M) -> R` has the type `fn(Integer) -> Any`.
 `later` is a `fn!`, so `Handler[fn!(i64) -> i64]` does not match
 `handler`'s result.

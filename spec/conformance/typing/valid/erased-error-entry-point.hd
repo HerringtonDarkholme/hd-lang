@@ -1,4 +1,4 @@
-# test: a shared erased error satisfies Error, so main may return Result[void, &dyn Error]
+# test: a shared erased error satisfies Error, so main may return Result[void, *dyn Error]
 # Spec 09 Erased Errors: trait.dyn.bound.reference.
 use std.error.Error
 

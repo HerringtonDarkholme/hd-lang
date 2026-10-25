@@ -115,6 +115,6 @@ For an empty list, `first_word` returns an error that displays as `no words`.
 > whichever variant the optional holds.
 
 > **Why.** An optional step in a function that returns
-> `Result[T, &dyn Error]` otherwise needs `ok_or` and an error type.
+> `Result[T, *dyn Error]` otherwise needs `ok_or` and an error type.
 
 See also: [Result](result.md), [Runtime Panics](../lang/06-control-flow.md#runtime-panics), [Variance](../lang/04-type-system.md#variance).

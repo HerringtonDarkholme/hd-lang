@@ -1,4 +1,4 @@
-# test: member and parameter metadata are stored as List[&dyn Inspectable], so one list holds values of unrelated types
+# test: member and parameter metadata are stored as List[*dyn Inspectable], so one list holds values of unrelated types
 # Spec 14 Member Metadata: annot.metadata.reference-storage.
 use std.structure.Structure
 

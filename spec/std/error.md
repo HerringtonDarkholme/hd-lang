@@ -172,7 +172,7 @@ For `parse_port("")`, the error displays as `empty port`.
 2. r[std-error.message.reference-struct] The returned reference points to a private struct, whose type code cannot name or match on.
 3. r[std-error.message.display] The error displays as `text`, unchanged.
 4. r[std-error.message.source] Its `source` returns `.None`, so `chain` lists only that error.
-5. r[std-error.message.reference-result] `.Err(message(text))` is a valid result of a function returning `Result[T, &dyn Error]`.
+5. r[std-error.message.reference-result] `.Err(message(text))` is a valid result of a function returning `Result[T, *dyn Error]`.
 
 > **Why.** An ad hoc failure otherwise needs a struct, a `Display`
 > impl, and an `Error` impl. The text is the whole error, as in Go.
@@ -249,7 +249,7 @@ fn width(text: string) -> Result[i32, *dyn Error]:
 | `RegexError` | `std.regex` |
 | `NetError` | `std.net` |
 
-1. r[std-error.std-types.impl.reference-values] Each type in the table above implements `Error`. So `?` converts it into a `Result[T, &dyn Error]`, by [`trait.error.result.reference-values`](../lang/09-traits.md#r-trait.error.result.reference-values), and `context` accepts it.
+1. r[std-error.std-types.impl.reference-values] Each type in the table above implements `Error`. So `?` converts it into a `Result[T, *dyn Error]`, by [`trait.error.result.reference-values`](../lang/09-traits.md#r-trait.error.result.reference-values), and `context` accepts it.
 2. r[std-error.std-types.source] Their `source` is the default `.None`.
 3. r[std-error.std-types.display] Each keeps the `Display` text its chapter defines.
 4. r[std-error.std-types.string-no-impl] The language type `string` does not implement `Error`.

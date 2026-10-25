@@ -764,7 +764,7 @@ test("a suspending main! reports its Result", async () => {
   const outcome = async (body: string): Promise<string[]> => {
     const result = await run(
       single(
-        `use std.error.{Error, message}\n\npub fn main!() -> Result[void, &dyn Error]:\n    ${body}\n`,
+        `use std.error.{Error, message}\n\npub fn main!() -> Result[void, *dyn Error]:\n    ${body}\n`,
       ),
       "run",
     );

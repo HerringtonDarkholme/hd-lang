@@ -1380,7 +1380,7 @@ tests:
         .Ok(())
 ```
 
-> **Why.** A fixed `Result[void, &dyn Error]` lets one test body use `?` on
+> **Why.** A fixed `Result[void, *dyn Error]` lets one test body use `?` on
 > several error types, as Zig's inferred `anyerror!void` test bodies do.
 
 > **Note.** The body closures of `it_each`, `it_prop`, and `it_prop_with`

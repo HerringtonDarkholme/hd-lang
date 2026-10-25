@@ -1,4 +1,4 @@
-# test: a `List[&dyn Shape]` holds written references: `&s` shares a struct's place, so a later change to it is seen, and `&Square { ... }` is a new object
+# test: a `List[*dyn Shape]` holds written references: `&s` shares a struct's place, so a later change to it is seen, and `&Square { ... }` is a new object
 # Spec 09 Trait Value References: trait.dyn.ref.written, trait.dyn.ref.share, trait.dyn.ref.member.
 # expect-stdout: 100.0 4.0 9.0
 # expect-stdout: 113.0
