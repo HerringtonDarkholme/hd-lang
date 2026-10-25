@@ -868,7 +868,11 @@ pub fn main!() -> void $ Console + Http + Args:
 fn server_sdk_main_keeps_state_and_serves_concurrent_requests() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let out = Command::new("node")
-        .args(["--test", "packages/server-sdk/test/node.test.mjs"])
+        .args([
+            "--test",
+            "packages/server-sdk/test/node.test.mjs",
+            "packages/server-sdk/test/provider.test.mjs",
+        ])
         .env("HD_SDK_TEST_HD", env!("CARGO_BIN_EXE_hd"))
         .current_dir(root)
         .output()

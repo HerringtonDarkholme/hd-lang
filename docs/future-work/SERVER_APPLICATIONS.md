@@ -1,6 +1,6 @@
 # Server Applications
 
-Status: design record, 2026-10-24. The direction is decided (#806, #266). The SDK request source and worker loops now have a slice-1 implementation; the deployment adapters and the remaining lifecycle slices are unfinished.
+Status: design record, 2026-10-24. The direction is decided (#806, #266). The SDK request source, joined workers and bounded request cleanup are implemented. Lease-scoped outgoing I/O, deployment adapters and the remaining lifecycle slices are unfinished.
 Package-declared host capabilities ([#51](https://github.com/HerringtonDarkholme/hd-lang/issues/51)) come first, then the adapters of [#266](https://github.com/HerringtonDarkholme/hd-lang/issues/266).
 
 ## Contents

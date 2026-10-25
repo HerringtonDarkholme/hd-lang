@@ -4,9 +4,13 @@ An application owns its ordinary `main!`, one state object and a joined
 group of workers. `server.HttpServer` is an SDK-owned package capability;
 requests and responses use `std.http` values.
 
-The first implementation supplies the typed source, worker loop and a
-loopback Node listener. Lease-scoped outgoing I/O, bounded cancellation,
-supervision and the platform packaging tasks are subsequent #266 slices.
+The implementation supplies the typed source, joined workers, bounded
+request cleanup and a loopback Node listener. A request races its source
+cancellation signal against a handler wrapped in `timeout!(20s, cleanup=100ms)`.
+The source supplies its cleanup clock, so `serve!` adds no ambient Clock row.
+Every accepted lease is released after response delivery or cleanup.
+Lease-scoped outgoing Http dispatch, complete admission deadlines, supervision
+and platform packaging remain subsequent #266 slices.
 The current listener is a development adapter, not a completed deployment
 profile.
 
@@ -31,7 +35,7 @@ The library tests bind an ordinary HD provider. The live Node check uses
 the actual sample and package-provider boundary:
 
 ```sh
-node --test packages/server-sdk/test/node.test.mjs
+node --test packages/server-sdk/test/*.test.mjs
 ```
 
 `HD_SDK_TEST_HD` can name a different compiled CLI. No test needs a public

@@ -49,13 +49,12 @@ function stateFor(context) {
       return;
     }
     const sequence = ++state.sequence;
-    const job = { request, response, cancelled: null, watchers: [], sequence };
+    const job = { request, response, cancelled: null, sequence, timers: new Set() };
     state.jobs.set(sequence, job);
     state.peak = Math.max(state.peak, state.jobs.size);
     response.on("close", () => {
       if (!response.writableFinished) {
         job.cancelled = "Disconnected";
-        for (const resolve of job.watchers.splice(0)) resolve({ tag: job.cancelled, fields: {} });
       }
     });
     try {
@@ -121,6 +120,8 @@ function stateFor(context) {
     () => {
       stop();
       state.server.closeAllConnections();
+      for (const job of state.jobs.values()) for (const clear of job.timers) clear();
+      state.jobs.clear();
       process.off("SIGTERM", stop);
     },
     { once: true },
@@ -168,15 +169,22 @@ export default {
         job.request.method === "HEAD" || [204, 205, 304].includes(value.status)
           ? undefined
           : Buffer.from(value.body);
-      return new Promise((resolve) => {
-        response.end(body, () => {
-          state.jobs.delete(id.sequence);
-          state.replies++;
-          resolve(ok(undefined));
-        });
+      let ready = false,
+        failed = false;
+      response.end(body, (error) => {
+        failed = Boolean(error);
+        ready = true;
       });
+      return context.pending(
+        () => ready || response.destroyed,
+        () => {
+          if (failed || !response.writableFinished) return err("Expired");
+          state.replies++;
+          return ok(undefined);
+        },
+        () => response.destroy(),
+      );
     } catch (error) {
-      state.jobs.delete(id.sequence);
       if (!response.headersSent) response.writeHead(500);
       response.end();
       return err("Other", String(error));
@@ -186,14 +194,77 @@ export default {
     const state = stateFor(context);
     const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
     if (!job) return { tag: "Stopping", fields: {} };
-    if (job.cancelled) return { tag: job.cancelled, fields: {} };
-    return new Promise((resolve) => {
-      job.watchers.push(resolve);
-      const abort = () => {
-        const at = job.watchers.indexOf(resolve);
-        if (at >= 0) job.watchers.splice(at, 1);
-      };
-      context.signal.addEventListener("abort", abort, { once: true });
-    });
+    return context.pending(
+      () => job.cancelled !== null,
+      () => ({ tag: job.cancelled, fields: {} }),
+    );
+  },
+  clock(id, context) {
+    const state = stateFor(context);
+    const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
+    if (!job) throw new Error("expired request lease");
+    const check = () => {
+      if (state.jobs.get(id.sequence) !== job) throw new Error("expired request lease");
+    };
+    return {
+      now() {
+        check();
+        return new Date().toISOString();
+      },
+      monotonic() {
+        check();
+        return BigInt(Math.floor(performance.now()));
+      },
+      sleep(duration, call) {
+        check();
+        let ready = false,
+          timer,
+          live = true;
+        const due = performance.now() + Number(duration);
+        const arm = () => {
+          if (!live) return;
+          const left = due - performance.now();
+          if (left <= 0) ready = true;
+          else timer = setTimeout(arm, Math.min(left, 2147483647));
+        };
+        const clear = () => {
+          live = false;
+          clearTimeout(timer);
+          job.timers.delete(clear);
+        };
+        job.timers.add(clear);
+        arm();
+        return call.pending(
+          () => ready,
+          () => undefined,
+          clear,
+          () => {
+            clear();
+          },
+        );
+      },
+    };
+  },
+  finish(id, abandoned, context) {
+    const state = stateFor(context);
+    const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
+    if (!job) return;
+    for (const clear of job.timers) clear();
+    state.jobs.delete(id.sequence);
+    if (!job.response.writableEnded) {
+      if (!job.response.destroyed) {
+        job.response.writeHead(job.cancelled === "Deadline" ? 504 : 503);
+        job.response.end();
+      }
+    }
+    if (job.cancelled || abandoned)
+      console.log(
+        JSON.stringify({
+          event: "request-finished",
+          sequence: String(id.sequence),
+          cancelled: job.cancelled,
+          abandoned,
+        }),
+      );
   },
 };

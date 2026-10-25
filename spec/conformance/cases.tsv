@@ -51,7 +51,7 @@ runtime/valid/recursive-closure-pending-self-environment.hd	runtime	accept	lang/
 runtime/valid/recursive-closure-self-environment.hd	runtime	accept	lang/07-functions.md#recursion
 runtime/valid/nested-waker-cancellation-reuse.hd	runtime	accept	lang/11-requirements-and-suspension.md#standard-combinators
 runtime/valid/row-aliases-a-row-alias-in-a-header-expands-to-its-keys-7.hd	runtime	accept	lang/11-requirements-and-suspension.md#row-aliases
-runtime/valid/server-sdk-workers.hd	runtime	accept	std/server-sdk.md#serving
+runtime/valid/server-sdk-workers.hd	runtime	accept	std/server-sdk.md#request-cleanup
 runtime/valid/slicing-a-range-value-is-a-slice-key.hd	runtime	accept	lang/05-expressions.md#slicing
 runtime/valid/slicing-a-slice-bound-of-another-unsigned-type-selects-its-implementation.hd	runtime	accept	lang/05-expressions.md#slicing
 runtime/valid/slicing-a-slice-is-a-value-to-use.hd	runtime	accept	lang/05-expressions.md#slicing

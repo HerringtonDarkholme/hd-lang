@@ -1,12 +1,17 @@
-# test: the shipped SDK serves typed leases through an ordinary HD provider
+# test: worker state, lease-local cancellation and bounded cleanup use the actual SDK
 # fixture-package-role: root-application
 use dep.server_sdk.{HttpServer, Incoming, RequestId, ServerError, CancelReason, serve}
 use std.http.{Request, Response}
+use std.time.{Clock, Duration, Timestamp, Instant, ms, s, sleep}
+use std.task.race
+use std.ops.Disposable
 use std.testing.{assert, assert_equal}
+
 
 struct Scripted:
     next: u64
     replies: List[(u64, Response)]
+    clock: &mut dyn Clock
 
 impl HttpServer for Scripted:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]:
@@ -25,7 +30,11 @@ impl HttpServer for Scripted:
         .Ok(())
 
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason:
+        self.clock.sleep!(s(60))
         .Stopping
+
+    fn clock(&mut self, _id: RequestId) -> &mut dyn Clock: self.clock
+    fn finish(&mut self, _id: RequestId, _abandoned: bool) -> void: pass
 
 struct Hits:
     count: usize
@@ -40,32 +49,213 @@ impl HttpServer for FailedSource:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]: .Err(.Closed)
     fn respond!(&mut self, _id: RequestId, _response: Response) -> Result[void, ServerError]: .Err(.Closed)
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason: .Stopping
+    fn clock(&mut self, _id: RequestId) -> &mut dyn Clock: panic("no accepted lease")
+    fn finish(&mut self, _id: RequestId, _abandoned: bool) -> void: pass
 
 
-tests:
-    it("joined workers preserve one application state and typed response per lease"):
-        server := &mut Scripted { next: 1, replies: [] }
-        hits := &mut Hits { count: 0 }
-        $.with(HttpServer=server):
-            assert(serve!(4, hits, handle).is_ok(), reason="all workers finish when the source ends")
-        assert_equal(hits.count, 3, reason="one shared application object survives every request")
-        assert_equal(server.replies.len(), 3, reason="every accepted lease gets one response")
-        for (sequence, response) in server.replies:
-            assert_equal(response.status, 200, reason="the handler's complete response is preserved")
-            body := string::from_utf8(response.body).expect("UTF-8 fixture")
-            assert(body.ends_with("https://example.test/$sequence"), reason="the reply keeps its request")
+struct Leases:
+    next: u64
+    clock: &mut dyn Clock
+    cancel_after: i64
+    replies: List[(u64, Response)]
+    expire_response: bool = false
+    finished: List[(u64, bool)]
 
-    it("zero workers still provides one serving loop"):
-        server := &mut Scripted { next: 1, replies: [] }
-        hits := &mut Hits { count: 0 }
-        $.with(HttpServer=server):
-            assert(serve!(0, hits, handle).is_ok(), reason="the minimum width is one")
-        assert_equal(hits.count, 3, reason="a zero argument must not silently discard all requests")
+impl HttpServer for Leases:
+    fn accept!(&mut self) -> Result[Incoming?, ServerError]:
+        if self.next > 3:
+            return .Ok(.None)
+        id := RequestId { generation: 9, sequence: self.next }
+        self.next += 1
+        .Ok(.Some(Incoming { id: id, request: Request { url: if id.sequence == 1: "slow" else: "fast" } }))
+    fn respond!(&mut self, id: RequestId, value: Response) -> Result[void, ServerError]:
+        if self.expire_response && id.sequence == 2: return .Err(.Expired)
+        self.replies.push((id.sequence, value))
+        .Ok(())
+    fn cancelled!(&mut self, id: RequestId) -> CancelReason:
+        self.clock.sleep!(ms(if id.sequence == 1: self.cancel_after else: 60000))
+        .Disconnected
+    fn clock(&mut self, _id: RequestId) -> &mut dyn Clock: self.clock
+    fn finish(&mut self, id: RequestId, abandoned: bool) -> void:
+        self.finished.push((id.sequence, abandoned))
 
-    it("a source failure is returned after the workers finish"):
-        hits := &mut Hits { count: 0 }
-        $.with(HttpServer=&mut FailedSource {}):
-            match serve!(3, hits, handle):
-                .Err(.Closed) => pass
-                _ => panic("the original source error must survive")
-        assert_equal(hits.count, 0, reason="a failed accept does not invoke the handler")
+struct Closing:
+    wait: mut Suspend[void]
+    events: &mut List[string]
+
+impl Disposable for Closing:
+    fn dispose!(&mut self) -> void:
+        self.events.push("closing")
+        let mut wait = self.wait
+        wait!()
+        self.events.push("closed")
+
+struct Work:
+    cleanup_ms: i64
+    events: List[string]
+
+fn cancellable!(request: Request, state: &mut Work) -> Response $ Clock:
+    if request.url == "slow":
+        using resource = Closing { wait: sleep(ms(state.cleanup_ms)), events: &mut state.events }
+        state.events.push("started")
+        sleep!(s(60))
+    Response { status: 200 }
+
+fn working!(server: &mut Leases, state: &mut Work) -> string $ Clock:
+    $.with(HttpServer=server):
+        _ := serve!(3, state, cancellable)
+    "finished"
+
+fn stop!() -> string $ Clock:
+    sleep!(ms(5))
+    "stopped"
+
+struct DeadlineClock:
+    base: &mut dyn Clock
+    tick: i64
+
+impl Clock for DeadlineClock:
+    fn now(self) -> Timestamp: Timestamp::from_unix_milliseconds(self.tick)
+    fn monotonic(self) -> Instant: Instant::from_milliseconds(self.tick)
+    fn sleep!(&mut self, duration: Duration) -> void:
+        amount := duration.as_milliseconds()
+        if amount == 20000 || amount == 100:
+            self.base.sleep!(ms(1))
+            self.tick += amount
+        else:
+            self.base.sleep!(duration)
+
+fn clock_value!(_request: Request, _hits: &mut Hits) -> Response $ Clock:
+    Response { status: 200, body: "${$.use(Clock).monotonic().as_milliseconds()}".to_utf8() }
+
+
+# it("joined workers preserve one application state and typed response per lease"):
+fn case_1!() -> void $ Clock:
+    server := &mut Scripted { next: 1, replies: [], clock: $.use(Clock) }
+    hits := &mut Hits { count: 0 }
+    $.with(HttpServer=server):
+        assert(serve!(4, hits, handle).is_ok(), reason="all workers finish when the source ends")
+    assert_equal(hits.count, 3, reason="one shared application object survives every request")
+    assert_equal(server.replies.len(), 3, reason="every accepted lease gets one response")
+    for (sequence, response) in server.replies:
+        assert_equal(response.status, 200, reason="the handler's complete response is preserved")
+        body := string::from_utf8(response.body).expect("UTF-8 fixture")
+        assert(body.ends_with("https://example.test/$sequence"), reason="the reply keeps its request")
+
+
+# it("zero workers still provides one serving loop"):
+fn case_2!() -> void $ Clock:
+    server := &mut Scripted { next: 1, replies: [], clock: $.use(Clock) }
+    hits := &mut Hits { count: 0 }
+    $.with(HttpServer=server):
+        assert(serve!(0, hits, handle).is_ok(), reason="the minimum width is one")
+    assert_equal(hits.count, 3, reason="a zero argument must not silently discard all requests")
+
+
+# it("a source failure is returned after the workers finish"):
+fn case_3!() -> void $ Clock:
+    hits := &mut Hits { count: 0 }
+    $.with(HttpServer=&mut FailedSource {}):
+        match serve!(3, hits, handle):
+            .Err(.Closed) => pass
+            _ => panic("the original source error must survive")
+    assert_equal(hits.count, 0, reason="a failed accept does not invoke the handler")
+
+# A real suspension lets cancellation race with another worker. The test's
+# clock is supplied explicitly to the fake; serve itself adds no Clock row.
+
+# it("a disconnected lease cleans up without cancelling another worker"):
+fn case_4!() -> void $ Clock:
+    server := &mut Leases { next: 1, clock: $.use(Clock), cancel_after: 1, replies: [], finished: [] }
+    state := &mut Work { cleanup_ms: 5, events: [] }
+    $.with(HttpServer=server):
+        assert(serve!(3, state, cancellable).is_ok(), reason="a disconnect is local to its request")
+    assert_equal(server.replies.len(), 2, reason="the other two workers deliver their responses")
+    assert_equal(server.finished.len(), 3, reason="all three leases acknowledge cleanup")
+    assert_equal(state.events, ["started", "closing", "closed"], reason="cooperative cleanup completes before release")
+    for (_, abandoned) in server.finished:
+        assert(!abandoned, reason="every cleanup finished normally")
+
+
+# it("a cleanup that keeps waiting is abandoned within the lease bound"):
+fn case_5!() -> void $ Clock:
+    server := &mut Leases { next: 1, clock: $.use(Clock), cancel_after: 1, replies: [], finished: [] }
+    state := &mut Work { cleanup_ms: 60000, events: [] }
+    $.with(HttpServer=server):
+        assert(serve!(3, state, cancellable).is_ok(), reason="abandonment does not cancel the worker group")
+    assert_equal(server.replies.len(), 2, reason="unrelated requests complete")
+    assert_equal(state.events, ["started", "closing"], reason="the suspended cleanup was cut short")
+    let abandoned = 0
+    for (sequence, cut_short) in server.finished:
+        if cut_short:
+            assert_equal(sequence, 1, reason="only the cancelled request is abandoned")
+            abandoned += 1
+    assert_equal(abandoned, 1, reason="the source is told about abandonment exactly once")
+
+
+# it("external cancellation retains the same cleanup bound and releases leases"):
+fn case_6!() -> void $ Clock:
+    server := &mut Leases { next: 1, clock: $.use(Clock), cancel_after: 60000, replies: [], finished: [] }
+    state := &mut Work { cleanup_ms: 60000, events: [] }
+    assert_equal(race!(working(server, state), stop()), "stopped", reason="outer cancellation joins bounded cleanup")
+    assert_equal(server.finished.len(), 3, reason="every accepted lease is released during unwind")
+    assert_equal(state.events, ["started", "closing"], reason="outer cancellation cannot bypass the bound")
+    let abandoned = 0
+    for (_, cut_short) in server.finished:
+        if cut_short: abandoned += 1
+    assert_equal(abandoned, 1, reason="only the still-waiting handler cleanup is abandoned")
+
+# Advance only the two SDK timers in virtual time; long handler sleeps
+# remain cancellable real suspensions. This tests 20s/100ms without waiting.
+
+# it("the handler deadline returns 504 after bounded abandoned cleanup"):
+fn case_7!() -> void $ Clock:
+    clock := &mut DeadlineClock { base: $.use(Clock), tick: 0 }
+    server := &mut Leases { next: 1, clock: clock, cancel_after: 60000, replies: [], finished: [] }
+    state := &mut Work { cleanup_ms: 60000, events: [] }
+    $.with(HttpServer=server):
+        assert(serve!(3, state, cancellable).is_ok(), reason="a deadline is a response, not a group error")
+    assert_equal(server.replies.len(), 3, reason="the timed-out request receives its own response")
+    for (sequence, value) in server.replies:
+        if sequence == 1:
+            assert_equal(value.status, 504, reason="the handler timeout is mapped explicitly")
+            assert_equal(value.body, "request timed out".to_utf8(), reason="the timeout body is stable")
+    let abandoned = 0
+    for (sequence, cut_short) in server.finished:
+        if cut_short:
+            assert_equal(sequence, 1, reason="only the timed-out cleanup is abandoned")
+            abandoned += 1
+    assert_equal(abandoned, 1, reason="completed timeout retains its cleanup outcome")
+
+
+# it("an expired response is released and the worker continues accepting"):
+fn case_8!() -> void $ Clock:
+    server := &mut Leases { next: 1, clock: $.use(Clock), cancel_after: 60000, replies: [], expire_response: true, finished: [] }
+    hits := &mut Hits { count: 0 }
+    $.with(HttpServer=server):
+        assert(serve!(1, hits, handle).is_ok(), reason="an expired response is local to its lease")
+    assert_equal(hits.count, 3, reason="the third request still reaches the same worker")
+    assert_equal(server.replies.len(), 2, reason="the source rejected only the expired response")
+    assert_equal(server.finished.len(), 3, reason="expiration still acknowledges cleanup exactly once")
+
+
+# it("the handler uses its source clock instead of the caller clock"):
+fn case_9!() -> void $ Clock:
+    clock := &mut DeadlineClock { base: $.use(Clock), tick: 1234 }
+    server := &mut Leases { next: 1, clock: clock, cancel_after: 60000, replies: [], finished: [] }
+    hits := &mut Hits { count: 0 }
+    $.with(HttpServer=server):
+        assert(serve!(1, hits, clock_value).is_ok(), reason="the handler clock is bound per lease")
+    for (_, value) in server.replies:
+        assert_equal(value.body, "1234".to_utf8(), reason="ambient caller authority is replaced by the lease clock")
+
+pub fn main!() -> void $ Clock:
+    case_1!()
+    case_2!()
+    case_3!()
+    case_4!()
+    case_5!()
+    case_6!()
+    case_7!()
+    case_8!()
+    case_9!()
