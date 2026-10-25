@@ -119,6 +119,30 @@ tests:
         if released() == 0:
             assert(pages() == start, "each copy's buffer is reused")
 
+    it("extends of counted lists in a loop run in bounded memory"):
+        base := names(50)
+        more := rows(20)
+        let total: usize = 0
+        let round = +0
+        let start: usize = 0
+        while round < 3000:
+            if round == 30:
+                start = pages()
+            let mut words = base
+            words.extend(base)
+            words.extend(words)
+            let mut built: List[Row] = []
+            built.extend(more)
+            built.extend(built)
+            built[0].cells.push(1)
+            total = total + words.len() + built.len() + built[0].cells.len()
+            round = round + 1
+        assert(total == 3000 * 243, "each extend kept every element")
+        assert(base.len() == 50 && more[0].cells.len() == 2, "the sources are unchanged")
+        # Checked frees quarantine blocks; only the normal allocator reuses them.
+        if released() == 0:
+            assert(pages() == start, "each extended list's buffers are reused")
+
     it("a for loop iterates the list as it was"):
         let mut xs: List[i32] = [+1, 2, 3]
         let seen = +0

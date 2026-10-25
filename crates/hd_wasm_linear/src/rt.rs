@@ -401,6 +401,20 @@ pub enum Helper {
     ListTruncate {
         elem: Elem,
     },
+    /// `(list, extra) -> list`: room for `extra` (more than 0) more
+    /// elements before a bulk append: a pinned list panics; a shared
+    /// buffer is copied, its elements taking their own counts; a buffer
+    /// without the room moves to one of the needed length or twice the
+    /// length plus 4, whichever is more. At most one new buffer.
+    ListReserve {
+        elem: Elem,
+    },
+    /// `(list, other) -> list`: std's `list_extend`: `other`'s elements
+    /// appended with one [`Helper::ListReserve`] and one `memory.copy`,
+    /// each taking its own counts. `other` may be the list itself.
+    ListExtend {
+        elem: Elem,
+    },
     /// `() -> TypeId`: a `TypeId` of static strings.
     TypeIdOf(TypeIdParts),
     /// `(data) -> TypeId`: a vtable's `runtime_type` slot, the `TypeId`
@@ -1722,6 +1736,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             ctx,
         } => dyn_read(*target, read, params, results, own, ctx.as_ref(), m),
         Helper::ListTruncate { elem } => list_truncate(m, elem),
+        Helper::ListReserve { elem } => list_reserve(elem, m),
+        Helper::ListExtend { elem } => list_extend(elem, m),
         Helper::TypeIdOf(parts) => type_id(parts, vec![], m),
         Helper::RuntimeType(parts) => type_id(parts, vec![Val::I32], m),
         Helper::MapStep {
@@ -3103,6 +3119,194 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
     f.helper(Helper::ReleaseKnown);
     f.get(nb);
     f.set(b);
+    f.op(Instruction::End);
+    f.get(b);
+    f
+}
+
+/// Pushes whether the buffer in local `b` is the list's own: one holder,
+/// or an owner word, whose other counts are element references.
+fn buffer_own(f: &mut Func, b: u32) {
+    f.get(b);
+    f.u32(HEADER);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.i32(1);
+    f.op(Instruction::I32Eq);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
+    f.i32(0);
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::I32Or);
+}
+
+/// [`Helper::ListReserve`].
+fn list_reserve(elem: &Elem, m: &Module) -> Func {
+    let mut f = m.func("rt:list_reserve", vec![Val::I32, Val::I32], vec![Val::I32]);
+    let (b, extra) = (0, 1);
+    let (n, need, own, nb) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    f.get(b);
+    f.helper(Helper::ListPinned);
+    f.op(Instruction::If(BlockType::Empty));
+    f.helper(Helper::Panic(
+        "collection-pinned: list length changed while pinned".into(),
+    ));
+    f.op(Instruction::End);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.set(n);
+    f.get(n);
+    f.get(extra);
+    f.op(Instruction::I32Add);
+    f.set(need);
+    buffer_own(&mut f, b);
+    f.set(own);
+    f.get(own);
+    f.op(Instruction::I32Eqz);
+    f.get(need);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32GtU);
+    f.op(Instruction::I32Or);
+    f.op(Instruction::If(BlockType::Empty));
+    // The capacity: the needed length or twice the length plus 4, when
+    // the buffer has no room; else the buffer's (a shared one's copy).
+    f.get(need);
+    f.get(n);
+    f.i32(1);
+    f.op(Instruction::I32Shl);
+    f.i32(4);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::LocalTee(nb));
+    f.get(need);
+    f.get(nb);
+    f.op(Instruction::I32GtU);
+    f.op(Instruction::Select);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.get(need);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32GtU);
+    f.op(Instruction::Select);
+    f.helper(Helper::ListBuf { elem: elem.clone() });
+    f.set(nb);
+    f.get(nb);
+    f.get(n);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    f.get(nb);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(b);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(n);
+    f.u32(elem.size);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::MemoryCopy {
+        src_mem: HEAP,
+        dst_mem: HEAP,
+    });
+    f.get(own);
+    f.op(Instruction::If(BlockType::Empty));
+    // The list's own buffer: its elements move, its owner word with them
+    // (an exposed list stays unshared), and the old block is freed.
+    f.get(nb);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
+    f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
+    f.get(b);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    if elem.counts() {
+        f.op(Instruction::Else);
+        // A shared buffer keeps its elements: the copies take counts.
+        f.get(nb);
+        f.u32(LIST_ELEMS);
+        f.op(Instruction::I32Add);
+        f.get(n);
+        f.helper(Helper::CopyElems { elem: elem.clone() });
+    }
+    f.op(Instruction::End);
+    f.get(b);
+    f.helper(Helper::ReleaseKnown);
+    f.get(nb);
+    f.set(b);
+    f.op(Instruction::End);
+    f.get(b);
+    f
+}
+
+/// [`Helper::ListExtend`]: `other` the list's own buffer itself is read
+/// from wherever the reserve put it; its length was read first, so the
+/// copy is the elements before the call.
+fn list_extend(elem: &Elem, m: &Module) -> Func {
+    let mut f = m.func("rt:list_extend", vec![Val::I32, Val::I32], vec![Val::I32]);
+    let (b, src) = (0, 1);
+    let (count, alias, n, at) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    f.get(src);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.op(Instruction::LocalTee(count));
+    f.op(Instruction::If(BlockType::Empty));
+    // A buffer that is the list's own and also `other` moves or stays
+    // with the list; a shared one stays where it is for `other`.
+    f.get(src);
+    f.get(b);
+    f.op(Instruction::I32Eq);
+    buffer_own(&mut f, b);
+    f.op(Instruction::I32And);
+    f.set(alias);
+    f.get(b);
+    f.get(count);
+    f.helper(Helper::ListReserve { elem: elem.clone() });
+    f.set(b);
+    f.get(alias);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(b);
+    f.set(src);
+    f.op(Instruction::End);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.set(n);
+    f.get(b);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(n);
+    f.u32(elem.size);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Add);
+    f.set(at);
+    f.get(at);
+    f.get(src);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(count);
+    f.u32(elem.size);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::MemoryCopy {
+        src_mem: HEAP,
+        dst_mem: HEAP,
+    });
+    if elem.counts() {
+        f.get(at);
+        f.get(count);
+        f.helper(Helper::CopyElems { elem: elem.clone() });
+    }
+    f.get(b);
+    f.get(n);
+    f.get(count);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
     f.op(Instruction::End);
     f.get(b);
     f

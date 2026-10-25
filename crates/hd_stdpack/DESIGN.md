@@ -70,6 +70,7 @@ every key in `lib/std` has a row.
 | `char_from_scalar` | `(point: u32) -> char?`, in `text.hd` | compiler |
 | `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `IntToStr` helper | compiler |
 | `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections.hd` and `text.hd` | compiler |
+| `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void`, in `collections.hd`; `other` is lent | compiler |
 | `panic` | `panic_with(category: string, message: string) -> void`, in `collections.hd`, `num.hd`, `ops.hd`, `testing.hd`, `text.hd` | compiler |
 | `facts_of` | `[F](f: F) -> Facts`, in `annotation.hd` | compiler |
 | `downcast_ref`, `downcast_mut` | inherent methods of `dyn Inspectable` in `inspect.hd` and `dyn Error` in `error.hd` | compiler |
@@ -93,7 +94,8 @@ every key in `lib/std` has a row.
 | `Index.index` on `List`, `Map`, `string`; `IndexSet.index_set` on `List`, `Map` | `ops.hd`; each body is the built-in indexing (`self[key]`) | built-in indexing, with its panics |
 | `List.len`, `List.push`, `List.iter`, `Map.len`, `Map.get`, `Map.remove`, `Map.iter` | no declaration; `hd_check` `builtin_method` | `IntrinsicOp` |
 
-Every other `List` mutator is hd over `push` and `list_truncate`; string
+Every other `List` mutator is hd over `push`, `list_truncate` and
+`list_extend`; string
 methods and `Display.to_string` are hd over the `bytes_*` primitives and
 ordinary impls. Earlier designs made these compiler-supplied; keeping them
 in hd shrinks the compiler to a few kernels and lets a program that never

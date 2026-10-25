@@ -73,6 +73,7 @@ a `char`, or a list.
 | `f64_to_bits`, `f64_from_bits` | `(value: f64) -> u64`, `(bits: u64) -> f64` | the bit cast between an `f64` and its IEEE 754 pattern, one reinterpret instruction; hd has no other way to read a NaN's sign, which [`std-num.float-bits.to`](num.md#r-std-num.float-bits.to) and `total_cmp` need |
 | `f32_to_bits`, `f32_from_bits` | `(value: f32) -> u32`, `(bits: u32) -> f32` | the same bit cast for `f32` |
 | `list_truncate` | `[T](items: &mut List[T], len: usize) -> void` | shortens the list `items` refers to, to its first `len` elements, the one hook under `List.pop`, `insert`, `remove_at`, `clear` and `StringBuilder.reserve`; panics when `len` is greater than the size. Panic: `index-out-of-bounds` |
+| `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void` | appends `other`'s elements to the list `items` refers to with one capacity check and one copy of all of them, where `push` in a loop checks and may grow once per element; `List.extend` is this call. `other` may be the list itself |
 
 **Scans.** These search the bytes of a string or a byte list. Each has an hd reference body
 that defines its result, and an implementation may supply a faster body

@@ -5034,3 +5034,4 @@ runtime/valid/impl-trait-nested-sibling-conversion.hd	runtime	accept	lang/07-fun
 runtime/valid/impl-trait-nested-local-hidden-type.hd	runtime	accept	lang/04-type-system.md#r-types.opaque.representation
 typing/invalid/impl-trait-no-final-join.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.opaque.occurrence-no-join
 runtime/valid/impl-trait-nested-concrete-constructor-conversions.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.occurrence-no-join
+runtime/valid/std-list-extend-counted.hd	runtime	accept	std/collections.md#r-std-collections.access.extend

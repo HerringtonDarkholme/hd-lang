@@ -972,6 +972,51 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// std's changes of a list through a reference: `list_truncate(items:
+    /// &mut List[T], n)` and `list_extend(items, other)`. The list is read
+    /// through its reference, changed by its helper, and its buffer
+    /// stored back. The other argument is lent: the helper keeps no count
+    /// of it.
+    pub(super) fn list_ref_change(&mut self, key: &str, args: &[u32]) -> StageResult<()> {
+        let Some((lt, false)) = self.ref_target(self.ty_of(args[0])) else {
+            return unsupported("a list change through a value that is no reference");
+        };
+        let (_, elem) = self.elem(lt)?;
+        let helper = match key {
+            "list_truncate" => Helper::ListTruncate { elem },
+            _ => Helper::ListExtend { elem },
+        };
+        let at = self.f.local(Val::I32);
+        self.comp(args[0], 0)?;
+        self.f.set(at);
+        // A field reference may be a representation view: its getter's
+        // copy, which the change's unique copy replaces, and the new
+        // buffer stored back by its setter.
+        self.f.get(at);
+        self.f.helper(Helper::RefIsView);
+        self.f.op(I::If(BlockType::Empty));
+        let value = self.ref_layout(lt)?;
+        let [list] = crate::rt::ref_load(&mut self.f, at, &value)[..] else {
+            return unsupported("a list that is not one address");
+        };
+        self.f.get(list);
+        self.push(args[1])?;
+        self.f.helper(helper.clone());
+        self.f.set(list);
+        crate::rt::ref_store(&mut self.f, at, &[list], &value);
+        self.f.get(list);
+        self.f.helper(Helper::ReleaseRef);
+        self.f.op(I::Else);
+        self.f.get(at);
+        self.f.get(at);
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.push(args[1])?;
+        self.f.helper(helper);
+        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+        self.f.op(I::End);
+        Ok(())
+    }
+
     /// `SnapBegin`: the list a counted `for` iterates, a copy of the
     /// collection, so that a change during the loop copies its buffer
     /// first (`flow.for.snapshot`).

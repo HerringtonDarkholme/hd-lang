@@ -2635,43 +2635,8 @@ impl Em<'_, '_, '_> {
                 self.f.call(out);
                 Ok(())
             }
-            // std's `list_truncate(list: &mut List[T], n)`: the list read
-            // through its reference, truncated, and its buffer stored back.
-            "list_truncate" => {
-                let Some((lt, false)) = self.ref_target(self.ty_of(args[0])) else {
-                    return unsupported("`list_truncate` of a value that is no reference");
-                };
-                let (_, e) = self.elem(lt)?;
-                let at = self.f.local(Val::I32);
-                self.comp(args[0], 0)?;
-                self.f.set(at);
-                // A field reference may be a representation view: its
-                // getter's copy, which the truncation's unique copy
-                // replaces, and the new buffer stored back by its setter.
-                self.f.get(at);
-                self.f.helper(Helper::RefIsView);
-                self.f.op(I::If(BlockType::Empty));
-                let value = self.ref_layout(lt)?;
-                let [list] = crate::rt::ref_load(&mut self.f, at, &value)[..] else {
-                    return unsupported("a list that is not one address");
-                };
-                self.f.get(list);
-                self.push(args[1])?;
-                self.f.helper(Helper::ListTruncate { elem: e.clone() });
-                self.f.set(list);
-                crate::rt::ref_store(&mut self.f, at, &[list], &value);
-                self.f.get(list);
-                self.f.helper(Helper::ReleaseRef);
-                self.f.op(I::Else);
-                self.f.get(at);
-                self.f.get(at);
-                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-                self.push(args[1])?;
-                self.f.helper(Helper::ListTruncate { elem: e });
-                self.f.op(I::I32Store(mem(HEAP, 0, 2)));
-                self.f.op(I::End);
-                Ok(())
-            }
+            // std's list changes through a reference (`emit/list.rs`).
+            "list_truncate" | "list_extend" => self.list_ref_change(key, args),
             // std's map cursor step closure (`emit/iter.rs`).
             "map_steps" => self.map_iter(i, args[0]),
             "bytes_len" => {

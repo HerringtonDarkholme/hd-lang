@@ -14,7 +14,8 @@ use std.format.DebugWriter
 impl[T] List[T]:
     # `push` is a language-tier intrinsic method of the checker
     # (spec/lang/10-modules.md#built-in-methods). The other mutators are
-    # plain hd over it and `list_truncate`, the one shrinking primitive.
+    # plain hd over it, `list_truncate`, the one shrinking primitive, and
+    # `list_extend`, the one bulk append.
     # Removes the last item, or gives `.None` for an empty list
     # (module.method.list-pop).
     ## Removes and returns the last item, or `.None` for an empty list.
@@ -117,11 +118,7 @@ impl[T] List[T]:
     ## Appends each element of `other` to the list, in order, as `push` does.
     ## See [std-collections.access.extend](../../spec/std/collections.md#r-std-collections.access.extend).
     pub fn extend(&mut self, other: List[T]) -> void:
-        size := other.len()
-        let index: usize = 0
-        while index < size:
-            self.push(other[index])
-            index = index + 1
+        list_extend(self, other)
 
     ## Returns the first element in `.Some`, or `.None` for an empty list.
     ## See [std-collections.access.first-last](../../spec/std/collections.md#r-std-collections.access.first-last).
@@ -950,6 +947,12 @@ impl[T < Ord & Debug] Debug for Heap[T]:
 # every caller in this file checks.
 @intrinsic("list_truncate")
 fn list_truncate[T](items: &mut List[T], len: usize) -> void:
+    panic("intrinsic")
+
+# Appends `other`'s elements to `items` in one copy, each taking its own
+# counts; `other` may be the list `items` refers to.
+@intrinsic("list_extend")
+fn list_extend[T](items: &mut List[T], other: List[T]) -> void:
     panic("intrinsic")
 
 # The checked runtime panic of `category`, such as `index-out-of-bounds`,

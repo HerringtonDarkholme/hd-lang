@@ -1,0 +1,96 @@
+# test: extend appends counted elements with their own counts in order, by itself doubles, copies a shared receiver first, and appends nothing without a pin panic
+# std Collections, List Access And Building: std-collections.access.extend, std-collections.access.extend.self, std-collections.value.own-copy, std-collections.value.pinned-length.
+@derive(Eq, Debug)
+struct Bag:
+    name: string
+    items: List[i32]
+
+struct Holder:
+    words: List[string]
+
+fn grow(words: &mut List[string], more: List[string]) -> void:
+    words.extend(more)
+
+# Extending by nothing keeps the length, so the pin of `first` allows it.
+fn nothing_more(list: &mut List[string], first: &string) -> string:
+    list.extend([])
+    *first
+
+fn through(list: &mut List[string]) -> string:
+    nothing_more(list, &list[0])
+
+tests:
+    use std.testing.assert_equal
+
+    it("strings extend and keep their sources"):
+        let mut words = ["a", "b"]
+        more := ["c" + "d", "e"]
+        words.extend(more)
+        assert_equal(words, ["a", "b", "cd", "e"], reason="appended in order")
+        assert_equal(more, ["cd", "e"], reason="the source is unchanged")
+
+    it("a counted list extended by itself doubles"):
+        let mut words = ["x" + "y", "z"]
+        words.extend(words)
+        assert_equal(words, ["xy", "z", "xy", "z"], reason="the elements before the call")
+        words.extend(words)
+        assert_equal(words.len(), 8, reason="doubles again")
+
+    it("a shared receiver is copied first"):
+        first := ["p", "q"]
+        let mut second = first
+        second.extend(["r"])
+        assert_equal(first, ["p", "q"], reason="the other copy keeps its elements")
+        assert_equal(second, ["p", "q", "r"], reason="the receiver changed")
+
+    it("a shared list extended by itself"):
+        let mut first = ["p" + "1", "q"]
+        keep := first
+        first.extend(first)
+        assert_equal(first, ["p1", "q", "p1", "q"], reason="doubled")
+        assert_equal(keep, ["p1", "q"], reason="the copy is unchanged")
+
+    it("empty lists"):
+        let mut items: List[string] = []
+        items.extend([])
+        assert_equal(items.len(), 0, reason="nothing appended")
+        items.extend(["a"])
+        assert_equal(items, ["a"], reason="into an empty list")
+        items.extend([])
+        assert_equal(items, ["a"], reason="nothing appended to a non-empty list")
+
+    it("structs holding lists copy their lists"):
+        let mut bags = [Bag { name: "one", items: [+1] }]
+        others := [Bag { name: "two", items: [+2] }]
+        bags.extend(others)
+        bags[1].items.push(3)
+        assert_equal(others[0].items, [+2], reason="the source's nested list is unchanged")
+        assert_equal(bags[1].items, [+2, 3], reason="the copy changed")
+        bags.extend(bags)
+        bags[2].items.push(9)
+        assert_equal(bags[0].items, [+1], reason="the self copy is independent")
+        assert_equal(bags.len(), 4, reason="doubled")
+
+    it("through a reference, a map value and a field"):
+        let mut words = ["a"]
+        grow(&mut words, ["b", "c"])
+        assert_equal(words, ["a", "b", "c"], reason="through &mut")
+        let mut groups: Map[string, List[i32]] = {"k": [+1]}
+        groups["k"].extend([+2, 3])
+        assert_equal(groups["k"], [+1, 2, 3], reason="where it is stored")
+        holder := &mut Holder { words: ["h"] }
+        holder.words.extend(["i"])
+        assert_equal(holder.words, ["h", "i"], reason="a field through a reference")
+
+    it("many appends grow the buffer"):
+        let mut all: List[i32] = []
+        let round = +0
+        while round < 100:
+            all.extend([round, round + 1, round + 2])
+            round += 1
+        assert_equal(all.len(), 300, reason="every element kept")
+        assert_equal(all[299], 101, reason="the last one")
+
+    it("extending a pinned list by nothing does not panic"):
+        let mut words = ["w"]
+        assert_equal(through(&mut words), "w", reason="the length is unchanged")

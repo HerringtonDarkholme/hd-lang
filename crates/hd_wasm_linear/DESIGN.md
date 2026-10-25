@@ -750,6 +750,19 @@ changes preserve collection value semantics (§23.7).
   the old block without releasing its elements, which moved. Either
   stores the new buffer into the place the change names. A store counts
   the new element before it releases the old one.
+- **Bulk appends.** std's `list_extend(items: &mut List[T], other)`
+  (`List.extend`) reads the list through its reference, as
+  `list_truncate` does, and stores the buffer back. `rt:list_extend`
+  reads `other`'s length first, then makes room once
+  (`rt:list_reserve`): a pinned list panics; a shared buffer, or one
+  without room, is replaced by one new buffer of the needed length or
+  twice the length plus 4, whichever is more (a shared one with room
+  keeps its capacity); the shared one's elements take their own counts,
+  the list's own moves with its owner word. One `memory.copy` appends
+  `other`'s elements, which take their own counts (`rt:copy_elems`).
+  `other` is lent, so it may be the list's own buffer itself
+  (`items.extend(items)`): the copy then reads from wherever the reserve
+  put that buffer, up to the length read first.
 - **Release.** A buffer's release glue (`rt:drop_elems`) releases each element's counted references up to the
   length. A list of strings or of structs holding lists frees everything
   at its last release.
