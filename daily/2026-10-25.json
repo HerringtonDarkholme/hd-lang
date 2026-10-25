@@ -1,0 +1,1034 @@
+{
+  "hd": "target/release/hd",
+  "commit": "5b66837062f523b5debda0409af557ec6dcadafc",
+  "finished": "2026-10-25T12:05:45.747Z",
+  "results": [
+    {
+      "metric": "edit-latency",
+      "name": "p50 check after an edit",
+      "value": "-",
+      "target": "≤ 50 ms",
+      "status": "fail",
+      "note": "the warm-up check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "edit-latency",
+      "name": "p95 check after an edit",
+      "value": "-",
+      "target": "≤ 200 ms",
+      "status": "fail",
+      "note": "the warm-up check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "cold-check",
+      "name": "median cold check, 10k lines",
+      "value": "-",
+      "target": "≤ 1000 ms",
+      "status": "fail",
+      "note": "cold check 1 exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "test-latency",
+      "name": "median edit-then-test",
+      "value": "-",
+      "target": "≤ 300 ms",
+      "status": "fail",
+      "note": "the warm-up test exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "mistakes",
+      "name": "programs with exactly one diagnostic",
+      "value": "87.5%",
+      "target": "≥ 95.0%",
+      "status": "fail",
+      "note": "63 of 72"
+    },
+    {
+      "metric": "mistakes",
+      "name": "one diagnostic with the expected code",
+      "value": "66.7%",
+      "target": "≥ 95.0%",
+      "status": "fail",
+      "note": "48 of 72; first misses: assert-without-import, bang-call-in-plain-fn, comma-row-separator, data-call-syntax, debug-as-statement, length-as-i32, let-mut-on-readonly-type, let-mut-primitive"
+    },
+    {
+      "metric": "mistakes",
+      "name": "fix-it makes hd check pass",
+      "value": "26.4%",
+      "target": "≥ 80.0%",
+      "status": "fail",
+      "note": "19 of 72 resolved; 19 offered a fix-it"
+    },
+    {
+      "metric": "mistakes",
+      "name": "largest diagnostic text (bytes / 4)",
+      "value": "91 tokens",
+      "target": "≤ 60 tokens",
+      "status": "fail",
+      "note": "largest: some-on-result; median 40 tokens, 159 B; 67 of 72 within"
+    },
+    {
+      "metric": "answer-size",
+      "name": "hd doc of a data type",
+      "value": "-",
+      "target": "≤ 1000 B",
+      "status": "fail",
+      "note": "hd doc failed: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "answer-size",
+      "name": "one failing hd test, text",
+      "value": "75 B",
+      "target": "≤ 800 B",
+      "status": "pass"
+    },
+    {
+      "metric": "answer-size",
+      "name": "one failing test, JSON object",
+      "value": "-",
+      "target": "≤ 400 B",
+      "status": "fail",
+      "note": "no failed test object"
+    },
+    {
+      "metric": "answer-size",
+      "name": "one diagnostic, JSON object",
+      "value": "168 B",
+      "target": "≤ 600 B",
+      "status": "pass"
+    },
+    {
+      "metric": "determinism",
+      "name": "inputs with byte-identical output",
+      "value": "8 of 8",
+      "target": "all identical",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "overlapping-from: time at 4x",
+      "value": "-",
+      "target": "≤ 2000 ms",
+      "status": "fail",
+      "note": "1x: hd check failed: error: overlapping_from.hd:3:1: syntax-error: expected an expression, found 'data' | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "overlapping-from: peak RSS at 4x",
+      "value": "-",
+      "target": "≤ 200.0 MB",
+      "status": "fail",
+      "note": "1x: hd check failed: error: overlapping_from.hd:3:1: syntax-error: expected an expression, found 'data' | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "overlapping-from: growth exponent",
+      "value": "-",
+      "target": "≤ 1.3",
+      "status": "fail",
+      "note": "1x: hd check failed: error: overlapping_from.hd:3:1: syntax-error: expected an expression, found 'data' | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-blocks: time at 4x",
+      "value": "-",
+      "target": "≤ 2000 ms",
+      "status": "fail",
+      "note": "4x: hd check failed: error: deep_blocks.hd:161:324: nesting-too-deep: source nests deeper than the implementation limit | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-blocks: peak RSS at 4x",
+      "value": "-",
+      "target": "≤ 200.0 MB",
+      "status": "fail",
+      "note": "4x: hd check failed: error: deep_blocks.hd:161:324: nesting-too-deep: source nests deeper than the implementation limit | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-blocks: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "1x→2x; 14 → 14 ms, start-up 14 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-parens: time at 4x",
+      "value": "-",
+      "target": "≤ 2000 ms",
+      "status": "fail",
+      "note": "1x: hd check failed: error: deep_parens.hd:2:164: nesting-too-deep: source nests deeper than the implementation limit | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-parens: peak RSS at 4x",
+      "value": "-",
+      "target": "≤ 200.0 MB",
+      "status": "fail",
+      "note": "1x: hd check failed: error: deep_parens.hd:2:164: nesting-too-deep: source nests deeper than the implementation limit | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-parens: growth exponent",
+      "value": "-",
+      "target": "≤ 1.3",
+      "status": "fail",
+      "note": "1x: hd check failed: error: deep_parens.hd:2:164: nesting-too-deep: source nests deeper than the implementation limit | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "method-chain: time at 4x",
+      "value": "-",
+      "target": "≤ 2000 ms",
+      "status": "fail",
+      "note": "4x: hd check failed: thread '<unknown>' (5974) has overflowed its stack | fatal runtime error: stack overflow, aborting"
+    },
+    {
+      "metric": "pathological",
+      "name": "method-chain: peak RSS at 4x",
+      "value": "-",
+      "target": "≤ 200.0 MB",
+      "status": "fail",
+      "note": "4x: hd check failed: thread '<unknown>' (5974) has overflowed its stack | fatal runtime error: stack overflow, aborting"
+    },
+    {
+      "metric": "pathological",
+      "name": "method-chain: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "1x→2x; 15 → 16 ms, start-up 14 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "iterator-chain: time at 4x",
+      "value": "-",
+      "target": "≤ 2000 ms",
+      "status": "fail",
+      "note": "2x: hd check failed: error: iterator_chain.hd:2:5: unsupported: stage Body: solver answer Overflow to a method lookup is not supported | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "iterator-chain: peak RSS at 4x",
+      "value": "-",
+      "target": "≤ 200.0 MB",
+      "status": "fail",
+      "note": "2x: hd check failed: error: iterator_chain.hd:2:5: unsupported: stage Body: solver answer Overflow to a method lookup is not supported | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "iterator-chain: growth exponent",
+      "value": "-",
+      "target": "≤ 1.3",
+      "status": "fail",
+      "note": "2x: hd check failed: error: iterator_chain.hd:2:5: unsupported: stage Body: solver answer Overflow to a method lookup is not supported | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "wide-list-literal: time at 4x",
+      "value": "45 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "wide-list-literal: peak RSS at 4x",
+      "value": "19.4 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "wide-list-literal: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 28 → 45 ms, start-up 14 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "large-enum-match: time at 4x",
+      "value": "374 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "large-enum-match: peak RSS at 4x",
+      "value": "18.4 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "large-enum-match: growth exponent",
+      "value": "2.26",
+      "target": "≤ 1.30",
+      "status": "fail",
+      "note": "2x→4x; 89 → 374 ms, start-up 14 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-generic: time at 4x",
+      "value": "-",
+      "target": "≤ 2000 ms",
+      "status": "fail",
+      "note": "1x: hd check failed: error: deep_generic.hd:1:1: syntax-error: expected an expression, found 'data' | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-generic: peak RSS at 4x",
+      "value": "-",
+      "target": "≤ 200.0 MB",
+      "status": "fail",
+      "note": "1x: hd check failed: error: deep_generic.hd:1:1: syntax-error: expected an expression, found 'data' | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-generic: growth exponent",
+      "value": "-",
+      "target": "≤ 1.3",
+      "status": "fail",
+      "note": "1x: hd check failed: error: deep_generic.hd:1:1: syntax-error: expected an expression, found 'data' | check result: FAILED. errors: 1; warnings: 0"
+    },
+    {
+      "metric": "pathological",
+      "name": "question-chain: time at 4x",
+      "value": "21 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "question-chain: peak RSS at 4x",
+      "value": "18.4 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "question-chain: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 17 → 21 ms, start-up 14 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "big-file: time at 4x",
+      "value": "132 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "big-file: peak RSS at 4x",
+      "value": "50.7 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "big-file: growth exponent",
+      "value": "1.07",
+      "target": "≤ 1.30",
+      "status": "pass",
+      "note": "2x→4x; 70 → 132 ms, start-up 14 ms"
+    },
+    {
+      "metric": "recheck-precision",
+      "name": "modules rechecked, private body edit",
+      "value": "-",
+      "target": "≤ 1",
+      "status": "fail",
+      "note": "the warm-up check exited 101: {\"kind\":\"diagnostic\",\"code\":\"syntax-error\",\"severity\":\"error\",\"message\":\"expected a declaration, found 'data'\",\"file\":\"src/m000.hd\",\"line\":5,\"column\":5,\"fixes\":[]} | {\"kind\":\"diagnostic\",\"code\":\"syntax-error\",\"severity\":\"error\",\"message\":\"expected a declaration, found 'data'\",\"file\":\"src/m001.hd\",\"l"
+    },
+    {
+      "metric": "recheck-precision",
+      "name": "modules rechecked, public signature edit",
+      "value": "-",
+      "target": "≤ 1 + dependents",
+      "status": "fail",
+      "note": "the warm-up check exited 101: {\"kind\":\"diagnostic\",\"code\":\"syntax-error\",\"severity\":\"error\",\"message\":\"expected a declaration, found 'data'\",\"file\":\"src/m000.hd\",\"line\":5,\"column\":5,\"fixes\":[]} | {\"kind\":\"diagnostic\",\"code\":\"syntax-error\",\"severity\":\"error\",\"message\":\"expected a declaration, found 'data'\",\"file\":\"src/m001.hd\",\"l"
+    },
+    {
+      "metric": "errors-per-run",
+      "name": "semantic: 10 mistakes reported once",
+      "value": "10 of 10",
+      "target": "all, once",
+      "status": "pass",
+      "note": "0 reported twice or more; 0 on other lines"
+    },
+    {
+      "metric": "errors-per-run",
+      "name": "mixed: 10 mistakes reported once",
+      "value": "2 of 10",
+      "target": "all, once",
+      "status": "fail",
+      "note": "0 reported twice or more; 0 on other lines"
+    },
+    {
+      "metric": "diag-location",
+      "name": "diagnostics on the mistake's line",
+      "value": "76.4%",
+      "target": "≥ 95.0%",
+      "status": "fail",
+      "note": "55 of 72; misses: assert-without-import@none, bang-call-in-plain-fn@8, data-call-syntax@6, debug-as-statement@6, length-as-i32@6, let-mut-on-readonly-type@none"
+    },
+    {
+      "metric": "fixit-safety",
+      "name": "fix-its that add no error",
+      "value": "100.0%",
+      "target": "≥ 100.0%",
+      "status": "pass",
+      "note": "19 of 19 safe"
+    },
+    {
+      "metric": "lookup-latency",
+      "name": "p95 hd callers",
+      "value": "-",
+      "target": "≤ 100 ms",
+      "status": "n/a",
+      "note": "not supported by this hd: no hd callers"
+    },
+    {
+      "metric": "lookup-latency",
+      "name": "p95 hd needs",
+      "value": "-",
+      "target": "≤ 100 ms",
+      "status": "n/a",
+      "note": "not supported by this hd: no hd needs"
+    },
+    {
+      "metric": "fmt",
+      "name": "hd fmt, 10k lines",
+      "value": "-",
+      "target": "≤ 200 ms",
+      "status": "fail",
+      "note": "hd fmt exited 101: error: src/m000.hd:5:5: syntax-error: the file does not parse, so `hd fmt` leaves it as it is | error: src/m001.hd:6:5: syntax-error: the file does not parse, so `hd fmt` leaves it as it is"
+    },
+    {
+      "metric": "fmt",
+      "name": "second hd fmt changes nothing",
+      "value": "-",
+      "target": "idempotent",
+      "status": "fail",
+      "note": "hd fmt exited 101: error: src/m000.hd:5:5: syntax-error: the file does not parse, so `hd fmt` leaves it as it is | error: src/m001.hd:6:5: syntax-error: the file does not parse, so `hd fmt` leaves it as it is"
+    },
+    {
+      "metric": "check-cost",
+      "name": "checked run time / unchecked run time",
+      "value": "-",
+      "target": "≤ 1.30x",
+      "status": "fail",
+      "note": "hd test --release (100 rounds) exited 101: error: src/main.hd:4:17: mut-on-struct: List[i64] has no `mut` form | error: src/main.hd:6:9: not-writable: this call changes `values` in place, but `values` is not `let mut`; bind it with `let mut`"
+    },
+    {
+      "metric": "dev-speed",
+      "name": "geomean dev / optimized",
+      "value": "-",
+      "target": "≤ 4.00x",
+      "status": "fail",
+      "note": "optimized work is within noise: fib (2.2 ms), sum (19.4 ms), string-build (23.2 ms), map (13.8 ms), sort (29.9 ms)"
+    },
+    {
+      "metric": "dev-speed",
+      "name": "worst case dev / optimized",
+      "value": "-",
+      "target": "≤ 10.00x",
+      "status": "fail",
+      "note": "optimized work is within noise: fib (2.2 ms), sum (19.4 ms), string-build (23.2 ms), map (13.8 ms), sort (29.9 ms)"
+    },
+    {
+      "metric": "resources",
+      "name": "warm check, 10k lines: CPU time",
+      "value": "-",
+      "target": "≤ 200 ms",
+      "status": "fail",
+      "note": "the cold run failed: cold hd check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "resources",
+      "name": "warm check, 10k lines: peak RSS",
+      "value": "-",
+      "target": "≤ 50.0 MB",
+      "status": "fail",
+      "note": "the cold run failed: cold hd check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "resources",
+      "name": "check, small, cold",
+      "value": "-",
+      "target": "completes ≤ 30 s",
+      "status": "fail",
+      "note": "cold hd check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "resources",
+      "name": "check, small, warm",
+      "value": "-",
+      "target": "completes ≤ 30 s",
+      "status": "fail",
+      "note": "skipped: the cold run failed"
+    },
+    {
+      "metric": "resources",
+      "name": "test, small, cold",
+      "value": "-",
+      "target": "completes ≤ 30 s",
+      "status": "fail",
+      "note": "cold hd test exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "resources",
+      "name": "test, small, warm",
+      "value": "-",
+      "target": "completes ≤ 30 s",
+      "status": "fail",
+      "note": "skipped: the cold run failed"
+    },
+    {
+      "metric": "resources",
+      "name": "build, small, cold",
+      "value": "-",
+      "target": "completes ≤ 30 s",
+      "status": "fail",
+      "note": "cold hd build exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "resources",
+      "name": "build, small, warm",
+      "value": "-",
+      "target": "completes ≤ 30 s",
+      "status": "fail",
+      "note": "skipped: the cold run failed"
+    },
+    {
+      "metric": "resources",
+      "name": "check, 10k, cold",
+      "value": "-",
+      "target": "completes ≤ 30 s",
+      "status": "fail",
+      "note": "cold hd check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "resources",
+      "name": "check, 10k, warm",
+      "value": "-",
+      "target": "completes ≤ 30 s",
+      "status": "fail",
+      "note": "skipped: the cold run failed"
+    },
+    {
+      "metric": "resources",
+      "name": "test, 10k, cold",
+      "value": "-",
+      "target": "completes ≤ 30 s",
+      "status": "fail",
+      "note": "cold hd test exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "resources",
+      "name": "test, 10k, warm",
+      "value": "-",
+      "target": "completes ≤ 30 s",
+      "status": "fail",
+      "note": "skipped: the cold run failed"
+    },
+    {
+      "metric": "resources",
+      "name": "build, 10k, cold",
+      "value": "-",
+      "target": "completes ≤ 30 s",
+      "status": "fail",
+      "note": "cold hd build exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "resources",
+      "name": "build, 10k, warm",
+      "value": "-",
+      "target": "completes ≤ 30 s",
+      "status": "fail",
+      "note": "skipped: the cold run failed"
+    },
+    {
+      "metric": "resources",
+      "name": "check, 50k, cold",
+      "value": "-",
+      "target": "completes ≤ 150 s",
+      "status": "fail",
+      "note": "cold hd check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "resources",
+      "name": "check, 50k, warm",
+      "value": "-",
+      "target": "completes ≤ 150 s",
+      "status": "fail",
+      "note": "skipped: the cold run failed"
+    },
+    {
+      "metric": "resources",
+      "name": "test, 50k, cold",
+      "value": "-",
+      "target": "completes ≤ 150 s",
+      "status": "fail",
+      "note": "cold hd test exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "resources",
+      "name": "test, 50k, warm",
+      "value": "-",
+      "target": "completes ≤ 150 s",
+      "status": "fail",
+      "note": "skipped: the cold run failed"
+    },
+    {
+      "metric": "resources",
+      "name": "build, 50k, cold",
+      "value": "-",
+      "target": "completes ≤ 150 s",
+      "status": "fail",
+      "note": "cold hd build exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "resources",
+      "name": "build, 50k, warm",
+      "value": "-",
+      "target": "completes ≤ 150 s",
+      "status": "fail",
+      "note": "skipped: the cold run failed"
+    },
+    {
+      "metric": "long-session",
+      "name": "RSS growth, REPL inputs 100 to 1000",
+      "value": "371.1 MB",
+      "target": "≤ 22.0 MB",
+      "status": "fail",
+      "note": "RSS 142.0 MB at input 100, 513.1 MB at input 1000; build per input 42 ms at 50, 552 ms at 1000; 4 KiB pages"
+    },
+    {
+      "metric": "startup",
+      "name": "hd help (no version command): wall time",
+      "value": "2.7 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd help (no version command): CPU time",
+      "value": "0.0 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd help (no version command): peak RSS",
+      "value": "3.6 MB",
+      "target": "≤ 10.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd check empty.hd: wall time",
+      "value": "10 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd check empty.hd: CPU time",
+      "value": "0.0 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd check empty.hd: peak RSS",
+      "value": "12.5 MB",
+      "target": "≤ 10.0 MB",
+      "status": "fail"
+    },
+    {
+      "metric": "concurrency",
+      "name": "p95 latency at N = 4 vs N = 1",
+      "value": "-",
+      "target": "≤ 1.50x",
+      "status": "fail",
+      "note": "check 1 of 1 exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "concurrency",
+      "name": "p95 latency at N = 16 vs N = 1",
+      "value": "-",
+      "target": "≤ 6.00x",
+      "status": "fail",
+      "note": "check 1 of 1 exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "concurrency",
+      "name": "total CPU growth exponent, N = 1 to 16",
+      "value": "-",
+      "target": "< 1.00",
+      "status": "fail",
+      "note": "check 1 of 1 exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "disk",
+      "name": "artifacts plus toolchain per worktree",
+      "value": "-",
+      "target": "≤ 10.0 MB",
+      "status": "fail",
+      "note": "hd check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "parallel-speedup",
+      "name": "speedup, 50k lines, 4 threads vs 1",
+      "value": "-",
+      "target": "≥ 2.40x",
+      "status": "fail",
+      "note": "the 1-thread check of 50k exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "cache-contention",
+      "name": "dependency cache, 8 concurrent fetches: no corruption",
+      "value": "intact",
+      "target": "no corruption",
+      "status": "pass"
+    },
+    {
+      "metric": "cache-contention",
+      "name": "dependency cache, 8 concurrent fetches: fetched once",
+      "value": "16",
+      "target": "≤ 2, one check's connections",
+      "status": "fail",
+      "note": "connections to the remote"
+    },
+    {
+      "metric": "cache-contention",
+      "name": "compilation cache, 8 concurrent checks: no corruption",
+      "value": "-",
+      "target": "no corruption",
+      "status": "fail",
+      "note": "the cache probe's hd check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "cache-contention",
+      "name": "compilation cache, 8 concurrent checks: written once",
+      "value": "-",
+      "target": "computed once",
+      "status": "fail",
+      "note": "the cache probe's hd check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "cache-growth",
+      "name": "cache size after 100 edits, cap 5 MB",
+      "value": "-",
+      "target": "≤ 5.0 MB",
+      "status": "fail",
+      "note": "the cache probe's hd check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "io-per-check",
+      "name": "source files read, warm check after one edit",
+      "value": "-",
+      "target": "≤ 1",
+      "status": "fail",
+      "note": "the cache probe's hd check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "fetch-dedup",
+      "name": "connections to the remote, 4 worktrees",
+      "value": "2",
+      "target": "= the first worktree's",
+      "status": "pass",
+      "note": "the first worktree's: 2"
+    },
+    {
+      "metric": "proptest-perf",
+      "name": "property cases per second",
+      "value": "-",
+      "target": "≥ 100k/s",
+      "status": "fail",
+      "note": "the property suite (package 1, hd test --seed 7) exited 101: error: src/lib.hd:4:1: syntax-error: expected a declaration, found 'data' | error: src/lib.hd:16:1: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "proptest-perf",
+      "name": "time to shrink a known failure",
+      "value": "0.0 ms",
+      "target": "≤ 1000 ms",
+      "status": "pass",
+      "note": "shrink=500 minus shrink=0, median of 3; the failure did not name the property"
+    },
+    {
+      "metric": "unit-test-perf",
+      "name": "1,000 unit tests, warm",
+      "value": "848 ms",
+      "target": "≤ 1000 ms",
+      "status": "pass",
+      "note": "the run reports 1000 of 1000 passed"
+    },
+    {
+      "metric": "unit-test-perf",
+      "name": "overhead per unit test",
+      "value": "0.7 ms",
+      "target": "≤ 1.0 ms",
+      "status": "pass",
+      "note": "100 tests: 184 ms"
+    },
+    {
+      "metric": "integration-test-perf",
+      "name": "setup per integration test program",
+      "value": "-",
+      "target": "≤ 20 ms",
+      "status": "fail",
+      "note": "the integration tests (package 2, hd test) exited 101: error: tests/export0.hd:6:1: missing-capability: test `program 0 writes and reads export 0` requires `FsRead`, but neither `[capabilities]` nor `[dev-capabilities]` in hd.toml lists it |     fix: list the missing capabilities in hd.toml"
+    },
+    {
+      "metric": "integration-test-perf",
+      "name": "total time growth in programs",
+      "value": "-",
+      "target": "exponent < 1 (sublinear)",
+      "status": "fail",
+      "note": "the integration tests (package 2, hd test) exited 101: error: tests/export0.hd:6:1: missing-capability: test `program 0 writes and reads export 0` requires `FsRead`, but neither `[capabilities]` nor `[dev-capabilities]` in hd.toml lists it |     fix: list the missing capabilities in hd.toml"
+    },
+    {
+      "metric": "integration-test-perf",
+      "name": "cost per doc test",
+      "value": "90 ms",
+      "target": "≤ 20 ms",
+      "status": "fail",
+      "note": "10 doc tests: 990 ms; the run reports 11 of 11 passed"
+    },
+    {
+      "metric": "runtime",
+      "name": "geomean hd / Node",
+      "value": "2.46x",
+      "target": "≤ 1.50x",
+      "status": "fail",
+      "note": "5 cases"
+    },
+    {
+      "metric": "runtime",
+      "name": "fib: hd / Node",
+      "value": "2.23x",
+      "target": "≤ 3.00x",
+      "status": "pass",
+      "note": "hd 19 ms (p10 -1.3, p90 27), Node 8.5 ms, Python 89 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "runtime",
+      "name": "sum: hd / Node",
+      "value": "2.93x",
+      "target": "≤ 3.00x",
+      "status": "pass",
+      "note": "hd 24 ms (p10 21, p90 26), Node 8.2 ms, Python 275 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "runtime",
+      "name": "string-build: hd / Node",
+      "value": "3.06x",
+      "target": "≤ 3.00x",
+      "status": "fail",
+      "note": "hd 27 ms (p10 22, p90 32), Node 8.9 ms, Python 12 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "runtime",
+      "name": "map: hd / Node",
+      "value": "3.00x",
+      "target": "≤ 3.00x",
+      "status": "fail",
+      "note": "hd 24 ms (p10 22, p90 28), Node 8.1 ms, Python 14 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "runtime",
+      "name": "sort: hd / Node",
+      "value": "1.52x",
+      "target": "≤ 3.00x",
+      "status": "pass",
+      "note": "hd 29 ms (p10 22, p90 36), Node 19 ms, Python 17 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "allocations",
+      "name": "counted loop, bytes per iteration",
+      "value": "-",
+      "target": "0 allocations (< 1 B/iter)",
+      "status": "fail",
+      "note": "hd build --release (alloc-0-small) exited 101: error: src/main.hd:1:23: missing-capability: `main` requires `Console` in `$ Console`, but `[capabilities]` in hd.toml does not list it |     fix: list the missing capabilities in hd.toml"
+    },
+    {
+      "metric": "allocations",
+      "name": "list loop, bytes per iteration",
+      "value": "-",
+      "target": "0 allocations (< 1 B/iter)",
+      "status": "fail",
+      "note": "hd build --release (alloc-1-small) exited 101: error: src/main.hd:1:23: missing-capability: `main` requires `Console` in `$ Console`, but `[capabilities]` in hd.toml does not list it |     fix: list the missing capabilities in hd.toml"
+    },
+    {
+      "metric": "allocations",
+      "name": "map loop, bytes per iteration",
+      "value": "-",
+      "target": "0 allocations (< 1 B/iter)",
+      "status": "fail",
+      "note": "hd build --release (alloc-2-small) exited 101: error: src/main.hd:1:23: missing-capability: `main` requires `Console` in `$ Console`, but `[capabilities]` in hd.toml does not list it |     fix: list the missing capabilities in hd.toml"
+    },
+    {
+      "metric": "allocations",
+      "name": "iterator chain, bytes per iteration",
+      "value": "-",
+      "target": "≤ 1 allocation (≤ 32 B/iter)",
+      "status": "fail",
+      "note": "hd build --release (alloc-3-small) exited 101: error: src/main.hd:3:14: cannot-infer-type: a type argument here has no solution; write it explicitly or give an expected type"
+    },
+    {
+      "metric": "size-startup-heap",
+      "name": "tiny program, release Wasm size",
+      "value": "-",
+      "target": "≤ 2048 B",
+      "status": "fail",
+      "note": "hd build --release (tiny) exited 101: error: src/main.hd:1:23: missing-capability: `main` requires `Console` in `$ Console`, but `[capabilities]` in hd.toml does not list it |     fix: list the missing capabilities in hd.toml"
+    },
+    {
+      "metric": "host-call-overhead",
+      "name": "Console println, per call",
+      "value": "-",
+      "target": "≤ 1.0 µs",
+      "status": "fail",
+      "note": "hd build --release (host-0) exited 101: error: src/main.hd:4:24: missing-capability: `main` requires `Console` in `$ Console + FsRead`, but `[capabilities]` in hd.toml does not list it |     fix: list the missing capabilities in hd.toml"
+    },
+    {
+      "metric": "host-call-overhead",
+      "name": "Fs read_text!, per call",
+      "value": "-",
+      "target": "≤ 10 µs",
+      "status": "fail",
+      "note": "hd build --release (host-1) exited 101: error: src/main.hd:4:24: missing-capability: `main` requires `Console` in `$ Console + FsRead`, but `[capabilities]` in hd.toml does not list it |     fix: list the missing capabilities in hd.toml"
+    },
+    {
+      "metric": "host-call-overhead",
+      "name": "serde boundary (list_dir!), per call",
+      "value": "-",
+      "target": "≤ 5.0 µs",
+      "status": "fail",
+      "note": "hd build --release (host-2) exited 101: error: src/main.hd:4:24: missing-capability: `main` requires `Console` in `$ Console + FsRead`, but `[capabilities]` in hd.toml does not list it |     fix: list the missing capabilities in hd.toml"
+    },
+    {
+      "metric": "suspension-overhead",
+      "name": "await of a ready value, per await",
+      "value": "-",
+      "target": "≤ 100 ns",
+      "status": "fail",
+      "note": "hd build --release (suspend-empty) exited 101: error: src/main.hd:15:24: missing-capability: `main` requires `Console` in `$ Console`, but `[capabilities]` in hd.toml does not list it |     fix: list the missing capabilities in hd.toml"
+    },
+    {
+      "metric": "suspension-overhead",
+      "name": "all! of two ready tasks, throughput",
+      "value": "-",
+      "target": "≥ 1.0M/s",
+      "status": "fail",
+      "note": "hd build --release (suspend-empty) exited 101: error: src/main.hd:15:24: missing-capability: `main` requires `Console` in `$ Console`, but `[capabilities]` in hd.toml does not list it |     fix: list the missing capabilities in hd.toml"
+    },
+    {
+      "metric": "suspension-overhead",
+      "name": "race! of two ready tasks, throughput",
+      "value": "-",
+      "target": "≥ 1.0M/s",
+      "status": "fail",
+      "note": "hd build --release (suspend-empty) exited 101: error: src/main.hd:15:24: missing-capability: `main` requires `Console` in `$ Console`, but `[capabilities]` in hd.toml does not list it |     fix: list the missing capabilities in hd.toml"
+    },
+    {
+      "metric": "serde-throughput",
+      "name": "JSON encode, hd / Node MB/s",
+      "value": "-",
+      "target": "≥ 0.50x",
+      "status": "fail",
+      "note": "hd build --release (serde-encode-small) exited 101: error: src/main.hd:5:1: syntax-error: expected a declaration, found 'data' | error: src/main.hd:11:1: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "serde-throughput",
+      "name": "JSON decode, hd / Node MB/s",
+      "value": "-",
+      "target": "≥ 0.50x",
+      "status": "fail",
+      "note": "hd build --release (serde-decode-small) exited 101: error: src/main.hd:5:1: syntax-error: expected a declaration, found 'data' | error: src/main.hd:11:1: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "text-throughput",
+      "name": "string build, hd / Node MB/s",
+      "value": "-",
+      "target": "≥ 0.50x",
+      "status": "fail",
+      "note": "hd build --release (text-build-small) exited 101: warning: src/main.hd:8:9: unused-local-binding: `k` is never read; name it `_k` to keep it | error: src/main.hd:4:23: missing-capability: `main` requires `Console` in `$ Console`, but `[capabilities]` in hd.toml does not list it"
+    },
+    {
+      "metric": "text-throughput",
+      "name": "split, hd / Node MB/s",
+      "value": "-",
+      "target": "≥ 0.50x",
+      "status": "fail",
+      "note": "hd build --release (text-split-small) exited 101: warning: src/main.hd:12:9: unused-local-binding: `k` is never read; name it `_k` to keep it | error: src/main.hd:4:23: missing-capability: `main` requires `Console` in `$ Console`, but `[capabilities]` in hd.toml does not list it"
+    },
+    {
+      "metric": "text-throughput",
+      "name": "regex find_all, hd / Node MB/s",
+      "value": "-",
+      "target": "≥ 0.50x",
+      "status": "fail",
+      "note": "hd build --release (text-regex-small) exited 101: warning: src/main.hd:13:9: unused-local-binding: `k` is never read; name it `_k` to keep it | error: src/main.hd:4:23: missing-capability: `main` requires `Console` in `$ Console`, but `[capabilities]` in hd.toml does not list it"
+    },
+    {
+      "metric": "dead-code",
+      "name": "Wasm bytes per 1,000 lines",
+      "value": "-",
+      "target": "≤ 10240 B",
+      "status": "fail",
+      "note": "hd build --release (dead-small) exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "dead-code",
+      "name": "no unused std in the program",
+      "value": "none",
+      "target": "none",
+      "status": "pass",
+      "note": "743 B either way; checked sizes, and import and export names"
+    },
+    {
+      "metric": "long-run-memory",
+      "name": "RSS growth after warm-up, 1 min",
+      "value": "-",
+      "target": "≤ 10.0 MB",
+      "status": "fail",
+      "note": "hd build --release (service) exited 101: error: src/main.hd:5:1: syntax-error: expected a declaration, found 'data' | error: src/main.hd:11:1: syntax-error: expected a declaration, found 'data'"
+    },
+    {
+      "metric": "conformance",
+      "name": "pass rate, known failures excluded",
+      "value": "100.0%",
+      "target": "≥ 100.0%",
+      "status": "pass",
+      "note": "283 of 283 unlisted cases passed"
+    },
+    {
+      "metric": "conformance",
+      "name": "listed known failures",
+      "value": "0",
+      "target": "≤ 0",
+      "status": "pass",
+      "note": "KNOWN_FAILURES.tsv"
+    },
+    {
+      "metric": "incremental-soundness",
+      "name": "incremental equals clean, after each edit",
+      "value": "-",
+      "target": "≥ 100.0%",
+      "status": "fail",
+      "note": "the cache probe's hd check exited 101: error: src/m000.hd:5:5: syntax-error: expected a declaration, found 'data' | error: src/m001.hd:6:5: syntax-error: expected a declaration, found 'data'"
+    }
+  ],
+  "machine": {
+    "runner": "ubuntu-latest",
+    "cpus": 4,
+    "cpu": "AMD EPYC 9V74 80-Core Processor"
+  }
+}
