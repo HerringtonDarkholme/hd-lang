@@ -4739,8 +4739,9 @@ impl Ck<'_, '_> {
         // the places are rooted only now. The rebuild renumbers the body,
         // its root block included.
         let pool = self.pool();
-        let open = |t: Ty| pool.has_param(t) || pool.has_assoc(t) || pool.has_opaque(t);
         let body = self.b.body_mut();
+        let item = body.item;
+        let open = |t: Ty| hd_tir::ir::erasable(pool, item, t);
         body.sub_root[0] = root.0;
         ROOTS.with(|r| hd_tir::ir::root_places(body, &open, &mut r.borrow_mut()));
         let root = Ref(body.sub_root[0]);

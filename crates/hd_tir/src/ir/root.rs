@@ -30,9 +30,13 @@
 //!    names the local and nothing can reach it: no reference to it and no
 //!    closure capture (`m["k$n"].push(v)`, whose key calls a formatter
 //!    between the map's read and its `MapEntry`);
-//! 3. the local's type names no type parameter or associated type: an
-//!    erased instance outlines an open read by its values
-//!    (`crates/hd_mono/DESIGN.md` §13.5.1), and a local is none.
+//! 3. the local's type names no type parameter of the body's own item
+//!    and no opaque type ([`erasable`]): the erased body of a generic
+//!    method called through a trait value outlines a read of such an open
+//!    type by its values (`crates/hd_mono/DESIGN.md` §13.5.1), and a
+//!    local is none. Its impl's or trait's parameters are concrete there,
+//!    and every other instance is monomorphized, so `self.infos[i].x` in
+//!    `impl[T] Members[T]` folds as it does in plain code.
 //!
 //! When only rule 2's statements between fail, the `Store`s and `Ref`s
 //! among the uses still become `P` followed by their steps, and the read
@@ -44,7 +48,8 @@
 //! `Read [%e .x]` become `Read [*$0 [%i] .x]`. A read that does not fold
 //! keeps its place, which the passes resolve through its value as before.
 
-use hd_types::Ty;
+use hd_base::DefId;
+use hd_types::{Ty, Types};
 
 use super::{Body, IntrinsicOp, NONE, PlaceView, Root, Tag, Topology, place, u32_of};
 use crate::own::{Loc, operands};
@@ -65,6 +70,15 @@ pub struct RootTables {
     ops: Vec<crate::own::Operand>,
     words: Vec<u32>,
     edits: crate::own::splice::Tables,
+}
+
+/// Whether a local of type `t` in the body of `item` may be open in an
+/// erased body (the module docs' rule 3): `t` names a parameter `item`
+/// declares itself, or an opaque type. An erased body takes its impl's and
+/// its trait's parameters at concrete types, so those never make it open.
+#[must_use]
+pub fn erasable(types: Types<'_>, item: DefId, t: Ty) -> bool {
+    types.has_opaque(t) || types.names_param_of(t, item)
 }
 
 /// Whether place `p` goes into memory: an element or a dereference.

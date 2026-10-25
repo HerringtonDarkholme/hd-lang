@@ -1,0 +1,48 @@
+# @dump: own counts
+# Reading one field of a list element reads that field in place, in
+# generic code as in plain code: no copy of the element, and no count but
+# the field's own. Part of #165.
+struct Info:
+    position: usize
+    name: string
+
+struct Point:
+    x: i64
+    y: i64
+
+struct Members[T]:
+    infos: List[Info]
+    points: List[Point]
+    tag: T
+
+impl[T] Members[T]:
+    fn position_at(self, i: usize) -> usize:
+        self.infos[i].position
+
+    fn name_at(self, i: usize) -> string:
+        self.infos[i].name
+
+    fn y_at(self, i: usize) -> i64:
+        self.points[i].y
+
+fn position_at(infos: List[Info], i: usize) -> usize:
+    infos[i].position
+
+fn name_at(infos: List[Info], i: usize) -> string:
+    infos[i].name
+
+fn y_at(points: List[Point], i: usize) -> i64:
+    points[i].y
+
+struct Wrap[T]:
+    n: usize
+    value: T
+
+fn n_at[T](xs: List[Wrap[T]], i: usize) -> usize:
+    xs[i].n
+
+fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
+    name := m.name_at(i)
+    if m.position_at(i) + n_at(xs, i) + name.len() > 0:
+        return m.y_at(i)
+    0

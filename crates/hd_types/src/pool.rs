@@ -1216,6 +1216,20 @@ impl<'a> Types<'a> {
     pub fn has_param(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_PARAM != 0
     }
+    /// Whether `t` names a type or row parameter that `owner` declares
+    /// itself, a projection of one included.
+    #[must_use]
+    pub fn names_param_of(self, t: Ty, owner: DefId) -> bool {
+        if !self.has_param(t) {
+            return false;
+        }
+        let found = std::cell::Cell::new(false);
+        self.subst(t, &|p| {
+            found.set(found.get() || p.owner == owner);
+            None
+        });
+        found.get()
+    }
     /// Whether a type names `Self` of `trait_` (parameter 0 of the trait),
     /// outside the base of an associated-type projection.
     #[must_use]

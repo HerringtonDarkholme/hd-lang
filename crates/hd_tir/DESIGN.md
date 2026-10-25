@@ -786,8 +786,10 @@ its uses when every use is the root of a `Read`, `Store` or `Ref` place
 the uses are statements of `%v`'s block with only inert statements
 between (reads, primitives, constructions, coercions, lengths; with an
 element step in `P`, only reads that check nothing), and the local's
-type names no type parameter or associated type (an erased instance
-outlines an open read by its values; a binding's type never does). The folded read goes, and the body
+type names no type parameter of the body's own item and no opaque type
+(`ir::erasable`: the erased body of a generic method called through a
+trait value outlines an open read by its values; its impl's and trait's
+parameters are concrete there; a binding's type is never open). The folded read goes, and the body
 is rebuilt once (`own::splice`). A base used as a value too (a match's
 scrutinee, an intrinsic's operand) keeps its read. A place rooted at a
 local lies in the local itself only when every step is a field or a

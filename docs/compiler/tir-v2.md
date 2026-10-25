@@ -2216,7 +2216,9 @@ is worth deciding only if they are hot.
       read, a primitive, a construction, a coercion, a length; when `P`
       has an element step, which checks its index, only reads that check
       nothing, so no check moves before another), and the local's type
-      names no type parameter or associated type. The chains fold from
+      names no type parameter of the body's own item and no opaque type
+      (an erased body outlines such a read by its values; its impl's and
+      trait's parameters are concrete there). The chains fold from
       their root in one pass in instruction order, and the folded reads go
       in one rebuild (`own::splice`). So `bodies[i].x` is
       `Read [*$0 [%5] .x]`, `bodies[i].x = v` is `Store [*$0 [%5] .x] v`

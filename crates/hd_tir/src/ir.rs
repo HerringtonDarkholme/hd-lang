@@ -19,7 +19,7 @@ mod slots;
 mod topo;
 mod view;
 pub use owned::verify_owned;
-pub use root::{RootTables, root_places};
+pub use root::{RootTables, erasable, root_places};
 pub use slots::{Loc, Role, Word, slot_words, slots};
 pub use topo::Topology;
 pub(crate) use topo::{for_blocks, inside};

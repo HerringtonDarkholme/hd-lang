@@ -1,0 +1,22 @@
+# @dump: wat
+# @build: v8 release
+# Reading one field of a list element in a generic method loads that
+# field in place, as plain code does: no copy of the element, and no
+# count of its string. Part of #165.
+struct Info:
+    position: usize
+    name: string
+
+struct Members[T]:
+    infos: List[Info]
+    tag: T
+
+impl[T] Members[T]:
+    fn position_at(self, i: usize) -> usize:
+        self.infos[i].position
+
+fn position_at(infos: List[Info], i: usize) -> usize:
+    infos[i].position
+
+fn use_generic(m: Members[i32], i: usize) -> usize:
+    m.position_at(i)

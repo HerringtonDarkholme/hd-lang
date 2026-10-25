@@ -433,7 +433,9 @@ impl Env<'_> {
     /// first, as the checker roots its bodies' (`hd_tir::ir::root_places`).
     pub(super) fn owned_generated(&self, mut body: Body) -> StageResult<Body> {
         ROOTS.with(|r| {
-            hd_tir::ir::root_places(&mut body, &|t| self.is_open(t), &mut r.borrow_mut());
+            let (types, item) = (self.run.pool.types(), body.item);
+            let open = |t| hd_tir::ir::erasable(types, item, t);
+            hd_tir::ir::root_places(&mut body, &open, &mut r.borrow_mut());
         });
         self.own_passes(body)
     }
