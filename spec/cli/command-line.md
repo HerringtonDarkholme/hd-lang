@@ -2091,3 +2091,29 @@ hd run --engine node
 > **Why.** The paired declaration makes host interfaces discoverable without scanning source and keeps the provider's responsibility explicit in both places.
 
 See also: [Package Host Traits](../lang/10-modules.md#package-host-traits).
+
+## Synchronous Host Driver
+
+Embedding adapters can own the event loop while reusing the core's host
+completion table. This driver uses the existing root exports; it adds no
+guest entry convention.
+
+1. r[cli.host.driver.create] The JS core host provides `createDriver(instance, init="hd.init", poll="hd.poll")`, returning a synchronous step driver.
+2. r[cli.host.driver.exports] Creation requires the named initialization and poll exports and `hd.wake` to be functions. Boundary failure: `host-contract`.
+3. r[cli.host.driver.mode] A host selects either asynchronous `run` driving or one synchronous driver. Boundary failure: `host-contract`.
+4. r[cli.host.driver.init] Before its first poll, a driver invokes initialization once.
+5. r[cli.host.driver.poll] Each successful nonterminal step calls the poll export once with context zero.
+6. r[cli.host.driver.wake] After a pending poll, a successful step publishes currently ready host completions through one `hd.wake` call when their count is nonzero.
+7. r[cli.host.driver.result] A step returns `{status, wakes}`, with the poll's raw signed status and the published completion count.
+8. r[cli.host.driver.no-background] The driver itself creates no Promise or timer.
+9. r[cli.host.driver.terminal] After a successful terminal step, further steps return its status with zero wakes until the host closes.
+10. r[cli.host.driver.failure] An exception during initialization, polling, completion, wake delivery or output flushing permanently fails that driver.
+11. r[cli.host.driver.reentrant] Calling `step()` during a step fails. Boundary failure: `host-contract`.
+12. r[cli.host.driver.failed-step] A step on a failed driver fails. Boundary failure: `host-contract`.
+13. r[cli.host.driver.closed] Creating or stepping a synchronous driver after closing its host fails. Boundary failure: `host-contract`.
+14. r[cli.host.driver.sync-ready] A synchronous host wait in this mode must have a ready completion. Boundary failure: `host-contract`.
+15. r[cli.host.driver.status] The poll result must be a signed 32-bit integer. Boundary failure: `host-contract`.
+
+> **Why.** Request-scoped hosts must keep each operation in its owner's
+> lifetime. Explicit turns avoid anchoring a retained asynchronous driver
+> to the first request's Promise.

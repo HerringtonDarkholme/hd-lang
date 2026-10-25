@@ -880,3 +880,33 @@ fn server_sdk_main_keeps_state_and_serves_concurrent_requests() {
         text(&out.stderr)
     );
 }
+
+/// The synchronous embedding driver runs the same compiled fixture as
+/// ordinary conformance, using explicit turns instead of `host.run`.
+#[test]
+fn a_compiled_root_runs_through_synchronous_host_turns() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = work("host-driver-turns");
+    write(
+        &dir.join("hd.toml"),
+        "[package]\nname=\"driver\"\n[capabilities]\nClock=true\nConsole=true\n",
+    );
+    write(
+        &dir.join("src/main.hd"),
+        include_str!("../../../../spec/conformance/runtime/valid/host-driver-turns.hd"),
+    );
+    let built = run(&dir, &["build", "--engine", "node"]);
+    assert!(built.status.success(), "{}", text(&built.stderr));
+    let out = Command::new("node")
+        .args(["--test", "host/driver.test.mjs"])
+        .env("HD_DRIVER_GUEST", dir.join("build/debug/driver.wasm"))
+        .current_dir(root)
+        .output()
+        .expect("run synchronous driver tests");
+    assert!(
+        out.status.success(),
+        "{}\n{}",
+        text(&out.stdout),
+        text(&out.stderr)
+    );
+}
