@@ -1,0 +1,212 @@
+[
+  {
+    "probe": "inference",
+    "check_status": 0,
+    "stdout": "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0,\"modules_checked\":1}\n",
+    "stderr": "",
+    "runs": [
+      {
+        "engine": "node",
+        "status": 0,
+        "stdout": "7/50\n",
+        "stderr": ""
+      },
+      {
+        "engine": "wasmtime",
+        "status": 0,
+        "stdout": "7/50\n",
+        "stderr": ""
+      }
+    ]
+  },
+  {
+    "probe": "inference-result-context",
+    "check_status": 0,
+    "stdout": "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0,\"modules_checked\":1}\n",
+    "stderr": "",
+    "runs": [
+      {
+        "engine": "node",
+        "status": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      {
+        "engine": "wasmtime",
+        "status": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      }
+    ]
+  },
+  {
+    "probe": "parser-builder-model",
+    "check_status": 0,
+    "stdout": "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0,\"modules_checked\":1}\n",
+    "stderr": "",
+    "runs": [
+      {
+        "engine": "node",
+        "status": 0,
+        "stdout": "Result.Ok(42)\nResult.Ok(43)\nlocal/3\n",
+        "stderr": ""
+      },
+      {
+        "engine": "wasmtime",
+        "status": 0,
+        "stdout": "Result.Ok(42)\nResult.Ok(43)\nlocal/3\n",
+        "stderr": ""
+      }
+    ]
+  },
+  {
+    "probe": "returned-row-gap",
+    "check_status": 101,
+    "stdout": "{\"kind\":\"diagnostic\",\"code\":\"type-mismatch\",\"severity\":\"error\",\"message\":\"in argument: expected fn(fn() -> () $ Console) -> fn() -> () $ ?, found fn(fn() -> ()) -> fn() -> (); permissions inside a type convert only by declared variance, and a function type inside a type keeps its row\",\"file\":\"<repo>/bench/study/pipe-styles/probes/returned-row-gap.hd\",\"line\":7,\"column\":28,\"fixes\":[]}\n{\"kind\":\"summary\",\"errors\":1,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":101,\"modules_checked\":1}\n",
+    "stderr": ""
+  },
+  {
+    "probe": "returned-row-empty",
+    "check_status": 0,
+    "stdout": "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0,\"modules_checked\":1}\n",
+    "stderr": "",
+    "runs": [
+      {
+        "engine": "node",
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "engine": "wasmtime",
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    ]
+  },
+  {
+    "probe": "returned-row-explicit",
+    "check_status": 0,
+    "stdout": "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0,\"modules_checked\":1}\n",
+    "stderr": "",
+    "runs": [
+      {
+        "engine": "node",
+        "status": 0,
+        "stdout": "hello\n",
+        "stderr": ""
+      },
+      {
+        "engine": "wasmtime",
+        "status": 0,
+        "stdout": "hello\n",
+        "stderr": ""
+      }
+    ]
+  },
+  {
+    "probe": "defaults-current",
+    "check_status": 0,
+    "stdout": "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0,\"modules_checked\":1}\n",
+    "stderr": "",
+    "runs": [
+      {
+        "engine": "node",
+        "status": 0,
+        "stdout": "hd!\n",
+        "stderr": ""
+      },
+      {
+        "engine": "wasmtime",
+        "status": 0,
+        "stdout": "hd!\n",
+        "stderr": ""
+      }
+    ]
+  },
+  {
+    "probe": "defaults-value",
+    "check_status": 101,
+    "stdout": "{\"kind\":\"diagnostic\",\"code\":\"type-mismatch\",\"severity\":\"error\",\"message\":\"in argument: expected fn(string) -> ?, found fn(string, string) -> string\",\"file\":\"<repo>/bench/study/pipe-styles/probes/defaults-value.hd\",\"line\":5,\"column\":24,\"fixes\":[]}\n{\"kind\":\"summary\",\"errors\":1,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":101,\"modules_checked\":1}\n",
+    "stderr": ""
+  },
+  {
+    "probe": "forms-model",
+    "check_status": 0,
+    "stdout": "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0,\"modules_checked\":1}\n",
+    "stderr": "",
+    "runs": [
+      {
+        "engine": "node",
+        "status": 0,
+        "stdout": "7\n8\n6\n9\n6\nhi hd\n4\n",
+        "stderr": ""
+      },
+      {
+        "engine": "wasmtime",
+        "status": 0,
+        "stdout": "7\n8\n6\n9\n6\nhi hd\n4\n",
+        "stderr": ""
+      }
+    ]
+  },
+  {
+    "probe": "suspending-value",
+    "check_status": 0,
+    "stdout": "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0,\"modules_checked\":1}\n",
+    "stderr": ""
+  },
+  {
+    "probe": "suspending-bare",
+    "check_status": 101,
+    "stdout": "{\"kind\":\"diagnostic\",\"code\":\"suspending-pipe-step\",\"severity\":\"error\",\"message\":\"a bare pipe step cannot suspend; write `_` and `!`\",\"file\":\"<repo>/bench/study/pipe-styles/probes/suspending-bare.hd\",\"line\":3,\"column\":19,\"fixes\":[]}\n{\"kind\":\"summary\",\"errors\":1,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":101,\"modules_checked\":1}\n",
+    "stderr": ""
+  },
+  {
+    "probe": "suspending-factory",
+    "check_status": 0,
+    "stdout": "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0,\"modules_checked\":1}\n",
+    "stderr": "",
+    "runs": [
+      {
+        "engine": "node",
+        "status": 0,
+        "stdout": "4\n4\n",
+        "stderr": ""
+      },
+      {
+        "engine": "wasmtime",
+        "status": 0,
+        "stdout": "4\n4\n",
+        "stderr": ""
+      }
+    ]
+  },
+  {
+    "probe": "nested-placeholders",
+    "check_status": 0,
+    "stdout": "{\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":0,\"modules_checked\":1}\n",
+    "stderr": "",
+    "runs": [
+      {
+        "engine": "node",
+        "status": 0,
+        "stdout": "8\n8\n",
+        "stderr": ""
+      },
+      {
+        "engine": "wasmtime",
+        "status": 0,
+        "stdout": "8\n8\n",
+        "stderr": ""
+      }
+    ]
+  },
+  {
+    "probe": "closure-slot-rejected",
+    "check_status": 101,
+    "stdout": "{\"kind\":\"diagnostic\",\"code\":\"pipe-placeholder-in-closure\",\"severity\":\"error\",\"message\":\"a closure cannot use the pipe's `_`; bind the value first\",\"file\":\"<repo>/bench/study/pipe-styles/probes/closure-slot-rejected.hd\",\"line\":2,\"column\":52,\"fixes\":[]}\n{\"kind\":\"summary\",\"errors\":1,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":101,\"modules_checked\":1}\n",
+    "stderr": ""
+  }
+]

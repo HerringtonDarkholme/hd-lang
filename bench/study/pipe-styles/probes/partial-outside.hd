@@ -1,0 +1,3 @@
+fn pad(value: string, width: usize) -> string: value
+pub fn main() -> void:
+    change := pad(_, 10)

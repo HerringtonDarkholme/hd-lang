@@ -1,0 +1,20 @@
+[
+  {
+    "probe": "multiline-rejected",
+    "status": 101,
+    "stdout": "{\"kind\":\"diagnostic\",\"code\":\"multi-line-pipe-step\",\"severity\":\"error\",\"message\":\"a pipe step must not contain an indented suite\",\"file\":\"<repo>/bench/study/pipe-styles/probes/multiline-rejected.hd\",\"line\":2,\"column\":20,\"fixes\":[]}\n{\"kind\":\"summary\",\"errors\":1,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":101,\"modules_checked\":1}\n",
+    "stderr": ""
+  },
+  {
+    "probe": "trailing-block-rejected",
+    "status": 101,
+    "stdout": "{\"kind\":\"diagnostic\",\"code\":\"syntax-error\",\"severity\":\"error\",\"message\":\"expected a line ending, found ':'\",\"file\":\"<repo>/bench/study/pipe-styles/probes/trailing-block-rejected.hd\",\"line\":3,\"column\":28,\"fixes\":[]}\n{\"kind\":\"summary\",\"errors\":1,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":101,\"modules_checked\":0}\n",
+    "stderr": ""
+  },
+  {
+    "probe": "fn-input-transform",
+    "status": 101,
+    "stdout": "{\"kind\":\"diagnostic\",\"code\":\"type-mismatch\",\"severity\":\"error\",\"message\":\"in argument: expected fn(fn!() -> usize $ Console) -> fn!() -> usize $ Clock $ ?, found fn(fn!() -> usize) -> fn!() -> usize $ Clock; permissions inside a type convert only by declared variance, and a function type inside a type keeps its row\",\"file\":\"<repo>/bench/study/pipe-styles/probes/fn-input-transform.hd\",\"line\":14,\"column\":27,\"fixes\":[]}\n{\"kind\":\"summary\",\"errors\":1,\"warnings\":0,\"passed\":0,\"failed\":0,\"ignored\":0,\"status\":101,\"modules_checked\":1}\n",
+    "stderr": ""
+  }
+]

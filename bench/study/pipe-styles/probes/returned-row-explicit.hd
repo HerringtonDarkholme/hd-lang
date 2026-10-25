@@ -1,0 +1,8 @@
+fn feed[A, B, $R](value: A, step: fn(A) -> B $ R) -> B $ R: step(value)
+
+fn keep[$R]() -> (fn(fn() -> void $ R) -> (fn() -> void $ R)):
+    fn(work: fn() -> void $ R) -> (fn() -> void $ R): work
+fn hello() -> void $ Console: println("hello")
+pub fn main() -> void $ Console:
+    wrapped := feed(hello, keep::[$ Console]())
+    wrapped()

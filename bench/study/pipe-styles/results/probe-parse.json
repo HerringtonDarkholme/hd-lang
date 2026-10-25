@@ -1,0 +1,102 @@
+[
+  {
+    "file": "closure-slot-rejected.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "defaults-current.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "defaults-value.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "double-placeholder.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "effects.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "fn-input-transform.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "forms-model.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "inference-result-context.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "inference.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "multiline-rejected.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "nested-placeholders.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "parser-builder-model.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "partial-outside.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "returned-row-empty.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "returned-row-explicit.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "returned-row-gap.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "suspending-bare.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "suspending-factory.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "suspending-value.hd",
+    "status": 0,
+    "output": "1/1 clean\n"
+  },
+  {
+    "file": "trailing-block-rejected.hd",
+    "status": 101,
+    "output": "error: <repo>/bench/study/pipe-styles/probes/trailing-block-rejected.hd:3:28: syntax-error: expected a line ending, found ':'\n0/1 clean\n"
+  }
+]

@@ -1,0 +1,134 @@
+[
+  {
+    "dataset": "numeric",
+    "form": "direct",
+    "engine": "node",
+    "artifact": "numeric-direct-node.wasm",
+    "bytes": 16728,
+    "functions": 110,
+    "code_bytes": 11175,
+    "code_sha256": "2152c9d9fd8042770b72819f6e332efd88af45b2b829bfb2be9d84ddca1f117a",
+    "sha256": "09f140db1adb1aed49ce77e83dc942deef109483484a4194d0dbdd7124f22da5"
+  },
+  {
+    "dataset": "numeric",
+    "form": "direct",
+    "engine": "wasmtime",
+    "artifact": "numeric-direct-wasmtime.wasm",
+    "bytes": 17864,
+    "functions": 108,
+    "code_bytes": 12356,
+    "code_sha256": "635e6edea7ab26b860f88a6b6bb4c4b85ada502bc32603b2fc9f072de2543496",
+    "sha256": "6248967b99ac234da99e935d8850dbc8f972f072cb8d2b100ab49c9339bd9f50"
+  },
+  {
+    "dataset": "numeric",
+    "form": "curried",
+    "engine": "node",
+    "artifact": "numeric-curried-node.wasm",
+    "bytes": 21906,
+    "functions": 152,
+    "code_bytes": 14201,
+    "code_sha256": "71c7ba922aa526cb7d24a252e1a8db6e213548f6162e9f54895db03e889bef71",
+    "sha256": "9a49ce184b3fe4025b0be65fe6a3eb9ca0634fc1b5f8ea55e09a20a354599f90"
+  },
+  {
+    "dataset": "numeric",
+    "form": "curried",
+    "engine": "wasmtime",
+    "artifact": "numeric-curried-wasmtime.wasm",
+    "bytes": 24551,
+    "functions": 150,
+    "code_bytes": 16903,
+    "code_sha256": "3f49ab79cb85f67b0a7e5acc0c6662fa45cdc20a98e39427aade9aafe8050ee7",
+    "sha256": "9400be5854dc426b6b648ac94e4590557e66cb6f3d3dd81bf8a61ea0867df219"
+  },
+  {
+    "dataset": "numeric",
+    "form": "partial",
+    "engine": "node",
+    "artifact": "numeric-partial-node.wasm",
+    "bytes": 16744,
+    "functions": 110,
+    "code_bytes": 11191,
+    "code_sha256": "55a982cf30bc70f94f9fa95937decd985d0f76ab421462907771fc2a795d5f01",
+    "sha256": "03e50350c29eabec2d879df4d58909a389407b1bd7ad1f1bb159135e8d79a952"
+  },
+  {
+    "dataset": "numeric",
+    "form": "partial",
+    "engine": "wasmtime",
+    "artifact": "numeric-partial-wasmtime.wasm",
+    "bytes": 17880,
+    "functions": 108,
+    "code_bytes": 12372,
+    "code_sha256": "dbf5dc589610576bc26609f91b768e838541e4b55bcc0be021e14cb575581fb7",
+    "sha256": "8599d48c3cea9dfd089eb0c2a4a2e90b2afee4dfca72f56a3e8e0d899d2e440e"
+  },
+  {
+    "dataset": "string",
+    "form": "direct",
+    "engine": "node",
+    "artifact": "string-direct-node.wasm",
+    "bytes": 20681,
+    "functions": 119,
+    "code_bytes": 14219,
+    "code_sha256": "6827582c23011f3de68c7e1347794f3bc6027ea960adf5d1d4c9c14f05b4c5da",
+    "sha256": "4f97de0b2ddb10a0ab4f74cdcb70c22ec517a907522bda0b3f3e1e3efe6b6fb2"
+  },
+  {
+    "dataset": "string",
+    "form": "direct",
+    "engine": "wasmtime",
+    "artifact": "string-direct-wasmtime.wasm",
+    "bytes": 21720,
+    "functions": 117,
+    "code_bytes": 15303,
+    "code_sha256": "3a2ca2b658e0b2ce5e2d56fc6a0586673d1e4f4cf2adf980e6f88afcab6d1ef5",
+    "sha256": "96806214a2dfd0e69edd517c0807cfd87eb2ebc57a23c1c0fcf3396fb69a4138"
+  },
+  {
+    "dataset": "string",
+    "form": "curried",
+    "engine": "node",
+    "artifact": "string-curried-node.wasm",
+    "bytes": 26012,
+    "functions": 161,
+    "code_bytes": 17384,
+    "code_sha256": "cc7f7eb1d98aca9afb8565ff4bbbbc31a88e85d9f734d8c74352f0d3226fcd91",
+    "sha256": "5d8eae398eef1f80eced6ef4145b6c7504a1f4e8b9fb5d23ccbbbc1179f5c034"
+  },
+  {
+    "dataset": "string",
+    "form": "curried",
+    "engine": "wasmtime",
+    "artifact": "string-curried-wasmtime.wasm",
+    "bytes": 28491,
+    "functions": 159,
+    "code_bytes": 19921,
+    "code_sha256": "a3436863c501970579d918edcc09319a5b1cc35be8dd06b2ee0328d0f573b1a7",
+    "sha256": "56fe6442d7de29a03e688f5a7b8f19eeac25fc9d6a937688c87b0c857af5f950"
+  },
+  {
+    "dataset": "string",
+    "form": "partial",
+    "engine": "node",
+    "artifact": "string-partial-node.wasm",
+    "bytes": 20697,
+    "functions": 119,
+    "code_bytes": 14235,
+    "code_sha256": "e17a375a214b81b63e53023250a55a3f1550042f734ad94176b5d9e1b07b529d",
+    "sha256": "80da536ce38b4ab67b4bc37a0a42af65aae572ea6acddd6872f64957b61c86ea"
+  },
+  {
+    "dataset": "string",
+    "form": "partial",
+    "engine": "wasmtime",
+    "artifact": "string-partial-wasmtime.wasm",
+    "bytes": 21736,
+    "functions": 117,
+    "code_bytes": 15319,
+    "code_sha256": "444f13106bca1a82a65eea817c851d26b22315818db3ff9a995fdf5b94e63950",
+    "sha256": "738d9484408531b1551b886d5effc9fb72831506b0c780afa435ddd8f0df4943"
+  }
+]

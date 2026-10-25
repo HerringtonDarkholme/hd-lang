@@ -1,0 +1,26 @@
+fn feed[A, B, $R](value: A, step: fn(A) -> B $ R) -> B $ R: step(value)
+
+fn inc(value: i32) -> i32: value + 1
+fn double(value: i32) -> i32: value * 2
+fn add(by: i32) -> (fn(i32) -> i32):
+    fn(value: i32) -> i32: value + by
+fn identity[T](value: T) -> T: value
+fn compose(outer: fn(i32) -> i32) -> (fn(fn(i32) -> i32) -> (fn(i32) -> i32)):
+    fn(inner: fn(i32) -> i32) -> (fn(i32) -> i32):
+        fn(value: i32) -> i32: outer(inner(value))
+struct Config:
+    prefix: string
+impl Config:
+    fn greet(&self, name: string) -> string: self.prefix + name
+    fn parse(text: string) -> usize: text.len()
+pub fn main() -> void $ Console:
+    println(feed(+4, add(+3)))
+    composed := feed(inc, compose(double))
+    println(composed(+3))
+    functions := [double, inc]
+    println(feed(+3, functions[0]))
+    println(feed(+9, identity::[i32]))
+    println(feed(+5, fn(value): value + 1))
+    user := Config { prefix: "hi " }
+    println(feed("hd", user::greet))
+    println(feed("word", Config::parse))
