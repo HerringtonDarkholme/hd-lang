@@ -487,8 +487,8 @@ fn a_dependency_diagnostic_is_located_in_its_file() {
 }
 
 /// A `println` written directly in a non-entry module's initialization
-/// reports both `missing-requirement` (`module.init.requirement-free`) and
-/// `suspension-forbidden-context` (`module.console.println-block-on.direct-contexts`).
+/// reports both `missing-requirement` (`module.init.requirement-free.non-script`) and
+/// `suspension-forbidden-context` (`module.console.println-block-on.forbidden-direct`).
 /// A conformance case holds one error, so this is the check of the pair.
 #[test]
 fn println_in_non_entry_module_init_reports_both_errors() {

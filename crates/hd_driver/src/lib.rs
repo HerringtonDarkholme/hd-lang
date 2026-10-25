@@ -3182,12 +3182,12 @@ impl Run<'_> {
         module.package == 0 && (module.entry || single_file)
     }
 
-    /// Whether module `m`'s top-level statements are its program's entry
-    /// behavior in this run (`module.init.script-body`), and so may use
-    /// the default profile's row (`module.init.script-profile`), rather than
-    /// requirement-free module initialization
-    /// (`module.init.requirement-free`). Every REPL input runs as one. A
-    /// program runs its entry module's. `hd check` checks each entry module
+    /// Whether module `m` runs in its entry context in this run. A script
+    /// may use the default profile's row (`module.init.script-profile`);
+    /// an entry with `main` still has requirement-free initialization
+    /// (`module.init.requirement-free.non-script`) but keeps its row-free
+    /// `block_on` permission (`module.init.entry.row-free-block-on`). Every
+    /// REPL input runs in an entry context too. `hd check` checks each entry module
     /// as running it does: a single-file program as `hd FILE` runs it
     /// (`cli.package.no-root`, `cli.file.check-test`), and the executables
     /// and tasks as `hd run` does (`cli.check.default`, `cli.check.all`).
@@ -9277,9 +9277,6 @@ impl Run<'_> {
         let Some(p) = self.program() else {
             return Vec::new();
         };
-        let Some((body, _)) = self.body_of(p, def) else {
-            return Vec::new();
-        };
         let folders = self.program_folders();
         let arity = p.arity();
         let view = self.program_view(p, &folders, &arity);
@@ -9289,57 +9286,7 @@ impl Run<'_> {
             impls: Impls::Owned(&view),
             sealed: self.known.sealed(),
         };
-        let topology = hd_tir::ir::Topology::new(body);
-        let mut keys = Vec::new();
-        for (i, tag) in body.tags.iter().enumerate() {
-            if topology.sub[i] != 0 {
-                continue;
-            }
-            let read = match tag {
-                hd_tir::Tag::ProviderGet => vec![Ty(body.record(body.data[i][0])[0])],
-                hd_tir::Tag::CallValue => {
-                    let callee = hd_tir::ir::Ref(body.data[i][0]);
-                    let ty = callee.as_inst().map(|inst| body.ty[inst.0 as usize]);
-                    match ty.map(|ty| self.pool.get(env.low(ty))) {
-                        Some(TyData::Fn { row, .. }) => self.pool.row_data(row).keys,
-                        _ => Vec::new(),
-                    }
-                }
-                hd_tir::Tag::Call | hd_tir::Tag::Await => {
-                    match hd_tir::Callee::from_words(body.record(body.data[i][0])) {
-                        Some(hd_tir::Callee::Item { def, targs }) => env.row_keys(def, targs),
-                        Some(hd_tir::Callee::TraitMethod { method, targs, .. }) => {
-                            env.row_keys(method, targs)
-                        }
-                        _ => Vec::new(),
-                    }
-                }
-                _ => Vec::new(),
-            };
-            for key in read {
-                // $.with supplies its block locally; it needs no host grant.
-                // A context spread supplies every concrete key in its row.
-                let bound = topology.enclosing(u32_of(i)).any(|block| {
-                    let owner = topology.owner[block as usize];
-                    if owner == hd_tir::ir::NONE || body.tags[owner as usize] != hd_tir::Tag::With {
-                        return false;
-                    }
-                    body.record(body.data[owner as usize][0])
-                        .chunks_exact(2)
-                        .any(|pair| {
-                            let provided = Ty(pair[0]);
-                            match self.pool.get(provided) {
-                                TyData::Context(row) => self.pool.row_data(row).keys.contains(&key),
-                                _ => provided == key,
-                            }
-                        })
-                });
-                if !bound && !keys.contains(&key) {
-                    keys.push(key);
-                }
-            }
-        }
-        keys
+        env.init_keys(def)
     }
 
     fn capabilities_for_keys(
@@ -10775,32 +10722,75 @@ impl Env<'_> {
             .any(|(t, sub)| awaits(t) && sub == 0)
     }
 
-    /// The row keys of a module init, which has no signature. An entry
-    /// module's init has an entry row inferred under the default profile
-    /// (`module.init.script-profile`), so its keys are those of the callees
-    /// its top level calls.
+    /// The external keys used by a module initializer, which has no
+    /// signature. Scripts infer their entry row under the default profile
+    /// (`module.init.script-profile`); other initializers are requirement-free.
+    /// Entry capability checks share this discovery with collection/emission.
     fn init_keys(&self, def: DefId) -> Vec<Ty> {
-        let Some((b, _)) = self.run.body_of(self.p, def) else {
+        let Some((body, _)) = self.run.body_of(self.p, def) else {
             return Vec::new();
         };
-        if b.kind != hd_tir::BodyKind::Init {
+        if body.kind != hd_tir::BodyKind::Init {
             return Vec::new();
         }
-        let mut keys: Vec<Ty> = Vec::new();
-        for (i, tag) in b.tags.iter().enumerate() {
-            if !matches!(tag, hd_tir::Tag::Call | hd_tir::Tag::Await) {
+        let pool = &self.run.pool;
+        let topology = hd_tir::ir::Topology::new(body);
+        let mut keys = Vec::new();
+        for (i, tag) in body.tags.iter().enumerate() {
+            if topology.sub[i] != 0 {
                 continue;
             }
-            let Some(hd_tir::Callee::Item { def: callee, targs }) =
-                hd_tir::Callee::from_words(b.record(b.data[i][0]))
-            else {
-                continue;
+            let read = match tag {
+                hd_tir::Tag::ProviderGet => vec![Ty(body.record(body.data[i][0])[0])],
+                hd_tir::Tag::CallValue => {
+                    let callee = hd_tir::ir::Ref(body.data[i][0]);
+                    let ty = callee.as_inst().map(|inst| body.ty[inst.0 as usize]);
+                    match ty.map(|ty| pool.get(self.low(ty))) {
+                        Some(TyData::Fn { row, .. }) => pool.row_data(row).keys,
+                        _ => Vec::new(),
+                    }
+                }
+                hd_tir::Tag::Call | hd_tir::Tag::Await => {
+                    match hd_tir::Callee::from_words(body.record(body.data[i][0])) {
+                        Some(hd_tir::Callee::Item { def, targs }) => self.row_keys(def, targs),
+                        Some(hd_tir::Callee::TraitMethod { method, targs, .. }) => {
+                            self.row_keys(method, targs)
+                        }
+                        _ => Vec::new(),
+                    }
+                }
+                _ => Vec::new(),
             };
-            keys.extend(self.row_keys(callee, targs));
+            for key in read {
+                let key = self.low(key);
+                // $.with supplies its block locally; it needs no host grant.
+                // A context spread supplies every concrete key in its row.
+                let bound = topology.enclosing(u32_of(i)).any(|block| {
+                    let owner = topology.owner[block as usize];
+                    if owner == hd_tir::ir::NONE || body.tags[owner as usize] != hd_tir::Tag::With {
+                        return false;
+                    }
+                    body.record(body.data[owner as usize][0])
+                        .chunks_exact(2)
+                        .any(|pair| {
+                            let provided = self.low(Ty(pair[0]));
+                            match pool.get(provided) {
+                                TyData::Context(row) => pool
+                                    .row_data(row)
+                                    .keys
+                                    .into_iter()
+                                    .any(|provided| self.low(provided) == key),
+                                _ => provided == key,
+                            }
+                        })
+                });
+                if !bound {
+                    keys.push(key);
+                }
+            }
         }
-        // Content order, as `row_keys` does for a signature's row.
         let names = self.run.names();
-        hd_mono::key_order(&self.run.pool, &|d| names.path_hash(d), keys)
+        hd_mono::key_order(pool, &|d| names.path_hash(d), keys)
     }
 }
 
@@ -12320,7 +12310,7 @@ mod main_capability_tests {
     }
 
     #[test]
-    fn task_init_requirements_survive_an_empty_main_on_cold_and_warm_checks() {
+    fn task_init_requirements_are_script_only_on_cold_and_warm_checks() {
         for main in ["", "\npub fn main() -> void: pass\n"] {
             let source = format!("println(\"unlisted\")\n{main}");
             let mut files = MemorySources::default();
@@ -12339,6 +12329,15 @@ mod main_capability_tests {
             };
             for warm in [false, true] {
                 let out = build_packages(&host, "app", &packages, &Goal::Analyze);
+                if !main.is_empty() {
+                    assert_eq!(
+                        out.diags.code,
+                        [Code::MissingRequirement],
+                        "{}",
+                        out.render()
+                    );
+                    continue;
+                }
                 assert!(!out.diags.has_errors(), "{}", out.render());
                 assert_eq!(
                     out.entry_capabilities.len(),
@@ -12362,7 +12361,23 @@ mod main_capability_tests {
     #[test]
     fn task_script_provider_reads_distinguish_local_and_host_grants() {
         let local = "use std.time.{Clock, ManualClock, Timestamp, now}\n\n$.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):\n    _ := now()\n";
+        let spread = concat!(
+            "use std.time.{Clock, ManualClock, Timestamp, now}\n",
+            "context := $.context(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0)))\n",
+            "$.with(context...):\n    _ := now()\n",
+        );
+        let trait_method = concat!(
+            "use std.time.{Clock, Timestamp, now}\n",
+            "trait Observe:\n    fn read(self) -> Timestamp $ Clock\n",
+            "struct Observer: pass\n",
+            "impl Observe for Observer:\n    fn read(self) -> Timestamp $ Clock: now()\n",
+            "let observer: *dyn Observe = &Observer {}\n",
+            "_ := observer.read()\n",
+        );
         for (source, wants_clock) in [
+            (trait_method.to_owned(), true),
+            (spread.to_owned(), false),
+            (format!("{spread}\n_ := now()\n"), true),
             (local.to_owned(), false),
             (format!("{local}\n_ := now()\n"), true),
             ("use std.time.Clock\n_ := $.use(Clock)\n".to_owned(), true),

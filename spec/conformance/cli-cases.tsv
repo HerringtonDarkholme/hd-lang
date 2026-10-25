@@ -158,6 +158,7 @@ panic-fallback-note	cli.file.run,cli.exit.program,cli.engine.same-behavior
 cache-gc-outside-package	cli.cache.gc,cli.cache.gc.anywhere
 cache-gc-package	cli.cache.gc,cli.cache.gc.anywhere
 cap-path-dot-dot	cli.cap.scope.path.resolved,cli.cap.scope.path,cli.cap.partial.refuse,cli.cap.table,cli.cap.value.list
+entry-init-script-profile	cli.file.run,cli.file.check-test,cli.task.file,cli.task.program,cli.host.default-profile,cli.engine.same-behavior
 check-script	cli.file.check-test,cli.file.run
 file-no-root	cli.file.run,cli.file.check-test,cli.package.no-root
 check-tests-library-role	cli.check.tests,cli.check.default,cli.package.file,cli.exit.hd-failure,cli.check.summary-mode

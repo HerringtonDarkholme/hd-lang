@@ -823,7 +823,7 @@ hd test tasks/seed.hd      # only the tests of task seed
 
 > **Why.** A test build runs no entry behavior, so a script's top level
 > must be requirement-free in it
-> ([`module.init.tests.requirement-free`](../lang/10-modules.md#r-module.init.tests.requirement-free)).
+> ([`module.init.tests.initialization-empty-row`](../lang/10-modules.md#r-module.init.tests.initialization-empty-row)).
 > A task without tests then never fails `hd test` for printing at its top
 > level.
 

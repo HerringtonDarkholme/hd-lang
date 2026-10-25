@@ -1,0 +1,16 @@
+# test: a non-entry module cannot install a locally supplied provider during initialization
+# Spec 10: module.init.requirement-free.operations.
+# fixture-package-tree: lib-root/src/catalog.hd
+trait Source:
+    fn read(&self) -> i32
+
+struct Fixed: pass
+
+impl Source for Fixed:
+    fn read(&self) -> i32: +1
+
+$.with(Source=&mut Fixed {}):  # diagnostic: missing-requirement
+    _ := $.use(Source).read()
+
+pub fn item_count() -> i32:
+    +1

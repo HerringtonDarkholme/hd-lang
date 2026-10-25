@@ -951,6 +951,7 @@ parse/invalid/local-decorator.hd	parse	reject:decorator-not-top-level	lang/14-an
 typing/invalid/variance-representation-change.hd	type	reject:variance-representation-change	lang/04-type-system.md#variance
 typing/invalid/transitive-uninitialized-binding.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#module-initialization
 typing/valid/transitive-initialized-binding.hd	type	accept	lang/10-modules.md#module-initialization
+runtime/valid/entry-init-closure-provider-scope.hd	runtime	accept	lang/10-modules.md#r-module.init.entry.statements-before-main
 runtime/valid/module-initialization-before-main.hd	runtime	accept	lang/10-modules.md#module-initialization
 runtime/valid/cancellation-unwinds-nested-frames.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/cancellation-unwinds-suspending-closure.hd	runtime	accept	lang/11-requirements-and-suspension.md#cancellation
@@ -1452,7 +1453,7 @@ runtime/valid/suspending-blanket-impls.hd	runtime	accept	lang/11-requirements-an
 runtime/valid/named-local-suspending-function.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
 typing/invalid/parameter-default-requires-provider.hd	type	reject:requirement-in-default	lang/07-functions.md#default-values
 typing/invalid/data-default-requires-provider.hd	type	reject:requirement-in-default	lang/08-data-and-enums.md#field-defaults
-typing/invalid/enum-default-requires-provider.hd	type	reject:requirement-in-default	lang/08-data-and-enums.md#r-data.shared.module-init.requirement-free
+typing/invalid/enum-default-requires-provider.hd	type	reject:requirement-in-default	lang/08-data-and-enums.md#r-data.shared.module-init.empty-row
 typing/valid/default-calls-requirement-free-trait-method.hd	type	accept	lang/07-functions.md#default-values
 typing/invalid/result-ok-payload-type-mismatch.hd	type	reject:type-mismatch	lang/04-type-system.md#result-types
 runtime/valid/discard-propagated-void-result.hd	runtime	accept	lang/05-expressions.md#propagation
@@ -3652,7 +3653,7 @@ typing/valid/user-defined-all.hd	type	accept	lang/11-requirements-and-suspension
 typing/invalid/expected-i32-found-usize.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.usize.primitive
 typing/invalid/std-child-path-through-parent.hd	type	reject:unknown-import	lang/10-modules.md#r-module.path.no-std-child-import
 typing/valid/std-reexported-child-item.hd	type	accept	lang/10-modules.md#r-module.path.no-std-child-import
-typing/invalid/script-test-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.tests.requirement-free
+typing/invalid/script-test-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.tests.initialization-empty-row
 typing/valid/temp-dir-integration.hd	type	accept	std/testing.md#r-std-testing.temp-dir.fresh
 runtime/valid/unit-test-manual-clock.hd	runtime	accept	std/testing.md#unit-test-providers
 typing/invalid/unit-test-real-clock.hd	type	reject:missing-requirement	std/testing.md#r-std-testing.unit.hint
@@ -3836,8 +3837,13 @@ runtime/valid/initialization-implicit-an-ordering-operator-reaches-partial-cmp-0
 runtime/valid/initialization-implicit-an-unrelated-display-impl-is-not-reached.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit
 runtime/valid/initialization-implicit-calling-a-value-reaches-apply-02.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit
 runtime/valid/init-group-statements-by-identity.hd	runtime	accept	lang/10-modules.md#r-module.init.cycle.earliest
-typing/invalid/non-entry-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free
+typing/invalid/entry-init-provider-get.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.operations
+typing/invalid/entry-init-provider-scope.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.operations
+typing/invalid/entry-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.non-script
+typing/invalid/non-entry-init-provider-scope.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.operations
+typing/invalid/non-entry-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.non-script
 typing/invalid/non-entry-init-block-on.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.forbidden-contexts
+runtime/valid/script-top-level-provider-get.hd	runtime	accept	lang/10-modules.md#r-module.init.script-profile
 runtime/valid/script-top-level-runs.hd	runtime	accept	lang/10-modules.md#r-module.init.script-body
 typing/invalid/main-module-top-level-bang-call.hd	type	reject:bang-call-outside-suspension	lang/10-modules.md#r-module.init.script-driver
 typing/invalid/non-entry-init-bang-call.hd	type	reject:bang-call-outside-suspension	lang/11-requirements-and-suspension.md#r-req.bang.top-level-module

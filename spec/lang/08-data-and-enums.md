@@ -659,7 +659,7 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 6. r[data.shared.per-variant] Shared constructor data belongs to the variant, not to each value: every value of one variant has the same shared data.
 7. r[data.shared.module-init] Each variant's constructor expression is evaluated once at run time during its declaring module's initialization.
 8. r[data.shared.module-init.order] These evaluations join that module's top-level initialization under [`module.init.cycle`](10-modules.md#r-module.init.cycle) and [Order Inside A Cycle](10-modules.md#order-inside-a-cycle).
-9. r[data.shared.module-init.requirement-free] The expression must satisfy [`module.init.requirement-free`](10-modules.md#r-module.init.requirement-free), and it may call any requirement-free function.
+9. r[data.shared.module-init.empty-row] The expression must satisfy [`module.init.requirement-free.non-script`](10-modules.md#r-module.init.requirement-free.non-script), and it may call any requirement-free function.
 10. r[data.shared.module-init.effects] Its writes to module state occur during initialization.
 11. r[data.shared.module-init.not-lazy] The expression is neither lazy nor compile-time evaluation.
 12. r[data.shared.no-payload] The variant's payload parameters are not in scope in its constructor expression.
@@ -675,7 +675,7 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 
 1. r[data.shared.default] A shared parameter may declare a default expression.
 2. r[data.shared.default.order] After the first defaulted parameter, every following shared parameter must also have a default, as with function parameters. A later parameter without one is an error. Error: `default-order`.
-3. r[data.shared.default.requirement-free] The default must satisfy [`data.shared.module-init.requirement-free`](#r-data.shared.module-init.requirement-free), as a function-parameter or struct-field default does.
+3. r[data.shared.default.empty-row] The default must satisfy [`data.shared.module-init.empty-row`](#r-data.shared.module-init.empty-row), as a function-parameter or struct-field default does.
 4. r[data.shared.default.eval-once] When omitted, the default is evaluated once for the variant during the variant's constructor call at module initialization.
 5. r[data.shared.default.eval-order] Within one variant's constructor call, explicit argument expressions are evaluated first, then omitted defaults in parameter declaration order.
 6. r[data.shared.default.scope] A default may refer to earlier named shared parameters but not later ones.

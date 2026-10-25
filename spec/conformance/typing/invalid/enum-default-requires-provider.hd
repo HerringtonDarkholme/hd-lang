@@ -1,6 +1,6 @@
 # test: a shared enum constructor default must not call a function with a requirement row
-# Spec 08 Shared Parameter Defaults: data.shared.default.requirement-free;
-# Shared Enum Constructor Data: data.shared.module-init.requirement-free.
+# Spec 08 Shared Parameter Defaults: data.shared.default.empty-row;
+# Shared Enum Constructor Data: data.shared.module-init.empty-row.
 
 trait Clock:
     fn now(self) -> i32

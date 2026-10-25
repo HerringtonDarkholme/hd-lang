@@ -1,0 +1,3 @@
+# Keep standalone probes outside the package's source root.
+pub fn marker() -> void:
+    pass

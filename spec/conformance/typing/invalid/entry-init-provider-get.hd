@@ -1,0 +1,8 @@
+# test: an entry module with main cannot acquire an ambient provider during initialization
+# Spec 10: module.init.requirement-free.non-script, module.init.requirement-free.operations.
+trait Source
+
+_ := $.use(Source)  # diagnostic: missing-requirement
+
+pub fn main() -> void:
+    pass

@@ -1028,7 +1028,7 @@ pub enum ConsoleError:
 16. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
 17. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on.signature): its forbidden contexts, the error and the panic there, and its behavior under an active driver.
 18. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
-19. r[module.console.println-block-on.direct-contexts] A `println` call written directly in a `defer` suite, a default expression, a fact expression, or non-entry module initialization is an error. Error: `suspension-forbidden-context`. In non-entry module initialization the call is also `missing-requirement` by [`module.init.requirement-free`](#r-module.init.requirement-free), and the compiler reports both.
+19. r[module.console.println-block-on.forbidden-direct] A `println` call written directly in a `defer` suite, a default expression, a fact expression, or non-entry module initialization is an error. Error: `suspension-forbidden-context`. In non-entry module initialization the call is also `missing-requirement` by [`module.init.requirement-free.non-script`](#r-module.init.requirement-free.non-script), and the compiler reports both.
 20. r[module.console.println-block-on.indirect] A `println` call reached through another call while one of those contexts runs panics. Panic: `suspension-forbidden-context`.
 21. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
 
@@ -1746,7 +1746,7 @@ top-level code may do.
 
 1. r[module.init.script] A **script** is an entry module whose top-level executable statements are the entry behavior and which has no `main` declaration.
 2. r[module.init.entry-module.selected] An **entry module** is the module that a program starts from. That is a module that the toolchain selects in a package, or the file of a single-file program.
-3. r[module.init.statements-and-main] If an entry module contains both top-level statements and `main`, its top-level statements initialize the module first and then the runtime invokes `main`. That form is an executable entry module, not a script.
+3. r[module.init.entry.statements-before-main] An entry module with `main` runs requirement-free top-level initialization before `main`; it is not a script.
 4. r[module.init.program-instance] A **program instance** is one instantiated Wasm module graph together with its module storage, provider bindings, and execution state.
 
 ```hd
@@ -1853,7 +1853,7 @@ fn first_name() -> string:
 7. r[module.init.test-cases] The `it` calls of a `tests:` block or a test module, and their bodies, are not part of module initialization.
 8. r[module.init.script-empty] An entry module with no `main` and no top-level executable statements is a script with no entry behavior. Running it does nothing and exits with status 0.
 9. r[module.init.tests.no-entry] A test run runs no entry behavior. So the module under test is not an entry module in it, even when it is a script or a [task](../cli/command-line.md#tasks).
-10. r[module.init.tests.requirement-free] A script's top-level statements are then its module initialization, which must be requirement-free by [`module.init.requirement-free`](#r-module.init.requirement-free). Error: `missing-requirement`.
+10. r[module.init.tests.initialization-empty-row] A script's top-level statements are then its module initialization, which must be requirement-free by [`module.init.requirement-free.non-script`](#r-module.init.requirement-free.non-script). Error: `missing-requirement`.
 
 ```text
 # tasks/seed.hd, under `hd test`
@@ -1891,8 +1891,9 @@ println("hello ${name.unwrap_or("world")}")
 
 ### Requirement-Free Initialization
 
-1. r[module.init.requirement-free] Top-level code in a non-entry module must be requirement-free initialization.
-2. r[module.init.requirement-free.forms] It must not use `$.use`, enter a provider scope, make a bang call, or call a callable whose requirement row is not empty.
+1. r[module.init.requirement-free.non-script] Top-level code in non-entry modules and entry modules with `main` must be requirement-free initialization. Error: `missing-requirement`.
+2. r[module.init.requirement-free.operations] It must not use `$.use`, enter a provider scope, make a bang call, or call a callable whose requirement row is not empty.
+3. r[module.init.entry.row-free-block-on] An entry module's requirement-free initialization may call `block_on`; its existing forbidden contexts still apply.
 
 ```hd
 limit := +10
@@ -1900,6 +1901,10 @@ limit := +10
 fn demo(n: i32) -> bool:
     n < limit   # requirement-free: no $.use, no bang call
 ```
+
+> **Why.** Only script entry behavior has the default profile.
+> Requirements declared by `main` do not authorize its earlier initialization.
+> Requirement-free `block_on` remains permitted in entry initialization.
 
 ### Program Instances
 

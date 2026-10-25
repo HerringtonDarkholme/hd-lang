@@ -1,0 +1,28 @@
+# Main requirements never authorize initializer requirements; only a script gets the default profile.
+run: hd check --format json entry.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"missing-requirement","file":"entry.hd","line":1},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd entry.hd --engine node --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","code":"missing-requirement","file":"entry.hd","line":1},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd run entry --engine node --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","code":"missing-requirement","file":"tasks/entry.hd","line":1},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd script.hd --engine node
+stdout: ok
+run: hd run script --engine node
+stdout: ok
+run: hd entry.hd --engine wasmtime --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","code":"missing-requirement","file":"entry.hd","line":1},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd run entry --engine wasmtime --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","code":"missing-requirement","file":"tasks/entry.hd","line":1},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd script.hd --engine wasmtime
+stdout: ok
+run: hd run script --engine wasmtime
+stdout: ok

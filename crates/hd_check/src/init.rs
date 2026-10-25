@@ -337,10 +337,10 @@ pub fn shared_global(names: &hd_resolve::Names<'_>, variant: DefId, field: &str)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TopLevel {
     /// A module that is not the entry: requirement-free
-    /// (`module.init.requirement-free`).
+    /// (`module.init.requirement-free.non-script`).
     Module,
-    /// The entry module of a program that has a `main`: an inferred entry
-    /// row.
+    /// The entry module of a program that has a `main`: requirement-free
+    /// (`module.init.requirement-free.non-script`).
     Entry,
     /// A script, the entry module with no `main`: a driver context, as
     /// `main!`'s body is, so it may make bang calls
@@ -463,8 +463,7 @@ fn init_steps(
     diags: &mut DiagBuf,
 ) -> StageResult<(Body, Vec<StmtSummary>)> {
     let pool = cx.names.pool;
-    let entry = top != TopLevel::Module;
-    let row = if entry {
+    let row = if matches!(top, TopLevel::Script | TopLevel::Input) {
         // An inferred row: every key is available at the top level.
         pool.row(&RowData {
             keys: vec![],
@@ -504,7 +503,7 @@ fn init_steps(
     let local = hd_types::LocalPool::new();
     let mut ck = new_ck(cx, &local, item, item, BodyKind::Init, (ret, row), diags);
     ck.module_init = Some(module.to_owned());
-    ck.forbidden = (!entry).then_some("a module's initialization");
+    ck.forbidden = (top == TopLevel::Module).then_some("a module's initialization");
     if matches!(top, TopLevel::Script | TopLevel::Input) {
         ck.suspends = vec![true];
     }
@@ -585,6 +584,23 @@ fn init_steps(
         ck.b.close_block(blk, None, Ty::VOID, NodeIdx::NONE)
     };
     let body = ck.finish_body(root)?;
+    if matches!(top, TopLevel::Module | TopLevel::Entry) {
+        // An empty ambient row does not reject a locally supplied scope.
+        // Only the initializer's own operations are constrained here;
+        // a closure body keeps its ordinary provider-scope rules
+        // (`module.init.requirement-free.operations`).
+        let topology = hd_tir::ir::Topology::new(&body);
+        for (i, tag) in body.tags.iter().enumerate() {
+            if *tag == Tag::With && topology.sub[i] == 0 {
+                let node = cx.src.parse.tree.node(body.syn[i]);
+                diags.error(
+                    Code::MissingRequirement,
+                    cx.src.span(node),
+                    "requirement-free initialization cannot enter a provider scope",
+                );
+            }
+        }
+    }
     Ok((body, per_stmt))
 }
 
@@ -1079,7 +1095,7 @@ impl Ck<'_, '_> {
                 self.set_local(l, *r, e.index());
             }
             // A shared default is requirement-free
-            // (`data.shared.default.requirement-free`).
+            // (`data.shared.default.empty-row`).
             self.rows.push(RowFrame::Declared(RowId::EMPTY));
             let saved = self.default_row.replace(false);
             let checked = self.expr(e, Some(params[i].1));

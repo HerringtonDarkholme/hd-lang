@@ -848,7 +848,7 @@ fn an_empty_script_checks_and_runs_whichever_runs_first() {
     );
 }
 
-/// `module.init.tests.no-entry`, `module.init.tests.requirement-free`: a
+/// `module.init.tests.no-entry`, `module.init.tests.initialization-empty-row`: a
 /// test run runs no entry behavior, so `hd test` and `hd check --tests`
 /// reject a tested script's printing top level, while `hd check` and
 /// `hd FILE` accept it, in every order.

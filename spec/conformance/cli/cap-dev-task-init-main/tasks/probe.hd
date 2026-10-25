@@ -1,4 +1,4 @@
-println("unlisted")
+greeting := "listed"
 
-pub fn main() -> void:
-    pass
+pub fn main() -> void $ Console:
+    println(greeting)

@@ -1,0 +1,6 @@
+# test: main's Console row does not authorize its requirement-free initializer
+# Spec 10: module.init.requirement-free.non-script, module.init.entry.statements-before-main.
+println("init")  # diagnostic: missing-requirement
+
+pub fn main() -> void $ Console:
+    println("main")

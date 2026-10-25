@@ -1,0 +1,4 @@
+use std.time.Clock
+
+_ := $.use(Clock)
+println("ok")

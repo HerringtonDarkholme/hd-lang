@@ -1,0 +1,10 @@
+[package]
+name = "entry-init-script-profile"
+
+[capabilities]
+Console = true
+Clock = true
+
+[dev-capabilities]
+Console = true
+Clock = true

@@ -1,0 +1,7 @@
+# test: a script can acquire the default-profile Clock and print at its top level
+# Spec 10: module.init.script-profile, module.init.script-body.
+# expect-stdout: ok
+use std.time.Clock
+
+_ := $.use(Clock)
+println("ok")

@@ -1,5 +1,5 @@
 # test: a test build runs no entry behavior, so a script's top level is module initialization and a call that needs a requirement there is missing-requirement
-# Spec Modules, Entry Behavior: module.init.tests.no-entry, module.init.tests.requirement-free (task #321).
+# Spec Modules, Entry Behavior: module.init.tests.no-entry, module.init.tests.initialization-empty-row (task #321).
 # A direct `println` here is also suspension-forbidden-context, so the call is of a function with a Clock row.
 trait Clock
 

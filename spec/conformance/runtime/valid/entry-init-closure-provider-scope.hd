@@ -1,0 +1,17 @@
+# test: a closure created during entry initialization keeps its own provider scopes
+# Spec 10: module.init.entry.statements-before-main, module.init.requirement-free.operations.
+# expect-stdout: 3
+trait Source:
+    fn read(&self) -> i32
+
+struct Fixed: pass
+
+impl Source for Fixed:
+    fn read(&self) -> i32: +3
+
+read := fn() -> i32:
+    $.with(Source=&mut Fixed {}):
+        $.use(Source).read()
+
+pub fn main() -> void $ Console:
+    println(read())

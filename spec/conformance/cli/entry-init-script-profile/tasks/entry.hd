@@ -1,0 +1,4 @@
+println("init")
+
+pub fn main() -> void $ Console:
+    println("main")
