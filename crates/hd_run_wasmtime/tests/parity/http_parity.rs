@@ -92,7 +92,7 @@ fn http_statuses_binary_bodies_header_case_and_repeats() {
     }
 }
 
-/// `std-http.headers.pairs`: a response keeps every header pair, however
+/// This Node transport preserves raw pairs (`std-http.headers.fields`), however
 /// many. Node's default limit is 1000 pairs. The wasmtime host's HTTP
 /// library stops at 128 (ureq-proto `MAX_RESPONSE_HEADERS`), so this runs
 /// on the Node host alone.
@@ -115,7 +115,8 @@ fn http_node_response_keeps_more_than_a_thousand_header_pairs() {
     assert_node_program(&scratch, p, vec![]);
 }
 
-/// `std-http.headers.order`: the values of one name keep their order, so a
+/// The default providers retain raw fields (`std-http.headers.combined` also
+/// allows combining them). The values of one name keep their order, so a
 /// name that repeats with another name between its values is delivered
 /// with its values together. Names compare ignoring case, so `X-A` and
 /// `x-a` are one name.
@@ -157,6 +158,28 @@ fn http_values_of_one_name_keep_their_order_across_other_names() {
         ),
     );
     assert_program(&scratch, p, vec![], || {});
+}
+
+/// A provider may expose a combined non-cookie field; cookies always
+/// remain separate pairs (`std-http.headers.cookies-separate`).
+#[test]
+fn http_combined_fields_keep_cookie_values_separate() {
+    let scratch = Scratch::new();
+    let headers = [
+        ("X-Repeat", "one, two"),
+        ("Set-Cookie", "a=1; Expires=Wed, 21 Oct 2030 07:28:00 GMT"),
+        ("Set-Cookie", "b=2"),
+        ("Content-Length", "0"),
+    ];
+    let server = HttpFixture::new(move |_| (raw(200, &headers, b""), Duration::ZERO));
+    let mut program = Program::new();
+    program.call_waiting(
+        "hd:Http",
+        "send",
+        request(0, &server.url("/"), &[], b"", None),
+        response(200, &headers, b"", &server.url("/")),
+    );
+    assert_program(&scratch, program, vec![], || {});
 }
 
 #[test]

@@ -51,16 +51,19 @@ pub struct Response:
 2. r[std-http.types.traits] `Method`, `Request`, and `Response` implement `Eq` and `Debug`.
 3. r[std-http.request.builder-defaults] A `Request` that gives only `url` defaults to `Get`, empty query and header lists, an empty body, and ten redirects.
 4. r[std-http.request.default-timeout] A provider that sends requests to a host has a default timeout of 30 seconds.
-5. r[std-http.headers.pairs] Headers are a list of name and value pairs, so a repeated header such as `Set-Cookie` keeps every value, in order.
+5. r[std-http.headers.fields] Headers are a list of name and value pairs.
 6. r[std-http.headers.case] Header names compare ignoring ASCII case, so a provider may change the case of a response header's name.
-7. r[std-http.headers.order] In a response, only the values of one name keep their order. Headers of different names may come in any order.
-8. r[std-http.response.header] `Response` has the method `header(self, name: string) -> string?`. It returns the first value whose name equals `name`, ignoring ASCII case.
-9. r[std-http.response.text] `Response` has the method `text(self) -> string`. It decodes the body as UTF-8, with U+FFFD for each byte sequence that is not valid UTF-8.
-10. r[std-http.response.url] `Response.url` is the URL of the last request, after every redirect. `ScriptedHttp` sets it to the request's URL, and a response built by hand has `""` unless it names one.
-11. r[std-http.method.eq.variant-payload] Two `Method` values compare equal only when their variants and corresponding payloads are equal.
-12. r[std-http.types.value-copy] A `Request` or `Response` copy is independent of the value it was copied from.
+7. r[std-http.headers.combined] A provider may combine repeated non-cookie response fields according to [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3).
+8. r[std-http.headers.cookies-separate] A provider must deliver each `Set-Cookie` value as a separate pair, in received order.
+9. r[std-http.headers.values-order] Repeated values of one response field retain their received order.
+10. r[std-http.headers.platform-order] Response headers of different names may follow the platform's exposed order.
+11. r[std-http.response.header] `Response` has the method `header(self, name: string) -> string?`. It returns the first value whose name equals `name`, ignoring ASCII case.
+12. r[std-http.response.text] `Response` has the method `text(self) -> string`. It decodes the body as UTF-8, with U+FFFD for each byte sequence that is not valid UTF-8.
+13. r[std-http.response.url] `Response.url` is the URL of the last request, after every redirect. `ScriptedHttp` sets it to the request's URL, and a response built by hand has `""` unless it names one.
+14. r[std-http.method.eq.variant-payload] Two `Method` values compare equal only when their variants and corresponding payloads are equal.
+15. r[std-http.types.value-copy] A `Request` or `Response` copy is independent of the value it was copied from.
 
-13. r[std-http.response.omitted-lists] A response's omitted `headers` and `body` fields default to empty lists.
+16. r[std-http.response.omitted-lists] A response's omitted `headers` and `body` fields default to empty lists.
 
 ## Request Builder
 

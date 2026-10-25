@@ -1,7 +1,7 @@
 # test: ScriptedHttp answers a URL by its exact text, whatever the method, and records every request in order
 # Spec std/http Scripted Http: std-http.scripted.new-empty, std-http.scripted.raw-status, std-http.scripted.received-ref, std-http.send.status, std-http.helper.get.checked-response, std-http.response.text.
 # Also covers std-http.types.builder-response-defaults, std-http.types.traits,
-# std-http.request.builder-defaults, std-http.headers.pairs,
+# std-http.request.builder-defaults, std-http.headers.fields,
 # std-http.error.decl-retained-response, std-http.error.traits, std-http.error.other,
 # std-http.trait.decl-ref, std-http.send, std-http.send.mut-ref.reference-values,
 # std-http.bodies, std-http.request.send, std-http.scripted.decl,
