@@ -433,6 +433,11 @@ pub enum Helper {
     /// `(at, len, from, byte) -> index`: std's `bytes_index`, the first
     /// byte at or after `from` equal to `byte`, or `len` (#428).
     BytesIndex,
+    /// `(left_at, left_len, right_at, right_len) -> index`: std's
+    /// `bytes_mismatch`, the offset of the first differing byte, else the
+    /// shorter length (#428). [`Helper::StrEq`] and [`Helper::StrCmp`] call
+    /// it.
+    BytesMismatch,
     /// `(args) -> result`: the `hd:prim` import `name` (spec/std/README.md,
     /// "Standard library primitives"). A string argument goes in the
     /// exchange buffer, its length the import's parameter; a string result
@@ -1706,6 +1711,11 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.raw = Some(crate::scan::index_code());
             f
         }
+        Helper::BytesMismatch => {
+            let mut f = m.func("rt:bytes_mismatch", vec![Val::I32; 4], vec![Val::I32]);
+            f.raw = Some(crate::scan::mismatch_code());
+            f
+        }
         Helper::HostPrim { name, args, result } => host_prim(m, name, args, *result),
         Helper::FmtInt { signed } => fmt_int(m, *signed),
         Helper::ForbidCheck => {
@@ -1888,10 +1898,9 @@ fn fmt_int(m: &Module, signed: bool) -> Func {
     f
 }
 
-/// [`Helper::StrEq`]: equal lengths, then each byte.
+/// [`Helper::StrEq`]: equal lengths, then no mismatch before the end.
 fn str_eq(m: &Module) -> Func {
     let mut f = m.func("rt:str_eq", vec![Val::I32; 4], vec![Val::I32]);
-    let k = f.local(Val::I32);
     f.get(1);
     f.get(3);
     f.op(Instruction::I32Ne);
@@ -1899,33 +1908,12 @@ fn str_eq(m: &Module) -> Func {
     f.i32(0);
     f.op(Instruction::Return);
     f.op(Instruction::End);
-    f.op(Instruction::Block(BlockType::Empty));
-    f.op(Instruction::Loop(BlockType::Empty));
-    f.get(k);
+    for l in 0..4 {
+        f.get(l);
+    }
+    f.helper(Helper::BytesMismatch);
     f.get(1);
-    f.op(Instruction::I32GeU);
-    f.op(Instruction::BrIf(1));
-    f.get(0);
-    f.get(k);
-    f.op(Instruction::I32Add);
-    f.op(Instruction::I32Load8U(mem(HEAP, 0, 0)));
-    f.get(2);
-    f.get(k);
-    f.op(Instruction::I32Add);
-    f.op(Instruction::I32Load8U(mem(HEAP, 0, 0)));
-    f.op(Instruction::I32Ne);
-    f.op(Instruction::If(BlockType::Empty));
-    f.i32(0);
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.get(k);
-    f.i32(1);
-    f.op(Instruction::I32Add);
-    f.set(k);
-    f.op(Instruction::Br(0));
-    f.op(Instruction::End);
-    f.op(Instruction::End);
-    f.i32(1);
+    f.op(Instruction::I32Eq);
     f
 }
 
@@ -1933,12 +1921,7 @@ fn str_eq(m: &Module) -> Func {
 /// is a prefix of the longer, the lengths do.
 fn str_cmp(m: &Module) -> Func {
     let mut f = m.func("rt:str_cmp", vec![Val::I32; 4], vec![Val::I32]);
-    let (k, n, x, y) = (
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-    );
+    let (k, x, y) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     // The sign of `x - y` as -1, 0 or 1, for two values in locals.
     let sign = |f: &mut Func, x: u32, y: u32| {
         f.get(x);
@@ -1949,19 +1932,21 @@ fn str_cmp(m: &Module) -> Func {
         f.op(Instruction::I32LtU);
         f.op(Instruction::I32Sub);
     };
+    for l in 0..4 {
+        f.get(l);
+    }
+    f.helper(Helper::BytesMismatch);
+    f.set(k);
+    // A mismatch before the shorter length: the bytes there decide.
+    f.get(k);
     f.get(1);
     f.get(3);
     f.get(1);
     f.get(3);
     f.op(Instruction::I32LtU);
     f.op(Instruction::Select);
-    f.set(n);
-    f.op(Instruction::Block(BlockType::Empty));
-    f.op(Instruction::Loop(BlockType::Empty));
-    f.get(k);
-    f.get(n);
-    f.op(Instruction::I32GeU);
-    f.op(Instruction::BrIf(1));
+    f.op(Instruction::I32LtU);
+    f.op(Instruction::If(BlockType::Empty));
     f.get(0);
     f.get(k);
     f.op(Instruction::I32Add);
@@ -1972,19 +1957,8 @@ fn str_cmp(m: &Module) -> Func {
     f.op(Instruction::I32Add);
     f.op(Instruction::I32Load8U(mem(HEAP, 0, 0)));
     f.set(y);
-    f.get(x);
-    f.get(y);
-    f.op(Instruction::I32Ne);
-    f.op(Instruction::If(BlockType::Empty));
     sign(&mut f, x, y);
     f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.get(k);
-    f.i32(1);
-    f.op(Instruction::I32Add);
-    f.set(k);
-    f.op(Instruction::Br(0));
-    f.op(Instruction::End);
     f.op(Instruction::End);
     sign(&mut f, 1, 3);
     f

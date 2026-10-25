@@ -222,3 +222,103 @@ pub fn index_code() -> Vec<u8> {
     s.local_get(len).end();
     f.into_raw_body()
 }
+
+/// The code of `Helper::BytesMismatch`, `(left, left_len, right, right_len)
+/// -> index`: the offset of the first byte where the two views differ,
+/// else the shorter length.
+#[must_use]
+pub fn mismatch_code() -> Vec<u8> {
+    let (left, left_len, right, right_len) = (0, 1, 2, 3);
+    let (i, n, mask) = (4, 5, 6);
+    let mut f = Function::new([(3, ValType::I32)]);
+    let mut s = f.instructions();
+    // The lanes of the 16 bytes at `left + off` and `right + off` that
+    // differ, as a bit mask.
+    let lanes = |s: &mut wasm_encoder::InstructionSink<'_>,
+                 off: &dyn Fn(&mut wasm_encoder::InstructionSink<'_>)| {
+        s.local_get(left);
+        off(s);
+        s.i32_add().v128_load(V128).local_get(right);
+        off(s);
+        s.i32_add()
+            .v128_load(V128)
+            .i8x16_eq()
+            .i8x16_bitmask()
+            .i32_const(0xffff)
+            .i32_xor();
+    };
+    // `n`, the shorter length.
+    s.local_get(left_len)
+        .local_get(right_len)
+        .local_get(left_len)
+        .local_get(right_len)
+        .i32_lt_u()
+        .select()
+        .local_set(n);
+    // 16 bytes at a time while 16 remain.
+    s.block(BlockType::Empty).loop_(BlockType::Empty);
+    s.local_get(n)
+        .local_get(i)
+        .i32_sub()
+        .i32_const(16)
+        .i32_lt_u()
+        .br_if(1);
+    lanes(&mut s, &|s| {
+        s.local_get(i);
+    });
+    s.local_tee(mask).if_(BlockType::Empty);
+    s.local_get(i)
+        .local_get(mask)
+        .i32_ctz()
+        .i32_add()
+        .return_()
+        .end();
+    s.local_get(i).i32_const(16).i32_add().local_set(i).br(0);
+    s.end().end();
+    // Nothing left.
+    s.local_get(i).local_get(n).i32_ge_u().if_(BlockType::Empty);
+    s.local_get(n).return_().end();
+    // Fewer than 16 remain, and at least one.
+    s.local_get(n)
+        .i32_const(16)
+        .i32_ge_u()
+        .if_(BlockType::Empty);
+    // The last 16 bytes of the shorter length; the lanes before `i` shift
+    // out.
+    lanes(&mut s, &|s| {
+        s.local_get(n).i32_const(16).i32_sub();
+    });
+    s.local_get(i)
+        .i32_const(16)
+        .i32_add()
+        .local_get(n)
+        .i32_sub()
+        .i32_shr_u()
+        .local_tee(mask)
+        .if_(BlockType::Empty);
+    s.local_get(i)
+        .local_get(mask)
+        .i32_ctz()
+        .i32_add()
+        .return_()
+        .end();
+    s.local_get(n).return_().end();
+    // Under 16 bytes: one byte at a time.
+    s.block(BlockType::Empty).loop_(BlockType::Empty);
+    s.local_get(i).local_get(n).i32_ge_u().br_if(1);
+    s.local_get(left)
+        .local_get(i)
+        .i32_add()
+        .i32_load8_u(U8)
+        .local_get(right)
+        .local_get(i)
+        .i32_add()
+        .i32_load8_u(U8)
+        .i32_ne()
+        .if_(BlockType::Empty);
+    s.local_get(i).return_().end();
+    s.local_get(i).i32_const(1).i32_add().local_set(i).br(0);
+    s.end().end();
+    s.local_get(n).end();
+    f.into_raw_body()
+}

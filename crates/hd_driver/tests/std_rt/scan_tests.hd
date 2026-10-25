@@ -34,6 +34,10 @@ fn bytes_index_json(text: string, from: usize) -> usize:
 fn bytes_index(text: string, from: usize, byte: u8) -> usize:
     panic("intrinsic")
 
+@intrinsic("bytes_mismatch")
+fn bytes_mismatch(left: string, right: string) -> usize:
+    panic("intrinsic")
+
 # The reference body of `bytes_index_json` in lib/std/json.hd.
 fn reference_json(text: string, from: usize) -> usize:
     size := bytes_len(text)
@@ -149,6 +153,80 @@ fn index_case(c: &mut Choices) -> Index:
     let from: usize = c.int(0..=len + 2)
     Index { start: start, len: len, at: at, needle: edge_byte(needle_at), from: from }
 
+# The reference body of `bytes_mismatch` in lib/std/text.hd.
+fn reference_mismatch(left: string, right: string) -> usize:
+    left_size := bytes_len(left)
+    right_size := bytes_len(right)
+    shorter := if left_size < right_size: left_size else: right_size
+    let index: usize = 0
+    while index < shorter:
+        if bytes_at(left, index) != bytes_at(right, index):
+            return index
+        index = index + 1
+    shorter
+
+# The old loops of `string_equal` and `string_compare`.
+fn reference_equal(left: string, right: string) -> bool:
+    bytes_len(left) == bytes_len(right) && reference_mismatch(left, right) == bytes_len(left)
+
+fn reference_compare(left: string, right: string) -> i32:
+    at := reference_mismatch(left, right)
+    if at < bytes_len(left) && at < bytes_len(right):
+        return if bytes_at(left, at) < bytes_at(right, at): -1 else: 1
+    if bytes_len(left) < bytes_len(right): -1 else if bytes_len(left) > bytes_len(right): 1 else: 0
+
+# A view of `len` bytes, `start` bytes into its buffer. Byte `k` of the view
+# is `edge_byte(k)`, except byte `at` (when `at < len`), which is `repl`.
+# Every byte of the buffer outside the view is `fill`, and the two sides of
+# a comparison use different fills, so a compare that reads outside either
+# view gives a wrong answer.
+fn mview(start: usize, len: usize, at: usize, repl: u8, fill: u8) -> string:
+    let mut bytes: List[u8] = []
+    let k: usize = 0
+    while k < start + len + 16:
+        if k < start || k >= start + len:
+            bytes.push(fill)
+        else if k - start == at:
+            bytes.push(repl)
+        else:
+            bytes.push(edge_byte(k - start))
+        k = k + 1
+    bytes_slice(string_from_bytes(bytes), start, start + len)
+
+# A byte that differs from the one `edge_byte` puts at view offset `at`.
+fn changed(at: usize, pick: usize) -> u8:
+    other_byte(pick, edge_byte(at))
+
+# Both views for one comparison: the right one differs at `at` when
+# `at` is below the shorter length.
+fn pair(left_start: usize, left_len: usize, right_start: usize, right_len: usize, at: usize, pick: usize) -> List[string]:
+    [mview(left_start, left_len, 1000, 0, 1), mview(right_start, right_len, at, changed(at, pick), 2)]
+
+@derive(Debug)
+struct Mismatch:
+    left_start: usize
+    left_len: usize
+    right_start: usize
+    right_len: usize
+    at: usize
+    pick: usize
+
+fn mismatch_case(c: &mut Choices) -> Mismatch:
+    let left_start: usize = c.int(0..32)
+    let right_start: usize = c.int(0..32)
+    let left_len: usize = c.int(0..=80)
+    # Often the same length, and often a prefix of the other side.
+    let shape: usize = c.int(0..4)
+    let right_len: usize = match shape:
+        0 => left_len
+        1 => if left_len > 0: left_len - 1 else: 0
+        2 => left_len + 1
+        _ => c.int(0..=80)
+    let bigger = if left_len > right_len: left_len else: right_len
+    let at: usize = c.int(0..=bigger)
+    let pick: usize = c.int(0..8)
+    Mismatch { left_start: left_start, left_len: left_len, right_start: right_start, right_len: right_len, at: at, pick: pick }
+
 tests:
     use std.testing.{assert_equal, it, it_prop_with}
 
@@ -242,3 +320,83 @@ tests:
         assert_equal(bytes_index(text, 20, 9), 20, reason="bytes_index(text, 20, 9)")
         assert_equal(bytes_index(text, 99, 9), 20, reason="bytes_index(text, 99, 9)")
         assert_equal(bytes_index("", 0, 9), 0, reason="bytes_index(\"\", 0, 9)")
+
+    it_prop_with("bytes_mismatch gives what its reference body gives", gen=mismatch_case, cases=2000, prop=fn!(m: Mismatch):
+        views := pair(m.left_start, m.left_len, m.right_start, m.right_len, m.at, m.pick)
+        left := views[0]
+        right := views[1]
+        assert_equal(bytes_mismatch(left, right), reference_mismatch(left, right), reason=debug(m))
+        assert_equal(bytes_mismatch(right, left), reference_mismatch(right, left), reason=debug(m))
+        assert_equal(left == right, reference_equal(left, right), reason=debug(m))
+        assert_equal(left != right, !reference_equal(left, right), reason=debug(m))
+        assert_equal(left < right, reference_compare(left, right) < 0, reason=debug(m))
+        assert_equal(left >= right, reference_compare(left, right) >= 0, reason=debug(m))
+        assert_equal(right > left, reference_compare(right, left) > 0, reason=debug(m))
+    )
+
+    it("bytes_mismatch agrees at every pair of view starts and 16-byte edge"):
+        let left_start: usize = 0
+        while left_start < 32:
+            let right_start: usize = 0
+            while right_start < 32:
+                let shape: usize = 0
+                while shape < 3:
+                    left_len := if shape == 2: 33 else: 40
+                    right_len := if shape == 1: 40 else if shape == 2: 20 else: 40
+                    let place: usize = 0
+                    while place < 9:
+                        at := match place:
+                            0 => 1000
+                            1 => 0
+                            2 => 15
+                            3 => 16
+                            4 => 17
+                            5 => 19
+                            6 => 31
+                            7 => 32
+                            _ => 39
+                        views := pair(left_start, left_len, right_start, right_len, at, place)
+                        got := bytes_mismatch(views[0], views[1])
+                        want := reference_mismatch(views[0], views[1])
+                        if got != want:
+                            assert_equal(got, want, reason="starts $left_start and $right_start, lengths $left_len and $right_len, at $at")
+                        place = place + 1
+                    shape = shape + 1
+                right_start = right_start + 1
+            left_start = left_start + 1
+
+    it("bytes_mismatch agrees at every pair of lengths and difference position"):
+        let left_len: usize = 0
+        while left_len < 50:
+            let right_len: usize = 0
+            while right_len < 50:
+                shorter := if left_len < right_len: left_len else: right_len
+                let at: usize = 0
+                while at <= shorter:
+                    views := pair((left_len * 5 + at) % 32, left_len, (right_len * 3 + at) % 32, right_len, at, left_len + at)
+                    got := bytes_mismatch(views[0], views[1])
+                    want := reference_mismatch(views[0], views[1])
+                    if got != want:
+                        assert_equal(got, want, reason="lengths $left_len and $right_len, at $at")
+                    at = at + 1
+                right_len = right_len + 1
+            left_len = left_len + 1
+
+    it("bytes_mismatch gives the shorter length for a prefix and the common length when equal"):
+        assert_equal(bytes_mismatch("", ""), 0, reason="empty")
+        assert_equal(bytes_mismatch("", "abc"), 0, reason="empty and abc")
+        assert_equal(bytes_mismatch("abc", "abc"), 3, reason="equal")
+        assert_equal(bytes_mismatch("abc", "abcd"), 3, reason="prefix")
+        assert_equal(bytes_mismatch("abcd", "abc"), 3, reason="prefix, swapped")
+        assert_equal(bytes_mismatch("abcd", "abxd"), 2, reason="differ at 2")
+
+    it("string comparison orders by unsigned byte"):
+        low := string_from_bytes([127])
+        high := string_from_bytes([128])
+        top := string_from_bytes([255])
+        assert_equal(low < high, true, reason="127 < 128")
+        assert_equal(high < top, true, reason="128 < 255")
+        assert_equal(top > low, true, reason="255 > 127")
+        assert_equal("ab" < "abc", true, reason="prefix is smaller")
+        assert_equal("abc" == "abc", true, reason="equal")
+        assert_equal("abc" == "abd", false, reason="not equal")

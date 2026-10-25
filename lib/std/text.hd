@@ -702,13 +702,8 @@ impl StringBuilder:
 # Whether `needle`'s bytes appear in `text` at byte `start`. A valid UTF-8
 # needle can only match at a scalar boundary, so comparing bytes is exact.
 fn bytes_match(text: string, needle: string, start: usize) -> bool:
-    let index: usize = 0
     width := bytes_len(needle)
-    while index < width:
-        if bytes_at(text, start + index) != bytes_at(needle, index):
-            return false
-        index = index + 1
-    true
+    bytes_mismatch(bytes_slice(text, start, start + width), needle) == width
 
 # The byte position of the first `needle` at or after byte `from`.
 fn byte_find(text: string, needle: string, from: usize) -> usize?:
@@ -1083,27 +1078,16 @@ fn string_concat(left: string, right: string) -> string:
 
 fn string_equal(left: string, right: string) -> bool:
     size := bytes_len(left)
-    if size != bytes_len(right):
-        return false
-    let index: usize = 0
-    while index < size:
-        if bytes_at(left, index) != bytes_at(right, index):
-            return false
-        index = index + 1
-    true
+    size == bytes_len(right) && bytes_mismatch(left, right) == size
 
 # -1, 0, or 1 as `left` orders before, equal to, or after `right`.
 fn string_compare(left: string, right: string) -> i32:
     left_size := bytes_len(left)
     right_size := bytes_len(right)
     shorter := if left_size < right_size: left_size else: right_size
-    let index: usize = 0
-    while index < shorter:
-        left_byte := bytes_at(left, index)
-        right_byte := bytes_at(right, index)
-        if left_byte != right_byte:
-            return if left_byte < right_byte: -1 else: 1
-        index = index + 1
+    index := bytes_mismatch(left, right)
+    if index < shorter:
+        return if bytes_at(left, index) < bytes_at(right, index): -1 else: 1
     if left_size < right_size: -1 else if left_size > right_size: 1 else: 0
 
 # Primitives (spec/std/README.md#standard-library-primitives). The compiler
@@ -1224,3 +1208,19 @@ fn bytes_index(text: string, from: usize, byte: u8) -> usize:
             return index
         index = index + 1
     size
+
+# The offset of the first position where `left` and `right` differ; when one
+# is a prefix of the other, the shorter length, and when they are equal, their
+# common length. This body defines the result; the compiler supplies a SIMD128
+# one (#428).
+@intrinsic("bytes_mismatch")
+fn bytes_mismatch(left: string, right: string) -> usize:
+    left_size := bytes_len(left)
+    right_size := bytes_len(right)
+    shorter := if left_size < right_size: left_size else: right_size
+    let index: usize = 0
+    while index < shorter:
+        if bytes_at(left, index) != bytes_at(right, index):
+            return index
+        index = index + 1
+    shorter

@@ -139,11 +139,7 @@ impl Eq for bool:
 # Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
 impl Eq for string:
     fn eq(self, other: string) -> bool:
-        if self.len() != other.len():
-            return false
-        match string_order(self, other):
-            .Equal => true
-            _ => false
+        self.len() == other.len() && bytes_mismatch(self, other) == self.len()
 
 impl PartialOrd for string:
     fn partial_cmp(self, other: string) -> Ordering?:
@@ -158,12 +154,23 @@ fn string_order(left: string, right: string) -> Ordering:
     left_size := left.len()
     right_size := right.len()
     shorter := if left_size < right_size: left_size else: right_size
+    index := bytes_mismatch(left, right)
+    if index < shorter:
+        return if left[index] < right[index]: .Less else: .Greater
+    if left_size < right_size: .Less else if left_size > right_size: .Greater else: .Equal
+
+# The offset of the first byte where the strings differ, else the shorter
+# length. The body is the reference; the compiler supplies a SIMD128 one
+# (#428). `std.text` declares the same primitive.
+@intrinsic("bytes_mismatch")
+fn bytes_mismatch(left: string, right: string) -> usize:
+    shorter := if left.len() < right.len(): left.len() else: right.len()
     let index: usize = 0
     while index < shorter:
         if left[index] != right[index]:
-            return if left[index] < right[index]: .Less else: .Greater
+            return index
         index = index + 1
-    if left_size < right_size: .Less else if left_size > right_size: .Greater else: .Equal
+    shorter
 
 # Equality and order of the built-in composites
 # (spec/lang/05-expressions.md#r-expr.eq.std, #r-expr.ord.std). `==`, `<`, and
