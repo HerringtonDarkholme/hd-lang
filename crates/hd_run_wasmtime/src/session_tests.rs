@@ -699,29 +699,36 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
         }
         assert_eq!(repl.input(inputs[4]), Outcome::Exit(3));
         assert_eq!(text(&io.out), "hi\n");
-        assert_eq!(
-            journal_shape(repl.session),
-            [
-                "header",
-                "input 1",
-                "end Exit(0)",
-                "input 2",
-                "call hd:Clock now",
-                "end Exit(0)",
-                "input 3",
-                "call hd:Clock sleep.start",
-                "wake",
-                "finish",
-                "end Exit(0)",
-                "input 4",
-                "call hd:Console write.start",
-                "end Exit(0)",
-                "input 5",
-                "call hd:rt panic",
-                "call hd:rt stderr",
-                "end Trapped",
-            ]
-        );
+        // A write that completes at start is ready; Windows keeps every
+        // write on the writer thread, so there it blocks and finishes.
+        let write: &[&str] = if cfg!(windows) {
+            &["call hd:Console write.start", "block", "finish"]
+        } else {
+            &["call hd:Console write.start"]
+        };
+        let mut want = vec![
+            "header",
+            "input 1",
+            "end Exit(0)",
+            "input 2",
+            "call hd:Clock now",
+            "end Exit(0)",
+            "input 3",
+            "call hd:Clock sleep.start",
+            "wake",
+            "finish",
+            "end Exit(0)",
+            "input 4",
+        ];
+        want.extend_from_slice(write);
+        want.extend([
+            "end Exit(0)",
+            "input 5",
+            "call hd:rt panic",
+            "call hd:rt stderr",
+            "end Trapped",
+        ]);
+        assert_eq!(journal_shape(repl.session), want);
         let (rows, _) = hd_run::journal::read(repl.session.journal().expect("recording"));
         let events = hd_run::journal::decode(&rows).expect("the rows decode");
         let Event::Input { number, source, .. } = &events[3] else {
