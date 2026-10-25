@@ -401,8 +401,10 @@ pub enum Helper {
     ListTruncate {
         elem: Elem,
     },
-    /// `(list, extra) -> list`: room for `extra` (more than 0) more
-    /// elements before a bulk append: a pinned list panics; a shared
+    /// `(list, extra) -> list`: std's `list_reserve`, and the reserve
+    /// of [`Helper::ListExtend`] and [`Helper::BytesAppend`]: room for
+    /// `extra` (more than 0, which each caller tests) more elements
+    /// without another growth: a pinned list panics; a shared
     /// buffer is copied, its elements taking their own counts; a buffer
     /// without the room moves to one of the needed length or twice the
     /// length plus 4, whichever is more. At most one new buffer.

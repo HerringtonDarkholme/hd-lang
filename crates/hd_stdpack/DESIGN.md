@@ -69,8 +69,9 @@ every key in `lib/std` has a row.
 | `char_scalar` | `(value: char) -> u32`, in `text.hd`, `format.hd`, `hash.hd` | compiler |
 | `char_from_scalar` | `(point: u32) -> char?`, in `text.hd` | compiler |
 | `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `IntToStr` helper | compiler |
-| `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections.hd` and `text.hd` | compiler |
+| `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections.hd` | compiler |
 | `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void`, in `collections.hd`; `other` is lent | compiler |
+| `list_reserve` | `[T](items: &mut List[T], count: usize) -> void`, in `text.hd`, under `StringBuilder.reserve`; the runtime's one reserve routine, which `list_extend` and `bytes_append` call too | compiler |
 | `bytes_append` | `(bytes: &mut List[u8], text: string) -> void`, in `text.hd`, under `StringBuilder.push`; `text` is lent | compiler |
 | `panic` | `panic_with(category: string, message: string) -> void`, in `collections.hd`, `num.hd`, `ops.hd`, `testing.hd`, `text.hd` | compiler |
 | `facts_of` | `[F](f: F) -> Facts`, in `annotation.hd` | compiler |

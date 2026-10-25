@@ -495,7 +495,8 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   payload's. A string made from an unshared `List[u8]` views that list's
   buffer from its payload offset 16 instead (§23.17), as a
   `StringBuilder`'s string does; `bytes_append` copies a view's bytes
-  onto a byte list (§23.17). Every empty string is the one static empty value, address
+  onto a byte list and `list_reserve` makes room on one ahead
+  (`StringBuilder.reserve`), both through `rt:list_reserve` (§23.17). Every empty string is the one static empty value, address
   `EMPTY` (the first static address) and length 0: an interpolation or a
   concatenation with no bytes, an empty slice and an empty host result all
   give it, so no empty buffer is ever allocated.
@@ -756,7 +757,8 @@ changes preserve collection value semantics (§23.7).
   (`List.extend`) reads the list through its reference, as
   `list_truncate` does, and stores the buffer back. `rt:list_extend`
   reads `other`'s length first, then makes room once
-  (`rt:list_reserve`): a pinned list panics; a shared buffer, or one
+  (`rt:list_reserve`, the runtime's one reserve routine): a pinned list
+  panics; a shared buffer, or one
   without room, is replaced by one new buffer of the needed length or
   twice the length plus 4, whichever is more (a shared one with room
   keeps its capacity); the shared one's elements take their own counts,
@@ -770,6 +772,13 @@ changes preserve collection value semantics (§23.7).
   (`rt:bytes_append`): a buffer the list owns alone, with no owner word
   and room for the bytes, takes them inline with one `memory.copy`; any
   other goes through `rt:list_reserve` first.
+  std's `list_reserve(items: &mut List[T], count)`
+  (`StringBuilder.reserve`) is that routine itself through the
+  reference, behind the same inline `count != 0` test, so a count of 0
+  neither copies nor panics on a pin. After it the list has room for
+  `count` more elements with no further growth: a shared buffer, or one
+  short of room, becomes one new buffer as above; a buffer the list owns
+  with the room stays.
 - **Release.** A buffer's release glue (`rt:drop_elems`) releases each element's counted references up to the
   length. A list of strings or of structs holding lists frees everything
   at its last release.

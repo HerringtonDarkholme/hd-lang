@@ -50,6 +50,11 @@ fn buffer_address(at: usize, bytes: List[u8]) -> usize:
 fn string_from_bytes(bytes: List[u8]) -> string:
     panic("intrinsic")
 
+# Room in `items` for at least `count` more elements; 0 does nothing.
+@intrinsic("list_reserve")
+fn list_reserve[T](items: &mut List[T], count: usize) -> void:
+    panic("intrinsic")
+
 tests:
     use std.testing.{assert, it}
 
@@ -160,6 +165,47 @@ tests:
         text := string_from_bytes(bytes)
         assert(string_bytes(text).address == buffer + 16, "the string took over the list's buffer")
         assert(text == "hi!", "the bytes read as the string")
+
+    it("list_reserve grows the buffer once for every later push"):
+        at := fresh_page()
+        let mut bytes: List[u8] = [97]
+        list_reserve(&mut bytes, 50)
+        buffer := buffer_address(at, bytes)
+        assert(load_u32(buffer) >= 51, "room for the element and 50 more")
+        let i = +0
+        while i < 50:
+            bytes.push(98)
+            i = i + 1
+        assert(buffer_address(at, bytes) == buffer, "no push moved the buffer")
+        assert(bytes.len() == 51 && bytes[0] == 97 && bytes[50] == 98, "every byte kept")
+        list_reserve(&mut bytes, 0)
+        assert(buffer_address(at, bytes) == buffer, "reserving 0 changes nothing")
+
+    it("list_reserve copies a shared buffer, which the other holder keeps"):
+        at := fresh_page()
+        let mut bytes: List[u8] = [120, 121]
+        bytes.push(122)
+        kept := bytes
+        buffer := buffer_address(at, bytes)
+        list_reserve(&mut bytes, 0)
+        assert(buffer_address(at, bytes) == buffer, "reserving 0 copies nothing")
+        list_reserve(&mut bytes, 1)
+        assert(buffer_address(at, bytes) != buffer, "the list has its own buffer")
+        bytes[0] = 65
+        assert(kept[0] == 120 && bytes[0] == 65 && bytes.len() == 3, "the other holder is unchanged")
+
+    it("StringBuilder.reserve makes the room in one buffer"):
+        out := StringBuilder::new()
+        out.reserve(100)
+        let i = +0
+        while i < 100:
+            out.push_ascii(97)
+            i = i + 1
+        text := out.build()
+        # The string took over the builder's buffer, whose first word is
+        # its capacity: exactly the room reserved, so no push grew it.
+        assert(usize(load_u32(string_bytes(text).address - 16)) == 100, "one buffer of the reserved size")
+        assert(text.len() == 100, "every byte kept")
 
     it("string_from_bytes copies a shared buffer, which a later change misses"):
         at := fresh_page()

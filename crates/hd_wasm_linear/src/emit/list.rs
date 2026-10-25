@@ -973,11 +973,14 @@ impl Em<'_, '_, '_> {
     }
 
     /// std's changes of a list through a reference: `list_truncate(items:
-    /// &mut List[T], n)`, `list_extend(items, other)` and
-    /// `bytes_append(bytes: &mut List[u8], text)`. The list is read
-    /// through its reference, changed by its helper, and its buffer
-    /// stored back. The other argument is lent: the helper keeps no count
-    /// of it.
+    /// &mut List[T], n)`, `list_extend(items, other)`,
+    /// `list_reserve(items, count)` and `bytes_append(bytes: &mut
+    /// List[u8], text)`. The list is read through its reference, changed
+    /// by its helper, and its buffer stored back. The other argument is
+    /// lent: the helper keeps no count of it. `list_reserve` is
+    /// [`Helper::ListReserve`] itself, the routine `list_extend` and
+    /// `bytes_append` reserve with, behind the `count != 0` test they
+    /// make too.
     pub(super) fn list_ref_change(&mut self, key: &str, args: &[u32]) -> StageResult<()> {
         let Some((lt, false)) = self.ref_target(self.ty_of(args[0])) else {
             return unsupported("a list change through a value that is no reference");
@@ -986,8 +989,14 @@ impl Em<'_, '_, '_> {
         let helper = match key {
             "list_truncate" => Helper::ListTruncate { elem },
             "list_extend" => Helper::ListExtend { elem },
+            "list_reserve" => Helper::ListReserve { elem },
             _ => Helper::BytesAppend { elem },
         };
+        let reserve = key == "list_reserve";
+        if reserve {
+            self.push(args[1])?;
+            self.f.op(I::If(BlockType::Empty));
+        }
         // A string argument is its view: the address and the length.
         let rest = |em: &mut Self| -> StageResult<()> {
             if key == "bytes_append" {
@@ -1025,6 +1034,9 @@ impl Em<'_, '_, '_> {
         self.f.helper(helper);
         self.f.op(I::I32Store(mem(HEAP, 0, 2)));
         self.f.op(I::End);
+        if reserve {
+            self.f.op(I::End);
+        }
         Ok(())
     }
 

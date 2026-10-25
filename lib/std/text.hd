@@ -686,14 +686,7 @@ impl StringBuilder:
     ## Makes room for at least `count` more bytes, appends nothing, and returns the builder.
     ## See [std-text.builder.reserve](../../spec/std/text.md#r-std-text.builder.reserve).
     pub fn reserve(*mut self, count: usize) -> *mut StringBuilder:
-        # A push grows the buffer to twice its length plus 4; the bytes
-        # pushed here only make the room and are cut off again.
-        size := self.bytes.len()
-        let index: usize = 0
-        while index < count:
-            self.bytes.push(0)
-            index = index + 1
-        list_truncate(&mut self.bytes, size)
+        list_reserve(&mut self.bytes, count)
         self
 
     ## Returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder.
@@ -1216,10 +1209,10 @@ fn concat_all(parts: List[string]) -> string:
 fn string_from_bytes(bytes: List[u8]) -> string:
     panic("intrinsic")
 
-# Shrinks `items` to its first `len` elements, keeping its room; `len` is at
-# most the current length.
-@intrinsic("list_truncate")
-fn list_truncate[T](items: &mut List[T], len: usize) -> void:
+# Makes room in `items` for at least `count` more elements, so that many
+# appends grow no buffer; 0 does nothing.
+@intrinsic("list_reserve")
+fn list_reserve[T](items: &mut List[T], count: usize) -> void:
     panic("intrinsic")
 
 # Appends the bytes of `text` to the list `bytes` refers to, in one copy.
