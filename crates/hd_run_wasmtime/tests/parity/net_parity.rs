@@ -1225,7 +1225,7 @@ pub fn main!() -> void $ Console + Net:
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
         for limit in [0ms, 100ms]:
-            let result: Result[&mut dyn TcpStream, NetError] = with_timeout!(limit):
+            let result: Result[*mut dyn TcpStream, NetError] = with_timeout!(limit):
                 connect!("127.0.0.1", {})
             match result:
                 .Err(.Timeout) => println("timed out")
