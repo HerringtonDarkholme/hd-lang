@@ -39,7 +39,7 @@ pub struct Request:
     ## See [std-http.request.query](../../spec/std/http.md#r-std-http.request.query).
     pub query: List[(string, string)] = []
     ## The request's headers as name and value pairs; a repeated name keeps every value, in order.
-    ## See [std-http.headers.pairs](../../spec/std/http.md#r-std-http.headers.pairs).
+    ## See [std-http.headers.fields](../../spec/std/http.md#r-std-http.headers.fields).
     pub headers: List[(string, string)] = []
     ## The request's whole body; there is no streaming body.
     ## See [std-http.bodies](../../spec/std/http.md#r-std-http.bodies).
@@ -538,7 +538,7 @@ pub struct Response:
     ## See [std-http.types.builder-response-defaults](../../spec/std/http.md#r-std-http.types.builder-response-defaults).
     pub status: u16
     ## The response's headers as name and value pairs.
-    ## See [std-http.headers.pairs](../../spec/std/http.md#r-std-http.headers.pairs).
+    ## See [std-http.headers.fields](../../spec/std/http.md#r-std-http.headers.fields).
     pub headers: List[(string, string)] = []
     ## The response's whole body.
     ## See [std-http.bodies](../../spec/std/http.md#r-std-http.bodies).

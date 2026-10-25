@@ -185,7 +185,7 @@ export const writtenHost = (text) => {
 };
 
 // A program's capability grant as `hd` resolved it (Grant Precedence):
-// each trait with a limit maps to `false`, a total deny, or the list of its
+// each trait maps to `true`, unrestricted, `false`, a total deny, or its
 // scope entries, whose paths are absolute and resolved; a trait it leaves
 // out has no limit. A provider asks these before it touches a resource
 // (cli.host.default-profile.granted), as `hd_run::Grants` does.
@@ -198,11 +198,11 @@ export function createGrant(limits = {}, resolveTarget = (path) => path, sep = "
   const limit = (key) => (Object.hasOwn(limits, key) ? limits[key] : null);
   const check = (key, covers) => {
     const l = limit(key);
-    return l === null ? true : l === false ? false : l.some(covers);
+    return l === null || l === true ? true : l === false ? false : l.some(covers);
   };
   return {
     allows: (key) => limit(key) !== false,
-    limited: (key) => limit(key) !== null,
+    limited: (key) => limit(key) !== null && limit(key) !== true,
     // An entry covers the file it names or every path under the directory
     // it names (cli.cap.scope.path); a relative path is from `cwd`.
     coversPath: (key, path, cwd) => {

@@ -106,3 +106,28 @@ SDK application through public runtime and generated binding modules.
 > **Note.** This adapter exchanges plain values. Platform HTTP mapping,
 > outgoing fetch grants, admission limits, supervision and deployment
 > packaging are separate layers.
+
+## JavaScript Fetch Transport
+
+`adapters/http.mjs` supplies a native-fetch transport for a lease-owned
+`std.http.Http` handle.
+
+1. r[std-server-sdk.http.factory] `createHttpClient(lease, options)` returns a JavaScript implementation of `Http.send` for that lease.
+2. r[std-server-sdk.http.inputs] Its caller supplies resolved application grants and the public core URL-validation helpers.
+3. r[std-server-sdk.http.owned] Native fetch, body reading, timeout timers and abort controllers belong to the lease's operation callback.
+4. r[std-server-sdk.http.manual] Every fetch uses manual redirects.
+5. r[std-server-sdk.http.grants] The transport checks the destination's written host and port against the Http grant before every fetch.
+6. r[std-server-sdk.http.invalid] Invalid, non-ASCII and percent-encoded hosts are rejected before fetching.
+7. r[std-server-sdk.http.backslash] Backslashes in request URLs or redirect locations are rejected before fetching their targets.
+8. r[std-server-sdk.http.redirects] A zero redirect limit returns the first response without following or validating its Location.
+9. r[std-server-sdk.http.redirect-limit] Exceeding a positive redirect limit returns `TooManyRedirects` without fetching the next target.
+10. r[std-server-sdk.http.credentials] A cross-origin redirect removes Authorization, Proxy-Authorization, Cookie and Host request headers.
+11. r[std-server-sdk.http.rewrite] Redirects use Fetch's method and body rewriting rules.
+12. r[std-server-sdk.http.responses] Every final status completes with the whole body and final request URL.
+13. r[std-server-sdk.http.timeout] The default thirty-second provider timeout covers every redirect and final body reading.
+14. r[std-server-sdk.http.abort] Disposing the lease operation aborts its native request and clears its timer.
+15. r[std-server-sdk.http.headers] Response headers follow the standard HTTP field-combination and separate-cookie rules.
+
+> **Why.** Manual redirects enforce grants on every destination and avoid
+> forwarding credentials to another origin. The transport's own timeout
+> requires no ambient HD Clock capability.

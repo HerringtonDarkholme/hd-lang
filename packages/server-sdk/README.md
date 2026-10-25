@@ -10,7 +10,7 @@ cancellation signal against a handler wrapped in `timeout!(20s, cleanup=100ms)`.
 The source supplies its cleanup clock, so `serve!` adds no ambient Clock row.
 Every accepted lease is released after response delivery or cleanup.
 The public JavaScript adapter supplies retained synchronous turns and
-lease-owned I/O scheduling. Outgoing Http policy, complete admission
+lease-owned I/O scheduling. Outgoing Http integration, complete admission
 deadlines, supervision and platform packaging remain subsequent #266 slices.
 The current listener is a development adapter, not a completed deployment
 profile.
@@ -63,3 +63,19 @@ request caused the guest poll. Late callbacks are ignored after disposal.
 Shared state stores readiness and owner wake callbacks, without retaining a
 global request Promise. This boundary is usable by subsequent fetch and
 platform adapters; it does not yet supply their complete policies.
+
+## Outgoing Fetch Transport
+
+`adapters/http.mjs` exports `createHttpClient(lease, options)`. It takes a
+resolved core grant plus the public `isAsciiUrl` and `writtenHost` helpers;
+its returned `send(request, context)` method uses `lease.operation` to
+schedule native I/O. The optional fetch implementation supports platform
+adapters and deterministic controls. The provider timeout defaults to
+thirty seconds, covering redirects and body reading.
+
+The transport validates grants before each manual redirect hop and strips
+credentials on cross-origin redirects. Responses preserve raw body bytes,
+non-success statuses and separate Set-Cookie values. Non-cookie headers
+may be combined by the platform according to RFC 9110 §5.3. Connecting
+this transport to the SDK's serving loop is the next integration slice;
+this component does not supply admission limits or deployment packaging.

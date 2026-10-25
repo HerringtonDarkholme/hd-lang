@@ -12,7 +12,7 @@
 //   its target (std-http.send.redirect-limit). A 303, or a 301 or 302 of a
 //   `POST`, continues as a `GET` without a body, as `fetch` does.
 // - Every status is a response (std-http.send.status). Headers keep their
-//   repeats (std-http.headers.pairs); a name arrives in lowercase, and the
+//   repeats (std-http.headers.fields); a name arrives in lowercase, and the
 //   values of one name keep their order, grouped at the name's first
 //   appearance (std-http.headers.case, .order). The body is whole
 //   (std-http.bodies). The response's `url` is the last request's URL
@@ -110,7 +110,8 @@ const once = (url, host, method, headers, body, ms, signal) =>
     });
     // Node 24 silently drops response headers past 1000 pairs; a request
     // option does not lift that, the property does (0 is no limit).
-    // std-http.headers.pairs keeps every pair.
+    // This transport preserves raw pairs; std-http.headers.combined also
+    // permits platforms to combine repeated non-cookie fields.
     req.maxHeadersCount = 0;
     timer = setTimeout(() => {
       settle(err("Timeout"));
