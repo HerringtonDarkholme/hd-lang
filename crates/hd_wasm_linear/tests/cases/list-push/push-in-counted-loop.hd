@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: v8 release
+fn fill(n: usize) -> List[bool]:
+    let mut flags: List[bool] = []
+    # subject
+    for _ in 0..n:
+        flags.push(true)
+    flags

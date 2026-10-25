@@ -1,0 +1,41 @@
+# test: a push into a buffer with room keeps copies, argument order and counted elements apart
+# Spec 04 Collection Values: types.coll.value.
+# expect-stdout: 0 1 2 30 0; copy 3; pushed 1 2 of 2; words w0 w1 w2 w3 w4 w5 w6 w7 w8 w9; rows 1 1 2; boxes 2 9
+
+struct Bag:
+    items: List[i32]
+
+fn bump(calls: &mut i32) -> i32:
+    *calls = *calls + 1
+    *calls
+
+fn add_word(words: &mut List[string], i: usize) -> void:
+    words.push("w${i}")
+
+pub fn main() -> void $ Console:
+    let mut xs: List[i32] = []
+    for i in 0..3:
+        xs.push(i32(i))
+    copy := xs
+    xs.push(i32(xs.len()) * 10)
+    xs.push(xs[0])
+    if copy.len() != 3 || xs.len() != 5:
+        panic("a push with room changed a copy")
+    let mut calls = +0
+    let mut pushed: List[i32] = []
+    pushed.push(bump(&mut calls))
+    pushed.push(bump(&mut calls))
+    let mut words: List[string] = []
+    for i in 0..10:
+        add_word(&mut words, i)
+    let mut row = [+1]
+    let mut rows: List[List[i32]] = []
+    rows.push(row)
+    rows.push(row)
+    row.push(2)
+    rows.push(row)
+    let mut bag = Bag { items: [] }
+    bag.items.push(2)
+    bag.items.push(9)
+    let w = words.join(" ")
+    println("${xs[0]} ${xs[1]} ${xs[2]} ${xs[3]} ${xs[4]}; copy ${copy.len()}; pushed ${pushed[0]} ${pushed[1]} of ${calls}; words ${w}; rows ${rows[0].len()} ${rows[1].len()} ${rows[2].len()}; boxes ${bag.items[0]} ${bag.items[1]}")

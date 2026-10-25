@@ -309,9 +309,10 @@ pub enum Helper {
     ListUnique {
         elem: Elem,
     },
-    /// `(list) -> list`: the list's buffer, its own already (an owned
-    /// body's `IsUnique` made it so), moved to one with room for a `push`
-    /// when full.
+    /// `(list) -> list`: a `push`'s slow path: a pinned list panics
+    /// (`ref.elem.pinned`); otherwise the list's buffer, its own already
+    /// (an owned body's `IsUnique` made it so), moved to one with room
+    /// for the `push` when full.
     ListGrow {
         elem: Elem,
     },
@@ -3008,13 +3009,20 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
     f
 }
 
-/// [`Helper::ListGrow`]: a full buffer moves to one of twice its length
-/// plus 4, and the old one, its elements moved and its length 0, loses
+/// [`Helper::ListGrow`]: a pinned list panics; a full buffer moves to
+/// one of twice its length plus 4, and the old one, its elements moved and its length 0, loses
 /// the count the list held: an outlined change's thunk holds one more
 /// until it returns (`emit/erased.rs`).
 fn list_grow(elem: &Elem, m: &Module) -> Func {
     let mut f = m.func("rt:list_grow", vec![Val::I32], vec![Val::I32]);
     let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
+    f.get(b);
+    f.helper(Helper::ListPinned);
+    f.op(Instruction::If(BlockType::Empty));
+    f.helper(Helper::Panic(
+        "collection-pinned: list length changed while pinned".into(),
+    ));
+    f.op(Instruction::End);
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.set(n);

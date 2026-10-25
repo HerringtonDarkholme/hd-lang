@@ -720,8 +720,10 @@ changes preserve collection value semantics (§23.7).
   store makes the buffer the list's own (`rt:list_unique`). A shared
   buffer is copied: its elements take their own counts, the lists among
   them become copies in turn, so a nested write never reaches another
-  list, and the old buffer loses one holder. A `push` into a full buffer
-  moves it to one of twice the length plus 4 (`rt:list_grow`), and frees
+  list, and the old buffer loses one holder. A `push` into a buffer
+  with no owner word and room left stores the element and the length
+  inline; any other goes through `rt:list_grow`, which panics on a pin
+  and moves a full buffer to one of twice the length plus 4, freeing
   the old block without releasing its elements, which moved. Either
   stores the new buffer into the place the change names. A store counts
   the new element before it releases the old one.

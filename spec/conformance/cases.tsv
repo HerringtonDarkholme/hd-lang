@@ -1252,6 +1252,7 @@ runtime/valid/infinite-loop-else.hd	runtime	accept	lang/06-control-flow.md#r-flo
 runtime/valid/loop-list-cache-erased-view-fallback.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.alias
 runtime/valid/loop-list-cache-physical-cow.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/loop-list-cache-preserves-alias-and-cow-boundaries.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/valid/list-push-with-room-keeps-values.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/loop-break-join-rows.hd	runtime	accept	lang/06-control-flow.md#r-flow.loop.else.type
 typing/invalid/infinite-loop-break-missing-return.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.while.infinite.exit
 typing/invalid/infinite-loop-variable-condition.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.while.infinite.literal
@@ -4595,6 +4596,7 @@ runtime/valid/for-element-references-mut.hd	runtime	accept	lang/06-control-flow.
 runtime/valid/for-element-references-read.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.binding
 runtime/valid/for-element-references-exit-releases.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.access
 runtime/panic/element-reference-push-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned
+runtime/panic/element-reference-push-with-room-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned
 runtime/panic/element-reference-insert-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned
 runtime/panic/element-reference-remove-at-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned
 runtime/panic/element-reference-pop-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned

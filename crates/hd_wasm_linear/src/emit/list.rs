@@ -936,27 +936,31 @@ impl Em<'_, '_, '_> {
 
     /// `ListPush`: a pinned list panics (`ref.elem.pinned`); otherwise the
     /// value is stored at the length, after the buffer, which the passes'
-    /// `IsUnique` made the list's own, has room for it.
+    /// `IsUnique` made the list's own, has room for it. A buffer with no
+    /// owner word and room left is the fast path: an owner word is the
+    /// only way to a pin, and only a full buffer moves. Any other goes
+    /// through `rt:list_grow`, which checks the pin and moves a full
+    /// buffer into the operand's place, keeping the length.
     pub(super) fn list_push(&mut self, args: &[u32]) -> StageResult<()> {
         let (et, e) = self.elem(self.ty_of(args[0]))?;
         let b = self.buffer(args[0])?;
-        self.f.get(b);
-        self.f.helper(Helper::ListPinned);
-        self.f.op(I::If(BlockType::Empty));
-        self.f.helper(Helper::Panic(
-            "collection-pinned: list length changed while pinned".into(),
-        ));
-        self.f.op(I::End);
-        // Only a full buffer moves (`rt:list_grow`), into the operand's
-        // place.
-        self.f.get(b);
-        self.f.helper(Helper::ListGrow { elem: e.clone() });
-        self.f.set(b);
-        self.put_back(args[0], b)?;
         let n = self.f.local(Val::I32);
         self.f.get(b);
         self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
         self.f.set(n);
+        self.f.get(b);
+        self.f.op(I::I32Load(mem(HEAP, LIST_OWN, 2)));
+        self.f.get(n);
+        self.f.get(b);
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f.op(I::I32Eq);
+        self.f.op(I::I32Or);
+        self.f.op(I::If(BlockType::Empty));
+        self.f.get(b);
+        self.f.helper(Helper::ListGrow { elem: e.clone() });
+        self.f.set(b);
+        self.put_back(args[0], b)?;
+        self.f.op(I::End);
         let at = self.slot_at(b, n, e.size);
         let s = self.retain_src(&Src::Ref(args[1]), et)?;
         self.write_new(Dst::Mem(at, LIST_ELEMS, &e.leaves), &s)?;
