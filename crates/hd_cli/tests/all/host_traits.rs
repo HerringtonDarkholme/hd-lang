@@ -942,3 +942,29 @@ fn a_compiled_root_runs_through_synchronous_host_turns() {
         text(&out.stderr)
     );
 }
+
+/// Runs the real Node provider and, on Windows, this build's Job launcher.
+/// This wrapper makes the Windows regression part of automatic host CI.
+#[test]
+fn node_process_job_owns_descendants_and_preserves_output() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = work("node-process-job");
+    let out = Command::new("node")
+        .args([
+            "--test",
+            "--test-name-pattern=Process|Windows processLauncher",
+            "host/node.test.mjs",
+            "host/process.test.mjs",
+        ])
+        .env("HD_PROCESS_LAUNCHER", env!("CARGO_BIN_EXE_hd"))
+        .env("HD_CACHE", dir.with_extension("cache"))
+        .current_dir(root)
+        .output()
+        .expect("run Node Process tests");
+    assert!(
+        out.status.success(),
+        "{}\n{}",
+        text(&out.stdout),
+        text(&out.stderr)
+    );
+}

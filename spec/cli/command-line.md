@@ -315,6 +315,8 @@ profile**, which binds these traits:
 8. r[cli.host.default-profile.granted] Each provider of the default profile touches only the resources that its program's [capability grant](#capability-grants) covers.
 9. r[cli.host.process.env] A program that the default profile's `Process` provider starts inherits the whole environment of the `hd` process, whatever the `Env` grant covers.
 10. r[cli.host.handles.exit] A **host handle** is a value that a default profile provider opens and keeps in the host, such as a `Net` socket. When the program of `hd FILE`, `hd run`, or a task ends, `hd` closes every host handle it left open, and writes nothing about them.
+11. r[cli.host.process.windows-launcher] On the Node engine on Windows, `hd` supplies its own executable as the `processLauncher` for run and test hosts.
+
 
 ```sh
 cat src/main.hd

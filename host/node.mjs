@@ -923,6 +923,7 @@ function processProvider({ grant, env, left, processClient }) {
     if (!isDirectory(cwd)) return noDirectory(dir);
     const { ok: operation } = processClient.call({
       op: "wait_start",
+      launcher: env.processLauncher ?? null,
       program,
       args,
       cwd,
