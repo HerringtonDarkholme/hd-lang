@@ -898,8 +898,12 @@ fn server_sdk_fetch_and_supervised_application_cleanup() {
 
 fn server_sdk_node_tests(files: &[&str]) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    // Each file already exercises real overlapping requests and workers.
+    // Avoid multiplying CPU-bound fixtures across files inside an already
+    // parallel cargo test run: that can starve a healthy cleanup ACK past
+    // its unchanged 200 ms host backstop.
     let out = Command::new("node")
-        .arg("--test")
+        .args(["--test", "--test-concurrency=1"])
         .args(files)
         .env("HD_SDK_TEST_HD", env!("CARGO_BIN_EXE_hd"))
         .current_dir(root)
