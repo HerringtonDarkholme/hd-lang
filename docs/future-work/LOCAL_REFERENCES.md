@@ -1,137 +1,173 @@
-# Local References: The First Cut Of Tier 2
+# Local References: Final Design And Implementation Plan
 
-Status: design proposal, 2026-10-24; domain: language feature (spec/lang
-chapter 13, the checker, the ownership passes, the linear emitter); not
-accepted. Nothing here is accepted behavior. It investigates the first
-cut of local references for #834, follows the owner's decisions recorded
-on #704 and #834 up to 2026-10-24 23:24, and will fold into
-[Object Model, Tier 2](OBJECT_MODEL_TIER2.md). It cites the current
-rules in [Values And References](../../spec/lang/13-values-and-references.md)
-and changes no spec, std or compiler text.
+Status: decided design, 2026-10-24; domain: language feature (spec/lang
+chapters 2, 6, 7, 9, 11 and 13, the checker, the ownership passes, the
+linear emitter). The owner decided the rules here on #834
+([Decisions](#9-decisions)). None of it is in the spec yet, so nothing
+here is accepted behavior until slices 1 and 2 of the
+[plan](#8-implementation-plan) land. Rules this document adds beyond
+those decisions are marked **proposed**. The investigation, prototype
+and review that led here are in git history at `d9f79e1a8`. This
+document changes no spec, std or compiler text, and will fold into
+[Object Model, Tier 2](OBJECT_MODEL_TIER2.md).
 
 ## Contents
 
-1. [The First Cut And The Owner's Decisions](#1-the-first-cut-and-the-owners-decisions)
-2. [Use Cases And What They Cost Today](#2-use-cases-and-what-they-cost-today)
-3. [Prior Art](#3-prior-art)
-4. [Semantics And Edge Cases](#4-semantics-and-edge-cases)
-5. [The Rules](#5-the-rules)
-6. [Soundness Without An Exclusivity Check](#6-soundness-without-an-exclusivity-check)
-7. [Architecture](#7-architecture)
-8. [Cost](#8-cost)
-9. [Stress Test](#9-stress-test)
-10. [Prototype And Complexity](#10-prototype-and-complexity)
-11. [What Tier 2 Keeps, Drops And Changes](#11-what-tier-2-keeps-drops-and-changes)
-12. [When Local References Get In The Way](#12-when-local-references-get-in-the-way)
-13. [Implementation Plan](#13-implementation-plan)
-14. [Recommendation](#14-recommendation)
-15. [Open Questions For The Owner](#15-open-questions-for-the-owner)
-16. [Sources And Parse Log](#16-sources-and-parse-log)
-17. [Review (2026-10-24)](#review-2026-10-24)
+1. [The Design](#1-the-design)
+2. [The Rules](#2-the-rules)
+3. [Error Messages And Fix-Its](#3-error-messages-and-fix-its)
+4. [Counting Rules](#4-counting-rules)
+5. [Escape Hatches](#5-escape-hatches)
+6. [Architecture](#6-architecture)
+7. [Cost](#7-cost)
+8. [Implementation Plan](#8-implementation-plan)
+9. [Decisions](#9-decisions)
+10. [Prior Art](#10-prior-art)
+11. [Sources And Parse Log](#11-sources-and-parse-log)
 
-## 1. The First Cut And The Owner's Decisions
+## 1. The Design
 
-The first cut under review (#704, 2026-10-24 21:27), numbered so the
-findings can name what they changed:
+hd gets two kinds of reference. A **counted** reference, `*T` or
+`*mut T`, is Go's pointer to a whole object. It may be stored, returned,
+captured and used as a type argument. A **local** reference, `&T` or
+`&mut T`, is Swift's `inout`: a parameter, a call argument or a
+receiver, and never counted.
 
-| Rule | First-cut text |
-| --- | --- |
-| R1 | `&{} T` and `&{} mut T` are an opt-in on parameters and receivers. They are uncounted, and the callee can't store, capture or return them. |
-| R2 | Interior references (`&x.f`, `&xs[i]`) and borrows through scoped parameters are scoped, may be bound with `let`, and live to their last use. |
-| R3 | While a scoped reference is live, nothing else writes the borrowed root: one static check per body. |
-| R4 | Passing a scoped reference where `&T` is expected is an error. |
+`&x` takes an address, and the expected type picks its kind. `*p`
+dereferences either kind. A field or an element has only a local
+reference. So every counted reference points at an object's start, and
+every count takes the fast path, with no `block_of`.
 
-The first draft of this document stress-tested those rules and a
-prototype. The owner then decided, in order:
+The design is sound with no lifetimes and no flow analysis. A local
+reference lives for one call. A compile-time check rejects an argument
+that may replace what another argument of the call borrows. A borrow
+reached through a heap alias takes one fast-path count of its object.
 
-1. R3 is cut: no exclusivity check and no "no other writer" analysis.
-   The cut must be sound without it.
-2. Local references across awaited `!` calls are required.
-3. Counting local references is fine, with rules: section 6's
-   construction (#834, 23:24).
-4. The spelling (#834, 23:09, replacing `&{}` and `&{global}`): "take
-   addr always &t, deref always *t; gc ref is *T, and local ref is &".
-   `*T` and `*mut T` are counted references, always to a whole object;
-   `&T` and `&mut T` are local. A method that keeps `self` takes `*self`.
-5. Element borrows of a `List` and of a `Map` keep today's pin plus one
-   fast-path count of the buffer, and copy-on-write still triggers.
-6. `&T` is never a type argument: no `List[&T]`, no `Option[&T]`, no
-   `T = &Foo`, as with Swift's `inout`. This replaced an earlier
-   decision that allowed scoped type arguments.
-7. std uses local references on every parameter; the parameters that
-   keep their argument, about 17, are `*mut T`.
-
-The owner also answered the criticism of the first draft: `&xs[i]` and
-`&x.f` are local only, so counted references never need `block_of`; the
-learning cost, a per-parameter escape choice, and the new `*T` spelling
-are accepted; and the first cut is specifically for non-escapable
-parameters.
-
-Everything below was checked against main at `0c1b055d2` and against a
-throwaway prototype on branch `lane/834-proto`, built on the same commit
-before the spelling decision (section 10). In the final spelling, `&T`
-parameters parse today, with today's counted meaning; lines that write
-`*T` carry `# hypothetical syntax`. Section 16 records how each block
-was checked.
-
-## 2. Use Cases And What They Cost Today
-
-### 2.1 What today costs
-
-Today every reference is counted
-([`ref.place.lifetime`](../../spec/lang/13-values-and-references.md#r-ref.place.lifetime)).
-A reference parameter is lent: neither the caller nor the callee counts
-an argument that is already a reference
-([docs/compiler/tir-v2.md](../compiler/tir-v2.md), "Calls and pass
-modes"). Four things still cost:
-
-| Cost | When | Measured unit |
+| | Counted: `*T`, `*mut T` | Local: `&T`, `&mut T` |
 | --- | --- | --- |
-| a count pair on the new reference | `f(&local)`, `f(&mut local.field)`, `f(&mut xs[i])`, `local.method()` for a `&self` method: each makes a reference the callee might keep | a general `retain`/`release` through the page table (`block_of`), since the address may be inside a cell or a buffer |
-| a counted cell for the local | any local some reference refers to (`closure::cell_locals`, linear DESIGN §23.20) | one allocation per execution of the declaration |
-| a pin and a buffer count | each element reference (`ref.elem.access.pin`) | an `IsUnique`, a `Pin` and one buffer count pair |
-| a new object | `f(&temporary)` | one allocation (`ref.expr.allocate`) |
+| refers to | a whole object: a local, a value parameter, the referent of a `*T`, a new object | any place: a whole object, a field, an element, a map value |
+| counted | yes, always on the fast path | never |
+| written as a type | anywhere a type may be | a parameter's type only, a function type's parameter included |
+| as a value | anywhere | a call argument, a receiver, or read and written through |
+| stored, returned, bound, captured, a type argument | yes | no; a returned `self` and a closure passed to `&fn` are the two exceptions |
+| made by | `&x` where a `*T`, a type variable or no type is expected | `&x` where a `&T` is expected, and every `&self` or `&mut self` call |
+| receivers | `*self`, `*mut self`: methods that keep `self` | `&self`, `&mut self` |
+| like | Go's `*T` | Swift's `inout` |
 
-Lent parameters passed on cost nothing:
-`crates/hd_driver/tests/cases/counts/borrowed-argument-call.hd` records
-no count operations for `depth(left)`. One gap costs a pair even there:
-passing a `&mut P` parameter where `&P` is expected inserts a `Weaken`
-conversion, which copies its operand with a count. The prototype's
-`scoped-834/w-weaken.hd` records two retains for `read(p) + read(p)`;
-this borrow-pass gap is independent of local references.
+What it gives: a call that borrows a local, a field or an element of a
+local list takes no count. Borrows behind a heap alias, and every count
+of a `*T`, take the fast path. What it gives up: local results other
+than `self`, bound aliases of fields and elements, local type arguments,
+and in-place edits through a returned reference. [Escape
+Hatches](#5-escape-hatches) shows what to write instead.
 
-### 2.2 The cases
+## 2. The Rules
 
-Each case was written as a full program, checked and run with the
-prototype. The full sources are fixtures in
-`crates/hd_driver/tests/cases/counts/scoped-834/` on the prototype
-branch, in a counted variant (`-g`, today's code) and a local variant
-(`-s`). The counts columns are the count operations the `counts` view
-lists for the whole file: a static count of sites, not of executions.
-The excerpts below are shortened and written in the final spelling.
+The rules are numbered for this document; each carries the rule ID that
+slices 1 and 2 give it in the spec. Comments in the examples name the
+rule a line shows. Lines that write `*T`, `*self` or `&fn`, which today's
+parser rejects, end in `# hypothetical syntax`.
 
-| Case | Program | Today (`-g`) | Local (`-s`) | What goes |
-| --- | --- | ---: | ---: | --- |
-| U1 | a tokenizer walking a string | 24 | 22 | the pair on `lexer.next()` |
-| U2 | an in-place insertion sort with `swap` | 11 | 6 | the pairs on `swap(&mut xs[j - 1], &mut xs[j])` in the local sort, and on `&mut xs` |
-| U3 | mutating list elements in a loop | 12 | 9 | the pair per `ps[i].step(dt)` and on `&mut ps` |
-| U4 | a builder stored in a field | does not compile local | — | see F5 |
-| U5 | BFS over adjacency lists; updating a node in a tree | 12 | 12 | nothing: elements behind a parameter keep their pins |
-| U6 | a grid update | 5 | 3 | the pairs on `&mut g` |
-| U7 | JSON DOM traversal and editing | 36 | 30 | the pairs on `&mut child`, `&item` |
-| U8 | std collection methods | 11 | 8 | the pairs on `inv.total()` and friends |
-| U9 | an accumulator passed down a recursive walk | 6 | 5 | the pair on `&mut stats` |
-| U10 | string building | 10 | 5 | the pairs on `html.open(..)` |
+### 2.1 Two kinds
 
-No case loses its cells: a local that some reference refers to still
-lives in a counted cell, because #702 is deferred. No case loses an
-allocation. Under rule L4 (section 5), element borrows behind a
-parameter (U2's in-place variant, U5) keep their pin and take a
-fast-path pair instead of today's general pair; the prototype counts
-them as today.
+1. `ref.kind.counted` `*T` and `*mut T` are counted references. A
+   counted reference always refers to a whole object.
+2. `ref.kind.local` `&T` and `&mut T` are local references. A local
+   reference may refer to any place, and is never counted.
+3. `ref.kind.whole-object` A whole object is a local, a value parameter,
+   the referent of a `*T`, or a new object. Every other place is an
+   **interior place**: a field, a list element, a map value, or anything
+   reached through a `&T`.
+4. `ref.kind.interior-local` An interior place has only a local
+   reference. So a count of a `*T` always lands on an object's start and
+   takes the fast path, with no `block_of`.
 
-**U1, a tokenizer.** Every method borrows the lexer for one call, so
-every receiver is local.
+```text
+struct Body:
+    x: f64
+    v: f64
+
+struct World:
+    bodies: List[*mut Body]  # hypothetical syntax
+
+fn push_x(x: &mut f64, by: f64) -> void:
+    *x += by
+
+fn demo(w: &mut World) -> void:
+    let b = &mut Body { x: 0.0, v: 1.0 }  # 1, 3: a counted *mut Body to a new object
+    w.bodies.push(b)  # 1: a counted reference may be stored
+    push_x(&mut b.x, 1.0)  # 2, 4: b.x is an interior place, so the borrow is local
+```
+
+### 2.2 Taking an address and lending
+
+5. `ref.expr.address` `&x` and `&mut x` take an address. Where a `&T` is
+   expected the result is a local reference, and where a `*T` is
+   expected a counted one.
+6. `ref.expr.address.counted-default` Where a type variable is expected,
+   or no type is, `&x` is counted. So `let a = &s`, `xs.push(&a)` and
+   `[&a, &b]` make counted references.
+7. `ref.expr.address.whole` A counted `&x` needs a whole object. On an
+   interior place it is an error, so `let a = &obj.f` and
+   `let a = &xs[i]` are errors. Error: `local-reference-escapes`.
+8. `ref.expr.deref` `*p` dereferences either kind. Field reads, method
+   calls and patterns read through either kind, as today.
+9. `ref.convert.lend` A `*T` converts implicitly to `&T` where a local
+   reference is expected, and a `*mut T` to `&mut T` and to `&T`. The
+   conversion takes no count.
+10. `ref.convert.no-raise` A `&T` never converts to a `*T`. Error:
+    `local-reference-escapes`.
+11. `ref.convert.weaken` `&mut T` weakens to `&T`, and `*mut T` to `*T`,
+    as today. Weakening a local reference takes no count.
+
+```text
+struct P:
+    n: i64
+
+fn read(p: &P) -> i64:
+    p.n
+
+fn keep(p: *P) -> *P:  # hypothetical syntax
+    p
+
+fn demo(a: P, b: P) -> i64:
+    let mut xs = []
+    xs.push(&a)  # 6: T is a type variable, so xs is a List[*P]
+    ys := [&a, &b]  # 6: also a List[*P]
+    k := keep(&a)  # 5: *P is expected, and a is a whole object
+    read(&a) + read(k) + read(xs[0])  # 5: local; 9: a *P lends to &P
+
+fn invalid(p: &P, o: P) -> void:
+    let a = &o.n  # 7: error: an interior place has no counted form
+    k := keep(p)  # 10: error: a local reference never becomes a *P
+```
+
+### 2.3 Where a local reference may appear
+
+12. `ref.local.positions` A local reference type is written only as the
+    type of a parameter, a function type's parameter included. A local
+    reference value appears only as a call argument, as a receiver, or
+    as the operand of a read or a write through it.
+13. `ref.local.parameter` A local reference parameter is valid for the
+    whole call. The body may read and write through it, and pass it on
+    as an argument any number of times, at no cost.
+14. `ref.local.no-binding` A local reference is never bound to a name.
+    That covers `let`, `:=`, an assignment, and a pattern that binds a
+    whole local-reference scrutinee. `_ :=` discards a value and binds
+    nothing. Error: `local-reference-escapes`.
+15. `ref.local.no-result` A local reference is never a result, except a
+    method's returned `self` (rule 21). Error: `local-reference-escapes`.
+16. `ref.local.no-store` A local reference is never a field, an element,
+    a payload, a tuple element or a top-level binding. Error:
+    `local-reference-escapes`.
+17. `ref.local.no-type-argument` A local reference type is never a type
+    argument, as Swift's `inout` is no type. There is no `List[&T]`,
+    `Option[&T]`, `&T?` or `T = &Foo`. Error: `local-reference-escapes`.
+18. `flow.for.ref.binding` (**proposed**: #834 does not mention loops)
+    `for p in &mut xs` binds a local reference to each element for one
+    step. This keeps today's
+    [Element Reference Loops](../../spec/lang/06-control-flow.md#element-reference-loops).
+    The body uses `p` as it uses a local parameter.
 
 ```text
 struct Lexer:
@@ -143,83 +179,54 @@ impl Lexer:
         self.pos >= self.src.len()
 
     fn skip_space(&mut self) -> void:
-        while !self.at_end() && self.src[self.pos] == 32u8:
+        while !self.at_end() && self.src[self.pos] == 32u8:  # 13: self passed on, free
             self.pos += 1
 
-fn words(text: string) -> usize:
-    let mut lexer = Lexer { src: text, pos: 0 }
+fn count_words(lexer: &mut Lexer) -> usize:  # 12: a local parameter
     let n: usize = 0
     while !lexer.at_end():
-        lexer.skip_space()
+        lexer.skip_space()  # 13
         n += 1
     n
-```
 
-Today `lexer.skip_space()` takes a counted reference to `lexer`'s cell
-per call, and `lexer` lives in a heap cell. Local, the pair goes and the
-cell stays. Inside a method, each `self.at_end()` still costs a pair in
-both variants, because a `&mut` receiver weakened to `&` copies (the gap
-of 2.1). Token texts are `slice` copies of `src` in both; views that
-borrow the source need tier 2's lifetime parameters
-([Tier 2 §11.1](OBJECT_MODEL_TIER2.md#111-a-tokenizer-whose-tokens-borrow-the-source)).
+enum Expr:
+    Num(n: i64)
+    Neg(inner: *Expr)  # hypothetical syntax
 
-**U2, sort and swap.**
+struct Holder:
+    lexer: &Lexer  # 16: error: write *Lexer
 
-```text
-fn swap(a: &mut i64, b: &mut i64) -> void:
-    t := *a
-    *a = *b
-    *b = t
+fn invalid(lexer: &mut Lexer, e: &Expr, all: List[&Lexer]) -> &mut Lexer:  # 15, 17: errors
+    q := lexer  # 14: error: a local reference bound to a name
+    match e:
+        .Num(n) => pass  # a payload binding is a copy, as today
+        whole => pass  # 14: error: whole would bind the local reference e
+    q
 
-fn sort_local(input: List[i64]) -> List[i64]:
-    let mut xs = input
-    for i in 1..xs.len():
-        let j = i
-        while j > 0 && xs[j - 1] > xs[j]:
-            swap(&mut xs[j - 1], &mut xs[j])
-            j -= 1
-    xs
-```
-
-Today each `swap` call costs an `IsUnique`, a `Pin` and a buffer count
-pair per element reference: four count operations. With `xs` a local
-that nothing else reaches and that no other argument names, the local
-variant takes no count. Inside `fn insertion_sort(xs: &mut List[i64])`
-the list is behind a reference that an alias may change, so each
-element borrow keeps its pin and takes one fast-path count (L4). The
-idiomatic hd sort writes `xs[j] = xs[j - 1]` and takes no reference at
-all, as std's `sorted_by` does.
-
-**U3, elements in a loop.** `for p in &mut ps: p.step(dt)` and
-`ps[i].step(dt)` both pass element references. On a local list,
-`ps[i].step(dt)` drops its buffer count; behind a parameter it keeps
-the pin and a fast-path count. The prototype does not make a `for`
-loop's binding local, so `for p in &mut ps` keeps its per-step count
-there.
-
-```text
 struct Particle:
     x: f64
     v: f64
 
-impl Particle:
-    fn step(&mut self, dt: f64) -> void:
-        self.x += self.v * dt
-
 fn advance(ps: &mut List[Particle], dt: f64) -> void:
-    for p in &mut ps:
-        p.step(dt)
-
-fn advance_local(input: List[Particle], dt: f64) -> List[Particle]:
-    let mut ps = input
-    for p in &mut ps:
+    for p in &mut ps:  # 18: one element per step
         p.x += p.v * dt
-    for i in 0..ps.len():
-        ps[i].step(dt)
-    ps
 ```
 
-**U4, a builder in a field.**
+### 2.4 Receivers
+
+19. `fn.method.receiver.local` `&self` and `&mut self` are local
+    receivers. So a method call on a field works, as in
+    `client.request.header(..)` and `self.items.push(x)`.
+20. `fn.method.receiver.counted` A method that keeps `self` takes
+    `*self` or `*mut self`, as Go's pointer receivers do. It needs a
+    whole object, so a call on an interior place or through a local
+    reference, `&dyn` included, is an error. Error:
+    `local-reference-escapes`.
+21. `fn.method.returns-self` A method with a local receiver may return
+    `self`, with the result type `&Self` or `&mut Self`. The result has
+    the caller's kind: counted when the receiver is a whole object, and
+    local, for the rest of the calling expression, otherwise. Only
+    `self` itself is returned this way.
 
 ```text
 struct Request:
@@ -227,441 +234,189 @@ struct Request:
     headers: List[(string, string)]
 
 impl Request:
-    fn header(*mut self, name: string, value: string) -> *mut Request:  # hypothetical syntax
+    fn header(&mut self, name: string, value: string) -> &mut Request:  # 21
         self.headers.push((name, value))
         self
+
+    fn register(*mut self, log: &mut List[*mut Request]) -> void:  # hypothetical syntax
+        log.push(self)
 
 struct Client:
     request: Request
 
-fn configure(client: &mut Client, token: string) -> void:
-    _ := client.request.header("accept", "json").header("auth", token)
+fn configure(client: &mut Client, token: string, log: &mut List[*mut Request]) -> void:  # hypothetical syntax
+    _ := client.request.header("accept", "json").header("auth", token)  # 19, 21: local in this expression
+    let mut r = Request { url: "/", headers: [] }
+    rr := r.header("a", "b")  # 21: r is a whole object, so rr is a counted *mut Request
+    r.register(log)  # 20: valid on a whole object
+    client.request.register(log)  # 20: error: client.request is an interior place
 ```
 
-This compiles today. In the final spelling, `header` returns `self`, so
-it keeps its receiver and takes `*mut self`. `client.request` is an
-interior place, which is only ever a local reference, so
-`client.request.header(..)` is an error (finding F5). std's builders
-(`StringBuilder`, `Command`, `Request`) are `*mut` handles to their own
-objects, so a field holding one is a counted reference and is
-unaffected.
+### 2.5 Overlapping access
 
-**U5, graphs and trees.**
-
-```text
-fn bfs(adj: &List[List[usize]], start: usize) -> List[usize]:
-    let mut dist: List[usize] = [for _ in adj => 1_000_000]
-    let mut queue: List[usize] = [start]
-    dist[start] = 0
-    let head: usize = 0
-    while head < queue.len():
-        u := queue[head]
-        head += 1
-        for v in adj[u]:
-            if dist[v] == 1_000_000:
-                dist[v] = dist[u] + 1
-                queue.push(v)
-    dist
-
-struct Dir:
-    name: string
-    size: i64
-    children: List[Dir]
-
-fn add_size(node: &mut Dir, path: List[string], at: usize, delta: i64) -> void:
-    node.size += delta
-    if at < path.len():
-        for child in &mut node.children:
-            if child.name == path[at]:
-                add_size(child, path, at + 1, delta)
-```
-
-`adj[u]` copies the inner list header, a count pair, in both models. The
-tree update descends through element references behind a local
-parameter, so each step keeps its pin, now with a fast-path count: the
-prototype's counts are equal (12 against 12).
-
-**U6, a grid.** `relax(g: &mut Grid)` reads and writes `g.cells[r][c]`
-by index and takes no reference. The calls `warm_edges(&mut g)` and
-`relax(&mut g)` lose their pairs; `heat(&mut g.cells[0][c], 1.0)` is an
-element borrow behind `g` and keeps its pin.
+22. `ref.access.overlap` Within one call, an argument that may write a
+    place conflicts with another argument that borrows a place inside
+    it. The receiver counts as an argument. Error: `conflicting-access`,
+    with the message "overlapping accesses to `o`".
+23. `ref.access.write` An argument may write a place when it takes
+    `&mut` of it, or calls a `&mut self` or `*mut self` method on it.
+    These are the two rows of today's
+    [`ref.elem.conflict`](../../spec/lang/13-values-and-references.md#call-scoped-access)
+    table. A place is inside another when the other is a proper prefix
+    of it, through fields, elements or `*T` referents.
+24. `ref.access.disjoint` Two borrows of one place, or of places neither
+    of which is inside the other, do not conflict. `&mut` stays
+    non-exclusive otherwise
+    ([`ref.write.no-exclusivity`](../../spec/lang/13-values-and-references.md#writing-through-a-reference)).
+25. `ref.access.heap` The check follows places from a local or a
+    parameter of the calling body. A borrow through a `*T` read out of a
+    field or an element is out of its sight. Such a borrow takes one
+    fast-path count of its object instead
+    ([Counting Rules](#4-counting-rules)), and nothing is checked at run
+    time.
 
 ```text
-struct Grid:
-    w: usize
-    h: usize
-    cells: List[List[f64]]
-
-fn relax(g: &mut Grid) -> void:
-    for r in 1..g.h - 1:
-        for c in 1..g.w - 1:
-            avg := (g.cells[r - 1][c] + g.cells[r + 1][c] + g.cells[r][c - 1] + g.cells[r][c + 1]) / 4.0
-            g.cells[r][c] = avg
-
-fn heat(cell: &mut f64, by: f64) -> void:
-    *cell += by
-
-fn warm_edges(g: &mut Grid) -> void:
-    for c in 0..g.w:
-        heat(&mut g.cells[0][c], 1.0)
-```
-
-**U7, JSON DOM traversal and editing.**
-
-```text
-use std.json.{Json, JsonObject}
-
-fn set_path(doc: &mut Json, path: List[string], at: usize, value: Json) -> void:
-    if at == path.len():
-        *doc = value
-        return
-    let fields = match *doc:
-        .Object(fields) => fields
-        _ => JsonObject::new()
-    *doc = Json.Null
-    let mut f = fields
-    let mut child = f.get(path[at]).unwrap_or(Json.Null)
-    set_path(&mut child, path, at + 1, value)
-    f.set(path[at], child)
-    *doc = Json.Object(f)
-```
-
-A payload is no place
-([`ref.match.copy`](../../spec/lang/13-values-and-references.md#r-ref.match.copy)),
-so editing inside an object copies the object out, edits it and writes
-it back. `*doc = Json.Null` drops the document's hold on the entries
-before `f.set`, so the set finds the buffer unique and copies nothing.
-Local references change none of that; they only remove the pairs on
-`&mut child` and on `count_strings(&item)`. `&fields.get(key)...`, a
-temporary, still allocates a new object for its reference.
-
-**U8, std collection methods.** std's `List` and `Map` methods are value
-methods: `get(self, index) -> T?`, `iter(self)`, `filter(self, ..)`,
-`sorted_by(self, ..)` ([spec/std/collections.md](../../spec/std/collections.md)).
-They take no reference, so local references change nothing in them. The
-exceptions are `view`, `chunks` and `windows`, which keep `self` inside
-the `ListView` they return and so take `*self`. A call on a field is
-then an error:
-
-```text
-use std.collections.ListView
-
-struct Inventory:
-    items: List[i64]
-
-impl Inventory:
-    fn head(&self) -> ListView[i64]:
-        self.items.view(0, 2)
-```
-
-The prototype reports `scoped-reference-escapes` at `self.items`.
-
-**U9, an accumulator down a recursive walk.**
-
-```text
-struct Node:
-    name: string
-    children: List[*Node]  # hypothetical syntax
-
-struct Stats:
-    count: usize
-    names: List[string]
-
-fn walk(n: &Node, acc: &mut Stats) -> void:
-    acc.count += 1
-    acc.names.push(n.name)
-    for c in n.children:
-        walk(c, acc)
-```
-
-Today the only costs are at the top: `stats` lives in a cell and
-`walk(root, &mut stats)` takes one pair. The recursive calls pass a lent
-parameter on and cost nothing, in both models. A call of a `&mut self`
-method on `acc`, such as `acc.note(n.name, depth)`, is valid: the
-receiver is local. The prototype, which needed `&{} mut self` written,
-rejects it.
-
-**U10, string building.** `self.out.push(..)` on an
-`out: *mut StringBuilder` field reads a counted reference out of the
-field and calls `push` on it, so it compiles in both models. Each
-`html.open("li")` loses its pair.
-
-```text
-use std.text.StringBuilder
-
-struct Html:
-    out: *mut StringBuilder  # hypothetical syntax
-    depth: usize
-
-impl Html:
-    fn open(&mut self, tag: string) -> void:
-        _ := self.out.push("<").push(tag).push(">")
-        self.depth += 1
-
-    fn text(&mut self, s: string) -> void:
-        _ := self.out.push(s)
-
-fn render(items: List[string]) -> string:
-    let mut html = Html { out: StringBuilder::new(), depth: 0 }
-    html.open("ul")
-    for item in items:
-        html.open("li")
-        html.text(item)
-    html.out.build()
-```
-
-### 2.3 What the cases show
-
-Local references remove the count pair at the call that creates a
-reference to a local, a field of a local, a field of `self`, or an
-element of an unaliased local list. Element borrows behind a reference
-keep their pin and take a cheaper pair. Local references do not remove
-the cell, the new object for a temporary, or the pair from weakening.
-The wins are real per call (section 8) and small per program, unless
-#702's frame storage comes with them.
-
-## 3. Prior Art
-
-### 3.1 Swift: `inout`, `borrowing`, `consuming`, exclusivity
-
-**Design.** An `inout` parameter is a mutable access to a variable for
-the duration of the call, and a `mutating` method takes `self` the same
-way. Neither can escape: a closure that escapes cannot capture an
-`inout` parameter. SE-0377 added `borrowing` and `consuming` for
-parameters of noncopyable and copyable types. SE-0176's Law of
-Exclusivity says that two accesses to one variable may not overlap
-unless both are reads.
-
-**Enforcement.** Locals, `inout` parameters and struct properties are
-checked statically. Class properties, globals and escaping captures are
-checked dynamically, by a runtime record of in-progress accesses
-(SE-0176). Accesses to different stored properties of a struct may
-overlap; elements of an array may not, so `swap(&a[0], &a[1])` is
-rejected in favour of `swapAt`. An `inout` access begins after the
-other operands are evaluated, so `x += x` is fine.
-
-**Coverage.** Every use case of section 2 except U4's chaining and U7's
-in-place payload edits. A `mutating` method on a struct field works,
-because `self` of a value type is always `inout`.
-
-**Limitations.** The dynamic checks are the price for class properties.
-Without them, a mutable access into an array element reached through a
-class could see the array reallocated by an alias. Swift accepts the
-runtime cost there; hd's first cut has no such mechanism (F2).
-
-### 3.2 Rust: NLL, two-phase borrows, reborrows
-
-**Design.** A reference carries a lifetime; `&mut` is exclusive. The
-non-lexical lifetimes checker (RFC 2094) ends a borrow at its last use,
-computed by liveness over the control-flow graph, so loops are handled
-by the back edges. Two-phase borrows (RFC 2025) let
-`vec.push(vec.len())` compile: the receiver's `&mut` is reserved
-first and activated at the call. Passing a `&mut` parameter on reborrows
-it for the inner call.
-
-**Coverage.** Everything except shared mutation: two `&mut` to one
-place are never live together, so `swap(&mut v[i], &mut v[j])` needs
-`v.swap(i, j)` or `split_at_mut`. Disjoint fields work inside a body but
-not across a method call that borrows all of `self`.
-
-**Limitations.** NLL problem case 3 (a conditional return of a borrow)
-is still rejected. The checker is large: hd's own estimate is 10k to
-15k lines (the Rust model study, quoted in
-[Tier 2 §13](OBJECT_MODEL_TIER2.md#13-costs)).
-
-### 3.3 Hylo: mutable value semantics and projections
-
-**Design.** Hylo has no first-class references. A parameter is passed
-`let` (immutable, notionally by value, really by address), `inout`,
-`sink` (ownership moves in) or `set` (initialize). `let` and `inout`
-values "cannot escape the callee without first being copied". A
-receiver defaults to `let`, and a method may have `let`, `inout` and
-`sink` variants. A subscript yields a projection of part of a value to
-the caller for the rest of the expression, instead of returning a
-reference. Exclusivity is the default: an `inout` argument must be
-unique among the arguments.
-
-**Coverage.** All of section 2, U7 included: a subscript can project a
-mutable member of an object, so editing in place needs no returned
-reference. U4's chaining is a subscript or a `sink` builder.
-
-**What it gave up.** Shared mutable state needs explicit unsafe pointers
-or library types. There is no Go-style counted `*mut T` to keep in a
-field, so a graph with shared nodes is an arena with indices.
-
-**As a model for hd.** Hylo is the simplest model that covers the cases:
-every parameter and receiver is second-class. hd cannot adopt it whole,
-because hd keeps Go's counted references as its storable sharing
-mechanism. The final spelling takes Hylo's default anyway: `&T` is the
-second-class kind, and the storable one gets its own spelling, `*T`.
-Three of Hylo's ideas fit the first cut:
-
-- a receiver is local, which is what makes methods on fields work;
-- a projection that lives to the end of the calling expression covers
-  the builder exception, which the owner's 20:52 comment on #704 called
-  "a returned chaining reference usable within the expression" (F5);
-- read-only parameters are already values in hd (`p: Point`); Hylo
-  shows they can be passed by address when nothing writes the argument
-  during the call, which #702's interprocedural plan already proposes
-  for release builds.
-
-### 3.4 Mojo: argument conventions and origins
-
-**Design.** A parameter is `read` (the default, an immutable
-reference), `mut` (a mutable reference), `var` (owned) or `ref`
-(mutability follows the argument). A returned `ref` must name its
-origin, as `ref [self]`, and the compiler tracks origins at compile
-time. Mojo enforces argument exclusivity for mutable references: passing
-one string as both `mut` and read is a compile error.
-
-**Coverage.** Rust's, with origins inferred more often and returned
-references allowed through origin specifiers.
-
-**What it gave up.** Shared mutable references without unsafe types;
-wildcard origins switch the exclusivity check off.
-
-### 3.5 Vale: region borrowing
-
-**Design.** Non-owning references are generational: each dereference
-checks a generation number. A `pure` function freezes all memory that
-existed before the call, so references into that region skip the
-checks. Region markers name regions for functions that are not pure.
-
-**Coverage.** Read-only traversals become free; mutation goes through
-isolates and runtime checks. The author notes that part 1 was
-prototyped and the rest is a preview.
-
-**Lesson.** Freezing a whole region for a call is a cheap static rule,
-but only for reads. The owner's cut R3 was a narrow version of it.
-
-### 3.6 Go and C++, for contrast
-
-Go has one pointer kind, counted by the garbage collector, interior
-pointers included; escape analysis decides stack or heap and is not
-visible in signatures. `append` may move a slice's array, and an old
-pointer silently stops reaching the slice: the problem hd's
-element-reference rule prevents
-([`ref.elem` Why](../../spec/lang/13-values-and-references.md#element-references)).
-C++ references are unchecked: `push_back` invalidates references into a
-`vector`, and a `string_view` may dangle, with undefined behavior.
-Neither restricts aliasing, and neither proves anything.
-
-### 3.7 What each covers
-
-| Use case | Swift | Rust | Hylo | Go | hd first cut |
-| --- | --- | --- | --- | --- | --- |
-| tokenizer (U1) | yes | yes | yes | yes | yes |
-| swap two elements (U2) | `swapAt` | `v.swap(i, j)` | a method | yes | yes |
-| method on a field (U3, U9) | yes | yes | yes | yes | yes: `&self` is local |
-| builder on a field (U4) | yes | yes | a `sink` method | yes | needs the exception (F5) |
-| element behind a shared owner | dynamic check | `RefCell` | no shared owner | unchecked | today's pin and a fast-path count (R3) |
-| edit inside an enum payload (U7) | copy out, write back | in place | in place, by a projection | — | copy out, write back |
-| callback that writes a captured `inout` | yes, if non-escaping | yes | yes | yes | no (F6) |
-| a reference as a type argument | no (`inout` is no type) | yes | no | yes | no: `&T` is never a type argument |
-
-Mojo covers the same cases as Rust and is left out of the table; Go has
-no enums with payloads.
-
-## 4. Semantics And Edge Cases
-
-Each case gives the answer under the rules of section 5, an hd example
-in the final spelling, and what the prototype reported. "Today" is
-main's behavior, where every reference is counted.
-
-### 4.1 Two-phase borrows
-
-```text
-struct Stack:
-    items: List[i64]
-
-impl Stack:
-    fn push(&mut self, x: i64) -> void:
-        self.items.push(x)
-
-    fn size(&self) -> i64:
-        i64(self.items.len())
-
-fn demo() -> i64:
-    let mut s = Stack { items: [] }
-    s.push(s.size())
-    let mut v: List[i64] = [1]
-    v.push(i64(v.len()))
-    s.size()
-```
-
-**Answer: valid, and no two-phase rule is needed.** Under R3 as written,
-the receiver borrow of `s` would start before `s.size()` and conflict
-with it; Rust needs RFC 2025 for exactly this. With R3 cut, nothing
-checks the overlap, and L4 needs none: the receiver borrows a local's
-storage. `cs[0].add(cs.len())` is valid too; `cs[0].add(cs.pop())`
-stays today's `conflicting-access`
-([`ref.elem.conflict.method`](../../spec/lang/13-values-and-references.md#r-ref.elem.conflict.method)).
-Prototype: checks.
-
-### 4.2 Disjoint fields and disjoint elements
-
-```text
-struct V:
-    x: i64
-    y: i64
+struct Obj:
+    n: i64
+
+fn add(p: &mut i64, x: i64) -> void:
+    *p += x
+
+fn reset(o: &mut (*mut Obj)) -> i64:  # hypothetical syntax
+    *o = &mut Obj { n: 0 }
+    5
 
 fn both(a: &mut i64, b: &mut i64) -> void:
     *a += 1
     *b += 1
 
-fn demo(i: usize, j: usize) -> i64:
-    let mut v = V { x: 1, y: 2 }
-    both(&mut v.x, &mut v.y)
-    both(&mut v.x, &mut v.x)
+fn demo(i: usize, j: usize) -> void:
+    let mut o: *mut Obj = &mut Obj { n: 1 }  # hypothetical syntax
+    add(&mut o.n, reset(&mut o))  # 22, 23: error: overlapping accesses to `o`
+    x := reset(&mut o)
+    add(&mut o.n, x)  # valid: the write ended before the borrow
     let mut xs: List[i64] = [1, 2, 3]
-    both(&mut xs[i], &mut xs[j])
-    v.x + xs[0]
+    both(&mut xs[i], &mut xs[j])  # 24: valid, even when i == j
+    add(&mut xs[0], xs.remove_at(1))  # 22, 23: error: remove_at writes xs
 ```
 
-**Answer: all valid, as today.** hd's `&mut` is not exclusive
-([`ref.write.no-exclusivity`](../../spec/lang/13-values-and-references.md#r-ref.write.no-exclusivity)),
-and two references to one slot cannot dangle. R3 as written would have
-rejected these calls; with it cut, all are valid. Here hd is more
-permissive than Swift and Rust, which reject
-`both(&mut xs[i], &mut xs[j])`. Prototype: checks.
+> **Why.** Without rule 22, `reset` could free the object that
+> `&mut o.n` points into while `add` still writes through it. Rejecting
+> only writes to an enclosing place keeps `swap(&mut xs[i], &mut xs[j])`
+> valid, which Swift rejects.
 
-### 4.3 Reborrowing a local parameter
+### 2.6 Element borrows
+
+26. `ref.elem.local` `&xs[i]`, `&mut xs[i]`, `&m[k]` and `&mut m[k]` are
+    local references, so an element borrow lasts for one call, as today.
+27. `ref.elem.access.pin` The borrow pins its collection and takes one
+    fast-path count of the buffer while the call runs. A length change
+    through an alias panics `collection-pinned`, and a copy of the
+    pinned list gets elements of its own
+    ([`ref.elem.copy`](../../spec/lang/13-values-and-references.md#element-references)).
 
 ```text
-struct P:
-    n: i64
+fn write_then_read(slot: &mut i64, copy: List[i64]) -> i64:
+    *slot = 99
+    copy[0]  # 1: the copy has elements of its own
 
-fn inner(p: &mut P) -> void:
-    p.n += 1
-
-fn global_read(p: *P) -> i64:  # hypothetical syntax
-    p.n
-
-fn outer(p: &mut P) -> i64:
-    inner(p)
-    q := p
-    inner(q)
-    global_read(p)
+fn demo() -> i64:
+    let mut ys: List[i64] = [1, 2]
+    write_then_read(&mut ys[0], ys)  # 27: the pin makes the copy eager
 ```
 
-**Answer:** passing `p` to another local parameter is valid and costs
-nothing, and `q := p` makes `q` local too. `global_read(p)` is the
-error: a local reference never becomes a counted one (L3). Prototype:
-`scoped-reference-escapes: in argument: expected &P, found &{} mut P`.
-The fix-its are, in order: make the callee's parameter `&P` when it
-keeps nothing; pass a copy, `*p`; or make the caller hold a `*P`.
+### 2.7 Closures
 
-### 4.4 Across `!` calls, `defer`, `using` and `?`
+28. `fn.type.local` `&fn(A) -> B` is a non-escaping function parameter.
+    The callee may only call it: storing, returning, binding or
+    capturing it is an error. Error: `local-reference-escapes`.
+29. `fn.type.lend` (**proposed**) A plain `fn` value may be passed where
+    a `&fn` is expected, as a `*T` lends to `&T`. Without it, every call
+    that passes a named function to an eager helper breaks.
+30. `fn.closure.local-capture` A closure literal written as the argument
+    for a `&fn` parameter may capture local references, `self` of a
+    `&self` or `&mut self` method included.
+31. `fn.closure.no-local-capture` Any other closure that captures a
+    local reference is an error. A plain `fn(A) -> B` stays a storable
+    value. Error: `local-reference-escapes`.
 
-**Suspension frames.** A bang function may hold a local parameter across
-a suspension. Its frame is a counted object owned by the task, and the
-caller is itself suspended inside the call, so the referent outlives
-the use: a bang call completes or is cancelled before its caller goes
-on. This holds for the cell form and for #702's frame slots, since a
-suspending body's locals live in its frame
-([linear DESIGN §23.21](../../crates/hd_wasm_linear/DESIGN.md)). A
-fast-path count that L4 takes for a borrow is held across the
-suspension like any count.
+```text
+struct Scaler:
+    k: f64
+    total: f64
+
+fn each(xs: &List[f64], f: &fn(f64) -> void) -> void:  # hypothetical syntax
+    for x in xs:
+        f(x)  # 28: the callee only calls f
+
+impl Scaler:
+    fn add_all(&mut self, xs: List[f64]) -> void:
+        each(&xs, fn(x: f64) -> void: self.total += x * self.k)  # 30: captures self
+        lazy := xs.iter().map(fn(x: f64) -> f64: x * self.k)  # 31: error: map keeps a plain fn
+        k := self.k
+        later := xs.iter().map(fn(x: f64) -> f64: x * k)  # 31: valid: captures a copy
+```
+
+### 2.8 Generics, traits and trait values
+
+32. `trait.dyn.kinds` `&dyn Tr` and `&mut dyn Tr` are local trait value
+    references, and `*dyn Tr` and `*mut dyn Tr` counted ones. A `*dyn`
+    lends to a `&dyn` by rule 9.
+33. `trait.dyn.provider` A provider installed with `$.with` is a
+    `*dyn` value, since a fetched provider may be captured
+    ([`fn.capture.provider-value`](../../spec/lang/07-functions.md#captures)).
+34. `trait.impl.more-local` An impl method may be more local than its
+    trait: `&self` or `&T` where the trait says `*self` or `*T`. The
+    reverse is an error. Error: `trait-method-signature`.
+35. `trait.dyn.counted-receiver` A trait with a `*self` method is still
+    usable as `&dyn Tr`. Calling that method through a `&dyn` is rule
+    20's error.
+
+A generic parameter such as `xs: &List[T]` is valid: the reference is
+local, and `T` is an ordinary type argument. `id(p)` with a local `p`
+would make `T = &P`, which is rule 17's error.
+
+```text
+trait Shape:
+    fn area(&self) -> f64
+
+trait Registry:
+    fn register(*mut self) -> void  # hypothetical syntax
+
+struct Sq:
+    side: f64
+
+impl Shape for Sq:
+    fn area(&self) -> f64:
+        self.side * self.side
+
+impl Registry for Sq:
+    fn register(&mut self) -> void:  # 34: more local than the trait
+        self.side += 0.0
+
+fn total(shapes: &List[*dyn Shape]) -> f64:  # hypothetical syntax
+    let sum = 0.0
+    for s in shapes:
+        sum += s.area()  # 32: a *dyn Shape lends to &dyn Shape
+    sum
+
+fn id[T](x: T) -> T:
+    x
+
+fn twice(p: &i64) -> i64:
+    *id(p)  # 17: error: T = &i64
+```
+
+### 2.9 Suspension
+
+36. `req.suspend.local-arguments` A bang call `f!(..)` may pass local
+    references. They stay valid across any number of suspensions,
+    because the caller is suspended inside the call.
+37. `req.suspend.cold.local` A plain call of a bang function builds a
+    cold suspension that keeps its arguments
+    ([`req.suspend.cold.captures`](../../spec/lang/11-requirements-and-suspension.md)).
+    A local reference argument there is an error. Error:
+    `local-reference-escapes`.
 
 ```text
 use std.time.{Clock, sleep, ms}
@@ -672,1031 +427,149 @@ fn bump!(p: &mut i64) -> void $ Clock:
 
 fn outer!(n: i64) -> i64 $ Clock:
     let mut local: i64 = n
-    bump!(&mut local)
+    bump!(&mut local)  # 36: valid across the sleep
     local
+
+fn later(p: &mut i64) -> mut Suspend[void] $ Clock:
+    bump(p)  # 37: error: the suspension would keep p
 ```
 
-The prototype checks and runs this (`outer!(1)` prints 2), and main
-does too. One gap: borrowing a suspending function's own `mut`
-parameter, `fn outer!(mut n: i64)` with `bump!(&mut n)`, fails on main
-and in the prototype with `unsupported: a mutably captured parameter of
-a suspending function in the linear backend is not supported`. The
-owner's decision needs that parameter given a frame slot (F10).
+### 2.10 Boundaries
 
-**Cold suspensions are an escape.** A plain call of a bang function
-builds a cold `Suspend[T]` that captures its arguments
-([`req.suspend.cold.captures`](../../spec/lang/11-requirements-and-suspension.md#r-req.suspend.cold.captures)),
-and that value may be stored or returned:
+38. `ref.local.boundary` (**proposed**: a review finding #834 does not
+    decide) An exported or host-imported function takes no local
+    reference parameter. The host may keep what it receives, and
+    `boundary.rs` counts each reference that crosses. Write `*T` or a
+    value. Error: `local-reference-escapes`.
 
 ```text
-use std.time.{Clock, sleep, ms}
+pub fn store_name(name: &string) -> void:  # 38: error if exported to the host; write *string
+    pass
+```
 
-struct Buf:
+### 2.11 std
+
+39. `std.ref.parameters` Every std reference parameter is `&T` or
+    `&mut T`, except the about 17 that keep their argument, which are
+    `*mut T`. std's 19 reference-typed fields and its returned
+    references are `*T`. Its methods that keep `self` take `*self`.
+40. `std.fn.eager` std's eager helpers take `&fn`, and its lazy adapters,
+    such as `Iterator.map`, keep a plain `fn`. #834 names `fold`,
+    `retain`, `sort_by`, `any` and `each`; in today's std the eager ones
+    include `List.map`, `filter`, `any`, `all`, `find`, `sorted_by` and
+    `Iterator.fold`.
+41. `std.format.debug-writer` `debug_struct`, `debug_tuple`, `debug_list`
+    and `debug_map` return the writer itself, `&mut DebugWriter`, under
+    rule 21. The open struct or list state lives in `DebugWriter`, so no
+    `debug` signature changes.
+42. `std.text.template` The `r` prefix takes `Template[*dyn Display]`. A
+    part that is not a whole object, such as `${p.name}`, is copied into
+    a new object. That costs one allocation per such part, until #702's
+    frame storage removes it.
+43. `std.error.erased` The erased error is `Result[T, *dyn Error]`, since
+    `&dyn Error` would be a type argument. `?` already copies an error
+    value into a new object, so errors lose nothing but spelling.
+
+Merging the four builders into `DebugWriter` puts two pairs of
+same-named methods on one type. The struct's `field(name, value)` meets
+the tuple's `field(value)`, and the list's `entry(value)` meets the
+map's `entry(key, value)`. **Proposed** std naming: `field(name, value)`
+for named fields (absorbing `named_field`), `item(value)` for positional
+ones, `entry(key, value)` for map pairs, and one `finish()`.
+
+```text
+use std.format.DebugWriter
+
+struct Point:
+    x: i64
+    y: i64
+
+impl Debug for Point:
+    fn debug(self, out: &mut DebugWriter) -> void:
+        out.debug_struct("Point").field("x", self.x).field("y", self.y).finish()  # 41: unchanged
+```
+
+## 3. Error Messages And Fix-Its
+
+`local-reference-escapes` is the one new code. Each situation has its own
+message, and fix-its are listed in the order the diagnostic offers them.
+**Proposed:** today's `element-reference-outlives-call` retires into it,
+since an element borrow is now an ordinary local reference.
+
+| # | Case | Written | Code | Message | Fix-its |
+| ---: | --- | --- | --- | --- | --- |
+| E1 | a `let` of an interior place (7) | `let a = &obj.f`, `let a = &xs[i]` | `local-reference-escapes` | "`obj.f` is a field, and `let` makes a counted reference, which needs a whole object" | copy: `let a = obj.f`; pass the borrow straight to the call: `bump(&obj.f)`; make the field its own object: `f: *T` |
+| E2 | an interior place where a type variable is expected (6, 7) | `xs.push(&o.f)`, `[&o.f]`, `id(&o.f)` | `local-reference-escapes` | "a type parameter takes a counted reference, and `o.f` is a field" | copy into a local, `c := o.f`, then `xs.push(&c)`; make the field `*T` |
+| E3 | a local reference where a `*T` is expected (10) | `keep(p)` with `p: &P` and `fn keep(p: *P)` | `local-reference-escapes` | "`p` is a local reference, and `keep` keeps its argument" | make the callee's parameter `&P` when it keeps nothing; copy: `c := *p`, then `keep(&c)`; take `p: *P` here too |
+| E4 | a local reference bound to a name (14) | `q := p`, `r = p`, `whole =>` on a `&T` scrutinee | `local-reference-escapes` | "a local reference can't be bound to a name; use `p` itself" | use `p` at each use; copy the value: `q := *p` |
+| E5 | a local reference as a result (15) | `fn f(p: &mut P) -> &mut P: p` | `local-reference-escapes` | "a local reference can't be returned; only a method's `self` can" | take and return `*mut P`; return a copy, `-> P` |
+| E6 | a local reference type in a field, element, payload or type argument (16, 17) | `r: &T` in a struct, `List[&T]`, `&T?`, `.Some(p)`, `[p]`, `dbg(p)` | `local-reference-escapes` | "a field can't hold a local reference" (or "an element", "a type argument") | in a type, write `*T`; for a value, copy it with `*p` |
+| E7 | a `*self` method on an interior place or through a local reference (20, 35) | `client.request.register(log)` | `local-reference-escapes` | "`register` keeps `self`, so it needs a whole object, and `client.request` is a field" | make the field its own object: `request: *mut Request`; make the method `&mut self` when it keeps nothing |
+| E8 | a closure capturing a local reference, not passed to a `&fn` (31) | `xs.iter().map(fn(x: f64) -> f64: x * self.k)` | `local-reference-escapes` | "the closure captures `self`, a local reference, and `map` may keep the closure" | copy the field first: `k := self.k`; make the callee's parameter `&fn` when it only calls it; write a loop |
+| E9 | a `&fn` parameter kept (28) | `self.handler = f` with `f: &fn(i64) -> void` | `local-reference-escapes` | "`f` is a `&fn` parameter, which can only be called" | make the parameter a plain `fn` |
+| E10 | a plain call of a bang function with a local argument (37) | `fill(b)` with `b: &mut Buf` | `local-reference-escapes` | "a plain call of `fill!` builds a suspension that keeps `b`" | call it: `fill!(b)`; take `b: *mut Buf` |
+| E11 | overlapping accesses in one call (22) | `add(&mut o.n, reset(&mut o))` | `conflicting-access` | "overlapping accesses to `o`: `reset(&mut o)` may replace what `&mut o.n` points into" | evaluate the writer first: `x := reset(&mut o)`, then `add(&mut o.n, x)` |
+| E12 | an impl less local than its trait (34) | `fn area(*self) -> f64` for a trait's `fn area(&self)` | `trait-method-signature` | "`Shape.area` takes `&self`; an impl may be more local than its trait, never less" | take `&self` |
+| E13 | a local reference in a boundary signature (38, proposed) | an exported `fn store_name(name: &string)` | `local-reference-escapes` | "a host may keep what an exported function receives, so `name` can't be a local reference" | write `*string`, or take the value |
+
+At run time, a length change of a collection under an element borrow,
+made through an alias the checker can't see, panics `collection-pinned`
+as today.
+
+## 4. Counting Rules
+
+The rows say where a borrow's address is and what keeps that storage
+alive for the call. They are the earlier R3″ table, reduced. With
+local references only in argument position, there are no bound borrows,
+no binding groups and no delayed drops. Every count is released when
+the call returns.
+
+| Row | The borrowed address is in | Example | How it stays valid | Cost per borrow |
+| ---: | --- | --- | --- | --- |
+| 1 | a local's or value parameter's own storage, or a local reference parameter's referent, through fields only | `energy(&b)`, `lexer.skip_space()`, `f(&mut p.pos)`, `self.items.push(x)` | the local, or the caller's lent referent, outlives the call; rule 22 stops another argument replacing it | none |
+| 2 | an object reached through a `*T` that a local or parameter of this body holds, when no closure captures that binding and no `*T` refers to it | `bump(&mut o.n)`, `o.step(dt)` with `o: *mut Obj` | the binding's own count holds the object; only this body can write the binding, and rule 22 rejects an argument that does | none |
+| 3 | an object reached through any other `*T`: a field, an element, a captured binding, or a binding some `*T` refers to | `bump(&mut h.leaf.n)`, `bump(&mut nodes[i].n)`, `self.leaf.step(dt)` | one fast-path count of the object, taken at the borrow and released when the call returns | one known pair |
+| 4 | a list element or a map value, with no `*T` step after the element step | `ps[i].step(dt)`, `swap(&mut xs[i], &mut xs[j])`, `for p in &mut ps` | today's pin and one fast-path count of the buffer: a length change panics `collection-pinned`, and a copy of the pinned list copies its elements | one known pair and the pin; both omitted for an unaliased local list that no other argument names |
+
+A borrow is classified by the steps after the last `*T` dereference in
+its place, since those say which block the address is in. So
+`bump(&mut nodes[i].n)` with `nodes: List[*mut Node]` counts the node
+(row 3) and needs no pin. An element loop is one borrow for the whole
+loop, as [`flow.for.ref.access`](../../spec/lang/06-control-flow.md#element-reference-loops)
+states today.
+
+Three rules hold for every row. Every count of a `*T`, whether a copy,
+a store or a row 3 count, lands on an object's start and takes the known
+path. Weakening a local reference, and passing a local parameter on,
+emit no count. No count ever has a local reference as its operand,
+which the ownership verifier checks.
+
+```text
+struct Leaf:
     n: i64
 
-fn fill!(b: &mut Buf) -> void $ Clock:
-    sleep!(ms(1))
-    b.n += 1
+struct Holder:
+    leaf: *mut Leaf  # hypothetical syntax
+    counts: List[i64]
 
-fn later(b: &mut Buf) -> mut Suspend[void] $ Clock:
-    fill(b)
-```
-
-The prototype accepts `later`, which returns a suspension holding the
-caller's local reference. **Answer:** a plain call of a bang function
-with a local argument is `local-reference-escapes` (L6); `fill!(b)`
-stays valid. The same applies to children built for `std.task.all` and
-`race`.
-
-**`defer`, `using` and `?`.** A `defer` suite may use a local
-reference; the borrow's count, if L4 takes one, is released after the
-last use, which a defer suite extends to each exit of its block. `?`
-and `return` end the function and every borrow. `using x = open(&cfg)`
-is valid; the `Disposable` it returns is no reference type and cannot
-hold `&cfg`.
-
-```text
-struct Log:
-    lines: List[string]
-
-fn step(log: &mut Log, text: string) -> Result[i32, string]:
-    defer:
-        log.lines.push("done")
-    n := text.parse::[i32]().map_err(fn(e) -> string: "bad")?
-    log.lines.push("ok")
-    .Ok(n)
-```
-
-Prototype: checks.
-
-### 4.5 `match` bindings
-
-```text
-enum Expr:
-    Num(n: i64)
-    Add(left: *Expr, right: *Expr)  # hypothetical syntax
-
-fn eval(e: &Expr) -> i64:
-    match e:
-        .Num(n) => n
-        .Add(l, r) => eval(l) + eval(r)
-
-fn keep(e: *Expr) -> *Expr:  # hypothetical syntax
-    e
-
-fn whole(e: &Expr) -> i64:
-    match e:
-        w =>
-            k := keep(w)
-            eval(k)
-```
-
-**Answer:** a payload binding is a copy
-([`ref.match.copy`](../../spec/lang/13-values-and-references.md#r-ref.match.copy)),
-so `l` and `r` are counted `*Expr` values read out of the payload, and
-they may go anywhere; they lend to `eval`'s `&Expr`. A binding of the
-whole scrutinee is the reference itself
-([`ref.match.binding`](../../spec/lang/13-values-and-references.md#r-ref.match.binding)),
-so `w` is local and `keep(w)` is L3's error. Prototype: exactly this.
-
-### 4.6 Loops: a borrow that crosses iterations
-
-```text
 fn bump(p: &mut i64) -> void:
-    *p = *p + 1
+    *p += 1
 
-fn loop_cross(n: usize) -> i64:
-    let mut xs: List[i64] = [1, 2, 3]
-    let first: &mut i64 = &mut xs[0]
-    for _i in 0..n:
-        bump(first)
-        xs.push(4)
-    xs[0]
+fn demo(h: &mut Holder, o: *mut Leaf) -> void:  # hypothetical syntax
+    let mut local = Leaf { n: 0 }
+    bump(&mut local.n)  # row 1: free
+    bump(&mut o.n)  # row 2: o's own count holds the leaf
+    bump(&mut h.leaf.n)  # row 3: one fast-path count of the leaf
+    bump(&mut h.counts[0])  # row 4: the pin and a fast-path count of the buffer
 ```
 
-**Answer (open question Q2):** under the recommended answer this is
-valid, and the push panics at run time: `first` is an element borrow,
-which holds today's pin while its binding lives, so `xs.push(4)` while
-`first` is still used panics `collection-pinned`, as a call-scoped
-element reference does today. If element borrows may not be bound with
-`let`, the `let` is today's `element-reference-outlives-call`. The
-prototype, which implemented the cut R3, reports
-`scoped-borrow-conflict` at `xs.push(4)` instead.
-
-A field or local borrow may cross iterations:
-
-```text
-struct Acc:
-    total: i64
-    items: List[i64]
-
-fn add(p: &mut i64, x: i64) -> void:
-    *p += x
-
-fn sum_all(xs: List[i64]) -> i64:
-    let mut acc = Acc { total: 0, items: [] }
-    let t: &mut i64 = &mut acc.total
-    for x in xs:
-        add(t, x)
-        acc.items.push(x)
-    acc.total
-```
-
-**Answer:** valid. `t` points into `acc`'s own storage, which no write
-can free, so it needs no count; `acc` is dropped after `t`'s last use
-rather than at its own (L4). Writing `acc.total = 0` or
-`acc = Acc { .. }` inside the loop is valid too, and `t` then sees the
-new value. Prototype: checks; with `acc.total = 0` added it reports the
-cut R3's `scoped-borrow-conflict`.
-
-Because a local reference can be neither a type argument nor stored in
-any value (L1), its copies are other local bindings and call arguments
-only. The last use of a borrow is therefore the last use of a small set
-of bindings in one body, which the ownership passes already compute for
-locals. No liveness over the control-flow graph is needed (F7).
-
-### 4.7 Closures that do not escape
-
-```text
-fn each(xs: &List[i64], f: fn(&i64) -> void) -> void:
-    for x in &xs:
-        f(x)
-
-fn sum(xs: List[i64]) -> i64:
-    let total: i64 = 0
-    each(&xs, fn(x: &i64) -> void: total += *x)
-    total
-
-fn sum_into(xs: List[i64], acc: &mut i64) -> void:
-    each(&xs, fn(x: &i64) -> void: *acc += *x)
-```
-
-**Answer:** a function type may take local parameters, and a closure
-receives them; `sum` is valid and runs (prints 6). `sum_into` is an
-error: the closure captures `acc`, and a closure value may escape (L6).
-Swift accepts the equivalent: a non-escaping closure may capture an
-`inout` parameter. The first cut has no non-escaping closure type, so
-the error stays; the fix is a loop or an explicit parameter (open
-question Q5).
-
-### 4.8 Generics and traits
-
-```text
-fn id[T](x: T) -> T:
-    x
-
-fn gen(p: &i64) -> i64:
-    q := id(p)
-    *q
-```
-
-**Answer:** an error. `&T` is never a type argument (L1), so `id(p)`
-would instantiate `T = &i64` and is `local-reference-escapes`, as
-Swift's `inout` cannot be a generic argument. `dbg(r)`,
-`assert_equal(r, ..)`, `[r]` and `.Some(r)` are errors the same way; the
-fix is `*r`, a copy, or a counted `*T`. A generic parameter
-`xs: &List[T]` with `T` a type parameter is valid: the reference is
-local, `T` is not. An optional local reference, `&T?`, is `Option[&T]`
-and so is an error; such a parameter becomes `*T?` or splits into two
-functions. Prototype: `scoped-reference-escapes` at `id(p)`.
-
-Trait methods take local receivers, and generic code calls them through
-a bound, as `x.grow(1.0)` does for `T < Shape`. A trait method may take
-`*self`; an impl may then take `&self`, which promises more, but never
-the reverse (open question Q6).
-
-### 4.9 `&dyn` and `*dyn`
-
-```text
-trait Shape:
-    fn area(&self) -> f64
-
-struct Sq:
-    side: f64
-
-impl Shape for Sq:
-    fn area(&self) -> f64:
-        self.side * self.side
-
-fn dyn_area(s: &dyn Shape) -> f64:
-    s.area()
-
-fn demo() -> f64:
-    q := Sq { side: 2.0 }
-    let shapes: List[*dyn Shape] = [&Sq { side: 3.0 }]  # hypothetical syntax
-    dyn_area(&q) + dyn_area(shapes[0])
-```
-
-**Answer:** `&dyn Tr` is a local trait value reference, data address
-and vtable, uncounted; `*dyn Tr` is a counted one, storable in a list. A
-`*dyn Shape` lends to `&dyn Shape`, so `dyn_area(shapes[0])` is valid.
-`[&Sq { .. }]` with the expected type `List[*dyn Shape]` makes a new
-counted object (L2). A provider installed with `$.with(T=&mut fake)`
-may be captured once fetched
-([`fn.capture.provider-value`](../../spec/lang/07-functions.md#r-fn.capture.provider-value)),
-so providers are `*dyn` values: `&mut fake` there is a counted
-reference to `fake`'s cell, as today. Prototype: checks.
-
-### 4.10 Counted to local, and back
-
-`*T` lends to `&T` wherever a local reference is expected: `*mut T` to
-`&mut T`, and either to `&T`. `&T` never becomes `*T`, whether as an
-argument, a binding with a written `*T`, a field, an element or a
-result. An interior place (`&x.f`, `&xs[i]`) is only ever `&`, so a
-counted reference always points at a whole object.
-
-### 4.11 The diagnostics
-
-| Code | When | Fix-it |
-| --- | --- | --- |
-| `local-reference-escapes` (new) | a local reference where a counted one is expected (argument, binding, field, element, result); a local reference as a type argument; a capture; a `*self` method on an interior place or through `&`; a plain call of a bang function with a local argument | make the callee's parameter `&`; `*r`; make the field its own object; a loop instead of a closure |
-| `element-reference-outlives-call` (today) | only if Q2 keeps element borrows out of `let` | keep the index |
-| `conflicting-access` (today) | a length change in the same call as an element borrow | unchanged |
-| `collection-pinned` (today, a panic) | a length change of a list while an element borrow lives | unchanged |
-
-The prototype's two codes, `scoped-reference-escapes` and
-`scoped-borrow-conflict`, belong to its earlier spelling and to the cut
-R3; the first becomes `local-reference-escapes`, the second goes.
-
-## 5. The Rules
-
-These are the rules the owner's decisions give, refined by the findings
-of section 9. They replace the first cut's R1 to R4.
-
-**L1. Two kinds of reference.** `*T` and `*mut T` are counted
-references: always to a whole object (a heap object, a local's cell, a
-new object), storable in fields, lists and maps, returnable, capturable,
-and usable as type arguments. `&T` and `&mut T` are local references:
-written on parameters, as receivers (`&self`, `&mut self`), on `let`
-bindings and on function types' parameters. A local reference is never
-a field, an element, a payload, a result or a type argument, so there
-is no `List[&T]`, `Option[&T]`, `&T?` or `T = &Foo`.
-
-**L2. Taking an address.** `&x` always takes an address, and `*p`
-always dereferences either kind. The kind of `&x` comes from the
-expected type. Where `*T` is expected, `x` must be a whole object: a
-local (its cell), the referent of a `*T`, or a new object. An interior
-place, `&x.f`, `&xs[i]`, `&m[k]` or anything reached through a `&`, is
-only ever `&`. With no expected type, `&x` is local (open question Q1
-for a new object).
-
-**L3. Conversions.** `*T` lends to `&T` implicitly, and `mut` weakens
-as today. `&T` never becomes `*T`: `local-reference-escapes`.
-
-**L4. Counting, by construction.** There is no exclusivity check:
-writes to a borrowed place, or around it, are always valid, and `&mut`
-stays non-exclusive. What replaces R3 is a rule applied where each
-borrow is made: nothing may free or move storage a live local reference
-points into.
-
-| The borrowed address is in | Example | How it stays valid | Cost per borrow |
-| --- | --- | --- | --- |
-| a local's own storage, or a lent reference parameter's referent, through fields only | `energy(&b)`, `self.items.push(x)`, `f(&mut p.pos)` | a borrowed local is dropped after the borrow's last use, not at its own; a reassignment writes the same storage, so the borrow sees the new value | none |
-| an object reached through a `*T` that a local holds and no closure captures, for a call argument | `bump(&mut o.f)` with `o: *mut Obj` | the local's own count holds the object, and nothing can change the local during the call | none |
-| an object reached any other way: through a field, an element or a captured binding, or by a `let`-bound borrow | `bump(&mut h.child.f)`; `let r = &mut o.f` | one fast-path count (`retain_known`) of the object, released after the borrow's last use; `o = other` then leaves `r` on the old object, as Go's `p := &o.f` does | one known pair, about 2.7 ns |
-| a list element or a map value | `xs[i].step(dt)`, `swap(&mut xs[i], &mut xs[j])` | today's pin and one fast-path count of the buffer: a length change during the borrow panics `collection-pinned`, and a copy of a pinned list copies its elements ([`ref.elem.copy`](../../spec/lang/13-values-and-references.md#r-ref.elem.copy)) | one known pair and the pin; both omitted for an unaliased local list that no other argument of the call names |
-
-```text
-struct Obj:
-    n: i64
-
-fn demo() -> i64:
-    let o: *mut Obj = &mut Obj { n: 1 }  # hypothetical syntax
-    let r: &mut i64 = &mut o.n
-    o = &mut Obj { n: 2 }
-    *r = 5  # writes the first object, which r keeps alive
-    o.n
-```
-
-A borrow's last use is the last use of its binding and of the local
-bindings it was copied to, within one body; a parameter received from a
-caller is valid for the whole call, so its copies cost nothing.
-
-**L5. Receivers.** `&self` and `&mut self` are local. A method that
-keeps `self` takes `*self` or `*mut self`, as Go's pointer receivers do;
-such a method needs a whole object, so calling it on an interior place
-or through a `&` is `local-reference-escapes`.
-
-**L6. Escapes beyond the type.** A local reference cannot be captured by
-a closure, and a plain call of a bang function with a local argument is
-an error, since the cold suspension keeps its arguments. A bang call
-`f!(..)` with local arguments is valid across any number of
-suspensions.
-
-**L7. std.** Every std reference parameter is `&` or `&mut`, except the
-parameters that keep their argument, which are `*mut T` (about 17,
-section 9.3). std's 19 reference-typed fields become `*T`, its returned
-references `*T`, and its methods that keep `self` take `*self`.
-
-## 6. Soundness Without An Exclusivity Check
-
-With R3 cut, an uncounted local reference must not dangle. The two
-failures to prevent are `let r = &mut xs[i]` followed by `xs.push(..)`,
-and `let r = &mut o.f` followed by `o = other`, where `o` holds a `*T`.
-Four candidates were priced; the owner chose counting with rules (L4).
-
-**A: one fast-path count of the root at the borrow.** The borrow counts
-the block it points into, with `retain_known` on the block's start, and
-passes on with no count. Nothing can be freed under it. Alone, a list's
-push would copy the buffer the borrow shares, and a write through the
-stale borrow would land in the old buffer: memory-safe, but the Go
-behavior hd's spec rejects for elements.
-
-**B: tier 2's borrow flag.** Set a header bit at the borrow, clear it at
-the end, and panic on a resize, a replacement or a release of a flagged
-block ([Tier 2 §6.4](OBJECT_MODEL_TIER2.md#64-the-borrow-flag)). Setting
-and clearing cost about a known pair. For lists this is today's pin; for
-objects it turns `o = other` into a panic where A keeps the old object.
-
-**C: restrict what can be a root.** Free, but alone it forbids
-`xs[i].step(dt)` and `h.child.items.push(x)`.
-
-**D: a static invalidation check.** Liveness of each borrow and an error
-on a length change or a replacement while it lives: about 430 lines,
-and the analysis the owner cut.
-
-**L4 combines C, A and today's pin.** The unit costs were measured on
-main, 50,000,000 calls per loop, seven runs each on Node with
-`--release` (load 6 to 15):
-
-| Loop body | Count operations per call | Median | Per call over the empty loop |
-| --- | --- | ---: | ---: |
-| `s += take(xs[0])`, a value | none | 243 ms | — |
-| `s += take(xs)` with `take(mut v: List[i64])` | one known pair on the buffer | 379 ms | 2.7 ns |
-| `s += field(&o.f)` with `field(p: &i64)` | one general pair, 2 `block_of` | 541 ms | 6.0 ns |
-
-| | A alone | B alone | C alone | D | L4 |
-| --- | --- | --- | --- | --- | --- |
-| local or `self` field borrow | known pair | flag set and clear | free | free | free |
-| object behind a stored `*T` | known pair | flag, and a panic on replacement | not allowed | free when local | known pair |
-| list element | known pair; stale writes after a resize | the pin | not allowed | free when local | known pair and the pin |
-| `let r = &mut xs[i]; xs.push(..)` | silently stale | panic | error | error | panic, as today's pin (Q2) |
-| `let r = &mut o.f; o = other` | `r` keeps the old object | panic | error | error | `r` keeps the old object |
-| per-body analysis | none | none | none | ~430 lines | none |
-
-The copy case is kept too: `write_then_read(&mut ys[0], ys)` prints
-`1 99` today. The prototype, which made element borrows uncounted,
-printed `99 99`; L4's pin and count restore today's eager copy (F3).
-
-## 7. Architecture
-
-### 7.1 Where it lives
-
-| Stage | Crate | Change |
-| --- | --- | --- |
-| parse | `hd_syntax` | `*T`, `*mut T`, `*dyn Tr` in types; `*self`, `*mut self` receivers; the formatter keeps them |
-| types | `hd_types` | `TyData::Ref { inner, mutable, counted }`; two pool tags and two wire tags; display; unify, solver and join compare `counted` |
-| headers | `hd_resolve` | lower both kinds in parameters, results, fields and receivers |
-| check | `hd_check` | `&x` typed by the expected type, `*T` lending to `&T`, `local-reference-escapes` for positions, type arguments, captures, `*self` on interior places and cold calls |
-| TIR | `hd_tir` | the Ref instruction's kind, and the L4 row of each local borrow |
-| ownership | `hd_tir::own` | per local borrow: free, a known count of the containing block, or the pin with a known buffer count; a borrowed local's drop after its borrows' last use |
-| emit | `hd_wasm_linear` | `retain_known` and `release_known` of the containing block's start for L4 rows 3 and 4; every `*T` count through the known path |
-
-Reference types are lowered to `std.core.Ref[T]` before the ownership
-passes (`Types::lower_refs`). Since a local reference is never a type
-argument, the lowering needs no second type: the kind is a property of
-each `Ref` instruction and of each local's declared type, which the
-prototype carries as `ref_word::SCOPED`.
-
-### 7.2 Data structures
-
-```rust
-/// How a local borrow stays valid (L4), decided per `Ref` instruction.
-enum BorrowRow {
-    Free,                 // a local's storage or a lent parameter's referent, fields only
-    HeldByLocal,          // through an uncaptured local's `*T`, call argument only
-    CountBlock,           // one retain_known of the containing block
-    PinBuffer,            // a list element or map value: the pin and one buffer count
-}
-
-/// Per body, after the borrow pass.
-struct LocalBorrows {
-    row: Vec<(u32, BorrowRow)>,     // Ref instruction and its row
-    group: Vec<(u32, Vec<LocalId>)>,// a let-bound borrow and the local bindings it reaches
-    root_locals: Vec<LocalId>,      // locals a let-bound borrow points into
-}
-```
-
-### 7.3 Classifying a borrow
-
-```rust
-fn classify(body: &Body, r: Inst, bound: bool) -> BorrowRow {
-    let place = body.place_of(r);
-    if place.has_elem_step() {
-        return if !bound && unaliased_local_list(body, &place) && !other_arg_names(body, r, &place) {
-            BorrowRow::Free          // the spec's note: a pin may be omitted when provably unneeded
-        } else {
-            BorrowRow::PinBuffer
-        };
-    }
-    match place.last_reference_hop() {
-        None => BorrowRow::Free,                                   // a local's own storage
-        Some(Hop::LentParam(_)) => BorrowRow::Free,                // the caller holds it for the call
-        Some(Hop::Local(l)) if !bound && !body.is_captured(l) => BorrowRow::HeldByLocal,
-        Some(_) => BorrowRow::CountBlock,                          // a field, an element, a cell, or bound
-    }
-}
-
-fn lower(body: &mut Body, borrows: &LocalBorrows) {
-    for &(r, row) in &borrows.row {
-        let end = last_use_of_group(body, borrows, r);  // the statement after the group's last read
-        match row {
-            BorrowRow::Free | BorrowRow::HeldByLocal => mark_lent(body, r),
-            BorrowRow::CountBlock => insert_known_count(body, r, end),
-            BorrowRow::PinBuffer => keep_pin_with_known_count(body, r, end),
-        }
-    }
-    for &l in &borrows.root_locals {
-        delay_drop_past_group(body, l);  // the local's Drop moves after its borrows' last use
-    }
-}
-```
-
-`last_reference_hop` is the dereference nearest the address, which the
-emitter's place walk already computes for `Ref` (`Em::place_start`,
-`Em::walk_place`). `last_use_of_group` reuses insertion's rule for a
-local's `Drop` (docs/compiler/tir-v2.md, "Insertion" rules 2 to 4),
-applied to the union of the group's accesses.
-
-### 7.4 Caching and incremental behaviour
-
-The kind of every reference is part of signatures, so it is in the
-interface hash: a header change rechecks callers. A body edit rechecks
-that body only; the classification reads callee signatures, never
-callee bodies.
-
-### 7.5 Testing
-
-- conformance fixtures for each row of 4.11 and each edge case of
-  section 4, valid and invalid;
-- runtime fixtures for each row of L4: `o = other` under a bound
-  borrow, a push under a borrowed element (`collection-pinned`), and
-  the copy case (`1 99`);
-- `counts` stage fixtures for U1 to U10 in both kinds;
-- the std runtime's allocation test from #702, once frame slots land.
-
-## 8. Cost
-
-### 8.1 Run time, per use
-
-| What | Today | Under L4 | Source |
-| --- | --- | --- | --- |
-| `f(&local)` to a local parameter | 1 cell per declaration + 1 general pair (2 `block_of`) per call | 1 cell per declaration, no pair | `scoped-834/a-micro` |
-| `f(&mut local.field)`, `self.items.push(x)` | pair through `rt:ref_project` per call | none | `scoped-834/b-field` |
-| `bump(&mut o.f)`, `o` an uncaptured local holding a `*T` | general pair | none | L4 row 2 |
-| `bump(&mut h.child.f)`, or any `let`-bound borrow behind a `*T` | general pair | one known pair | L4 row 3 |
-| `f(&mut xs[i])`, `xs` an unaliased local named by no other argument | `IsUnique`, `Pin`, general buffer pair | `IsUnique` only | `scoped-834/c-elems` |
-| `f(&mut xs[i])`, `xs` behind a reference | `IsUnique`, `Pin`, general buffer pair | `IsUnique`, `Pin`, known buffer pair | U5 |
-| `local.method()` with a `&self` receiver | pair per call | none | U1, U3, U10 |
-| passing a local parameter on | nothing | nothing | U9 |
-| `&mut` to `&` weakening of a parameter | pair | pair (independent gap) | `w-weaken` |
-| `f(&temporary)` | 1 new object | 1 new object | U7 |
-| any count of a `*T` | general pair through `block_of` | known pair, no `block_of` | L1 (#704) |
-
-The known pair costs 2.7 ns and the general pair 6.0 ns (section 6). On
-the microbenchmark of section 10.4 (row 1) the median falls from 527 ms
-to 273 ms, about 5 ns per call.
-
-**`block_of` on #704's programs.** binary_trees' 11.2 million and
-json's 6.6 million `block_of` calls are counts of counted references
-and views. Local references remove almost none of them; L1's rule that
-a `*T` always points at a whole object removes the lookup from every
-reference count, which #704's measurement found to be 7% of
-binary_trees' samples and 14% to 22% of json's. Of the study
-benchmarks, only nbody's `advance(&mut bodies, 0.01)` (1.15 million
-calls, one pair each, about 2% of its time) and spectral_norm's 20 calls
-take a reference to a local.
-
-**Cells (#702).** The cell stays in every case. A local whose every
-reference is local could live in a frame slot, which is #702's rule
-with the escape fact now written in the header. Pairing the two removes
-one allocation per declaration execution, and temporaries passed to `&`
-parameters would use the same slots.
-
-### 8.2 Compile time
-
-L4 adds no per-body analysis: classifying each local `Ref` is one look
-at its place, and the group of a `let`-bound borrow is found from local
-assignments, both linear in the body. The prototype's per-body check,
-which belonged to the cut R3, was quadratic in the worst case; measured
-with it, a cold `hd build --release --jobs 1` of bench/study's json and
-nbody, std included, 15 runs each, each with a fresh `HD_CACHE`:
-
-| Program | main, min / median | prototype, min / median |
-| --- | ---: | ---: |
-| json | 293 / 303 ms | 289 / 316 ms |
-| nbody | 231 / 249 ms | 239 / 254 ms |
-
-The differences, under 5%, are within run-to-run noise (machine load
-about 6). Neither program writes a local reference, so the cost
-measured is the extra type tag, the scan and the coercion branches.
-
-### 8.3 Code, bottom-up
-
-| Component | Prototype lines | Budget | Notes |
-| --- | ---: | ---: | --- |
-| syntax: `*T`, `*mut T`, `*dyn`, `*self`, formatter round trip | 11 | 50 | |
-| type flag: pool, wire, display, unify, solver, join | 105 | 145 | 127 match sites on `TyData::Ref` in 30 files |
-| headers: lowering of both kinds, receivers | 21 | 40 | |
-| `&x` typed by the expected type, lending, L3's error, trait variance | 45 | 100 | |
-| escapes: positions, fields, type arguments, captures, `*self` on interior places, cold calls | 90 | 120 | |
-| per-body borrow check | 150 | 0 | the cut R3 |
-| ownership: L4 rows, borrow groups, borrowed locals' drops | 25 | 180 | |
-| emitter: known counts of the containing block; every `*T` count on the known path | 0 | 100 | |
-| diagnostics codes and fix-its | 8 | 40 | |
-| suspending functions' borrowed `mut` parameters in frame slots (F10) | 0 | 40 | |
-| **total** | **576** | **~815** | stop rule: a slice past 1.5 times its row stops for review |
-
-The respelling is outside these lines: about 1,100 type sites across
-std, the spec, the fixtures and the docs (section 9.3), mostly turning a
-stored or returned `&T` into `*T`. Web compiler size grows with
-`hd_check` by the line count above, a few kilobytes compressed; the 2 MB
-cap is not near.
-
-## 9. Stress Test
-
-### 9.1 Method
-
-Ten real-code shapes were translated into the rules. Library shapes are
-approximations, written from the public behavior. Each hd block was
-checked with the prototype (`hd check`, and run where it has a `main`),
-after translating it to the prototype's spelling (section 16), and its
-counted variant with main's compiler. Verdicts: *works*, *friction*
-(works with a workaround or a visible difference), *breaks* (the rules
-cannot express it). These are type-checked, which is stronger than
-parsing.
-
-| Case | Library | Verdict | Rule |
-| --- | --- | --- | --- |
-| S1 `retain` | Rust `Vec::retain` | works; the prototype, which needed `&{}` on `pop`, rejects it | L5 |
-| S2 `sift_up` | Rust `BinaryHeap` | works; element borrows behind `self` cost a known pair | L4 |
-| S3 `partition` | Swift `MutableCollection.partition(by:)` | works | — |
-| S4 scanner | Go `go/scanner.Scanner` | works | L1, L5 |
-| S5 `pointer_mut` | serde_json `Value::pointer_mut` | breaks | L1 (no local result) |
-| S6 entry counter | Rust `HashMap::entry` | friction | — (#683 idiom) |
-| S7 nested `iter_mut` | Rust `Vec<Vec<f64>>` | friction | today's diagnostic |
-| S8 visitor | syn `VisitMut` | works | — |
-| S9 value builder in a field | reqwest `RequestBuilder` shape | breaks | L5 (F5) |
-| S10 cold read into a buffer | tokio `read(&mut buf)` | works with L6; the prototype lacked it | L6 |
-
-### 9.2 Cases
-
-**S1, Rust's `Vec::retain`.**
-
-```rust
-pub fn retain<F: FnMut(&T) -> bool>(&mut self, mut f: F) {
-    let len = self.len(); let mut del = 0;
-    for i in 0..len {
-        if !f(&self[i]) { del += 1; } else if del > 0 { self.swap(i - del, i); }
-    }
-    if del > 0 { self.truncate(len - del); }
-}
-```
-
-```text
-fn retain[T](xs: &mut List[T], keep: fn(&T) -> bool) -> void:
-    n := xs.len()
-    let deleted: usize = 0
-    for i in 0..n:
-        if !keep(&xs[i]):
-            deleted += 1
-        else if deleted > 0:
-            tmp := xs[i - deleted]
-            xs[i - deleted] = xs[i]
-            xs[i] = tmp
-    for _ in 0..deleted:
-        _ := xs.pop()
-```
-
-`xs.pop()` calls std's `pop(&mut self)`, a local receiver: valid. The
-prototype, built before the spelling decision, treated an unwritten
-receiver as counted and reported `scoped-reference-escapes` there. The
-predicate taking `&T` costs nothing per element on a local list, and
-keeps the pin behind `xs`.
-
-**S2, Rust's `BinaryHeap::sift_up`.** `push(&mut self, ..)` and
-`sift_up(&mut self, ..)` call `swap(&mut self.items[pos], &mut
-self.items[parent])`. It checks and runs (`[9, 7, 1, 3]`). The element
-borrows sit behind `self`, so they keep their pins and take a known pair
-each, under half of today's general pair. Rust's own version uses an
-unsafe `Hole`; hd's index form (`self.items[pos] = ..`) takes no
-reference and is the fast form in both models.
-
-```text
-struct MaxHeap:
-    items: List[i64]
-
-impl MaxHeap:
-    fn push(&mut self, x: i64) -> void:
-        self.items.push(x)
-        self.sift_up(self.items.len() - 1)
-
-    fn sift_up(&mut self, start: usize) -> void:
-        let pos = start
-        while pos > 0:
-            parent := (pos - 1) / 2
-            if self.items[pos] <= self.items[parent]:
-                break
-            swap(&mut self.items[pos], &mut self.items[parent])
-            pos = parent
-
-fn swap(a: &mut i64, b: &mut i64) -> void:
-    t := *a
-    *a = *b
-    *b = t
-```
-
-**S3, Swift's `partition(by:)`.** Two indices walking inward with index
-stores; no references inside. Works; the only saving is the pair on
-`partition(&mut xs, ..)` at the call.
-
-```text
-fn partition(xs: &mut List[i64], belongs_second: fn(i64) -> bool) -> usize:
-    let lo: usize = 0
-    let hi = xs.len()
-    while true:
-        while lo < hi && !belongs_second(xs[lo]):
-            lo += 1
-        while lo < hi && belongs_second(xs[hi - 1]):
-            hi -= 1
-        if lo >= hi:
-            break
-        t := xs[lo]
-        xs[lo] = xs[hi - 1]
-        xs[hi - 1] = t
-        lo += 1
-        hi -= 1
-    lo
-```
-
-**S4, Go's scanner.**
-
-```go
-func (s *Scanner) next() {
-    if s.rdOffset < len(s.src) {
-        s.offset = s.rdOffset
-        if s.ch == '\n' { s.lineOffset = s.offset; s.file.AddLine(s.offset) }
-        ...
-```
-
-`init` stores its `file` parameter, so the parameter is `*mut File` and
-the field `*mut File`; every method takes `&mut self`.
-
-```text
-struct File:
-    name: string
-    lines: List[usize]
-
-struct Scanner:
-    file: *mut File  # hypothetical syntax
-    src: string
-    report: fn(usize, string) -> void
-    ch: i32
-    offset: usize
-    rd: usize
-    errors: usize
-
-impl Scanner:
-    fn init(&mut self, file: *mut File, src: string, report: fn(usize, string) -> void) -> void:  # hypothetical syntax
-        self.file = file
-        self.src = src
-        self.report = report
-        self.ch = +32
-        self.offset = 0
-        self.rd = 0
-        self.next()
-
-    fn error(&mut self, at: usize, msg: string) -> void:
-        (self.report)(at, msg)
-        self.errors += 1
-
-    fn next(&mut self) -> void:
-        if self.rd < self.src.len():
-            self.offset = self.rd
-            if self.ch == +10:
-                self.file.lines.push(self.offset)
-            self.ch = i32(self.src[self.rd])
-            self.rd += 1
-        else:
-            self.offset = self.src.len()
-            self.ch = -1
-
-    fn skip_space(&mut self) -> void:
-        while self.ch == +32 || self.ch == +10:
-            self.next()
-
-    fn scan(&mut self) -> string:
-        self.skip_space()
-        start := self.offset
-        if self.ch < +0:
-            return ""
-        while self.ch > +32:
-            self.next()
-        if self.offset == start:
-            self.error(start, "empty token")
-        self.src.slice(start, self.offset)
-```
-
-Storing a `*mut File` parameter into a field through a local `self` is
-valid: only the receiver is local. `self.file.lines.push(..)` reads a
-counted reference out of a field and is unaffected. Works, and runs.
-
-**S5, serde_json's `pointer_mut`.**
-
-```rust
-if let Some(v) = doc.pointer_mut("/a/b") { *v = json!(2); }
-```
-
-The direct translation returns a local reference, which L1 forbids:
-
-```text
-use std.json.Json
-
-fn pointer_mut(doc: &mut Json, key: string) -> &mut Json:
-    doc
-```
-
-A callback form, `with_member(doc, key, fn(v: &mut Json) -> void: ...)`,
-checks, but it still copies the object out of the payload and writes it
-back, because a payload is no place. Breaks: in-place editing inside an
-enum payload needs a returned projection (Hylo's subscript, tier 2's
-results) or payloads as places; neither is in the first cut.
-
-**S6, `entry`.** `*counts.entry(w).or_insert(0) += 1` becomes
-`counts[w] = counts.get(w).unwrap_or(0) + 1` with
-`counts: &mut Map[string, i64]`: two lookups, the idiom decided for
-#683. Friction, unchanged by the first cut.
-
-```text
-fn count_words(text: string, counts: &mut Map[string, i64]) -> void:
-    for w in text.split_whitespace():
-        counts[w] = counts.get(w).unwrap_or(0) + 1
-```
-
-**S7, nested `iter_mut`.**
-
-```text
-fn scale(grid: &mut List[List[f64]], k: f64) -> void:
-    for row in &mut grid:
-        for x in &mut *row:
-            *x *= k
-```
-
-Works and runs. Writing `for x in &mut row` fails in both compilers with
-`element-reference-outlives-call`, because `&mut row` refers to the
-binding; the message should suggest `&mut *row`. This is a diagnostic
-note for today, not a first-cut rule.
-
-**S8, syn's `VisitMut`.** A trait `VisitMut` with
-`visit_name(&mut self, name: string) -> string`, an impl `Renamer`, and
-`walk(v: &mut dyn VisitMut, e: &mut Expr)` recursing through the AST's
-counted `*mut Expr` children. Works and runs (`z 1`). The visitor is
-borrowed for the whole walk and passed on uncounted.
-
-```text
-enum Expr:
-    Var(name: string)
-    Call(callee: *mut Expr, args: List[*mut Expr])  # hypothetical syntax
-
-trait VisitMut:
-    fn visit_name(&mut self, name: string) -> string
-
-struct Renamer:
-    from: string
-    to: string
-    hits: usize
-
-impl VisitMut for Renamer:
-    fn visit_name(&mut self, name: string) -> string:
-        if name == self.from:
-            self.hits += 1
-            return self.to
-        name
-
-fn walk(v: &mut dyn VisitMut, e: &mut Expr) -> void:
-    match e:
-        .Var(name) => *e = Expr.Var(v.visit_name(name))
-        .Call(callee, args) =>
-            walk(v, callee)
-            for a in args:
-                walk(v, a)
-```
-
-**S9, a value builder in a field.** U4 above: breaks unless a local
-receiver may return `self` (open question Q3).
-
-**S10, a cold read into a borrowed buffer.** tokio's
-`let n = stream.read(&mut buf).await?` becomes `fill!(&mut buf)`, which
-is valid. Building the suspension without driving it, `fill(b)`, is the
-case of 4.4; L6 makes it an error, which the prototype did not.
-
-### 9.3 How much is respelled
-
-Counted over `lib/std` (41 files, 19,259 lines):
-
-| Item | Count | In the final spelling |
-| --- | ---: | --- |
-| methods with a `&mut self` receiver | 516 | local; unchanged text |
-| methods with a `&self` receiver | 58 | local; unchanged text |
-| of the 574, methods whose body uses `self` as a whole value | 58 | candidates for `*self`: builders (about 25), iterator adapters, `view`, `chunks`, `windows`, `DebugWriter` methods that build a `DebugStruct` holding `self` |
-| non-receiver reference parameters (`&mut T` / `&T`) | 237 / 11 | local; about 17 that store their argument become `*mut T` |
-| struct fields of reference type | 19 | `*T` |
-| functions returning a reference | 69 | `*T` |
-| method calls on a field of `self`, `self.f.m(..)` | 339 | compile unchanged, the receiver being local |
-
-Reference types in stored or returned positions across the repository,
-counted with a pattern scan (a result type, a field, a type argument or
-an optional), are the respelling's size:
-
-| Tree | Result `-> &` | Field-like `x: &` | Type argument `[&` | Optional `&T?` |
-| --- | ---: | ---: | ---: | ---: |
-| `lib/std` | 69 | 33 | 33 | 0 |
-| `spec/lang` | 18 | 13 | 34 | 10 |
-| `spec/std` | 50 | 3 | 24 | 1 |
-| `spec/conformance` | 203 | 137 | 247 | 34 |
-| `website`, `examples`, crate tests | 18 | 6 | 16 | 2 |
-| `docs/future-work` | 17 | 51 | 19 | 0 |
-
-The "field-like" column also counts `let` annotations and some
-parameters, which stay `&`; the checker's `local-reference-escapes`
-after the switch (slice 9 of section 13) finds every site the scan
-misses.
-
-### 9.4 Findings, ranked
-
-| Rank | ID | Finding | Status | Changed |
-| --- | --- | --- | --- | --- |
-| 1 | F2 | Without an exclusivity check, an uncounted borrow dangles when its storage is freed or moved. | Answered: L4 by construction. | R1, R3 |
-| 2 | F1 | Interior places cannot become counted references, so a method or parameter that keeps its argument cannot take a field or element. | Answered by the spelling: such methods take `*self` and such parameters `*mut T`, and the rest are local; the cost is the respelling of section 9.3. | R1, R4 |
-| 3 | F3 | Uncounted element borrows break value semantics: `write_then_read(&mut ys[0], ys)` printed `99 99` in the prototype, `1 99` today. | Answered: L4 keeps the pin and a buffer count. | R1 |
-| 4 | F4 | Store, capture and return are not the only escapes: a cold suspension keeps its arguments, and generic code keeps a `T`. | Answered: L6, and no local type arguments (L1). | R1 |
-| 5 | F5 | Value builders on fields need a local receiver that may return `self`. | Open: Q3. | R1 |
-| 6 | F10 | Borrowing a suspending function's own `mut` parameter across a bang call is `unsupported` in the linear backend today. | Required; slice 14. | — |
-| 7 | F6 | No closure may capture a local reference, so a callback cannot write through a local parameter. | Open: Q5. | R1 |
-| 8 | F12 | `&` on a new object with no expected type has no kind to take from context. | Open: Q1. | L2 |
-| 9 | F7 | R3 and uncounted `let` borrows needed liveness over the control-flow graph. | Answered: with no local type arguments, a borrow's copies are a few local bindings, whose last use insertion already computes. | R2 |
-| 10 | F8 | Trait conformance needs a variance rule for receivers. | Open: Q6. | R1 |
-| 11 | F9 | The savings are count pairs; cells, temporaries' new objects and the weakening gap remain. | Open: Q4. | — |
-| 12 | F11 | Two-phase borrows were needed only by R3. | Answered by the cut. | R3 |
-
-## 10. Prototype And Complexity
-
-### 10.1 What was built
-
-Branch `lane/834-proto`, commit `d912acbf0` on `0c1b055d2`, not merged
-and not pushed. It predates the spelling decision: it spells a local
-reference `&{} T`, keeps `&T` as today's counted reference, and has no
-`*T`. Its parts map onto the final design as follows:
-
-| Prototype | Final design |
-| --- | --- |
-| `&{} T`, `&{} mut T` on parameters, receivers and `let` | `&T`, `&mut T`; receivers local with no mark |
-| `&T` | `*T`, still allowed to point inside an object |
-| `scoped-reference-escapes` for local-to-counted, captures, type arguments, containers, positions | `local-reference-escapes`, the same checks |
-| `&e` local where a local type is expected or the place is behind a local reference | L2, with the kind from the expected type |
-| `let` bindings with a written local type, element borrows included | L1, L4 rows and Q2 |
-| `scoped-borrow-conflict`, a per-body check (about 150 lines) | gone with the cut R3 |
-| no count for a local `Ref` whose every use lends, except element borrows behind a reference | L4 rows 1, 2 and 5; rows 3 and 4 add a known count it does not take |
-
-It does not implement these, and the first four leave holes in it:
-
-- struct fields typed `&{}`, which it accepts;
-- the cold-call rule (L6);
-- the copy rule (F3);
-- L4's known count for borrows behind stored references or `let`-bound
-  borrows behind a local's reference: it makes them uncounted;
-- trait variance, `*self`, and diagnostic notes.
-
-The count savings of section 2.2 and the microbenchmark of 10.4 are
-therefore the savings of L4's free rows; rows 3 and 4 add a known pair
-where the prototype has none.
-
-### 10.2 Lines and stages
-
-Code lines counted with `codelines.py` (no blanks, comments or
-`#[cfg(test)]` items), new minus old per file:
-
-| Crate | Lines | Stage |
-| --- | ---: | --- |
-| `hd_check` | 417 | checker: new `scoped.rs` (246), coercion, receivers, `let` |
-| `hd_types` | 74 | type representation |
-| `hd_tir` | 25 | `ref_word::SCOPED`, borrow pass, verifier |
-| `hd_resolve` | 21 | header lowering |
-| `hd_syntax` | 11 | parser |
-| `hd_mono` | 10 | display, mechanical |
-| `hd_diag` | 8 | two codes |
-| `hd_driver` | 6 | `OwnCx::scoped` |
-| `hd_structure` | 4 | mechanical |
-| `hd_wasm_linear` | 0 | emitter reuses loans |
-| **total** | **576** | 40 Rust files |
-
-### 10.3 What was harder than expected
-
-1. **The type flag touches most of the 40 files.** `TyData::Ref` has 127
-   match sites in 30 files; every exhaustive pattern and constructor
-   changed, mostly mechanically. Equality in unify, the solver, joins
-   and permission fitting each needed a decision.
-2. **The flag dies before the ownership passes.** The checker lowers
-   reference types to `std.core.Ref[T]`, so the passes cannot see the
-   kind; the prototype marks the `Ref` instruction. With no local type
-   arguments, that is enough for the final design.
-3. **Receivers take a separate path.** An automatic address is made in
-   `receiver.rs`, not through argument coercion, so the receiver's kind
-   needs the method's signature there.
-4. **Uncounted element references disable the pin.** The pin is "the
-   buffer's count is over one"; a reference without a count leaves the
-   list unpinned, which gave the `99 99` result of F3. L4 keeps the
-   count for that reason.
-5. **The checker has no control-flow graph.** The cut R3's check had to
-   recover loops from `Topology`. L4 needs no control flow.
-6. **A cold suspension hides its arguments.** Its type, `mut
-   Suspend[void]`, mentions none of them, so the type-based escape
-   checks miss it; L6 checks the call.
-
-### 10.4 The microbenchmark
-
-```text
-struct Body:
-    x: f64
-    y: f64
-    vx: f64
-
-fn energy(b: &Body) -> f64:
-    b.x * b.vx + b.y
-
-pub fn main() -> void $ Console:
-    let mut b = Body { x: 1.0, y: 2.0, vx: 3.0 }
-    let sum = 0.0
-    for _i in 0..50_000_000:
-        b.x += 1.0
-        sum += energy(&b)
-    println("$sum")
-```
-
-Built with `hd build --release`, the counted variant by main and the
-local one by the prototype, and run nine times each on Node,
-alternating. Both print `3750000325000000.0`.
-
-| Variant | Count operations per call | Allocations | Median | Runs (ms, sorted) |
-| --- | --- | --- | ---: | --- |
-| counted, main | 1 general retain + 1 release, 2 `block_of` | 1 cell per run | 527 ms | 516, 516, 523, 523, 527, 529, 532, 590, 778 |
-| local, prototype | none | 1 cell per run | 273 ms | 265, 269, 269, 273, 273, 276, 277, 490, 528 |
-
-The difference, 254 ms over 50 million calls, is about 5 ns per call
-(machine load about 6). The cell is made once, before the loop, so
-neither variant allocates per call.
-
-### 10.5 What the prototype breaks
-
-It breaks no existing test that was run:
-
-- the crate tests of `hd_syntax`, `hd_types`, `hd_tir`, `hd_check`,
-  `hd_driver`, `hd_resolve`, `hd_mono`, `hd_wasm_linear` and `hd_diag`
-  pass, stage fixtures included;
-- `hd_driver`'s conformance gate,
-  `specification_conformance_passes_except_known_failures`, passes in
-  the dev profile;
-- `cargo clippy --all-targets -- -D warnings` passes.
-
-`bash spec/check.sh` fails at "compiler diagnostic codes are stale",
-because its two new codes are not in the spec's normative table, which
-generates the compiler's code enum. The prototype adds `counts`
-fixtures for U1 to U10 in both kinds and for the weakening gap, under
-`crates/hd_driver/tests/cases/counts/scoped-834/`. The wasmtime engine
-and the web compiler were not built.
-
-## 11. What Tier 2 Keeps, Drops And Changes
-
-| Tier 2 rule | First cut |
-| --- | --- |
-| [§2](OBJECT_MODEL_TIER2.md#2-the-model-on-one-page) item 1: `&{a, b} T` with sets | changed: one local kind, spelled `&T`; tier 2's global `&T` is spelled `*T` |
-| §2 item 2: sets name parameters, paths, lifetime parameters, locals, `global` | dropped |
-| §2 item 3: global converts to scoped; views are promoted when stored | the lending conversion kept; promotion dropped |
-| §2 item 4: types with lifetime parameters | dropped |
-| §2 item 5: `&{} mut` admits no other writer; `&{}` freezes its place | dropped: no exclusivity, no freezing |
-| §2 items 6 and 7: closure sets, `~Copy` | dropped |
-| §2 item 8 and [§6.4](OBJECT_MODEL_TIER2.md#64-the-borrow-flag): the borrow flag | dropped; L4's known counts for objects, and today's pin for elements, which is the flag for lists |
-| [§3.1](OBJECT_MODEL_TIER2.md#31-what-a-set-may-name): what a set may name | nothing: the local kind has no set |
-| [§3.2](OBJECT_MODEL_TIER2.md#32-results-name-their-sources): results name their sources | dropped: no local result (S5) |
-| [§3.3](OBJECT_MODEL_TIER2.md#33-inside-a-body) rule 1, sets of locals | kept in degenerate form: a `let` of a local reference is local |
-| §3.3 rule 2, extent by NLL liveness | replaced: a borrow lasts to its binding group's last use (L4) |
-| §3.3 rule 3, `&e` is scoped when a scoped type is expected | kept, reversed in default: `&e` is local unless a `*T` is expected (L2) |
-| §3.3 rule 4, reborrows | kept for parameters (4.3) |
-| §3.3 rules 5 and 6, shrinking and temporaries | not needed; temporaries still allocate (F9) |
-| [§4.2](OBJECT_MODEL_TIER2.md#42-a-value-containing-a-scoped-reference-is-scoped), [§5.3](OBJECT_MODEL_TIER2.md#53-generics), [§8.2](OBJECT_MODEL_TIER2.md#82-generic-parameters-may-be-scoped), [§8.3](OBJECT_MODEL_TIER2.md#83-monomorphization): scoped values, generics and instances | dropped: a local reference is never a type argument |
-| [§6.1](OBJECT_MODEL_TIER2.md#61-the-rules) to [§6.3](OBJECT_MODEL_TIER2.md#63-errors-and-how-often-programs-meet-them): loans, liveness, conflicts, two-phase | dropped; only the invalidation idea survives, enforced by L4 |
-| [§7](OBJECT_MODEL_TIER2.md#7-closures): closure kinds and sets | dropped; captures are errors (F6) |
-| [§8.1](OBJECT_MODEL_TIER2.md#81-unannotated-parameters-stay-global): unannotated parameters stay global | reversed: a parameter is local unless written `*T` |
-| [§8.4](OBJECT_MODEL_TIER2.md#84-std-written-lifetime-aware): std written lifetime-aware | moved into the first cut: std's parameters are local, its keepers `*mut T` (L7) |
-| [§10](OBJECT_MODEL_TIER2.md#10-suspension-providers-and-boundaries): a cold suspension with scoped arguments is scoped; bang calls may borrow | the bang call kept; the cold suspension is an error (L6) |
-
-## 12. When Local References Get In The Way
+## 5. Escape Hatches
 
 The owner's advice: "if users hate, just use *T or read, copy, write
 back". Both are ordinary programs.
 
 **Take a counted `*T`.** An object of its own may be stored, returned
-and captured, at one count per copy:
+and captured, at one fast-path count per copy.
 
 ```text
 struct Counter:
@@ -1710,15 +583,15 @@ fn remember(w: &mut Watch, c: *mut Counter) -> void:  # hypothetical syntax
 
 fn demo() -> i64:
     let mut w = Watch { counters: [] }
-    let c: *mut Counter = &mut Counter { n: 0 }  # hypothetical syntax
+    let c = &mut Counter { n: 0 }
     remember(&mut w, c)
     c.n += 1
     w.counters[0].n
 ```
 
-**Copy the value out, change it, write it back.** No reference at all,
-only value semantics; a struct copy is a few word moves, and a list's
-copy-on-write keeps it cheap:
+**Copy the value out, change it, write it back.** This takes no
+reference at all. A struct copy is a few word moves, and a list's
+copy-on-write keeps it cheap.
 
 ```text
 struct Player:
@@ -1733,818 +606,471 @@ fn reward(players: List[Player], best: usize) -> List[Player]:
     out
 ```
 
-## 13. Implementation Plan
+What the first cut gives up, and what to write instead:
 
-Each slice is about an hour of agent work, green on its own, in this
-order. The respelling slices (4 to 8) come before the switch (slice 9):
-until then `*T` and `&T` both mean today's counted reference, so every
-slice keeps the suites green, and the switch's own errors find any site
-the respelling missed. "Lines" are compiler code lines; "sites" are
-edited type spellings outside the compiler.
+| Gone | Instead |
+| --- | --- |
+| a `let`-bound alias of a field or an element, `let r = &mut o.f` | name the place at each use, or pass `&mut o.f` to a helper |
+| a returned local reference, as in serde_json's `pointer_mut` or Rust's `split_at_mut` | a `*T` node, indices, or a `&fn` callback |
+| an in-place edit inside an enum payload, such as std's `Json` | copy out, change, write back: a payload is no place ([`ref.match.copy`](../../spec/lang/13-values-and-references.md#matching-through-a-reference)) |
+| `List[&T]`, `Option[&T]`, `&T?` | `List[*T]`, `*T?`, or two functions |
+| a lazy adapter's closure that reads `self` | copy the field first, `k := self.k` |
+| a `*self` method called on a field | make the field `*mut T` |
 
-| # | Slice | Files | Spec rules and fixtures | Done check | Budget |
-| ---: | --- | --- | --- | --- | --- |
-| 1 | Spec: the two kinds | `spec/lang/13-values-and-references.md` (Reference Types, Places, Conversions), `02-grammar.md` (`*T`), `07-functions.md` (`*self`), `09-traits.md` (`*dyn`), `spec/README.md` (the new code) | new rules `ref.kind.counted`, `ref.kind.local`, `ref.local.positions`, `ref.local.no-type-argument`, `ref.expr.address-kind`, `ref.convert.lend`, `ref.convert.no-raise`, `ref.counted.whole-object`, `fn.method.receiver.counted`; parse and typing fixtures, each a `KNOWN_FAILURES.tsv` row until slice 9 | `bash spec/check.sh` | spec text |
-| 2 | Spec: counting and escapes | chapter 13 (Element References, a new Local Counting section), `06-control-flow.md` (element loops), `11-requirements-and-suspension.md` (cold calls) | rules for L4's rows, `ref.local.no-capture`, `req.suspend.cold.local`; runtime fixtures `o = other`, `collection-pinned` under a borrow, `write_then_read` printing `1 99` | `bash spec/check.sh` | spec text |
-| 3 | Parser and types | `hd_syntax` parser `types.rs`, `items.rs`; `hd_types` `pool.rs`, `wire.rs`, `unify.rs`, `solver.rs`; `hd_resolve` `lower.rs`, `header.rs`, `iface.rs`; display in `hd_mono` and `hd_structure` | slice 1's parse fixtures | `*T` round-trips through `hd fmt`; crate tests pass; `*T` means today's counted reference | 235 lines |
-| 4 | Respell std | `lib/std` (19 fields, 69 results, type arguments, `*self` for the keepers, about 17 `*mut T` parameters), `spec/std` signatures | std's doc tests | std builds; `cargo test`; the conformance gate unchanged | ~250 sites |
-| 5 | Respell the language chapters and parse fixtures | `spec/lang/*.md` examples; `spec/conformance/parse/` | examples inventory | `bash spec/check.sh`; the conformance gate | ~150 sites |
-| 6 | Respell typing fixtures | `spec/conformance/typing/` | — | the conformance gate | ~300 sites |
-| 7 | Respell runtime and CLI fixtures | `spec/conformance/runtime/`, `spec/conformance/cli/` | — | the conformance gate | ~300 sites |
-| 8 | Respell the rest | `website/`, `examples/`, crate test sources and stage fixtures, `docs/future-work` | — | `cargo test`; `pnpm run website:build` | ~100 sites |
-| 9 | The switch: `&T` is local | `hd_check` `refs.rs`, `body.rs` (coercion), `receiver.rs`, `call.rs`, a new `local.rs` for positions and type arguments; `hd_diag` codes | slice 1's typing fixtures leave `KNOWN_FAILURES.tsv` | the conformance gate; fix-its for `local-reference-escapes` | 200 lines |
-| 10 | Escapes | `hd_check` `expr.rs` (captures), `call.rs` (cold calls), `dynref.rs` (`*dyn` providers) | slice 2's capture and cold-call fixtures | the conformance gate | 60 lines |
-| 11 | L4 free rows | `hd_tir` `own/borrow.rs`, `own/insert.rs` (borrow groups, delayed drops of borrowed locals), `ir/owned.rs` (verifier) | `counts` stage fixtures U1 to U10 | no pair on rows 1, 2 and 5; runtime fixtures pass | 90 lines |
-| 12 | L4 counted rows | `hd_tir` `own/insert.rs`; `hd_wasm_linear` `emit/refs.rs`, `emit/count.rs` (known count of the containing block; pin with a known buffer count) | slice 2's runtime fixtures | `o = other` keeps the old object; a push under a borrow panics; `1 99` | 150 lines |
-| 13 | `*T` on the known path | `hd_wasm_linear` `emit/count.rs`, `rt.rs`; a verifier check that a `*T` address is a block start | a `counts` fixture per counted kind | #704's instrumentation shows no `block_of` call from a reference count on binary_trees | 40 lines |
-| 14 | Suspending `mut` parameters | `hd_wasm_linear` `emit/susp.rs`, `emit.rs` (`ref_roots`) | a runtime fixture of 4.4's gap | `fn outer!(mut n: i64)` with `bump!(&mut n)` runs | 40 lines |
-| 15 | Measure | `bench/study`, the microbenchmark | — | hd-only `--quick` before and after for binary_trees, json, nbody; hello's size; json and nbody compile time; posted on #834 | — |
+Tier 2's lifetime parameters, or Hylo-style projections, would bring
+back local results and bound aliases later.
 
-Compiler total: about 815 lines over slices 3 and 9 to 14, the rows of
-section 8.3. A slice past 1.5 times its budget stops for review. #702's frame slots for
-locals borrowed only by local references follow as their own job (Q4).
+## 6. Architecture
 
-## 14. Recommendation
+### 6.1 Where it lives
 
-**Recommendation: build the first cut as L1 to L7, in the order of
-section 13.** It is sound with no per-body analysis:
+| Stage | Crate | Change |
+| --- | --- | --- |
+| parse | `hd_syntax` | `*T`, `*mut T`, `*dyn Tr` and `&fn(..) -> ..` in types; `*self` and `*mut self` receivers; `hd_fmt` and `hd_doc` print them |
+| types | `hd_types` | `TyData::Ref` gains a kind; pool and wire tags; display; unify, solver and join compare kinds |
+| headers | `hd_resolve` | lowering of both kinds in parameters, results, fields and receivers |
+| check | `hd_check` | `&x` typed by the expected type (`Ck::ref_expr`), lending, receivers (`receiver.rs`), positions and escapes in a new `localref.rs` (`local.rs` holds local functions), the overlap check grown from `elem_refs.rs`, cold calls and captures |
+| TIR | `hd_tir` | nothing new: the kind is in the lowered type (6.2) |
+| ownership | `hd_tir::own` | the row of each argument borrow; row 3's hidden owner local; row 4's pin with a known buffer count; the verifier's no-count-on-a-local check |
+| emit | `hd_wasm_linear` | `retain_known` and `release_known` for rows 3 and 4; every `*T` count on the known path; local-reference captures stored uncounted |
+| boundary | `hd_wasm_linear` `boundary.rs` | only `*T` crosses (rule 38, proposed) |
 
-- borrows of a local, of a field of `self` and of a lent parameter's
-  field are free;
-- borrows of an object behind a stored `*T`, and `let`-bound borrows
-  behind a local's `*T`, take one known pair, 2.7 ns;
-- element borrows keep today's pin, with a known pair instead of
-  today's general one;
-- every `*T` count takes the known path, with no `block_of`.
+### 6.2 The kind is a lowered type
 
-It keeps today's semantics: a resize under a borrowed element panics,
-and a borrow taken through a `*T` keeps its object as a counted
-reference does. It gives up local results, local type arguments and
-in-place edits through returned references; those need tier 2's
-results or Hylo's projections, and section 12's two escape hatches
-cover them in user code.
+`Types::lower_refs` turns each reference type into a cell ADT before the
+ownership passes, and the passes decide counting by type
+(`OwnCx::counted`). `*T` keeps today's def; `&T` lowers to a second def,
+a plain address whose layout is not counted. Every copy, move, weakening
+and drop of a local reference is then count-free with no pass change,
+and `fn(&T)` stays distinct from `fn(*T)` after monomorphization.
 
-Per call, the saving is about 5 ns and two `block_of` lookups for a free
-borrow, half the microbenchmark's run time, and 3.3 ns for a counted
-one. Per program it is small for local references alone: nbody gains
-about 2%. The larger effect on binary_trees and json comes from L1's
-whole-object rule for `*T` (slice 13).
+Until slice 15 the second def is counted like the first. So the checker
+switch (slice 9) is green and sound before the counting rows land, and
+slice 15 flips one layout bit.
 
-## 15. Open Questions For The Owner
+### 6.3 Classifying a borrow
 
-The owner's decisions answered the first draft's questions on
-receivers, exclusivity, soundness, cold suspensions, type arguments,
-std's keepers and interior references. These remain.
+```rust
+/// How an argument borrow stays valid for its call (section 4).
+enum BorrowRow { Free, HeldByBinding, CountObject, PinBuffer }
 
-**Q1. `&` on a new object with no expected type (F12).** `n := &mut
-Node { .. }` has no expected type to give it a kind. Candidates: (a) it
-is local, as every unannotated `&` is, and storing it is L3's error with
-the fix-it `let n: *mut Node = ...`; (b) a new object with no expected
-type is counted, as today. **Recommended: (a)**, one rule for every
-`&`; the fix-it makes the respelling mechanical.
+fn classify(body: &Body, arg: Inst) -> BorrowRow {
+    let place = body.place_of(arg);
+    // Only the steps after the last `*T` dereference say which block holds the address.
+    let (hop, tail) = place.split_at_last_counted_deref();
+    if tail.has_elem_step() {
+        let unseen = hop.is_none()
+            && unaliased_local_list(body, &place)
+            && !other_arg_names(body, arg, &place);
+        return if unseen { BorrowRow::Free } else { BorrowRow::PinBuffer };
+    }
+    match hop {
+        None => BorrowRow::Free, // row 1
+        Some(Hop::Binding(b)) if !body.is_captured(b) && !body.has_counted_ref_to(b) => {
+            BorrowRow::HeldByBinding // row 2
+        }
+        Some(_) => BorrowRow::CountObject, // row 3
+    }
+}
 
-```text
-struct Node:
-    value: i64
-
-struct Graph:
-    nodes: List[*mut Node]  # hypothetical syntax
-
-fn add(g: &mut Graph) -> void:
-    n := &mut Node { value: 1 }
-    g.nodes.push(n)  # (a): L3's error; the fix-it writes `let n: *mut Node`
+fn lower_call(body: &mut Body, call: Inst) {
+    for arg in body.borrow_args(call) {
+        match classify(body, arg) {
+            BorrowRow::Free | BorrowRow::HeldByBinding => {}
+            BorrowRow::CountObject => {
+                let owner = body.hidden_local_of_object_start(arg); // a *T local, counted as any
+                body.release_after(call, owner);
+            }
+            BorrowRow::PinBuffer => body.pin_with_known_count(arg, call),
+        }
+    }
+}
 ```
 
-**Q2. `let`-bound element borrows (L4).** Candidates: (a) allowed: the
-borrow holds its pin and buffer count to its binding group's last use,
-so a push while it lives panics, as today's call-scoped pin does; (b)
-not allowed, as today (`element-reference-outlives-call`).
-**Recommended: (a)**; with no local type arguments its extent is a few
-bindings in one body.
+`split_at_last_counted_deref` reuses the emitter's place walk
+(`Em::place_start`, `Em::walk_place`). The overlap check runs before
+this, in the checker, so row 2 may assume no argument writes its
+binding. Row 3's hidden local holds the object's start, so its count and
+release use the known path with no new count kind.
 
-```text
-fn first_twice(xs: &mut List[i64]) -> void:
-    let r: &mut i64 = &mut xs[0]
-    *r += 1  # (a): valid; the pin lasts to r's last use
-```
+### 6.4 Caching and testing
 
-**Q3. A local receiver that returns `self` (F5).** Value builders on
-fields break without it. Candidates: (a) a `&mut self` method may return
-`self` for use within the calling expression, and the result has the
-caller's receiver kind; (b) builders take `*mut self` and cannot be
-called on a field. **Recommended: (a).**
+A reference's kind is part of a signature, so it is in the interface
+hash, and a header change rechecks callers. The overlap check and the
+classification read callee signatures, never callee bodies. Section 8
+lists the tests per slice. They are typing fixtures per rule and error
+case, runtime fixtures for rows 3 and 4, and `counts` stage fixtures.
 
-```text
-struct Request:
-    headers: List[(string, string)]
+## 7. Cost
 
-impl Request:
-    fn header(&mut self, name: string, value: string) -> &mut Request:
-        self.headers.push((name, value))
-        self
-```
+Per use, against main at `7c969d711`:
 
-**Q4. Frame slots (F9).** The first cut alone keeps every cell.
-Candidates: (a) schedule #702's frame slots for locals borrowed only by
-local references right after slice 15; (b) keep #702 in the release-only
-interprocedural plan. **Recommended: (a)**, since the header now states
-the escape fact #702 would compute.
+| What | Main | First cut |
+| --- | --- | --- |
+| `f(&local)`, or `local.method()` with a local receiver | a general pair (two `block_of`) per call, and a cell per declaration | no count; the cell stays until slice 19 |
+| `f(&mut p.f)` with `p` a reference parameter, or `self.items.push(x)` | none (lent since #676) | none |
+| `bump(&mut o.n)`, `o` an unaliased binding holding a `*T` | a general pair | none |
+| `bump(&mut h.leaf.n)` | a general pair | a known pair |
+| `f(&mut xs[i])`, `xs` behind a reference | `IsUnique`, `Pin`, a general buffer pair | `IsUnique`, `Pin`, a known buffer pair |
+| `f(&mut xs[i])`, `xs` an unaliased local named by no other argument | `IsUnique`, `Pin`, a general buffer pair | `IsUnique` only |
+| a `&mut self` method calling a `&self` one (weakening) | a pair | none |
+| any count of a `*T` | a general pair through `block_of` | a known pair |
+| `f(&temporary)` | a new object | a new object, until slice 19 |
+| `${p.name}` in an `r` template | a general pair | a new object, until #702's temporaries |
 
-```text
-fn sort_in_place(xs: &mut List[i64]) -> void:
-    *xs = xs.sorted()
+A known pair costs 2.7 ns and a general pair 6.0 ns. Both were
+measured on main, 50,000,000 calls per loop, seven runs each on Node
+with `--release`. A loop of `energy(&b)` calls ran in 527 ms counted and 273 ms with the
+prototype's uncounted borrows, about 5 ns per call.
 
-fn report(scores: List[i64]) -> i64:
-    let mut xs = scores
-    sort_in_place(&mut xs)  # a cell today; a frame slot under (a)
-    xs[0]
-```
+Per program the gain from local references alone is small: nbody's
+`advance(&mut bodies, 0.01)` is about 2% of its time. The larger gain is
+rule 4's, which removes `block_of` from every `*T` count. #704 measured
+that lookup at 7% of binary_trees' samples and 14% to 22% of json's.
 
-**Q5. Closures (F6).** Candidates: (a) no capture of a local reference;
-(b) a closure literal passed directly as an argument may capture one.
-**Recommended: (a)**; (b) is tier 2's capture sets in miniature.
+Compile time: there is no flow analysis. The overlap check compares the
+argument places of each call pairwise, which is quadratic only in one
+call's argument count. Classification is one look per borrow.
 
-```text
-fn sum_into(xs: List[i64], acc: &mut i64) -> void:
-    for x in xs:
-        *acc += x  # the loop form that (a) leaves
-```
+## 8. Implementation Plan
 
-**Q6. Trait impl variance (F8).** Candidates: (a) an impl may take
-`&self` where its trait says `*self`, never the reverse; (b) an exact
-match. **Recommended: (a).**
+### 8.1 Order
 
-```text
-trait Registry:
-    fn register(*mut self) -> void  # hypothetical syntax
+The spec comes first (slices 1 and 2), with each new fixture a
+`KNOWN_FAILURES.tsv` row until the slice that makes it pass. Examples
+that write `*T` stay `text` blocks until slice 3 parses them.
 
-struct Counter:
-    n: i64
+Slice 9, the switch, is written first on a branch. Its errors over the
+repository are the site list for the respelling slices 4 to 8, and it
+merges after them. Until then `*T` and `&T` both mean today's counted
+reference, so every slice keeps the suites green.
 
-impl Registry for Counter:
-    fn register(&mut self) -> void:
-        self.n += 1
-```
+The ownership slices first add the counts of rows 3 and 4 (slice 14),
+while local references are still counted. Slice 15 then flips the
+lowered type. Each slice is about an hour of agent work. A slice past
+1.5 times its budget stops for review. "Lines" are compiler code lines;
+"sites" are edited type spellings outside the compiler.
 
-## 16. Sources And Parse Log
+### 8.2 Slices
 
-### 16.1 Sources
+**Slice 1. Spec: kinds, addresses, positions and receivers.**
+- Files: `spec/lang/13-values-and-references.md` (Reference Types,
+  Reference Expressions, Places And New Objects, Conversions, Matching
+  Through A Reference, Element References), `02-grammar.md` (`*T`,
+  `*mut T`), `07-functions.md` (Reference Receivers), `spec/README.md`
+  (the new code).
+- Rules: 1 to 21 and 26. Retired: `ref.type.position` for `&T`,
+  `ref.place.lifetime` for `&T` (it stays for `*T`), `ref.match.binding`
+  for a local scrutinee, `ref.elem.kept`, `ref.elem.callee-copy` and
+  `ref.elem.callee-copy.declared`.
+- Fixtures: a typing fixture per rule; invalid ones for E1 to E7.
+- Done: `bash spec/check.sh`. Budget: spec text, about 25 rules.
+
+**Slice 2. Spec: overlap, element borrows, closures, traits, suspension
+and std.**
+- Files: chapter 13 (Call-Scoped Access becomes the overlap rule;
+  Captured References), `06-control-flow.md` (Element Reference Loops),
+  `07-functions.md` (Function Type Constructors, Captures),
+  `09-traits.md` (Trait Value References, `trait.impl.signature`),
+  `11-requirements-and-suspension.md` (cold calls),
+  `spec/std/format.md`, `spec/std/text.md`, `spec/std/error.md`.
+- Rules: 22 to 25, 27 to 43. Retired: `ref.type.no-function`, which
+  makes `&fn` a syntax error today; `ref.elem.conflict` folds into rule
+  22.
+- Fixtures: invalid E8 to E12. Runtime: `write_then_read` returns `1`;
+  a length change through an alias under an element borrow panics; a
+  callee that replaces the leaf through a second `*mut Holder` alias,
+  while `&mut a.leaf.n` is borrowed, leaves the old leaf alive for the
+  call.
+- Done: `bash spec/check.sh`. Budget: spec text, about 20 rules.
+
+**Slice 3. Parser and types, with the second lowered type.**
+- Files: `hd_syntax` parser (`types.rs`, `items.rs`); `hd_types`
+  (`pool.rs`, `wire.rs`, `unify.rs`, `solver.rs`); `hd_resolve`
+  (`lower.rs`, `header.rs`, `iface.rs`); display in `hd_mono`,
+  `hd_structure`, `hd_fmt`, `hd_doc`.
+- Work: `*T`, `*mut T`, `*dyn`, `*self` parse and print; `TyData::Ref`
+  gets its kind (127 match sites in 43 files); `lower_refs` maps `&T` to
+  a second def, still counted (6.2).
+- Fixtures: slice 1's parse fixtures leave `KNOWN_FAILURES.tsv`.
+- Done: `*T` round-trips through `hd fmt`; crate tests pass; `*T` means
+  today's reference. Budget: 250 lines (syntax and printing 50, the
+  kind 130, the second def 30, headers 40).
+
+**Slice 4. Respell std.**
+- Files: `lib/std` and `spec/std` signatures: the 19 fields and the
+  returned references to `*T`, the about 17 keeping parameters to
+  `*mut T`, `*self` on keepers, `Template[*dyn Display]`,
+  `Result[T, *dyn Error]`, `impl Display for *T`, and the `DebugWriter`
+  builders of rule 41.
+- Fixtures: std's doc tests; `debug-writer-builders.hd`,
+  `debug-builders-behind-ref.hd`.
+- Done: std builds; `cargo test`; the conformance gate unchanged.
+  Budget: about 400 sites, from slice 9's list.
+
+**Slice 5. Respell the language chapters and parse fixtures.**
+- Files: `spec/lang/*.md` examples; `spec/conformance/parse/`.
+- Done: `bash spec/check.sh`; the conformance gate. Budget: about 150
+  sites.
+
+**Slice 6. Respell typing fixtures.**
+- Files: `spec/conformance/typing/`.
+- Done: the conformance gate. Budget: about 300 sites.
+
+**Slice 7. Respell runtime and CLI fixtures.**
+- Files: `spec/conformance/runtime/`, `spec/conformance/cli/`.
+- Done: the conformance gate. Budget: about 300 sites.
+
+**Slice 8. Respell the rest.**
+- Files: `website/`, `examples/`, crate test sources and stage
+  fixtures, `docs/future-work`.
+- Done: `cargo test`; `pnpm run website:build`. Budget: about 150 sites.
+
+**Slice 9. The switch: `&T` is local.**
+- Files: `hd_check` `refs.rs` (`Ck::ref_expr`: rules 5 to 7), `body.rs`
+  (coercion: rules 9 to 11), `call.rs`, a new `localref.rs` (rules 12
+  to 17); `hd_diag` (the code, a message per case).
+- Fixtures: slice 1's typing fixtures for rules 5 to 17 and E1 to E6
+  leave `KNOWN_FAILURES.tsv`.
+- Done: the conformance gate; each fix-it of E1 to E6 applies with
+  `hd fix`. Budget: 240 lines (address kind 50, lending 40, positions
+  90, messages and fix-its 60).
+
+**Slice 10. The overlap check, folding `elem_refs.rs` into it.**
+- Files: `hd_check` `elem_refs.rs` (the access frame grows from
+  collection paths with length changes to any place with prefix
+  writes), `call.rs` (the `ref.elem.callee-copy` check goes),
+  `localref.rs` (element borrows take the general position rules);
+  `hd_wasm_linear` `rt.rs` and `emit/list.rs` (the `LIST_EXPOSED` bit,
+  which marked buffers exposed to kept element references).
+- Rules: 22 to 24; `flow.for.ref.conflict` as rule 22's loop case.
+- Fixtures: E11; today's `conflicting-access` fixtures unchanged.
+- Done: the conformance gate; `elem_ref_kept`, `elem_ref_captures` and
+  the exposure bit are gone. Budget: 90 lines added, about 110 deleted.
+
+**Slice 11. Receivers: `*self`, returned `self`, impl kinds.**
+- Files: `hd_check` `receiver.rs` (`auto_address`: rule 20), `body.rs`
+  (rule 21's result kind), `conform.rs` (rule 34), `dynref.rs` (rule
+  35).
+- Fixtures: E7, E12; valid chains on a field and on a local.
+- Done: the conformance gate; rule 21's chain on `client.request`
+  checks. Budget: 110 lines (`*self` 30, returned `self` 40, impl kinds
+  25, `&dyn` 15).
+
+**Slice 12. Escapes: captures, cold calls, boundaries.**
+- Files: `hd_check` `expr.rs` (captures: rule 31), `call.rs` (cold
+  calls: rule 37), `dynref.rs` (providers: rule 33); `hd_wasm_linear`
+  `boundary.rs` (rule 38, once approved).
+- Fixtures: E8, E10, E13.
+- Done: the conformance gate. Budget: 85 lines (captures 25, cold calls
+  30, providers 10, boundary 20).
+
+**Slice 13. `&fn`.**
+- Files: `hd_syntax` (`&fn` in a type), `hd_types` (a local reference to
+  a function type, which K2's def covers), `hd_check` `call.rs` and
+  `expr.rs` (rules 28 to 30), `hd_wasm_linear` `emit/closure.rs` (a
+  closure literal for a `&fn` stores its local-reference captures
+  uncounted); `lib/std` eager helpers (rule 40).
+- Fixtures: E9; a valid `each` capturing `self`; a valid named
+  function passed to a `&fn`.
+- Done: the conformance gate; a `List.fold` whose closure reads `self`
+  checks. Budget:
+  105 lines (syntax 10, types 15, call through `&fn` 10, captures 40,
+  emitter 30) and about 30 std sites.
+
+**Slice 14. Counted rows: 3 and 4.**
+- Files: `hd_tir` `own/borrow.rs` (`classify`, by the steps after the
+  last `*T` dereference), `own/insert.rs` (row 3's hidden owner local,
+  released after the call); `hd_wasm_linear` `emit/count.rs`,
+  `emit/list.rs` (row 4's pin with a known buffer count).
+- Fixtures: slice 2's runtime fixtures; `counts` fixtures for
+  `bump(&mut h.leaf.n)` and `bump(&mut nodes[i].n)`.
+- Done: `write_then_read` returns `1`; the aliased length change
+  panics; the replaced leaf stays alive. Budget: 120 lines
+  (classification 50, hidden owner 40, pin with a known count 30).
+
+**Slice 15. Free rows: the lowered type flips.**
+- Files: `hd_types` `pool.rs` (the second def becomes uncounted),
+  `hd_tir` `own/borrow.rs` (row 2's condition), `ir/owned.rs` (the
+  verifier rejects a count with a local operand); `counts` stage
+  fixtures.
+- Fixtures: `counts` fixtures for the prototype's ten use-case programs
+  (a tokenizer, an in-place sort, element loops, a grid, a JSON walk and
+  others), in both kinds. They are under
+  `crates/hd_driver/tests/cases/counts/scoped-834/` on `lane/834-proto`.
+- Done: no count on rows 1 and 2 or on weakening; checked mode passes.
+  Budget: 70 lines (flip 5, row 2 25, weakening 5, verifier 25, fixture
+  plumbing 10).
+
+**Slice 16. `*T` on the known path.**
+- Files: `hd_wasm_linear` `emit/count.rs`, `rt.rs`; a verifier check
+  that a `*T` operand is a block start.
+- Fixtures: a `counts` fixture per counted kind.
+- Done: #704's instrumentation shows no `block_of` from a reference
+  count on binary_trees. Budget: 40 lines.
+
+**Slice 17. Suspending functions' borrowed `mut` parameters.**
+- Files: `hd_wasm_linear` `emit/susp.rs`, `emit.rs` (`ref_roots`).
+- Fixtures: a runtime fixture: `fn outer!(mut n: i64)` calls
+  `bump!(&mut n)`.
+- Done: it runs; today it fails with "a mutably captured parameter of a
+  suspending function in the linear backend is not supported". Budget:
+  40 lines.
+
+**Slice 18. Measure.**
+- Files: `bench/study`, the `energy(&b)` microbenchmark.
+- Done: hd-only `--quick` before and after for binary_trees, json and
+  nbody; hello's size; json and nbody compile time; posted on #834.
+  Budget: none.
+
+**Slice 19. #702 frame slots.** The owner placed these right after the
+first cut (#834, Q4, "its slice 14" before two slices were added).
+- Files: `hd_check` (a local is frame-eligible when no `*T` and no plain
+  closure refers to it), `hd_tir` (`PlaceRoot::Frame`, reserved today),
+  `own/insert.rs`, `hd_wasm_linear` `emit/refs.rs`, `emit/scope.rs` and
+  the frame layout; temporaries passed to `&T` parameters use slots too.
+- Fixtures: the std runtime's allocation test from #702; a `counts`
+  fixture for a loop that calls `advance(&mut i)` on a scalar local.
+- Done: no cell for a local borrowed only locally; the allocation test
+  shows one fewer allocation per such declaration. Budget: about 250
+  lines (eligibility 30, lowering 60, frame addressing 80, temporaries
+  40, suspending bodies 40). Its first decision is where slots live:
+  in the heap memory, or in the shadow stack (linear DESIGN §23.29).
+  Today a `&T` is an address in one memory.
+
+### 8.3 Estimate
+
+| Slices | What | Budget |
+| --- | --- | ---: |
+| 1, 2 | spec text | about 45 rules |
+| 3 | parser and types | 250 lines |
+| 4 to 8 | respelling | about 1,300 sites |
+| 9 | the switch | 240 lines |
+| 10 | overlap check and fold | 90 lines, about 110 deleted |
+| 11 | receivers | 110 lines |
+| 12 | escapes | 85 lines |
+| 13 | `&fn` | 105 lines, about 30 sites |
+| 14, 15 | counting rows | 190 lines |
+| 16 | `*T` known path | 40 lines |
+| 17 | suspending `mut` parameters | 40 lines |
+| **3, 9 to 17** | **the first cut's compiler** | **1,150 lines added, about 110 deleted** |
+| 19 | #702 frame slots | about 250 lines |
+
+The review's estimate was about 920 lines. The growth is returned
+`self` and impl kinds (65 lines), `&fn` (105) and the overlap check's
+generalization (30). The argument-position rule removed the
+binding-group work, which offsets part of it. The web compiler grows by
+a few kilobytes compressed; the 2 MB cap is not near.
+
+## 9. Decisions
+
+Each item points to the owner's comment on #834 that decided it. Times
+are the comments' UTC stamps, from 22:52 on 2026-10-24 to 00:27 the
+next day; the owner dated them all 2026-10-24.
+
+- [2026-10-24 22:52](https://github.com/HerringtonDarkholme/hd-lang/issues/834#issuecomment-6390554663):
+  no exclusivity check; references across `!` calls are required; std
+  uses local references on every parameter. Its third item, generics
+  instantiated with local references, was replaced at 23:24.
+- [23:09](https://github.com/HerringtonDarkholme/hd-lang/issues/834#issuecomment-6390708630):
+  the spelling: `*T` counted and always a whole object, `&T` local; `&x`
+  takes an address and `*p` dereferences; `*T` lends to `&T`, never the
+  reverse; `*self` keeps `self`; std's keepers are `*mut T`. It replaced
+  the `&{}` spellings of 22:53 and 23:03.
+- [23:24](https://github.com/HerringtonDarkholme/hd-lang/issues/834#issuecomment-6390845601):
+  element borrows keep the pin and a fast-path buffer count; no
+  `Generic[&T]`; interior places are local only, so `*T` needs no
+  `block_of`; counting local references is fine, with rules.
+- [00:16](https://github.com/HerringtonDarkholme/hd-lang/issues/834#issuecomment-6391309697):
+  `let a = &s` is counted and `let a = &obj.f` is an error; local
+  references only in argument position and as receivers; overlapping
+  access in one call is a compile-time error; heap aliases take a
+  fast-path count; the review's recommendation B (call-scoped) adopted.
+- [00:23](https://github.com/HerringtonDarkholme/hd-lang/issues/834#issuecomment-6391378059):
+  Q8, the Debug writer returns itself; Q9, interpolated interior parts
+  are copied; Q10, `&x` where a type variable is expected is counted;
+  Q3, a local receiver may return `self`; Q5, `&fn` for non-escaping
+  closures.
+- [00:27](https://github.com/HerringtonDarkholme/hd-lang/issues/834#issuecomment-6391410635):
+  Q6, an impl may be more local than its trait; Q4, #702's frame slots
+  follow the first cut.
+
+The review's K2, a separate lowered type for local references, is the
+implementation choice of section 6.2.
+
+## 10. Prior Art
+
+| Language | Second-class reference | Stored reference | How a borrow stays valid | What hd takes |
+| --- | --- | --- | --- | --- |
+| Swift | `inout`, `borrowing` parameters, `mutating` methods | class references | the call; exclusivity, static for locals and dynamic for class properties (SE-0176) | the argument-position rule and a static overlap check, with no dynamic one |
+| Rust | none: all references carry lifetimes | `&T` with a lifetime, `Rc<T>` | NLL liveness (RFC 2094), two-phase borrows (RFC 2025) | nothing; its checker is the cost tier 2 avoids |
+| Hylo | `let`, `inout`, `sink` parameters; subscript projections | none: no shared mutable references | the call, or the projecting expression | local receivers; a returned `self` used within one expression |
+| Mojo | `read`, `mut`, `ref` arguments | `ref` with origins | origins tracked at compile time | nothing beyond Swift's model |
+| C# | `ref` parameters and `ref` locals | class references | ref-safe contexts, a static scope comparison | nothing: hd has no bound local references |
+| Vale | region borrows in `pure` functions | generational references | a frozen region, or a generation check per dereference | nothing |
+| Go | none | `*T`, interior pointers included | garbage collection; escape analysis | the `*T` spelling and pointer receivers |
+| C++ | references | pointers | nothing: `push_back` may invalidate | the counterexample element pins prevent |
+
+## 11. Sources And Parse Log
+
+### 11.1 Sources
 
 - Swift SE-0176, Enforce Exclusive Access to Memory:
   https://github.com/swiftlang/swift-evolution/blob/main/proposals/0176-enforce-exclusive-access-to-memory.md
 - Swift SE-0377, `borrowing` and `consuming` parameter ownership
   modifiers:
   https://github.com/swiftlang/swift-evolution/blob/main/proposals/0377-parameter-ownership-modifiers.md
-- Swift SE-0446, Nonescapable Types:
-  https://github.com/swiftlang/swift-evolution/blob/main/proposals/0446-non-escapable.md
 - Rust RFC 2094, non-lexical lifetimes:
-  https://rust-lang.github.io/rfcs/2094-nll.html
-- Rust RFC 2025, two-phase borrows:
-  https://rust-lang.github.io/rfcs/2025-nested-method-calls.html, and the
-  rustc dev guide:
-  https://rustc-dev-guide.rust-lang.org/borrow_check/two_phase_borrows.html
-- Hylo language tour, functions and methods (parameter conventions):
-  https://docs.hylo-lang.org/language-tour/functions-and-methods; subscripts:
-  https://docs.hylo-lang.org/language-tour/subscripts; bindings:
-  https://docs.hylo-lang.org/language-tour/bindings
-- Racordon et al., Implementation Strategies for Mutable Value
-  Semantics, Journal of Object Technology 21(2), 2022.
-- Mojo manual, ownership and argument conventions:
-  https://mojolang.org/docs/manual/values/ownership; lifetimes, origins
-  and references: https://mojolang.org/docs/manual/values/lifetimes
+  https://rust-lang.github.io/rfcs/2094-nll.html; RFC 2025, two-phase
+  borrows: https://rust-lang.github.io/rfcs/2025-nested-method-calls.html
+- Hylo language tour, functions and methods:
+  https://docs.hylo-lang.org/language-tour/functions-and-methods;
+  subscripts: https://docs.hylo-lang.org/language-tour/subscripts
+- Mojo manual, ownership: https://mojolang.org/docs/manual/values/ownership;
+  lifetimes and origins: https://mojolang.org/docs/manual/values/lifetimes
+- C# specification §9.7.2, ref-safe contexts:
+  https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/language-specification/variables
 - Vale, Zero-Cost Memory Safety with Vale Regions:
   https://verdagon.dev/blog/zero-cost-memory-safety-regions-overview
-- Go escape analysis: `go build -gcflags=-m`; append semantics:
+- Go specification, appending and copying slices:
   https://go.dev/ref/spec#Appending_and_copying_slices
-- C++ iterator invalidation: https://en.cppreference.com/w/cpp/container/vector/push_back
-- hd: #704 and #834 (the decisions and the `block_of` measurement), #702 (cells),
-  #683 (entry idiom), [Object Model, Tier 2](OBJECT_MODEL_TIER2.md),
+- C++ `vector::push_back`:
+  https://en.cppreference.com/w/cpp/container/vector/push_back
+- hd: #834 (the decisions), #704 (the `block_of` measurement), #702
+  (cells and frame slots), #676 (lent fields), [Object Model, Tier
+  2](OBJECT_MODEL_TIER2.md),
   [Values And References](../../spec/lang/13-values-and-references.md),
   [docs/compiler/tir-v2.md](../compiler/tir-v2.md),
   [crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md)
-  §23.20.
-
-
-### 16.2 Parse log
-
-Every `text` block of this document, in order:
-
-- "main: parse" is `scripts/hd-conformance.sh parse` on main at
-  `0c1b055d2`, on the block as written. In the final spelling `&T`
-  parses today, with today's counted meaning; each `syntax-error` is on
-  a line marked `# hypothetical syntax`, which was checked line by line,
-  and every other block parses.
-- "prototype: check" is `hd check` with the prototype of section 10,
-  after a mechanical translation into its spelling: `&` in a type
-  position becomes `&{}`, `*` in a type position and `*self` become
-  `&` and `&self`. It type-checks as well as parses.
-- A note marks an error the text intends, or a result where the
-  prototype, built before the owner's decisions, differs from the rules.
-
-| Block | Section | `*T` written | main: parse | prototype: check | Note |
-| ---: | --- | --- | --- | --- | --- |
-| 1 | 2.2 | no | ok | ok |  |
-| 2 | 2.2 | no | ok | ok |  |
-| 3 | 2.2 | no | ok | ok |  |
-| 4 | 2.2 | yes | line 6: `syntax-error` | line 14: `scoped-reference-escapes` | intended: L5 (F5) |
-| 5 | 2.2 | no | ok | ok |  |
-| 6 | 2.2 | no | ok | ok |  |
-| 7 | 2.2 | no | ok | ok |  |
-| 8 | 2.2 | no | ok | line 8: `scoped-reference-escapes` | intended (U8) |
-| 9 | 2.2 | yes | line 3: `syntax-error` | ok |  |
-| 10 | 2.2 | yes | line 4: `syntax-error` | ok |  |
-| 11 | 4.1 | no | ok | ok |  |
-| 12 | 4.2 | no | ok | ok |  |
-| 13 | 4.3 | yes | line 7: `syntax-error` | line 14: `scoped-reference-escapes` | intended (4.3) |
-| 14 | 4.4 | no | ok | ok |  |
-| 15 | 4.4 | no | ok | ok | the prototype accepts `later`; L6 rejects it |
-| 16 | 4.4 | no | ok | ok |  |
-| 17 | 4.5 | yes | line 3: `syntax-error`; line 10: `syntax-error` | line 16: `scoped-reference-escapes` | intended (4.5) |
-| 18 | 4.6 | no | ok | line 9: `scoped-borrow-conflict` | the prototype implements the cut R3; under Q2 (a) this checks and the push panics |
-| 19 | 4.6 | no | ok | ok |  |
-| 20 | 4.7 | no | ok | line 11: `scoped-reference-escapes` | intended: `sum_into` (4.7) |
-| 21 | 4.8 | no | ok | line 5: `scoped-reference-escapes` | intended (4.8) |
-| 22 | 4.9 | yes | line 16: `syntax-error` | ok |  |
-| 23 | 5 | yes | line 5: `syntax-error` | ok | the prototype counts this `let` borrow with a general pair; L4 takes a known one |
-| 24 | 9.2 | no | ok | line 12: `scoped-reference-escapes` | valid under L5; the prototype needed `&{}` on std's `pop` |
-| 25 | 9.2 | no | ok | ok |  |
-| 26 | 9.2 | no | ok | ok |  |
-| 27 | 9.2 | yes | line 6: `syntax-error`; line 15: `syntax-error` | ok |  |
-| 28 | 9.2 | no | ok | line 4: `scoped-reference-escapes` | intended (S5) |
-| 29 | 9.2 | no | ok | ok |  |
-| 30 | 9.2 | no | ok | ok |  |
-| 31 | 9.2 | yes | line 3: `syntax-error` | ok |  |
-| 32 | 10.4 | no | ok | ok |  |
-| 33 | 12 | yes | line 5: `syntax-error`; line 7: `syntax-error`; line 12: `syntax-error` | ok |  |
-| 34 | 12 | no | ok | ok |  |
-| 35 | 15 | yes | line 5: `syntax-error` | ok | the prototype makes the new object counted; Q1 (a) rejects the push |
-| 36 | 15 | no | ok | ok |  |
-| 37 | 15 | no | ok | line 7: `scoped-reference-escapes` | open question Q3 |
-| 38 | 15 | no | ok | ok |  |
-| 39 | 15 | no | ok | ok |  |
-| 40 | 15 | yes | line 2: `syntax-error` | line 8: `trait-method-signature` | exact match in the prototype; Q6 (a) accepts it |
-
-The full programs behind sections 2 and 9 also ran with the prototype:
-U1 to U10 as the `counts` fixtures named in 2.2, and S1 to S8 as scratch
-programs whose outputs the text quotes. Their counted variants were
-checked with main. Rust, Swift and Go code is in its own fences and was
-not compiled.
-
-## Review (2026-10-24)
-
-Status: design review, 2026-10-24; changes no decision, rule, spec text,
-std code or compiler code. It checks sections 1 to 15 against the owner's
-decisions on #834 and #704, [Tier 2](OBJECT_MODEL_TIER2.md),
-[Values And References](../../spec/lang/13-values-and-references.md) and
-main at `7c969d711`, with no prototype. Every block parses (R.7); the
-full programs behind them, `*` written `&`, ran with main's `hd`.
-
-### R.1 Findings, ranked
-
-Ranked by how wrong the result is, then by how many programs meet it.
-
-| Rank | ID | Finding | Severity | Rule, slice |
-| ---: | --- | --- | --- | --- |
-| 1 | V1 | A free borrow of a local can outlive the local's block | unsound | L4 row 1, F7, slice 11 |
-| 2 | V2 | A later argument can free what L4 row 2 borrows | unsound | L4 row 2, slices 11-12 |
-| 3 | V3 | Keeping is transitive: builders and `Debug` color their callers | large respelling | L5, L7, Q3, slice 4 |
-| 4 | V4 | `Template[&dyn Display]` and `Result[T, &dyn Error]` are core std types | an allocation per value | L1, L2, slice 4 |
-| 5 | V5 | `&x` where a type variable is expected can only fail | needless errors | L2, slice 9 |
-| 6 | V6 | Section 8.1 credits savings main has, and keeps a pair L1 forbids | cost model | 8.1, slice 11 |
-| 7 | V7 | The kind belongs in the lowered type, not an instruction flag | simpler build | 7.1, slices 3, 11 |
-| 8 | V8 | The element-reference checker and runtime are not in the plan | missing slice | slice 9b (new) |
-| 9 | V9 | A closure in a `&self` method cannot read `self` | friction | L6, 4.11, slice 10 |
-| 10 | V10 | An element step before a dereference needs no pin | wrong row | 7.3, slice 12 |
-| 11 | V11 | `*self` through `&dyn`, boundaries, and one code for eight errors | missing rules | L1, L5, 4.11 |
-
-**V1. A free borrow can outlive its local.** L4 row 1 makes a borrow of a
-local free and moves the local's drop after the borrow's last use. A
-reassigned `let`, or a block whose value is the borrow, carries the
-address out of the local's block. In a loop, the delayed drop of each
-iteration's `y` has no single position. Main runs this and prints `2`,
-because today's counted reference keeps `y`'s cell:
-
-```text
-fn loop_cross(n: usize) -> i64:
-    let mut keep: i64 = 0
-    let r: &mut i64 = &mut keep
-    for i in 0..n:
-        let mut y: i64 = i64(i)
-        *r += 100
-        r = &mut y  # V1: y's block ends while r points into it
-    *r
-```
-
-So F7's answer, "no liveness over the control-flow graph is needed",
-holds only for bindings that are never reassigned and never leave a
-block. One fix is a scope rule: a local reference may point into a local
-only where that local is in scope. The checker's `Root::Local` already
-carries the local's scope depth, so the check compares two depths, as
-C#'s ref-safe contexts do (R.3). R.3 also prices removing bound borrows.
-
-**V2. A later argument can free what row 2 borrows.** Row 2 makes
-`bump(&mut o.f)` free when an uncaptured local `o` holds the `*T`,
-because "nothing can change the local during the call". Evaluating the
-other arguments can:
-
-```text
-fn reset(p: &mut (*mut Obj)) -> i64:  # hypothetical syntax
-    *p = &mut Obj { n: 0 }
-    5
-
-fn demo() -> i64:
-    let mut o: *mut Obj = &mut Obj { n: 1 }  # hypothetical syntax
-    add(&mut o.n, reset(&mut o))  # V2: reset frees the object o.n is in
-    o.n
-```
-
-Main keeps the first object alive through the counted `&mut o.n` (it
-prints `0 6` with a second binding of that object). Row 2 also needs
-"no other argument or receiver of the call may write `o`": the two rows
-of `ref.elem.conflict`, plus a local reference whose roots include `o`.
-Otherwise the borrow takes row 3's count. `elem_refs.rs` already finds
-such arguments for element references.
-
-**V3. Keeping is transitive.** L7 counts about 17 parameters that store
-their argument. A parameter also keeps when it is passed to a `*T`
-parameter or is the receiver of a `*self` method, and its callers then
-keep too. std has 24 `&mut self` methods that return `self`
-(`StringBuilder.push`, `Command.arg`, `Request.header`,
-`DebugStruct.field`, ...) and four that store `self` in a new builder
-(`DebugWriter.debug_struct` and its siblings). Under L5 these take
-`*mut self`, so `Debug`'s `fn debug(self, out: &mut DebugWriter)` can no
-longer write its first line:
-
-```text
-impl Debug for Point:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Point").field("x", self.x).finish()  # V3: a *mut self call through a local
-```
-
-That reaches about 47 `debug` methods in std, 79 `out: &mut DebugWriter`
-sites, and 76 builder-typed parameters in std, `examples`
-and `website`. With Q3 (a) the 24 chaining methods stay `&mut self`. The
-four `debug_*` methods can then return the writer itself, with the open
-builder's state kept in it, and no `debug` method changes (Q8).
-
-**V4. Two core std types take a local reference as a type argument.**
-std's `r` prefix takes `Template[&dyn Display]`, and the erased error is
-`Result[T, &dyn Error]` (158 sites in `lib`, `spec`, `website` and
-`examples`). Both become `*dyn`. An interpolated field, `r"n=${p.name}"`,
-is an interior place, which is never counted, so it must be copied into
-a new object: an allocation per value, where main takes one general
-pair. `?` already copies an error value into a new object, so errors
-lose nothing but spelling. L2 needs a rule for the implicit conversion
-of an interior place to `*dyn` (Q9).
-
-**V5. A type variable never takes `&T`.** With no expected type, `&x` is
-local (L2). An expected type that is a type parameter or an unsolved
-inference variable can never be `&T` (L1), so each line below is
-`local-reference-escapes`:
-
-```text
-fn demo(a: P, b: P) -> void:
-    let mut xs = []
-    xs.push(&a)  # V5: T = &P is an error; under Q10 (a), T = *P
-    ys := [&a, &b]
-    zs := id(&a)
-```
-
-"Where a type variable is expected, `&x` is counted" only replaces
-errors. `Ck::ref_expr` already receives the expected type (Q10).
-
-**V6. The cost model credits savings main has.** Main already lends a
-`Ref` of a field of a lent parameter (`ref_word::LENT`, #676), and a
-`Ref` of a whole local at its last access takes the local's count
-(`TAKES`). A scratch `counts` case on `7c969d711`, `--release`:
-
-| Code on main | Count operations |
-| --- | --- |
-| `bump(&mut o.n)` with `o: &mut Obj` a parameter | none |
-| `self.lines.push(line)` in a `&mut self` method | none (`field-list-push.counts`) |
-| `lexer.skip_space()` on a local `lexer` | one general pair per call |
-| `self.at_end()` inside `skip_space`: the weakening | one pair per call |
-| `swap(&mut xs[0], &mut xs[1])`, `xs: &mut List[i64]` | two general retains and their releases |
-
-So 8.1's rows for `self.items.push(x)` and for fields of lent parameters
-claim savings main has. The weakening row is the reverse: a local
-reference has no count, so its `Weaken` must emit none. Any count of a
-local reference is a bug once #702 puts locals in frame slots, so the
-ownership verifier should reject a count with a local operand.
-
-**V7. Put the kind in the lowered type.** `Types::lower_refs` turns every
-reference type into the cell ADT, and the passes decide counting by type
-(`OwnCx::counted`). If `&T` lowers to a second def whose layout is not
-counted, every copy, move, weakening and drop of a local reference is
-count-free with no change to the passes, and `fn(&T)` stays distinct
-from `fn(*T)` after monomorphization. 7.1's flag needs a side table per
-local and a check in each pass that copies a value.
-
-**V8. The element-reference machinery is not in the plan.**
-`hd_check/src/elem_refs.rs` (557 lines) checks call-scoped element
-references, and `call.rs` checks `ref.elem.callee-copy`. Under L1 no
-callee keeps an element reference, so that rule goes, and so may bit 31
-of a buffer's owner word, which marks buffers exposed to kept element
-references ([linear DESIGN §23.20](../../crates/hd_wasm_linear/DESIGN.md)).
-A slice should fold `elem_refs.rs` into the local check and delete what
-L1 makes dead.
-
-**V9. A closure in a method cannot read `self`.** `self` is local in every
-`&self` and `&mut self` method, so `xs.map(fn(x: f64) -> f64: x * self.scale)`
-is a capture error, as in Go's parser (T3). The fix-it copies the field
-first, `scale := self.scale`; a field the closure writes becomes
-`*mut T`, and the closure captures a copy.
-
-**V10. Classify by the steps after the last dereference.** 7.3 pins as
-soon as a place has an element step. In `bump(&mut nodes[i].f)` with
-`nodes: List[*mut Node]`, the address is in the node, not the buffer: the
-borrow needs row 3's count of the node and no pin.
-
-**V11. Three rules are missing.** First, a trait with a `*self` method
-stays usable as `&dyn Tr`, and calling that method through `&dyn` is
-L5's error, as Rust excludes `where Self: Sized` methods. Second,
-`boundary.rs` gives each reference that crosses a registered boundary a
-count of its own, so L1 should exclude `&T` from exported and host
-signatures. Third, one code covers eight situations (4.11): each needs
-its own message, and the bare-trait fix-it
-([`trait.dyn.reference-keyword`](../../spec/lang/09-traits.md#trait-value-references))
-should write `*dyn` in a field, an element or a result.
-
-### R.2 Breaks, reads badly, costs more
-
-| Breaks | Reads badly | Costs more than expected |
-| --- | --- | --- |
-| `split_at_mut` (T1): no local result, no writable view | `Result[T, *dyn Error]` in every application (V4) | `&mut i` of a scalar local keeps a counted cell per call (T2) |
-| a value builder in a field (T6, U4): Q3 | `&x` is local or counted by a type the reader may not see | `sorted_by` copies two elements per comparison (T1) |
-| in-place edits of std's `Json` (T4, S5) | `*self` in a header and `*self` in a body mean different things | a `*mut self` chain counts once per link (T6) |
-| a `Map[*Node, bool]` visited set (T7) | `parent: *Tree?` where Rust writes `Option<&Tree>` (T8) | element borrows behind a reference: two pins and two pairs per `hit` (T5) |
-
-### R.3 Brainstorm: how long may a bound local reference live?
-
-**The question.** V1 and V2 show that the hard part is not parameters,
-which are valid for a whole call, but borrows bound to names, whose
-extent something must keep inside the referent's life.
-
-| Language | Bound second-class reference | How it stays valid | Source |
-| --- | --- | --- | --- |
-| Swift | none: `inout` is a parameter; a local binding is a copy | the call | SE-0176, SE-0377 |
-| Rust | `let r = &mut x.f` | NLL liveness, and E0597 "does not live long enough" | RFC 2094, E0597 |
-| C# | `ref int r = ref xs[0]`, reassigned with `= ref` | ref-safe contexts: a ref local never outlives its referent | C# reference; spec §9.7.2 |
-| D | `scope` pointers, `ref` parameters | the pointer's lexical scope | DIP1000 |
-| Ada | anonymous `access` parameters | accessibility levels, a static depth comparison | Ada RM 3.10.2 |
-| Hylo | `inout` bindings, projections | the binding ends before its root is used again | Hylo tour, Bindings, Subscripts |
-| Mojo | `ref` bindings with origins | origins tracked at compile time | Mojo manual, Lifetimes |
-| Go | any pointer | garbage collection; escaping locals move to the heap | Go spec, `-gcflags=-m` |
-| Zig | a pointer to a stack variable | nothing: it dangles after the return | Zig reference, Lifetime and Ownership |
-
-Takeaways: C#, D and Ada bind second-class references and check scope
-depth, a static comparison with no liveness. Swift avoids the question
-with no bound form. Only Rust and Mojo pay for flow analysis.
-
-The fixed use case is 4.6's field borrow bound outside a loop.
-
-**A. Last use with a scope rule.** Section 5, plus V1's scope rule and
-V2's argument condition. A bound borrow of a local is free, and the
-local's drop moves after the binding group's last use.
-
-```text
-fn sum_all(xs: List[i64]) -> i64:
-    let mut acc = Acc { total: 0, items: [] }
-    let t: &mut i64 = &mut acc.total  # A: free; acc's drop waits for t
-    for x in xs:
-        add(t, x)
-        acc.items.push(x)
-    acc.total
-```
-
-**B. Call-scoped only (radical).** A local reference is a parameter, a
-receiver, a call argument, a loop's element binding, or a binding
-initialized from a parameter and never reassigned. Any other bound
-borrow is `local-reference-escapes`, and the code names the place again,
-as hd's index idiom already does. L4 keeps its four rows for call
-arguments only: no binding groups, no delayed drops, no scope rule, and
-Q2 is (b), today's rule.
-
-```text
-fn sum_all(xs: List[i64]) -> i64:
-    let mut acc = Acc { total: 0, items: [] }
-    for x in xs:
-        add(&mut acc.total, x)  # B: the borrow lives for the call
-        acc.items.push(x)
-    acc.total
-```
-
-B narrows the decision that `&T` is the default "on parameters, receivers
-and `let`": a `let` keeps a local reference only as a parameter's copy.
-The new evidence is V1, and the owner's scope for the first cut:
-"specifically for non-escapable parameters".
-
-**C. Lexical extent.** A bound borrow lives to the end of its binding's
-block, as in Rust before NLL, with the scope rule. Drops and releases
-stand at block ends, but a pin held there turns
-`let r = &mut xs[0]; *r += 1; xs.push(2)` into a `collection-pinned` panic.
-
-**D. Count every bound borrow.** A bound borrow takes a known count of
-its root block: the local's cell, the `*T` object or the buffer. It needs
-no scope rule while locals live in cells, but blocks #702, since a frame
-slot cannot be counted.
-
-**Two smaller choices.** For `&x` with no written type: S1, the expected
-type only (L2); S2, S1 plus V5's type-variable rule; S3, S2 plus a `:=`
-binding's kind inferred from its uses, as Go does, at the price of a
-kind the reader cannot see. For the compiler: K1, 7.1's flag on each
-`Ref` and a side table per local; K2, V7's second lowered type.
-
-| | A: last use + scope | B: call-scoped | C: lexical | D: count bound |
-| --- | --- | --- | --- | --- |
-| sections 2 and 9, R.4 | all | all; 4.6 and L4's demo rewritten | all | all |
-| rules added | scope rule, argument condition, groups | the binding rule, argument condition | scope rule, block-end release | argument condition |
-| rules removed | — | Q2, groups, delayed drops | Q2's liveness | — |
-| soundness argument | group liveness and scope depth | the call | scope depth | counts |
-| agent-writability | a new "outlives" error | repeated paths, with a fix-it | surprising pins | never an error |
-| human readability | aliases allowed | each use names the place | as A | as A |
-| compiler lines, slices 11-12, estimated | ~340 | ~190 | ~260 | ~230 |
-| evolution | tier 2's NLL later | tier 2 adds bound borrows | relaxed later | undone for #702 |
-
-#### Recommendation
-
-**Recommendation: B, with S2 and K2.**
-
-- B is the smallest sound rule: every local reference is valid for a
-  call, the scope the owner gave the first cut.
-- It removes V1 and the group machinery, and makes Q2 today's rule.
-- S2 removes an error class at no cost; S3 would hide the kind.
-- K2 lets the ownership passes treat local references as uncounted
-  values with no new pass code.
-- It gives up `let`-bound aliases of fields and elements. Next best: A,
-  if the owner wants those aliases now.
-
-### R.4 Stress test
-
-Eight cases approximate the named libraries' public shapes, not their
-source. Blocks are excerpts: the declarations they use are in the full
-programs, which ran with main. Verdicts are those of section 9.
-
-| Case | Library | Verdict | Rule |
-| --- | --- | --- | --- |
-| T1 `swap`, `retain`, `sort_by`, `split_at_mut`, `iter_mut` | Rust `Vec` and slices | works; `split_at_mut` breaks | L1 |
-| T2 `removeAll(where:)` | Swift `_halfStablePartition` | works; cells cost | L4, Q4 |
-| T3 scanner with an error handler | Go `go/parser` | friction | L6 (V9) |
-| T4 editing a tree | serde_json; a counted DOM | works with `*T` nodes; breaks on std's `Json` | L1 |
-| T5 game loop | an entity update loop | works | L4 rows 1 and 4 |
-| T6 builder in a field | Rust `process::Command` | works for std's handle; breaks for a value builder | L5, Q3 |
-| T7 BFS with a visited map | a graph search | works with IDs; friction with `*Node` keys | L1 |
-| T8 tree walk with an accumulator | a size report | works; keeping colors the walk | L1, L5 |
-
-**T1, Rust's `Vec` and slices.** `swap` and `retain` are section 9's S1
-and S2, and `iter_mut` is U3's element loop. `sort_by` is `sorted_by`.
-
-```text
-fn sort_by_key(xs: &mut List[Row]) -> void:
-    *xs = xs.sorted_by(fn(a: Row, b: Row) -> Ordering: a.key.cmp(b.key))
-
-fn add_halves(xs: &mut List[i64], mid: usize) -> void:
-    for i in 0..mid:
-        xs[i] += xs[mid + i]
-```
-
-`split_at_mut` returns two local references, which L1 forbids, and hd
-has no writable view, so `add_halves` keeps indices. Each comparison
-copies two `Row`s, with a pair for each `name`. A comparator typed
-`fn(&Row, &Row) -> Ordering` is legal under L1 and copies nothing.
-
-**T2, Swift's `removeAll(where:)`.** `_halfStablePartition` advances two
-indices with `formIndex(after: &i)`, an `inout` of a local.
-
-```text
-fn half_stable_partition(xs: &mut List[i64], is_suffix: fn(i64) -> bool) -> usize:
-    let mut i: usize = 0
-    while i < xs.len() && !is_suffix(xs[i]):
-        advance(&mut i)
-    let mut j = i + 1
-    while j < xs.len():
-        if !is_suffix(xs[j]):
-            swap(&mut xs[i], &mut xs[j])
-            advance(&mut i)
-        advance(&mut j)
-    i
-```
-
-Works. The first cut removes the pair at each `advance`, but `i` and `j`
-still live in counted cells: two allocations per call, more than the
-pairs saved (Q4).
-
-**T3, Go's parser.** `go/parser` keeps its scanner by value and hands it
-the closure `func(pos, msg) { p.errors.Add(pos, msg) }`.
-
-```text
-struct Parser:
-    scanner: Scanner
-    errors: *mut ErrorList  # hypothetical syntax
-    tok: string
-
-impl Parser:
-    fn init(&mut self, src: string) -> void:
-        errs := self.errors
-        self.scanner = Scanner { src: src, rd: 0, report: fn(at: usize, msg: string) -> void: errs.add(at, msg) }
-        self.tok = self.scanner.scan()
-```
-
-Friction. `self.scanner.scan()` on a value field is the first cut's win.
-The handler cannot capture `self`, so `errors` becomes its own object and
-the closure captures a copy of the `*mut` (V9).
-
-**T4, editing a tree.** On std's `Json`, an edit in place needs a
-returned reference or payload places, so S5 stands. A DOM of counted
-nodes works:
-
-```text
-fn find(n: *mut Node, key: string) -> (*mut Node)?:  # hypothetical syntax
-    match n.value:
-        .Obj(keys, vals) =>
-            for i in 0..keys.len():
-                if keys[i] == key:
-                    return .Some(vals[i])
-            .None
-        _ => .None
-```
-
-`find` takes `*mut Node`, because its result is reached through its
-argument: V3's keeping again. A `set_path` loop then walks a
-`let cur: *mut Node`, one known pair per step.
-
-**T5, a game loop.** Entities update through element borrows, read the
-config beside them, and spawn into a second list.
-
-```text
-fn tick(w: &mut World, dt: f64) -> void:
-    for e in &mut w.entities:
-        e.update(dt, &w.config)
-        if e.hp <= 0:
-            w.spawned.push(Entity { pos: e.pos, vel: e.vel, hp: 1, alive: true })
-    for i in 0..w.entities.len():
-        for j in i + 1..w.entities.len():
-            hit(&mut w.entities[i], &mut w.entities[j])
-```
-
-Works, with `&w.config` beside `&mut w.entities` and two borrows of one
-list in `hit`. Each `hit` costs two pins and two known pairs, since the
-list is behind `w`; `w.entities[i].hp -= 1` costs none.
-
-**T6, a builder in a field.** std's `Command::new` returns a handle, so a
-`*mut Command` field chains; U4's value builder breaks until Q3.
-
-```text
-struct Job:
-    cmd: *mut Command  # hypothetical syntax
-
-fn configure(job: &mut Job, path: string) -> void:
-    _ := job.cmd.arg("-v").arg(path)
-```
-
-With `arg(*mut self) -> *mut Command`, each link returns a counted
-reference, one known pair per link; under Q3 (a) the chain costs none.
-
-**T7, BFS with a visited map.** Keyed by name, it takes no reference but
-`adj`, and works. Keyed by node, `Map[*Node, bool]` hashes the node's
-value ([`ref.identity.generic-eq`](../../spec/lang/13-values-and-references.md#r-ref.identity.generic-eq)),
-which a Go reader of `*Node` does not expect, and which never ends on a
-cyclic graph. That is today's rule, but the new spelling reads like Go.
-
-```text
-fn bfs(adj: &Map[string, List[string]], start: string) -> List[string]:
-    let mut seen: Map[string, bool] = {start: true}
-    let mut queue: List[string] = [start]
-    let head: usize = 0
-    while head < queue.len():
-        for v in adj.get(queue[head]).unwrap_or([]):
-            if !seen.contains_key(v):
-                seen[v] = true
-                queue.push(v)
-        head += 1
-    queue
-```
-
-**T8, a tree walk with an accumulator.** The walk collects large nodes
-and passes the parent down.
-
-```text
-struct Acc:
-    total: i64
-    big: List[*Tree]  # hypothetical syntax
-
-fn walk(t: *Tree, parent: *Tree?, acc: &mut Acc) -> void:  # hypothetical syntax
-    acc.total += t.size
-    if t.size > 100 && parent.is_some():
-        acc.big.push(t)
-    for k in t.kids:
-        walk(k, .Some(t), acc)
-```
-
-Works. `t` is `*Tree` because the walk stores it and wraps it in
-`.Some`, where Rust writes `Option<&Tree>`; `acc` stays local.
-
-### R.5 Implementation review
-
-Checked against `crates/` at `7c969d711`.
-
-| Claim in sections 7, 8.3 and 13 | In the code | Verdict |
-| --- | --- | --- |
-| 127 `TyData::Ref` match sites in 30 files | 127 sites in 43 files | files undercounted |
-| `&x` typed by the expected type; receivers in `receiver.rs` | `Ck::ref_expr(n, want)`, `auto_address` | realistic |
-| a new `hd_check/src/local.rs` | the name is taken by local functions | rename |
-| a known count of the containing block | rows 3 and 4 need the block start at release | a hidden `*T` local, which the passes already count |
-
-| Slice | Change | Budget |
-| --- | --- | --- |
-| 3 | K2's second lowered def; `hd_fmt` and `hd_doc` print `*T` | 235 → 250 |
-| 4 | waits for Q3 and Q8; adds `Template` and `*dyn Error` (V4); takes its site list from slice 9's checker run on a branch, not a pattern scan | ~250 → ~400 sites |
-| 9 | Q10's rule, V11's rules, a message per situation | 200 → 240 |
-| 9b (new) | fold `elem_refs.rs` and `ref.elem.callee-copy` into the local check; delete the exposure bit | +80, about 60 deleted |
-| 10 | V11's boundary rule | 60 → 80 |
-| 11 | under B: call-argument rows, V2's condition, a verifier check that no count has a local operand; under A, add V1 and groups | 90 → 70 (B) or 160 (A) |
-| 12 | V10's classification; the hidden owner local of rows 3 and 4 | 150 → 120 (B) or 180 (A) |
-
-The compiler total becomes about 920 lines under B and 1,050 under A,
-against 815, both under the 1.5x stop rule; the respelling grows from
-about 1,100 to 1,300 sites. Two risks are outside the count: slice 9
-flips every remaining `&T` at once, so slices 4 to 8 need its site list
-first, and slice 4 waits for Q3 and Q8.
-
-### R.6 Questions for the owner
-
-**Q7. How long may a bound local reference live (V1, R.3)?** Candidates:
-(a) B, call-scoped, where a binding of local type is a loop's element
-binding or a copy of a parameter; (b) A, to its last use, with a scope rule; (c) D, every bound
-borrow counted. **Recommended: (a)**; it is what the first cut is for,
-and A can come with tier 2.
-
-```text
-fn demo(a: &mut Acc) -> void:
-    q := a  # (a): valid, a copy of a parameter
-    bump(&mut q.total)  # (a): the borrow lives for the call
-```
-
-**Q8. The `Debug` writer under L5 (V3).** Candidates: (a) `debug_struct`
-and its three siblings return the writer itself, which keeps the open
-builder, so no `debug` method changes (needs Q3 (a)); (b) `Debug` takes
-`out: *mut DebugWriter`, one count per `debug` call and 79 respelled
-sites. **Recommended: (a).**
-
-```text
-impl Debug for Point:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Point").field("x", self.x).finish()  # (a): unchanged
-```
-
-**Q9. Interpolated places under `Template[*dyn Display]` (V4).**
-Candidates: (a) an interior place converts by copying into a new object,
-one allocation per value until #702's temporaries; (b) it is
-`local-reference-escapes`, fixed by a local copy. **Recommended: (a)**;
-an interpolation should not need a rewrite.
-
-```text
-use std.text.r
-
-fn show(p: P) -> string:
-    r"n=${p.name}"  # (a): p.name is copied into a new object
-```
-
-**Q10. `&x` where a type variable is expected (V5).** Candidates: (a) it
-is counted, `*T`; (b) it is local, so an error with a fix-it.
-**Recommended: (a)**; the local form can never type-check there.
-
-```text
-fn demo(a: P) -> void:
-    let mut xs = []
-    xs.push(&a)  # (a): xs is List[*P]
-```
-
-### R.7 Sources and parse log
-
-- C# reference, Declaration statements, Reference variables:
-  https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/declarations;
-  ref-safe contexts, C# specification §9.7.2:
-  https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/language-specification/variables
-- D, DIP1000, Scoped Pointers:
-  https://github.com/dlang/DIPs/blob/master/DIPs/other/DIP1000.md
-- Ada 2012 Reference Manual, 3.10.2:
-  http://www.ada-auth.org/standards/12rm/html/RM-3-10-2.html
-- Rust error index, E0597: https://doc.rust-lang.org/error_codes/E0597.html
-- Zig language reference, Lifetime and Ownership:
-  https://ziglang.org/documentation/master/#Lifetime-and-Ownership
-- Swift `_halfStablePartition`:
-  https://github.com/swiftlang/swift/blob/main/stdlib/public/core/CollectionAlgorithms.swift
-- Go `go/parser`: https://github.com/golang/go/blob/master/src/go/parser/parser.go
-- The other sources are in 16.1.
-
-The review's `text` blocks, in order, parsed with
-`scripts/hd-conformance.sh parse` on `7c969d711`. Each `syntax-error`
-is on a line marked `# hypothetical syntax`, checked line by line.
-
-| Blocks | Where | Result |
-| --- | --- | --- |
-| 1, 3 to 8, 11, 13, 15 to 18 | V1, V3, V5, R.3, T1, T2, T5, T7, Q7 to Q10 | parse; block 1 runs on main and prints `2` |
-| 2 | V2 | `syntax-error` at lines 1 and 6, both `*T` |
-| 9, 10, 12 | T3, T4, T6 | `syntax-error` at lines 3, 1 and 2, each `*T` |
-| 14 | T8 | `syntax-error` at lines 3 and 5, both `*T` |
+  §23.20 and §23.29. The measurements of section 7 were taken on main
+  at `0c1b055d2` and `7c969d711` and with the prototype branch
+  `lane/834-proto`.
+
+### 11.2 Parse log
+
+Every `text` block, in order, parsed with `scripts/hd-conformance.sh
+parse` on `a592c5591`. Parsing checks syntax only; it does not
+type-check, and the lines marked `# error` are errors of the rules, not
+of the parser. Each `syntax-error` below is on a line marked
+`# hypothetical syntax`. To check that no other line fails, each block
+was parsed again with its marked lines in today's syntax (`*` as `&`,
+`&fn` as `fn`). All 14 parse.
+
+| Block | Section | Result |
+| ---: | --- | --- |
+| 1 | 2.1 | `syntax-error` at line 6, `*mut` |
+| 2 | 2.2 | `syntax-error` at line 7, `*P` |
+| 3 | 2.3 | `syntax-error` at line 22, `*Expr` |
+| 4 | 2.4 | `syntax-error` at lines 10 and 16, `*mut self` and `*mut` |
+| 5 | 2.5 | `syntax-error` at lines 7 and 16, `*mut` |
+| 6 | 2.6 | parse |
+| 7 | 2.7 | `syntax-error` at line 5: "'&' cannot directly precede 'fn'", today's [`ref.type.no-function`](../../spec/lang/13-values-and-references.md#reference-types) |
+| 8 | 2.8 | `syntax-error` at lines 5 and 18, `*mut self` and `*dyn` |
+| 9 | 2.9 | parse |
+| 10 | 2.10 | parse |
+| 11 | 2.11 | parse |
+| 12 | 4 | `syntax-error` at lines 5 and 11, `*mut` |
+| 13 | 5 | `syntax-error` at lines 5 and 7, `*mut` |
+| 14 | 5 | parse |
+
+Rust code in section 6.3 is pseudo-code and was not compiled.
