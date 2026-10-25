@@ -1,0 +1,6 @@
+fn values() -> (impl Display, impl Eq):
+    (+1, +1)
+fn needs_eq[T < Eq](value: T) -> void:
+    _ := value
+pub fn main() -> void:
+    needs_eq(values()._0) # diagnostic: unsatisfied-trait-bound

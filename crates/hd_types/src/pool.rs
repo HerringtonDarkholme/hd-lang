@@ -206,7 +206,8 @@ pub enum TyData {
     /// the defining body's result supplies its representation in mono.
     Opaque {
         owner: DefId,
-        /// Zero for the owner's result, otherwise the local function's syntax node + 1.
+        /// Return-annotation occurrence in source order; local functions start
+        /// at their syntax node + 1.
         site: u32,
         args: TyList,
         bound: Ty,

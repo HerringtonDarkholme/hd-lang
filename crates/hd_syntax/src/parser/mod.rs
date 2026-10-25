@@ -176,6 +176,11 @@ pub(crate) struct Parser<'t> {
     /// The last suite consumed was a same-line suite.
     suite_inline: bool,
     nesting: u32,
+    /// Opaque type occurrences are syntax only in a named function's
+    /// return annotation, including its nested type arguments.
+    opaque_result: bool,
+    /// An opaque bound cannot itself declare another opaque occurrence.
+    opaque_bound: bool,
     attached: Vec<bool>,
     /// Reserved words the current top-level item tried to bind with `:=`:
     /// after that one error, the word reads as the name it was meant as.
@@ -208,6 +213,8 @@ impl<'t> Parser<'t> {
             suite_closed: false,
             suite_inline: false,
             nesting: 0,
+            opaque_result: false,
+            opaque_bound: false,
             attached: vec![false; toks.com_kind.len()],
             bound_keywords: Vec::new(),
         }

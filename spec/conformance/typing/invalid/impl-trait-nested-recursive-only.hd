@@ -1,0 +1,2 @@
+fn recursive() -> Result[impl Display, string]: # diagnostic: recursive-value-type
+    recursive()

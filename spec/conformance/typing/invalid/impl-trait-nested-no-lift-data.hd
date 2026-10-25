@@ -1,0 +1,16 @@
+trait Number:
+    fn number(self) -> i32
+impl Number for i32:
+    fn number(self) -> i32:
+        self
+impl Number for i32?:
+    fn number(self) -> i32:
+        match self:
+            .Some(value) => value
+            .None => +0
+struct Holder[T]:
+    value: T
+fn mixed(flag: bool) -> Holder[impl Number]:
+    if flag:
+        return Holder { value: .Some(+1) }
+    Holder { value: +2 } # diagnostic: type-mismatch

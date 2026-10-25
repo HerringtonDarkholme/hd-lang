@@ -465,7 +465,7 @@ function_decl = "fn", callable_name, [ function_generic_params ], parameter_clau
                 [ "->", function_result_type ], [ requirement_clause ], ":",
                 suite_body ;
 
-function_result_type = result_type | opaque_result_type ;
+function_result_type = result_type ;
 opaque_result_type = "impl", bound_trait_type ;
 
 callable_name = identifier, [ "!" ] ;
@@ -500,7 +500,9 @@ receiver_parameter = "self" | "mut", "self" | "&", "self" | "&", "mut", "self"
 6. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
 7. r[grammar.fn.vararg-name] A [vararg](07-functions.md#varargs) parameter writes `...` after its name, as in `values...: List[i32]`; it takes no default and must be the final positional parameter.
 8. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
-9. r[grammar.fn.opaque-result] `impl` begins only a whole named-function result annotation; it is invalid in parameters, fields, bindings, closure annotations, function types, and nested type positions. Error: `syntax-error`.
+9. r[grammar.fn.opaque-result-nested] `impl` may occur in a named-function result annotation, including nested ordinary type arguments, tuples and optional types.
+10. r[grammar.fn.opaque-result.positions] `impl` is invalid in parameters, fields, bindings, closure annotations, function types and requirement rows. Error: `syntax-error`.
+11. r[grammar.fn.opaque-bound.no-nesting] An `impl` type must not appear inside another `impl` bound. Error: `syntax-error`.
 
 ```text
 fn scaled(values...: List[i32], factor: i32) -> i32: factor  # error: nonfinal-vararg
@@ -826,7 +828,8 @@ ref_type = "&", [ "mut" ], reference_type
          | "*", [ "mut" ], reference_type
          ;
 
-reference_type = named_type
+reference_type = opaque_result_type
+               | named_type
                | dyn_type
                | "Self"
                | tuple_type

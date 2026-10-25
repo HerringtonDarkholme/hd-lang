@@ -255,7 +255,7 @@ fn an_if_nested_in_each_else_suite_still_nests_too_deep() {
 }
 
 #[test]
-fn opaque_result_is_one_whole_return_annotation() {
+fn opaque_results_are_scoped_to_named_return_annotations() {
     let source = "fn values[T](value: T) -> impl Iterator[T]:\n    value\n";
     let parsed = parse(source.as_bytes());
     assert!(parsed.is_ok(), "{:?}", parsed.diagnostic_codes());
@@ -270,8 +270,56 @@ fn opaque_result_is_one_whole_return_annotation() {
         "fn f(value: impl Display) -> void: ()\n",
         "struct S:\n    value: impl Display\n",
         "fn f() -> void:\n    let value: impl Display = +1\n",
-        "fn f() -> Result[impl Display, string]: +1\n",
+        "fn f() -> fn() -> impl Display: +1\n",
+        "fn f() -> Result[fn(impl Display) -> void, string]: +1\n",
+        "fn f() -> Wrapper[$ Key[impl Display]]: +1\n",
+        "fn f() -> impl Display: +1\nfn g(value: impl Display) -> void: ()\n",
     ] {
         assert!(!parse(source.as_bytes()).is_ok(), "{source}");
+    }
+}
+
+#[test]
+fn opaque_result_occurrences_nest_in_return_types() {
+    for (source, occurrences) in [
+        ("fn f() -> Result[impl Iterator[i32], E]: +1\n", 1),
+        ("fn f() -> (impl A, impl B): (+1, +2)\n", 2),
+        ("fn f() -> impl Display?: .Some(+1)\n", 1),
+        ("fn f() -> List[(impl A, Result[impl B, E])]: []\n", 2),
+    ] {
+        let parsed = parse(source.as_bytes());
+        assert!(parsed.is_ok(), "{source}: {:?}", parsed.diagnostic_codes());
+        assert_eq!(
+            parsed
+                .tree
+                .root()
+                .descendants()
+                .filter(|node| node.kind() == SyntaxKind::ImplType)
+                .count(),
+            occurrences,
+            "{source}"
+        );
+        assert_eq!(parsed.tree.reconstruct(&parsed.tokens, source), source);
+    }
+}
+
+#[test]
+fn an_opaque_bound_rejects_another_opaque_occurrence() {
+    for source in [
+        "fn f() -> impl Iterator[impl Display]: +1\n",
+        "fn f() -> Result[impl Iterator[impl Display], E]: +1\n",
+        "fn f() -> impl Source[Item = impl Display]: +1\n",
+    ] {
+        let parsed = parse(source.as_bytes());
+        let diagnostic = parsed
+            .diagnostics
+            .iter()
+            .find(|d| d.message == "an `impl` type may not appear inside another `impl` bound")
+            .expect("nested opaque bound diagnostic");
+        assert_eq!(diagnostic.code, hd_diag::Code::SyntaxError);
+        assert_eq!(
+            diagnostic.primary.lo as usize,
+            source.find("impl Display").expect("inner occurrence")
+        );
     }
 }

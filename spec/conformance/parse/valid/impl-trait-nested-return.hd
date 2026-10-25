@@ -1,0 +1,1 @@
+fn values() -> Result[impl Display, string]: .Ok(+1)

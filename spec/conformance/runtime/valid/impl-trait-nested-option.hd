@@ -1,0 +1,10 @@
+# expect-stdout: 9 missing
+fn maybe(flag: bool) -> impl Display?:
+    if flag:
+        return .None
+    .Some(+9)
+
+pub fn main() -> void $ Console:
+    match maybe(false):
+        .Some(value) => println("${value} missing")
+        .None => panic("missing value")

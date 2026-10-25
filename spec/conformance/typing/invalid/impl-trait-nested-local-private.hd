@@ -1,0 +1,8 @@
+fn value(flag: bool) -> impl Display:
+    fn first() -> impl Display:
+        +1
+    fn second() -> impl Display:
+        +1
+    if flag:
+        return first()
+    second() # diagnostic: type-mismatch

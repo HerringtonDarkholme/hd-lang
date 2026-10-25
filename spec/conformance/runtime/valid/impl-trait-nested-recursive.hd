@@ -1,0 +1,9 @@
+# expect-stdout: 10 ten
+fn values(flag: bool) -> (impl Display, impl Display):
+    if flag:
+        return values(false)
+    (+10, "ten")
+
+pub fn main() -> void $ Console:
+    pair := values(true)
+    println("${pair._0} ${pair._1}")

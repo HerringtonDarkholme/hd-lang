@@ -1,0 +1,7 @@
+# expect-stdout: 4
+fn maybe() -> impl Display?:
+    +4
+pub fn main() -> void $ Console:
+    match maybe():
+        .Some(value) => println("${value}")
+        .None => panic("missing")

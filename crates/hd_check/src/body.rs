@@ -229,6 +229,7 @@ pub(crate) struct Ck<'a, 'c> {
     /// Opaque result inference is invariant; it never joins or inserts coercions.
     pub strict_rets: Vec<Ty>,
     pub opaque_rets: Vec<(Ty, Ty)>,
+    pub opaque_annotation: Option<u32>,
     pub recursive_returns: Vec<Ty>,
     /// Type parameters by name: the impl's, then the function's.
     pub gens: Vec<(Symbol, Ty)>,
@@ -543,6 +544,7 @@ pub(crate) fn new_ck<'a, 'c>(
         rets: vec![ret],
         strict_rets: vec![],
         opaque_rets: vec![],
+        opaque_annotation: None,
         recursive_returns: vec![],
         gens: Vec::new(),
         using_bind: false,
@@ -1049,13 +1051,13 @@ fn fn_body_steps(
     // `types.lct.sites`: an omitted result type joins the final value and
     // the `return` operands, and widens in place when an optional one
     // follows plain ones (`join_site`).
-    let (tail, ret) = if let TyData::Opaque { bound, .. } = ck.pool().get(sig.ret) {
-        let ret = ck.infer.fresh(ck.pool(), VarKind::General);
+    let (tail, ret) = if ck.pool().has_opaque(sig.ret) {
+        let before = ck.opaque_rets.len();
+        let ret = ck.open_opaque_return(sig.ret);
+        let occurrences = before..ck.opaque_rets.len();
         ck.rets[0] = ret;
-        ck.strict_rets.push(ret);
-        ck.opaque_rets.push((sig.ret, ret));
         let (tail, _) = ck.block_value(body, Some(ret))?;
-        ck.check_opaque_result(ret, bound, node)?;
+        ck.check_opaque_occurrences(occurrences, node)?;
         (tail, ret)
     } else {
         let want = (!infer.ret).then(|| ck.norm_ty(sig.ret));
@@ -1626,7 +1628,7 @@ impl Ck<'_, '_> {
     /// (`types.assign.optional`, `types.option.nest.accept`). An `i32` is
     /// no injection into an `i32??`, and a value with as many layers as
     /// `want` must match it.
-    fn injects_into(&self, got: Ty, want: Ty) -> bool {
+    pub(crate) fn injects_into(&self, got: Ty, want: Ty) -> bool {
         self.option_layers(got) + 1 == self.option_layers(want)
     }
 
@@ -1666,6 +1668,12 @@ impl Ck<'_, '_> {
         position: ExpectPosition,
     ) -> Ref {
         let pool = self.pool();
+        let opaque_return = self.strict_opaque_return(want);
+        let got = if opaque_return {
+            self.recursive_opaque_return(got)
+        } else {
+            got
+        };
         let target = want;
         let (got, want) = (self.norm_ty(got), self.norm_ty(want));
         let g = self.infer.shallow(pool, got);
@@ -1675,7 +1683,7 @@ impl Ck<'_, '_> {
         if g == Ty::NEVER || g == w {
             return r;
         }
-        if self.strict_rets.contains(&target) {
+        if self.strict_opaque_slot(target) {
             // A call of this same declaration returns its chosen hidden
             // type. It constrains neither which type that is nor its size.
             if self
@@ -1695,6 +1703,9 @@ impl Ck<'_, '_> {
                 );
                 self.err(Code::TypeMismatch, n, &msg);
             }
+            return r;
+        }
+        if opaque_return && !self.constrain_opaque_return(got, target, n) {
             return r;
         }
         // `ref.convert.lend`: a counted reference lends itself where a

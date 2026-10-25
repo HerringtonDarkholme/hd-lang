@@ -1,0 +1,8 @@
+fn values() -> (impl Eq, impl Eq):
+    (+1, +1)
+fn same[T](a: T, b: T) -> void:
+    _ := a
+    _ := b
+pub fn main() -> void:
+    pair := values()
+    same(pair._0, pair._1) # diagnostic: type-mismatch

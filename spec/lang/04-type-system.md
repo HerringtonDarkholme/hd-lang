@@ -2361,14 +2361,15 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity),
 An opaque result gives a function a written trait interface while keeping
 its concrete result type in the defining body.
 
-1. r[types.opaque.define] A result annotation `impl Trait[Args]` denotes an opaque type with the written trait bound.
-2. r[types.opaque.identity] The declaring function and its generic arguments determine the opaque type's static identity.
+1. r[types.opaque.occurrence] Each `impl Trait[Args]` occurrence in a return annotation denotes an opaque type with the written trait bound.
+2. r[types.opaque.identity-position] The declaring function, its generic arguments and the occurrence's position in the return annotation determine the opaque type's static identity.
 3. r[types.opaque.distinct] Results from different function declarations are distinct types, even when their written bounds and hidden concrete types are equal.
-4. r[types.opaque.head-only] Callers check against the declared bound, including its supertraits and associated-type bindings, without reading the defining body.
-5. r[types.opaque.no-leakage] The hidden concrete type adds no trait implementation or member to the opaque type during caller checking.
-6. r[types.opaque.representation] The hidden concrete type is a code-generation fact, not part of a caller's checking dependencies.
-7. r[types.opaque.codegen] An opaque result does not introduce a trait value or dynamic trait dispatch.
-8. r[types.opaque.recursive] A hidden result type that recursively contains itself is an error. Error: `recursive-value-type`.
+4. r[types.opaque.distinct-position] Different opaque occurrences in one return annotation are distinct types, even when their bounds and hidden concrete types are equal.
+5. r[types.opaque.head-only] Callers check against the declared bound, including its supertraits and associated-type bindings, without reading the defining body.
+6. r[types.opaque.no-leakage] The hidden concrete type adds no trait implementation or member to the opaque type during caller checking.
+7. r[types.opaque.representation] The hidden concrete type is a code-generation fact, not part of a caller's checking dependencies.
+8. r[types.opaque.codegen] An opaque result does not introduce a trait value or dynamic trait dispatch.
+9. r[types.opaque.recursive] A hidden result type that recursively contains itself is an error. Error: `recursive-value-type`.
 
 ```hd
 fn answer() -> impl Display:

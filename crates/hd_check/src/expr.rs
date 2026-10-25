@@ -2139,7 +2139,7 @@ impl Ck<'_, '_> {
     pub(crate) fn list_item(&self, list_ty: Ty) -> Option<Ty> {
         let pool = self.pool();
         let list = self.cx.names.known.list;
-        match pool.get(self.strip_mut(list_ty)) {
+        match pool.get(self.expected_shape(list_ty)) {
             TyData::Adt { def, args } if def == list => pool.list_items(args).first().copied(),
             _ => None,
         }
@@ -2149,7 +2149,7 @@ impl Ck<'_, '_> {
     pub(crate) fn map_value_item(&self, map_ty: Ty) -> Option<Ty> {
         let pool = self.pool();
         let map = self.cx.names.known.map;
-        match pool.get(self.strip_mut(map_ty)) {
+        match pool.get(self.expected_shape(map_ty)) {
             TyData::Adt { def, args } if def == map => pool.list_items(args).get(1).copied(),
             _ => None,
         }
@@ -2203,7 +2203,7 @@ impl Ck<'_, '_> {
         let list = self.cx.names.known.list;
         let elem = match self
             .literal_want(want)
-            .map(|w| self.infer.resolve(pool, w))
+            .map(|w| self.infer.shallow(pool, w))
             .map(|w| match pool.get(w) {
                 TyData::Mut(i) => pool.get(i),
                 d => d,
@@ -2306,7 +2306,7 @@ impl Ck<'_, '_> {
         let map = self.cx.names.known.map;
         let (kw, vw) = match self
             .literal_want(want)
-            .map(|w| self.infer.resolve(pool, w))
+            .map(|w| self.infer.shallow(pool, w))
             .map(|w| match pool.get(w) {
                 TyData::Mut(i) => pool.get(i),
                 d => d,
@@ -2407,15 +2407,21 @@ impl Ck<'_, '_> {
         // arguments first, so a field sees its substituted type (`mut U`
         // included).
         if let Some(w) = want
-            && let TyData::Adt { def: wd, args: wa } = pool.get(self.strip_mut(w))
+            && let TyData::Adt { def: wd, args: wa } = pool.get(self.expected_shape(w))
             && wd == def
         {
             for (v, a) in targs
-                .iter()
+                .iter_mut()
                 .zip(pool.list_items(wa).iter().copied())
                 .skip(explicit)
             {
-                let _ = self.infer.unify(pool, *v, a);
+                if self.strict_opaque_return(a) {
+                    // Preserve a rigid return occurrence, even after it has
+                    // a concrete choice; a fresh variable would forget its origin.
+                    *v = a;
+                } else {
+                    let _ = self.infer.unify(pool, *v, a);
+                }
             }
         }
         let inst = |t: Ty| {
@@ -2473,7 +2479,7 @@ impl Ck<'_, '_> {
                 if kids[1..].iter().any(|f| may_run_code(*f)) {
                     self.copy_fields_now((sr, st), &replaced, &mut vals, *a);
                 }
-                source = Some(sr);
+                source = Some((sr, st));
                 continue;
             }
             let fname = self.sym_of(*a);
@@ -2489,7 +2495,19 @@ impl Ck<'_, '_> {
                 self.err(Code::DuplicateField, *a, &msg);
                 failed = true;
             }
-            let ft = inst(fields[i].ty);
+            // A copy-update has its source's concrete type independently
+            // of the result expectation; its fields keep ordinary conversions.
+            let ft = source
+                .and_then(|(_, ty)| match pool.get(self.expected_shape(ty)) {
+                    TyData::Adt { args, .. } => Some(crate::call::subst_owner(
+                        pool,
+                        def,
+                        pool.list_items(args),
+                        fields[i].ty,
+                    )),
+                    _ => None,
+                })
+                .unwrap_or_else(|| inst(fields[i].ty));
             let (r, t) = if let Some(e) = a.children().next() {
                 self.expr(e, Some(ft))?
             } else {
@@ -2505,7 +2523,6 @@ impl Ck<'_, '_> {
                 };
                 self.read_local(l, d, *a)
             };
-            let ft = self.infer.resolve(pool, ft);
             vals[i] = self.coerce(r, t, ft, *a, "field", ExpectPosition::General);
             seen[i] = true;
         }
@@ -2539,7 +2556,7 @@ impl Ck<'_, '_> {
             def,
             args: pool.list(&targs),
         });
-        if let Some(sr) = source {
+        if let Some((sr, _)) = source {
             let rec = self.copy_record(&vals);
             let at = spread.map_or(n, |s| s);
             return Ok((self.b.emit(Tag::CopyStruct, sr.0, rec, ty, at.index()), ty));
@@ -3834,51 +3851,28 @@ impl Ck<'_, '_> {
                 ptys.push(t);
             }
         }
-        let opaque = if let Some(annotation) =
-            parts.ret.filter(|n| n.kind() == SyntaxKind::ImplType)
+        let written_ret = if let Some(annotation) = parts.ret
             && parts.name.is_some()
             && parts.upto.is_none()
         {
-            let bound = match Src::child(annotation, SyntaxKind::NamedType) {
-                Some(t) => self.ty_node_as(t, crate::ty::NameRole::Trait)?,
-                None => Ty::POISON,
-            };
-            let args: Vec<Ty> = self
-                .gens
-                .iter()
-                .map(|(name, t)| {
-                    self.row_gens
-                        .iter()
-                        .find(|(s, _)| s == name)
-                        .map_or(*t, |(_, r)| {
-                            pool.intern_ty(&TyData::Row(pool.row(&hd_types::RowData {
-                                keys: vec![],
-                                params: vec![*r],
-                            })))
-                        })
-                })
-                .collect();
-            Some(pool.intern_ty(&TyData::Opaque {
-                owner: self.b.body_mut().item,
-                site: n.index().raw() + 1,
-                args: pool.list(&args),
-                bound,
-            }))
+            Some(self.local_return_annotation(annotation, n)?)
         } else {
             None
         };
+        let opaque = written_ret.filter(|&ty| pool.has_opaque(ty));
+        let strict_before = self.strict_rets.len();
+        let occurrences_before = self.opaque_rets.len();
         let ret = if let Some(opaque) = opaque {
-            let ret = self.infer.fresh(pool, hd_types::VarKind::General);
-            self.strict_rets.push(ret);
-            self.opaque_rets.push((opaque, ret));
-            ret
+            self.open_opaque_return(opaque)
         } else {
-            match (ret, parts.ret) {
-                (Some(r), _) => r,
-                (None, Some(rt)) => self.ty_node(rt)?,
-                (None, None) => self.join_target(None),
+            match (ret, written_ret, parts.ret) {
+                (Some(r), _, _) => r,
+                (None, Some(r), _) => r,
+                (None, None, Some(rt)) => self.ty_node(rt)?,
+                (None, None, None) => self.join_target(None),
             }
         };
+        let occurrences = occurrences_before..self.opaque_rets.len();
         let public_ret = opaque.unwrap_or(ret);
         // A written row, or the least row of the keys the body uses
         // (`req.row.omitted.closure-row`); the expected row is matched
@@ -3944,12 +3938,9 @@ impl Ck<'_, '_> {
                 ret,
             )
         };
-        if let Some(opaque) = opaque {
-            let TyData::Opaque { bound, .. } = pool.get(opaque) else {
-                unreachable!()
-            };
-            self.check_opaque_result(ret, bound, n)?;
-            self.strict_rets.pop();
+        if opaque.is_some() {
+            self.check_opaque_occurrences(occurrences, n)?;
+            self.strict_rets.truncate(strict_before);
         }
         let root = self.b.close_block(blk, tail, ret, n.index());
         self.loops = saved_loops;

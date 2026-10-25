@@ -1,0 +1,7 @@
+# expect-stdout: expected
+fn no_value() -> Result[impl Display, string]:
+    .Err("expected")
+pub fn main() -> void $ Console:
+    match no_value():
+        .Ok(_) => panic("unexpected value")
+        .Err(message) => println(message)
