@@ -44,20 +44,35 @@ impl Parser<'_> {
             return self.ty_function(rows);
         }
         let marker = self.start();
-        let mut done = if self.at(TokenKind::Amp) {
+        // ref.type.forms, ref.type.counted-forms: `&T` and `*T` share one
+        // node, told apart by its first token.
+        let mut done = if self.at(TokenKind::Amp) || self.at(TokenKind::Star) {
+            let sigil = if self.at(TokenKind::Amp) { '&' } else { '*' };
             self.bump();
             self.eat(TokenKind::KwMut);
             if self.at(TokenKind::KwFn) {
-                // ref.type.no-function
+                // ref.type.no-function, ref.type.counted-no-function
                 self.error(
                     Code::SyntaxError,
-                    "'&' cannot directly precede 'fn'; a function value is already a reference",
+                    &format!(
+                        "'{sigil}' cannot directly precede 'fn'; a function value is already a reference"
+                    ),
                 );
                 self.ty_function(rows);
             } else {
                 self.ty_reference(rows);
             }
             self.complete(marker, SyntaxKind::RefType)
+        } else if self.at(TokenKind::StarStar) {
+            // ref.type.counted-no-nesting: `**` is one token.
+            self.error(
+                Code::SyntaxError,
+                "'**' is the power operator; write a counted reference to one as '*(*T)'",
+            );
+            self.bump();
+            self.eat(TokenKind::KwMut);
+            self.ty_reference(rows);
+            self.complete(marker, SyntaxKind::Error)
         } else if self.at(TokenKind::KwMut) {
             self.bump();
             if self.at(TokenKind::KwFn)

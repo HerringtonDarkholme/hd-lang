@@ -1,0 +1,8 @@
+# @dump: tree
+# `*T` and `*self` (grammar.type.counted-ref, grammar.fn.receiver-counted).
+# subject
+impl Node:
+    fn keep(*self, a: *T, b: *mut T, c: List[*mut T], d: *T?, e: *(*T), f: *dyn Display, g: *mut dyn Display) -> *Node:
+        self
+
+    fn grow(*mut self, f: fn(&T) -> *mut T) -> void: pass

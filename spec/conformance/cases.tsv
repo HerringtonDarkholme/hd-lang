@@ -4420,7 +4420,6 @@ parse/invalid/reference-type-mut-before-reference.hd	parse	reject:syntax-error	l
 parse/invalid/reference-type-doubled-mut.hd	parse	reject:syntax-error	lang/13-values-and-references.md#r-ref.type.no-nesting
 parse/invalid/reference-type-function.hd	parse	reject:syntax-error	lang/13-values-and-references.md#r-ref.type.no-function
 parse/invalid/reference-type-without-operand.hd	parse	reject:syntax-error	lang/13-values-and-references.md#r-ref.type.forms
-parse/invalid/reference-type-star.hd	parse	reject:syntax-error	lang/13-values-and-references.md#r-ref.type.forms
 parse/invalid/reference-expression-and-and.hd	parse	reject:syntax-error	lang/13-values-and-references.md#r-ref.token.and-and
 parse/invalid/reference-expression-without-operand.hd	parse	reject:syntax-error	lang/13-values-and-references.md#r-ref.expr.make
 parse/invalid/caret-prefix-expression.hd	parse	reject:syntax-error	lang/13-values-and-references.md#r-ref.token.caret

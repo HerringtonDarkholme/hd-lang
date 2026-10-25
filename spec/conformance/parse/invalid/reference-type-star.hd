@@ -1,2 +1,0 @@
-# Spec 13 Reference Types: ref.type.forms. `*` writes no type.
-fn show(p: *Point) -> void: pass  # diagnostic: syntax-error

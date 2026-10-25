@@ -2861,7 +2861,11 @@ impl Lower<'_, '_, '_> {
                     let mutable = p.direct_token(toks, TokenKind::KwMut).is_some();
                     // `fn.method.ref-self`: `&self` is `&Self` and
                     // `&mut self` is `&mut Self`, for every kind of type.
-                    let st = if p.direct_token(toks, TokenKind::Amp).is_some() {
+                    // `fn.method.counted-self`: `*self` and `*mut self` are
+                    // today's reference too.
+                    let st = if p.direct_token(toks, TokenKind::Amp).is_some()
+                        || p.direct_token(toks, TokenKind::Star).is_some()
+                    {
                         pool.intern_ty(&TyData::Ref { inner: st, mutable })
                     } else if mutable && !own_copy {
                         pool.intern_ty(&TyData::Mut(st))

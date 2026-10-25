@@ -481,8 +481,9 @@ impl Parser<'_> {
                 // grammar.fn.param-mut: `mut` before the name marks the
                 // parameter's own changeable copy.
                 // grammar.fn.receiver-ref: `&self` and `&mut self` refer to
-                // the caller's value.
-                let amp_self = self.at(TokenKind::Amp)
+                // the caller's value; grammar.fn.receiver-counted: so do
+                // `*self` and `*mut self`.
+                let amp_self = (self.at(TokenKind::Amp) || self.at(TokenKind::Star))
                     && match self.nth(1) {
                         Some(TokenKind::KwSelfValue) => true,
                         Some(TokenKind::KwMut) => self.nth(2) == Some(TokenKind::KwSelfValue),

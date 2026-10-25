@@ -228,9 +228,11 @@ impl Ck<'_, '_> {
             .children()
             .filter(|p| p.kind() == SyntaxKind::Parameter)
             .filter(|p| {
-                // `&mut self` is a reference, not a changeable copy.
+                // `&mut self` and `*mut self` are references, not a
+                // changeable copy.
                 p.direct_token(toks, TokenKind::KwMut).is_some()
                     && p.direct_token(toks, TokenKind::Amp).is_none()
+                    && p.direct_token(toks, TokenKind::Star).is_none()
             })
             .map(|p| {
                 if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
