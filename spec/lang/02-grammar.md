@@ -488,17 +488,19 @@ value_parameter = [ "mut" ], identifier, ":", type, [ "=", expression ]
                 | [ "mut" ], identifier, "...", ":", type
                 ;
 
-receiver_parameter = "self" | "mut", "self" | "&", "self" | "&", "mut", "self" ;
+receiver_parameter = "self" | "mut", "self" | "&", "self" | "&", "mut", "self"
+                   | "*", "self" | "*", "mut", "self" ;
 ```
 
 1. r[grammar.fn.receiver] The receiver forms are valid only for methods.
 2. r[grammar.fn.receiver-ref] `&self` and `&mut self` are receivers that take a reference; [Reference Receivers](07-functions.md#reference-receivers) states their meaning.
-3. r[grammar.fn.param-mut] `mut` before a parameter name marks a parameter whose value changes. [Parameters](07-functions.md#parameters) states its meaning.
-4. r[grammar.fn.decorator-param-targets] Among function parameters, parameter decorators are valid only on value parameters of module-level named functions and of methods. Variant payload parameters also accept them, as [Enums](#enums) states.
-5. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
-6. r[grammar.fn.vararg-name] A [vararg](07-functions.md#varargs) parameter writes `...` after its name, as in `values...: List[i32]`; it takes no default and must be the final positional parameter.
-7. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
-8. r[grammar.fn.opaque-result] `impl` begins only a whole named-function result annotation; it is invalid in parameters, fields, bindings, closure annotations, function types, and nested type positions. Error: `syntax-error`.
+3. r[grammar.fn.receiver-counted] `*self` and `*mut self` are receivers that take a counted reference, for a method that keeps `self`. [Reference Receivers](07-functions.md#reference-receivers) states their meaning.
+4. r[grammar.fn.param-mut] `mut` before a parameter name marks a parameter whose value changes. [Parameters](07-functions.md#parameters) states its meaning.
+5. r[grammar.fn.decorator-param-targets] Among function parameters, parameter decorators are valid only on value parameters of module-level named functions and of methods. Variant payload parameters also accept them, as [Enums](#enums) states.
+6. r[grammar.fn.decorator.lines] Within a multiline parameter clause, each decorator may occupy its own prefix line; delimiter line breaks do not terminate the parameter.
+7. r[grammar.fn.vararg-name] A [vararg](07-functions.md#varargs) parameter writes `...` after its name, as in `values...: List[i32]`; it takes no default and must be the final positional parameter.
+8. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
+9. r[grammar.fn.opaque-result] `impl` begins only a whole named-function result annotation; it is invalid in parameters, fields, bindings, closure annotations, function types, and nested type positions. Error: `syntax-error`.
 
 ```text
 fn scaled(values...: List[i32], factor: i32) -> i32: factor  # error: nonfinal-vararg
@@ -820,7 +822,9 @@ reference_access_type = [ "mut" ], reference_type
                       | ref_type
                       ;
 
-ref_type = "&", [ "mut" ], reference_type ;
+ref_type = "&", [ "mut" ], reference_type
+         | "*", [ "mut" ], reference_type
+         ;
 
 reference_type = named_type
                | dyn_type
@@ -931,10 +935,11 @@ fn invalid(value: Box[$()]) -> void: pass  # error: generic-kind-mismatch
 6. r[grammar.type.group] Parentheses group types; unlike a one-element tuple type, grouping has no trailing comma.
 7. r[grammar.type.dyn.reference-values] A `dyn_type` writes `dyn` and a trait name with its arguments and bindings, as in the referent of `&dyn Supplier[Item = i32]`. A bare descriptor is rejected as a value type.
 8. r[grammar.type.dyn.mut] A `mut` modifier precedes `dyn`, so `dyn mut Counter` is an error. Error: `syntax-error`.
-9. r[grammar.type.dyn.optional.reference-values] `?` applies to the whole trait value reference: `&dyn Display?` is an optional reference.
+9. r[grammar.type.dyn.optional.reference-values] `?` applies to the whole trait value reference: `*dyn Display?` is an optional reference.
 10. r[grammar.type.row-owner] Inside a type, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type. That holds in a parameter type, a field type, and a type argument.
 11. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
-12. r[grammar.type.ref] `&T` and `&mut T` write reference types. [Reference Types](13-values-and-references.md#reference-types) states their syntax rules.
+12. r[grammar.type.ref] `&T` and `&mut T` write local reference types. [Reference Types](13-values-and-references.md#reference-types) states their syntax rules.
+13. r[grammar.type.counted-ref] `*T` and `*mut T` write counted reference types, with the same syntax rules. A `*` in a type is never multiplication or a dereference.
 
 ```hd
 fn readers() -> (fn() -> i32)?:

@@ -1,1 +1,9 @@
 path	issue	engine	reason
+parse/valid/counted-reference-types.hd	#834		the parser does not accept `*T`, `*mut T`, or `*self`
+typing/valid/counted-reference-storage.hd	#834		the parser does not accept `*T`, `*mut T`, or `*self`
+typing/invalid/local-reference-escapes-field.hd	#834		local-reference-escapes is not checked
+typing/invalid/local-reference-escapes-element.hd	#834		the parser does not accept `*T`; local-reference-escapes is not checked
+typing/invalid/local-reference-escapes-top-level.hd	#834		local-reference-escapes is not checked
+typing/invalid/local-reference-escapes-return.hd	#834		local-reference-escapes is not checked
+typing/invalid/local-reference-escapes-capture.hd	#834		local-reference-escapes is not checked
+typing/invalid/local-reference-escapes-type-argument.hd	#834		local-reference-escapes is not checked

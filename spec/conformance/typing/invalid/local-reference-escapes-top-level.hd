@@ -1,0 +1,7 @@
+# test: a top-level binding of a local reference is an error, since a local reference is never kept
+# Spec 13 Local References: ref.local.escape.top-level, ref.expr.kind.local.where.
+struct Point:
+    x: i32
+
+origin := Point { x: 0 }
+let origin_ref: &Point = &origin  # diagnostic: local-reference-escapes

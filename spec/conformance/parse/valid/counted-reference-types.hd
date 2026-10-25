@@ -1,0 +1,25 @@
+# Spec 02 Types: grammar.type.counted-ref; Functions: grammar.fn.receiver-counted. Spec 13 Reference Types: ref.type.counted-forms.
+struct Point:
+    x: f64
+    y: f64
+
+struct Node:
+    parent: *Node?
+    body: *mut Point
+    kids: List[*Node]
+
+impl Node:
+    fn keep(*self) -> *Node:
+        self
+
+    fn grow(*mut self) -> void: pass
+
+fn parameter(a: *Point, b: *mut Point) -> void: pass
+
+fn grouped(a: *(Point?), b: *(*Point), c: *(Point, Point), d: *dyn Display, e: *mut dyn Display) -> void: pass
+
+fn function_types(f: fn(&Point, *mut Point) -> *Point) -> void: pass
+
+fn annotated() -> void:
+    let q: *mut Point = &mut Point { x: 1.0, y: 2.0 }
+    let r: List[*mut Point] = []

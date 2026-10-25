@@ -1,0 +1,3 @@
+# test: `**T` is a syntax error, since `**` is one token
+# Spec 13 Reference Types: ref.type.counted-no-nesting.
+fn bad_power(p: **Point) -> void: pass  # diagnostic: syntax-error

@@ -786,7 +786,8 @@ fn demo() -> i32:
 7. r[fn.capture.cell.closures] Closures that capture one variable share its cell with each other.
 8. r[fn.capture.copies] Copying a closure value copies no cell: the copies share every cell the closure captured.
 9. r[fn.capture.call.any] A closure may be called any number of times, through any copy of it.
-10. r[fn.capture.reference] Capturing a reference copies the reference, as [`ref.capture.copy`](13-values-and-references.md#r-ref.capture.copy) states.
+10. r[fn.capture.reference] Capturing a counted reference copies the reference, as [`ref.capture.copy`](13-values-and-references.md#r-ref.capture.copy) states.
+11. r[fn.capture.no-local-reference] A closure must not capture a local reference, `&T` or `&mut T`, as [`ref.local.escape.capture`](13-values-and-references.md#r-ref.local.escape.capture) states. Error: `local-reference-escapes`.
 
 > **Why.** An immutable binding never changes, so copying it and sharing it
 > look the same. A variable changes, so the closure and its scope must refer
@@ -806,26 +807,26 @@ struct User:
 fn rename(user: &mut User) -> void:
     user.name = "renamed"
 
-fn plain_closure(user: &mut User) -> fn() -> void:
+fn plain_closure(user: *mut User) -> fn() -> void:
     fn() -> void:
         rename(user)
 
-fn make_appender(items: &mut List[i32]) -> fn(i32) -> void:
+fn make_appender(items: *mut List[i32]) -> fn(i32) -> void:
     fn(value: i32) -> void:
         items.push(value)
 ```
 
 1. r[fn.capture.access] A closure uses each capture with the access that the captured binding has in the enclosing scope.
-2. r[fn.capture.mutate] A closure may assign captured `let` storage, change a captured `let mut` binding in place, and write through a captured `&mut T` reference.
-3. r[fn.capture.mutate.forms] Calling a `&mut self` method on a captured `let mut` list or through a captured `&mut T` reference is such a use. So are passing a captured `&mut T` reference to a `&mut T` parameter, and returning it.
-4. r[fn.capture.readonly] A read-only capture stays read-only. Assigning a field through a captured `&T` reference is an error. Error: `not-writable`.
-5. r[fn.capture.result-not-weakened] A callable's declared `&mut T` result is not weakened when the callable is read through a `&T` reference.
+2. r[fn.capture.mutate] A closure may assign captured `let` storage, change a captured `let mut` binding in place, and write through a captured `*mut T` reference.
+3. r[fn.capture.mutate.forms] Calling a `&mut self` method on a captured `let mut` list or through a captured `*mut T` reference is such a use. So are passing a captured `*mut T` reference to a `&mut T` parameter, and returning it.
+4. r[fn.capture.readonly] A read-only capture stays read-only. Assigning a field through a captured `*T` reference is an error. Error: `not-writable`.
+5. r[fn.capture.result-not-weakened] A callable's declared `*mut T` result is not weakened when the callable is read through a read-only reference.
 
 ```text
 struct User:
     name: string
 
-fn rename(user: &User) -> void:
+fn rename(user: *User) -> void:
     change := fn() -> void:
         user.name = "Grace"  # error: not-writable
     change()
@@ -1038,7 +1039,7 @@ parser.convert::[_, User](payload)
 ## Methods And Receivers
 
 Functions declared in `impl` blocks are methods when their first parameter
-is a receiver: `self`, `mut self`, `&self`, or `&mut self`:
+is a receiver: `self`, `mut self`, `&self`, `&mut self`, `*self`, or `*mut self`:
 
 ```text
 impl User:
@@ -1051,7 +1052,7 @@ impl User:
 label := user.tagged::[string]("admin")
 ```
 
-1. r[fn.method.receiver-forms] A function declared in an `impl` block is a method when its first parameter is a **receiver**, in one of the four forms of the table below.
+1. r[fn.method.receiver-forms] A function declared in an `impl` block is a method when its first parameter is a **receiver**, in one of the forms of the table below.
 2. r[fn.method.no-long-form] A receiver has no long form, so `self: &mut Self` is an error. Error: `syntax-error`.
 3. r[fn.method.mut-self-struct] On a struct, a list or a map, `mut self` is the method's own changeable copy of the receiver, a `mut` [parameter](#parameters) named `self`. The caller's value is unchanged unless the method returns the copy and the caller keeps it.
 4. r[fn.method.no-ownership-receiver] There is no ownership-taking receiver form.
@@ -1066,11 +1067,13 @@ label := user.tagged::[string]("admin")
 | r[fn.method.receiver.mut-self] `mut self` | `Self` | on a struct, a list or a map, the method's own changeable copy of the receiver |
 | r[fn.method.receiver.ref-self] `&self` | `&Self` | a read of the caller's value, with no copy |
 | r[fn.method.receiver.ref-mut-self] `&mut self` | `&mut Self` | the caller's value, changed in place |
+| r[fn.method.receiver.counted-self] `*self` | `*Self` | a read of the caller's value, which the method may keep |
+| r[fn.method.receiver.counted-mut-self] `*mut self` | `*mut Self` | the caller's value, changed in place, which the method may keep |
 
 ### Reference Receivers
 
-A `&self` or `&mut self` method refers to the caller's value, and a call
-takes the receiver's address for it:
+A `&self`, `&mut self`, `*self`, or `*mut self` method refers to the
+caller's value, and a call takes the receiver's address for it:
 
 ```hd
 struct Vec2:
@@ -1093,16 +1096,22 @@ fn demo() -> f64:
 
 1. r[fn.method.ref-self] In a `&self` method `self` is a reference `&Self`, and in a `&mut self` method `&mut Self`. Reads and writes through it follow [Values And References](13-values-and-references.md).
 2. r[fn.method.ref-self.kinds] A method of any type may take `&self` or `&mut self`: a struct, an enum, or a primitive.
-3. r[fn.method.auto-address] Calling a `&self` or `&mut self` method on a place takes the place's address. `p.shift(d)` means `(&mut p).shift(d)`, and no mark appears at the call.
-4. r[fn.method.auto-address.place] A place is what `&` refers to ([Places And New Objects](13-values-and-references.md#places-and-new-objects)): a binding, a struct field of a place, or a value reached through a reference.
-5. r[fn.method.auto-address.reference] A receiver that is itself a reference is passed on, so through `r: &mut Vec2`, `r.shift(d)` changes what `r` refers to.
-6. r[fn.method.auto-address.temporary] On a non-place temporary, a `&self` or `&mut self` call refers to a new object holding its value.
-7. r[fn.method.auto-address.temporary.call] The receiver temporary is kept alive until the call returns.
-8. r[fn.method.auto-address.place-writable] When a `&mut self` call addresses a place, that place must be [writable](04-type-system.md#writable-places). Error: `not-writable`.
-9. r[fn.method.auto-address.fix] The fix-it writes `let mut` for a `let` or `:=` binding, `mut` before a parameter name, and `&mut self` for a `self` receiver.
-10. r[fn.method.auto-address.shared-reference] A `&mut self` call through a `&T` reference is an error. Error: `not-writable`.
-11. r[fn.method.auto-address.collection-element] A list element or a map value is a place for the call, as in `bodies[i].shift(d)` and `teams[name].rename(n)`, also through a reference to the collection, as in `r[i].shift(d)`. The call takes an element reference ([Element References](13-values-and-references.md#element-references)) whose access lasts from before the arguments are evaluated until the call returns. A `&mut self` call needs the collection in a writable place, as `&mut xs[i]` does.
-12. r[fn.method.self-struct-write] Writing a field of `self` in a struct's `self` method is an error, with a fix-it that takes `&mut self`. Error: `non-reassignable-parameter-binding`.
+3. r[fn.method.ref-self.local] `&self` and `&mut self` are local references, so the method must not store, return, or capture `self`. Error: `local-reference-escapes`.
+4. r[fn.method.ref-self.local.fix] The diagnostic's fix-it writes `*self` for `&self`, and `*mut self` for `&mut self`.
+5. r[fn.method.counted-self] In a `*self` method `self` is a counted reference `*Self`, and in a `*mut self` method `*mut Self`. The method may store, return, and capture it.
+6. r[fn.method.counted-self.kinds] A method of any type may take `*self` or `*mut self`, as for `&self`.
+7. r[fn.method.counted-self.address] A `*self` or `*mut self` call takes its receiver's address by the rules below for `&self` and `&mut self` calls, and the reference it takes is counted.
+8. r[fn.method.counted-self.local-receiver] A `*self` or `*mut self` call through a local reference is an error, since a local reference never converts to a counted one. Error: `local-reference-escapes`.
+9. r[fn.method.auto-address] Calling a `&self` or `&mut self` method on a place takes the place's address. `p.shift(d)` means `(&mut p).shift(d)`, and no mark appears at the call.
+10. r[fn.method.auto-address.place] A place is what `&` refers to ([Places And New Objects](13-values-and-references.md#places-and-new-objects)): a binding, a struct field of a place, or a value reached through a reference.
+11. r[fn.method.auto-address.reference] A receiver that is itself a reference is passed on, so through `r: &mut Vec2`, `r.shift(d)` changes what `r` refers to.
+12. r[fn.method.auto-address.temporary] On a non-place temporary, a `&self` or `&mut self` call refers to a new object holding its value.
+13. r[fn.method.auto-address.temporary.call] The receiver temporary is kept alive until the call returns.
+14. r[fn.method.auto-address.place-writable] When a `&mut self` call addresses a place, that place must be [writable](04-type-system.md#writable-places). Error: `not-writable`.
+15. r[fn.method.auto-address.fix] The fix-it writes `let mut` for a `let` or `:=` binding, `mut` before a parameter name, and `&mut self` for a `self` receiver.
+16. r[fn.method.auto-address.shared-reference] A `&mut self` call through a `&T` reference is an error. Error: `not-writable`.
+17. r[fn.method.auto-address.collection-element] A list element or a map value is a place for the call, as in `bodies[i].shift(d)` and `teams[name].rename(n)`, also through a reference to the collection, as in `r[i].shift(d)`. The call takes an element reference ([Element References](13-values-and-references.md#element-references)) whose access lasts from before the arguments are evaluated until the call returns. A `&mut self` call needs the collection in a writable place, as `&mut xs[i]` does.
+18. r[fn.method.self-struct-write] Writing a field of `self` in a struct's `self` method is an error, with a fix-it that takes `&mut self`. Error: `non-reassignable-parameter-binding`.
 
 ```text
 struct Point:

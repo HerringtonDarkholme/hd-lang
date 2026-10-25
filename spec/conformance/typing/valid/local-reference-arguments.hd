@@ -1,0 +1,32 @@
+# test: local references are passed to `&` and `&mut` parameters, bound to annotated locals, and passed on
+# Spec 13 Local References: ref.local.uses, ref.local.argument; Places And New Objects: ref.expr.kind.local, ref.expr.kind.local.where.
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn shift(&mut self, dx: i32) -> void:
+        self.x += dx
+
+    fn total(&self) -> i32:
+        self.x + self.y
+
+fn nudge(p: &mut Point) -> void:
+    p.x += 1
+
+fn read(p: &Point) -> i32:
+    p.x
+
+fn forward(p: &mut Point) -> i32:
+    q := p
+    nudge(q)
+    p.shift(2)
+    read(p) + p.total()
+
+fn demo() -> i32:
+    let mut origin = Point { x: 0, y: 0 }
+    nudge(&mut origin)
+    let r: &mut Point = &mut origin
+    nudge(r)
+    let view: &Point = &origin
+    read(view) + forward(&mut origin)

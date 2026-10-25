@@ -312,7 +312,7 @@ the iterator adapters, `collect`, and `FromIterator`.
 1. r[flow.for.list] The built-in `List[T]` iterable yields each element as `T`, whether the list is reached directly or through a reference.
 2. r[flow.for.map.entries] The built-in `Map[K, V]` iterable yields `(K, V)` tuples in the map's [iteration order](04-type-system.md#r-types.map.order.deterministic).
 3. r[flow.for.map.value] Destructuring each entry yields the value as `V`, whether the map is reached directly or through a reference.
-4. r[flow.for.no-root-grant] A loop binding is not writable, even when the list is in a writable place or behind a `&mut` reference. Changing a field of an element it binds is an error. Writing through an element of a `&mut U` type is valid. Error: `not-writable`.
+4. r[flow.for.no-root-grant] A loop binding is not writable, even when the list is in a writable place or behind a `&mut` reference. Changing a field of an element it binds is an error. Writing through an element of a `*mut U` type is valid. Error: `not-writable`.
 5. r[flow.for.library] Libraries may provide additional mutable-iteration APIs with separate aliasing rules.
 6. r[flow.for.collection.reference] Outside [Element Reference Loops](#element-reference-loops), a `for` over a reference to a `List` or `Map` iterates the referenced value.
 

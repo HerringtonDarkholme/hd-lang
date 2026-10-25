@@ -1,0 +1,7 @@
+# test: pushing a local reference into a list of counted references is an error, since a local reference is never stored
+# Spec 13 Local References: ref.local.escape.element, ref.local.escape.counted.
+struct Point:
+    x: i32
+
+fn keep(points: &mut List[*Point], p: &Point) -> void:
+    points.push(p)  # diagnostic: local-reference-escapes

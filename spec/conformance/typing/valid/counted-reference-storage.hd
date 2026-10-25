@@ -1,0 +1,56 @@
+# test: counted references are stored in fields and lists, returned, captured, used as type arguments, and lent to `&` parameters
+# Spec 13 Reference Types: ref.type.counted-forms, ref.type.position; Places And New Objects: ref.expr.kind.counted; Conversions: ref.convert.lend.
+struct Point:
+    x: i32
+
+struct Holder:
+    point: *mut Point
+    seen: List[*Point]
+
+impl Holder:
+    fn keep(*self) -> *Holder:
+        self
+
+    fn add(*mut self, p: *Point) -> *mut Holder:
+        self.seen.push(p)
+        self
+
+fn make() -> *mut Point:
+    &mut Point { x: 0 }
+
+fn address() -> Holder:
+    let mut origin = Point { x: 1 }
+    Holder { point: &mut origin, seen: [] }
+
+fn unannotated() -> *Point:
+    origin := Point { x: 2 }
+    kept := &origin
+    kept
+
+fn generic[T](value: T) -> T:
+    value
+
+fn inferred() -> List[*Point]:
+    a := Point { x: 3 }
+    b := Point { x: 4 }
+    one := generic(&a)
+    [one, &b]
+
+fn store(points: &mut List[*Point], p: *Point) -> void:
+    points.push(p)
+
+fn reader(p: *Point) -> fn() -> i32:
+    fn() -> i32: p.x
+
+fn first(points: List[*Point]) -> *Point?:
+    if points.len() == 0: .None else: .Some(points[0])
+
+fn read(p: &Point) -> i32:
+    p.x
+
+fn nudge(p: &mut Point) -> void:
+    p.x += 1
+
+fn lend(h: Holder) -> i32:
+    nudge(h.point)
+    read(h.point)

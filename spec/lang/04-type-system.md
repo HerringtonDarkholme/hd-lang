@@ -34,7 +34,7 @@ See also: [Type Inference Boundaries](#type-inference-boundaries).
 | Associated type projections | such as `T::Item` |
 | Trait value types | |
 | Transparent aliases and nominal newtypes | |
-| Reference types | `&T`, `&mut T` |
+| Reference types | `*T`, `*mut T`, `&T`, `&mut T` |
 | Opaque function result types | `impl Trait[Args]` |
 
 1. r[types.suspend] `Suspend[T]` is the dynamic one-shot computation protocol.
@@ -710,7 +710,7 @@ fn demo(flag: bool) -> i32?:
 2. r[types.option.propagate] Postfix `?` on an optional expression either produces its contained value or returns `.None` from the nearest function.
 3. r[types.option.propagate.result] That function must itself return a compatible optional type.
 4. r[types.option.propagate.one-layer] Postfix `?` removes and propagates one optional layer at a time.
-5. r[types.option.propagate.permission] A present value keeps the optional's declared contained type `T`, including `&mut U` when `T = &mut U`; unwrapping does not weaken that generic argument.
+5. r[types.option.propagate.permission] A present value keeps the optional's declared contained type `T`, including `*mut U` when `T = *mut U`; unwrapping does not weaken that generic argument.
 
 ```hd
 fn first(items: List[i32]) -> i32?:
@@ -793,7 +793,7 @@ fn save(ready: bool) -> Result[void, string]:
 3. r[types.result.propagate.one-step] The error reaches `F` in one step: by one rule of [Assignability And Coercion](#assignability-and-coercion), or otherwise by one call of `F`'s `From[E]` implementation.
 4. r[types.result.propagate.not-both] The step is never both, and conversions are never chained.
 5. r[types.result.err-value] Returning an `.Err` value without `?` does not itself alter control flow, and it never calls a conversion.
-6. r[types.result.propagate.permission] The success value retains its declared generic type `T`, including `&mut U` when `T = &mut U`.
+6. r[types.result.propagate.permission] The success value retains its declared generic type `T`, including `*mut U` when `T = *mut U`.
 7. r[types.result.no-effects] The core language does not use effect syntax for recoverable errors.
 
 ```hd
@@ -960,12 +960,12 @@ fn demo() -> string:
 r[types.assign] An expression of type `S` is assignable to a location of type `T` when at least one of these rules applies:
 
 1. r[types.assign.identical] `S` and `T` are identical after expanding transparent aliases.
-2. r[types.assign.weaken] `S` is `mut Suspend[U]` and `T` is its readonly form `Suspend[U]`, or `S` is `&mut U` and `T` is `&U`, by [`ref.convert.weaken`](13-values-and-references.md#r-ref.convert.weaken).
+2. r[types.assign.weaken] `S` is `mut Suspend[U]` and `T` is its readonly form `Suspend[U]`, or `S` is a writable reference and `T` the read-only one of its kind, as `*mut U` and `*U`, by [`ref.convert.weaken`](13-values-and-references.md#r-ref.convert.weaken).
 3. r[types.assign.variance] A declared generic variance conversion permits the readonly outer type to change its type arguments.
 6. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
 7. r[types.assign.row-subsumption] `S` and `T` are function types, and `T`'s row entails every key of `S`'s row. Then `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
 8. r[types.assign.never] `S` is `never`, as [`types.never.assignable`](#r-types.never.assignable) states.
-9. r[types.assign.trait-value.ref] `T` is a trait value reference, `&dyn Trait` or `&mut dyn Trait`, and `S` converts to it by [Trait Value References](09-traits.md#trait-value-references).
+9. r[types.assign.trait-value.ref] `T` is a trait value reference, such as `&dyn Trait` or `*mut dyn Trait`, and `S` converts to it by [Trait Value References](09-traits.md#trait-value-references).
 
 ```text
 trait Counter:
@@ -1004,12 +1004,13 @@ fn demo() -> i32:
 
 ### Access Permission
 
-A `&mut T` reference and a `mut Suspend[T]` permit writes. A `&T` and a
-readonly `Suspend[T]` do not, and never gain that permission.
+A `*mut T` or `&mut T` reference and a `mut Suspend[T]` permit writes. A
+`*T`, a `&T`, and a readonly `Suspend[T]` do not, and never gain that
+permission.
 
-1. r[types.mut.weaken] A `mut Suspend[T]` may be used as a `Suspend[T]`, and a `&mut T` as a `&T`.
-2. r[types.mut.no-upgrade] A `Suspend[T]` must never be upgraded to `mut Suspend[T]`, nor a `&T` to `&mut T`. An upgrade is an error. Error: `mutable-upgrade`.
-3. r[types.mut.no-upgrade.inference] The error includes an upgrade that generic inference would produce. Given `keep[T](value: T) -> T`, binding `keep(user)` with `user: &User` to a `&mut User` declaration is rejected rather than inferring `T` as `&mut User`.
+1. r[types.mut.weaken] A `mut Suspend[T]` may be used as a `Suspend[T]`, a `*mut T` as a `*T`, and a `&mut T` as a `&T`.
+2. r[types.mut.no-upgrade] A `Suspend[T]` must never be upgraded to `mut Suspend[T]`, nor a `*T` or `&T` to `*mut T` or `&mut T`. An upgrade is an error. Error: `mutable-upgrade`.
+3. r[types.mut.no-upgrade.inference] The error includes an upgrade that generic inference would produce. Given `keep[T](value: T) -> T`, binding `keep(user)` with `user: *User` to a `*mut User` declaration is rejected rather than inferring `T` as `*mut User`.
 4. r[types.mut.argument] A readonly `Suspend[T]` argument cannot satisfy a `mut Suspend[T]` parameter. Error: `readonly-argument-to-mutable-parameter`.
 5. r[types.mut.argument.infer] Before reporting this error for a generic mutable parameter, inference solves its type variables from the argument's readonly shape.
 
@@ -1023,9 +1024,9 @@ struct User:
 fn keep[T](value: T) -> T:
     value
 
-fn invalid(user: &User) -> void:
-    let mutable: &mut User = user     # error: mutable-upgrade
-    let kept: &mut User = keep(user)  # error: mutable-upgrade
+fn invalid(user: *User) -> void:
+    let mutable: *mut User = user     # error: mutable-upgrade
+    let kept: *mut User = keep(user)  # error: mutable-upgrade
 ```
 
 See also: [Conversions](13-values-and-references.md#conversions).
@@ -1249,7 +1250,7 @@ fn tagged(names: List[string]) -> List[string]:
 7. r[types.coll.writable.store] An element store into such a list or map, or a field write through its element, is an error with the same fix-it. Error: `not-writable`.
 8. r[types.coll.element-place] An element of a list in a writable place is a writable place. So `xs[i] = v`, `xs[i].x = v`, and `xs[i].push(v)` change `xs` in place.
 9. r[types.coll.nested] A change through a path, such as `m[k].push(x)`, `team.members.push(x)`, or `xs[i].name = n`, changes the inner value where it is stored. A `mut self` method called on such a path changes only its own copy ([`fn.method.mut-self-struct`](07-functions.md#r-fn.method.mut-self-struct)), so the inner value stays as it was.
-10. r[types.coll.shared] A list or a map that two places share is written `&mut List[T]` or `&mut Map[K, V]`. A change through the reference changes the place it refers to.
+10. r[types.coll.shared] A list or a map that two places share is written `*mut List[T]` or `*mut Map[K, V]`, or `&mut List[T]` or `&mut Map[K, V]` when lent to one call. A change through the reference changes the place it refers to.
 
 ```text
 fn names() -> usize:
@@ -1268,7 +1269,7 @@ fn same(left: List[i32], right: List[i32]) -> bool:
 
 > **Why.** A list that every binding shares lets a callee change its
 > caller's list with no mark at the call. A value changes only where its
-> place is written, and sharing is written `&mut`. Writing through the path
+> place is written, and sharing is written `*mut` or `&mut`. Writing through the path
 > keeps building a map of lists linear: each push copies nothing.
 
 ### Map Values
@@ -1385,9 +1386,9 @@ arguments' types may differ only in an outer `mut`:
 1. r[types.generic.infer.join] When generic call inference solves one type parameter from several arguments, the only conversion between their types is permission weakening. A `mut Suspend[X]` and a `Suspend[X]` meet at `Suspend[X]`.
 2. r[types.generic.infer.join.no-trait-value] A trait-value conversion never applies, as [`types.lct.no-trait-value`](#r-types.lct.no-trait-value) states for the least common type. So `cmp(user, label)` with a `User` and a `Display` argument is an error. Error: `no-common-type`.
 3. r[types.generic.infer.join.no-supertrait-widening] A supertrait widening never applies either, so two arguments of two child traits of one supertrait are an error. Error: `no-common-type`.
-4. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error. Examples are `choose(1, true)`, `max(small, large)` with an `i32` and an `i64`, a `&mut User` and a `&User`, and a `T` and a `T?`. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
+4. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error. Examples are `choose(1, true)`, `max(small, large)` with an `i32` and an `i64`, a `*mut User` and a `*User`, and a `T` and a `T?`. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
 5. r[types.generic.infer.join.literal] An integer literal argument is not a conversion: it takes the type solved from the other arguments as its expected type, in any position. So `pick(1, large)` with an `i64` `large` solves `T = i64`.
-6. r[types.generic.infer.join.explicit.reference-values] An explicit type argument, as in `cmp::[&dyn Display](&user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait.reference-values`](#r-types.lct.expected-trait.reference-values) allows.
+6. r[types.generic.infer.join.explicit.reference-values] An explicit type argument, as in `cmp::[*dyn Display](&user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait.reference-values`](#r-types.lct.expected-trait.reference-values) allows.
 7. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
 
 ```text
@@ -1402,7 +1403,7 @@ fn cmp[T < Display](left: T, right: T) -> bool:
 fn widest(small: i32, large: i64) -> i64:
     max(small, large)  # error: type-mismatch
 
-fn same(user: User, label: &dyn Display) -> bool:
+fn same(user: User, label: *dyn Display) -> bool:
     cmp(user, label)  # error: no-common-type
 ```
 
@@ -1419,8 +1420,8 @@ fn either(large: i64) -> i64:
 fn widest(small: i32, large: i64) -> i64:
     max(i64(small), large)
 
-fn same(user: User, label: &dyn Display) -> bool:
-    cmp::[&dyn Display](&user, label)
+fn same(user: User, label: *dyn Display) -> bool:
+    cmp::[*dyn Display](&user, label)
 ```
 
 > **Why.** A call's arguments are not a list literal. A reader expects `T`
@@ -1818,13 +1819,13 @@ See also: [Polarity](#polarity), [`types.option.invariant`](#r-types.option.inva
 
 ### Readonly Outer Views
 
-1. r[types.variance.readonly-only] Variance conversion applies only to a readonly outer type: one not written `&mut` or `mut`, such as `G[T]` or `&G[T]`.
-2. r[types.variance.mut-invariant] Every `&mut G[T]` reference, and every `mut Suspend[T]`, is invariant in all generic arguments.
+1. r[types.variance.readonly-only] Variance conversion applies only to a readonly outer type: one not written `*mut`, `&mut`, or `mut`, such as `G[T]`, `*G[T]`, or `&G[T]`.
+2. r[types.variance.mut-invariant] Every writable reference, `*mut G[T]` or `&mut G[T]`, and every `mut Suspend[T]`, is invariant in all generic arguments.
 3. r[types.variance.list] The built-in `List` declares a covariant element parameter.
 4. r[types.variance.map] `Map[K, V]` is invariant in `K` and covariant in `V`.
 5. r[types.variance.function] The function type constructors `Fn` and `SuspendFn` are contravariant in each input element, covariant in the output, and invariant in the requirement row.
 
-> **Why.** A `&mut` reference may replace stored values. Map keys are both
+> **Why.** A writable reference may replace stored values. Map keys are both
 > accepted for lookup and exposed during traversal. Converting a function's
 > row would change which providers the call passes, so the row stays
 > invariant under variance. A function value itself may still widen its row
@@ -1838,7 +1839,7 @@ struct User:
 struct Box[+T]:
     value: T
 
-fn demo(box: &Box[&mut User]) -> &Box[&User]:
+fn demo(box: *Box[*mut User]) -> *Box[*User]:
     box   # a readonly outer type converts covariantly
 ```
 
@@ -1846,7 +1847,7 @@ fn demo(box: &Box[&mut User]) -> &Box[&User]:
 
 1. r[types.variance.repr.covariant] A variance conversion `G[S] -> G[T]` requires a representation-preserving `S -> T` conversion for each covariant argument.
 2. r[types.variance.repr.contravariant] A variance conversion `G[S] -> G[T]` requires a representation-preserving `T -> S` conversion for each contravariant argument.
-3. r[types.variance.repr.weakening] Permission weakening, `&mut U -> &U` or `mut Suspend[U] -> Suspend[U]`, is representation-preserving.
+3. r[types.variance.repr.weakening] Permission weakening, `*mut U -> *U`, `&mut U -> &U`, or `mut Suspend[U] -> Suspend[U]`, is representation-preserving.
 4. r[types.variance.repr.excluded] These conversions are not representation-preserving:
    - construction of a trait value reference such as `&i32 -> &dyn Display` or `&User -> &dyn Display`;
    - child-dynamic-trait to supertrait widening;
@@ -1854,8 +1855,8 @@ fn demo(box: &Box[&mut User]) -> &Box[&User]:
 5. r[types.variance.no-insertion] Variance never inserts element wrappers, metadata rewrapping, boxing, copies, or per-access conversions. A variance conversion that would need one is an error. Error: `variance-representation-change`.
 
 ```hd
-fn demo(items: &mut List[i32]) -> &List[i32]:
-    items   # weakening &mut U to &U keeps the representation
+fn demo(items: *mut List[i32]) -> *List[i32]:
+    items   # weakening *mut U to *U keeps the representation
 ```
 
 See also: [Representation-Preserving Conversions](#representation-preserving-conversions).
@@ -1879,10 +1880,10 @@ fn demo(user: User) -> &dyn Any:
 
 ### Trait Value Types
 
-1. r[types.trait.value.reference-values] A trait value type is `&dyn Tr` or `&mut dyn Tr`, referring to an object whose concrete type implements `Tr`.
+1. r[types.trait.value.reference-values] A trait value type is `&dyn Tr` or `&mut dyn Tr`, or counted, `*dyn Tr` or `*mut dyn Tr`, referring to an object whose concrete type implements `Tr`.
 2. r[types.trait.value.contents.reference-values] A trait value reference holds a reference to an object and dispatch metadata for its trait.
 3. r[types.trait.value.dyn-required.reference-values] A bare trait name in a type position is an error whose fix-it writes `&dyn`. Error: `trait-used-as-type`.
-4. r[types.trait.value.bound.reference-values] A dynamic trait value type satisfies a generic bound on its own trait and on each of that trait's supertraits. For example, a `&dyn Display` value is a valid argument for `T < Display`.
+4. r[types.trait.value.bound.reference-values] A dynamic trait value type satisfies a generic bound on its own trait and on each of that trait's supertraits. For example, a `*dyn Display` value is a valid argument for `T < Display`.
 5. r[types.trait.value.bound.available.reference-values] It satisfies such a bound only when every member of the bound's trait is available on the `dyn` value, as [`trait.dyn.bound.reference`](09-traits.md#r-trait.dyn.bound.reference) states.
 6. r[types.trait.value.bindings.reference-values] A trait value type may bind the trait's associated types, as in `&dyn Supplier[Item = i32]`, as [Bound Associated Types](09-traits.md#bound-associated-types) specifies.
 7. r[types.trait.value.not-target] A dynamic trait value type is still not an implementation target.
@@ -1996,7 +1997,7 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 | r[types.sealed.anyval-members] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, `List`, `Map`, and function types | These values have no identity. |
 | r[types.sealed.anyref-members.reference-values] `AnyRef` | reference types, trait value references included; suspensions and runtime handles with identity | These values have identity. |
 
-5. r[types.sealed.newtype] A newtype has its base type's category: `type Mile(i32)` implements `AnyVal`, and `type Owner(&User)` implements `AnyRef`.
+5. r[types.sealed.newtype] A newtype has its base type's category: `type Mile(i32)` implements `AnyVal`, and `type Owner(*User)` implements `AnyRef`.
 6. r[types.sealed.never] `never` implements neither, because it has no values.
 7. r[types.sealed.type-parameter] A type parameter implements `AnyVal` or `AnyRef` only through its bound.
 8. r[types.sealed.bounds] `T < AnyVal` accepts only `AnyVal` types, and `T < AnyRef` accepts only `AnyRef` types.
@@ -2020,7 +2021,7 @@ This section defines which types may be map keys, and how keys behave.
 6. r[types.map-key.user-enums] Every user struct and every user enum, including a payload-free one, require an explicit or derived implementation of both traits.
 7. r[types.map-key.float-no-hash] Floating-point types implement `Eq` but not `Hash`, so they are not valid map keys.
 8. r[types.map-key.no-map-hash] Consequently maps have no built-in hash and impose no order-independent map-hash obligation.
-9. r[types.map-key.reference] A reference type implements `Eq` and `Hash` when the type it refers to does, so `&T` may be a key, compared and hashed by value. A map keyed by place uses [`Id[T]`](../std/cmp.md#identity-keys).
+9. r[types.map-key.reference] A reference type implements `Eq` and `Hash` when the type it refers to does, so `*T` may be a key, compared and hashed by value. A map keyed by place uses [`Id[T]`](../std/cmp.md#identity-keys).
 
 ```text
 struct UserId:
@@ -2064,7 +2065,7 @@ fn demo() -> List[string]:
 1. r[types.map.no-reindex] If a stored key's equality or hash changes after insertion, the map does not automatically reindex it.
 2. r[types.map.stale] The entry can remain visible during iteration yet be unreachable by lookup or removal with the mutated key: a stale entry.
 3. r[types.map.no-repair] Such mutation does not trigger a compile-time error or an automatic repair.
-4. r[types.map.reference-key] A key that holds a `&mut` reference, at any depth, changes when the value the reference refers to is written through any path. Its entry then becomes a stale entry.
+4. r[types.map.reference-key] A key that holds a `*mut` reference, at any depth, changes when the value the reference refers to is written through any path. Its entry then becomes a stale entry.
 
 ```hd
 use std.hash.Hash
@@ -2132,7 +2133,7 @@ arguments uses a narrower join, permission weakening only
 1. r[types.lct.no-any.reference-values] The compiler never falls back to `&dyn Any` merely to make heterogeneous values type-check.
 2. r[types.lct.no-trait-value] Unconstrained inference also does not introduce a dynamic trait-value conversion.
 3. r[types.lct.no-supertrait-widening] It also never widens a dynamic trait value to a supertrait value, so values of two child traits of one supertrait have no common type.
-4. r[types.lct.expected-trait.reference-values] An expected type such as `List[&dyn Display]` or `Map[K, &dyn Display]` may request that conversion explicitly.
+4. r[types.lct.expected-trait.reference-values] An expected type such as `List[*dyn Display]` or `Map[K, *dyn Display]` may request that conversion explicitly.
 5. r[types.lct.contextual] A contextual variant, `.None` included, takes its type only from an expected type, never from the other values.
 6. r[types.lct.contextual.error] `[1, .None]` or `if c: 1 else: .None` without an expected type is an error. Error: `missing-contextual-enum-type`.
 7. r[types.lct.contextual.expected] `let values: List[i32?] = [1, .None]` supplies the type.
@@ -2153,12 +2154,12 @@ fn pick(flag: bool) -> void:
 3. r[types.lct.no-least] When they have common types but these rules admit no unique least one, the failure is an error. Error: `no-least-common-type`.
 
 ```text
-fn mix(shown: &dyn Shown, tagged: &dyn Tagged) -> void:
+fn mix(shown: *dyn Shown, tagged: *dyn Tagged) -> void:
     items := [shown, tagged]  # error: no-common-type
 ```
 
 Here `Shown` and `Tagged` are traits that both extend `Named`;
-`let items: List[&dyn Named] = [shown, tagged]` is valid.
+`let items: List[*dyn Named] = [shown, tagged]` is valid.
 
 ## Type Inference Boundaries
 

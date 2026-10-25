@@ -11,6 +11,13 @@ and review that led here are in git history at `d9f79e1a8`. This
 document changes no spec, std or compiler text, and will fold into
 [Object Model, Tier 2](OBJECT_MODEL_TIER2.md).
 
+**Step 1.** The owner cut the first step to two changes
+([#834](https://github.com/HerringtonDarkholme/hd-lang/issues/834)):
+today's reference is spelled `*T`, and `&T` is a non-escaping reference
+that is still counted. Its spec is in
+[Local References](../../spec/lang/13-values-and-references.md#local-references).
+Everything else here is a later step.
+
 ## Contents
 
 1. [The Design](#1-the-design)

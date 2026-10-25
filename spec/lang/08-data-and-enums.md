@@ -38,15 +38,15 @@ fn demo() -> f64:
 1. r[data.struct.decl] `struct Name:` declares a struct. Its body holds named fields, defaults, visibility, decorators, and generic parameters.
 2. r[data.decl.nominal] Struct identity is nominal: two declarations with the same fields introduce different types.
 3. r[data.struct.value] A struct is a value type, as [Value Types](04-type-system.md#value-types) defines.
-4. r[data.struct.receiver-forms] A method of a struct takes `self` or `mut self`, its own read-only or changeable copy of the receiver, or `&self` or `&mut self`, a [reference](07-functions.md#reference-receivers) to the caller's value.
+4. r[data.struct.receiver-forms] A method of a struct takes `self` or `mut self`, its own read-only or changeable copy of the receiver, or `&self`, `&mut self`, `*self`, or `*mut self`, a [reference](07-functions.md#reference-receivers) to the caller's value.
 5. r[data.struct.mut-self] A struct method's `mut self` changes its copy only. The caller's value is unchanged unless the method returns the copy and the caller keeps it.
 6. r[data.struct.embed] A struct may embed a struct, by the rules of [Data Embedding](#data-embedding) for names, limits, and member promotion. An embedded field is a value field, held inline.
 7. r[data.struct.embed.plain] A struct literal fills an embedded field as it fills a named field, as in `Post { Timestamps: ts }`, and `post.Timestamps = ts` assigns it. Both copy the value, as every struct copy does.
 8. r[data.struct.no-recursion] A struct that contains itself by value is an error. Error: `recursive-value-type`.
 9. r[data.struct.contains] A value contains the values of its struct fields, enum payloads, tuple elements, optional payload, and newtype base, and what those contain.
 10. r[data.struct.contains.ends] A collection, a trait value, or a function value holds a reference, so containment ends there.
-11. r[data.struct.contains.reference] A [reference](13-values-and-references.md#reference-types), `&T` or `&mut T`, also ends containment.
-12. r[data.struct.no-recursion.fix] The `recursive-value-type` error of a struct has a fix-it that writes `&` before the type of each field that contains the struct.
+11. r[data.struct.contains.reference] A [counted reference](13-values-and-references.md#reference-types), `*T` or `*mut T`, also ends containment.
+12. r[data.struct.no-recursion.fix] The `recursive-value-type` error of a struct has a fix-it that writes `*` before the type of each field that contains the struct.
 
 ```text
 struct Vec2:
@@ -75,7 +75,7 @@ impl Vec2:
 
 > **Why.** A struct holds its fields inline, so one that contained itself
 > would have no finite size. Recursion goes through a reference or a
-> collection, as `next: &Chain?` and `next: List[Chain]` do.
+> collection, as `next: *Chain?` and `next: List[Chain]` do.
 
 See also: [Value Types](04-type-system.md#value-types),
 [Writable Places](04-type-system.md#writable-places).
@@ -94,14 +94,14 @@ struct User:
 1. r[data.field.unique] Field names must be unique within the struct. Error: `duplicate-field`. The named parameters of an enum header, and the named payload parameters of one variant, are unique in the same way.
 2. r[data.field.typed] Every field has an explicit type.
 3. r[data.field.no-mut-modifier] Fields have no standalone `mut` modifier: `mut friend: User` is an error. Error: `mutable-field-modifier`.
-4. r[data.field.mut-type] `friend: &mut User` declares a field whose type grants mutable access through that reference.
+4. r[data.field.mut-type] `friend: *mut User` declares a field whose type grants mutable access through that reference.
 5. r[data.field.embedded-no-mut] An embedded field is written without `mut`: `Base` embeds `Base`, and `mut Base` is an error. Error: `mutable-field-modifier`.
 
 ```text
 struct User:
     mut name: string    # error: mutable-field-modifier
     mut Base            # error: mutable-field-modifier
-    friend: &mut User   # valid: the type grants mutable access
+    friend: *mut User   # valid: the type grants mutable access
 ```
 
 > **Why.** Access to an embedded field already follows its container.
@@ -171,7 +171,7 @@ unit := Unit {}
 
 ### Recursive Data Types
 
-1. r[data.recursive.through-reference] A struct may refer to itself through a reference, an optional reference, or a collection, as `next: &Chain?` and `replies: List[Comment]` do.
+1. r[data.recursive.through-reference] A struct may refer to itself through a reference, an optional reference, or a collection, as `next: *Chain?` and `replies: List[Comment]` do.
 2. r[data.recursive.mutual] Module-level structs may also be mutually recursive through such links.
 3. r[data.recursive.local] Local structs follow declaration-point visibility and cannot refer to a later local declaration.
 4. r[data.recursive.required-fields] Recursion does not imply optionality: a program must still provide a value for every required field during construction.
@@ -179,7 +179,7 @@ unit := Unit {}
 ```hd
 struct Chain:
     value: i32
-    next: &Chain?
+    next: *Chain?
 ```
 
 > **Note.** A recursive graph therefore normally includes an optional, enum,
@@ -269,7 +269,7 @@ See also: [Data Embedding](#data-embedding),
 1. r[data.access.syntax] Field access uses `value.field`.
 2. r[data.access.writable-place] Assigning a field, or changing its value in place, requires a writable place, as [Writable Places](04-type-system.md#writable-places) states.
 3. r[data.access.assignment] Direct assignment to a visible field enforces its declared type, not arbitrary validation or cross-field invariants.
-4. r[data.access.graph] The language permits shared mutable children through `&mut` references, and does not guarantee invariants over the entire reachable object graph.
+4. r[data.access.graph] The language permits shared mutable children through `*mut` references, and does not guarantee invariants over the entire reachable object graph.
 5. r[data.access.other-module] In another module, field access reaches only public fields; member lookup skips the others.
 
 ```hd
@@ -533,7 +533,7 @@ enum ToolError:
 4. r[data.enum.payload.large] Large payloads should use a separate struct rather than a nested field block.
 5. r[data.enum.payload.no-field-blocks] Variant field blocks are not part of the language.
 6. r[data.enum.immutable] An enum value never changes once built: its variant and its payload values are fixed at construction.
-7. r[data.enum.immutable.shallow] The rule is shallow. A payload of type `&mut U` still refers to a place, which may change through that reference.
+7. r[data.enum.immutable.shallow] The rule is shallow. A payload of type `*mut U` still refers to a place, which may change through that reference.
 8. r[data.enum.no-identity] An enum value has no identity, so every enum type implements `AnyVal`, as [`types.sealed.anyval-members`](04-type-system.md#r-types.sealed.anyval-members) states.
 9. r[data.enum.no-identity.is] `is` with an enum operand is an error. Error: `identity-requires-references`.
 
@@ -723,16 +723,16 @@ enum Maybe[T]:
 
 enum Tree[T]:
     Leaf(value: T)
-    Branch(left: &Tree[T], right: &Tree[T])
+    Branch(left: *Tree[T], right: *Tree[T])
 ```
 
 1. r[data.enum.generic.params] An enum may declare generic parameters.
 2. r[data.enum.generic.instance] Every variant constructs the enclosing enum instantiated with the declaration's type arguments.
-3. r[data.enum.recursive] An enum may refer to itself through a reference, an optional reference, or a collection, as `Branch(left: &Tree[T], right: &Tree[T])` does.
+3. r[data.enum.recursive] An enum may refer to itself through a reference, an optional reference, or a collection, as `Branch(left: *Tree[T], right: *Tree[T])` does.
 4. r[data.enum.no-recursion] An enum that contains itself by value, as [`data.struct.contains`](#r-data.struct.contains) defines containment, is an error. Error: `recursive-value-type`.
-5. r[data.enum.no-recursion.fix] The error has a fix-it that writes `&` before the type of each payload field or shared field that contains the enum.
+5. r[data.enum.no-recursion.fix] The error has a fix-it that writes `*` before the type of each payload field or shared field that contains the enum.
 6. r[data.enum.no-recursion.group] Structs and enums that contain one another, each through the next, are one `recursive-value-type` error, reported at one of them.
-7. r[data.enum.no-boxing] No value is boxed implicitly: each `&` in a recursive enum is written, and `&` on a new value allocates its object.
+7. r[data.enum.no-boxing] No value is boxed implicitly: each `*` in a recursive enum's types is written, and `&` on a new value allocates its object.
 
 ```text
 enum Tree:
@@ -750,7 +750,7 @@ struct Forest:
 ```
 
 > **Why.** An enum holds its payloads inline, as a struct holds its fields,
-> so one that contained itself would have no finite size. Writing the `&`
+> so one that contained itself would have no finite size. Writing the `*`
 > keeps every allocation visible, as Go's pointers and Rust's `Box` do.
 
 > **Why.** hd has no generalized algebraic data types. A typed request and

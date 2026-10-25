@@ -674,17 +674,19 @@ trait Clock
 ### Provider Values
 
 1. r[req.use.value.ordinary-type.reference-values] A provider returned by `$.use(K)` has type `&mut dyn K` for a mutable requirement trait, and `&dyn K` otherwise.
-2. r[req.use.value.access-by-trait] Its access follows from its trait, as [Mutable Providers](#mutable-providers) describes: writable for a mutable requirement trait, not writable otherwise.
-3. r[req.use.value.flow] A provider value may flow anywhere an ordinary value of that type may flow, including fields, collections, closure captures, return values, and suspension frames.
-4. r[req.use.value.outlives-scope] A provider value remains usable after its provider scope ends.
-5. r[req.use.value.row-meaning] A requirement row therefore records unresolved provider lookup, not every authority a callable can exercise through values it holds.
+2. r[req.use.value.local] That provider is a [local reference](13-values-and-references.md#local-references), so it is never stored, returned, or captured.
+3. r[req.use.value.counted] Where a counted reference is expected, as for a `*mut dyn K` field, `$.use(K)` yields the counted `*mut dyn K` or `*dyn K` instead.
+4. r[req.use.value.access-by-trait] Its access follows from its trait, as [Mutable Providers](#mutable-providers) describes: writable for a mutable requirement trait, not writable otherwise.
+5. r[req.use.value.flow] A counted provider value may flow anywhere an ordinary value of that type may flow, including fields, collections, closure captures, return values, and suspension frames.
+6. r[req.use.value.outlives-scope] A provider value remains usable after its provider scope ends.
+7. r[req.use.value.row-meaning] A requirement row therefore records unresolved provider lookup, not every authority a callable can exercise through values it holds.
 
 ```hd
 trait Store:
     fn get(self) -> string
 
-fn keep() -> &dyn Store $ Store:
-    $.use(Store)   # an ordinary value: it may flow into a return
+fn keep() -> *dyn Store $ Store:
+    $.use(Store)   # counted: the result type expects *dyn Store
 ```
 
 ### Context Namespace

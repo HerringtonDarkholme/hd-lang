@@ -51,13 +51,13 @@ calls through a callable value that accepts a store:
 
 1. r[expr.place.local] A reassignable local introduced by `let` is a core place expression.
 2. r[expr.place.index] An index operation whose receiver and indexing protocol expose mutable storage is a core place expression.
-3. r[expr.place.receiver] The receiver of a field or index place may be any expression of a `&mut` reference type, including a call that returns one.
+3. r[expr.place.receiver] The receiver of a field or index place may be any expression of a writable reference type, `*mut T` or `&mut T`, including a call that returns a `*mut T`.
 4. r[expr.place.call-update] A call is a place only when its callee's type implements `Update`, as [Callable Values](#callable-values) defines.
 5. r[expr.place.value-forms] `:=` bindings, literals, other calls, arithmetic, and temporary values are not places.
 6. r[expr.place.tuple-element] A tuple element selection such as `pair._0` is not a place: tuples are immutable, and a changed tuple is built as a new tuple value.
 7. r[expr.place.enum-shared-field] A shared enum field such as `status.phrase` is not a place: enum values never change once built.
 8. r[expr.place.struct-field] A field of a struct value is a place when the struct is in a writable place, as [Writable Places](04-type-system.md#writable-places) defines.
-9. r[expr.place.deref] `*r` with a `&mut` reference `r` is a place, and so is a field read through one, such as `r.x`, as [Writing Through A Reference](13-values-and-references.md#writing-through-a-reference) defines.
+9. r[expr.place.deref] `*r` with a writable reference `r`, `*mut` or `&mut`, is a place, and so is a field read through one, such as `r.x`, as [Writing Through A Reference](13-values-and-references.md#writing-through-a-reference) defines.
 
 ```hd
 fn demo() -> void:
@@ -1288,7 +1288,7 @@ These rules refine the steps:
 5. r[expr.try.convert.no-combine] `?` never combines an assignability rule with a conversion, and it never chains conversions.
 6. r[expr.try.convert.no-chain] With `impl From[A] for B` and `impl From[B] for C`, a `?` on `Result[T, A]` in a function returning `Result[U, C]` is an error. Error: `invalid-result-propagation`.
 7. r[expr.try.convert.no-injection] With the same implementations, a `?` on `Result[T, A]` in a function returning `Result[U, B?]` is also an error. The conversion to `B` would need an optional injection after it. Error: `invalid-result-propagation`.
-8. r[expr.try.convert.single-rule.reference-values] Assignability is itself one rule: an `A` that implements the trait `Tr` does not propagate into `Result[U, &dyn Tr?]`.
+8. r[expr.try.convert.single-rule.reference-values] Assignability is itself one rule: an `A` that implements the trait `Tr` does not propagate into `Result[U, *dyn Tr?]`.
 9. r[expr.try.convert.only-try] Only `?` calls a conversion. `return .Err(error)` and every other `.Err` construction use ordinary assignability.
 10. r[expr.try.convert.before-defer] The conversion is part of the propagated value, so it runs before any deferred cleanup.
 11. r[expr.try.convert.pure] A conversion neither suspends nor uses a requirement, because `from` has neither.
@@ -1348,9 +1348,9 @@ tests:
 ```
 
 1. r[expr.try.test.fixed-result] When a trailing block is the body of an [`it` call](10-modules.md#test-cases), its result type is fixed rather than inferred.
-2. r[expr.try.test.with-try.reference-values] If the block contains a `?` outside any nested closure, its result type is `Result[void, &dyn Error]`, where `&dyn Error` is the erased `std.error.Error`.
+2. r[expr.try.test.with-try.reference-values] If the block contains a `?` outside any nested closure, its result type is `Result[void, *dyn Error]`, where `*dyn Error` is the erased `std.error.Error`.
 3. r[expr.try.test.without-try] Otherwise its result type is `void`.
-4. r[expr.try.test.converts.reference-values] An error implementing `Error` propagates into the test block's `&dyn Error`, sharing an existing reference or copying a value into a new object. An error that does not implement `Error` is rejected. Error: `invalid-result-propagation`.
+4. r[expr.try.test.converts.reference-values] An error implementing `Error` propagates into the test block's `*dyn Error`, sharing an existing reference or copying a value into a new object. An error that does not implement `Error` is rejected. Error: `invalid-result-propagation`.
 5. r[expr.try.test.final-value] The block's final value must be assignable to its result type, as for a function body. So a block that uses `?` usually ends in `.Ok(())`.
 6. r[expr.try.test.explicit-closure] A body passed as an explicit closure keeps its written or inferred result type. That type must implement `std.process.Termination`, the bound on `it`. Error: `unsatisfied-trait-bound`.
 7. r[expr.try.test.explicit-result-error] An explicit test body returning `Result[T, E]` requires `T < Termination` and `E < Error`. Error: `unsatisfied-trait-bound`.

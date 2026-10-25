@@ -251,7 +251,7 @@ written only with `@value` on the parameter.
 
 1. r[annot.metadata.places] A field's or variant's metadata is written with `@value` lines on it and with member lines of a derivation block with no trait for its type.
 2. r[annot.metadata.params-at-only] Parameter metadata, including a payload parameter's, is written only with `@value` lines on the parameter.
-3. r[annot.metadata.reference-storage] Member metadata and parameter metadata are stored as shared references in `List[&dyn Inspectable]`.
+3. r[annot.metadata.reference-storage] Member metadata and parameter metadata are stored as shared references in `List[*dyn Inspectable]`.
 4. r[annot.metadata.value] Any value that a global may hold may be attached to any item or member; no marker trait is required. Only a fact type's [target kinds](#target-kinds) limit where it goes.
 5. r[annot.metadata.eval-as-fact] Each metadata expression is evaluated as a [fact expression](#r-annot.fact.eval.lazy) is, and under the same [`block_on` ban](#r-annot.fact.block-on.direct).
 6. r[annot.metadata.duplicate] Two metadata values of one concrete type on one member, variant, or parameter are an error, reported on the later value. Error: `duplicate-fact`.
@@ -337,7 +337,7 @@ pub enum Target:
 pub struct Annotate:
     pub kinds: List[Target]
 
-pub fn annotate[T = &dyn Any](kinds...: List[Target]) -> Annotate:
+pub fn annotate[T = *dyn Any](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }
 ```
 
@@ -445,10 +445,10 @@ The check has three steps:
 3. r[annot.typed-fact.pattern.scope] Names in the pattern see the fact type's type parameters, as the fact type's own fields do.
 4. r[annot.typed-fact.pattern.trivial] A pattern that is one of those parameters alone, as `T` in `@annotate::[T](.Field)`, is a **trivial pattern**. That parameter is the fact type's **target parameter**, and it is inferred as the target's whole type.
 5. r[annot.typed-fact.pattern.concrete] A pattern that mentions none of the fact type's parameters, as `i32` in `@annotate::[i32](.Field)`, is valid. A value of that fact type attaches only to a target of that type, and any other target is an error. Error: `type-mismatch`.
-6. r[annot.typed-fact.untyped.reference-values] A fact type whose `annotate` type argument is the default `&dyn Any`, as in `@annotate(.Field)`, is an **untyped fact type**. Its values stay unchecked, as [Member Metadata](#member-metadata) states.
+6. r[annot.typed-fact.untyped.reference-values] A fact type whose `annotate` type argument is the default `*dyn Any`, as in `@annotate(.Field)`, is an **untyped fact type**. Its values stay unchecked, as [Member Metadata](#member-metadata) states.
 7. r[annot.typed-fact.untyped.no-annotate] A fact type without an `Annotate` fact is untyped too.
 8. r[annot.typed-fact.targets] A value of a typed fact type may be attached only to a field or a module-level function. A field is a named or embedded struct field, or a payload member. Error: `decorator-target-kind`.
-9. r[annot.typed-fact.declared-type] A target's type is the type written on the field, so for `hits: &mut Counter` it is `&mut Counter`. A function's type is its signature as a function type, with its `!` and requirement row, as in `fn(i32) -> string`.
+9. r[annot.typed-fact.declared-type] A target's type is the type written on the field, so for `hits: *mut Counter` it is `*mut Counter`. A function's type is its signature as a function type, with its `!` and requirement row, as in `fn(i32) -> string`.
 10. r[annot.typed-fact.monomorphic] For the check, a target's type is made monomorphic. Each type parameter it mentions, of a generic function or of a field's owner, is written as its bound, and an unbounded one as `Any`.
 11. r[annot.typed-fact.monomorphic.bound] There, a bound such as `Integer` or `Integer & Display` stands for one fixed type that satisfies it, the same at each mention. It is not a `dyn` type, so any bound is valid there.
 12. r[annot.typed-fact.infer] The fact type's parameters that the pattern mentions are inferred as if the monomorphic target type were the one argument of a call to `infer[P](annotatee: Q)`. Here `P` is the fact type's type-parameter list with its bounds, and `Q` is the pattern.
@@ -1023,7 +1023,7 @@ lines to write shared metadata, as
 3. r[annot.line.right-typed] The right side must be an expression of a list type, or `pass` after a member name and `=`. A named list, as in `name = shared_list`, needs no spread.
 4. r[annot.line.right.error] Any other line is an error. That includes `f += pass`, `Self = pass`, and `pass` for a whole variant, such as `Busy = pass`. Error: `invalid-member-line`.
 5. r[annot.line.right.not-list] A right side whose type is not a list type, such as `name = 5`, is this error rather than a type mismatch. Error: `invalid-member-line`.
-6. r[annot.line.reference-elements] A member line builds `List[&dyn Inspectable]`, checking typed fact elements by [`annot.typed-fact.check`](#r-annot.typed-fact.check).
+6. r[annot.line.reference-elements] A member line builds `List[*dyn Inspectable]`, checking typed fact elements by [`annot.typed-fact.check`](#r-annot.typed-fact.check).
 7. r[annot.line.duplicate] After a line applies, one member, variant, or type must not hold two facts of the same concrete type. `+=` with a type already present is an error; `=` changes it instead. Only a list literal's own elements are checked; a named list that `+=` brings is not. Error: `duplicate-fact`.
 8. r[annot.line.unchanged] A member without a line keeps its declaration facts.
 9. r[annot.line.placement-blocks] A member line anywhere other than a derivation block, with or without a trait, including in a template or an ordinary implementation, is an error. Error: `misplaced-derivation`.
@@ -1478,11 +1478,11 @@ alone, by the rules below.
 2. r[annot.self-ref.enclosing.arguments] In these rules, the enclosing type is its declaration applied to any type arguments. Inside `enum Nest[T]`, `Nest[List[T]]` is the enclosing type.
 3. r[annot.self-ref.refers] A type refers to the enclosing type when it is that type, or has a type argument or a tuple element that refers to it.
 4. r[annot.self-ref.refers.members] A struct or enum also refers to the enclosing type when one of its members has a type that refers to it.
-5. r[annot.self-ref.refers.reference] A reference type, `&T` or `&mut T`, refers to the enclosing type when `T` does.
+5. r[annot.self-ref.refers.reference] A reference type, `*T`, `*mut T`, `&T`, or `&mut T`, refers to the enclosing type when `T` does.
 6. r[annot.self-ref.needs.self] A type needs the enclosing type when it is the enclosing type.
 7. r[annot.self-ref.needs.compound] A tuple or struct needs it when one of its element or member types needs it, with the struct's type arguments substituted.
 8. r[annot.self-ref.needs.result] `Result[T, E]` needs it when `T` does.
-9. r[annot.self-ref.needs.reference] A reference type, `&T` or `&mut T`, needs it when `T` does, since a reference always refers to a value.
+9. r[annot.self-ref.needs.reference] A reference type, `*T`, `*mut T`, `&T`, or `&mut T`, needs it when `T` does, since a reference always refers to a value.
 10. r[annot.self-ref.needs.enum] Any other enum type needs it when each of its variants has a member whose type needs it, with the enum's type arguments substituted.
 11. r[annot.self-ref.needs.stop] A `List`, `Map`, or optional type never needs the enclosing type, whatever its type arguments.
 12. r[annot.self-ref.needs.only] No other type needs the enclosing type.
@@ -1539,7 +1539,7 @@ A **handle** is a compiler-generated constant that names one member or
 variant of a derivation's target.
 
 1. r[annot.handle.constants] Each member has one constant handle of type `Field[S, F]`, and each variant one of type `Variant[S]`.
-2. r[annot.handle.member-type] `walk`, `describe`, and `build` pass handles whose `F` is the member's declared type: for `hits: &mut Counter`, it is `&mut Counter`.
+2. r[annot.handle.member-type] `walk`, `describe`, and `build` pass handles whose `F` is the member's declared type: for `hits: *mut Counter`, it is `*mut Counter`.
 3. r[annot.handle.field-variance] `Field` is contravariant in `S` and invariant in `F`, since `default` returns `F?` and an optional is invariant.
 4. r[annot.handle.get] `h.get(x)` accepts any `S`. Its type is the type that the field access `x.member` would have, for a member declared `F`.
 5. r[annot.handle.get.variant] `h.get(x)` on a payload member, when `x` holds another variant, is a checked runtime panic with category `structure-variant-mismatch`.
@@ -1561,7 +1561,7 @@ struct Counter:
 
 @derive(Duplicate)
 struct Stats:
-    hits: &mut Counter
+    hits: *mut Counter
     label: string
 
 struct CopySource[S]:
