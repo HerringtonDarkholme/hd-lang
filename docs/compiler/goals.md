@@ -89,6 +89,10 @@ a script only measures and reports, never writes to the repository or the
 program under test; a script takes any `hd` binary; no target comes from
 the deleted prototype.
 
+[Daily results](https://github.com/HerringtonDarkholme/hd-lang/tree/metrics-data#readme)
+show the current measurements, machine, changes since the previous run,
+and links to the last fourteen daily files.
+
 ### Pillar 1: Single-agent development cost (proxies)
 
 Compile time is agent wait time, so the pathological compile cases belong

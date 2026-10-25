@@ -22,6 +22,7 @@ The owner's rules (2026-10-06) shape every script:
 ```sh
 pnpm run metrics                                  # every metric
 pnpm run metrics -- --only mistakes               # one metric
+pnpm run metrics -- --only fmt --json /tmp/fmt.json # machine-readable results
 pnpm run metrics -- --only edit-latency,fmt       # several
 pnpm run metrics -- --pillar 1                    # one pillar
 pnpm run metrics -- --list                        # list the metrics
@@ -36,6 +37,10 @@ pnpm run metrics -- --only long-run-memory --long # the 10-minute soak
   `cargo build --release -p hd_cli`. A word of the
   command that names an existing file is made absolute, so relative paths
   work from the repository root. `HD_METRICS_COMMAND` also sets it.
+- `--json FILE` writes `{ hd, commit, finished, results, machine }` alongside
+  the table, including failed and n/a targets. `finished` is an ISO UTC
+  timestamp; `machine` records runner, CPU count and CPU model. Target
+  failures still exit 1 after the file is written.
 - `--keep-temp` keeps the temporary directories, for debugging a script.
 - `--suite` runs the `conformance` pass rate, which takes minutes;
   without it, that line is `n/a` with "run with --suite".
@@ -45,6 +50,35 @@ pnpm run metrics -- --only long-run-memory --long # the 10-minute soak
 The runner prints one line per target as it is judged, then a summary
 table, then the counts. It exits 1 when any target fails, and 2 on a usage
 error. An `n/a` target never fails the run.
+
+## Daily Publishing
+
+The [daily metrics workflow](../../.github/workflows/metrics.yml) runs on
+GitHub's `ubuntu-latest` each day and can be dispatched manually. It builds
+the release CLI and runs `--suite --json metrics.json`; failed targets do
+not prevent publishing. The explicit JSON output is the runner's only
+write outside its temporary measurement directories.
+
+[The metrics-data branch](https://github.com/HerringtonDarkholme/hd-lang/tree/metrics-data#readme)
+contains `daily/YYYY-MM-DD.json`, `history.tsv`, and a regenerated README.
+Each daily file is that day's latest full run. History retains one row per
+run, including repeated runs that day, with value and status columns per
+target; missing targets have empty cells. Adding a target preserves older
+rows and expands the columns. Republishing the same `finished` timestamp
+is idempotent.
+
+The README groups targets by pillar, records the runner and CPU count, and
+links the last fourteen daily files. Its comparison and the Actions summary
+list status flips and numeric movements greater than 10%. Smaller timing
+changes are marked as noise. The comparison uses the previous history row,
+including when both runs share a date. Comparable time, byte and throughput
+units are normalized before comparing.
+
+`storeDailyMetrics(run, directory)` in `run.ts` writes only the specified
+data worktree. The workflow creates an orphan `metrics-data` branch on its
+first run, then commits and pushes there. A concurrent push is rebased and
+retried once, regenerating history from the newly fetched branch so no
+concurrent row disappears. Nothing commits daily measurements to main.
 
 ## Status Of A Target
 
