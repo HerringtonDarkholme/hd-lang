@@ -1,6 +1,7 @@
 import http from "node:http";
 import { createLeaseDispatcher } from "../adapters/dispatcher.mjs";
 import { createHttpClient } from "../adapters/http.mjs";
+import { createRequestConsole } from "../adapters/console.mjs";
 
 let generation = 0n;
 const instances = new WeakMap();
@@ -291,6 +292,19 @@ export default {
         });
       },
     };
+  },
+  console(id, context) {
+    const state = stateFor(context);
+    const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
+    if (!job || job.closed) throw new Error("expired request lease");
+    return createRequestConsole(job.lease, {
+      id,
+      policy: context.console,
+      write(record) {
+        const output = record.stream === "out" ? process.stdout : process.stderr;
+        output.write(JSON.stringify(record) + "\n");
+      },
+    });
   },
   finish(id, abandoned, context) {
     const state = stateFor(context);

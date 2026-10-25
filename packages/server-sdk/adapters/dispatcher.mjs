@@ -74,6 +74,11 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
       assertLive() {
         check();
       },
+      effect(task) {
+        check();
+        if (typeof task !== "function") throw new TypeError("a lease effect must be a function");
+        enqueue(job, task);
+      },
       operation(context, start) {
         check();
         const operation = {

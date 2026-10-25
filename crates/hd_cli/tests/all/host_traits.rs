@@ -881,6 +881,8 @@ fn server_sdk_main_keeps_state_and_serves_concurrent_requests() {
         "packages/server-sdk/test/dispatcher.test.mjs",
         "packages/server-sdk/test/application.test.mjs",
         "packages/server-sdk/test/application-client.test.mjs",
+        "packages/server-sdk/test/application-logs.test.mjs",
+        "packages/server-sdk/test/console.test.mjs",
         "packages/server-sdk/test/node-client.test.mjs",
         "packages/server-sdk/test/http.test.mjs",
     ]);

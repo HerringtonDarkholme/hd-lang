@@ -2177,6 +2177,10 @@ hd run --engine node
 35. r[cli.host.package.context-http-helpers] Its `isAsciiUrl(text)` and `writtenHost(text)` methods use the core runtime's URL-validation behavior.
 36. r[cli.host.package.context-http-readonly] A provider cannot replace the context's `http` view.
 37. r[cli.host.package.context-http-missing] Accessing `context.http` without runtime HTTP policy services fails. Boundary failure: `host-contract`.
+38. r[cli.host.package.context-console] A JavaScript package-provider context exposes a frozen `console` view of its core runtime's resolved Console authority.
+39. r[cli.host.package.context-console-allows] Its `allows()` method reports whether Console access is granted.
+40. r[cli.host.package.context-console-readonly] A provider cannot replace the context's `console` view.
+41. r[cli.host.package.context-console-missing] Accessing `context.console` without runtime Console policy services fails. Boundary failure: `host-contract`.
 
 
 > **Why.** Provider JavaScript has its host realm's authority; an HD grant cannot sandbox arbitrary JavaScript imports.

@@ -571,6 +571,45 @@ test("package contexts cannot silently create a missing Http policy service", ()
   }
 });
 
+test("package contexts cannot silently create a missing Console policy service", () => {
+  const original = operationHost(() => "unused", false);
+  const r = createPackageRuntime(
+    { put: () => 0 },
+    { module: original.module, grants: { "pkg.Source": true } },
+  );
+  try {
+    const imports = r.bind(
+      original.contract,
+      [
+        {
+          module: original.moduleName,
+          handle: false,
+          methods: [{ name: "wait", member: "wait", wait: "never", params: [], result: r.str }],
+        },
+      ],
+      [
+        {
+          identity: original.identity,
+          module: original.moduleName,
+          contract: original.contract,
+          implementation: {
+            wait(context) {
+              return context.console.allows() ? "allowed" : "denied";
+            },
+          },
+        },
+      ],
+    );
+    assert.throws(
+      () => imports[original.moduleName].wait(),
+      /the host does not provide Console policy services/,
+    );
+  } finally {
+    r.close();
+    original.host.close();
+  }
+});
+
 test("one runtime shares its immutable Http view between provider contexts", () => {
   const views = [];
   const h = operationHost(

@@ -19,7 +19,13 @@ const reasonOf = (signal) =>
 
 // The cleanup backstop is fixed by the SDK contract. Other lifecycle budgets
 // and explicit module URLs are supplied by the embedding application.
-export function createSupervisor({ program, policy, event = () => {}, exhausted = () => {} }) {
+export function createSupervisor({
+  program,
+  policy,
+  event = () => {},
+  log = () => {},
+  exhausted = () => {},
+}) {
   if (!(program.module instanceof WebAssembly.Module))
     throw new TypeError("compiled module required");
   for (const key of ["runtimeURL", "bindingsURL", "applicationURL"])
@@ -147,7 +153,42 @@ export function createSupervisor({ program, policy, event = () => {}, exhausted 
     slot.startupTimer = setTimeout(() => retire(slot, "startup-deadline"), rules.startupMs);
     worker.on("message", (message) => {
       if (slot.worker !== worker || message.generation !== generation) return;
-      if (message.type === "ready") {
+      if (message.type === "log") {
+        const record = message.record;
+        if (
+          record?.version !== 1 ||
+          !["out", "err"].includes(record.stream) ||
+          typeof record.text !== "string" ||
+          (record.lease !== null &&
+            (typeof record.lease?.generation !== "string" ||
+              typeof record.lease?.sequence !== "string" ||
+              !/^\d+$/.test(record.lease.generation) ||
+              !/^\d+$/.test(record.lease.sequence))) ||
+          (record.lease === null
+            ? message.request !== null
+            : !Number.isSafeInteger(message.request) || message.request !== slot.active?.id)
+        )
+          return;
+        try {
+          log(
+            Object.freeze({
+              version: 1,
+              stream: record.stream,
+              text: record.text,
+              lease: record.lease
+                ? Object.freeze({
+                    generation: record.lease.generation,
+                    sequence: record.lease.sequence,
+                  })
+                : null,
+              worker: Object.freeze({ slot: slot.index, generation }),
+              request: message.request ?? null,
+            }),
+          );
+        } catch {
+          // Application logs are separate observers, never response owners.
+        }
+      } else if (message.type === "ready") {
         clearTimeout(slot.startupTimer);
         slot.ready = true;
         publish("ready", slot);

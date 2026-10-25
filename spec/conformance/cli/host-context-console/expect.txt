@@ -1,0 +1,6 @@
+run: hd run --engine node
+stdout: true
+run: hd run --engine node --cap Console=false
+stdout: false
+run: hd run --engine node --cap Console=true
+stdout: true
