@@ -30,7 +30,7 @@ fn walk(c: Config, n: i64) -> i64:
 >   %9 = Call app/main/walk[] (%6, %8) : i64
 >   %10 = Prim Add [%9 1:i64] : i64
 >   exit sub 0 drops [$0]
->   summary kept [$0]
+>   summary kept [$0] recursive
 
 fn ping(c: Config, n: i64) -> i64:
     if n == 0:
@@ -52,7 +52,7 @@ fn ping(c: Config, n: i64) -> i64:
 >   %9 = Prim Sub [%8 1:i64] : i64
 >   %10 = Call app/main/pong[] (%7, %9) : i64
 >   exit sub 0 drops [$0]
->   summary kept [$0]
+>   summary kept [$0] recursive
 
 fn pong(c: Config, n: i64) -> i64:
     ping(c, n)
@@ -64,7 +64,7 @@ fn pong(c: Config, n: i64) -> i64:
 >   %2 = Call app/main/ping[] (%0, %1) : i64
 >   %3 = Block %2 : i64
 >   exit sub 0 drops [$0]
->   summary kept [$0]
+>   summary kept [$0] recursive
 
 fn depth(c: Config) -> i64:
     c.depth

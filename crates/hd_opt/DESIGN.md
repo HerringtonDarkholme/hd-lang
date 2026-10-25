@@ -68,6 +68,9 @@ runs once per body, not once per instance.
 
 Planned, not built: instance-unit passes. `use_counts`, `inline_plan`,
 `escape` and `scalar_replace` are declared and report `Skipped`;
+`summaries` is declared, and the driver does that work: it owns bodies
+callees first and records their release summaries
+(docs/future-work/RELEASE_INTERPROC.md);
 `liveness` is declared, and suspension lowering does that work. No build
 runs an instance pass.
 
@@ -161,7 +164,7 @@ the crate that reads it.
 | Level | Passes (`tir`) | Link passes (hashed only) | Knobs | Engine |
 | --- | --- | --- | --- | --- |
 | `DEV` | `liveness` | `fold` | none | V8 tiers by itself; Cranelift `None` |
-| `OPTIMIZED` | `value_flow`, `use_counts`, `inline_plan`, `devirt_known`, `closure_spec`, `escape`, `scalar_replace`, `liveness` | `drop_dead`, `fold`, `leb_compact`, `compact_names` | `closure_spec`: `max_insts` 64, `max_depth` 2 (§8) | Cranelift `Speed` |
+| `OPTIMIZED` | `value_flow`, `use_counts`, `inline_plan`, `devirt_known`, `closure_spec`, `summaries`, `escape`, `scalar_replace`, `liveness` | `drop_dead`, `fold`, `leb_compact`, `compact_names` | `closure_spec`: `max_insts` 64, `max_depth` 2 (§8) | Cranelift `Speed` |
 
 Code generation is shared by every target (§4), except that inlining:
 Cranelift does not inline the small count helpers, while V8 does and ran

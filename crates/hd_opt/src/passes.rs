@@ -380,6 +380,18 @@ pub static PASSES: &[PassSpec] = &[
         Body(closure_spec),
         [max_insts: 1..=4096, max_depth: 1..=8]
     ),
+    // The release summaries (`docs/future-work/RELEASE_INTERPROC.md`):
+    // the driver owns bodies callees first and records what each body's
+    // code says of its parameters when its pipeline holds this pass.
+    pass!(
+        "summaries",
+        TirAnalysis,
+        [],
+        [],
+        0,
+        Optional,
+        Instance(not_yet)
+    ),
     pass!(
         "escape",
         TirAnalysis,
@@ -457,6 +469,7 @@ pub static OPTIMIZED: Pipeline = Pipeline {
         "inline_plan",
         "devirt_known",
         "closure_spec",
+        "summaries",
         "escape",
         "scalar_replace",
         "liveness",
@@ -761,7 +774,8 @@ mod tests {
 
     /// A change to these values changes every code key. Job (c1) changed
     /// both: the hash dropped the pipeline name and gained the knob values
-    /// and the link passes.
+    /// and the link passes; the release summaries changed the optimized
+    /// one, and only it.
     #[test]
     fn pipeline_hashes_are_pinned() {
         let dev = validate(&DEV).expect("dev validates").0;
@@ -771,7 +785,7 @@ mod tests {
             "dev"
         );
         assert_eq!(
-            optimized, 330_691_483_972_706_326_208_015_789_976_348_292_894,
+            optimized, 197_633_577_451_581_921_990_823_630_658_444_050_384,
             "optimized"
         );
     }

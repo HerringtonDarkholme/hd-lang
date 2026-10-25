@@ -1,0 +1,21 @@
+# @dump: own
+# @build: v8 release
+# @file: main.hd
+# Release summaries, recursion across modules: `ping` and `pong` call each
+# other from two modules, so they are one recursive component whatever
+# order collection reaches them in, and `c` stays kept.
+use pkg.other.{Config, pong}
+
+pub fn ping(c: Config, n: i64) -> i64:
+    if n == 0:
+        return c.depth
+    pong(c, n - 1)
+# @file: other.hd
+use pkg.main.{ping}
+
+pub struct Config:
+    pub name: string
+    pub depth: i64
+
+pub fn pong(c: Config, n: i64) -> i64:
+    ping(c, n)

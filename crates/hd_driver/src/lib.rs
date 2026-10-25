@@ -2144,7 +2144,10 @@ pub fn build_packages(
         checked: packages.checked,
         own_types: Mutex::new(HashMap::default()),
         own_params: Mutex::new(HashMap::default()),
-        summaries: (packages.level == OptLevel::Optimized).then(own::Summaries::default),
+        summaries: hd_opt::passes::pipeline(packages.target, packages.level)
+            .tir
+            .contains(&"summaries")
+            .then(own::Summaries::default),
         fetched: std::iter::once(false)
             .chain(packages.deps.iter().map(|d| d.fetched))
             .chain(std::iter::once(false))
@@ -8065,6 +8068,10 @@ impl Run<'_> {
         // (`docs/compiler/tir-v2.md`, "Where and when the passes run"):
         // once per body, after decoding.
         if let Some((raw, hash)) = out {
+            // Release: the callees first (`own::Run::owned_bottom_up`).
+            if b.owned.get().is_none() {
+                self.owned_bottom_up(p, def);
+            }
             out = b
                 .owned
                 .get_or_init(|| self.own_body(p, raw.clone(), *hash))
@@ -8115,7 +8122,7 @@ impl Run<'_> {
         };
         let mut text = hd_check::render(&names, body, &fields);
         if let Some(all) = &self.summaries {
-            text.push_str(&own::summary_line(body, all.of(body.item)));
+            text.push_str(&own::summary_line(body, all));
         }
         let own = OwnText {
             text,

@@ -21,7 +21,7 @@ use hd_types::solver::{
 };
 use hd_types::{Ty, TyData, TyList};
 
-use super::{Env, ProgramTables, Run, lock};
+use super::{Env, LazyBody, ProgramTables, Run, lock};
 
 /// The run's release summaries (`docs/future-work/RELEASE_INTERPROC.md`,
 /// "Data structures"): per body the passes ran over, what its code says of
@@ -30,14 +30,19 @@ use super::{Env, ProgramTables, Run, lock};
 #[derive(Default)]
 pub(super) struct Summaries {
     by_item: std::sync::Mutex<HashMap<DefId, Summary>>,
+    /// The members of recursive strongly connected components, each with
+    /// its component's first member in path order: a call between two
+    /// members reads the declared convention.
+    cycle: std::sync::Mutex<HashMap<DefId, DefId>>,
 }
 
-/// The `own` view's line for `body`'s summary `s`: its kept parameters,
-/// by local, and the one every result is; `summary none` for a function
-/// with none (one that suspends), nothing for any other body.
-pub(super) fn summary_line(body: &Body, s: Option<Summary>) -> String {
+/// The `own` view's line for `body`'s summary in `all`: its kept
+/// parameters, by local, the one every result is, and whether it is
+/// recursive; `summary none` for a function with none (one that suspends),
+/// nothing for any other body.
+pub(super) fn summary_line(body: &Body, all: &Summaries) -> String {
     use hd_tir::ir::BodyKind;
-    let Some(s) = s else {
+    let Some(s) = all.of(body.item) else {
         let function = matches!(body.kind, BodyKind::Fn | BodyKind::DeriveInstance);
         return if function { "summary none\n" } else { "" }.to_owned();
     };
@@ -49,6 +54,9 @@ pub(super) fn summary_line(body: &Body, s: Option<Summary>) -> String {
     let mut line = format!("summary kept [{}]", kept.join(" "));
     if let Some(&l) = s.returns.and_then(|k| params.get(usize::from(k))) {
         let _ = write!(line, " returns ${l}");
+    }
+    if lock(&all.cycle).contains_key(&body.item) {
+        line.push_str(" recursive");
     }
     line.push('\n');
     line
@@ -512,7 +520,123 @@ impl Env<'_> {
     }
 }
 
+impl Env<'_> {
+    /// Inlined body `body`, with hash `hash` ([`Env::inline_calls`]), after
+    /// the ownership passes, and its hash, which changes with them; in
+    /// release, its summary is recorded.
+    fn own_inlined(&self, body: Body, hash: Hash128) -> StageResult<(Body, Hash128)> {
+        let (body, summary) = self.own_passes(body, self.run.summaries.is_some())?;
+        if let (Some(all), Some(s)) = (&self.run.summaries, summary) {
+            lock(&all.by_item).insert(body.item, s);
+        }
+        let mut k = StableHasher::new("own-passes");
+        k.hash(hash);
+        Ok((body, k.finish()))
+    }
+
+    /// The callee scan: the items whose summaries inlined body `body`'s
+    /// calls read, once each in call order: a direct call's callee, and a
+    /// trait call's impl method where the call is chosen as an impl. Only
+    /// items with a body of their own.
+    fn summarized_callees(&self, body: &Body) -> Vec<DefId> {
+        let (mut out, mut seen) = (Vec::new(), hd_base::HashSet::default());
+        for i in (0..body.len()).filter(|&i| body.tags[i] == hd_tir::ir::Tag::Call) {
+            let def = match Callee::from_words(body.record(body.data[i][0])) {
+                Some(Callee::Item { def, .. }) => Some(def),
+                Some(c) => self.impl_target(&c).map(|(d, _)| d),
+                None => None,
+            };
+            if let Some(d) = def
+                && self.run.lazy_body(self.p, d).is_some()
+                && seen.insert(d)
+            {
+                out.push(d);
+            }
+        }
+        out
+    }
+}
+
+/// Visits the call graph from `root` bottom-up with an iterative Tarjan
+/// walk, so a deep call chain cannot overflow the stack: `scc` gets each
+/// strongly connected component once every component its members call
+/// has had its turn, with whether it is recursive (two members, or one
+/// that calls itself). `done` marks the nodes an earlier walk finished,
+/// which this one skips; `callees` gives a node's edges, once per node.
+pub(super) fn bottom_up<N: Copy + Eq + std::hash::Hash>(
+    root: N,
+    done: &dyn Fn(N) -> bool,
+    callees: &mut dyn FnMut(N) -> Vec<N>,
+    scc: &mut dyn FnMut(&mut Vec<N>, bool),
+) {
+    if done(root) {
+        return;
+    }
+    // Per node: its index, its low link, and whether it is on the stack.
+    let mut index: HashMap<N, (u32, u32, bool)> = HashMap::default();
+    let (mut stack, mut next) = (Vec::new(), 0);
+    let mut work: Vec<(N, Option<Vec<N>>, usize)> = vec![(root, None, 0)];
+    while let Some((n, edges, at)) = work.last_mut() {
+        let n = *n;
+        let edges = edges.get_or_insert_with(|| {
+            index.insert(n, (next, next, true));
+            next += 1;
+            stack.push(n);
+            callees(n)
+        });
+        if let Some(&c) = edges.get(*at) {
+            *at += 1;
+            match index.get(&c) {
+                None if !done(c) => work.push((c, None, 0)),
+                Some(&(ci, _, true)) => {
+                    let low = &mut index.get_mut(&n).expect("visited").1;
+                    *low = (*low).min(ci);
+                }
+                _ => {}
+            }
+            continue;
+        }
+        let calls_itself = edges.contains(&n);
+        work.pop();
+        let (i, low, _) = index[&n];
+        if let Some(&(parent, ..)) = work.last() {
+            let up = &mut index.get_mut(&parent).expect("visited").1;
+            *up = (*up).min(low);
+        }
+        if i == low {
+            let from = stack.iter().rposition(|&m| m == n).expect("on the stack");
+            let mut members: Vec<N> = stack.drain(from..).collect();
+            for m in &members {
+                index.get_mut(m).expect("visited").2 = false;
+            }
+            let recursive = members.len() > 1 || calls_itself;
+            scc(&mut members, recursive);
+        }
+    }
+}
+
 impl Run<'_> {
+    /// The body table's entry for `def`.
+    pub(super) fn lazy_body<'p>(&self, p: &'p ProgramTables, def: DefId) -> Option<&'p LazyBody> {
+        p.bodies
+            .all
+            .get(&self.paths.hash(hd_base::PathId::from_raw(def.raw())))
+    }
+
+    /// Runs `f` with the passes' view of the program.
+    fn with_env<T>(&self, p: &ProgramTables, f: impl FnOnce(&Env<'_>) -> T) -> T {
+        // The program's impls: a layout normalizes associated types.
+        let folders = self.program_folders();
+        let arity = p.arity();
+        let view = self.program_view(p, &folders, &arity);
+        f(&Env {
+            run: self,
+            p,
+            impls: hd_types::solver::Impls::Owned(&view),
+            sealed: self.known.sealed(),
+        })
+    }
+
     /// Body `body`, with TIR hash `hash`, after the ownership passes, and
     /// its hash, which changes with them; `None`, with the error noted for
     /// `Collect`, when the passes refuse it or their output fails its
@@ -523,31 +647,133 @@ impl Run<'_> {
         body: Body,
         hash: Hash128,
     ) -> Option<(Body, Hash128)> {
-        // The program's impls: a layout normalizes associated types.
-        let folders = self.program_folders();
-        let arity = p.arity();
-        let view = self.program_view(p, &folders, &arity);
-        let env = Env {
-            run: self,
-            p,
-            impls: hd_types::solver::Impls::Owned(&view),
-            sealed: self.known.sealed(),
-        };
-        let mut body = body;
-        let hash = env.inline_calls(&mut body, hash);
-        match env.own_passes(body, self.summaries.is_some()) {
-            Ok((body, summary)) => {
-                if let (Some(all), Some(s)) = (&self.summaries, summary) {
-                    lock(&all.by_item).insert(body.item, s);
-                }
-                let mut k = StableHasher::new("own-passes");
-                k.hash(hash);
-                Some((body, k.finish()))
-            }
+        let owned = self.with_env(p, |env| {
+            let mut body = body;
+            let hash = env.inline_calls(&mut body, hash);
+            env.own_inlined(body, hash)
+        });
+        match owned {
+            Ok(owned) => Some(owned),
             Err(e) => {
                 lock(&p.bodies.own_error).get_or_insert_with(|| e.to_string());
                 None
             }
         }
+    }
+
+    /// Release (`docs/future-work/RELEASE_INTERPROC.md`, "Data flow"): owns
+    /// the bodies `root` reaches through the callee scan, the callees'
+    /// strongly connected components first, so every summary a body's
+    /// passes may read is recorded before they run. Each component's
+    /// members are owned in path order and marked when it is recursive. A
+    /// body the passes refuse stays unowned, for `Run::body_of` to report.
+    pub(super) fn owned_bottom_up(&self, p: &ProgramTables, root: DefId) {
+        let Some(all) = &self.summaries else {
+            return;
+        };
+        let done = |d: DefId| self.lazy_body(p, d).is_none_or(|b| b.owned.get().is_some());
+        self.with_env(p, |env| {
+            let inlined = RefCell::new(HashMap::default());
+            let mut callees = |d: DefId| {
+                let Some((raw, hash)) = self.lazy_body(p, d).and_then(|b| self.decode(b)) else {
+                    return Vec::new();
+                };
+                let mut body = raw.clone();
+                let hash = env.inline_calls(&mut body, *hash);
+                let out = env.summarized_callees(&body);
+                inlined.borrow_mut().insert(d, (body, hash));
+                out
+            };
+            let mut own = |members: &mut Vec<DefId>, recursive: bool| {
+                members.sort_by_cached_key(|&m| self.names().path(m));
+                for &m in members.iter() {
+                    if recursive {
+                        lock(&all.cycle).insert(m, members[0]);
+                    }
+                    let body = inlined.borrow_mut().remove(&m);
+                    if let (Some(lazy), Some((body, hash))) = (self.lazy_body(p, m), body)
+                        && let Ok(owned) = env.own_inlined(body, hash)
+                    {
+                        let _ = lazy.owned.set(Some(owned));
+                    }
+                }
+            };
+            bottom_up(root, &done, &mut callees, &mut own);
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+    use std::collections::BTreeMap;
+
+    use super::bottom_up;
+
+    /// Walks `edges` from each of `roots` in turn, as collection demands
+    /// bodies, and gives each node a summary that reads its callees'
+    /// outside its component, as the release passes will: per node, the
+    /// summary and its component's sorted members and recursion flag.
+    fn walk(edges: &[(u32, u32)], roots: &[u32]) -> BTreeMap<u32, (u64, Vec<u32>, bool)> {
+        let out = RefCell::new(BTreeMap::<u32, (u64, Vec<u32>, bool)>::new());
+        let callees =
+            |n: u32| -> Vec<u32> { edges.iter().filter(|e| e.0 == n).map(|e| e.1).collect() };
+        for &root in roots {
+            let done = |n: u32| out.borrow().contains_key(&n);
+            let mut scc = |members: &mut Vec<u32>, recursive: bool| {
+                members.sort_unstable();
+                let mut out = out.borrow_mut();
+                for &m in members.iter() {
+                    let mut s = u64::from(m) + 1;
+                    for c in callees(m).into_iter().filter(|c| !members.contains(c)) {
+                        // Callees first: every outside callee is summarized.
+                        s = s * 31 + out.get(&c).expect("callee first").0;
+                    }
+                    out.insert(m, (s, members.clone(), recursive));
+                }
+            };
+            bottom_up(root, &done, &mut |n| callees(n), &mut scc);
+        }
+        out.into_inner()
+    }
+
+    /// The summaries do not depend on the order collection demands bodies
+    /// in: a cycle, a self call, shared callees and an unreached node, from
+    /// roots in three orders.
+    #[test]
+    fn summaries_do_not_depend_on_the_order_of_the_roots() {
+        let edges = [
+            (0, 1),
+            (1, 2),
+            (2, 1),
+            (2, 3),
+            (3, 3),
+            (4, 0),
+            (4, 3),
+            (5, 2),
+        ];
+        let first = walk(&edges, &[0, 4, 5]);
+        assert_eq!(first[&1].1, vec![1, 2]);
+        assert!(first[&3].2 && !first[&0].2, "{first:?}");
+        assert!(!first.contains_key(&6));
+        for roots in [&[5, 4, 0][..], &[3, 5, 1, 4, 0], &[2, 0, 5, 4]] {
+            assert_eq!(first, walk(&edges, roots), "roots {roots:?}");
+        }
+    }
+
+    /// The walk is iterative: a chain of 200,000 calls does not overflow
+    /// the stack, and is owned from its far end.
+    #[test]
+    fn a_deep_call_chain_does_not_overflow() {
+        let edges: Vec<(u32, u32)> = (0..200_000).map(|n| (n, n + 1)).collect();
+        let order = RefCell::new(Vec::new());
+        let mut scc = |members: &mut Vec<u32>, _: bool| order.borrow_mut().extend(&*members);
+        let callees = |n: u32| edges.get(n as usize).map(|e| vec![e.1]).unwrap_or_default();
+        bottom_up(0, &|_| false, &mut |n| callees(n), &mut scc);
+        let order = order.into_inner();
+        assert_eq!(
+            (order.len(), order[0], order[200_000]),
+            (200_001, 200_000, 0)
+        );
     }
 }
