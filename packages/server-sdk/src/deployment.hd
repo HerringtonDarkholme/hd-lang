@@ -1,0 +1,28 @@
+pub struct Artifacts:
+    pub wasm: string
+    pub bindings: string
+    pub output: string
+
+pub struct CloudflareOptions:
+    pub name: string
+    pub artifacts: Artifacts
+    pub compatibility_date: string
+    pub env_bindings: List[string] = []
+
+pub struct DeploymentReceipt:
+    pub directory: string
+    pub runtime_fingerprint: string
+    pub wasm_sha256: string
+    pub bindings_sha256: string
+
+@error
+pub enum DeploymentError:
+    @error("$message")
+    Failed(message: string)
+
+@host
+pub trait Deployment:
+    fn cloudflare!(&mut self, options: CloudflareOptions) -> Result[DeploymentReceipt, DeploymentError]
+
+pub fn cloudflare!(options: CloudflareOptions) -> Result[DeploymentReceipt, DeploymentError] $ Deployment:
+    $.use(Deployment).cloudflare!(options)

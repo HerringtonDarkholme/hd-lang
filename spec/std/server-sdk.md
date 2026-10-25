@@ -282,3 +282,88 @@ also checks root selection, fresh reads, invalid UTF-8 and the SDK task bridge.
 The maintained [runtime conformance controls](../../packages/server-sdk/test/runtime.test.mjs)
 check invalid snapshots, source fidelity, output ownership and a compiled
 application running from a relocated SDK after source and provider removal.
+
+## Cloudflare Deployment
+
+The SDK's `deployment` module prepares a Cloudflare Worker from built
+application artifacts. The sample's ordinary
+[deployment task](../../examples/server-api/tasks/deploy-cloudflare.hd)
+uses this API through its package-declared provider.
+
+### Deployment API
+
+1. r[std-server-sdk.cloudflare.artifacts] `Artifacts` has public string fields `wasm`, `bindings`, and `output`.
+2. r[std-server-sdk.cloudflare.options] `CloudflareOptions` has public fields `name: string`, `artifacts: Artifacts`, `compatibility_date: string`, and `env_bindings: List[string] = []`.
+3. r[std-server-sdk.cloudflare.receipt] `DeploymentReceipt` has public string fields `directory`, `runtime_fingerprint`, `wasm_sha256`, and `bindings_sha256`.
+4. r[std-server-sdk.cloudflare.error] `DeploymentError` has the variant `Failed(message: string)`.
+5. r[std-server-sdk.cloudflare.error-display] That variant's display text is its supplied message.
+6. r[std-server-sdk.cloudflare.host] `Deployment` is an SDK-owned package host capability trait.
+7. r[std-server-sdk.cloudflare.method] Its `cloudflare!(&mut self, options: CloudflareOptions)` method returns `Result[DeploymentReceipt, DeploymentError]`.
+8. r[std-server-sdk.cloudflare.function] `cloudflare!(options: CloudflareOptions)` requires `Deployment` and forwards to that capability's method with the same result type.
+9. r[std-server-sdk.cloudflare.task-root] The deployment provider selects the invoking task's root package directory.
+10. r[std-server-sdk.cloudflare.paths] Relative artifact and output paths resolve from that root directory.
+11. r[std-server-sdk.cloudflare.name] The Worker name must contain lowercase ASCII letters, digits, or hyphens, with alphanumeric endpoints and at most 63 characters.
+12. r[std-server-sdk.cloudflare.date] `compatibility_date` must be a valid calendar date written as `YYYY-MM-DD`.
+13. r[std-server-sdk.cloudflare.output-root] The output directory must not equal or contain the selected root package directory.
+14. r[std-server-sdk.cloudflare.prepare-only] Preparation writes local deployment files without uploading or requesting deployment credentials.
+15. r[std-server-sdk.cloudflare.reexports] The package root reexports `Artifacts`, `CloudflareOptions`, `DeploymentReceipt`, `DeploymentError`, `Deployment`, and `cloudflare!`.
+
+### Artifact And Policy Validation
+
+1. r[std-server-sdk.cloudflare.production] Preparation uses the shared [deployment-grant reader](#deployment-grants) for the selected root package.
+2. r[std-server-sdk.cloudflare.nominal-source] The contract must have exactly one source interface: `server.HttpServer` from the Deployment provider's validated nominal SDK package and version.
+3. r[std-server-sdk.cloudflare.source-consent] At least one selector naming that source must have explicit production consent `true`.
+4. r[std-server-sdk.cloudflare.source-veto] Any selector naming that source with production value `false` rejects preparation.
+5. r[std-server-sdk.cloudflare.capture] Preparation captures the input Wasm and binding companion once and uses those captured bytes throughout validation and emission.
+6. r[std-server-sdk.cloudflare.driver] The module must export functions `hd.init`, `hd.poll`, `hd.wake`, and memory `hd.x`.
+7. r[std-server-sdk.cloudflare.contract-abi] The module must contain exactly one `hd.capabilities` section whose package-host ABI matches the installed SDK runtime and expected schema.
+8. r[std-server-sdk.cloudflare.schema] Preparation validates every used package interface and method, including returned handles, against the installed SDK's expected server ABI schema.
+9. r[std-server-sdk.cloudflare.module-identity] Compiler-generated module identifiers do not affect nominal identity or value-shape validation.
+10. r[std-server-sdk.cloudflare.companion] The binding companion's generated data header must contain the same ABI version and contract bytes as the captured Wasm.
+11. r[std-server-sdk.cloudflare.binding-code] Preparation neither evaluates nor ships the supplied companion's JavaScript body.
+12. r[std-server-sdk.cloudflare.rebuilt-bindings] Deployed bindings are rebuilt by SDK-owned code from the validated contract data.
+13. r[std-server-sdk.cloudflare.import-members] Every module import must name a supported function member of the portable runtime or the validated SDK package contract.
+14. r[std-server-sdk.cloudflare.preflight-effects] Import validation must not instantiate the application or invoke application providers and outgoing I/O.
+15. r[std-server-sdk.cloudflare.clock-random-denial] A required primitive Clock or Random import with an explicit production denial rejects preparation.
+16. r[std-server-sdk.cloudflare.env-names] `env_bindings` must contain distinct names matching `[A-Za-z_][A-Za-z0-9_]*` and covered by the production Env grant.
+17. r[std-server-sdk.cloudflare.env-values] The Worker exposes only selected string-valued platform bindings through Env, checking the production grant on access.
+18. r[std-server-sdk.cloudflare.env-capture] Worker startup captures selected binding values from its first request's platform environment.
+19. r[std-server-sdk.cloudflare.env-private] Preparation records binding names without reading or embedding their runtime values.
+20. r[std-server-sdk.cloudflare.receipt-values] The receipt identifies the output directory, portable runtime fingerprint, captured Wasm SHA-256, and emitted binding-module SHA-256.
+
+| Portable primitive namespace | Availability |
+| --- | --- |
+| `hd:rt`, `hd:prim` | Runtime support. |
+| `hd:Console` | Production Console policy. |
+| `hd:Clock`, `hd:Random` | Core policy, with explicit denials enforced. |
+| `hd:Env` | Selected string bindings and production Env policy. |
+| `hd:Http` | Platform Fetch transport and production destination policy. |
+
+> **Note.** The expected schema and fingerprints record ABI compatibility
+> and provenance. They do not authenticate a compiler or recover nominal
+> hd value types erased by the boundary ABI.
+
+### Output Publication
+
+1. r[std-server-sdk.cloudflare.payload] Prepared output includes a static Wasm import, SDK-built bindings, the portable runtime, Fetch adapters, production grants, provenance, and Wrangler configuration.
+2. r[std-server-sdk.cloudflare.output-owned] Preparation refuses an existing output directory without the SDK's Cloudflare ownership record.
+3. r[std-server-sdk.cloudflare.output-unchanged] Preparation refuses modified SDK generations or an externally changed Wrangler selector.
+4. r[std-server-sdk.cloudflare.output-generation] Each complete payload occupies an immutable generation directory.
+5. r[std-server-sdk.cloudflare.output-selector] Publication atomically replaces the regular `wrangler.json` selector with one naming a complete generation.
+6. r[std-server-sdk.cloudflare.output-retain] Publication retains earlier generations so readers of an earlier selector can finish using their original payload.
+7. r[std-server-sdk.cloudflare.output-extras] Preparation preserves unrelated output-root files and platform caches without traversing them.
+8. r[std-server-sdk.cloudflare.output-writers] SDK writers must acquire the output lock before publication.
+9. r[std-server-sdk.cloudflare.output-reserved] Other writers must not concurrently modify the SDK ownership record, generation store, or Wrangler selector.
+10. r[std-server-sdk.cloudflare.output-retry] An interrupted SDK-owned publication without a selector may be retried after validating its completed generations.
+
+> **Why.** A small selector commit keeps the active configuration and its
+> immutable payload together while allowing Wrangler to retain its cache.
+> The SDK owns reserved output paths, rather than replacing a nonempty
+> directory containing files managed by other tools.
+
+The maintained [deployment controls](../../packages/server-sdk/test/deployment.test.mjs)
+exercise ordinary tasks, artifact validation, production policy and relocated
+output. [Output controls](../../packages/server-sdk/test/output.test.mjs)
+cover ownership and publication; [binding controls](../../packages/server-sdk/test/contract-bindings.test.mjs)
+and [schema controls](../../packages/server-sdk/test/server-schema.test.mjs)
+cover companion pairing, value codecs and the SDK's expected ABI data.

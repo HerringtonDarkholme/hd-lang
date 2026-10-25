@@ -1,0 +1,388 @@
+{
+  "format": 1,
+  "packageHostABI": 1,
+  "provenance": {
+    "sourceBaseRevision": "581b165de7dc6a6658977ffa336bf1c65ef794fd",
+    "compilerBaseRevision": "581b165de7dc6a6658977ffa336bf1c65ef794fd",
+    "compilerSha256": "e0cb5fe17cbb4bc00e301c5c668396e2c331c8e183ca06d86d62b9897897266b",
+    "referenceWasmSha256": "5ea05e3e5c89cdac3885bddf50e0d747984ecdba3c704e68ca11cb843705898a",
+    "referenceContractSha256": "39202dee64e1a19986515726d54d28384c61fc1c3b735a5c4d898755653c623e",
+    "probeSha256": "944168255af1002af5ff9732d0fd01b3b5d205bd9c3b96441f01308752e90e52",
+    "sourceHashes": {
+      "packages/server-sdk/src/server.hd": "112939144df17a18c4cb7194905023977d7d73e2326acc7487e3fda473b5c2e9",
+      "lib/std/console.hd": "f24ba01178bd5583a5b66ac7d92bb44422ff598098310b12b1cc98c0a9710ae2",
+      "lib/std/http.hd": "3cab8efa2864536249fd9498817f49548a789b13ddc591309f58c797c4adfd54",
+      "lib/std/time.hd": "47936ab15caf80205da34a0edebf75cd5f31aee857dd7e3e77ac28b1772146e3"
+    }
+  },
+  "coverage": {
+    "server.HttpServer": ["accept", "cancelled", "client", "clock", "console", "finish", "respond"],
+    "console.Console": ["write", "write_error"],
+    "http.Http": ["send"],
+    "time.Clock": ["monotonic", "now", "sleep"]
+  },
+  "schema": {
+    "root": "server.HttpServer",
+    "interfaces": [
+      {
+        "key": "[\"$sdk\",\"$sdk\",\"server.HttpServer\"]",
+        "identity": {
+          "package": "$sdk",
+          "version": "$sdk",
+          "trait_path": "server.HttpServer"
+        },
+        "handle": false,
+        "methods": [
+          {
+            "name": "accept",
+            "member": "accept",
+            "wait": "may",
+            "params": [],
+            "result": [
+              13,
+              [
+                9,
+                [
+                  11,
+                  [
+                    [
+                      "id",
+                      [
+                        11,
+                        [
+                          ["generation", [3, 64, false]],
+                          ["sequence", [3, 64, false]]
+                        ]
+                      ]
+                    ],
+                    [
+                      "request",
+                      [
+                        11,
+                        [
+                          [
+                            "method",
+                            [
+                              12,
+                              [
+                                ["Get", []],
+                                ["Head", []],
+                                ["Post", []],
+                                ["Put", []],
+                                ["Patch", []],
+                                ["Delete", []],
+                                ["Options", []],
+                                ["Other", [["name", [6]]]]
+                              ]
+                            ]
+                          ],
+                          ["url", [6]],
+                          ["query", [8, [10, [[6], [6]]]]],
+                          ["headers", [8, [10, [[6], [6]]]]],
+                          ["body", [7]],
+                          ["redirects", [3, 32, false]]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                12,
+                [
+                  ["Closed", []],
+                  ["Expired", []],
+                  ["Other", [["reason", [6]]]]
+                ]
+              ]
+            ]
+          },
+          {
+            "name": "cancelled",
+            "member": "cancelled",
+            "wait": "may",
+            "params": [
+              [
+                11,
+                [
+                  ["generation", [3, 64, false]],
+                  ["sequence", [3, 64, false]]
+                ]
+              ]
+            ],
+            "result": [
+              12,
+              [
+                ["Disconnected", []],
+                ["Deadline", []],
+                ["Stopping", []]
+              ]
+            ]
+          },
+          {
+            "name": "client",
+            "member": "client",
+            "wait": "never",
+            "params": [
+              [
+                11,
+                [
+                  ["generation", [3, 64, false]],
+                  ["sequence", [3, 64, false]]
+                ]
+              ]
+            ],
+            "result": [15, "[\"std\",\"abi:1\",\"http.Http\"]"]
+          },
+          {
+            "name": "clock",
+            "member": "clock",
+            "wait": "never",
+            "params": [
+              [
+                11,
+                [
+                  ["generation", [3, 64, false]],
+                  ["sequence", [3, 64, false]]
+                ]
+              ]
+            ],
+            "result": [15, "[\"std\",\"abi:1\",\"time.Clock\"]"]
+          },
+          {
+            "name": "console",
+            "member": "console",
+            "wait": "never",
+            "params": [
+              [
+                11,
+                [
+                  ["generation", [3, 64, false]],
+                  ["sequence", [3, 64, false]]
+                ]
+              ]
+            ],
+            "result": [15, "[\"std\",\"abi:1\",\"console.Console\"]"]
+          },
+          {
+            "name": "finish",
+            "member": "finish",
+            "wait": "never",
+            "params": [
+              [
+                11,
+                [
+                  ["generation", [3, 64, false]],
+                  ["sequence", [3, 64, false]]
+                ]
+              ],
+              [1]
+            ],
+            "result": [0]
+          },
+          {
+            "name": "respond",
+            "member": "respond",
+            "wait": "may",
+            "params": [
+              [
+                11,
+                [
+                  ["generation", [3, 64, false]],
+                  ["sequence", [3, 64, false]]
+                ]
+              ],
+              [
+                11,
+                [
+                  ["status", [3, 16, false]],
+                  ["headers", [8, [10, [[6], [6]]]]],
+                  ["body", [7]],
+                  ["url", [6]]
+                ]
+              ]
+            ],
+            "result": [
+              13,
+              [0],
+              [
+                12,
+                [
+                  ["Closed", []],
+                  ["Expired", []],
+                  ["Other", [["reason", [6]]]]
+                ]
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "key": "[\"std\",\"abi:1\",\"console.Console\"]",
+        "identity": {
+          "package": "std",
+          "version": "abi:1",
+          "trait_path": "console.Console"
+        },
+        "handle": true,
+        "methods": [
+          {
+            "name": "write",
+            "member": "write",
+            "wait": "may",
+            "params": [[6]],
+            "result": [
+              13,
+              [0],
+              [
+                12,
+                [
+                  ["Closed", []],
+                  ["NotGranted", [["subject", [6]]]],
+                  ["Other", [["message", [6]]]]
+                ]
+              ]
+            ]
+          },
+          {
+            "name": "write_error",
+            "member": "write_error",
+            "wait": "may",
+            "params": [[6]],
+            "result": [
+              13,
+              [0],
+              [
+                12,
+                [
+                  ["Closed", []],
+                  ["NotGranted", [["subject", [6]]]],
+                  ["Other", [["message", [6]]]]
+                ]
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "key": "[\"std\",\"abi:1\",\"http.Http\"]",
+        "identity": {
+          "package": "std",
+          "version": "abi:1",
+          "trait_path": "http.Http"
+        },
+        "handle": true,
+        "methods": [
+          {
+            "name": "send",
+            "member": "send",
+            "wait": "may",
+            "params": [
+              [
+                11,
+                [
+                  [
+                    "method",
+                    [
+                      12,
+                      [
+                        ["Get", []],
+                        ["Head", []],
+                        ["Post", []],
+                        ["Put", []],
+                        ["Patch", []],
+                        ["Delete", []],
+                        ["Options", []],
+                        ["Other", [["name", [6]]]]
+                      ]
+                    ]
+                  ],
+                  ["url", [6]],
+                  ["query", [8, [10, [[6], [6]]]]],
+                  ["headers", [8, [10, [[6], [6]]]]],
+                  ["body", [7]],
+                  ["redirects", [3, 32, false]]
+                ]
+              ]
+            ],
+            "result": [
+              13,
+              [
+                11,
+                [
+                  ["status", [3, 16, false]],
+                  ["headers", [8, [10, [[6], [6]]]]],
+                  ["body", [7]],
+                  ["url", [6]]
+                ]
+              ],
+              [
+                12,
+                [
+                  ["NotGranted", [["host", [6]]]],
+                  ["InvalidUrl", [["url", [6]]]],
+                  ["Dns", [["host", [6]]]],
+                  ["Connect", [["message", [6]]]],
+                  ["Tls", [["message", [6]]]],
+                  ["Timeout", []],
+                  ["TooManyRedirects", [["url", [6]]]],
+                  ["Other", [["message", [6]]]],
+                  [
+                    "Status",
+                    [
+                      [
+                        "response",
+                        [
+                          11,
+                          [
+                            ["status", [3, 16, false]],
+                            ["headers", [8, [10, [[6], [6]]]]],
+                            ["body", [7]],
+                            ["url", [6]]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "key": "[\"std\",\"abi:1\",\"time.Clock\"]",
+        "identity": {
+          "package": "std",
+          "version": "abi:1",
+          "trait_path": "time.Clock"
+        },
+        "handle": true,
+        "methods": [
+          {
+            "name": "monotonic",
+            "member": "monotonic",
+            "wait": "never",
+            "params": [],
+            "result": [14]
+          },
+          {
+            "name": "now",
+            "member": "now",
+            "wait": "never",
+            "params": [],
+            "result": [14]
+          },
+          {
+            "name": "sleep",
+            "member": "sleep",
+            "wait": "may",
+            "params": [[14]],
+            "result": [0]
+          }
+        ]
+      }
+    ]
+  },
+  "fingerprint": "5c4431fa32ba20a653be5dca9f362fa0ac9630e91c4a011d1ebd443143e1fbfc"
+}

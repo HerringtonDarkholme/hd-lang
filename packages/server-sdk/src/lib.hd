@@ -1,1 +1,2 @@
 pub use pkg.server.{HttpServer, Incoming, RequestId, ServerError, CancelReason, serve}
+pub use pkg.deployment.{Artifacts, CloudflareOptions, DeploymentReceipt, DeploymentError, Deployment, cloudflare}

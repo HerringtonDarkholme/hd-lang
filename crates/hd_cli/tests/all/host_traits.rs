@@ -910,6 +910,17 @@ fn server_sdk_portable_runtime_survives_relocation() {
     server_sdk_node_tests(&["packages/server-sdk/test/runtime.test.mjs"]);
 }
 
+/// Installed SDK tasks publish data-validated, owned Cloudflare bundles.
+#[test]
+fn server_sdk_cloudflare_deployment_is_relocatable() {
+    server_sdk_node_tests(&[
+        "packages/server-sdk/test/deployment.test.mjs",
+        "packages/server-sdk/test/output.test.mjs",
+        "packages/server-sdk/test/contract-bindings.test.mjs",
+        "packages/server-sdk/test/server-schema.test.mjs",
+    ]);
+}
+
 fn server_sdk_node_tests(files: &[&str]) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     // Each file already exercises real overlapping requests and workers.
