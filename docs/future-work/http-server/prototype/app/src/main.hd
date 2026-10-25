@@ -2,7 +2,7 @@ use std.host.{Args, args}
 use std.http.{Http, HttpError, Request, Response, get}
 use std.json.{decode, encode}
 use std.serde.{Deserialize, Serialize}
-use std.task.{block_on, timeout}
+use std.task.{TimedOut, apply, block_on, timeout}
 use std.time.{Clock, sleep}
 
 @derive(Deserialize)
@@ -43,8 +43,9 @@ pub fn handle!(request: Request) -> Response $ Http + Clock:
     if request.url.ends_with("/json"):
         return json_response(request)
     if request.url.ends_with("/timeout"):
-        result := timeout!(1ms, cleanup=1ms):
-            slow!()
+        let result: Result[Response, TimedOut] = apply!(timeout(1ms, cleanup=1ms)):
+            let completed: Result[Response, TimedOut] = .Ok(slow!())
+            completed
         return match result:
             .Ok(response) => response
             .Err(_) => Response { status: 504, body: "deadline".to_utf8() }

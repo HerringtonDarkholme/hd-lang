@@ -1,7 +1,7 @@
 # test: retry! with an attempts of 0 calls its attempt once and returns that result
-# Spec std/task Retry: std-task.retry.policy.zero-once (owner decision RETRY-zero, batch 33, 2026-10-01;
+# Spec std/task Retry: std-task.policy.retry.zero-once (owner decision RETRY-zero, batch 33, 2026-10-01;
 # attempts is a usize).
-use std.task.{Backoff, retry}
+use std.task.{Backoff, retry, apply}
 use std.time.{Clock, ManualClock, Timestamp}
 struct Server:
     busy_for: i32
@@ -15,7 +15,7 @@ fn ask!(server: &mut Server) -> Result[string, string]:
     .Ok("ready")
 
 fn connect!(server: *mut Server, times: usize) -> Result[string, string] $ Clock:
-    retry!(Backoff { attempts: times, initial: 0ms }):
+    apply!(retry(Backoff { attempts: times, initial: 0ms })):
         ask!(server)
 
 tests:

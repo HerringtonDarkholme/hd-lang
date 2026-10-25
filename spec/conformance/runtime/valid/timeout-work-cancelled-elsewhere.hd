@@ -1,9 +1,10 @@
 # expect-stdout: run body, target defer, target cancelled, runner defer
 # expect-stdout: abandoned
 # test: when another task cancels the job that timeout!'s work awaits, the timeout! is cancelled at once and never returns .Err(TimedOut)
-# Spec lang/11 Standard Combinators: req.combinator.race-child-cancelled; Cancellation: req.cancel.await.propagate, req.cancel.await.dispose.
+# Spec std/task: std-task.policy.time-limit.work-cancelled.
+# Also covers lang/11 Standard Combinators: req.combinator.race-child-cancelled; Cancellation: req.cancel.await.propagate, req.cancel.await.dispose.
 use std.ops.Disposable
-use std.task.{TimedOut, all, timeout}
+use std.task.{TimedOut, all, timeout, apply}
 use std.time.{Clock, ms, s, sleep}
 
 struct Runner:
@@ -36,7 +37,7 @@ fn run!(log: *mut List[string], timed: mut Suspend[Result[string, TimedOut]], st
 pub fn main!() -> void $ Console + Clock:
     let mut log: List[string] = []
     let job: mut Suspend[string] = target(&mut log)
-    let timed: mut Suspend[Result[string, TimedOut]] = timeout(s(60), work=fn!() -> string: job!())
+    let timed: mut Suspend[Result[string, TimedOut]] = apply(timeout(s(60)), work=fn!() -> Result[string, TimedOut]: .Ok(job!()))
     let runner: mut Suspend[void] = run(&mut log, timed, stop_later(job, &mut log))
     runner!()
     println(log.join(", "))

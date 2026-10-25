@@ -1,4 +1,4 @@
-use std.task.timeout
+use std.task.{timeout, apply, TimedOut}
 use std.time.{Clock, ms}
 
 @host
@@ -7,7 +7,7 @@ pub trait Source:
     fn aborts(&self) -> u32
 
 pub fn main!() -> void $ Source + Clock + Console:
-    match timeout!(ms(10), work=fn!() -> string $ Source: $.use(Source).wait!("cancel")):
+    match apply!(timeout(ms(10)), work=fn!() -> Result[string, TimedOut] $ Source: .Ok($.use(Source).wait!("cancel"))):
         .Err(_) => println("cancelled")
         .Ok(_) => panic("the cancelled operation must not complete")
     println("aborts ${$.use(Source).aborts()}")

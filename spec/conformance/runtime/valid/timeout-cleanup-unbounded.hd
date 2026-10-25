@@ -2,9 +2,9 @@
 # expect-stdout: closing, acknowledged, closed
 # expect-stdout: TimedOut { limit: 5s, cleanup: CleanupEnd.Finished }
 # test: without cleanup, timeout! waits for the whole cleanup of the cancelled work, and TimedOut.cleanup is .Finished
-# Spec std/task Cleanup Bound: std-task.timeout.cleanup-unbounded, .cleanup-end; Timeout: std-task.timeout.err-cleanup, .fields.
+# Spec std/task: std-task.policy.time-limit.cleanup-unbounded, std-task.timeout.cleanup-end, std-task.timeout.fields-value.
 use std.ops.Disposable
-use std.task.{TimedOut, timeout}
+use std.task.{TimedOut, timeout, apply}
 use std.time.{Clock, ManualClock, Timestamp, ms, s, sleep}
 
 struct Close:
@@ -30,9 +30,10 @@ pub fn main!() -> void $ Console + Clock:
     let ack: mut Suspend[void] = sleep(ms(30))
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
-        result := timeout!(5s):
+        result := apply!(timeout(5s)):
             using close = &mut Close { log: &mut log, ack: ack }
-            reply!()
+            let done: Result[void, TimedOut] = .Ok(reply!())
+            done
         match result:
             .Ok(_) => println("in time")
             .Err(error) =>

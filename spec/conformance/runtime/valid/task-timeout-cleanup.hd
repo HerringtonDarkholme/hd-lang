@@ -5,9 +5,9 @@
 # expect-stdout: upload acknowledged, upload closed
 # expect-stdout: finished at 5000
 # test: with cleanup=1s, timeout! abandons a cleanup still waiting 1s after the limit, and a cleanup that ends in time is .Finished
-# Spec std/task Cleanup Bound: std-task.timeout.cleanup-deadline, .cleanup-abandon, .cleanup-ended, .cleanup-end; Timeout: std-task.timeout.fields-value, .display, .decl-cleanup, .err-cleanup.
+# Spec std/task: std-task.policy.time-limit.cleanup-deadline, std-task.policy.time-limit.cleanup-abandon, std-task.timeout.cleanup-ended, std-task.timeout.cleanup-end, std-task.policy.time-limit.expired.
 use std.ops.Disposable
-use std.task.{TimedOut, timeout}
+use std.task.{TimedOut, timeout, apply}
 use std.time.{Clock, s}
 use std.time.{ManualClock, Timestamp, sleep}
 
@@ -23,9 +23,10 @@ impl Disposable for Upload:
         self.log.push("upload acknowledged")
 
 fn send!(log: *mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
-    timeout!(5s, cleanup=1s):
+    apply!(timeout(5s, cleanup=1s)):
         using upload = &mut Upload { log: log, ack: ack }
-        reply!()
+        let done: Result[string, TimedOut] = .Ok(reply!())
+        done
 
 # The reply and the acknowledgement wait on the host's clock, so they are
 # still pending when the manual clock's limit and deadline pass.

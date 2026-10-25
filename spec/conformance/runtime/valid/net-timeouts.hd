@@ -1,16 +1,16 @@
 # test: composed connect deadlines and handle timeouts preserve results and scripted call recording
-# Spec std/net Timeouts: std-net.connect.deadline, std-net.timeout.set, std-net.timeout.error, std-net.error.timeout, std-net.error.timeout.text, std-net.scripted.timeout.
+# Spec std/net Timeouts: std-net.connect.policy-deadline, std-net.timeout.set, std-net.timeout.error, std-net.error.timeout, std-net.error.timeout.text, std-net.scripted.timeout.
 # Also covers std-net.timeout.host-time, std-net.scripted.received-connect,
 # std-net.scripted.failing, std-net.scripted.queue, and
 # std-net.scripted.closed-error.
 # expect: test
 use std.net.{Net, NetError, ScriptedListener, ScriptedNet, ScriptedStream, ScriptedUdp, TcpListener, UdpSocket}
-use std.task.with_timeout
+use std.task.{timeout, apply}
 use std.time.{Clock, ManualClock, Timestamp, s}
 
 fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net + Clock:
     let net: *mut dyn Net = $.use(Net)
-    connected := with_timeout!(3s):
+    connected := apply!(timeout(3s)):
         net.connect!(host, port)
     stream := connected?
     match stream.set_timeout(.Some(5s)):

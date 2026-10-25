@@ -1,7 +1,7 @@
 # test: ScriptedHttp queues raw results per encoded URL and repeats the last reply
 # Rules: std-http.scripted.new-empty, std-http.scripted.reply, std-http.scripted.key-text, std-http.scripted.queue-order, std-http.scripted.repeat-last, std-http.scripted.transport-errors, std-http.scripted.raw-status, std-http.scripted.received-ref.
 use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
-use std.task.{Backoff, retry}
+use std.task.{Backoff, retry, apply}
 use std.time.{Clock, ManualClock, Timestamp}
 
 tests:
@@ -14,7 +14,7 @@ tests:
         http.reply(url, .Ok(Response { status: 200, body: "ready".to_utf8() }))
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Http=http, Clock=clock):
-            result := retry!(Backoff { attempts: 3, initial: 0ms }, when=fn(error: HttpError): error.is_transient()):
+            result := apply!(retry(Backoff { attempts: 3, initial: 0ms }).when(fn(error: HttpError): error.is_transient())):
                 get!(url)
             assert_equal(result.expect("retry succeeds").text(), "ready", reason="the real status check caused a retry")
             assert_equal(get!(url).expect("last reply repeats").status, 200, reason="third request")
@@ -56,7 +56,7 @@ tests:
         http.reply(url, .Ok(Response { status: 200 }))
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Http=http, Clock=clock):
-            result := retry!(Backoff { attempts: 3, initial: 0ms }, when=fn(error: HttpError): error.is_transient()):
+            result := apply!(retry(Backoff { attempts: 3, initial: 0ms }).when(fn(error: HttpError): error.is_transient())):
                 get!(url)
             match result:
                 .Err(.Status(response)) => assert_equal(response.status, 404, reason="real status error")

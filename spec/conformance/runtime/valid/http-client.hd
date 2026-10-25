@@ -1,7 +1,7 @@
 # test: Client shares a base URL and headers without requiring Clock
 # expect: test
 use std.http.{Client, Http, HttpError, Method, Request, Response, ScriptedHttp}
-use std.task.with_timeout
+use std.task.{timeout, apply}
 use std.testing.assert_equal
 use std.time.{Clock, ManualClock, Timestamp}
 
@@ -68,7 +68,7 @@ tests:
         client := Client::new().base_url("https://api.example")
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Http=http, Clock=clock):
-            result := with_timeout!(1s):
+            result := apply!(timeout(1s)):
                 send_only!(client, Request { url: "/" })
             match result:
                 .Ok(response) => assert_equal(response.status, 204, reason="ready send wins")

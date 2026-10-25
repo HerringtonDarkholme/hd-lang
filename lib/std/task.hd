@@ -143,8 +143,8 @@ pub struct Backoff:
     pub max: Duration = 10s
 
 ## Retries with the policy's delays until success, a rejected error, or the final attempt.
-## See [std-task.retry.policy.decl](../../spec/std/task.md#r-std-task.retry.policy.decl).
-pub fn retry![T, E, $R](policy: Backoff, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock:
+## See [std-task.policy.retry.layer](../../spec/std/task.md#r-std-task.policy.retry.layer).
+fn retry_work![T, E, $R](policy: Backoff, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock:
     let result = attempt!()
     let tries: usize = 1
     let delay = if policy.initial > policy.max: policy.max else: policy.initial
@@ -165,12 +165,75 @@ pub fn retry![T, E, $R](policy: Backoff, when: fn(E) -> bool = fn(error: E): tru
 
 # The error of `timeout!` when the limit passes first, with how the work's
 # cleanup ended (spec/std/task.md#timeout).
-## The error of `timeout!`: the work did not finish within `limit`, and `cleanup` says how its cleanup ended.
+## The error when a TimeLimit deadline wins; cleanup says how the work’s cleanup ended.
 ## See [std-task.timeout.fields-value](../../spec/std/task.md#r-std-task.timeout.fields-value).
 @derive(Debug, Eq)
 pub struct TimedOut:
     pub limit: Duration
     pub cleanup: CleanupEnd
+
+## Converts a timeout to itself without changing its limit or cleanup outcome.
+## See [std-task.policy.timed-out.from-self](../../spec/std/task.md#r-std-task.policy.timed-out.from-self).
+impl From[TimedOut] for TimedOut:
+    fn from(value: TimedOut) -> TimedOut: value
+
+## A deadline configuration; wrapping Result work adds Clock and converts TimedOut into its error type.
+## See [std-task.policy.time-limit.decl](../../spec/std/task.md#r-std-task.policy.time-limit.decl).
+pub struct TimeLimit:
+    limit: Duration
+    cleanup: Duration? = .None
+
+## See [std-task.policy.time-limit.layer](../../spec/std/task.md#r-std-task.policy.time-limit.layer).
+impl[T, E < From[TimedOut], $R] Layer[fn!() -> Result[T, E] $ R] for TimeLimit:
+    type Wrapped = fn!() -> Result[T, E] $ R + Clock
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
+        fn!() -> Result[T, E] $ R + Clock:
+            timeout_result!(self.limit, cleanup=self.cleanup, work=work)
+
+## A retry configuration whose error type is selected when work is applied.
+## See [std-task.policy.retry.decl](../../spec/std/task.md#r-std-task.policy.retry.decl).
+pub struct Retry:
+    backoff: Backoff
+
+## See [std-task.policy.retry.layer](../../spec/std/task.md#r-std-task.policy.retry.layer).
+impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for Retry:
+    type Wrapped = fn!() -> Result[T, E] $ R + Clock
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
+        fn!() -> Result[T, E] $ R + Clock:
+            retry_work!(self.backoff, attempt=work)
+
+## A retry configuration with a predicate for one concrete error type.
+## See [std-task.policy.selective-retry.decl](../../spec/std/task.md#r-std-task.policy.selective-retry.decl).
+pub struct SelectiveRetry[E]:
+    backoff: Backoff
+    when: fn(E) -> bool
+
+impl Retry:
+    ## Selects which errors allow another attempt.
+    ## See [std-task.policy.retry.when](../../spec/std/task.md#r-std-task.policy.retry.when).
+    pub fn when[E](self, predicate: fn(E) -> bool) -> SelectiveRetry[E]:
+        SelectiveRetry { backoff: self.backoff, when: predicate }
+
+## See [std-task.policy.selective-retry.layer](../../spec/std/task.md#r-std-task.policy.selective-retry.layer).
+impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for SelectiveRetry[E]:
+    type Wrapped = fn!() -> Result[T, E] $ R + Clock
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
+        fn!() -> Result[T, E] $ R + Clock:
+            retry_work!(self.backoff, when=self.when, attempt=work)
+
+## Builds a retry configuration without acquiring a provider.
+## See [std-task.policy.retry.builder](../../spec/std/task.md#r-std-task.policy.retry.builder).
+pub fn retry(backoff: Backoff) -> Retry: Retry { backoff: backoff }
+
+## Builds a deadline configuration without starting work.
+## See [std-task.policy.timeout.builder](../../spec/std/task.md#r-std-task.policy.timeout.builder).
+pub fn timeout(limit: Duration, cleanup: Duration? = .None) -> TimeLimit:
+    TimeLimit { limit: limit, cleanup: cleanup }
+
+## Places a deadline outside an inner policy.
+## See [std-task.policy.with-timeout.builder](../../spec/std/task.md#r-std-task.policy.with-timeout.builder).
+pub fn with_timeout[I](limit: Duration, inner: I, cleanup: Duration? = .None) -> (I, TimeLimit):
+    (inner, timeout(limit, cleanup=cleanup))
 
 # The limit, and a note when the cleanup was cut short
 # (r-std-task.timeout.display).
@@ -196,10 +259,10 @@ impl Error for TimedOut
 # fixes the deadline at that moment. The dispose is shielded, so a later
 # cancel only continues it and never moves the deadline. It runs beside
 # the work's cleanup, waits for it, and abandons the work once the
-# deadline passes (r-std-task.timeout.cleanup-deadline).
+# deadline passes (r-std-task.policy.time-limit.cleanup-deadline).
 ## Runs `work` and returns its value, or `.Err(TimedOut)` when `limit` passes first; `cleanup` bounds the wait for the work's cleanup.
-## See [std-task.timeout.decl-cleanup](../../spec/std/task.md#r-std-task.timeout.decl-cleanup).
-pub fn timeout![T, $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> T $ R) -> Result[T, TimedOut] $ R + Clock:
+## See [std-task.policy.time-limit.layer](../../spec/std/task.md#r-std-task.policy.time-limit.layer).
+fn timeout_value![T, $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> T $ R) -> Result[T, TimedOut] $ R + Clock:
     let job: mut Suspend[T] = work()
     let end = match cleanup:
         .None => race!(timeout_work(job), timeout_expire(limit))
@@ -209,9 +272,9 @@ pub fn timeout![T, $R](limit: Duration, cleanup: Duration? = .None, work: fn!() 
         .Expired => .Err(TimedOut { limit: limit, cleanup: job.cancel!() })
 
 ## Returns the work's Result directly, converting a timeout into its error type.
-## See [std-task.with-timeout.decl](../../spec/std/task.md#r-std-task.with-timeout.decl).
-pub fn with_timeout![T, E < From[TimedOut], $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock:
-    match timeout!(limit, cleanup=cleanup, work=work):
+## See [std-task.policy.time-limit.layer](../../spec/std/task.md#r-std-task.policy.time-limit.layer).
+fn timeout_result![T, E < From[TimedOut], $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock:
+    match timeout_value!(limit, cleanup=cleanup, work=work):
         .Ok(result) => result
         .Err(error) => .Err(E::from(error))
 

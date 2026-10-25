@@ -1,6 +1,6 @@
 # test: retry! stops at an error that when rejects, and retries every error without when
-# Spec std/task Retry: std-task.combinator.retry.when, std-task.retry.policy.when-default, and std-task.combinator.retry.when-plain; Retry With Backoff: std-task.retry.policy.when-sleep (issue #369).
-use std.task.{Backoff, retry}
+# Spec std/task Retry: std-task.policy.retry.predicate, std-task.policy.retry.all-errors, and std-task.policy.retry.when-plain; Retry With Backoff: std-task.policy.retry.when-sleep (issue #369).
+use std.task.{Backoff, retry, apply}
 use std.time.{Clock, ManualClock, Timestamp}
 use std.time.{Duration, Instant, ms}
 
@@ -8,7 +8,7 @@ fn is_busy(error: string) -> bool:
     error == "busy"
 
 fn connect!(replies: *mut List[Result[string, string]]) -> Result[string, string] $ Clock:
-    retry!(Backoff { attempts: 5, initial: 0ms }, when=is_busy):
+    apply!(retry(Backoff { attempts: 5, initial: 0ms }).when(is_busy)):
         replies.remove_at(0)
 
 struct RecordingClock:
@@ -60,7 +60,7 @@ tests:
         manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=manual):
             server := &mut Server { errors: ["busy", "busy"], calls: 0, asked: [] }
-            result := retry!(Backoff { attempts: 5, initial: 0ms }, when=fn(error: string): judge(server, error)):
+            result := apply!(retry(Backoff { attempts: 5, initial: 0ms }).when(fn(error: string): judge(server, error))):
                 ask!(server)
             assert_equal(result, .Ok("ready"), reason="the third call succeeds")
             assert_equal(server.asked, ["busy", "busy"], reason="one question for each .Err")
@@ -69,7 +69,7 @@ tests:
         manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=manual):
             server := &mut Server { errors: ["a", "b", "c"], calls: 0, asked: [] }
-            result := retry!(Backoff { attempts: 3, initial: 0ms }):
+            result := apply!(retry(Backoff { attempts: 3, initial: 0ms })):
                 ask!(server)
             assert_equal(result, .Err("c"), reason="three calls, the last error")
             assert_equal(server.calls, 3, reason="every error was retried")
@@ -81,7 +81,7 @@ tests:
             server := &mut Server { errors: ["busy", "refused", "busy"], calls: 0, asked: [] }
             policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 1000ms }
             $.with(Clock=&mut clock):
-                result := retry!(policy, when=is_busy):
+                result := apply!(retry(policy).when(is_busy)):
                     ask!(server)
                 assert_equal(result, .Err("refused"), reason="the second error is rejected")
             assert_equal(server.calls, 2, reason="no third call")

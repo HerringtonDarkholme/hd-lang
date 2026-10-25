@@ -1,7 +1,7 @@
 # expect-stdout: 2000 results; 2000 started and cleaned
 # test: map_all handles 2000 workers and cancels every pending worker
 # Spec std/task Map All: std-task.map-all.order, .empty, and .like-all.
-use std.task.{map_all, timeout}
+use std.task.{TimedOut, map_all, timeout, apply}
 use std.testing.assert_equal
 use std.time.{Clock, ManualClock, Timestamp, sleep}
 
@@ -30,8 +30,9 @@ pub fn main!() -> void $ Console + Clock:
     let pending: mut Suspend[List[usize]] = batch(gauge, items)
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
-        result := timeout!(1ms):
-            pending!()
+        result := apply!(timeout(1ms)):
+            let done: Result[List[usize], TimedOut] = .Ok(pending!())
+            done
         match result:
             .Err(_) => pass
             .Ok(_) => panic("expected the scripted deadline")

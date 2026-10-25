@@ -2,10 +2,10 @@
 # expect-stdout: closing, closed
 # expect-stdout: clock 5000
 # test: with cleanup=0s, timeout! cancels the work at the limit and abandons its cleanup at the first wait, after the synchronous part ran
-# Spec std/task Result Timeouts: std-task.with-timeout.cleanup.
+# Spec std/task Result Timeouts: std-task.policy.time-limit.cleanup-deadline.
 use std.ops.Disposable
 use std.http.HttpError
-use std.task.with_timeout
+use std.task.{timeout, apply}
 use std.time.{Clock, ManualClock, Timestamp, s, sleep}
 
 struct Close:
@@ -25,10 +25,11 @@ fn silent!() -> void $ Clock:
     sleep!(60s)
 
 fn close!(log: *mut List[string], reply: mut Suspend[void], ack: mut Suspend[void]) -> Result[void, HttpError] $ Clock:
-    with_timeout!(5s, cleanup=0s):
+    apply!(timeout(5s, cleanup=0s)):
         using close = &mut Close { log: log, ack: ack }
         reply!()
-        .Ok(())
+        let done: Result[void, HttpError] = .Ok(())
+        done
 
 pub fn main!() -> void $ Console + Clock:
     let mut log: List[string] = []

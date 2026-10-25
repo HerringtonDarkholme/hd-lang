@@ -109,12 +109,12 @@ For example, `Request::get(url).query("page", 2).header("Accept", "text/plain").
 > JSON and forms. Flat form fields match ordinary HTML submissions; nested
 > shapes need an application-specific encoding instead of an implicit convention.
 
-The provider's default timeout still applies; `std.task.timeout!` can impose a shorter bound around a send.
+The provider's default timeout still applies; `std.task.apply!` with `std.task.timeout` can impose a shorter bound around a send.
 
 ## Client
 
 A client shares a base URL, default headers and host-only cookies across requests. A caller
-adds a deadline by composing `std.task.timeout!` around `client.send!`.
+adds a deadline by composing `std.task.apply!` with `std.task.timeout` around `client.send!`.
 
 1. r[std-http.client.http-only] `std.http` exports the struct `Client` with private fields.
 2. r[std-http.client.new-empty-jar] `Client::new() -> *mut Client` returns a new client without a base URL, default headers or cookies.
@@ -127,7 +127,7 @@ adds a deadline by composing `std.task.timeout!` around `client.send!`.
 9. r[std-http.client.default-initial-hosts] Default headers apply to the initial host of every client send.
 10. r[std-http.client.request-unchanged] Sending leaves the supplied request unchanged.
 11. r[std-http.client.unchecked-final-response] Sending returns the final response without checking its status, or propagates a provider error unchanged.
-12. r[std-http.client.external-timeout] `Client` has no timeout setter; a deadline uses `std.task.timeout!` around the send.
+12. r[std-http.client.policy-timeout] `Client` has no timeout setter; a caller applies `std.task.timeout` around its Result-returning send through `std.task.apply!`.
 
 13. r[std-http.client.cookie] `cookie(self, url: string, name: string) -> string?` returns the stored cookie eligible for that URL, resolved against `base_url`.
 14. r[std-http.client.cookies] Each response updates the jar from its `Set-Cookie` header pairs before the client follows another redirect.

@@ -1,0 +1,6 @@
+# test: retry is a plain configuration builder, not the old public bang operation
+# Spec std/task: std-task.policy.retry.builder.
+use std.task.{Backoff, Retry, retry}
+
+pub fn bad!() -> Retry:
+    retry!(Backoff {})  # diagnostic: not-suspending

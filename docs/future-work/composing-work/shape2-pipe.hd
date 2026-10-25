@@ -5,7 +5,8 @@
 # parameter (POLICY_COMPOSITION.md, "Shape 2: the missing feature").
 use std.convert.From
 use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
-use std.task.{Backoff, TimedOut, race, retry, with_timeout}
+use std.task.{Backoff, TimedOut, race}
+use std.task
 use std.time.{Clock, Duration, ms, sleep}
 
 # ---- 1. proposed std.task additions ----
@@ -24,7 +25,7 @@ struct Breaker:
     calls: usize
 
 # Refuses the work once `limit` failures in a row have happened.
-fn guarded![T, E < From[CircuitOpen], $R](breaker: &mut Breaker, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R:
+fn guarded![T, E < From[CircuitOpen], $R](breaker: *mut Breaker, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R:
     if breaker.failures >= breaker.limit:
         return .Err(E::from(CircuitOpen {}))
     breaker.calls += 1
@@ -73,8 +74,8 @@ fn transient(error: Failure) -> bool:
 # A fake provider that records each request, then holds primary replies
 # for 500 ms, so the caller's deadline cancels them.
 struct DelayedHttp:
-    inner: &mut ScriptedHttp
-    clock: &mut dyn Clock
+    inner: *mut ScriptedHttp
+    clock: *mut dyn Clock
     finished_primary: usize
 
 impl Http for DelayedHttp:
@@ -95,7 +96,7 @@ struct Replicas:
     finished: usize
     closed: usize
 
-fn replica!(state: &mut Replicas) -> Result[string, Failure] $ Http + Clock:
+fn replica!(state: *mut Replicas) -> Result[string, Failure] $ Http + Clock:
     state.started += 1
     number := state.started
     defer: state.closed += 1
@@ -122,8 +123,8 @@ pub fn main!() -> void $ Console + Clock:
     $.with(Http=&mut delayed_http):
         # 1. a deadline per attempt, two attempts, then a fallback source.
         response := fetch("http://primary/item")
-            |> with_timeout(ms(50), work=_)
-            |> retry(Backoff { attempts: 2, initial: ms(1) }, when=transient, attempt=_)
+            |> task.apply(task.timeout(ms(50)), work=_)
+            |> task.apply(task.retry(Backoff { attempts: 2, initial: ms(1) }).when(transient), work=_)
             |> fallback(fetch("http://backup/item"), work=_)
             |> _!()
         println("http ${debug(response)} requests=${http.received().len()}")

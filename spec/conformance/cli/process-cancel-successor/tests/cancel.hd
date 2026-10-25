@@ -1,11 +1,12 @@
-use std.process.Command
-use std.task.timeout
+use std.process.{Command, ProcessOutput, ProcessError}
+use std.task.{TimedOut, timeout, apply}
 use std.testing.{assert, assert_equal}
 use std.time.ms
 
 it("a process still runs after cancellation of its predecessor"):
-    cancelled := timeout!(500ms):
-        Command::new("wait").run!()
+    cancelled := apply!(timeout(500ms)):
+        let done: Result[Result[ProcessOutput, ProcessError], TimedOut] = .Ok(Command::new("wait").run!())
+        done
     assert(cancelled.is_err(), reason="the pending process is cancelled")
     output := Command::new("next").run!().expect("the successor starts")
     assert_equal(output.stdout, "successor\n", reason="its complete output is retained")

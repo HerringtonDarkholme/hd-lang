@@ -2,9 +2,9 @@
 # expect-stdout: closing, closed
 # expect-stdout: clock 5000
 # test: with cleanup=0s, timeout! cancels the work at the limit and abandons its cleanup at the first wait, after the synchronous part ran
-# Spec std/task Cleanup Bound: std-task.timeout.cleanup-zero, .cleanup-abandon.
+# Spec std/task: std-task.timeout.cleanup-zero, std-task.policy.time-limit.cleanup-abandon.
 use std.ops.Disposable
-use std.task.{TimedOut, timeout}
+use std.task.{TimedOut, timeout, apply}
 use std.time.{Clock, ManualClock, Timestamp, s, sleep}
 
 struct Close:
@@ -24,9 +24,10 @@ fn silent!() -> void $ Clock:
     sleep!(60s)
 
 fn close!(log: *mut List[string], reply: mut Suspend[void], ack: mut Suspend[void]) -> Result[void, TimedOut] $ Clock:
-    timeout!(5s, cleanup=0s):
+    apply!(timeout(5s, cleanup=0s)):
         using close = &mut Close { log: log, ack: ack }
-        reply!()
+        let done: Result[void, TimedOut] = .Ok(reply!())
+        done
 
 pub fn main!() -> void $ Console + Clock:
     let mut log: List[string] = []

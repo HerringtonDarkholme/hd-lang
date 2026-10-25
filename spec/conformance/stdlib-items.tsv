@@ -20,7 +20,7 @@ std.format.DebugMap	std/format.md#debug-builders
 std.time	std/time.md#duration
 std.testing.TestRunner	std/testing.md#runner-capabilities
 std.testing.PropertyRunner	std/testing.md#runner-capabilities
-std.task.retry	std/task.md#retry
+std.task.retry	std/task.md#r-std-task.policy.retry.builder
 std.ops.Default	std/ops.md#default-trait
 std.collections.ListView	std/collections.md#views
 std.collections.Deque	std/collections.md#deque
@@ -34,7 +34,7 @@ std.cmp.Reverse	std/cmp.md#reverse
 std.hash.DefaultHasher	std/hash.md#default-hasher
 std.hash.hash_of	std/hash.md#default-hasher
 std.task.Backoff	std/task.md#retry-with-backoff
-std.task.timeout	std/task.md#timeout
+std.task.timeout	std/task.md#r-std-task.policy.timeout.builder
 std.task.TimedOut	std/task.md#timeout
 std.task.map_all	std/task.md#map-all
 std.task.CleanupEnd	std/task.md#cleanup-end
@@ -91,3 +91,7 @@ std.iter.DynIterator	std/iter.md#iterator-adapters
 std.iter.Sum	std/iter.md#numeric-aggregation
 std.iter.Product	std/iter.md#numeric-aggregation
 std.console.print	std/console.md#printing-without-a-newline
+std.task.TimeLimit	std/task.md#r-std-task.policy.time-limit.decl
+std.task.Retry	std/task.md#r-std-task.policy.retry.decl
+std.task.SelectiveRetry	std/task.md#r-std-task.policy.selective-retry.decl
+std.task.with_timeout	std/task.md#r-std-task.policy.with-timeout.builder

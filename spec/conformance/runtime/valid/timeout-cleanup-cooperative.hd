@@ -2,9 +2,9 @@
 # expect-stdout: bound 1s: flushed at 5200, closed at 6000
 # expect-stdout: bound 1s, quick peer: flushed at 5200, acknowledged, closed at 5200
 # test: the cleanup deadline counts from the first cancel, never interrupts a flush that is computing, and abandons only a cleanup that still waits
-# Spec std/task Cleanup Bound: std-task.timeout.cleanup-cooperative, .cleanup-deadline, .cleanup-ended.
+# Spec std/task: std-task.timeout.cleanup-cooperative, std-task.policy.time-limit.cleanup-deadline.
 use std.ops.Disposable
-use std.task.{TimedOut, timeout}
+use std.task.{TimedOut, timeout, apply}
 use std.time.{Clock, Duration, ManualClock, Timestamp, ms, s, sleep}
 
 # The flush spends 200 ms of the manual clock without waiting, then waits
@@ -34,9 +34,10 @@ fn flush!(log: *mut List[string], ack: mut Suspend[void], bound: Duration) -> Re
     let reply: mut Suspend[void] = silent()
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
-        timeout!(5s, cleanup=bound):
+        apply!(timeout(5s, cleanup=bound)):
             using flush = &mut Flush { log: log, clock: $.use(Clock), ack: ack }
-            reply!()
+            let done: Result[void, TimedOut] = .Ok(reply!())
+            done
 
 fn attempt!(name: string, ack: mut Suspend[void], bound: Duration) -> void $ Console + Clock:
     let mut log: List[string] = []

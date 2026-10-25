@@ -1171,10 +1171,10 @@ expression will miss these observations, even when it recognizes the loop.
 ```text
 use std.ops.Disposable
 use std.time.{Clock, sleep}
-use std.task.timeout
+use std.task.{TimedOut, apply, timeout}
 
 struct Guard:
-    trace: &mut List[string]
+    trace: *mut List[string]
 
 impl Disposable for Guard:
     fn dispose!(&mut self) -> void:
@@ -1190,10 +1190,12 @@ impl Worker:
 
 pub fn main!() -> void $ Clock + Console:
     let mut trace: List[string] = []
-    outcome := timeout!(20ms):
+    let outcome: Result[void, TimedOut] = apply!(timeout(20ms)):
         using guard = &mut Guard { trace: &mut trace }
         defer: trace.push("deferred")
         Worker { value: +0 }.touch!()   # S11: cancellation runs cleanup
+        let completed: Result[void, TimedOut] = .Ok(())
+        completed
     println("${outcome.is_err()}/${trace.join(",")}")
 ```
 

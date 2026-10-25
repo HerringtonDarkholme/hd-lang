@@ -1,6 +1,6 @@
 # test: retry! calls its attempt until the first .Ok, or returns the last .Err
-# Spec std/task Retry: std-task.retry.policy.decl, std-task.retry.policy.loop, and std-task.retry.policy.last-error (owner decision RETRY, batch 29, 2026-09-30).
-use std.task.{Backoff, retry}
+# Spec std/task Retry: std-task.policy.retry.builder, std-task.policy.retry.loop, and std-task.policy.retry.last-error (owner decision RETRY, batch 29, 2026-09-30).
+use std.task.{Backoff, retry, apply}
 use std.time.{Clock, ManualClock, Timestamp}
 struct Server:
     busy_for: i32
@@ -14,7 +14,7 @@ fn ask!(server: &mut Server) -> Result[string, string]:
     .Ok("ready")
 
 fn connect!(server: *mut Server) -> Result[string, string] $ Clock:
-    retry!(Backoff { attempts: 3, initial: 0ms }):
+    apply!(retry(Backoff { attempts: 3, initial: 0ms })):
         ask!(server)
 
 tests:

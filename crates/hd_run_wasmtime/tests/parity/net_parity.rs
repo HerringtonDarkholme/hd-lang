@@ -1218,14 +1218,14 @@ fn a_manual_clock_deadline_cancels_a_pending_loopback_connect() {
     let full = FullListener::new();
     let source = format!(
         r#"use std.net.{{Net, NetError, TcpStream, connect}}
-use std.task.with_timeout
+use std.task.{{apply, timeout}}
 use std.time.{{Clock, ManualClock, Timestamp}}
 
 pub fn main!() -> void $ Console + Net:
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
         for limit in [0ms, 100ms]:
-            let result: Result[*mut dyn TcpStream, NetError] = with_timeout!(limit):
+            let result: Result[*mut dyn TcpStream, NetError] = apply!(timeout(limit)):
                 connect!("127.0.0.1", {})
             match result:
                 .Err(.Timeout) => println("timed out")

@@ -447,29 +447,30 @@ same time.
 ## 7. Timeouts
 
 ```text
-use std.task.timeout
+use std.task.{TimedOut, apply, timeout}
 
 fn first_line!(host: string) -> Result[string?, &dyn Error] $ Net + Clock:
     using stream = connect!(host, 25)?
     stream.set_timeout(.Some(5s))?                # each later read waits at most 5s
     lines := LineReader::new(stream)
-    attempt := timeout!(30s):                     # the whole exchange, one timer
-        lines.read_line!()
+    let attempt: Result[Result[string?, LineError[NetError]], TimedOut] = apply!(timeout(30s)):
+        let completed: Result[Result[string?, LineError[NetError]], TimedOut] = .Ok(lines.read_line!())
+        completed
     .Ok(attempt??)
 ```
 
-Two bounds serve two needs. `timeout!` around a loop bounds the whole
+Two bounds serve two needs. `apply!(timeout(...))` around a loop bounds the whole
 transfer with one timer and one race. `set_timeout` on a handle bounds
 each read, for a peer that goes quiet; it stays on `TcpStream` because a
-`timeout!` around every read would pay one timer and one race per read.
-HTTP bodies, pipes and files take `timeout!` around the loop. An idle
+`apply!(timeout(...))` around every read would pay one timer and one race per read.
+HTTP bodies, pipes and files take `apply!(timeout(...))` around the loop. An idle
 bound on them waits for a program that needs one.
 
 The block is an ordinary closure that captures `lines`, and
-`timeout!`'s `work` stays `fn!() -> T $ R`. After the block, the
+the timed work returns a typed `Result[T, E]` with `E < From[TimedOut]`. After the block, the
 program still holds `lines` and `stream`. If the timer wins, the read
 is cancelled with its bytes kept, and the stream stays open until the
-`using` binding disposes it. A `retry!` attempt and the children of
+`using` binding disposes it. A retry policy’s attempt and the children of
 `race!` and `all!` capture handles the same way. Several `map_all!`
 items may use one shared handle at once; section 13 asks how such
 calls are ordered.

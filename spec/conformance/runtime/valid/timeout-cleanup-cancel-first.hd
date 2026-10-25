@@ -1,9 +1,9 @@
 # expect-stdout: cancelled
 # expect-stdout: caller cancels, closing, still closing, closed, after deadline
 # test: a cancel of timeout! before the limit sets the cleanup deadline, and the bound goes on as part of the cancelled timeout!'s cleanup
-# Spec std/task Cleanup Bound: std-task.timeout.cleanup-outlives, .cleanup-deadline, .cleanup-abandon.
+# Spec std/task Cleanup Bound: std-task.policy.time-limit.cleanup-outlives, .cleanup-deadline, .cleanup-abandon.
 use std.ops.Disposable
-use std.task.{all, race, timeout}
+use std.task.{TimedOut, all, race, timeout, apply}
 use std.time.{Clock, Duration, ms, s, sleep}
 
 struct Close:
@@ -26,8 +26,9 @@ fn session!(log: *mut List[string]) -> string $ Clock:
 # The caller cancels at 50 ms, long before the limit, so the deadline is
 # 250 ms.
 fn request!(log: *mut List[string]) -> string $ Clock:
-    result := timeout!(s(60), cleanup=ms(200)):
-        session!(log)
+    result := apply!(timeout(s(60), cleanup=ms(200))):
+        let done: Result[string, TimedOut] = .Ok(session!(log))
+        done
     match result:
         .Ok(value) => value
         .Err(error) => error.to_string()

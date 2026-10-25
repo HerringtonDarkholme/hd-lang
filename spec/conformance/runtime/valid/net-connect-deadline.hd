@@ -1,9 +1,9 @@
 # expect-stdout: connect deadlines
 # test: a ready scripted connect wins and a never-completing connect times out under ManualClock
-# Spec std/net Net Trait: std-net.trait.decl-composed, std-net.connect.deadline, std-net.connect.cancel.
-# Also covers std-task.with-timeout.completed, std-task.with-timeout.expired.
+# Spec std/net Net Trait: std-net.trait.decl-composed, std-net.connect.policy-deadline, std-net.connect.cancel.
+# Also covers std-task.policy.time-limit.completed, std-task.policy.time-limit.expired.
 use std.net.{Net, NetError, ScriptedNet, ScriptedStream, TcpListener, TcpStream, UdpSocket, connect}
-use std.task.with_timeout
+use std.task.{timeout, apply}
 use std.testing.assert_equal
 use std.time.{Clock, ManualClock, Timestamp, sleep}
 
@@ -41,7 +41,7 @@ pub fn main!() -> void $ Console + Clock:
     stream := ScriptedStream::new([])
     net.add_connection("ready.local:25", stream)
     $.with(Net=net, Clock=clock):
-        let ready: Result[*mut dyn TcpStream, NetError] = with_timeout!(3s):
+        let ready: Result[*mut dyn TcpStream, NetError] = apply!(timeout(3s)):
             connect!("ready.local", 25)
         assert_equal(ready.is_ok(), true, reason="the ready connect wins")
         _ := ready.expect("the scripted stream").close()
@@ -51,7 +51,7 @@ pub fn main!() -> void $ Console + Clock:
     let mut log: List[string] = []
     pending := &mut PendingNet { wait: waiting, log: &mut log }
     $.with(Net=pending, Clock=clock):
-        let expired: Result[*mut dyn TcpStream, NetError] = with_timeout!(3s):
+        let expired: Result[*mut dyn TcpStream, NetError] = apply!(timeout(3s)):
             connect!("pending.local", 25)
         assert_equal(expired.is_err(), true, reason="the pending connect times out")
         match expired:

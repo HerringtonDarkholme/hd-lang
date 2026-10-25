@@ -6,8 +6,8 @@ This chapter defines the part of `std.task` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - the `Layer` trait, unit and binary tuple implementations, and `apply!`;
-- the `retry!` combinator and its `Backoff` policy;
-- the `timeout!` and `with_timeout!` combinators and their `TimedOut` error;
+- the `retry` builder, its `Retry` and `SelectiveRetry` policies, and `Backoff`;
+- the `timeout` and `with_timeout` builders, their `TimeLimit` policy, and `TimedOut`;
 - the `map_all!` combinator;
 - the `CleanupEnd` enum, which `cancel!()` returns;
 - the `BlockOn` enum, which `block_on` returns.
@@ -18,25 +18,37 @@ polling combinators `all!` and `race!`, which are compiler intrinsics
 
 ## Retry
 
-`retry!` calls a suspending attempt until it succeeds, fails with an error
-that `when` rejects, or runs out of tries:
+`retry` constructs a reusable retry configuration; `Retry.when` selects a
+predicate for one error type:
 
 ```text
-pub fn retry![T, E, $R](policy: Backoff, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock
+pub struct Retry:
+    backoff: Backoff
+
+pub struct SelectiveRetry[E]:
+    backoff: Backoff
+    when: fn(E) -> bool
+
+pub fn retry(backoff: Backoff) -> Retry
 ```
 
-1. r[std-task.retry.policy.decl] `std.task` declares the ordinary `retry!` function with the signature above.
-2. r[std-task.retry.policy.loop] `retry!` calls `attempt` sequentially at most `policy.attempts` times, returning the first `.Ok` without another call.
-3. r[std-task.retry.policy.last-error] When every attempt returns `.Err`, `retry!` returns the last error.
-4. r[std-task.retry.policy.zero-once] An `attempts` of 0 counts as 1, so `retry!` always calls `attempt` at least once.
-5. r[std-task.combinator.retry.when] After a call that returns `.Err(error)`, `retry!` makes another call only when `when(error)` is `true`. When it is `false`, `retry!` returns that `.Err` at once.
-6. r[std-task.retry.policy.when-default] Omitting `when` retries every error, using `fn(error: E): true`.
-7. r[std-task.combinator.retry.when-plain] `when` is an ordinary function: it takes the error and does not suspend, and it runs at most once for each `.Err`.
-8. r[std-task.retry.policy.cancel] Cancelling `retry!` cancels the active attempt or sleep and starts no further attempt.
-9. r[std-task.retry.policy.clock] Every `retry!` call requires `Clock`, including a policy whose `initial` is `0ms`.
+1. r[std-task.policy.retry.decl] `std.task` declares the public configuration type `Retry` with a private `backoff: Backoff` field.
+2. r[std-task.policy.selective-retry.decl] `SelectiveRetry[E]` is public and has private fields `backoff: Backoff` and `when: fn(E) -> bool`.
+3. r[std-task.policy.retry.when] `Retry.when[E](self, predicate: fn(E) -> bool) -> SelectiveRetry[E]` stores that predicate with the retry configuration.
+4. r[std-task.policy.retry.layer] `Retry` implements `Layer[fn!() -> Result[T, E] $ R]` with `Wrapped = fn!() -> Result[T, E] $ R + Clock`.
+5. r[std-task.policy.selective-retry.layer] `SelectiveRetry[E]` implements `Layer[fn!() -> Result[T, E] $ R]` with `Wrapped = fn!() -> Result[T, E] $ R + Clock`.
+6. r[std-task.policy.retry.builder] `retry(backoff: Backoff) -> Retry` constructs a retry configuration.
+7. r[std-task.policy.retry.loop] An applied retry policy calls work sequentially at most `backoff.attempts` times, returning the first `.Ok` without another call.
+8. r[std-task.policy.retry.last-error] When every attempt returns `.Err`, an applied retry policy returns the last error.
+9. r[std-task.policy.retry.zero-once] An `attempts` of zero counts as one, so an applied retry policy always calls work at least once.
+10. r[std-task.policy.retry.predicate] After `.Err(error)`, a `SelectiveRetry` application retries only when its predicate returns `true`.
+11. r[std-task.policy.retry.all-errors] A `Retry` application retries every error until its attempt limit.
+12. r[std-task.policy.retry.when-plain] A selective predicate is an ordinary function, takes the error, and runs at most once for each `.Err`.
+13. r[std-task.policy.retry.cancel] Cancelling an applied retry policy cancels its active attempt or sleep and starts no further attempt.
+14. r[std-task.policy.retry.clock] Executing either retry policy requires `Clock`, including when `backoff.initial` is `0ms`.
 
 ```text
-use std.task.{Backoff, retry}
+use std.task.{Backoff, apply, retry}
 use std.time.Clock
 
 struct Server:
@@ -49,23 +61,23 @@ fn ask!(server: &mut Server) -> Result[string, string]:
     .Ok("ready")
 
 fn connect!(server: *mut Server) -> Result[string, string] $ Clock:
-    retry!(Backoff { initial: 0ms }):
+    apply!(retry(Backoff { initial: 0ms })):
         ask!(server)
 ```
 
 With `busy_for` at 2, `connect!` returns `.Ok("ready")` on the third call.
 With `busy_for` at 3, it returns `.Err("busy")` after three calls.
-With `attempts` at 0, `retry!` would make one call.
+With `attempts` at 0, an applied retry policy would make one call.
 
 ```text
-use std.task.{Backoff, retry}
+use std.task.{Backoff, apply, retry}
 use std.time.Clock
 
 fn is_busy(error: string) -> bool:
     error == "busy"
 
 fn connect!(replies: *mut List[Result[string, string]]) -> Result[string, string] $ Clock:
-    retry!(Backoff { attempts: 5, initial: 0ms }, when=is_busy):
+    apply!(retry(Backoff { attempts: 5, initial: 0ms }).when(is_busy)):
         replies.remove_at(0)
 ```
 
@@ -74,20 +86,19 @@ With replies `.Err("busy")`, `.Err("refused")`, `.Ok("ready")`, `connect!` retur
 call never starts.
 
 The row parameter `R` lets an attempt require providers. An attempt that
-calls `println` has the row `Console`, and that `retry!` call then
+calls `println` has the row `Console`, and applying its retry policy then
 requires `Console` and `Clock`.
 
-> **Why.** A retry over a `fn!` attempt is a loop that `lib/std` can write
-> in plain hd, so it needs no compiler support. One policy configures immediate and
-> delayed attempts, both using `Clock`. An `attempts` of 0 still makes one attempt,
-> because with no attempt there is no `Result` to return.
+> **Why.** Configuration and execution are separate ordinary library code.
+> One Backoff configures immediate and delayed attempts, both using Clock.
+> Zero attempts still makes one attempt, because a result needs an attempt.
 
 See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators),
 [Suspending Closures And Clauses](../lang/07-functions.md#suspending-closures-and-clauses).
 
 ## Retry With Backoff
 
-`Backoff` configures `retry!`'s attempt count and delays:
+`Backoff` configures the retry policies' attempt count and delays:
 
 ```text
 pub struct Backoff:
@@ -100,12 +111,12 @@ pub struct Backoff:
 1. r[std-task.backoff.decl.defaults] `std.task` declares `Backoff` with the four public fields, types and defaults above.
 2. r[std-task.backoff.value-copy] A `Backoff` is a value whose copy is independent of the original.
 3. r[std-task.backoff.eq] `Backoff` implements `Eq` by comparing all four fields.
-4. r[std-task.retry.policy.sleep] Between attempts, `retry!` calls the covering `Clock.sleep!`, with no sleep after the final attempt.
+4. r[std-task.policy.retry.sleep] An applied retry policy calls the covering `Clock.sleep!` between attempts, with no sleep after the final attempt.
 5. r[std-task.retry.policy.delay.capped] The first delay is `initial` and later delays multiply the previous delay by `factor`, each capped at `max` without overflow.
-6. r[std-task.retry.policy.when-sleep] `retry!` sleeps only before another attempt that `when` allowed.
+6. r[std-task.policy.retry.when-sleep] A `SelectiveRetry` application sleeps only before another attempt that its predicate allowed.
 
 ```text
-use std.task.{Backoff, retry}
+use std.task.{Backoff, apply, retry}
 use std.time.{Clock, ms, s}
 
 struct Server:
@@ -119,7 +130,7 @@ fn ask!(server: &mut Server) -> Result[string, string]:
 
 fn connect!(server: *mut Server) -> Result[string, string] $ Clock:
     policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 5s }
-    retry!(policy):
+    apply!(retry(policy)):
         ask!(server)
 ```
 
@@ -163,28 +174,36 @@ See also: [Map All](#map-all),
 
 ## Timeout
 
-`timeout!` runs a suspending task and gives up when a limit passes first:
+`timeout` constructs a reusable deadline configuration for Result-returning
+work:
 
 ```text
 pub struct TimedOut:
     pub limit: Duration
     pub cleanup: CleanupEnd
 
-pub fn timeout![T, $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> T $ R) -> Result[T, TimedOut] $ R + Clock
+pub struct TimeLimit:
+    limit: Duration
+    cleanup: Duration? = .None
+
+pub fn timeout(limit: Duration, cleanup: Duration? = .None) -> TimeLimit
 ```
 
-1. r[std-task.timeout.fields-value] `std.task` declares the struct value `TimedOut` with the public fields `limit`, a `Duration`, and `cleanup`, a [`CleanupEnd`](#cleanup-end). `TimedOut` implements `Eq`, `Debug`, `Display`, and `Error`.
-2. r[std-task.timeout.display] The `Display` text of a `TimedOut` is `timed out after ` followed by the `Display` text of `limit`. When `cleanup` is `.Abandoned`, the text ends with `, cleanup abandoned`.
-3. r[std-task.timeout.decl-cleanup] `std.task` declares `timeout!` with the signature above, as an ordinary `fn!` function, not an intrinsic. Code imports both, as in `use std.task.{TimedOut, timeout}`.
-4. r[std-task.timeout.race] `timeout!` is a [`race!`](../lang/11-requirements-and-suspension.md#standard-combinators) of two children, in this order: `work`, called once without `!`, and a call of `sleep!(limit)` on the `Clock` provider that covers it.
-5. r[std-task.timeout.ok] When `work` completes first, `timeout!` returns `.Ok` of its value.
-6. r[std-task.timeout.err-cleanup] When the sleep completes first, `timeout!` returns `.Err(TimedOut { limit: limit, cleanup: end })`, where `end` says how the cleanup of `work` ended.
-7. r[std-task.timeout.tie] A `work` that completes on its first poll wins even when `limit` is 0, since `race!` polls its children in order.
-8. r[std-task.timeout.cancel-loser] The losing child is cancelled before `timeout!` returns, as [`req.combinator.race-losers-disposed`](../lang/11-requirements-and-suspension.md#r-req.combinator.race-losers-disposed) states, so a timed-out `work` runs its registered `defer` suites and starts nothing more.
-9. r[std-task.timeout.cancel] Cancelling `timeout!` cancels both children, as [`req.combinator.cancel-children`](../lang/11-requirements-and-suspension.md#r-req.combinator.cancel-children) states.
+1. r[std-task.policy.time-limit.decl] `std.task` declares the public configuration type `TimeLimit` with private fields `limit: Duration` and `cleanup: Duration?`.
+2. r[std-task.policy.time-limit.layer] `TimeLimit` implements `Layer[fn!() -> Result[T, E] $ R]` with `Wrapped = fn!() -> Result[T, E] $ R + Clock` when `E < From[TimedOut]`.
+3. r[std-task.policy.timed-out.from-self] `TimedOut` implements `From[TimedOut]` by returning its argument unchanged.
+4. r[std-task.timeout.fields-value] `std.task` declares the struct value `TimedOut` with the public fields `limit`, a `Duration`, and `cleanup`, a [`CleanupEnd`](#cleanup-end). `TimedOut` implements `Eq`, `Debug`, `Display`, and `Error`.
+5. r[std-task.timeout.display] The `Display` text of a `TimedOut` is `timed out after ` followed by the `Display` text of `limit`. When `cleanup` is `.Abandoned`, the text ends with `, cleanup abandoned`.
+6. r[std-task.policy.timeout.builder] `timeout(limit: Duration, cleanup: Duration? = .None) -> TimeLimit` constructs a deadline configuration.
+7. r[std-task.policy.time-limit.race] A `TimeLimit` execution races the work against the covering `Clock.sleep!(limit)`, with the work polled first.
+8. r[std-task.policy.time-limit.completed] When work completes first, a `TimeLimit` execution returns its Result unchanged.
+9. r[std-task.policy.time-limit.expired] When the deadline wins, a `TimeLimit` execution returns `.Err(E::from(TimedOut { limit: limit, cleanup: end }))`, with `end` set to the work's cleanup outcome.
+10. r[std-task.timeout.tie] A `work` that completes on its first poll wins even when `limit` is 0, since `race!` polls its children in order.
+11. r[std-task.policy.time-limit.cancel-loser] A `TimeLimit` execution cancels the losing child and waits for its cleanup before returning.
+12. r[std-task.policy.time-limit.cancel] Cancelling a `TimeLimit` execution cancels its work and deadline children.
 
 ```text
-use std.task.{TimedOut, timeout}
+use std.task.{TimedOut, apply, timeout}
 use std.time.{Clock, s, sleep}
 
 fn lookup!() -> string $ Clock:
@@ -192,8 +211,9 @@ fn lookup!() -> string $ Clock:
     "value"
 
 fn lookup_in_time!() -> Result[string, TimedOut] $ Clock:
-    timeout!(1s):
-        lookup!()
+    apply!(timeout(1s)):
+        let result: Result[string, TimedOut] = .Ok(lookup!())
+        result
 ```
 
 On a real clock, `lookup_in_time!` returns
@@ -201,25 +221,21 @@ On a real clock, `lookup_in_time!` returns
 5 second sleep is cancelled. On a `ManualClock`, every sleep completes at once,
 so `lookup!` finishes first and the result is `.Ok("value")`.
 
-> **Why.** Go's `context.WithTimeout` and Rust's `tokio::time::timeout` also
-> return an error value when the limit passes first, and drop or cancel the
-> work. `timeout!` is a race against a sleep, which `lib/std` writes in
-> hd. Because `race!` needs children of one type, the helpers wrap the
-> work's value and the sleep's end in one private enum. Work first, then the
-> sleep, so a deterministic provider such as `ManualClock`, whose sleeps never
-> wait, never reports a timeout for work that can finish without suspending.
+> **Why.** The policy uses the existing race and cancellation rules.
+> Work is polled first, so immediately completing work wins a zero-limit tie.
+> The timeout error converts through the work's declared error type.
 
 See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators),
 [Clock Helpers](time.md#clock-helpers), [Manual Clock](time.md#manual-clock).
 
 ### Cleanup Bound
 
-A `cleanup` argument bounds how long `timeout!` waits for the cleanup of
+A `cleanup` argument bounds how long a `TimeLimit` execution waits for the cleanup of
 `work` once `work` is cancelled:
 
 ```text
 use std.ops.Disposable
-use std.task.{TimedOut, timeout}
+use std.task.{TimedOut, apply, timeout}
 use std.time.{Clock, s}
 
 struct Upload:
@@ -234,23 +250,23 @@ impl Disposable for Upload:
         self.log.push("upload acknowledged")
 
 fn send!(log: *mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
-    timeout!(5s, cleanup=1s):
+    apply!(timeout(5s, cleanup=1s)):
         using upload = &mut Upload { log: log, ack: ack }
-        reply!()
+        let result: Result[string, TimedOut] = .Ok(reply!())
+        result
 ```
 
 When neither `reply` nor `ack` completes, the limit cancels the work at 5
-seconds, and its dispose waits for `ack`. At 6 seconds `timeout!` abandons the
-work. The log reads `upload closed`, and `send!` returns
+seconds, and its dispose waits for `ack`. At 6 seconds the policy abandons the work. The log reads `upload closed`, and `send!` returns
 `.Err(TimedOut { limit: 5s, cleanup: .Abandoned })`, whose text is
 `timed out after 5s, cleanup abandoned`. When `ack` completes in time, the log
 also holds `upload acknowledged`, and `cleanup` is `.Finished`.
 
-1. r[std-task.timeout.cleanup-unbounded] Without `cleanup`, `timeout!` waits for the whole cleanup of a cancelled `work`, however long it takes.
-2. r[std-task.timeout.cleanup-deadline] With `cleanup`, the cleanup of `work` has a deadline: `cleanup` after `work` is first cancelled, by the limit or by a cancel of `timeout!`.
-3. r[std-task.timeout.cleanup-fixed] A later cancel of `timeout!` never moves the deadline.
-4. r[std-task.timeout.cleanup-outlives] Cancelling `timeout!` does not stop the bound. The cleanup of `work` goes on toward the same deadline, as part of the cleanup of `timeout!`.
-5. r[std-task.timeout.cleanup-abandon] When the deadline passes before the cleanup of `work` has ended, `timeout!` calls [`abandon()`](../lang/11-requirements-and-suspension.md#r-req.abandon.unwind) on `work`.
+1. r[std-task.policy.time-limit.cleanup-unbounded] Without `cleanup`, a `TimeLimit` execution waits for the whole cleanup of cancelled work, however long it takes.
+2. r[std-task.policy.time-limit.cleanup-deadline] With `cleanup`, the work has a cleanup deadline measured from its first cancellation, whether caused by expiry or cancellation of the execution.
+3. r[std-task.policy.time-limit.cleanup-fixed] Later cancellation of the `TimeLimit` execution never moves its cleanup deadline.
+4. r[std-task.policy.time-limit.cleanup-outlives] Cancellation of a `TimeLimit` execution does not stop its cleanup bound.
+5. r[std-task.policy.time-limit.cleanup-abandon] When its cleanup deadline passes before cleanup ends, the `TimeLimit` execution calls `abandon()` on the work.
 6. r[std-task.timeout.cleanup-cooperative] The deadline is cooperative. `abandon()` runs at the first point at or after the deadline where the cleanup waits, so synchronous code is never interrupted.
 7. r[std-task.timeout.cleanup-ended] A cleanup that ends before `abandon()` runs is not abandoned.
 8. r[std-task.timeout.cleanup-zero] A `cleanup` of 0 abandons the cleanup at its first wait, so `limit` then bounds all of the waiting.
@@ -260,12 +276,12 @@ The deadline is set once, at the first cancel:
 
 | Time | Event |
 | --- | --- |
-| t0 | `timeout!(5s, cleanup=1s)` starts its work. |
+| t0 | `apply!(timeout(5s, cleanup=1s))` starts its work. |
 | t5 | The limit passes. The work is cancelled, and the deadline is t6. |
-| t5.2 | The caller cancels `timeout!`. The cleanup goes on, and the deadline stays t6. |
-| t6 | The cleanup has not ended, so `timeout!` abandons the work. |
+| t5.2 | The caller cancels the execution. The cleanup goes on, and the deadline stays t6. |
+| t6 | The cleanup has not ended, so the policy abandons the work. |
 
-Had the caller cancelled `timeout!` at t3 instead, the deadline would be t4.
+Had the caller cancelled the execution at t3 instead, the deadline would be t4.
 
 > **Why.** A graceful cancel never drops cleanup, so only an explicit
 > `abandon()` ends a cleanup early, and the `cleanup` argument makes that
@@ -295,7 +311,7 @@ pub fn map_all![T, U, $R](items: List[T], limit: usize, work: fn!(T) -> U $ R) -
 3. r[std-task.map-all.start-order] `work` is called once for each item. Calls start in item order: no call starts before the call for every earlier item has started.
 4. r[std-task.map-all.limit] At most `limit` calls of `work` are in flight at once. A call is in flight from its start until it completes.
 5. r[std-task.map-all.window] When one call completes and an item has not started, the next item in order starts, so the number in flight stays at `limit` until the items run out.
-6. r[std-task.map-all.limit-zero.attempts] A `limit` of 0 counts as 1, so the calls run one after another, as `retry!` counts an `attempts` of 0.
+6. r[std-task.map-all.zero-limit] A `limit` of zero counts as one, so calls run one after another.
 7. r[std-task.map-all.empty] An empty `items` gives an empty list and calls `work` never.
 8. r[std-task.map-all.like-all] Scheduling, cancellation, failure, and panics follow the rules of `all!`: a panic in one call propagates, and cancelling `map_all!` cancels every call in flight and starts no more ([`req.combinator.cancel-children`](../lang/11-requirements-and-suspension.md#r-req.combinator.cancel-children)).
 
@@ -321,7 +337,7 @@ starts as soon as the first completes.
 > driven by a private flat engine, each taking the next unstarted index.
 >
 > Bang calls are the only yield points, so the shared index needs no
-> lock. A `limit` of 0 counts as 1, not as a panic, as for `retry!`.
+> lock. A `limit` of 0 counts as 1, as for retry attempts.
 
 See also: [All List](#all-list), [Cooperative Scheduling](../lang/11-requirements-and-suspension.md#cooperative-scheduling).
 
@@ -406,24 +422,26 @@ See also: [Driving A Stored Suspension](../lang/11-requirements-and-suspension.m
 
 ## Result Timeouts
 
-`with_timeout!` composes a deadline with Result-returning work while
-keeping the operation's own error type:
+`with_timeout` places a deadline outside an inner policy through a binary
+tuple; applying the tuple keeps the work's error type:
 
 ```text
-pub fn with_timeout![T, E < From[TimedOut], $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock
+pub fn with_timeout[I](limit: Duration, inner: I, cleanup: Duration? = .None) -> (I, TimeLimit)
 ```
 
-1. r[std-task.with-timeout.decl] `std.task` declares `with_timeout!` with the signature above.
-2. r[std-task.with-timeout.bound] The work's error type implements `std.convert.From[TimedOut]`. Error: `unsatisfied-trait-bound`.
-3. r[std-task.with-timeout.completed] When the work completes first, `with_timeout!` returns its Result unchanged.
-4. r[std-task.with-timeout.expired] When the deadline wins, `with_timeout!` converts the `TimedOut` through `E::from` and returns `.Err` of that value.
-5. r[std-task.with-timeout.cleanup] `with_timeout!` uses `timeout!` with the same limit, cleanup bound, and work.
-6. r[std-task.with-timeout.flat] Nesting `with_timeout!` preserves the work's Result type.
-7. r[std-task.with-timeout.clock] `with_timeout!` requires `Clock` in addition to the work's requirement row.
+1. r[std-task.policy.builders.requirement-free] `timeout`, `with_timeout`, `retry`, and `Retry.when` are ordinary functions with empty requirement rows.
+2. r[std-task.policy.builders.configuration] Constructing these configurations neither starts work nor acquires a provider.
+3. r[std-task.policy.execution.apply] `apply!` is the public terminal for executing these policies.
+4. r[std-task.policy.execution.private] The execution atoms underlying these policies are private implementation details.
+5. r[std-task.policy.time-limit.work-cancelled] External cancellation of work propagates cancellation through its `TimeLimit` execution rather than returning a timeout error.
+6. r[std-task.policy.with-timeout.builder] `with_timeout[I](limit: Duration, inner: I, cleanup: Duration? = .None) -> (I, TimeLimit)` returns `(inner, timeout(limit, cleanup=cleanup))`.
+7. r[std-task.policy.time-limit.bound] The `TimeLimit` implementation requires `E < std.convert.From[TimedOut]`. Error: `unsatisfied-trait-bound`.
+8. r[std-task.policy.time-limit.flat] Nested `TimeLimit` applications preserve the work's Result type.
+9. r[std-task.policy.time-limit.clock] Executing a `TimeLimit` requires `Clock` in addition to the work's requirement row.
 
-> **Why.** `timeout!` still accepts any work and keeps its deadline error
-> separate. Result-returning work opts into a conversion explicitly, so
-> retries and nested deadlines keep one statically typed error channel.
+> **Why.** A time policy preserves one statically typed error channel.
+> Plain work is lifted into a typed Result before applying the policy.
+> The identity conversion lets that error remain `TimedOut`.
 
 ## Policy Layers
 

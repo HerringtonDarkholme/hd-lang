@@ -2,15 +2,16 @@
 # Each policy is an `Http` provider that wraps another; one `$.with` block
 # applies the stack. Application code keeps the row `$ Http`. Runs today.
 use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
-use std.task.{Backoff, race, retry, with_timeout}
+use std.task.{Backoff, race}
+use std.task
 use std.time.{Clock, Duration, ms, sleep}
 
 # ---- 1. the policies, written for Http ----
 
 # A deadline per request. The clock is captured where the stack is built.
 struct TimedHttp:
-    inner: &mut dyn Http
-    clock: &mut dyn Clock
+    inner: *mut dyn Http
+    clock: *mut dyn Clock
     limit: Duration
 
 impl Http for TimedHttp:
@@ -18,15 +19,15 @@ impl Http for TimedHttp:
         inner := self.inner
         limit := self.limit
         $.with(Clock=self.clock):
-            with_timeout!(limit):
+            task.apply!(task.timeout(limit)):
                 inner.send!(request)
 
-fn timed(inner: &mut dyn Http, limit: Duration) -> &mut dyn Http $ Clock:
+fn timed(inner: *mut dyn Http, limit: Duration) -> *mut dyn Http $ Clock:
     &mut TimedHttp { inner: inner, clock: $.use(Clock), limit: limit }
 
 struct RetriedHttp:
-    inner: &mut dyn Http
-    clock: &mut dyn Clock
+    inner: *mut dyn Http
+    clock: *mut dyn Clock
     backoff: Backoff
 
 impl Http for RetriedHttp:
@@ -34,17 +35,17 @@ impl Http for RetriedHttp:
         inner := self.inner
         backoff := self.backoff
         $.with(Clock=self.clock):
-            retry!(backoff, when=transient):
+            task.apply!(task.retry(backoff).when(transient)):
                 inner.send!(request)
 
 fn transient(error: HttpError) -> bool: error.is_transient()
 
-fn retried(inner: &mut dyn Http, backoff: Backoff) -> &mut dyn Http $ Clock:
+fn retried(inner: *mut dyn Http, backoff: Backoff) -> *mut dyn Http $ Clock:
     &mut RetriedHttp { inner: inner, clock: $.use(Clock), backoff: backoff }
 
 # On failure, sends the request again to `backup` instead of its own host.
 struct FallbackHttp:
-    inner: &mut dyn Http
+    inner: *mut dyn Http
     from: string
     to: string
 
@@ -58,7 +59,7 @@ impl Http for FallbackHttp:
                 rest := request.url.strip_prefix(self.from).unwrap_or("")
                 self.inner.send!(Request { ...request, url: self.to + rest })
 
-fn falls_back(inner: &mut dyn Http, from: string, to: string) -> &mut dyn Http:
+fn falls_back(inner: *mut dyn Http, from: string, to: string) -> *mut dyn Http:
     &mut FallbackHttp { inner: inner, from: from, to: to }
 
 struct Breaker:
@@ -69,8 +70,8 @@ struct Breaker:
 # The provider fixes the error type, so an open circuit must be spelled
 # as an HttpError: there is no `CircuitOpen` the caller can match.
 struct BreakerHttp:
-    inner: &mut dyn Http
-    state: &mut Breaker
+    inner: *mut dyn Http
+    state: *mut Breaker
 
 impl Http for BreakerHttp:
     fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
@@ -81,12 +82,12 @@ impl Http for BreakerHttp:
         self.state.failures = if result.is_ok(): 0 else: self.state.failures + 1
         result
 
-fn broken_by(inner: &mut dyn Http, state: &mut Breaker) -> &mut dyn Http:
+fn broken_by(inner: *mut dyn Http, state: *mut Breaker) -> *mut dyn Http:
     &mut BreakerHttp { inner: inner, state: state }
 
 struct HedgedHttp:
-    inner: &mut dyn Http
-    clock: &mut dyn Clock
+    inner: *mut dyn Http
+    clock: *mut dyn Clock
     delay: Duration
 
 impl Http for HedgedHttp:
@@ -96,19 +97,19 @@ impl Http for HedgedHttp:
         $.with(Clock=self.clock):
             race!(inner.send(request), late_send(inner, request, delay))
 
-fn late_send!(inner: &mut dyn Http, request: Request, delay: Duration) -> Result[Response, HttpError] $ Clock:
+fn late_send!(inner: *mut dyn Http, request: Request, delay: Duration) -> Result[Response, HttpError] $ Clock:
     sleep!(delay)
     inner.send!(request)
 
-fn hedged(inner: &mut dyn Http, delay: Duration) -> &mut dyn Http $ Clock:
+fn hedged(inner: *mut dyn Http, delay: Duration) -> *mut dyn Http $ Clock:
     &mut HedgedHttp { inner: inner, clock: $.use(Clock), delay: delay }
 
 # ---- 2. fakes ----
 
 # Records each request, then holds primary replies for 500 ms.
 struct DelayedHttp:
-    inner: &mut ScriptedHttp
-    clock: &mut dyn Clock
+    inner: *mut ScriptedHttp
+    clock: *mut dyn Clock
     finished_primary: usize
 
 impl Http for DelayedHttp:
@@ -122,8 +123,8 @@ impl Http for DelayedHttp:
 
 # The first send of a request takes 500 ms, the second 10 ms.
 struct Replicas:
-    inner: &mut ScriptedHttp
-    clock: &mut dyn Clock
+    inner: *mut ScriptedHttp
+    clock: *mut dyn Clock
     started: usize
     finished: usize
     closed: usize

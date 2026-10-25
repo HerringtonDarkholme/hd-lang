@@ -1,0 +1,6 @@
+# test: timeout is a plain configuration builder, not the old public bang operation
+# Spec std/task: std-task.policy.timeout.builder.
+use std.task.{TimeLimit, timeout}
+
+pub fn bad!() -> TimeLimit:
+    timeout!(1s)  # diagnostic: not-suspending

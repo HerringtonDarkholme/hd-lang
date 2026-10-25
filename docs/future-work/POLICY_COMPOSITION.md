@@ -1,6 +1,6 @@
 # Composing Time And Failure Policies
 
-Status: decided 2026-10-24 (#783, owner); domain: standard library API (std.task); not yet implemented.
+Status: decided 2026-10-24 (#783, owner); domain: standard library API (std.task). #845 implements the foundation and timeout/retry builders; fallback, breaker, hedge and measured guardrails remain later slices.
 It answers [#783](https://github.com/HerringtonDarkholme/hd-lang/issues/783) and replaces the earlier version of this file and Composing Work.
 The owner selected policy values, pipes and one apply block on 2026-10-23.
 The decision: `apply!` is the only public way to apply a policy; `timeout!`, `with_timeout!` and `retry!` become private building blocks in `std.task`. The implementation follows the phasing below, with the std spec rules and fixtures in the same job. No language change is needed.
@@ -45,10 +45,10 @@ Every shape below is judged on the same six use cases.
 | U5 | Code that uses only non-time policies | its row has no `Clock` |
 | U6 | A total budget around per-attempt deadlines | expressed by order, with no special policy |
 
-Today hd has `timeout!`, `with_timeout!` and `retry!` as bang functions that take the work last ([std.task](../../spec/std/task.md#timeout)).
+Before #845, hd exported `timeout!`, `with_timeout!` and `retry!` as bang functions that take the work last ([std.task](../../spec/std/task.md#timeout)).
 A trailing block supplies the work, so U1 is a staircase of three nested blocks.
 That runs, and the owner accepted it as the interim shape on 2026-10-22.
-There is no fallback, breaker or hedge in std.
+There is no fallback, breaker or hedge in std yet.
 Policy values run today using generic trait implementations and tuples.
 The separately approved inferred-apply correction is merged; the public library surface is approved.
 
@@ -110,7 +110,7 @@ Retries still need application knowledge of idempotency; no library can infer th
 **Work.** A suspending closure `fn!() -> Result[T, E] $ R` runs its body on every call, and its row keys are resolved at each call ([`req.with.dynamic`](../../spec/lang/11-requirements-and-suspension.md#r-req.with.dynamic)).
 A plain call `f(x)` of a bang function builds a cold `mut Suspend[T]` instead ([`req.suspend.type.plain-call`](../../spec/lang/11-requirements-and-suspension.md#r-req.suspend.type.plain-call)).
 That suspension binds its providers when it is built ([`req.bind.construction`](../../spec/lang/11-requirements-and-suspension.md#r-req.bind.construction)) and can be driven once.
-A naive design that retries a cold suspension drives a finished one; the counterexample is `retry!(b, attempt=fetch(url))`, a `type-mismatch` today.
+A naive design that retries a cold suspension drives a finished one; the counterexample is `apply!(retry(b), work=fetch(url))`, a `type-mismatch` today.
 
 **Rows.** Rows are sets, so `$ Http + Clock + Clock` is `$ Http + Clock` ([`req.row.set.duplicate`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.set.duplicate)).
 A struct, enum or trait declares no row parameter ([`req.row.param.no-data`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.param.no-data)).
@@ -127,12 +127,12 @@ So one generic method cannot carry `E < From[TimedOut]` for one policy and no bo
 **Calls and pipes.** A trailing block supplies only the last parameter ([`fn.trailing.one`](../../spec/lang/07-functions.md#r-fn.trailing.one)).
 A pipe step's `_` is a value bound before the step runs ([`expr.pipe.slot.meaning`](../../spec/lang/05-expressions.md#r-expr.pipe.slot.meaning)).
 `_` inside a closure in a step is an error ([`expr.pipe.slot.closure`](../../spec/lang/05-expressions.md#r-expr.pipe.slot.closure)), and `f(_, a)` is not a partial application ([`expr.pipe.no-partial`](../../spec/lang/05-expressions.md#r-expr.pipe.no-partial)).
-The current bang with_timeout has a defaulted cleanup parameter before work.
+The previous bang with_timeout had a defaulted cleanup parameter before work.
 The proposed plain builder instead takes inner second, so `with_timeout(ms(50), _)` places the policy correctly.
 
 **Concurrency and cleanup.** `race!` returns the first child's value and cancels the losers, waiting for their disposes ([`req.combinator.race-losers-disposed`](../../spec/lang/11-requirements-and-suspension.md#r-req.combinator.race-losers-disposed)).
-`timeout!` races the work against a sleep, work first, so work that finishes on its first poll wins a tie ([std.task timeout](../../spec/std/task.md#timeout)).
-`retry!` sleeps only before another allowed attempt and requires `Clock` ([`std-task.retry.policy.clock`](../../spec/std/task.md#r-std-task.retry.policy.clock)).
+A TimeLimit execution races the work against a sleep, work first, so work that finishes on its first poll wins a tie ([std.task timeout](../../spec/std/task.md#timeout)).
+A retry policy sleeps only before another allowed attempt and requires `Clock` ([`std-task.policy.retry.clock`](../../spec/std/task.md#r-std-task.policy.retry.clock)).
 The recommended policy implementations reuse these atoms privately, preserving their cancellation semantics.
 
 **Ownership.** Values copy; `&mut` references are shared and not exclusive.
@@ -226,7 +226,7 @@ This also exposes ordering when there is no dedicated wrapper builder.
 A single timeout uses `apply!(timeout(ms(50))):`, with the same trailing work block.
 There is no proposed public timeout bang function alongside it.
 The implementation keeps today's timeout/retry algorithms as private building blocks, renamed internally where their names conflict with builders.
-The prototype calls today's public `task.with_timeout!` and `task.retry!` only because std is not changed in this design job.
+The migrated executable prototypes delegate through the public `task.apply!`, `task.timeout` and `task.retry` APIs. Their local policy types still illustrate the compared designs; they are not extra public std APIs.
 
 ### Prototypes
 
@@ -588,7 +588,7 @@ Performance does not decide the chosen composition form.
 
 ### Bottom-up budget
 
-Counts are taken from the complete current [policy-values.hd](composing-work/policy-values.hd), not from a projected rewrite.
+The historical component counts below are pinned to [policy-values.hd at the #845 migration base](https://github.com/HerringtonDarkholme/hd-lang/blob/8b263e56d5657a52678161fe79c1c166c1c0ffbc/docs/future-work/composing-work/policy-values.hd). The executable [current copy](composing-work/policy-values.hd) has been migrated to public policy calls and current counted-reference annotations. That caller migration does not redefine the measured production-code allowance.
 “Code” excludes blank and comment-only lines; literal spans retain internal blanks/comments and exclude separators after the component.
 The whole prototype is **275 literal lines / 203 code lines**, including imports, the fake provider, assertions and examples.
 
@@ -613,9 +613,9 @@ Caller count and migration edits must be inventoried on the implementation base 
 No new compiler code or web compiler payload is required for the library design.
 The prerequisite compiler fix separately measured web Wasm at **5,700,644 raw / 1,908,698 gzip bytes** on its pinned revision.
 That is historical prerequisite evidence, not a fresh current-web measurement or proof about a future std migration.
-The current user-program module size is measured above; compile-time and latency deltas remain unmeasured because no production implementation changed.
+The user-program module size above is historical prototype evidence; current implementation compile-time and latency deltas are not established by that measurement.
 
-No production Rust or web compiler is changed by the proposal.
+The proposal requires no production Rust or web compiler source change.
 The separately merged compiler correction already passed its web build and smoke gates.
 The 2 MB web gzip cap cannot be inferred from a Rust line estimate.
 Stop each implementation slice if its additions exceed 1.5 times the corresponding measured prototype component.

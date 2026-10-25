@@ -1,7 +1,7 @@
 # test: one retry policy supplies defaults, bounded exponential waits, predicate stopping and immediate retries
-# Spec std/task Retry: std-task.retry.policy.clock, std-task.retry.policy.loop, std-task.retry.policy.when-sleep, std-task.retry.policy.delay.capped, std-task.backoff.decl.defaults.
+# Spec std/task Retry: std-task.policy.retry.clock, std-task.policy.retry.loop, std-task.policy.retry.when-sleep, std-task.retry.policy.delay.capped, std-task.backoff.decl.defaults.
 # expect: test
-use std.task.{Backoff, retry}
+use std.task.{Backoff, retry, apply}
 use std.time.{Clock, ManualClock, Timestamp}
 
 tests:
@@ -19,10 +19,11 @@ tests:
         let calls: usize = 0
         let mut starts: List[i64] = []
         $.with(Clock=clock):
-            let result: Result[void, string] = retry!(Backoff { attempts: 4, initial: 200ms, max: 500ms }):
+            let result: Result[void, string] = apply!(retry(Backoff { attempts: 4, initial: 200ms, max: 500ms })):
                 calls += 1
                 starts.push(clock.now().unix_milliseconds())
-                .Err("busy")
+                let attempt: Result[void, string] = .Err("busy")
+                attempt
             assert_equal(result, .Err("busy"), reason="last error")
         assert_equal(calls, 4, reason="four attempts")
         assert_equal(starts, [0i64, 200, 600, 1100], reason="waits 200, 400, 500")
@@ -32,9 +33,10 @@ tests:
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         let calls: usize = 0
         $.with(Clock=clock):
-            let result: Result[void, string] = retry!(Backoff { attempts: 4, initial: 200ms }, when=fn(error: string): error == "busy"):
+            let result: Result[void, string] = apply!(retry(Backoff { attempts: 4, initial: 200ms }).when(fn(error: string): error == "busy")):
                 calls += 1
-                .Err(if calls == 1: "busy" else: "refused")
+                let attempt: Result[void, string] = .Err(if calls == 1: "busy" else: "refused")
+                attempt
             assert_equal(result, .Err("refused"), reason="non-transient error")
         assert_equal(calls, 2, reason="predicate stops retrying")
         assert_equal(clock.now().unix_milliseconds(), 200i64, reason="only one wait")
@@ -43,24 +45,27 @@ tests:
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(123))
         let calls: usize = 0
         $.with(Clock=clock):
-            let result: Result[usize, string] = retry!(Backoff { attempts: 4, initial: 0ms }):
+            let result: Result[usize, string] = apply!(retry(Backoff { attempts: 4, initial: 0ms })):
                 calls += 1
-                if calls < 4: .Err("busy") else: .Ok(calls)
+                let attempt: Result[usize, string] = if calls < 4: .Err("busy") else: .Ok(calls)
+                attempt
             assert_equal(result, .Ok(4), reason="success after immediate retries")
         assert_equal(clock.now().unix_milliseconds(), 123i64, reason="no elapsed virtual time")
 
     it("a large multiplier and initial delay respect the cap without overflow"):
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
-            let result: Result[void, string] = retry!(Backoff { attempts: 3, initial: 10s, factor: 4294967295u32, max: 500ms }):
-                .Err("busy")
+            let result: Result[void, string] = apply!(retry(Backoff { attempts: 3, initial: 10s, factor: 4294967295u32, max: 500ms })):
+                let attempt: Result[void, string] = .Err("busy")
+                attempt
             assert_equal(result, .Err("busy"), reason="retry limit")
         assert_equal(clock.now().unix_milliseconds(), 1000i64, reason="both waits capped")
 
     it("a zero factor makes later waits zero"):
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
-            let result: Result[void, string] = retry!(Backoff { attempts: 4, initial: 200ms, factor: 0u32 }):
-                .Err("busy")
+            let result: Result[void, string] = apply!(retry(Backoff { attempts: 4, initial: 200ms, factor: 0u32 })):
+                let attempt: Result[void, string] = .Err("busy")
+                attempt
             assert_equal(result, .Err("busy"), reason="all attempts fail")
         assert_equal(clock.now().unix_milliseconds(), 200i64, reason="only the first wait advances the clock")

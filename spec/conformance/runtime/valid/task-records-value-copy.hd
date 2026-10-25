@@ -1,7 +1,10 @@
 # test: Backoff and TimedOut are struct values: a copy changes alone, and equal fields compare equal
+# Also covers std-task.policy.timed-out.from-self.
 # Spec std/task: std-task.backoff.decl.defaults, std-task.timeout.fields-value.
 # expect-stdout: 3 5 true false
 # expect-stdout: timed out after 2s | timed out after 2s, cleanup abandoned
+use std.convert.From
+use std.testing.assert_equal
 use std.task.{Backoff, CleanupEnd, TimedOut}
 use std.time.{ms, s}
 
@@ -11,6 +14,10 @@ pub fn main() -> void $ Console:
     longer.attempts = 5
     println("${policy.attempts} ${longer.attempts} ${policy == Backoff { attempts: 3, initial: ms(10), factor: 2, max: s(1) }} ${policy == longer}")
     error := TimedOut { limit: s(2), cleanup: CleanupEnd.Finished }
+    let same: TimedOut = TimedOut::from(error)
+    assert_equal(same, error, reason="the timeout identity conversion preserves both fields")
     let mut cut = error
     cut.cleanup = CleanupEnd.Abandoned
+    let same_cut: TimedOut = TimedOut::from(cut)
+    assert_equal(same_cut, cut, reason="the timeout identity conversion preserves abandonment too")
     println("${error} | ${cut}")

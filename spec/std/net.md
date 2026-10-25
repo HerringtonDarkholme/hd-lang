@@ -65,7 +65,7 @@ pub trait Net:
 1. r[std-net.trait.decl-composed] `std.net` declares the host capability trait `Net` with the methods above.
 2. r[std-net.lookup] `lookup!(host)` returns the IP addresses of `host`, as text, in the resolver's order.
 3. r[std-net.connect] `connect!(host, port)` opens a TCP connection to `host` and `port`, and returns its stream.
-4. r[std-net.connect.deadline] A connect bounded by `std.task.with_timeout!(d):` returns `.Err(NetError.Timeout)` when the deadline wins.
+4. r[std-net.connect.policy-deadline] A connect bounded by `apply!(timeout(d))` returns `.Err(NetError.Timeout)` when the deadline wins.
 5. r[std-net.connect.cancel] Cancelling a pending `connect!` leaves no socket open.
 6. r[std-net.listen] `listen!(host, port)` listens for TCP connections on the local address `host` and `port`, and returns its listener.
 7. r[std-net.listen.reuse] On Unix, `listen!` may bind an address whose old connections are in `TIME_WAIT`. Two live listeners never share an address: the second `listen!` returns `.Err(NetError.Refused(address))`.
@@ -73,7 +73,7 @@ pub trait Net:
 9. r[std-net.mut-ref.reference-values] Each method takes `&mut self`, so `Net` is a mutable requirement trait, `$.use(Net)` is a `&mut dyn Net` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may record what it opens.
 
 > **Why.** A connect has no handle yet, so its deadline composes through
-> `with_timeout!` rather than a handle setting or another trait method.
+> `apply!(timeout(...))` rather than a handle setting or another trait method.
 > A restarted server rebinds its address at once on every host, without
 > an option that would let a second socket take the port on Windows.
 
@@ -153,16 +153,16 @@ pub trait UdpSocket < Disposable:
 ## Timeouts
 
 A timeout bounds each wait for the peer. `set_timeout` sets it on a
-handle, and `with_timeout!` bounds a connect:
+handle, and `apply!(timeout(...))` bounds a connect:
 
 ```text
 use std.net.{Net, NetError}
-use std.task.with_timeout
+use std.task.{apply, timeout}
 use std.time.{Clock, s}
 
 fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net + Clock:
     let net: *mut dyn Net = $.use(Net)
-    connected := with_timeout!(3s):
+    connected := apply!(timeout(3s)):
         net.connect!(host, port)
     stream := connected?
     match stream.set_timeout(.Some(5s)):

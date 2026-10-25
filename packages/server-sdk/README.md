@@ -6,7 +6,7 @@ requests and responses use `std.http` values.
 
 The implementation supplies the typed source, joined workers, bounded
 request cleanup and a loopback Node listener. A request races its source
-cancellation signal against a handler wrapped in `timeout!(20s, cleanup=100ms)`.
+cancellation signal against a handler wrapped by `apply!(timeout(20s, cleanup=100ms))`.
 The source supplies its cleanup clock, so `serve!` adds no ambient Clock row.
 Every accepted lease is released after response delivery or cleanup.
 The public JavaScript adapters supply retained synchronous turns,

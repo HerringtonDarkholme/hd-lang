@@ -1,5 +1,5 @@
 use std.http.{Http, Request, Response}
-use std.task.{map_all, race, timeout, TimedOut, CleanupEnd}
+use std.task.{apply, map_all, race, timeout, TimedOut, CleanupEnd}
 use std.ops.Disposable
 use std.time.{Clock, ms, s}
 
@@ -72,7 +72,7 @@ fn request![S, $R](server: *mut dyn HttpServer, incoming: Incoming, state: *mut 
     clock := server.clock(incoming.id)
     console := server.console(incoming.id)
     let job: mut Suspend[Result[Response, TimedOut]] = $.with(Http=client, Clock=clock, Console=console):
-        timeout(s(20), cleanup=ms(100), work=fn!() -> Response $ R: handler!(incoming.request, state))
+        apply(timeout(s(20), cleanup=ms(100)), work=fn!() -> Result[Response, TimedOut] $ R: .Ok(handler!(incoming.request, state)))
     using lease = Lease { server: server, id: incoming.id, job: job, state: cleanup }
     end := race!(cancellation(server, incoming.id), response(job, cleanup))
     match end:

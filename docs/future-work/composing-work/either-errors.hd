@@ -4,7 +4,8 @@
 # different error types needs a lift before a fallback joins them.
 # `Either` is local here; std has none. Runs today.
 use std.http.{Http, HttpError, Response, ScriptedHttp, get}
-use std.task.{Backoff, TimedOut, retry, timeout}
+use std.task.{Backoff, TimedOut}
+use std.task
 use std.time.{Clock, Duration, ms, sleep}
 
 @derive(Debug)
@@ -17,7 +18,10 @@ struct CircuitOpen: pass
 
 # No From bound: the timeout is the Right case.
 fn within![T, E, $R](limit: Duration, work: fn!() -> Result[T, E] $ R) -> Result[T, Either[E, TimedOut]] $ R + Clock:
-    match timeout!(limit, work=work):
+    let timed: Result[Result[T, E], TimedOut] = task.apply!(task.timeout(limit)):
+        let completed: Result[Result[T, E], TimedOut] = .Ok(work!())
+        completed
+    match timed:
         .Ok(.Ok(value)) => .Ok(value)
         .Ok(.Err(error)) => .Err(.Left(error))
         .Err(expired) => .Err(.Right(expired))
@@ -64,7 +68,7 @@ pub fn main!() -> void $ Console + Clock:
     http.reply("http://backup/item", .Ok(Response { status: 200 }))
     $.with(Http=http):
         response := fallback!(backup):
-            retry!(Backoff { attempts: 2, initial: ms(1) }, when=transient):
+            task.apply!(task.retry(Backoff { attempts: 2, initial: ms(1) }).when(transient)):
                 within!(ms(50)):
                     fetch!("http://primary/item")
         println("http ${debug(response)} requests=${http.received().len()}")

@@ -39,7 +39,7 @@ impl[T, E < From[TimedOut], $R] Layer[fn!() -> Result[T, E] $ R] for TimeLimit:
     type Wrapped = fn!() -> Result[T, E] $ R + Clock
     fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
         fn!() -> Result[T, E] $ R + Clock:
-            task.with_timeout!(self.limit, cleanup=self.cleanup, work=work)
+            task.apply!(task.timeout(self.limit, cleanup=self.cleanup), work=work)
 
 # Runs the work again after a failure that `when` accepts.
 struct Retry:
@@ -50,7 +50,7 @@ impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for Retry:
     type Wrapped = fn!() -> Result[T, E] $ R + Clock
     fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
         fn!() -> Result[T, E] $ R + Clock:
-            task.retry!(self.backoff, attempt=work)
+            task.apply!(task.retry(self.backoff), work=work)
 
 # A typed predicate is optional configuration, fixed before apply!.
 struct SelectiveRetry[E]:
@@ -65,7 +65,7 @@ impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for SelectiveRetry[E]:
     type Wrapped = fn!() -> Result[T, E] $ R + Clock
     fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
         fn!() -> Result[T, E] $ R + Clock:
-            task.retry!(self.backoff, when=self.when, attempt=work)
+            task.apply!(task.retry(self.backoff).when(self.when), work=work)
 
 # Runs `other` when the work fails.
 struct Fallback[F]:
@@ -90,7 +90,7 @@ struct Breaker:
 
 # Refuses the work once `limit` failures in a row have happened.
 struct Guard:
-    state: &mut Breaker
+    state: *mut Breaker
 
 
 impl[T, E < From[CircuitOpen], $R] Layer[fn!() -> Result[T, E] $ R] for Guard:
@@ -127,7 +127,7 @@ fn with_timeout[I](limit: Duration, inner: I, cleanup: Duration? = .None) -> (I,
     (inner, timeout(limit, cleanup=cleanup))
 fn fallback[F, I](other: F, inner: I) -> (I, Fallback[F]):
     (inner, Fallback { other: other })
-fn guarded(state: &mut Breaker) -> Guard: Guard { state: state }
+fn guarded(state: *mut Breaker) -> Guard: Guard { state: state }
 fn hedged(delay: Duration) -> Hedge: Hedge { delay: delay }
 
 # ---- 2. a user policy: one struct and one Layer impl ----
@@ -170,8 +170,8 @@ fn transient(error: Failure) -> bool:
 # A fake provider that records each request, then holds primary replies
 # for 500 ms, so the caller's deadline cancels them.
 struct DelayedHttp:
-    inner: &mut ScriptedHttp
-    clock: &mut dyn Clock
+    inner: *mut ScriptedHttp
+    clock: *mut dyn Clock
     finished_primary: usize
 
 impl Http for DelayedHttp:
@@ -192,7 +192,7 @@ struct Replicas:
     finished: usize
     closed: usize
 
-fn replica!(state: &mut Replicas) -> Result[string, Failure] $ Http + Clock:
+fn replica!(state: *mut Replicas) -> Result[string, Failure] $ Http + Clock:
     state.started += 1
     number := state.started
     defer: state.closed += 1
