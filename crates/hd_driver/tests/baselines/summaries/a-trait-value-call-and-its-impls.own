@@ -32,7 +32,7 @@ impl Sink for Count:
 >   %3 = Prim Add [%2 1:usize] : usize
 >   %4 = Store [*$0 .n] %3 : ()
 >   %5 = Block - : ()
->   summary kept []
+>   summary kept [] writes
 
 impl Sink for Keep:
     fn put(&mut self, m: Member) -> void:
@@ -46,7 +46,7 @@ impl Sink for Keep:
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %4 = Block - : ()
 >   exit sub 0 drops [$1]
->   summary kept [$1]
+>   summary kept [$1] writes
 
 fn emit(s: &mut dyn Sink, m: Member) -> void:
     s.put(m)
@@ -59,4 +59,4 @@ fn emit(s: &mut dyn Sink, m: Member) -> void:
 >   %3 = Drop [%0] : ()
 >   %4 = Block - : ()
 >   exit sub 0 drops [$1]
->   summary kept [$1]
+>   summary kept [$1] writes

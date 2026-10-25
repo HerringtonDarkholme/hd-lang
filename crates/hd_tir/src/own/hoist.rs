@@ -256,10 +256,15 @@ pub(crate) fn hoistable(s: &[u32]) -> bool {
         .all(|(k, &c)| (c == DEREF && k == 0) || c < VARIANT)
 }
 
-/// A value-producing call: may it reach memory outside its arguments?
+/// A value-producing call: may it reach memory outside its arguments? A
+/// call that writes nothing may still return a copy of a header that
+/// `p` holds, a second owner of its buffer, unless its result is uncounted.
 pub(crate) fn writes(b: &Body, cx: &dyn OwnCx, x: usize) -> bool {
     match b.tags[x] {
-        Tag::Call => Callee::from_words(b.record(b.data[x][0])).is_none_or(|c| cx.may_write(&c)),
+        Tag::Call => {
+            Callee::from_words(b.record(b.data[x][0])).is_none_or(|c| cx.may_write(&c))
+                || cx.counted(b.ty[x]) != Tri::No
+        }
         Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall => true,
         _ => false,
     }

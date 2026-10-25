@@ -34,6 +34,10 @@ pub(super) struct Summaries {
     /// its component's first member in path order: a call between two
     /// members reads the declared convention.
     cycle: std::sync::Mutex<HashMap<DefId, DefId>>,
+    /// Whether each walked body may write memory its caller can reach
+    /// (`hd_tir::own::writes`), known before the passes run over its
+    /// component: `OwnCx::may_write` reads it for a call of the body.
+    writes: std::sync::Mutex<HashMap<DefId, bool>>,
 }
 
 /// The `own` view's line for `body`'s summary in `all`: its kept
@@ -54,6 +58,9 @@ pub(super) fn summary_line(body: &Body, all: &Summaries) -> String {
     let mut line = format!("summary kept [{}]", kept.join(" "));
     if let Some(&l) = s.returns.and_then(|k| params.get(usize::from(k))) {
         let _ = write!(line, " returns ${l}");
+    }
+    if s.writes {
+        line.push_str(" writes");
     }
     if lock(&all.cycle).contains_key(&body.item) {
         line.push_str(" recursive");
@@ -143,6 +150,18 @@ impl OwnCx for Env<'_> {
     }
 
     fn may_write(&self, callee: &Callee) -> bool {
+        // Release: the walked body's own answer, unless the compiler
+        // supplies the code of the call (an intrinsic).
+        if let Some(all) = &self.run.summaries
+            && let Some(def) = match callee {
+                Callee::Item { def, .. } => Some(*def),
+                c @ Callee::TraitMethod { .. } => self.impl_target(c).map(|(d, _)| d),
+            }
+            && self.intrinsic(def).is_none()
+            && let Some(&w) = lock(&all.writes).get(&def)
+        {
+            return w;
+        }
         // The compiler's scalar square root reaches nothing but its
         // argument (`list.rs`'s loop proofs allow it the same way), and
         // the byte reads of a string only read it ([`PURE_INTRINSICS`]).
@@ -526,7 +545,16 @@ impl Env<'_> {
     /// release, its summary is recorded.
     fn own_inlined(&self, body: Body, hash: Hash128) -> StageResult<(Body, Hash128)> {
         let (body, summary) = self.own_passes(body, self.run.summaries.is_some())?;
-        if let (Some(all), Some(s)) = (&self.run.summaries, summary) {
+        if let (Some(all), Some(mut s)) = (&self.run.summaries, summary) {
+            s.writes = lock(&all.writes).get(&body.item) != Some(&false);
+            // The passes add no write the walk before them missed.
+            if !s.writes && (self.run.checked || cfg!(debug_assertions)) {
+                let path = self.run.names().path(body.item);
+                assert!(
+                    !hd_tir::own::writes(&body, self),
+                    "{path}: writes after the passes"
+                );
+            }
             lock(&all.by_item).insert(body.item, s);
         }
         let mut k = StableHasher::new("own-passes");
@@ -686,6 +714,27 @@ impl Run<'_> {
             };
             let mut own = |members: &mut Vec<DefId>, recursive: bool| {
                 members.sort_by_cached_key(|&m| self.names().path(m));
+                // Writes, before the passes read them: the least fixed
+                // point over the component, from every member writing
+                // nothing (a member with no inlined body writes).
+                let bodies = inlined.borrow();
+                let mut writes = lock(&all.writes);
+                for m in members.iter() {
+                    writes.insert(*m, !bodies.contains_key(m));
+                }
+                drop(writes);
+                let mut grew = true;
+                while grew {
+                    grew = false;
+                    for m in members.iter() {
+                        let known = lock(&all.writes)[m];
+                        if !known && hd_tir::own::writes(&bodies[m].0, env) {
+                            lock(&all.writes).insert(*m, true);
+                            grew = true;
+                        }
+                    }
+                }
+                drop(bodies);
                 for &m in members.iter() {
                     if recursive {
                         lock(&all.cycle).insert(m, members[0]);

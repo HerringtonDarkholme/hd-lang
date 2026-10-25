@@ -41,4 +41,4 @@ app/main/advance
   %32 = Block - : ()
   %33 = Loop %32 - : ()
   %34 = Block - : ()
-  summary kept []
+  summary kept [] writes

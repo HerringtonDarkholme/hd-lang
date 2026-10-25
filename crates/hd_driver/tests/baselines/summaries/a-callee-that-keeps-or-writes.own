@@ -22,7 +22,7 @@ fn remember(all: &mut List[Member], m: Member) -> void:
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %4 = Block - : ()
 >   exit sub 0 drops [$1]
->   summary kept [$1]
+>   summary kept [$1] writes
 
 fn rename(target: &mut Member, m: Member) -> void:
     target.name = "${m.name}!"
@@ -33,7 +33,7 @@ fn rename(target: &mut Member, m: Member) -> void:
 >   %1 = Interp [%0 "!"] : string
 >   %2 = Store [*$0 .name] %1 : ()
 >   %3 = Block - : ()
->   summary kept []
+>   summary kept [] writes
 
 impl Tally:
     fn add(*mut self) -> *mut Tally:
@@ -46,7 +46,7 @@ impl Tally:
 >   %4 = Block %3 : Ref[mut Tally]
         self
 >   %3 = Read copy [$0] : Ref[mut Tally]
->   summary kept [$0] returns $0
+>   summary kept [$0] returns $0 writes
 
 fn other(a: string, b: string) -> string:
     if a.len() > 3:

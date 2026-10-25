@@ -548,17 +548,26 @@ parameter before returning.
 
 ### Writes
 
-One walk of the owned body decides `writes` after the passes. It is set
-by any of these:
+One walk of each inlined body decides `writes` before the passes, so the
+passes of a component's members can read each other's. It is set by any
+of these:
 
-- a `Store`, an `IsUnique` or an in-place collection change of a place
-  rooted at a dereference or a top-level binding;
-- a host call, a `CallValue` or a trait-value call;
-- a call whose callee may write, or a call of another member of the
-  same SCC.
+- a `Store`, an `IsUnique`, a `Pin`, a `move` read, a `&mut` or element
+  `Ref`, or an in-place collection change of a place rooted at a
+  dereference, a top-level binding or a pointer;
+- a host call, a `CallValue`, a trait-value call, a default call, a hook,
+  a provider operation or a suspension point;
+- a call whose callee may write. An intrinsic keeps today's answer,
+  since the compiler, not its body, supplies its code.
 
-A store rooted at a local does not count: the caller cannot reach the
-callee's locals.
+A store rooted at a local or a fresh value does not count: the caller
+cannot reach the callee's locals. Inside a component, the walk is a least
+fixed point: every member starts writing nothing, and one that writes, or
+calls a member that writes, sets the bit, until nothing changes. Checked
+and debug builds walk each owned body again and fail when the passes
+added a write. Hoisting, the other reader of `may_write`, also treats a
+call with a counted result as writing: a callee that writes nothing may
+still return a second owner of a buffer the loop changes in place.
 
 ### Escape facts and frame slots (slice 8)
 
@@ -789,6 +798,7 @@ fn pick[T](x: T, m: Member) -> T:
 | a builder on a temporary: `StringBuilder::new().push("a").build()` | drops the temporary before `build` | the root rule keeps the temporary until the result's last use |
 | a returned receiver behind `?` or a `match` arm returning another value | claims `returns` | any other `Return` clears it |
 | a `&self` helper that writes a top-level binding | reports `writes` false | a store to a top-level root sets `writes` |
+| a recursive helper that writes nothing (`check` in binary_trees) | assumes its own call writes | the component's fixed point leaves `writes` clear |
 | an inlined std callee | summarizes the copy twice | the inlined body is the caller's; its calls are scanned there |
 | one body edit in release | stale summaries in callers | `prog_key` changes; later, the read summaries are in callers' keys |
 

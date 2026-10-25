@@ -41,7 +41,8 @@
 use hd_types::Ty;
 
 use crate::ir::{
-    Body, Callee, CaptureMode, IntrinsicOp, NONE, Ref, Tag, Topology, Word, inside, slots, u32_of,
+    Body, Callee, CaptureMode, IntrinsicOp, NONE, ReadMode, Ref, Root, Tag, Topology, Word, inside,
+    slots, u32_of,
 };
 
 pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
@@ -442,8 +443,8 @@ pub struct Summary {
     /// The parameter every result of the body is, unchanged: a whole read
     /// of a parameter the body never stores.
     pub returns: Option<u8>,
-    /// Whether the body may write memory its caller can reach. Always set
-    /// until the `writes` walk is built.
+    /// Whether the body may write memory its caller can reach
+    /// ([`writes`]).
     pub writes: bool,
 }
 
@@ -512,6 +513,75 @@ pub fn returned_param(b: &Body) -> Option<u8> {
     }
     let k = params(b).iter().position(|&l| l == at)?;
     u8::try_from(k).ok()
+}
+
+/// Whether `b` may write memory its caller can reach ([`Summary::writes`]):
+/// a store, uniqueness check, pin or move of a place that is not its own,
+/// a `&mut` or element reference of one (the passes pin its lists), an
+/// in-place change of a collection read from one, a call `cx` says may
+/// write, or a call it cannot name (a function value, a trait value, the
+/// host, a provider, a default, a suspension). A place is its own when it
+/// is rooted at a local or a fresh value (a copy included), through the
+/// reads that name their place, with no dereference: its caller reaches
+/// neither these nor a buffer they make unique first.
+#[must_use]
+pub fn writes(b: &Body, cx: &dyn OwnCx) -> bool {
+    // Whether a place is the body's own, and whether its path holds an
+    // element.
+    let place = |mut word: u32| {
+        let (mut own, mut elem) = (true, false);
+        for _ in 0..b.len() {
+            let p = b.view(word);
+            let (derefs, e) = p.kinds(b);
+            (own, elem) = (own && derefs == 0, elem || e);
+            match p.root {
+                // A read that names its place, not a copy or move of it.
+                Root::Value(v)
+                    if b.tags[v as usize] == Tag::Read
+                        && matches!(
+                            ReadMode::from_u32(b.data[v as usize][1]),
+                            Some(ReadMode::Use | ReadMode::Borrow)
+                        ) =>
+                {
+                    word = b.data[v as usize][0];
+                }
+                Root::Local(_) | Root::Value(_) => return (own, elem),
+                _ => break,
+            }
+        }
+        (false, true)
+    };
+    let read = |v: u32| {
+        Ref(v)
+            .as_inst()
+            .filter(|i| b.tags[i.0 as usize] == Tag::Read)
+    };
+    (0..b.len()).any(|i| {
+        let [a, w] = b.data[i];
+        match b.tags[i] {
+            Tag::Store | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => !place(a).0,
+            Tag::Read => w == ReadMode::Move as u32 && !place(a).0,
+            Tag::Ref => {
+                matches!(place(a), (false, elem) if elem || w & crate::ir::ref_word::MUT != 0)
+            }
+            Tag::Intrinsic => {
+                matches!(IntrinsicOp::from_u32(a), None | Some(IntrinsicOp::Item))
+                    || changed(b, i)
+                        .any(|(_, v)| read(v).is_none_or(|r| !place(b.data[r.0 as usize][0]).0))
+            }
+            Tag::Call => Callee::from_words(b.record(a)).is_none_or(|c| cx.may_write(&c)),
+            Tag::CallValue
+            | Tag::CallDyn
+            | Tag::CallHost
+            | Tag::DefaultCall
+            | Tag::Hook
+            | Tag::ProviderGet
+            | Tag::With
+            | Tag::ContextNew
+            | Tag::ContextFor => true,
+            t => crate::ir::is_suspension(t),
+        }
+    })
 }
 
 /// The summary of `b` after [`run`] over it, from the borrow pass's tables
@@ -1595,6 +1665,34 @@ pub(crate) mod tests {
             }
         );
         assert_eq!(a.meet(a), a);
+    }
+
+    /// The writes walk: a store to a local writes nothing the caller
+    /// reaches; one through a parameter's reference or to a top-level
+    /// binding does, and so does a call that may write.
+    #[test]
+    fn writes_are_stores_the_caller_reaches_and_calls_that_may_write() {
+        use crate::ir::{Place, PlaceRoot, Proj};
+        let n = NodeIdx::from_raw(1);
+        let writes = |root: Option<PlaceRoot>, proj: Vec<Proj>, calls: bool| {
+            let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+            let blk = b.open_block();
+            let p = local(&mut b, local_flags::PARAM);
+            let v = b.get(p, Ty::STRING, n);
+            let root = root.unwrap_or(PlaceRoot::Local(p));
+            let word = b.place(&Place { root, proj });
+            b.emit(Tag::Store, word, v.0, Ty::VOID, n);
+            if calls {
+                call(&mut b, 7, &[], Ty::VOID);
+            }
+            let root = b.close_block(blk, None, Ty::VOID, n);
+            super::writes(&b.finish(root, &[]).expect("verifies"), &Flat)
+        };
+        let global = PlaceRoot::Global(DefId::from_raw(5), Ty::STRING);
+        assert!(!writes(None, vec![], false));
+        assert!(writes(None, vec![Proj::Deref, Proj::Field(0)], false));
+        assert!(writes(Some(global), vec![], false));
+        assert!(writes(None, vec![], true));
     }
 
     /// A parameter a push changes stays owned, though no read keeps it:

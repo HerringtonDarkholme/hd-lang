@@ -36,4 +36,4 @@ fn apply(f: fn(string) -> usize, s: string) -> usize:
 >   %2 = CallValue %0 [%1] : usize
 >   %3 = Block %2 : usize
 >   exit sub 0 drops [$1]
->   summary kept [$1]
+>   summary kept [$1] writes

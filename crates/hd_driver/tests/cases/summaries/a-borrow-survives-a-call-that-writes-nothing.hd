@@ -1,0 +1,27 @@
+# @dump: own counts
+# @build: v8 release
+# Release writes: `depth` and `check` write nothing, so a child that
+# `match self.left` or `match node.left` holds stays borrowed across their
+# calls: no retain or release.
+struct Node:
+    left: (*Node)?
+    right: (*Node)?
+
+impl Node:
+    fn twice(&self) -> usize:
+        match self.left:
+            .None => 0
+            .Some(left) => depth(left) + depth(left)
+
+fn depth(node: &Node) -> usize:
+    match node.left:
+        .None => 1
+        .Some(left) => 1 + depth(left)
+
+fn check(node: &Node) -> i64:
+    match node.left:
+        .None => 1
+        .Some(left) =>
+            match node.right:
+                .None => 1 + check(left)
+                .Some(right) => 1 + check(left) + check(right)
