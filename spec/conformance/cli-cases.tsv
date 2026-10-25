@@ -10,7 +10,7 @@ exit-package-file	cli.package.file,cli.exit.success,cli.file.in-package
 exit-usage-error	cli.exit.hd-failure
 backend-selection-removed	cli.codegen.single,cli.codegen.no-option
 console-pending	cli.host.default-profile.granted,cli.host.default-profile.input-closed
-command-help	cli.command.help,cli.command.help.command,cli.command.positional,cli.engine.flag
+command-help	cli.command.help,cli.command.help.command,cli.command.positional.operands,cli.command.positional.package-directory,cli.engine.flag
 exit-test-empty	cli.test.package-empty,cli.test.file-empty,cli.exit.hd-failure
 exit-outside-package	cli.run.package-only,cli.file.check-test.no-file,cli.exit.hd-failure,cli.mode.outside,cli.package.no-root
 fs-entry-modified	cli.host.default-profile.granted
@@ -23,6 +23,11 @@ json-test-pass	cli.json.lines.build,cli.json.test.result,cli.json.test.result.fi
 json-test-fail	cli.json.test.result,cli.json.test.result.fields,cli.json.summary.result.fields,cli.exit.test-failure
 json-test-ignored	cli.json.test.result.fields,cli.json.summary.result.fields,cli.exit.success
 json-file-location	cli.package.file,cli.json.diagnostic,cli.json.diagnostic.fields,cli.json.diagnostic.file
+install-cycle	cli.install.source,cli.install.executables,cli.install.no-executable,cli.install.update,cli.install.collision,cli.uninstall.one
+install-deny	cli.install.deny,cli.install.deny-once,cli.install.manifest-grants
+install-provider-refused	cli.install.provider-unavailable
+install-remote-monorepo	cli.install.resolve,cli.install.executables
+install-remote-update	cli.install.resolve,cli.install.list,cli.install.list-fields,cli.install.owner,cli.install.update
 json-run	cli.json.commands,cli.json.run,cli.json.run.program,cli.json.summary.result
 new-app	cli.new.capabilities,cli.new.kind,cli.new.app,cli.new.app.test,cli.new.here.dir,cli.new.no-executable-table,cli.new.test-name,cli.new.vcs-none,cli.exe.default-main,cli.exe.entry-program,cli.exe.entry-no-use,cli.exe.default-name,cli.run.cwd.executable,cli.new.dev-capabilities
 new-lib	cli.new.kind,cli.new.lib,cli.new.lib.test,cli.new.here.dir,cli.new.test-name,cli.new.vcs-none,cli.build.library-only.cache

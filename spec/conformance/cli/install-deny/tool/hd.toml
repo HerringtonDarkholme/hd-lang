@@ -1,0 +1,6 @@
+[package]
+name = "denied-tool"
+
+[capabilities]
+Console = true
+Clock = true

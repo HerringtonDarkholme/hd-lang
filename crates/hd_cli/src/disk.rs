@@ -416,15 +416,25 @@ fn dependencies(root: &Path) -> Result<Dependencies, String> {
         let line = (p.place.dir == canonical).then_some(p.place.line);
         problems.push((line, problem_diag(&canonical, p)));
     }
-    let Some(first) = sel.packages.first().filter(|p| p.dir == canonical) else {
+    if sel.packages.first().is_none_or(|p| p.dir != canonical) {
         return Ok(Dependencies {
             problems,
             ..Dependencies::default()
         });
-    };
+    }
+    selected_dependencies(&canonical, &sel, 0, problems)
+}
+
+fn selected_dependencies(
+    canonical: &Path,
+    sel: &hd_deps::Selection,
+    first_index: usize,
+    problems: Vec<(Option<u32>, Diag)>,
+) -> Result<Dependencies, String> {
+    let first = &sel.packages[first_index];
     // The root's part of the graph, the root first.
-    let mut index: hd_base::HashMap<usize, u16> = [(0, 0)].into_iter().collect();
-    let mut order = vec![0];
+    let mut index: hd_base::HashMap<usize, u16> = [(first_index, 0)].into_iter().collect();
+    let mut order = vec![first_index];
     let mut next = 0;
     while next < order.len() {
         let p = &sel.packages[order[next]];
@@ -461,7 +471,7 @@ fn dependencies(root: &Path) -> Result<Dependencies, String> {
                 identity: p.identity.clone(),
                 versioned_source: p.fetched.clone(),
                 declarations: p.manifest.host.clone(),
-                manifest: shown_from(&canonical, &p.dir.join("hd.toml")),
+                manifest: shown_from(canonical, &p.dir.join("hd.toml")),
             }
         })
         .collect();
@@ -919,15 +929,52 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
             entries: Vec::new(),
         });
     }
-    let (sources, package) = sources_of(root)?;
+    let sources = sources_of(root)?;
+    loaded_package(root, entry, sources, dependencies(root)?, true)
+}
+
+/// The selected dependency graph already treats this root as a fetched
+/// package, including same-repository versioned path dependencies.
+pub(crate) fn load_selected_package(
+    root: &Path,
+    entry: &str,
+    selection: &hd_deps::Selection,
+    first: usize,
+) -> Result<Program, String> {
+    let canonical = hd_run::canonicalize(root).map_err(|e| e.to_string())?;
+    let problems = selection
+        .problems
+        .iter()
+        .map(|p| {
+            let line = (p.place.dir == canonical).then_some(p.place.line);
+            (line, problem_diag(&canonical, p))
+        })
+        .collect();
+    let sources = sources_of(root)?;
+    loaded_package(
+        root,
+        entry,
+        sources,
+        selected_dependencies(&canonical, selection, first, problems)?,
+        false,
+    )
+}
+
+fn loaded_package(
+    root: &Path,
+    entry: &str,
+    (sources, package): (DiskSources, String),
+    selected: Dependencies,
+    local_paths: bool,
+) -> Result<Program, String> {
     let Dependencies {
         host_packages,
         requires,
         dev_requires,
         deps,
         problems,
-    } = dependencies(root)?;
-    let problems = manifest_problems(root, &package, problems)?;
+    } = selected;
+    let problems = manifest_problems(root, &package, problems, local_paths)?;
     let entries = executables(root, &package)
         .iter()
         .filter(|e| e.file.starts_with("src/"))
@@ -1035,6 +1082,7 @@ fn manifest_problems(
     root: &Path,
     package: &str,
     dependency: Vec<(Option<u32>, Diag)>,
+    local_paths: bool,
 ) -> Result<Vec<Diag>, String> {
     const FILE: &str = "hd.toml";
     let Some(m) = manifest_of(root)? else {
@@ -1042,7 +1090,14 @@ fn manifest_problems(
     };
     let own = hd_project::problems(&m, TOOLCHAIN);
     let mut out: Vec<(Option<u32>, Diag)> = dependency;
-    for r in m.dependencies.iter().chain(&m.dev_dependencies) {
+    // Fetched path requirements have already been translated and checked
+    // by the selector; their siblings are separate cached package trees.
+    for r in m
+        .dependencies
+        .iter()
+        .chain(&m.dev_dependencies)
+        .filter(|_| local_paths)
+    {
         if own
             .iter()
             .any(|p| p.line == Some(r.line) && p.severity == Severity::Error)

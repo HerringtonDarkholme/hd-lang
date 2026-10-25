@@ -19,5 +19,8 @@ pub mod version;
 pub use cache::{Cache, Entry};
 pub use change::{lowered, newest_release};
 pub use fetch::{Failure, Remote, Resolved};
-pub use select::{Edited, Mode, Package, Place, Problem, Selection, Source, select, select_edited};
+pub use select::{
+    Edited, Mode, Package, Place, Problem, Selection, Source, select, select_edited,
+    select_executable_entry,
+};
 pub use sum::{Sum, SumError};

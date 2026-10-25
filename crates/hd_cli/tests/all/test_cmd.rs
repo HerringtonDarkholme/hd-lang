@@ -120,7 +120,7 @@ fn a_file_runs_its_module_and_a_missed_filter_is_an_error() {
         text(&out.stderr),
         "error: no test case of `money.hd` has a name that contains `euro`\n"
     );
-    // cli.command.positional
+    // cli.command.positional.package-directory
     let out = hd_test(&dir, &["."]);
     assert_eq!(out.status.code(), Some(101));
 }

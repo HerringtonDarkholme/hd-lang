@@ -15,6 +15,7 @@ mod doc_tests;
 mod fifo;
 mod fix_cmd;
 mod host_traits;
+mod install;
 #[cfg(unix)]
 mod interrupt_signal;
 mod node_host_exit;

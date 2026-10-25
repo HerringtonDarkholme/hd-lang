@@ -12,6 +12,7 @@ command finds a package and what each command runs:
 - `hd doc`, which writes a package's documentation;
 - `hd add`, `hd update`, `hd remove`, and `hd fetch`, which manage and fetch
   dependencies;
+- `hd install` and `hd uninstall`, which manage installed executables;
 - `hd clean`, which removes the build directory or the dependency cache;
 - `hd fmt` and `hd fix`, which rewrite source files;
 - the compiled cache and `hd cache gc`;
@@ -39,6 +40,7 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd doc [--private] [--out DIR] [--open]`, `hd doc NAME` | [writes the package's documentation](#documentation), or prints one item's |
 | `hd new [--app \| --lib] [--pages] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
 | `hd add [--dev] [--name NAME] TARGET[@QUERY]...`, `hd update [NAME[@QUERY]]`, `hd remove NAME`, `hd fetch` | [change or fetch the package's dependencies](#dependency-commands) |
+| `hd install SOURCE`, `hd install --list`, `hd uninstall NAME` | [install, list or remove executable commands](#installing-executables) |
 | `hd clean`, `hd clean --cache` | [removes the package's build directory, or the dependency cache](#cleaning) |
 | `hd fmt [--check] [FILE]` | [formats the package's source files](#formatting), or one FILE |
 | `hd fix` | [applies the package's safe fix-its](#fixing) |
@@ -47,7 +49,8 @@ says which program a command starts. Its diagnostic codes are in the
 
 1. r[cli.command.help] `hd help` and `hd --help` print the command list. It names every command of the table above.
 2. r[cli.command.help.command] `hd help COMMAND` and `hd COMMAND --help` print the command's usage line and each flag it takes. So the help of `hd add` names `--dev` and `--name`, and the help of `hd clean` names `--cache`.
-3. r[cli.command.positional] A positional word of a command is a NAME or a FILE. A directory is neither: `hd test libs/ui` is an error, and its message suggests [`-p`](#selecting-members).
+3. r[cli.command.positional.operands] A positional word denotes the command's declared NAME, FILE, SOURCE, PATH or TARGET.
+4. r[cli.command.positional.package-directory] A directory operand to `hd run` or `hd test` is an error whose message suggests [`-p`](#selecting-members).
 
 ```sh
 hd help          # the command list
@@ -922,6 +925,60 @@ hd build --release     # error: dbg-in-release
 
 > **Note.** The browser playground shows `dbg` lines in its output panel,
 > marked as debug output.
+
+## Installing Executables
+
+`hd install` builds a package's executables and gives each a command on PATH:
+
+```sh
+hd install ./tools --root ./my-hd
+hd install --list --root ./my-hd
+hd uninstall tool --root ./my-hd
+```
+
+1. r[cli.install.source] `hd install SOURCE` selects the package named by SOURCE independently of the caller's package.
+2. r[cli.install.resolve] SOURCE follows the path, repository and version-query forms of [dependency targets](#targets), without requiring a library.
+3. r[cli.install.executables] Installation builds every [executable](#executables) of the selected package.
+4. r[cli.install.no-executable] A source without a package manifest or without executables is an error.
+5. r[cli.install.release-wasm] Each installed executable is release Wasm with a launcher through the current `hd` runtime.
+6. r[cli.install.no-execution] Installation runs no guest entry, test, package provider or installation hook.
+7. r[cli.install.root] The installation root is `--root DIR`, else `HD_INSTALL_ROOT`, else `.hd` in the user's home directory.
+8. r[cli.install.layout] Launchers live under `ROOT/bin`, and managed artifacts and installation records under `ROOT/installed`.
+9. r[cli.install.path-guidance] Installation prints PATH guidance without editing shell startup files.
+10. r[cli.install.launcher-runtime] Each launcher selects `hd` from PATH when invoked.
+11. r[cli.install.launcher-arguments] Each launcher forwards every argument unchanged as application data.
+12. r[cli.install.launcher-streams] Installed programs inherit the caller's standard input, standard output and standard error.
+13. r[cli.install.launcher-status] The installed command returns the program's exit status.
+14. r[cli.install.launcher-cwd] The installed program keeps the caller's working directory.
+15. r[cli.install.program-name] Its `Args.program` is its installed executable name.
+16. r[cli.install.no-checkout] The launcher and loader require no original source checkout at invocation.
+17. r[cli.install.names] Installed executable names must be portable flat filenames, distinct without ASCII case, other than `hd` and Windows device names.
+18. r[cli.install.list] `hd install --list` lists one row per installed executable, ordered by name.
+19. r[cli.install.list-fields] Each row contains name, canonical source identity and revision, separated by tabs.
+20. r[cli.install.owner] A local source's identity is its canonical directory; a remote source's identity is its canonical host path.
+21. r[cli.install.update] Reinstalling the same source updates its commands after every executable builds and validates successfully.
+22. r[cli.install.removed-executables] An update removes formerly installed commands that its source no longer declares.
+23. r[cli.install.collision] Installation refuses an unmanaged command or a command owned by a different source.
+24. r[cli.install.modified-launcher] Installation and removal refuse a managed launcher whose contents were replaced or modified.
+25. r[cli.install.failed-validation] Build, capability-check and collision failures preserve previously installed commands.
+26. r[cli.install.manifest-grants] Installed programs use the package's installation-time `[capabilities]` table, with no additional grant policy.
+27. r[cli.install.path-scopes] Relative filesystem grants resolve against the source package directory at installation.
+28. r[cli.install.show-grants] Installation and update display the package's capability table.
+29. r[cli.install.deny] Repeatable `--deny CAP` refuses that installation when the package table grants CAP.
+30. r[cli.install.deny-once] `--deny` is not stored and affects no later installation or invocation.
+31. r[cli.install.provider-unavailable] Installation of an executable using package-owned JavaScript providers is refused with a diagnostic naming the unsupported provider.
+32. r[cli.install.record-version] An installed loader validates its installation record format before guest initialization.
+33. r[cli.install.abi] It validates an explicit Wasm/runtime ABI revision before guest initialization.
+34. r[cli.install.hash] It validates the artifact's SHA256 before guest initialization.
+35. r[cli.install.incompatible] An incompatible ABI or artifact hash mismatch refuses execution and gives an explicit reinstall command.
+36. r[cli.install.no-implicit-rebuild] Invocation never fetches or rebuilds an incompatible installed program automatically.
+37. r[cli.uninstall.one] `hd uninstall NAME` removes one installed executable's managed launcher and record.
+38. r[cli.uninstall.payload] Removal reclaims payloads that no installed executable still references.
+39. r[cli.uninstall.root] `hd uninstall` takes the same root selection as `hd install`.
+
+> **Why.** A versioned record keeps compatibility checks separate from the
+> Wasm artifact. Package provider installation waits for a portable provider
+> graph; retaining an absolute checkout path would break independent installs.
 
 ## Documentation
 

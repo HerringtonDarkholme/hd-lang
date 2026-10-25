@@ -16,6 +16,8 @@ stdout:   add        require each TARGET, fetch it, and record its hash
 stdout:   update     move dependencies to the newest release on their compatibility line
 stdout:   remove     delete the dependency NAME and its hd.sum entries
 stdout:   fetch      fetch every selected dependency version the cache lacks, as CI does
+stdout:   install    install a package's executables as commands on PATH
+stdout:   uninstall  remove one installed executable
 stdout:   clean      remove the package's build directory, or with --cache the dependency cache
 stdout:   fmt        format the package's source files, or FILE
 stdout:   fix        apply the package's safe fix-its

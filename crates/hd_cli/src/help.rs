@@ -253,6 +253,36 @@ const COMMANDS: &[Command] = &[
         flags: &[FORMAT],
     },
     Command {
+        name: "install",
+        summary: "install a package's executables as commands on PATH",
+        usage: "hd install [--root DIR] [--deny CAP]... SOURCE | hd install [--root DIR] --list",
+        about: &[
+            "Build every executable as release Wasm and install a launcher using hd from PATH.",
+            "SOURCE uses hd add's path, git and version-query syntax; repeating it updates the same source.",
+            "Use ~/.hd/bin, or --root then HD_INSTALL_ROOT. Print PATH guidance without editing shell files.",
+        ],
+        flags: &[
+            ("--root DIR", "override the installation root"),
+            (
+                "--deny CAP",
+                "refuse this install if the manifest grants CAP; repeatable and not stored",
+            ),
+            (
+                "--list",
+                "list each installed executable, source and revision",
+            ),
+        ],
+    },
+    Command {
+        name: "uninstall",
+        summary: "remove one installed executable",
+        usage: "hd uninstall [--root DIR] NAME",
+        about: &[
+            "Remove the managed launcher and its unreferenced payload; refuse modified launchers.",
+        ],
+        flags: &[("--root DIR", "override the installation root")],
+    },
+    Command {
         name: "clean",
         summary: "remove the package's build directory, or with --cache the dependency cache",
         usage: "hd clean [--cache]",

@@ -1,0 +1,39 @@
+commit refs/heads/main
+mark :1
+author Fixture <fixture@example.com> 1790000000 +0000
+committer Fixture <fixture@example.com> 1790000000 +0000
+data <<END
+first version
+END
+M 644 inline hd.toml
+data <<END
+[package]
+name = "remote-tool"
+
+[capabilities]
+Console = true
+END
+M 644 inline src/main.hd
+data <<END
+pub fn main() -> void $ Console:
+    println("first")
+END
+
+reset refs/tags/v1.0.0
+from :1
+
+commit refs/heads/main
+mark :2
+author Fixture <fixture@example.com> 1790003600 +0000
+committer Fixture <fixture@example.com> 1790003600 +0000
+data <<END
+second version
+END
+M 644 inline src/main.hd
+data <<END
+pub fn main() -> void $ Console:
+    println("second")
+END
+
+reset refs/tags/v1.1.0
+from :2

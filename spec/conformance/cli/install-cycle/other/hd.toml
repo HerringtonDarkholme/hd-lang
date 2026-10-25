@@ -1,0 +1,5 @@
+[package]
+name = "installed-tool"
+
+[capabilities]
+Console = true

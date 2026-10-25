@@ -1,0 +1,3 @@
+run: hd install ./tool --root ./store
+exit: 101
+no-file: store/installed/registry.json

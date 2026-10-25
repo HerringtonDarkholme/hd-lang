@@ -1,0 +1,9 @@
+run: hd install acme/tool@1.0.0 --root ./store
+run: hd install --list --root ./store
+stdout: remote-tool\tgithub.com/acme/tool\t1.0.0
+run: hd install acme/tool@1.1.0 --root ./store
+run: hd install --list --root ./store
+stdout: remote-tool\tgithub.com/acme/tool\t1.1.0
+run: hd uninstall remote-tool --root ./store
+run: hd install --list --root ./store
+stdout-json: []
