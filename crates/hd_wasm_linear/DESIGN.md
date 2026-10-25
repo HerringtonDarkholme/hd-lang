@@ -765,6 +765,8 @@ changes preserve collection value semantics (§23.7).
   wrapped.
 - **Strings over lists.** `string_from_bytes` and `concat_all` copy a
   list's bytes, or its strings' bytes, into one new string buffer.
+  `string_to_bytes` is the other way: one list buffer of exactly the
+  string's length and one `memory.copy`.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/list_tests.hd`
   builds lists of strings and lists of structs holding lists, and copies
   and changes a list, each in a loop, and checks that the heap does not

@@ -2623,6 +2623,14 @@ impl Em<'_, '_, '_> {
                 });
                 self.store_owned(i)
             }
+            // The bytes of a string as a new list: one sized buffer, one copy.
+            "string_to_bytes" => {
+                let (_, elem) = self.elem(self.ty(i))?;
+                self.comp(args[0], 0)?;
+                self.comp(args[0], 1)?;
+                self.f.helper(Helper::StrToBytes { elem });
+                self.store_owned(i)
+            }
             // The bit casts keep every bit, a NaN's sign and payload too.
             "f64_to_bits" | "f64_from_bits" | "f32_to_bits" | "f32_from_bits" => {
                 self.comp(args[0], 0)?;

@@ -582,6 +582,7 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("utf8_valid_len", Lowering::Compiler),
     ("concat_all", Lowering::Compiler),
     ("string_from_bytes", Lowering::Compiler),
+    ("string_to_bytes", Lowering::Compiler),
     ("char_scalar", Lowering::Compiler),
     ("char_from_scalar", Lowering::Compiler),
     ("int_wrapping_add", Lowering::Compiler),

@@ -414,6 +414,11 @@ pub enum Helper {
     /// `(list: List[u8]) -> string`: a new string of the list's bytes,
     /// which std has checked are UTF-8.
     StrFromBytes,
+    /// `(address, length) -> List[u8]`: a new list of exactly the `length`
+    /// bytes at `address`, one sized buffer and one copy.
+    StrToBytes {
+        elem: Elem,
+    },
     /// `(list: List[string]) -> string`: every part's bytes in order,
     /// copied once into one new string.
     ConcatAll,
@@ -1708,6 +1713,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::StrFromBytes => str_from_bytes(m),
+        Helper::StrToBytes { elem } => str_to_bytes(m, elem),
         Helper::ConcatAll => concat_all(m),
         Helper::StrCmp => str_cmp(m),
         Helper::BytesIndexJson => {
@@ -3106,6 +3112,30 @@ fn str_from_bytes(m: &Module) -> Func {
     f.op(Instruction::End);
     f.get(s);
     f.get(n);
+    f
+}
+
+/// [`Helper::StrToBytes`]: the buffer has exactly the string's length,
+/// and no bytes is an empty list.
+fn str_to_bytes(m: &Module, elem: &Elem) -> Func {
+    let mut f = m.func("rt:str_to_bytes", vec![Val::I32; 2], vec![Val::I32]);
+    let b = f.local(Val::I32);
+    f.get(1);
+    f.helper(Helper::ListBuf { elem: elem.clone() });
+    f.set(b);
+    f.get(b);
+    f.get(1);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    f.get(b);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(0);
+    f.get(1);
+    f.op(Instruction::MemoryCopy {
+        src_mem: HEAP,
+        dst_mem: HEAP,
+    });
+    f.get(b);
     f
 }
 

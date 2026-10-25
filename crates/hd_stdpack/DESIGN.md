@@ -65,6 +65,7 @@ every key in `lib/std` has a row.
 | `bytes_mismatch` | `(left: string, right: string) -> usize`, in `text.hd` and `cmp.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_mismatch` (#428) | compiler |
 | `bytes_index_pair` | `(text: string, from: usize, first: u8, last: u8, gap: usize) -> usize`, in `text.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index_pair` (#428) | compiler |
 | `utf8_valid_len` | `(bytes: List[u8]) -> usize`, in `text.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:utf8_valid_len` (#428) | compiler |
+| `string_to_bytes` | `(text: string) -> List[u8]`, in `text.hd` | compiler |
 | `char_scalar` | `(value: char) -> u32`, in `text.hd`, `format.hd`, `hash.hd` | compiler |
 | `char_from_scalar` | `(point: u32) -> char?`, in `text.hd` | compiler |
 | `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `IntToStr` helper | compiler |

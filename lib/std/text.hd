@@ -255,10 +255,7 @@ impl string:
     ## Returns the string's bytes as a new list.
     ## See [std-text.utf8.round-trip](../../spec/std/text.md#r-std-text.utf8.round-trip).
     pub fn to_utf8(self) -> List[u8]:
-        let mut found: List[u8] = []
-        for byte in self.bytes():
-            found.push(byte)
-        found
+        string_to_bytes(self)
 
     # The string whose UTF-8 encoding is `bytes`, or where they are not
     # valid UTF-8 (spec/lang/04-type-system.md#r-types.string.from-bytes).
@@ -1209,6 +1206,11 @@ fn concat_all(parts: List[string]) -> string:
 # The string of `bytes`, which the caller has checked are UTF-8.
 @intrinsic("string_from_bytes")
 fn string_from_bytes(bytes: List[u8]) -> string:
+    panic("intrinsic")
+
+# The bytes of `text` as a new list, in one sized allocation and one copy.
+@intrinsic("string_to_bytes")
+fn string_to_bytes(text: string) -> List[u8]:
     panic("intrinsic")
 
 @intrinsic("string_lower")
