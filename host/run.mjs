@@ -37,20 +37,17 @@
 // alone, and passes it on as that signal, once. A terminal's Ctrl-C also
 // reaches this process, so a process told of such a signal ignores SIGINT
 // (the listener below), else the one interrupt would arrive twice.
-import { readFileSync, writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import { readPackageContract } from "./package-providers.mjs";
-import {
-  isMainThread,
-  MessageChannel,
-  receiveMessageOnPort,
-  Worker,
-  workerData,
-} from "node:worker_threads";
 import { CANCEL_STATUS, HostContract, entryCancel } from "./core.mjs";
 import { createHost, exitPast, PROGRAM_TIME_LIMIT, reportIn } from "./node.mjs";
-
 import { createOutput } from "./output.mjs";
+
+// Builtins come from `process.getBuiltinModule`, which skips the ESM
+// facade an `import` builds (node.mjs).
+const { readFileSync, writeFileSync } = process.getBuiltinModule("node:fs");
+const { pathToFileURL } = process.getBuiltinModule("node:url");
+const { isMainThread, MessageChannel, receiveMessageOnPort, Worker, workerData } =
+  process.getBuiltinModule("node:worker_threads");
 
 // How long past the deadline the main thread waits for the host to end
 // the run on its own before it stops the worker.

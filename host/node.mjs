@@ -8,7 +8,31 @@
 
 // module.profile.panic-status).
 
+import { createOutput } from "./output.mjs";
+import { receiveReply } from "./worker-control.mjs";
 import {
+  createCoreHost,
+  createGrant as createCoreGrant,
+  createSession,
+  Deadlock,
+  EndCase,
+  HostContract,
+  httpProvider,
+  panicOfReport,
+  pendingOperation,
+  PROGRAM_TIME_LIMIT,
+  reportIn,
+  TimeLimit,
+  timeLimitReport,
+} from "./core.mjs";
+import { FsError, METHODS, NetError, Path } from "./gen/abi.mjs";
+import { Err, Ok, variant } from "./wire.mjs";
+
+// Builtins come from `process.getBuiltinModule`, not `import`: an ESM
+// import of a builtin builds its module facade, which for `node:fs` loads
+// the streams, about 1 ms of every run's startup. `node:net` loads only
+// when a host name is checked.
+const {
   appendFileSync,
   closeSync,
   copyFileSync,
@@ -28,30 +52,16 @@ import {
   statSync,
   unlinkSync,
   writeFileSync,
-} from "node:fs";
-import { isIP } from "node:net";
-import { createOutput } from "./output.mjs";
-import { MessageChannel, Worker } from "node:worker_threads";
-import { receiveReply } from "./worker-control.mjs";
-import { arch as osArch, availableParallelism, hostname, platform, tmpdir } from "node:os";
-import { dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
-import {
-  createCoreHost,
-  createGrant as createCoreGrant,
-  createSession,
-  Deadlock,
-  EndCase,
-  HostContract,
-  httpProvider,
-  panicOfReport,
-  pendingOperation,
-  PROGRAM_TIME_LIMIT,
-  reportIn,
-  TimeLimit,
-  timeLimitReport,
-} from "./core.mjs";
-import { FsError, METHODS, NetError, Path } from "./gen/abi.mjs";
-import { Err, Ok, variant } from "./wire.mjs";
+} = process.getBuiltinModule("node:fs");
+const { MessageChannel, Worker } = process.getBuiltinModule("node:worker_threads");
+const {
+  arch: osArch,
+  availableParallelism,
+  hostname,
+  platform,
+  tmpdir,
+} = process.getBuiltinModule("node:os");
+const { dirname, isAbsolute, join, parse, resolve, sep } = process.getBuiltinModule("node:path");
 
 export { Deadlock, EndCase, panicOfReport, PROGRAM_TIME_LIMIT, reportIn, timeLimitReport };
 
@@ -140,7 +150,7 @@ function linkStep(path, links) {
 export function validHost(host) {
   const name =
     /^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\.?$/;
-  return isIP(host) !== 0 || name.test(host);
+  return process.getBuiltinModule("node:net").isIP(host) !== 0 || name.test(host);
 }
 
 // The `FsError` variant of a failed file operation's error code.

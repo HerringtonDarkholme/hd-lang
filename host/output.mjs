@@ -10,12 +10,15 @@
 // writes resume. A shared connection (a supervised guest and its
 // supervisor) always uses the thread, and so does Windows, where a pipe
 // write would block.
-import { writeSync } from "node:fs";
-import { MessageChannel, Worker } from "node:worker_threads";
 import { receiveReply } from "./worker-control.mjs";
 import { pendingOperation } from "./core.mjs";
 import { failed, full } from "./output-worker.mjs";
 import { Ok } from "./wire.mjs";
+
+// Builtins come from `process.getBuiltinModule`, which skips the ESM
+// facade an `import` builds (node.mjs).
+const { writeSync } = process.getBuiltinModule("node:fs");
+const { MessageChannel, Worker } = process.getBuiltinModule("node:worker_threads");
 
 const DIRECT = process.platform !== "win32";
 

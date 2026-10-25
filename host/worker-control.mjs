@@ -1,6 +1,8 @@
 // Control replies are correlated messages. The shared flag is only a wake
 // hint: an old notification or a delayed queue publication is not a reply.
-import { receiveMessageOnPort } from "node:worker_threads";
+// Builtins come from `process.getBuiltinModule`, which skips the ESM
+// facade an `import` builds (node.mjs).
+const { receiveMessageOnPort } = process.getBuiltinModule("node:worker_threads");
 
 export function receiveReply(port, flag, id, left) {
   for (;;) {

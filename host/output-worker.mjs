@@ -1,10 +1,13 @@
 // The output writer thread of output.mjs: one ordered queue of stdout,
 // stderr and session-frame writes, with short control requests. It imports
 // only what it needs, so it boots fast when a full pipe first needs it.
-import { write } from "node:fs";
-import { workerData } from "node:worker_threads";
 import { postReply } from "./worker-control.mjs";
 import { Err, Ok } from "./wire.mjs";
+
+// Builtins come from `process.getBuiltinModule`, which skips the ESM
+// facade an `import` builds (node.mjs).
+const { write } = process.getBuiltinModule("node:fs");
+const { workerData } = process.getBuiltinModule("node:worker_threads");
 
 // A failed write's result.
 export const failed = (error) =>
