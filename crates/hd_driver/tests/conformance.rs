@@ -28,6 +28,10 @@
 //! target the engine mode builds, or compares the run with those saved
 //! files and fails on any difference. It proves a refactor leaves the
 //! emitted code byte-identical; it needs the full runtime suite.
+//! `HD_CONFORMANCE_WRITES=pending` runs every entry under the
+//! `pending-write` profile unless its fixture names one, so each Console
+//! write yields as a pending host call; the default answers a write that
+//! completes at once as ready. Both modes must pass (#652).
 //! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
 //! timing, without applying the rule.
 //!
@@ -1671,6 +1675,7 @@ fn entry_verdict(
     serial: usize,
     profile: Option<&str>,
 ) -> Verdict {
+    let profile = profile.or_else(|| pending_writes().then_some("pending-write"));
     let run = match run_program(case, wasm, serial, profile) {
         Ok(run) => run,
         Err(error) => return Verdict::Crash(error.to_string()),
@@ -1813,6 +1818,16 @@ fn run_case(case: &Case, store: &MemoryStore, serial: usize) -> Verdict {
         Phase::Type => type_case(case, &fixture, store),
         Phase::Runtime => runtime_case(case, &fixture, store, serial),
     }
+}
+
+/// Whether `HD_CONFORMANCE_WRITES=pending` runs every entry whose fixture
+/// names no runtime profile under `pending-write`, so each Console write
+/// is pending at its first poll and yields to the scheduler. By default a
+/// host answers a write that completes at once as ready, and the caller
+/// goes on without yielding (#652). Both runs must pass: no fixture may
+/// depend on whether a write yields.
+fn pending_writes() -> bool {
+    selection_env("HD_CONFORMANCE_WRITES").is_some_and(|value| value == "pending")
 }
 
 /// The backend every case builds with: the linear one, in checked mode
