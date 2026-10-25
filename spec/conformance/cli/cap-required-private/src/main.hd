@@ -1,0 +1,2 @@
+fn main() -> void $ Console:
+    println("fixed private entry")

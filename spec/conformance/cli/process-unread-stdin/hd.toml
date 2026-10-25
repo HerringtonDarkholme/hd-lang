@@ -1,2 +1,5 @@
 [package]
 name = "unread"
+
+[capabilities]
+Console = true

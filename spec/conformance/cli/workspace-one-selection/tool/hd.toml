@@ -3,3 +3,6 @@ name = "tool"
 
 [dependencies]
 json = "github.com/acme/json@2.3.0"
+
+[capabilities]
+Console = true

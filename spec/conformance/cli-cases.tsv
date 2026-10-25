@@ -264,3 +264,4 @@ host-declaration-not-public	cli.host.declaration.mapped
 cap-required-main	cli.cap.table.required,cli.cap.table.required-unused,cli.cap.table.required-builtins,cli.cap.table.required-flags,cli.cap.table.required-message,cli.cap.table.required-fix,cli.fix.manifest.capabilities
 cap-required-inline	cli.cap.table.required,cli.cap.table.unused,cli.cap.value.false,cli.cap.table.required-fix,cli.fix.manifest.capabilities
 cap-required-script	cli.cap.table.script,cli.cap.source.flags-only
+cap-required-private	cli.cap.table.required,cli.cap.table.required-fix,cli.fix.safe

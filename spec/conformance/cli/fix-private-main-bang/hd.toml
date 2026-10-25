@@ -4,3 +4,6 @@ name = "privateentry"
 [[executable]]
 name = "app"
 module = "main"
+
+[capabilities]
+Console = true

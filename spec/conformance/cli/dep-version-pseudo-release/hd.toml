@@ -3,3 +3,6 @@ name = "shop"
 
 [dependencies]
 billing = "github.com/acme/billing@1.0.0"
+
+[capabilities]
+Console = true

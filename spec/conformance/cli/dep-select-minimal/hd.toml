@@ -4,3 +4,6 @@ name = "shop"
 [dependencies]
 json = "github.com/acme/json@2.9.0"
 billing = "github.com/acme/billing@1.4.2"
+
+[capabilities]
+Console = true

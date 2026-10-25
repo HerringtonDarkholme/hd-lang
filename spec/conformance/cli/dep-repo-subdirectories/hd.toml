@@ -4,3 +4,6 @@ name = "shop"
 [dependencies]
 lint = "github.com/acme/tools/lint@1.0.0"
 fmt = "github.com/acme/tools/fmt@1.0.0"
+
+[capabilities]
+Console = true

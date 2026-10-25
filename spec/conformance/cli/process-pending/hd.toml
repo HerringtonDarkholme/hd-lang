@@ -1,2 +1,6 @@
 [package]
 name = "process-pending"
+
+[capabilities]
+Console = true
+Clock = true

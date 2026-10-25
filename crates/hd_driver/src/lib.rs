@@ -9186,7 +9186,7 @@ impl Run<'_> {
                 continue;
             };
             let main = names.item(&module.path, "main");
-            let Some(item) = items.0.iter().find(|i| i.def == main && i.public) else {
+            let Some(item) = items.0.iter().find(|i| i.def == main) else {
                 continue;
             };
             let ItemData::Fn(sig) = &item.data else {
@@ -12085,6 +12085,34 @@ mod main_capability_tests {
             if warm {
                 assert!(out.counters.modules_checked.is_empty());
             }
+        }
+    }
+
+    #[test]
+    fn private_main_rows_still_require_manifest_capabilities() {
+        let mut files = MemorySources::default();
+        files.insert(
+            "src/main.hd",
+            "use std.process.Process\nfn main() -> void $ Process: pass\n",
+        );
+        let store = MemoryStore::default();
+        let host = Host {
+            sources: &files,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+            render_tir: &[],
+        };
+        let packages = Packages {
+            main_capabilities: true,
+            entries: vec!["main".to_owned()],
+            ..Packages::default()
+        };
+        for _ in 0..2 {
+            let out = build_packages(&host, "app", &packages, &Goal::Analyze);
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            assert_eq!(out.main_capabilities.len(), 1);
+            assert_eq!(out.main_capabilities[0].selectors, ["Process"]);
         }
     }
 
