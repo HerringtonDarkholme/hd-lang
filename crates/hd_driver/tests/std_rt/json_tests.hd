@@ -95,6 +95,10 @@ tests:
         found := decode::[Point]("{\"x\":1,\"y\":2,\"x\":3}")
         assert(found == .Ok(Point { x: 3, y: 2 }), "last value wins")
 
+    it("reads distinct keys that share a length and first byte"):
+        found := decode::[Point]("{\"xa\":0,\"xb\":0,\"y\":2,\"x\":1}")
+        assert(found == .Ok(Point { x: 1, y: 2 }), "every member found")
+
     it("matches escaped keys"):
         found := decode::[Point]("{\"\\u0078\":1,\"y\\u0000\":9,\"y\":2}")
         assert(found == .Ok(Point { x: 1, y: 2 }), "escaped key decoded")
