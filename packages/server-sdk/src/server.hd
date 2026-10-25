@@ -1,4 +1,4 @@
-use std.http.{Request, Response}
+use std.http.{Http, Request, Response}
 use std.task.{map_all, race, timeout, TimedOut, CleanupEnd}
 use std.ops.Disposable
 use std.time.{Clock, ms, s}
@@ -30,6 +30,7 @@ pub trait HttpServer:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]
     fn respond!(&mut self, id: RequestId, response: Response) -> Result[void, ServerError]
     fn cancelled!(&mut self, id: RequestId) -> CancelReason
+    fn client(&mut self, id: RequestId) -> *mut dyn Http
     fn clock(&mut self, id: RequestId) -> *mut dyn Clock
     fn finish(&mut self, id: RequestId, abandoned: bool) -> void
 
@@ -66,8 +67,9 @@ fn response!(job: mut Suspend[Result[Response, TimedOut]], state: &mut CleanupSt
 
 fn request![S, $R](server: *mut dyn HttpServer, incoming: Incoming, state: *mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R:
     cleanup := &mut CleanupState { abandoned: false }
+    client := server.client(incoming.id)
     clock := server.clock(incoming.id)
-    let job: mut Suspend[Result[Response, TimedOut]] = $.with(Clock=clock):
+    let job: mut Suspend[Result[Response, TimedOut]] = $.with(Http=client, Clock=clock):
         timeout(s(20), cleanup=ms(100), work=fn!() -> Response $ R: handler!(incoming.request, state))
     using lease = Lease { server: server, id: incoming.id, job: job, state: cleanup }
     end := race!(cancellation(server, incoming.id), response(job, cleanup))

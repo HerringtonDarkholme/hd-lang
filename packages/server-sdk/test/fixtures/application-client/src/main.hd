@@ -1,0 +1,13 @@
+use dep.server_sdk.server.{HttpServer, serve}
+use std.http.{Http, Request, Response}
+
+struct State: pass
+
+fn handle!(request: Request, _state: &mut State) -> Response $ Http:
+    url := string::from_utf8(request.body).expect("the upstream URL")
+    match Request::get(url).send!():
+        .Ok(response) => response
+        .Err(error) => Response { status: 502, body: "${error}".to_utf8() }
+
+pub fn main!() -> void $ HttpServer + Http:
+    serve!(4, &mut State {}, handle).expect("the server")

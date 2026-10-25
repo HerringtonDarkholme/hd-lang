@@ -1,4 +1,6 @@
 import http from "node:http";
+import { createLeaseDispatcher } from "../adapters/dispatcher.mjs";
+import { createHttpClient } from "../adapters/http.mjs";
 
 let generation = 0n;
 const instances = new WeakMap();
@@ -32,6 +34,10 @@ function stateFor(context) {
     peak: 0,
     replies: 0,
   };
+  // The ordinary Node host.run driver polls prepared operations itself.
+  // Native starts and disposal are still drained by each HTTP callback's
+  // lease.run coroutine; this callback must never poll Wasm reentrantly.
+  state.dispatcher = createLeaseDispatcher({ drive() {} });
   instances.set(context.instanceSignal, state);
   const stop = () => {
     if (state.stopping) return;
@@ -49,14 +55,24 @@ function stateFor(context) {
       return;
     }
     const sequence = ++state.sequence;
-    const job = { request, response, cancelled: null, sequence, timers: new Set() };
+    const job = {
+      request,
+      response,
+      cancelled: null,
+      sequence,
+      lease: state.dispatcher.open(request),
+      closed: false,
+      responded: false,
+    };
     state.jobs.set(sequence, job);
     state.peak = Math.max(state.peak, state.jobs.size);
     response.on("close", () => {
-      if (!response.writableFinished) {
+      if (!response.writableFinished && !job.closed && job.cancelled === null) {
         job.cancelled = "Disconnected";
+        job.lease.cancel("Disconnected");
       }
     });
+    let handedToGuest = false;
     try {
       let length = 0;
       const chunks = [];
@@ -65,7 +81,6 @@ function stateFor(context) {
         if (length > 1048576) {
           response.writeHead(413);
           response.end();
-          state.jobs.delete(sequence);
           waiter.resolve(err("Expired"));
           return;
         }
@@ -79,7 +94,7 @@ function stateFor(context) {
       const headers = [];
       for (let n = 0; n < request.rawHeaders.length; n += 2)
         headers.push([request.rawHeaders[n], request.rawHeaders[n + 1]]);
-      waiter.resolve(
+      handedToGuest = waiter.resolve(
         ok({
           id: { generation: state.generation, sequence },
           request: {
@@ -92,13 +107,34 @@ function stateFor(context) {
           },
         }),
       );
+      if (!handedToGuest && !response.destroyed) {
+        response.writeHead(503);
+        response.end();
+      }
     } catch (error) {
-      state.jobs.delete(sequence);
       if (!response.destroyed) {
         response.writeHead(400);
         response.end();
       }
       waiter.resolve(err("Other", String(error)));
+    } finally {
+      // An admission/read failure has no HD worker to acknowledge it.
+      if (!handedToGuest && !job.closed) {
+        job.closed = true;
+        job.lease.finish(true);
+      }
+      try {
+        await job.lease.run();
+      } catch {
+        // A closed instance cannot retain a useful response or be reused.
+        // The private failure is never reflected into a client response.
+        if (!response.destroyed && !response.writableEnded) {
+          if (!response.headersSent) response.writeHead(500);
+          response.end();
+        }
+      } finally {
+        state.jobs.delete(sequence);
+      }
     }
   });
   state.server.on("error", (error) => {
@@ -119,9 +155,9 @@ function stateFor(context) {
     "abort",
     () => {
       stop();
+      state.dispatcher.fail(new Error("server instance closed"));
       state.server.closeAllConnections();
-      for (const job of state.jobs.values()) for (const clear of job.timers) clear();
-      state.jobs.clear();
+      // Owners remove jobs only after their queued native disposal drains.
       process.off("SIGTERM", stop);
     },
     { once: true },
@@ -136,10 +172,14 @@ export default {
     const state = stateFor(context);
     if (state.stopping) return ok(null);
     return new Promise((resolve) => {
+      let live = true;
       const waiter = {
         resolve: (value) => {
+          if (!live) return false;
+          live = false;
           context.signal.removeEventListener("abort", abort);
           resolve(value);
+          return true;
         },
       };
       const abort = () => {
@@ -154,11 +194,13 @@ export default {
   respond(id, value, context) {
     const state = stateFor(context);
     const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
-    if (!job || job.response.destroyed) return err("Expired");
+    if (!job || job.closed || job.response.destroyed) return err("Expired");
+    if (job.responded) return err("Other", "duplicate response");
     const response = job.response;
     try {
       if (value.status < 200 || value.status > 599 || value.body.length > 1048576)
         throw new Error("invalid response");
+      job.responded = true;
       for (const [name, text] of value.headers) {
         if (["connection", "transfer-encoding", "content-length"].includes(name.toLowerCase()))
           continue;
@@ -193,18 +235,37 @@ export default {
   cancelled(id, context) {
     const state = stateFor(context);
     const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
-    if (!job) return { tag: "Stopping", fields: {} };
-    return context.pending(
-      () => job.cancelled !== null,
-      () => ({ tag: job.cancelled, fields: {} }),
-    );
+    if (!job || job.closed) return { tag: "Stopping", fields: {} };
+    return job.lease.cancelled(context);
+  },
+  client(id, context) {
+    const state = stateFor(context);
+    const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
+    if (!job || job.closed) throw new Error("expired request lease");
+    job.lease.assertLive();
+    const policy = context.http;
+    if (
+      !policy ||
+      typeof policy.coversHost !== "function" ||
+      typeof policy.isAsciiUrl !== "function" ||
+      typeof policy.writtenHost !== "function"
+    )
+      throw new Error("server Http requires the compiler HTTP policy service");
+    return createHttpClient(job.lease, {
+      grant: { coversHost: (key, host, port) => key === "Http" && policy.coversHost(host, port) },
+      isAsciiUrl: policy.isAsciiUrl,
+      writtenHost: policy.writtenHost,
+    });
   },
   clock(id, context) {
     const state = stateFor(context);
     const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
-    if (!job) throw new Error("expired request lease");
+    if (!job || job.closed) throw new Error("expired request lease");
+    job.lease.assertLive();
     const check = () => {
-      if (state.jobs.get(id.sequence) !== job) throw new Error("expired request lease");
+      if (job.closed || state.jobs.get(id.sequence) !== job)
+        throw new Error("expired request lease");
+      job.lease.assertLive();
     };
     return {
       now() {
@@ -217,46 +278,32 @@ export default {
       },
       sleep(duration, call) {
         check();
-        let ready = false,
-          timer,
-          live = true;
-        const due = performance.now() + Number(duration);
-        const arm = () => {
-          if (!live) return;
-          const left = due - performance.now();
-          if (left <= 0) ready = true;
-          else timer = setTimeout(arm, Math.min(left, 2147483647));
-        };
-        const clear = () => {
-          live = false;
-          clearTimeout(timer);
-          job.timers.delete(clear);
-        };
-        job.timers.add(clear);
-        arm();
-        return call.pending(
-          () => ready,
-          () => undefined,
-          clear,
-          () => {
-            clear();
-          },
-        );
+        return job.lease.operation(call, (resolve) => {
+          const due = performance.now() + Number(duration);
+          let timer;
+          const arm = () => {
+            const left = due - performance.now();
+            if (left <= 0) resolve(undefined);
+            else timer = setTimeout(arm, Math.min(left, 2147483647));
+          };
+          arm();
+          return () => clearTimeout(timer);
+        });
       },
     };
   },
   finish(id, abandoned, context) {
     const state = stateFor(context);
     const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
-    if (!job) return;
-    for (const clear of job.timers) clear();
-    state.jobs.delete(id.sequence);
+    if (!job || job.closed) return;
+    job.closed = true;
     if (!job.response.writableEnded) {
       if (!job.response.destroyed) {
         job.response.writeHead(job.cancelled === "Deadline" ? 504 : 503);
         job.response.end();
       }
     }
+    job.lease.finish(abandoned);
     if (job.cancelled || abandoned)
       console.log(
         JSON.stringify({

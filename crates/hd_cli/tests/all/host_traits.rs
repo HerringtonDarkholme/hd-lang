@@ -883,6 +883,8 @@ fn server_sdk_main_keeps_state_and_serves_concurrent_requests() {
             "packages/server-sdk/test/provider.test.mjs",
             "packages/server-sdk/test/dispatcher.test.mjs",
             "packages/server-sdk/test/application.test.mjs",
+            "packages/server-sdk/test/application-client.test.mjs",
+            "packages/server-sdk/test/node-client.test.mjs",
             "packages/server-sdk/test/http.test.mjs",
         ])
         .env("HD_SDK_TEST_HD", env!("CARGO_BIN_EXE_hd"))

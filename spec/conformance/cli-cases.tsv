@@ -253,6 +253,7 @@ host-binding-node	cli.host.package.entry,cli.host.package.javascript,cli.host.pa
 host-binding-outside-package	cli.host.package.provider-containment,cli.host.declaration.provider-relative
 host-binding-private-values	cli.host.package.value-conversion,cli.host.package.plain-provider,cli.host.package.generated-wrapper,cli.host.package.prebuilt-manifest
 host-binding-readiness	cli.host.package.completion-forms,cli.host.package.context-pending,cli.host.package.poll-result,cli.host.package.poll-delivery,cli.host.package.poll-abort,cli.host.package.poll-abort-signal
+host-context-http	cli.host.package.context-http,cli.host.package.context-http-coverage,cli.host.package.context-http-helpers,cli.host.package.context-http-readonly
 host-declaration-duplicate	cli.host.declaration.map-unique
 host-declaration-fake	cli.host.declaration.map,cli.host.declaration.map-key,cli.host.declaration.mapped,cli.host.declaration.marker-mapped,cli.host.declaration.mapping-no-consent
 host-declaration-invalid-path	cli.host.declaration.map-key

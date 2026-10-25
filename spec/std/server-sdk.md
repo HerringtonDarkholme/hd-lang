@@ -33,6 +33,8 @@ These names are also re-exported from the package's root module.
 9. r[std-server-sdk.finish-lifetime] `finish` acknowledges that the worker has finished or abandoned cleanup and no longer needs the lease.
 10. r[std-server-sdk.finish-abandoned] Its `abandoned` argument reports whether cleanup was cut short.
 11. r[std-server-sdk.clock-expired] A source clock rejects operations after its lease is finished. Boundary failure: `host-contract`.
+12. r[std-server-sdk.client-decl] Its `client(&mut self, id: RequestId)` method returns a lease-owned `*mut dyn std.http.Http`.
+13. r[std-server-sdk.client-expired] A source client rejects operations after its lease is finished. Boundary failure: `host-contract`.
 
 > **Why.** The capability identifies request lifetimes without adding an
 > HTTP entry form or an HTTP name known to the compiler. A test can provide
@@ -62,6 +64,7 @@ These names are also re-exported from the package's root module.
 6. r[std-server-sdk.lease-external-cancel] Cancelling the worker externally retains the same cleanup bound.
 7. r[std-server-sdk.lease-finish] Every accepted lease is finished once after response delivery or cancellation cleanup.
 8. r[std-server-sdk.lease-expired-response] An expired response lease does not end its worker's admission loop.
+9. r[std-server-sdk.lease-client] The worker binds the source's request client around the handler and its cleanup bound.
 
 > **Why.** The source's admission deadline can cancel earlier than the
 > handler's fallback timeout. The existing timeout combinator bounds
@@ -98,13 +101,15 @@ SDK application through public runtime and generated binding modules.
 2. r[std-server-sdk.application.source] The adapter requires exactly one root package capability named `server.HttpServer` with an explicitly granted selector.
 3. r[std-server-sdk.application.driver] The adapter drives its retained instance through serialized synchronous `createDriver().step()` turns.
 4. r[std-server-sdk.application.values] `dispatch(request, signal)` accepts an HD request value and returns response, cancellation, and cleanup-abandonment values.
-5. r[std-server-sdk.application.signal] Aborting the supplied signal requests lease-local `Disconnected` cancellation.
+5. r[std-server-sdk.application.signal-reason] Aborting the supplied signal preserves `Deadline` and `Stopping` reasons and maps every other reason to lease-local `Disconnected` cancellation.
 6. r[std-server-sdk.application.clock] The source clock queues timer creation and disposal in its request's owning coroutine.
 7. r[std-server-sdk.application.stop] `stop()` closes admission and ends idle workers while admitted requests finish.
 8. r[std-server-sdk.application.fail] `fail(error)` poisons the instance and closes its core host.
+9. r[std-server-sdk.application.client-policy] Source clients use the owning core runtime's Http policy service.
+10. r[std-server-sdk.application.http-guard] An ambient Http send fails instead of substituting a client without a request lease. Boundary failure: `host-contract`.
 
 > **Note.** This adapter exchanges plain values. Platform HTTP mapping,
-> outgoing fetch grants, admission limits, supervision and deployment
+> admission limits, supervision and deployment
 > packaging are separate layers.
 
 ## JavaScript Fetch Transport

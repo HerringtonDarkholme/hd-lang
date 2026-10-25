@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createPackageRuntime, readPackageContract } from "./package-providers.mjs";
 import { Dec, Enc, HostContract } from "./wire.mjs";
-import { createCoreHost, pendingOperation } from "./core.mjs";
+import { createCoreHost, pendingOperation, isAsciiUrl, writtenHost } from "./core.mjs";
 
 const runtime = () => createPackageRuntime({});
 const encode = (codec, value) => {
@@ -153,7 +153,7 @@ test("private Serde values retain numeric kind, deep containers and literal obje
 
 // A tiny module with the real contract custom section and exchange memory.
 // Its methods are driven directly so readiness and delivery can be separated.
-function operationHost(wait, suspends = true) {
+function operationHost(wait, suspends = true, grants = {}, extraEnv = {}) {
   const identity = { package: "tests/sdk", version: "1.0.0", trait_path: "Source" };
   const moduleName = "hd:pkg:readiness-test";
   const e = new Enc();
@@ -184,8 +184,9 @@ function operationHost(wait, suspends = true) {
   const host = createCoreHost(
     { out() {}, err() {} },
     {
+      ...extraEnv,
       module,
-      grants: { "pkg.Source": true },
+      grants: { "pkg.Source": true, ...grants },
       packageBindings: (runtime) =>
         runtime.bind(
           contract,
@@ -212,6 +213,10 @@ function operationHost(wait, suspends = true) {
   host.prime(instance);
   return {
     host,
+    contract,
+    module,
+    moduleName,
+    identity,
     target: host.imports[moduleName],
     finish(id) {
       const length = host.imports[moduleName]["wait.finish"](id);
@@ -439,5 +444,181 @@ test("pollable factories validate callbacks before registering work", () => {
     } finally {
       h.host.close();
     }
+  }
+});
+
+// Public provider methods obtain this view through their real call context;
+// none of these controls reads private host state or a compiler cache path.
+function httpContext(grants) {
+  let policy;
+  const h = operationHost(
+    (context) => {
+      policy = context.http;
+      return "policy observed";
+    },
+    false,
+    grants,
+  );
+  h.target.wait();
+  return { ...h, policy };
+}
+
+test("package context Http coverage preserves the runtime's deny, true and scoped policy", () => {
+  for (const grants of [
+    { Http: false },
+    { Http: true },
+    { Http: ["allowed.test:443", "*.example.test", "[::1]:8443"] },
+    {},
+  ]) {
+    const { host, policy } = httpContext(grants);
+    try {
+      for (const [name, port] of [
+        ["allowed.test", 443],
+        ["allowed.test", 80],
+        ["denied.test", 443],
+        ["sub.example.test", 8443],
+        ["::1", 8443],
+      ]) {
+        assert.equal(policy.coversHost(name, port), host.grant.coversHost("Http", name, port));
+      }
+      assert.equal(
+        policy.coversHost("denied.test", 443),
+        grants.Http === true || grants.Http === undefined,
+      );
+    } finally {
+      host.close();
+    }
+  }
+});
+
+test("package context Http coverage uses the same core grant object and fixed Http key", () => {
+  const { host, policy } = httpContext({ Http: ["allowed.test:443"], Process: true });
+  const calls = [];
+  const original = host.grant.coversHost;
+  host.grant.coversHost = (key, name, port) => {
+    calls.push([key, name, port]);
+    return original(key, name, port);
+  };
+  try {
+    assert.equal(policy.coversHost("allowed.test", 443), true);
+    assert.equal(policy.coversHost("denied.test", 443, "Process"), false);
+    assert.deepEqual(calls, [
+      ["Http", "allowed.test", 443],
+      ["Http", "denied.test", 443],
+    ]);
+    assert.deepEqual(Object.keys(policy).sort(), ["coversHost", "isAsciiUrl", "writtenHost"]);
+  } finally {
+    host.close();
+  }
+});
+
+test("package context Http policy is frozen and supplies the public raw URL helpers", () => {
+  const { host, policy } = httpContext({ Http: false });
+  try {
+    assert.equal(Object.isFrozen(policy), true);
+    assert.equal(
+      Reflect.set(policy, "coversHost", () => true),
+      false,
+    );
+    assert.equal(Reflect.set(policy, "grant", {}), false);
+    assert.equal(policy.coversHost("denied.test", 443), false);
+    assert.equal(policy.isAsciiUrl, isAsciiUrl);
+    assert.equal(policy.writtenHost, writtenHost);
+    assert.equal(policy.isAsciiUrl("https://%65vil.test/"), false);
+    assert.equal(policy.isAsciiUrl("https://bücher.test/"), false);
+    assert.equal(policy.writtenHost("HTTP://127.1:80/path"), "127.1");
+  } finally {
+    host.close();
+  }
+});
+
+test("package contexts cannot silently create a missing Http policy service", () => {
+  const original = operationHost(() => "unused", false);
+  const r = createPackageRuntime(
+    { put: () => 0 },
+    { module: original.module, grants: { "pkg.Source": true } },
+  );
+  try {
+    const imports = r.bind(
+      original.contract,
+      [
+        {
+          module: original.moduleName,
+          handle: false,
+          methods: [{ name: "wait", member: "wait", wait: "never", params: [], result: r.str }],
+        },
+      ],
+      [
+        {
+          identity: original.identity,
+          module: original.moduleName,
+          contract: original.contract,
+          implementation: {
+            wait(context) {
+              return context.http.coversHost("any.test", 443) ? "allowed" : "denied";
+            },
+          },
+        },
+      ],
+    );
+    assert.throws(
+      () => imports[original.moduleName].wait(),
+      /the host does not provide HTTP policy services/,
+    );
+  } finally {
+    r.close();
+    original.host.close();
+  }
+});
+
+test("one runtime shares its immutable Http view between provider contexts", () => {
+  const views = [];
+  const h = operationHost(
+    (context) => {
+      views.push(context.http);
+      assert.equal(Reflect.set(context, "http", {}), false);
+      assert.equal(
+        Reflect.defineProperty(context, "http", { value: { coversHost: () => true } }),
+        false,
+      );
+      assert.equal(Reflect.deleteProperty(context, "http"), false);
+      assert.equal(context.http, views.at(-1));
+      return "same policy";
+    },
+    false,
+    { Http: false },
+  );
+  try {
+    h.target.wait();
+    h.target.wait();
+    assert.equal(views.length, 2);
+    assert.equal(views[0], views[1]);
+  } finally {
+    h.host.close();
+  }
+});
+
+test("a caller cannot override the context policy with an unrelated env service", () => {
+  let policy;
+  const forged = {
+    coversHost: () => true,
+    isAsciiUrl: () => true,
+    writtenHost: () => "allowed.test",
+  };
+  const h = operationHost(
+    (context) => {
+      policy = context.http;
+      return "fixed policy";
+    },
+    false,
+    { Http: false },
+    { http: forged },
+  );
+  try {
+    h.target.wait();
+    assert.notEqual(policy, forged);
+    assert.equal(policy.coversHost("denied.test", 443), false);
+  } finally {
+    h.host.close();
   }
 });

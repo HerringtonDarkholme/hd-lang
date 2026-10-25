@@ -1,4 +1,5 @@
 import { createLeaseDispatcher } from "./dispatcher.mjs";
+import { createHttpClient } from "./http.mjs";
 
 const ok = (value) => ({ ok: true, value });
 const expired = () => ({ ok: false, error: { tag: "Expired", fields: {} } });
@@ -60,6 +61,24 @@ export function createApplication({ module, bindings, createCoreHost, grants, si
     cancelled(id, context) {
       return lookup(id).cancelled(context);
     },
+    client(id, context) {
+      const lease = lookup(id);
+      const policy = context.http;
+      if (
+        !policy ||
+        typeof policy.coversHost !== "function" ||
+        typeof policy.isAsciiUrl !== "function" ||
+        typeof policy.writtenHost !== "function"
+      )
+        throw new Error("server Http requires the compiler HTTP policy service");
+      return createHttpClient(lease, {
+        grant: {
+          coversHost: (key, host, port) => key === "Http" && policy.coversHost(host, port),
+        },
+        isAsciiUrl: policy.isAsciiUrl,
+        writtenHost: policy.writtenHost,
+      });
+    },
     clock(id) {
       const lease = lookup(id);
       return {
@@ -109,6 +128,11 @@ export function createApplication({ module, bindings, createCoreHost, grants, si
           {
             providers: () => ({
               traits: {
+                "hd:Http": {
+                  send() {
+                    throw new Error("server HTTP sends require a request lease");
+                  },
+                },
                 "hd:Clock": {
                   sleep() {
                     throw new Error("server sleeps require a request lease");
@@ -144,7 +168,12 @@ export function createApplication({ module, bindings, createCoreHost, grants, si
       const lease = dispatcher.open(request);
       leases.set(lease.id.sequence, lease);
       incoming.push(lease);
-      const abort = () => lease.cancel("Disconnected");
+      const abort = () =>
+        lease.cancel(
+          signal?.reason === "Deadline" || signal?.reason === "Stopping"
+            ? signal.reason
+            : "Disconnected",
+        );
       signal?.addEventListener("abort", abort, { once: true });
       if (signal?.aborted) abort();
       try {
