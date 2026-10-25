@@ -1,8 +1,7 @@
 # Release-Only Interprocedural Optimization
 
-Status: design proposal, 2026-10-25; domain: compiler internals; not
-accepted. Nothing here is accepted behavior, and no compiler code exists
-for it.
+Status: approved by the owner, 2026-10-25, release pipeline only (#681);
+domain: compiler internals; being built slice by slice per Phasing.
 
 Under review: the owner's direction of 2026-10-24 on
 [#702](https://github.com/HerringtonDarkholme/hd-lang/issues/702), "plan
@@ -867,56 +866,12 @@ The next best is option D, a declaration-level `@inline` on the hot
 callees. It needs no whole-program fact, but it reaches only small
 functions and needs its own approval.
 
-These need the owner's approval, one idea each.
-
-1. **Release reads bodies for codegen.** Effect: release count placement
-   differs from dev's for the first time. A body edit can change its
-   callers' release code, never their errors. Answers: approve slices 1
-   to 6 as designed; or approve only slices 1 to 4 (lent parameters) and
-   decide #681 later.
-
-   ```text
-   fn label(m: Member, prefix: string) -> string:
-       "${prefix}${m.name}"
-   ```
-
-   In release, `label`'s callers pass `m` and `prefix` with no count.
-
-2. **The returned-receiver convention (#681).** Effect: in release, a
-   method whose body always returns a parameter returns it with no
-   count, and its caller borrows it. Answers: approve; or keep #681
-   parked for the later local-references returns-self step.
-
-   ```text
-   use std.text.StringBuilder
-
-   pub fn main() -> void $ Console:
-       out := StringBuilder::new()
-       for i in 0..3:
-           out.push("item-$i;")
-       println(out.build())
-   ```
-
-3. **Trait method meets, a whole-program fact.** Effect: json's
-   `Serializer.member` and `Reader.next` calls lend only if every impl
-   of the method in the program lends. Adding an impl that keeps, in user
-   code or std, makes those calls owned again in that program. Answers: approve
-   slice 7; or keep bound calls declared, and move std.serde's hot
-   parameters to `&T` by hand (option E) where that reads well.
-
-   ```text
-   trait Sink:
-       fn put(&mut self, m: Member) -> void
-
-   fn emit(s: &mut dyn Sink, m: Member) -> void:
-       s.put(m)
-   ```
-
-4. **By-address lent structs.** Effect: a large read-only struct
-   argument passes as the address of the caller's place. json's 12%
-   field-copy share could go, at the cost of a second passing form in
-   the backend. Answers: allow slice 9 if slice 1's numbers
-   support it; or leave struct passing by value.
+The owner approved all four ideas on 2026-10-25, each for the release
+pipeline only: release reads callee bodies to place counts (type checking
+never does), the returned-receiver convention for #681, trait method
+meets across every impl in the program for bound calls, and by-address
+passing of large read-only structs (slice 9, kept only if it measures a
+gain). The slices follow Phasing in order.
 
 ## Sources and parse log
 

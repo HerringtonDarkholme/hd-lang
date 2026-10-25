@@ -1,3 +1,0 @@
-pub fn main!() -> void $ Process + Console:
-    n := run!("git", ["status", "--short"]) |> lines |> filter(fn(l: string) -> bool: starts_with(l, " M")) |> count
-    println("$n")

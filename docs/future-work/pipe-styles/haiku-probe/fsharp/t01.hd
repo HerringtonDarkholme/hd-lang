@@ -1,3 +1,0 @@
-pub fn main!() -> void $ FsRead + Console:
-    errors := read_text!("app.log") |> lines |> filter(fn(l: string) -> bool: l |> contains("ERROR")) |> count
-    println("$errors")

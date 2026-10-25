@@ -1,3 +1,0 @@
-pub fn main() -> void $ Args + Console:
-    total := args() |> map(parse_i64) |> keep_some |> sum
-    println("$total")

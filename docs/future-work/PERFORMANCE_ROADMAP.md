@@ -107,7 +107,7 @@ for the same row or its closest micro-benchmark.
 | Row | Recorded | Goal | Since | Where the time goes |
 | --- | --- | --- | --- | --- |
 | JSON encode | 26 MB/s, 0.05x Node | 0.5x | 47 MB/s (`b9e0256df`, whose before figure, 35 MB/s, already had the native float printer of `a66c3c1c8`) | before: floats 39%, the `Json` tree 29% (both fixed). Now: pushing pieces and `concat_all` is about 12 ms of 24 ms on the no-float case, the walk 5 ms (#376); integers go through the per-digit path (#357) |
-| JSON decode | 22 MB/s, 0.08x | 0.5x | 44 to 46 MB/s, from 26 MB/s at that commit's start (`7c95d1eb7`) | `from_json` gained only 1.4x: the derived `build` allocates a `Member`, its `Facts`, a `Members`, a closure, an `Option` and a `Key` per field per call, and a `List[VariantInfo]` per value (#377) |
+| JSON decode | 22 MB/s, 0.08x | 0.5x | 44 to 46 MB/s, from 26 MB/s at that commit's start (`7c95d1eb7`) | superseded: #377 and the 2026-10-25 serde and reader fixes; current profile on #165 (reader passes, handle and field copies) |
 | text build | 54 MB/s, 0.19x | 0.5x | not re-measured; 0.36x on equal work in the review (#429) | integer text 40% (`digit_text` 22%, `unsigned_text` 18.5%), GC 17%, `StringBuilder.push` and `build` 13% |
 | regex `find_all` | 9.8 MB/s, 0.05x | 0.5x | 36 MB/s, 0.16x (`7cfa0bc1c`); the prefilter does not help this pattern (99 to 100 ms, `b2b264f22`) | the Pike VM steps every live thread per byte; no profile on record since the rewrite |
 | runtime `sum` | 4.77x Node (36 ms against 7.5 ms; p10 25, p90 66) | 3x | not re-measured | not profiled. `allocations` shows 0 bytes per iteration on counted loops, so it is not allocation |
@@ -136,7 +136,6 @@ has touched:
 | `Heap`, 3 × 200,000 push and pop | 167 ms | - | `List[T?]`: an option match per read; `less` and `element` 67% | 17 |
 | `sorted_by`, 3 × 200,000 `i64` | 132 ms | - | three new lists per merge level | 18 |
 | sort 3 × 100,000 strings | 136 ms | 56.4 ms | as above | 18 |
-| `to_utf8` and `from_utf8`, 5 × 1.09 MB | 56 ms | 1.4 ms | a closure call and a push per byte; an element copy instead of `array.copy` | 14 |
 | base64 round trip, 3 × 1 MiB | 96 ms | 0.8 ms (native) | a push per byte, symbols by comparison chains, output revalidated | 20 |
 | map with `(i32, i32)` keys | 190 ns per op | - | a `List[u8]` per integer through `dyn Hasher`; an `i64` key takes 22 ns | 21 (#434) |
 | derived `Eq` / hand-written, 10⁶ | 16 / 5 ms | - | field-handle walkers | 22 |
@@ -365,31 +364,19 @@ case builds a fresh host and instance.
 
 ### 3.9 SIMD byte scans (#428)
 
-Every byte scan in `lib/std` is an hd loop over `bytes_at`, about 15 Wasm
-instructions per byte. The owner approved SIMD128 intrinsics after TIR
-v2 stage 3 (2026-10-22). Five std primitives, each a plain hd
-declaration whose body the compiler supplies; each returns a byte
-offset, `bytes_len(text)` when nothing is found, and its hd reference
-body defines the result:
-
-| Primitive | Callers |
-| --- | --- |
-| `bytes_index(text, from, byte)` | one-byte `find`, `split`, `count`, `replace`, `lines`; regex `find_literal`; JSON pointer `/` scan |
-| `bytes_index_pair(text, from, first, last, gap)` | the prefilter before the Two-Way check for longer needles |
-| `bytes_index_json(text, from)` | `push_escaped` (encode), the parser's `string` and `escaped` (decode) |
-| `bytes_mismatch(left, right)` | `string_equal`, `string_compare`, `bytes_match`, the runtime `StrEq` loop |
-| `utf8_valid_len(bytes)` | `string::from_utf8`, and through it `Response.text()`, file reads and `std.encoding` |
-
-Left out on purpose: counting a byte, a general byte-set search,
-skipping JSON whitespace, and base64/hex (transforms, with cheaper fixes
-first). The bodies use only finished SIMD128 instructions, on by
-default in V8 and wasmtime, so no feature gate is needed. Each primitive
-is one helper linked only when reached, so a program that never scans
-pays nothing. Testing: one `it_prop` per primitive against its
-reference body, over lengths around every 16-byte edge, view starts 0
-to 31, matches at each edge and none, byte values 0, 31, 32, 127, 128
-and 255, and the UTF-8 error cases, on both engines. #428's done check
-is 4x on 1 MB inputs on both engines.
+Built (2026-10-25). Five std primitives, each a plain hd declaration whose
+hd body is the reference and whose linear-backend body is a SIMD128 helper
+in `crates/hd_wasm_linear/src/scan.rs`, linked only when reached:
+`bytes_index_json` (JSON escape scans, 9-18x on 1 MiB), `bytes_index`
+(one-byte find, split, count, replace, lines; at least 10x on Node, 24x on
+wasmtime), `bytes_mismatch` (string equality and order, about 9x),
+`utf8_valid_len` (`from_utf8`: ASCII 23x on Node, 38x on wasmtime) and
+`bytes_index_pair` (multi-byte search prefilter, 6-35x, with a scalar
+fallback for dense small-alphabet text). Each has property tests against
+its reference body on both engines; hello is byte-identical. The rows in
+2.2 and 2.3 that predate these (JSON escape scanning, `to_utf8` and
+`from_utf8`) are superseded by the commit messages of 1a3fe898e,
+cccf90cc8, 55be97f6f, ec03fd492, 7eca37660 and b3df2f49b.
 
 ## 4. Ranked Steps
 

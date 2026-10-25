@@ -1,3 +1,0 @@
-fn greet(name: string, suffix: string = "!") -> string: name + suffix
-pub fn main() -> void $ Console:
-    println("hd" |> greet)

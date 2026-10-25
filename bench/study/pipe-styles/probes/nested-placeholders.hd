@@ -1,5 +1,0 @@
-fn add(a: i32, b: i32) -> i32: a + b
-fn inc(value: i32) -> i32: value + 1
-pub fn main() -> void $ Console:
-    println(+3 |> add(_, +4 |> inc))
-    println(+3 |> add(_, +4 |> inc(_)))

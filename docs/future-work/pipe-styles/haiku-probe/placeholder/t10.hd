@@ -1,5 +1,0 @@
-pub fn main!() -> void $ ConsoleInput + Console:
-    text := read_stdin!()
-    out := text |> lines |> map(_, reverse_text) |> reverse
-    for line in out:
-        println(line)

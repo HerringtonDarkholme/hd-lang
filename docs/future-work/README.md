@@ -25,9 +25,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Language and library
 
-- [Policy Composition](POLICY_COMPOSITION.md): decided design of lean policy values, tuple composition and one `apply!` block, the only public way to apply a policy; not yet implemented (#783).
-- [Pipe Steps Without Placeholders](PIPE_STEPS.md): stress-tests standalone unary function steps, compatibility, effects, inference, and all three policy ports; no semantics are accepted (#818).
-- [Pipe Styles For Shell Work](PIPE_STYLES.md): compares Elixir, F#, Hack, and general-placeholder pipes on sixteen shared ports, current inference, std costs, and 21-run V8/Wasmtime measurements; no style is chosen (#822).
+- [Policy Composition](POLICY_COMPOSITION.md): decided design of lean policy values, tuple composition and one `apply!` block, the only public way to apply a policy; implementation in progress (#845).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
 
@@ -39,13 +37,12 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Memory model and performance
 
-- [Embedded V8](EMBEDDED_V8.md): measured engine size, build time, startup, runtime, shared host code and install-cache gaps (#826); no engine change is decided.
 
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
 - [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1. Part 3 is its first cut, local references: step 1 is applied (#834), and the later steps need approval (#704).
 - [Refcount Runtime](REFCOUNT_RUNTIME.md): the linear-memory runtime of reference counting with cycle detection, priced on Wasm; it is the only backend (#426).
 - [Performance Roadmap](PERFORMANCE_ROADMAP.md): where time and memory go from the measurements on record, fixes by mechanism, and ranked hour-sized steps (#426).
-- [Release-Only Interprocedural Optimization](RELEASE_INTERPROC.md): proposed per-function summaries (kept parameters, a returned parameter, writes), computed bottom-up over SCCs in the optimized pipeline only, for lent parameters, #681's builder results and frame slots (#702); not accepted.
+- [Release-Only Interprocedural Optimization](RELEASE_INTERPROC.md): approved (owner, 2026-10-25), being built slice by slice (#681): per-function summaries (kept parameters, a returned parameter, writes), computed bottom-up over SCCs in the optimized pipeline only, for lent parameters, #681's builder results and frame slots (#702); not accepted.
 
 No native backend is planned (#188 closed), and no direct TLS streams are planned.
 

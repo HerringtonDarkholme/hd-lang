@@ -3,9 +3,11 @@
 Part of the [compiler design](../compiler/ARCHITECTURE.md).
 
 Status: built (#17). Sections 2, 4, 5, 7, 8 and 9 describe the shipped
-design, and the code cites them by number. Durable resume (#18), journal
-checkpoints (#646) and hot reload (#182) are parked; their designs are in
-those issues.
+design, and the code cites them by number. Durable resume (#18) and hot reload
+(#182) are parked; their designs are in those issues. Journal checkpoints
+(#646) are decided (owner, 2026-10-25): an initialized base module with
+extension modules, using a memory snapshot inside it; built after the
+HTTP and CLI work.
 
 ## Summary
 

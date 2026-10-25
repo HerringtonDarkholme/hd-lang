@@ -1,3 +1,0 @@
-pub fn main!() -> void $ FsRead + Console:
-    avg := read_text!("prices.csv") |> lines |> map(fn(l: string) -> List[string]: l |> split(",")) |> map(fn(row: List[string]) -> f64?: parse_f64(at(row, 1).unwrap_or(""))) |> keep_some |> average
-    println("$avg")

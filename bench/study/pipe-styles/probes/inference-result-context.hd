@@ -1,7 +1,0 @@
-fn feed[A, B, $R](value: A, step: fn(A) -> B $ R) -> B $ R: step(value)
-
-fn manufacture[Inner, Hidden](tag: usize) -> (fn(Inner) -> List[Hidden]):
-    fn(value: Inner) -> List[Hidden]: []
-pub fn main() -> void $ Console:
-    let result: List[string] = feed(+3, manufacture(0))
-    println(result.len())

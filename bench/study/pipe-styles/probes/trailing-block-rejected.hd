@@ -1,5 +1,0 @@
-fn apply(value: i32, work: fn(i32) -> i32) -> i32: work(value)
-pub fn main() -> void $ Console:
-    value := +3 |> apply(_):
-        value + 1
-    println(value)

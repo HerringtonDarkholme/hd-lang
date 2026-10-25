@@ -1,4 +1,0 @@
-pub fn main!() -> void $ FsRead + Console:
-    names := read_text!("users.csv") |> lines |> filter(fn(l: string) -> bool: l |> ends_with(",yes")) |> map(fn(l: string) -> string?: l |> split(",") |> at(0)) |> keep_some
-    for name in names:
-        println(name)

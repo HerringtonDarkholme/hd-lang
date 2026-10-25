@@ -1,5 +1,0 @@
-fn feed[A, B, $R](value: A, step: fn(A) -> B $ R) -> B $ R: step(value)
-
-fn greet(name: string, suffix: string = "!") -> string: name + suffix
-pub fn main() -> void $ Console:
-    println(feed("hd", greet))

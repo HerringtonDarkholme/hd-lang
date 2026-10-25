@@ -1,3 +1,0 @@
-pub fn main!() -> void $ Process + Console:
-    changed := run!("git", ["status", "--short"]) |> lines |> filter(_, fn(l: string) -> bool: starts_with(l, " M")) |> count
-    println("$changed")

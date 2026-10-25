@@ -107,3 +107,6 @@ field = [facts]`.
 - Scalar-form facts in a format's block (such as unix seconds), newtypes
   otherwise.
 - The `EnvConfig` derive for typed environment configuration.
+
+Validation (`Validate`, checked readers, `ValidationError` paths) gets a
+design note first, approved by the owner, then implementation (#846).

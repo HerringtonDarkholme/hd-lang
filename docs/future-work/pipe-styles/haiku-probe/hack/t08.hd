@@ -1,4 +1,0 @@
-pub fn main() -> void $ Console + Args:
-    padded := args() |> map(_, fn(a: string) -> string: upper(a)) |> map(_, fn(a: string) -> string: pad(a, 10))
-    for line in padded:
-        println(line)
