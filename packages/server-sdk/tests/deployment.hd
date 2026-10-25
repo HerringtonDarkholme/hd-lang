@@ -1,4 +1,4 @@
-use pkg.{Artifacts, CloudflareOptions, DeploymentReceipt, DeploymentError, Deployment, cloudflare}
+use pkg.{Artifacts, CloudflareOptions, DeploymentReceipt, DeploymentError, Deployment, SupervisorPolicy, VercelOptions, cloudflare, vercel}
 use std.testing.assert_equal
 
 struct RecordingDeployment:
@@ -6,6 +6,15 @@ struct RecordingDeployment:
 
 impl Deployment for RecordingDeployment:
     fn cloudflare!(&mut self, options: CloudflareOptions) -> Result[DeploymentReceipt, DeploymentError]:
+        self.names.push(options.name)
+        .Ok(DeploymentReceipt {
+            directory: options.artifacts.output,
+            runtime_fingerprint: "runtime",
+            wasm_sha256: "wasm",
+            bindings_sha256: "bindings"
+        })
+
+    fn vercel!(&mut self, options: VercelOptions) -> Result[DeploymentReceipt, DeploymentError]:
         self.names.push(options.name)
         .Ok(DeploymentReceipt {
             directory: options.artifacts.output,
@@ -40,3 +49,34 @@ it("deployment facade forwards options to the selected capability"):
         .Err(_) => panic("the recording capability succeeds")
     assert_equal(provider.names.len(), 1, reason="one call reaches the selected capability")
     assert_equal(provider.names[0], "example", reason="the selected Worker name is preserved")
+
+it("Vercel options default to no environment bindings"):
+    options := VercelOptions {
+        name: "example",
+        artifacts: Artifacts { wasm: "app.wasm", bindings: "app.host.mjs", output: ".vercel/output" },
+        supervisor: SupervisorPolicy {
+            workers: 1, startup_ms: 3000, drain_ms: 1000, stop_kill_ms: 300,
+            restart_limit: 2, restart_window_ms: 60000, retry_after: "1"
+        }
+    }
+    assert_equal(options.env_bindings.len(), 0, reason="Vercel deployment uses explicit environment names")
+
+it("Vercel facade forwards options to the selected capability"):
+    provider := &mut RecordingDeployment { names: [] }
+    result := $.with(Deployment=provider):
+        vercel!(VercelOptions {
+            name: "vercel-example",
+            artifacts: Artifacts { wasm: "app.wasm", bindings: "app.host.mjs", output: ".vercel/output" },
+            supervisor: SupervisorPolicy {
+                workers: 1, startup_ms: 3000, drain_ms: 1000, stop_kill_ms: 300,
+                restart_limit: 2, restart_window_ms: 60000, retry_after: "1"
+            },
+            env_bindings: ["APP_MODE"]
+        })
+    match result:
+        .Ok(receipt) =>
+            assert_equal(receipt.directory, ".vercel/output", reason="the Vercel output directory reaches the provider")
+            assert_equal(receipt.runtime_fingerprint, "runtime", reason="the typed Vercel receipt is preserved")
+        .Err(_) => panic("the recording capability succeeds")
+    assert_equal(provider.names.len(), 1, reason="the Vercel facade calls once")
+    assert_equal(provider.names[0], "vercel-example", reason="the Vercel name is preserved")

@@ -16,7 +16,7 @@ export function fixture({ probe = false } = {}) {
     sdk = join(installation, "sdk"),
     app = join(installation, "app");
   const filter = (path) =>
-    !["build", "cloudflare", "node_modules", ".git"].includes(basename(path));
+    !["build", "cloudflare", ".vercel", "node_modules", ".git"].includes(basename(path));
   cpSync(join(repository, "packages/server-sdk"), sdk, { recursive: true, filter });
   cpSync(join(repository, "examples/server-api"), app, { recursive: true, filter });
   const manifest = join(app, "hd.toml");

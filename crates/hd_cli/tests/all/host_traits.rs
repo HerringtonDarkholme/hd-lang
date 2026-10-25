@@ -921,6 +921,16 @@ fn server_sdk_cloudflare_deployment_is_relocatable() {
     ]);
 }
 
+/// Installed SDK tasks also publish isolated, supervised Vercel Node functions.
+#[test]
+fn server_sdk_vercel_deployment_is_relocatable() {
+    server_sdk_node_tests(&[
+        "packages/server-sdk/test/vercel-deployment.test.mjs",
+        "packages/server-sdk/test/vercel-node.test.mjs",
+        "packages/server-sdk/test/vercel-output.test.mjs",
+    ]);
+}
+
 fn server_sdk_node_tests(files: &[&str]) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     // Each file already exercises real overlapping requests and workers.

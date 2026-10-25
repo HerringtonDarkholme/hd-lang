@@ -9,6 +9,21 @@ pub struct CloudflareOptions:
     pub compatibility_date: string
     pub env_bindings: List[string] = []
 
+pub struct SupervisorPolicy:
+    pub workers: u32
+    pub startup_ms: u32
+    pub drain_ms: u32
+    pub stop_kill_ms: u32
+    pub restart_limit: u32
+    pub restart_window_ms: u32
+    pub retry_after: string
+
+pub struct VercelOptions:
+    pub name: string
+    pub artifacts: Artifacts
+    pub supervisor: SupervisorPolicy
+    pub env_bindings: List[string] = []
+
 pub struct DeploymentReceipt:
     pub directory: string
     pub runtime_fingerprint: string
@@ -22,7 +37,11 @@ pub enum DeploymentError:
 
 @host
 pub trait Deployment:
+    fn vercel!(&mut self, options: VercelOptions) -> Result[DeploymentReceipt, DeploymentError]
     fn cloudflare!(&mut self, options: CloudflareOptions) -> Result[DeploymentReceipt, DeploymentError]
 
 pub fn cloudflare!(options: CloudflareOptions) -> Result[DeploymentReceipt, DeploymentError] $ Deployment:
     $.use(Deployment).cloudflare!(options)
+
+pub fn vercel!(options: VercelOptions) -> Result[DeploymentReceipt, DeploymentError] $ Deployment:
+    $.use(Deployment).vercel!(options)
