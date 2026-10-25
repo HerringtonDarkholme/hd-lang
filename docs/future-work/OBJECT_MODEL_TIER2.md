@@ -1,7 +1,9 @@
 # Object Model, Tier 2: Design Study
 
 Status: parked proposal (#426, #163). Adoption is parked (owner, 2026-10-18); the
-lifetime prototype was built and removed. The spec and the compiler are unchanged.
+lifetime prototype was built and removed. Part 3's first step, local
+references, is applied (#834); the rest is unchanged in the spec and the
+compiler.
 
 Tier 1 (the tier-1 design, `58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) gives hd Go's
 object model on counted linear memory: structs are values, sharing comes
@@ -67,7 +69,8 @@ Section 12 scores tier 2 against those numbers.
 
 Part 1 designs tier 2 in an indentation syntax close to hd's; every
 spelling is a placeholder and no code block is checked by a compiler.
-Part 2 maps it onto hd and plans the work.
+Part 2 maps it onto hd and plans the work. Part 3 is local references,
+tier 2's first cut, whose step 1 is applied.
 
 # Part 1: From Scratch
 
@@ -1072,6 +1075,646 @@ jobs 1 to 10.
   callback (tier 1 section 6.1) changes a payload in place.
 - **Non-local `return` from scoped trailing blocks**, as Kotlin's
   inline lambdas.
+
+# Part 3: Local References
+
+Local references are tier 2's first cut: a non-escaping reference that
+needs no lifetime syntax ([#834](https://github.com/HerringtonDarkholme/hd-lang/issues/834)).
+
+**Step 1 is applied.** Today's reference is spelled `*T` / `*mut T`, a
+counted reference that may be stored, returned and captured. `&T` /
+`&mut T` is a local reference that never escapes: a field, an element,
+a result, a top-level binding, a closure capture or a type argument
+that would keep one is `local-reference-escapes`, and `*T` lends to
+`&T`, never the reverse. `&x` is local where a `&T` is expected and
+counted elsewhere, so `let a = &s` is counted. The kind is a checking
+rule only: counting and codegen are unchanged. The rules are in
+[Local References](../../spec/lang/13-values-and-references.md#local-references)
+(commits d354a1e49 and ea28c85b8).
+
+**Later steps, each needing its own approval.** The design below goes
+further, as the owner sketched it on 2026-10-24: local references are
+never counted; an interior place (a field, an element, a map value) has
+only a local reference, so a count of a `*T` always lands on an
+object's start and needs no `block_of` (#704); local references appear
+only as arguments and receivers; overlapping accesses in one call are a
+compile-time error, with no exclusivity check at run time; a borrow
+through a heap alias takes one fast-path count; element borrows keep the
+pin; there is no `Generic[&T]`; a local receiver may return `self`, so
+builders and the Debug writer return themselves; interpolated interior
+parts are copied; `&fn` marks a closure parameter that is only called;
+an impl may be more local than its trait; and #702's frame slots follow.
+The full design, with its architecture, cost and slice plan, is in git
+history at `591ee34a9:docs/future-work/LOCAL_REFERENCES.md`.
+
+## 18. The Design
+
+hd gets two kinds of reference. A **counted** reference, `*T` or
+`*mut T`, is Go's pointer to a whole object. It may be stored, returned,
+captured and used as a type argument. A **local** reference, `&T` or
+`&mut T`, is Swift's `inout`: a parameter, a call argument or a
+receiver, and never counted.
+
+`&x` takes an address, and the expected type picks its kind. `*p`
+dereferences either kind. A field or an element has only a local
+reference. So every counted reference points at an object's start, and
+every count takes the fast path, with no `block_of`.
+
+The design is sound with no lifetimes and no flow analysis. A local
+reference lives for one call. A compile-time check rejects an argument
+that may replace what another argument of the call borrows. A borrow
+reached through a heap alias takes one fast-path count of its object.
+
+| | Counted: `*T`, `*mut T` | Local: `&T`, `&mut T` |
+| --- | --- | --- |
+| refers to | a whole object: a local, a value parameter, the referent of a `*T`, a new object | any place: a whole object, a field, an element, a map value |
+| counted | yes, always on the fast path | never |
+| written as a type | anywhere a type may be | a parameter's type only, a function type's parameter included |
+| as a value | anywhere | a call argument, a receiver, or read and written through |
+| stored, returned, bound, captured, a type argument | yes | no; a returned `self` and a closure passed to `&fn` are the two exceptions |
+| made by | `&x` where a `*T`, a type variable or no type is expected | `&x` where a `&T` is expected, and every `&self` or `&mut self` call |
+| receivers | `*self`, `*mut self`: methods that keep `self` | `&self`, `&mut self` |
+| like | Go's `*T` | Swift's `inout` |
+
+What it gives: a call that borrows a local, a field or an element of a
+local list takes no count. Borrows behind a heap alias, and every count
+of a `*T`, take the fast path. What it gives up: local results other
+than `self`, bound aliases of fields and elements, local type arguments,
+and in-place edits through a returned reference. [Escape
+Hatches](#22-escape-hatches) shows what to write instead.
+
+## 19. The Rules
+
+The rules are numbered for this document; each carries the rule ID that
+slices 1 and 2 give it in the spec. Comments in the examples name the
+rule a line shows. Since step 1, `*T` and `*self` parse; lines that write `&fn`, or that
+rely on a later step, end in `# hypothetical syntax`.
+
+### 19.1 Two kinds
+
+1. `ref.kind.counted` `*T` and `*mut T` are counted references. A
+   counted reference always refers to a whole object.
+2. `ref.kind.local` `&T` and `&mut T` are local references. A local
+   reference may refer to any place, and is never counted.
+3. `ref.kind.whole-object` A whole object is a local, a value parameter,
+   the referent of a `*T`, or a new object. Every other place is an
+   **interior place**: a field, a list element, a map value, or anything
+   reached through a `&T`.
+4. `ref.kind.interior-local` An interior place has only a local
+   reference. So a count of a `*T` always lands on an object's start and
+   takes the fast path, with no `block_of`.
+
+```text
+struct Body:
+    x: f64
+    v: f64
+
+struct World:
+    bodies: List[*mut Body]  # hypothetical syntax
+
+fn push_x(x: &mut f64, by: f64) -> void:
+    *x += by
+
+fn demo(w: &mut World) -> void:
+    let b = &mut Body { x: 0.0, v: 1.0 }  # 1, 3: a counted *mut Body to a new object
+    w.bodies.push(b)  # 1: a counted reference may be stored
+    push_x(&mut b.x, 1.0)  # 2, 4: b.x is an interior place, so the borrow is local
+```
+
+### 19.2 Taking an address and lending
+
+5. `ref.expr.address` `&x` and `&mut x` take an address. Where a `&T` is
+   expected the result is a local reference, and where a `*T` is
+   expected a counted one.
+6. `ref.expr.address.counted-default` Where a type variable is expected,
+   or no type is, `&x` is counted. So `let a = &s`, `xs.push(&a)` and
+   `[&a, &b]` make counted references.
+7. `ref.expr.address.whole` A counted `&x` needs a whole object. On an
+   interior place it is an error, so `let a = &obj.f` and
+   `let a = &xs[i]` are errors. Error: `local-reference-escapes`.
+8. `ref.expr.deref` `*p` dereferences either kind. Field reads, method
+   calls and patterns read through either kind, as today.
+9. `ref.convert.lend` A `*T` converts implicitly to `&T` where a local
+   reference is expected, and a `*mut T` to `&mut T` and to `&T`. The
+   conversion takes no count.
+10. `ref.convert.no-raise` A `&T` never converts to a `*T`. Error:
+    `local-reference-escapes`.
+11. `ref.convert.weaken` `&mut T` weakens to `&T`, and `*mut T` to `*T`,
+    as today. Weakening a local reference takes no count.
+
+```text
+struct P:
+    n: i64
+
+fn read(p: &P) -> i64:
+    p.n
+
+fn keep(p: *P) -> *P:  # hypothetical syntax
+    p
+
+fn demo(a: P, b: P) -> i64:
+    let mut xs = []
+    xs.push(&a)  # 6: T is a type variable, so xs is a List[*P]
+    ys := [&a, &b]  # 6: also a List[*P]
+    k := keep(&a)  # 5: *P is expected, and a is a whole object
+    read(&a) + read(k) + read(xs[0])  # 5: local; 9: a *P lends to &P
+
+fn invalid(p: &P, o: P) -> void:
+    let a = &o.n  # 7: error: an interior place has no counted form
+    k := keep(p)  # 10: error: a local reference never becomes a *P
+```
+
+### 19.3 Where a local reference may appear
+
+12. `ref.local.positions` A local reference type is written only as the
+    type of a parameter, a function type's parameter included. A local
+    reference value appears only as a call argument, as a receiver, or
+    as the operand of a read or a write through it.
+13. `ref.local.parameter` A local reference parameter is valid for the
+    whole call. The body may read and write through it, and pass it on
+    as an argument any number of times, at no cost.
+14. `ref.local.no-binding` A local reference is never bound to a name.
+    That covers `let`, `:=`, an assignment, and a pattern that binds a
+    whole local-reference scrutinee. `_ :=` discards a value and binds
+    nothing. Error: `local-reference-escapes`.
+15. `ref.local.no-result` A local reference is never a result, except a
+    method's returned `self` (rule 21). Error: `local-reference-escapes`.
+16. `ref.local.no-store` A local reference is never a field, an element,
+    a payload, a tuple element or a top-level binding. Error:
+    `local-reference-escapes`.
+17. `ref.local.no-type-argument` A local reference type is never a type
+    argument, as Swift's `inout` is no type. There is no `List[&T]`,
+    `Option[&T]`, `&T?` or `T = &Foo`. Error: `local-reference-escapes`.
+18. `flow.for.ref.binding` (**proposed**: #834 does not mention loops)
+    `for p in &mut xs` binds a local reference to each element for one
+    step. This keeps today's
+    [Element Reference Loops](../../spec/lang/06-control-flow.md#element-reference-loops).
+    The body uses `p` as it uses a local parameter.
+
+```text
+struct Lexer:
+    src: string
+    pos: usize
+
+impl Lexer:
+    fn at_end(&self) -> bool:
+        self.pos >= self.src.len()
+
+    fn skip_space(&mut self) -> void:
+        while !self.at_end() && self.src[self.pos] == 32u8:  # 13: self passed on, free
+            self.pos += 1
+
+fn count_words(lexer: &mut Lexer) -> usize:  # 12: a local parameter
+    let n: usize = 0
+    while !lexer.at_end():
+        lexer.skip_space()  # 13
+        n += 1
+    n
+
+enum Expr:
+    Num(n: i64)
+    Neg(inner: *Expr)  # hypothetical syntax
+
+struct Holder:
+    lexer: &Lexer  # 16: error: write *Lexer
+
+fn invalid(lexer: &mut Lexer, e: &Expr, all: List[&Lexer]) -> &mut Lexer:  # 15, 17: errors
+    q := lexer  # 14: error: a local reference bound to a name
+    match e:
+        .Num(n) => pass  # a payload binding is a copy, as today
+        whole => pass  # 14: error: whole would bind the local reference e
+    q
+
+struct Particle:
+    x: f64
+    v: f64
+
+fn advance(ps: &mut List[Particle], dt: f64) -> void:
+    for p in &mut ps:  # 18: one element per step
+        p.x += p.v * dt
+```
+
+### 19.4 Receivers
+
+19. `fn.method.receiver.local` `&self` and `&mut self` are local
+    receivers. So a method call on a field works, as in
+    `client.request.header(..)` and `self.items.push(x)`.
+20. `fn.method.receiver.counted` A method that keeps `self` takes
+    `*self` or `*mut self`, as Go's pointer receivers do. It needs a
+    whole object, so a call on an interior place or through a local
+    reference, `&dyn` included, is an error. Error:
+    `local-reference-escapes`.
+21. `fn.method.returns-self` A method with a local receiver may return
+    `self`, with the result type `&Self` or `&mut Self`. The result has
+    the caller's kind: counted when the receiver is a whole object, and
+    local, for the rest of the calling expression, otherwise. Only
+    `self` itself is returned this way.
+
+```text
+struct Request:
+    url: string
+    headers: List[(string, string)]
+
+impl Request:
+    fn header(&mut self, name: string, value: string) -> &mut Request:  # 21
+        self.headers.push((name, value))
+        self
+
+    fn register(*mut self, log: &mut List[*mut Request]) -> void:  # hypothetical syntax
+        log.push(self)
+
+struct Client:
+    request: Request
+
+fn configure(client: &mut Client, token: string, log: &mut List[*mut Request]) -> void:  # hypothetical syntax
+    _ := client.request.header("accept", "json").header("auth", token)  # 19, 21: local in this expression
+    let mut r = Request { url: "/", headers: [] }
+    rr := r.header("a", "b")  # 21: r is a whole object, so rr is a counted *mut Request
+    r.register(log)  # 20: valid on a whole object
+    client.request.register(log)  # 20: error: client.request is an interior place
+```
+
+### 19.5 Overlapping access
+
+22. `ref.access.overlap` Within one call, an argument that may write a
+    place conflicts with another argument that borrows a place inside
+    it. The receiver counts as an argument. Error: `conflicting-access`,
+    with the message "overlapping accesses to `o`".
+23. `ref.access.write` An argument may write a place when it takes
+    `&mut` of it, or calls a `&mut self` or `*mut self` method on it.
+    These are the two rows of today's
+    [`ref.elem.conflict`](../../spec/lang/13-values-and-references.md#call-scoped-access)
+    table. A place is inside another when the other is a proper prefix
+    of it, through fields, elements or `*T` referents.
+24. `ref.access.disjoint` Two borrows of one place, or of places neither
+    of which is inside the other, do not conflict. `&mut` stays
+    non-exclusive otherwise
+    ([`ref.write.no-exclusivity`](../../spec/lang/13-values-and-references.md#writing-through-a-reference)).
+25. `ref.access.heap` The check follows places from a local or a
+    parameter of the calling body. A borrow through a `*T` read out of a
+    field or an element is out of its sight. Such a borrow takes one
+    fast-path count of its object instead
+    ([Counting Rules](#21-counting-rules)), and nothing is checked at run
+    time.
+
+```text
+struct Obj:
+    n: i64
+
+fn add(p: &mut i64, x: i64) -> void:
+    *p += x
+
+fn reset(o: &mut (*mut Obj)) -> i64:  # hypothetical syntax
+    *o = &mut Obj { n: 0 }
+    5
+
+fn both(a: &mut i64, b: &mut i64) -> void:
+    *a += 1
+    *b += 1
+
+fn demo(i: usize, j: usize) -> void:
+    let mut o: *mut Obj = &mut Obj { n: 1 }  # hypothetical syntax
+    add(&mut o.n, reset(&mut o))  # 22, 23: error: overlapping accesses to `o`
+    x := reset(&mut o)
+    add(&mut o.n, x)  # valid: the write ended before the borrow
+    let mut xs: List[i64] = [1, 2, 3]
+    both(&mut xs[i], &mut xs[j])  # 24: valid, even when i == j
+    add(&mut xs[0], xs.remove_at(1))  # 22, 23: error: remove_at writes xs
+```
+
+> **Why.** Without rule 22, `reset` could free the object that
+> `&mut o.n` points into while `add` still writes through it. Rejecting
+> only writes to an enclosing place keeps `swap(&mut xs[i], &mut xs[j])`
+> valid, which Swift rejects.
+
+### 19.6 Element borrows
+
+26. `ref.elem.local` `&xs[i]`, `&mut xs[i]`, `&m[k]` and `&mut m[k]` are
+    local references, so an element borrow lasts for one call, as today.
+27. `ref.elem.access.pin` The borrow pins its collection and takes one
+    fast-path count of the buffer while the call runs. A length change
+    through an alias panics `collection-pinned`, and a copy of the
+    pinned list gets elements of its own
+    ([`ref.elem.copy`](../../spec/lang/13-values-and-references.md#element-references)).
+
+```text
+fn write_then_read(slot: &mut i64, copy: List[i64]) -> i64:
+    *slot = 99
+    copy[0]  # 1: the copy has elements of its own
+
+fn demo() -> i64:
+    let mut ys: List[i64] = [1, 2]
+    write_then_read(&mut ys[0], ys)  # 27: the pin makes the copy eager
+```
+
+### 19.7 Closures
+
+28. `fn.type.local` `&fn(A) -> B` is a non-escaping function parameter.
+    The callee may only call it: storing, returning, binding or
+    capturing it is an error. Error: `local-reference-escapes`.
+29. `fn.type.lend` (**proposed**) A plain `fn` value may be passed where
+    a `&fn` is expected, as a `*T` lends to `&T`. Without it, every call
+    that passes a named function to an eager helper breaks.
+30. `fn.closure.local-capture` A closure literal written as the argument
+    for a `&fn` parameter may capture local references, `self` of a
+    `&self` or `&mut self` method included.
+31. `fn.closure.no-local-capture` Any other closure that captures a
+    local reference is an error. A plain `fn(A) -> B` stays a storable
+    value. Error: `local-reference-escapes`.
+
+```text
+struct Scaler:
+    k: f64
+    total: f64
+
+fn each(xs: &List[f64], f: &fn(f64) -> void) -> void:  # hypothetical syntax
+    for x in xs:
+        f(x)  # 28: the callee only calls f
+
+impl Scaler:
+    fn add_all(&mut self, xs: List[f64]) -> void:
+        each(&xs, fn(x: f64) -> void: self.total += x * self.k)  # 30: captures self
+        lazy := xs.iter().map(fn(x: f64) -> f64: x * self.k)  # 31: error: map keeps a plain fn
+        k := self.k
+        later := xs.iter().map(fn(x: f64) -> f64: x * k)  # 31: valid: captures a copy
+```
+
+### 19.8 Generics, traits and trait values
+
+32. `trait.dyn.kinds` `&dyn Tr` and `&mut dyn Tr` are local trait value
+    references, and `*dyn Tr` and `*mut dyn Tr` counted ones. A `*dyn`
+    lends to a `&dyn` by rule 9.
+33. `trait.dyn.provider` A provider installed with `$.with` is a
+    `*dyn` value, since a fetched provider may be captured
+    ([`fn.capture.provider-value`](../../spec/lang/07-functions.md#captures)).
+34. `trait.impl.more-local` An impl method may be more local than its
+    trait: `&self` or `&T` where the trait says `*self` or `*T`. The
+    reverse is an error. Error: `trait-method-signature`.
+35. `trait.dyn.counted-receiver` A trait with a `*self` method is still
+    usable as `&dyn Tr`. Calling that method through a `&dyn` is rule
+    20's error.
+
+A generic parameter such as `xs: &List[T]` is valid: the reference is
+local, and `T` is an ordinary type argument. `id(p)` with a local `p`
+would make `T = &P`, which is rule 17's error.
+
+```text
+trait Shape:
+    fn area(&self) -> f64
+
+trait Registry:
+    fn register(*mut self) -> void  # hypothetical syntax
+
+struct Sq:
+    side: f64
+
+impl Shape for Sq:
+    fn area(&self) -> f64:
+        self.side * self.side
+
+impl Registry for Sq:
+    fn register(&mut self) -> void:  # 34: more local than the trait
+        self.side += 0.0
+
+fn total(shapes: &List[*dyn Shape]) -> f64:  # hypothetical syntax
+    let sum = 0.0
+    for s in shapes:
+        sum += s.area()  # 32: a *dyn Shape lends to &dyn Shape
+    sum
+
+fn id[T](x: T) -> T:
+    x
+
+fn twice(p: &i64) -> i64:
+    *id(p)  # 17: error: T = &i64
+```
+
+### 19.9 Suspension
+
+36. `req.suspend.local-arguments` A bang call `f!(..)` may pass local
+    references. They stay valid across any number of suspensions,
+    because the caller is suspended inside the call.
+37. `req.suspend.cold.local` A plain call of a bang function builds a
+    cold suspension that keeps its arguments
+    ([`req.suspend.cold.captures`](../../spec/lang/11-requirements-and-suspension.md)).
+    A local reference argument there is an error. Error:
+    `local-reference-escapes`.
+
+```text
+use std.time.{Clock, sleep, ms}
+
+fn bump!(p: &mut i64) -> void $ Clock:
+    sleep!(ms(1))
+    *p += 1
+
+fn outer!(n: i64) -> i64 $ Clock:
+    let mut local: i64 = n
+    bump!(&mut local)  # 36: valid across the sleep
+    local
+
+fn later(p: &mut i64) -> mut Suspend[void] $ Clock:
+    bump(p)  # 37: error: the suspension would keep p
+```
+
+### 19.10 Boundaries
+
+38. `ref.local.boundary` (**proposed**: a review finding #834 does not
+    decide) An exported or host-imported function takes no local
+    reference parameter. The host may keep what it receives, and
+    `boundary.rs` counts each reference that crosses. Write `*T` or a
+    value. Error: `local-reference-escapes`.
+
+```text
+pub fn store_name(name: &string) -> void:  # 38: error if exported to the host; write *string
+    pass
+```
+
+### 19.11 std
+
+39. `std.ref.parameters` Every std reference parameter is `&T` or
+    `&mut T`, except the about 17 that keep their argument, which are
+    `*mut T`. std's 19 reference-typed fields and its returned
+    references are `*T`. Its methods that keep `self` take `*self`.
+40. `std.fn.eager` std's eager helpers take `&fn`, and its lazy adapters,
+    such as `Iterator.map`, keep a plain `fn`. #834 names `fold`,
+    `retain`, `sort_by`, `any` and `each`; in today's std the eager ones
+    include `List.map`, `filter`, `any`, `all`, `find`, `sorted_by` and
+    `Iterator.fold`.
+41. `std.format.debug-writer` `debug_struct`, `debug_tuple`, `debug_list`
+    and `debug_map` return the writer itself, `&mut DebugWriter`, under
+    rule 21. The open struct or list state lives in `DebugWriter`, so no
+    `debug` signature changes.
+42. `std.text.template` The `r` prefix takes `Template[*dyn Display]`. A
+    part that is not a whole object, such as `${p.name}`, is copied into
+    a new object. That costs one allocation per such part, until #702's
+    frame storage removes it.
+43. `std.error.erased` The erased error is `Result[T, *dyn Error]`, since
+    `&dyn Error` would be a type argument. `?` already copies an error
+    value into a new object, so errors lose nothing but spelling.
+
+Merging the four builders into `DebugWriter` puts two pairs of
+same-named methods on one type. The struct's `field(name, value)` meets
+the tuple's `field(value)`, and the list's `entry(value)` meets the
+map's `entry(key, value)`. **Proposed** std naming: `field(name, value)`
+for named fields (absorbing `named_field`), `item(value)` for positional
+ones, `entry(key, value)` for map pairs, and one `finish()`.
+
+```text
+use std.format.DebugWriter
+
+struct Point:
+    x: i64
+    y: i64
+
+impl Debug for Point:
+    fn debug(self, out: &mut DebugWriter) -> void:
+        out.debug_struct("Point").field("x", self.x).field("y", self.y).finish()  # 41: unchanged
+```
+
+## 20. Error Messages And Fix-Its
+
+`local-reference-escapes` is the one new code. Each situation has its own
+message, and fix-its are listed in the order the diagnostic offers them.
+**Proposed:** today's `element-reference-outlives-call` retires into it,
+since an element borrow is now an ordinary local reference.
+
+| # | Case | Written | Code | Message | Fix-its |
+| ---: | --- | --- | --- | --- | --- |
+| E1 | a `let` of an interior place (7) | `let a = &obj.f`, `let a = &xs[i]` | `local-reference-escapes` | "`obj.f` is a field, and `let` makes a counted reference, which needs a whole object" | copy: `let a = obj.f`; pass the borrow straight to the call: `bump(&obj.f)`; make the field its own object: `f: *T` |
+| E2 | an interior place where a type variable is expected (6, 7) | `xs.push(&o.f)`, `[&o.f]`, `id(&o.f)` | `local-reference-escapes` | "a type parameter takes a counted reference, and `o.f` is a field" | copy into a local, `c := o.f`, then `xs.push(&c)`; make the field `*T` |
+| E3 | a local reference where a `*T` is expected (10) | `keep(p)` with `p: &P` and `fn keep(p: *P)` | `local-reference-escapes` | "`p` is a local reference, and `keep` keeps its argument" | make the callee's parameter `&P` when it keeps nothing; copy: `c := *p`, then `keep(&c)`; take `p: *P` here too |
+| E4 | a local reference bound to a name (14) | `q := p`, `r = p`, `whole =>` on a `&T` scrutinee | `local-reference-escapes` | "a local reference can't be bound to a name; use `p` itself" | use `p` at each use; copy the value: `q := *p` |
+| E5 | a local reference as a result (15) | `fn f(p: &mut P) -> &mut P: p` | `local-reference-escapes` | "a local reference can't be returned; only a method's `self` can" | take and return `*mut P`; return a copy, `-> P` |
+| E6 | a local reference type in a field, element, payload or type argument (16, 17) | `r: &T` in a struct, `List[&T]`, `&T?`, `.Some(p)`, `[p]`, `dbg(p)` | `local-reference-escapes` | "a field can't hold a local reference" (or "an element", "a type argument") | in a type, write `*T`; for a value, copy it with `*p` |
+| E7 | a `*self` method on an interior place or through a local reference (20, 35) | `client.request.register(log)` | `local-reference-escapes` | "`register` keeps `self`, so it needs a whole object, and `client.request` is a field" | make the field its own object: `request: *mut Request`; make the method `&mut self` when it keeps nothing |
+| E8 | a closure capturing a local reference, not passed to a `&fn` (31) | `xs.iter().map(fn(x: f64) -> f64: x * self.k)` | `local-reference-escapes` | "the closure captures `self`, a local reference, and `map` may keep the closure" | copy the field first: `k := self.k`; make the callee's parameter `&fn` when it only calls it; write a loop |
+| E9 | a `&fn` parameter kept (28) | `self.handler = f` with `f: &fn(i64) -> void` | `local-reference-escapes` | "`f` is a `&fn` parameter, which can only be called" | make the parameter a plain `fn` |
+| E10 | a plain call of a bang function with a local argument (37) | `fill(b)` with `b: &mut Buf` | `local-reference-escapes` | "a plain call of `fill!` builds a suspension that keeps `b`" | call it: `fill!(b)`; take `b: *mut Buf` |
+| E11 | overlapping accesses in one call (22) | `add(&mut o.n, reset(&mut o))` | `conflicting-access` | "overlapping accesses to `o`: `reset(&mut o)` may replace what `&mut o.n` points into" | evaluate the writer first: `x := reset(&mut o)`, then `add(&mut o.n, x)` |
+| E12 | an impl less local than its trait (34) | `fn area(*self) -> f64` for a trait's `fn area(&self)` | `trait-method-signature` | "`Shape.area` takes `&self`; an impl may be more local than its trait, never less" | take `&self` |
+| E13 | a local reference in a boundary signature (38, proposed) | an exported `fn store_name(name: &string)` | `local-reference-escapes` | "a host may keep what an exported function receives, so `name` can't be a local reference" | write `*string`, or take the value |
+
+At run time, a length change of a collection under an element borrow,
+made through an alias the checker can't see, panics `collection-pinned`
+as today.
+
+## 21. Counting Rules
+
+The rows say where a borrow's address is and what keeps that storage
+alive for the call. They are the earlier R3″ table, reduced. With
+local references only in argument position, there are no bound borrows,
+no binding groups and no delayed drops. Every count is released when
+the call returns.
+
+| Row | The borrowed address is in | Example | How it stays valid | Cost per borrow |
+| ---: | --- | --- | --- | --- |
+| 1 | a local's or value parameter's own storage, or a local reference parameter's referent, through fields only | `energy(&b)`, `lexer.skip_space()`, `f(&mut p.pos)`, `self.items.push(x)` | the local, or the caller's lent referent, outlives the call; rule 22 stops another argument replacing it | none |
+| 2 | an object reached through a `*T` that a local or parameter of this body holds, when no closure captures that binding and no `*T` refers to it | `bump(&mut o.n)`, `o.step(dt)` with `o: *mut Obj` | the binding's own count holds the object; only this body can write the binding, and rule 22 rejects an argument that does | none |
+| 3 | an object reached through any other `*T`: a field, an element, a captured binding, or a binding some `*T` refers to | `bump(&mut h.leaf.n)`, `bump(&mut nodes[i].n)`, `self.leaf.step(dt)` | one fast-path count of the object, taken at the borrow and released when the call returns | one known pair |
+| 4 | a list element or a map value, with no `*T` step after the element step | `ps[i].step(dt)`, `swap(&mut xs[i], &mut xs[j])`, `for p in &mut ps` | today's pin and one fast-path count of the buffer: a length change panics `collection-pinned`, and a copy of the pinned list copies its elements | one known pair and the pin; both omitted for an unaliased local list that no other argument names |
+
+A borrow is classified by the steps after the last `*T` dereference in
+its place, since those say which block the address is in. So
+`bump(&mut nodes[i].n)` with `nodes: List[*mut Node]` counts the node
+(row 3) and needs no pin. An element loop is one borrow for the whole
+loop, as [`flow.for.ref.access`](../../spec/lang/06-control-flow.md#element-reference-loops)
+states today.
+
+Three rules hold for every row. Every count of a `*T`, whether a copy,
+a store or a row 3 count, lands on an object's start and takes the known
+path. Weakening a local reference, and passing a local parameter on,
+emit no count. No count ever has a local reference as its operand,
+which the ownership verifier checks.
+
+```text
+struct Leaf:
+    n: i64
+
+struct Holder:
+    leaf: *mut Leaf  # hypothetical syntax
+    counts: List[i64]
+
+fn bump(p: &mut i64) -> void:
+    *p += 1
+
+fn demo(h: &mut Holder, o: *mut Leaf) -> void:  # hypothetical syntax
+    let mut local = Leaf { n: 0 }
+    bump(&mut local.n)  # row 1: free
+    bump(&mut o.n)  # row 2: o's own count holds the leaf
+    bump(&mut h.leaf.n)  # row 3: one fast-path count of the leaf
+    bump(&mut h.counts[0])  # row 4: the pin and a fast-path count of the buffer
+```
+
+## 22. Escape Hatches
+
+The owner's advice: "if users hate, just use *T or read, copy, write
+back". Both are ordinary programs.
+
+**Take a counted `*T`.** An object of its own may be stored, returned
+and captured, at one fast-path count per copy.
+
+```text
+struct Counter:
+    n: i64
+
+struct Watch:
+    counters: List[*mut Counter]  # hypothetical syntax
+
+fn remember(w: &mut Watch, c: *mut Counter) -> void:  # hypothetical syntax
+    w.counters.push(c)
+
+fn demo() -> i64:
+    let mut w = Watch { counters: [] }
+    let c = &mut Counter { n: 0 }
+    remember(&mut w, c)
+    c.n += 1
+    w.counters[0].n
+```
+
+**Copy the value out, change it, write it back.** This takes no
+reference at all. A struct copy is a few word moves, and a list's
+copy-on-write keeps it cheap.
+
+```text
+struct Player:
+    name: string
+    score: i32
+
+fn reward(players: List[Player], best: usize) -> List[Player]:
+    let mut out = players
+    let mut p = out[best]  # a copy of the element
+    p.score += 10
+    out[best] = p  # written back
+    out
+```
+
+What the first cut gives up, and what to write instead:
+
+| Gone | Instead |
+| --- | --- |
+| a `let`-bound alias of a field or an element, `let r = &mut o.f` | name the place at each use, or pass `&mut o.f` to a helper |
+| a returned local reference, as in serde_json's `pointer_mut` or Rust's `split_at_mut` | a `*T` node, indices, or a `&fn` callback |
+| an in-place edit inside an enum payload, such as std's `Json` | copy out, change, write back: a payload is no place ([`ref.match.copy`](../../spec/lang/13-values-and-references.md#matching-through-a-reference)) |
+| `List[&T]`, `Option[&T]`, `&T?` | `List[*T]`, `*T?`, or two functions |
+| a lazy adapter's closure that reads `self` | copy the field first, `k := self.k` |
+| a `*self` method called on a field | make the field `*mut T` |
+
+Tier 2's lifetime parameters, or Hylo-style projections, would bring
+back local results and bound aliases later.
+
+
+## 23. Prior Art
+
+| Language | Second-class reference | Stored reference | How a borrow stays valid | What hd takes |
+| --- | --- | --- | --- | --- |
+| Swift | `inout`, `borrowing` parameters, `mutating` methods | class references | the call; exclusivity, static for locals and dynamic for class properties (SE-0176) | the argument-position rule and a static overlap check, with no dynamic one |
+| Rust | none: all references carry lifetimes | `&T` with a lifetime, `Rc<T>` | NLL liveness (RFC 2094), two-phase borrows (RFC 2025) | nothing; its checker is the cost tier 2 avoids |
+| Hylo | `let`, `inout`, `sink` parameters; subscript projections | none: no shared mutable references | the call, or the projecting expression | local receivers; a returned `self` used within one expression |
+| Mojo | `read`, `mut`, `ref` arguments | `ref` with origins | origins tracked at compile time | nothing beyond Swift's model |
+| C# | `ref` parameters and `ref` locals | class references | ref-safe contexts, a static scope comparison | nothing: hd has no bound local references |
+| Vale | region borrows in `pure` functions | generational references | a frozen region, or a generation check per dereference | nothing |
+| Go | none | `*T`, interior pointers included | garbage collection; escape analysis | the `*T` spelling and pointer receivers |
+| C++ | references | pointers | nothing: `push_back` may invalidate | the counterexample element pins prevent |
 
 ## Sources
 
