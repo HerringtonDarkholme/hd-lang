@@ -20,7 +20,7 @@ use crate::op::Op as I;
 use hd_base::{DefId, Hash128, StageResult};
 use hd_mono::{BoundaryMap, ProgramEnv, Target, subst};
 use hd_tir::ir::{
-    Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology, Word, local_flags, slot_words,
+    Body, Callee, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology, Word, local_flags, slot_words,
 };
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
@@ -627,7 +627,11 @@ fn result_type(
     at: Option<AtProfile<'_>>,
 ) -> StageResult<LTy> {
     let mut boundary = of(input, module, ty, at.map(|a| AtProfile { out: false, ..a }))?;
-    if !module.open_world && has_direct_strings(&boundary) && host_result_tags_only(input, method) {
+    if input.optimized
+        && !module.open_world
+        && has_direct_strings(&boundary)
+        && host_result_tags_only(input, method)
+    {
         discard_strings(&mut boundary);
     }
     Ok(boundary)
@@ -675,9 +679,14 @@ fn host_result_tags_only(input: &Input<'_>, method: DefId) -> bool {
             let Some(body) = (input.body)(*id) else {
                 return false;
             };
-            if crate::drive::callee(body, body.data[call as usize][0]).map(|(_, m)| m)
-                != Some(method)
-            {
+            // A dynamic target may be a CallValue through a constant,
+            // parameter or local function value. Its first operand is a Ref,
+            // not a callee record; without a method identity any observer is
+            // possible, so keep ordinary decoding for the whole method.
+            let Some(callee) = dynamic_method(body, call) else {
+                return false;
+            };
+            if callee != method {
                 continue;
             }
             found = true;
@@ -701,6 +710,24 @@ fn host_result_tags_only(input: &Input<'_>, method: DefId) -> bool {
         }
     }
     found
+}
+
+/// Read a method identity only from instruction kinds with a callee record.
+/// Inlining can leave dynamic function values or rows this proof cannot resolve;
+/// those are conservative failures, never record or instruction indices.
+fn dynamic_method(body: &Body, call: u32) -> Option<DefId> {
+    let i = usize::try_from(call).ok()?;
+    if !matches!(body.tags.get(i), Some(Tag::Call | Tag::Await)) {
+        return None;
+    }
+    let start = usize::try_from(body.data.get(i)?[0]).ok()?;
+    let count = usize::try_from(*body.extra.get(start)?).ok()?;
+    let start = start.checked_add(1)?;
+    let words = body.extra.get(start..start.checked_add(count)?)?;
+    match Callee::from_words(words)? {
+        Callee::TraitMethod { method, .. } => Some(method),
+        Callee::Item { .. } => None,
+    }
 }
 
 fn tracked(values: &[bool], value: u32) -> bool {
@@ -2302,6 +2329,33 @@ mod discarded_tests {
         inst(&mut b, Tag::Store, destination, other);
         finish(&mut b, NONE);
         assert!(!tags_only(&b, 0));
+    }
+
+    #[test]
+    fn dynamic_function_values_are_not_callee_records() {
+        for value in [Ref::konst(0).0, 0, 1, NONE] {
+            let mut b = body();
+            let call = inst(&mut b, Tag::CallValue, value, NONE);
+            assert_eq!(dynamic_method(&b, call), None);
+        }
+        let mut b = body();
+        for row in [Ref::CONST_BIT, NONE, 0] {
+            let call = inst(&mut b, Tag::Call, row, NONE);
+            assert_eq!(dynamic_method(&b, call), None);
+        }
+        let method = DefId::from_raw(19);
+        let callee = Callee::TraitMethod {
+            trait_: DefId::from_raw(7),
+            method,
+            self_ty: Ty::VOID,
+            targs: TyList::EMPTY,
+            choice: (hd_tir::ir::ChoiceKind::TraitValue, 0),
+        };
+        let row = record(&mut b, &callee.words());
+        for tag in [Tag::Call, Tag::Await] {
+            let call = inst(&mut b, tag, row, NONE);
+            assert_eq!(dynamic_method(&b, call), Some(method));
+        }
     }
 
     fn result_type() -> LTy {

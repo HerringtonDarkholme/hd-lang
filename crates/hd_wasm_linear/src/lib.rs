@@ -266,6 +266,9 @@ pub struct Input<'a> {
     /// The release profile: integer arithmetic wraps and shift counts are
     /// masked (`types.arith.release`).
     pub release: bool,
+    /// Whether the optimized pipeline is selected, independently of arithmetic
+    /// and count-auditing profiles. Whole-program decoder proofs run only here.
+    pub optimized: bool,
     /// The instances of std's runtime that counting calls. Without them a
     /// module counts nothing and allocates from a bump pointer.
     pub runtime: Option<Runtime>,

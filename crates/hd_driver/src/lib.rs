@@ -1432,6 +1432,8 @@ struct Run<'a> {
     inline_counts: bool,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
+    /// The selected optimization pipeline, separate from arithmetic semantics.
+    level: OptLevel,
     /// Whether allocation/count auditing is enabled.
     checked: bool,
     /// Whether the ownership passes' output is verified without debug
@@ -2173,6 +2175,7 @@ pub fn build_packages(
                 BuildProfile::Checked
             }
         },
+        level: packages.level,
         body_fuel: packages.body_fuel,
         checked: packages.checked,
         verify_own: packages.verify_own,
@@ -9669,6 +9672,7 @@ impl Run<'_> {
             body: &body,
             entry,
             release: self.build_profile == BuildProfile::Release,
+            optimized: self.level == OptLevel::Optimized,
             runtime,
             inline_counts: self.inline_counts,
             host_refs: &c.host_refs,
