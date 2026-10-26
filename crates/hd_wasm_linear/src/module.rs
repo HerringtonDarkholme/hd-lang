@@ -883,6 +883,9 @@ pub struct Module {
     pub driven: hd_base::HashSet<hd_base::DefId>,
     /// Methods synchronously consumed by `block_on`, with caller-local host storage.
     pub blocking_driven: hd_base::HashSet<hd_base::DefId>,
+    /// Closed-program methods whose dynamic calls all use blocking drive slots.
+    /// Their host vtables need no normal cold-constructor slot.
+    pub blocking_only: hd_base::HashSet<hd_base::DefId>,
     exports: Vec<(String, SymId)>,
     /// Development fixture roots, independent of the public export ABI.
     retained: Vec<SymId>,

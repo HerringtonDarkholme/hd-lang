@@ -5,9 +5,10 @@
 //! receive caller-local storage for host leaves. Keeping the sets separate
 //! avoids linking an async constructor merely for a synchronous call.
 
-use hd_base::{DefId, HashMap, StageResult};
-use hd_mono::{ProgramEnv, Target, TargetKind};
-use hd_tir::ir::{Body, Callee, NONE, PlaceRoot, ReadMode, Tag, Topology};
+use hd_base::{DefId, HashMap, InstId, StageResult};
+use hd_mono::{ProgramEnv, Sub, Target, TargetKind};
+use hd_tir::ir::{Body, Callee, NONE, PlaceRoot, ReadMode, Ref, Tag, Topology};
+use hd_types::{Ty, TyData};
 
 use crate::module::{Module, Sym, Val};
 use crate::rt::Helper;
@@ -109,26 +110,108 @@ pub fn block_on_of(b: &Body, topo: &Topology, calls: &HashMap<u32, Target>, c: u
     }
 }
 
+/// An unresolved function value can name a cold constructor only when its
+/// actual lowered ABI returns a suspension. Ordinary callbacks (including
+/// collector visitors) cannot discard a cold frame through return variance.
+/// Their separately collected bodies still contribute all normal slot uses.
+fn raw_cold_call(input: &Input<'_>, id: InstId, body: &Body, i: usize) -> bool {
+    if !matches!(input.collected.table.sub[id.idx()], Sub::Body(_)) {
+        return true;
+    }
+    let reference = Ref(body.data[i][0]);
+    let ty = match reference.as_inst() {
+        Some(index) => body.ty.get(index.0 as usize).copied(),
+        None => body
+            .consts
+            .get((reference.0 & !Ref::CONST_BIT) as usize)
+            .map(|c| c.0),
+    }
+    .unwrap_or(Ty::POISON);
+    let table = &input.collected.table;
+    let ty = hd_mono::subst(
+        input.pool,
+        input.env,
+        table.item[id.idx()],
+        table.args[id.idx()],
+        ty,
+    );
+    let TyData::Fn {
+        result: ret,
+        suspends,
+        ..
+    } = input
+        .pool
+        .get(crate::layout::strip(input.pool, input.env, ty))
+    else {
+        return true;
+    };
+    if suspends {
+        return true;
+    }
+    match input
+        .pool
+        .get(crate::layout::strip(input.pool, input.env, ret))
+    {
+        TyData::Prim(_) | TyData::Tuple { .. } => false,
+        TyData::Adt { def, .. } => def == input.env.suspend_def(),
+        _ => true,
+    }
+}
+
 /// Classifies the async and blocking drive slots before any vtable is built.
 /// Each set contains exactly the methods whose corresponding call form appears.
 pub fn collect(input: &Input<'_>, m: &mut Module) {
     let env = input.env;
+    let mut immediate = hd_base::HashSet::default();
+    let mut cold = hd_base::HashSet::default();
+    let mut unknown = false;
     for id in input.order {
+        let calls = &input.collected.calls[id.idx()];
         let Some(b) = (input.body)(*id) else {
+            unknown |= calls.values().any(|target| matches!(target, Target::Dyn));
             continue;
         };
-        let calls = &input.collected.calls[id.idx()];
         let mut topo = None;
-        for i in 0..b.len() {
-            let tag = b.tags[i];
-            if !matches!(tag, Tag::Await | Tag::Call) {
+        if b.tags
+            .iter()
+            .any(|tag| matches!(tag, Tag::CallValue | Tag::AwaitValue))
+        {
+            let sub = input.collected.table.sub[id.idx()];
+            let topology = topo.get_or_insert_with(|| Topology::new(b));
+            unknown |= b.tags.iter().enumerate().any(|(i, tag)| {
+                let emitted = match sub {
+                    Sub::Body(k) => topology.sub[i] == u32::from(k),
+                    Sub::Thunk(k) => i == usize::from(k),
+                    Sub::Erased => topology.sub[i] == 0,
+                    Sub::Adapter => false, // its explicit target is checked below
+                };
+                emitted
+                    && match tag {
+                        Tag::AwaitValue => true,
+                        Tag::CallValue => {
+                            !matches!(
+                                calls.get(&u32::try_from(i).expect("instructions")),
+                                Some(Target::KnownClosure(_))
+                            ) && raw_cold_call(input, *id, b, i)
+                        }
+                        _ => false,
+                    }
+            });
+        }
+        for (&x, target) in calls {
+            if !matches!(target, Target::Dyn) {
                 continue;
             }
-            let x = u32::try_from(i).expect("instructions");
-            if !matches!(calls.get(&x), Some(Target::Dyn)) {
+            let i = x as usize;
+            let tag = b.tags[i];
+            if !matches!(tag, Tag::Await | Tag::Call) {
+                // A CallValue has no method identity. Keep every normal
+                // representation rather than interpreting its Ref as a callee.
+                unknown = true;
                 continue;
             }
             let Some((trait_, method)) = callee(b, b.data[i][0]) else {
+                unknown = true;
                 continue;
             };
             if !drivable(env, trait_, method) {
@@ -136,13 +219,22 @@ pub fn collect(input: &Input<'_>, m: &mut Module) {
             }
             if tag == Tag::Await {
                 m.driven.insert(method);
+                // An await in a shielded dispose suite uses the normal slot.
+                // Retain it conservatively for every asynchronous invocation.
+                cold.insert(method);
             } else {
                 let t = topo.get_or_insert_with(|| Topology::new(b));
                 if block_on_of(b, t, calls, x).is_some() {
                     m.blocking_driven.insert(method);
+                    immediate.insert(method);
+                } else {
+                    cold.insert(method);
                 }
             }
         }
+    }
+    if !m.open_world && !unknown {
+        m.blocking_only = immediate.difference(&cold).copied().collect();
     }
 }
 
@@ -195,7 +287,7 @@ pub fn vtable(
     input: &Input<'_>,
     m: &mut Module,
     trait_: DefId,
-    slots: Vec<Sym>,
+    mut slots: Vec<Sym>,
     parents: Vec<usize>,
 ) -> StageResult<usize> {
     let mut drives = Vec::new();
@@ -214,6 +306,18 @@ pub fn vtable(
         // `index` counts on the method slots alone before the drive slots.
         if !drives.is_empty() && (!parents.is_empty() || slots.len() != methods.len()) {
             return unsupported("drive slots in a vtable of another shape");
+        }
+    }
+    // Construct drive helpers from the real cold symbols first. Replacing
+    // an unused table entry leaves their direct constructor calls as real
+    // reachability edges, including a host drive's owned Pending fallback.
+    if !m.open_world {
+        for (method, normal) in input.env.trait_methods(trait_).iter().zip(&mut slots) {
+            if m.blocking_only.contains(method)
+                && matches!(normal, Sym::Helper(Helper::HostCold { .. }))
+            {
+                *normal = Sym::Helper(crate::boundary::uncalled_slot(input, *method)?);
+            }
         }
     }
     Ok(m.vtable_full(slots, parents, drives))

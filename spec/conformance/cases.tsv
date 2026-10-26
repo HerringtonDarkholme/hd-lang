@@ -39,6 +39,8 @@ runtime/valid/cli-documentation-help.hd	runtime	accept	std/cli.md#r-std-cli.type
 runtime/valid/cli-enum-values.hd	runtime	accept	std/cli.md#enum-value-sets
 runtime/valid/cli-positional-fact.hd	runtime	accept	std/cli.md#positional-field-facts
 runtime/valid/cli-short-fact.hd	runtime	accept	std/cli.md#short-field-facts
+runtime/valid/host-drive-slot-method-values.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
+runtime/valid/host-drive-slot-shielded-await.hd	runtime	accept	lang/06-control-flow.md#r-flow.using.suite-suspends
 runtime/valid/host-driver-turns.hd	runtime	accept	std/time.md#clock
 runtime/valid/http-body-read-once.hd	runtime	accept	std/http.md#read-once-bodies
 runtime/valid/http-form-map-number.hd	runtime	accept	std/http.md#r-std-http.request.form-preparation-error

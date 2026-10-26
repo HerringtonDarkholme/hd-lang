@@ -46,6 +46,7 @@ mod generic_local_fn_run;
 mod generics_determinism;
 mod header_copies_run;
 mod header_goals;
+mod host_drive_slots;
 mod impl_targets;
 mod impl_universe;
 mod inferred_results_run;

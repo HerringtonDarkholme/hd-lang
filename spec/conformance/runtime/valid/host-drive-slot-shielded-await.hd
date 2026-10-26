@@ -1,0 +1,17 @@
+# fixture-runtime-profile: pending-write
+# expect-stdout: blocking
+# expect-stdout: disposed
+# test: a shielded cleanup await keeps its callable cold host slot beside an immediate blocking drive.
+use std.ops.Disposable
+
+struct Flush:
+    console: *mut dyn Console
+
+impl Disposable for Flush:
+    fn dispose!(&mut self) -> void:
+        let write: fn!(string) -> Result[void, ConsoleError] = self.console::write
+        _ := write!("disposed\n")
+
+pub fn main!() -> void $ Console:
+    println("blocking")
+    using flush = &mut Flush { console: $.use(Console) }

@@ -1,0 +1,21 @@
+# fixture-runtime-profile: pending-write
+# expect-stdout: blocking
+# expect-stdout: between
+# expect-stdout: stored
+# expect-stdout: awaited
+# test: recursive function values returning a cold suspension and indirect bang calls preserve normal host slots.
+use std.task.block_on
+
+fn invoke(write: fn(string) -> mut Suspend[Result[void, ConsoleError]], text: string, count: i32) -> mut Suspend[Result[void, ConsoleError]]:
+    if count == 0: write(text)
+    else: invoke(write, text, count - 1)
+
+pub fn main!() -> void $ Console:
+    println("blocking")
+    let console: *mut dyn Console = $.use(Console)
+    let write: fn(string) -> mut Suspend[Result[void, ConsoleError]] = console::write
+    let saved: mut Suspend[Result[void, ConsoleError]] = invoke(write, "stored\n", +1)
+    println("between")
+    _ := block_on(saved)
+    let bang: fn!(string) -> Result[void, ConsoleError] = console::write
+    _ := bang!("awaited\n")
