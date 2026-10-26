@@ -925,9 +925,10 @@ loop's entry test so an empty loop copies nothing, when:
 
 1. the `IsUnique` runs on every iteration that is entered (no `If` or
    `Match` around it skips it), or whenever an inner loop is entered that
-   stands so in the loop, at any depth, the inner loop having an entry
-   test; a shared buffer then costs a copy the loop did not need only if
-   no iteration enters that inner loop;
+   stands so in the loop, at any depth; a shared buffer then costs a copy
+   the loop did not need only if no iteration enters that inner loop. A
+   loop with no entry test (`while true`) runs its body whenever it is
+   entered, so its check runs before it unguarded;
 2. the loop never copies `p` or an overlapping place, takes no `Ref` of
    it, pins nothing, and holds no suspension point;
 3. no call in the loop may write, unless `p`'s root is a local that is
