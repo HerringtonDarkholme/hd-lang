@@ -19,7 +19,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Application and host
 
-- [HTTP Messages](HTTP_MESSAGES.md): proposed symmetric Request/Response values, shared read-once bodies, ordinary header conversions and private wire adapters; owner review before implementation (#847).
+- [HTTP messages](http/): checked hd signatures (`src/http.hd`) and usage examples (`src/examples.hd`) for the symmetric Request/Response API; owner review before implementation (#847).
 - [Validation](VALIDATION.md): proposed own-derivation rules, post-decode checked JSON/CLI/environment readers and structural error paths; owner review before implementation (#846).
 
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
