@@ -596,10 +596,11 @@ impl Env<'_> {
 
     /// A fresh decoding of the checker's body of `def`, for the caller to
     /// change, and its hash, when a call of it may inline: a function
-    /// outside `std.rt`, with a body of its own, that does not suspend
-    /// or call itself, in std or in a release build (a dev build leaves user code as
-    /// written, for stepping, stack traces and `dbg`), and that
-    /// [`hd_tir::inline::inlinable`] allows at [`INLINE_LIMIT`]
+    /// outside `std.rt`, with a body of its own, not marked
+    /// `@inline(.Never)` or `@cold` (`annot.inline.never`), that does not
+    /// suspend or call itself, in std or in a release build (a dev build
+    /// leaves user code as written, for stepping, stack traces and `dbg`),
+    /// and that [`hd_tir::inline::inlinable`] allows at [`INLINE_LIMIT`]
     /// ([`Env::fits`]), which copying its calls only grows.
     fn inline_callee(&self, def: DefId) -> Option<(Body, Hash128)> {
         let module = self.run.item_module_text(def);
@@ -607,6 +608,15 @@ impl Env<'_> {
         let rt = module == "std.rt" || module.starts_with("std.rt.");
         let release = self.run.summaries.is_some();
         if INLINE_LIMIT == 0 || rt || !(std || release) || self.intrinsic(def).is_some() {
+            return None;
+        }
+        let never = self.p.items.get(def).is_some_and(|i| {
+            matches!(
+                i.inline,
+                hd_resolve::iface::INLINE_NEVER | hd_resolve::iface::COLD
+            )
+        });
+        if never {
             return None;
         }
         if self.sig(def)?.suspends {
