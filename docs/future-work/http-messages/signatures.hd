@@ -1,0 +1,256 @@
+# std.http message API: signatures only, for review (#847).
+# Bodies are `panic("todo")`; `hd check` this file to check the shapes.
+
+use std.convert.From
+use std.json.JsonError
+use std.serde.{Deserialize, Serialize}
+use std.time.{Duration, Timestamp}
+
+# ---- Status and header names ----------------------------------------
+
+## An HTTP status; known codes are variants, any other code is `Other`.
+pub enum HttpStatus:
+    Ok
+    Created
+    NoContent
+    MovedPermanently
+    Found
+    NotModified
+    BadRequest
+    Unauthorized
+    Forbidden
+    NotFound
+    Conflict
+    UnprocessableContent
+    TooManyRequests
+    InternalServerError
+    BadGateway
+    ServiceUnavailable
+    GatewayTimeout
+    Other(code: u16)
+
+impl HttpStatus:
+    pub fn code(&self) -> u16: panic("todo")
+    ## 404 gives `.NotFound`, never `.Other(404)`.
+    pub fn from_code(code: u16) -> HttpStatus: panic("todo")
+    ## 200 to 299.
+    pub fn is_success(&self) -> bool: panic("todo")
+
+## A header name; compared and hashed by its lowercase wire name.
+pub enum HeaderName:
+    Accept
+    Authorization
+    CacheControl
+    ContentLength
+    ContentType
+    Cookie
+    ETag
+    Host
+    IfNoneMatch
+    Location
+    Origin
+    Referer
+    SetCookie
+    UserAgent
+    XForwardedFor
+    XRequestId
+    Other(name: string)
+
+impl HeaderName:
+    pub fn wire_name(&self) -> string: panic("todo")
+
+## Ordered name/value pairs; a name may repeat. Checked only when sent.
+pub struct Headers:
+    pairs: List[(HeaderName, string)]
+
+impl Headers:
+    pub fn new() -> Headers: panic("todo")
+    ## The first value of `name`.
+    pub fn get(&self, name: HeaderName) -> string?: panic("todo")
+    pub fn get_all(&self, name: HeaderName) -> List[string]: panic("todo")
+    ## Replaces every value of `name`.
+    pub fn set(&mut self, name: HeaderName, value: string) -> void: panic("todo")
+    ## Adds another value, keeping the others (each Set-Cookie line).
+    pub fn append(&mut self, name: HeaderName, value: string) -> void: panic("todo")
+    pub fn remove(&mut self, name: HeaderName) -> void: panic("todo")
+    ## Rejects CR/LF in names and values; send! runs it too.
+    pub fn validate(&self) -> Result[void, HeaderError]: panic("todo")
+
+impl From[List[(string, string)]] for Headers:
+    fn from(pairs: List[(string, string)]) -> Headers: panic("todo")
+
+impl From[Map[string, string]] for Headers:
+    fn from(map: Map[string, string]) -> Headers: panic("todo")
+
+# ---- URL --------------------------------------------------------------
+
+pub struct Url:
+    text: string
+
+impl Url:
+    pub fn parse(text: string) -> Result[Url, UrlError]: panic("todo")
+    pub fn path(&self) -> string: panic("todo")
+    ## The first value of a query key, percent-decoded.
+    pub fn query(&self, name: string) -> string?: panic("todo")
+    pub fn query_all(&self, name: string) -> List[string]: panic("todo")
+    pub fn add_query[T < Display](&mut self, name: string, value: T) -> void: panic("todo")
+    pub fn resolve(&self, reference: string) -> Result[Url, UrlError]: panic("todo")
+    pub fn to_string(&self) -> string: panic("todo")
+
+# ---- Body -------------------------------------------------------------
+
+## A body read once: a second read is `BodyError.Used`.
+pub struct Body:
+    bytes: List[u8]
+    used: bool
+
+impl Body:
+    pub fn empty() -> *mut Body: panic("todo")
+    pub fn from_bytes(bytes: List[u8]) -> *mut Body: panic("todo")
+    pub fn read_bytes(&mut self) -> Result[List[u8], BodyError]: panic("todo")
+
+# ---- Cookies ----------------------------------------------------------
+
+pub enum SameSite:
+    Strict
+    Lax
+    None
+
+## A Set-Cookie value. The defaults are the secure ones.
+pub struct Cookie:
+    pub name: string
+    pub value: string
+    pub path: string? = .Some("/")
+    pub domain: string? = .None
+    pub max_age: Duration? = .None
+    pub expires: Timestamp? = .None
+    pub secure: bool = true
+    pub http_only: bool = true
+    pub same_site: SameSite = .Lax
+
+impl Cookie:
+    ## A cookie that deletes `name` (Max-Age=0).
+    pub fn expired(name: string) -> Cookie: panic("todo")
+
+# ---- Request ----------------------------------------------------------
+
+## The same type in both directions: `set_*` writes, plain names read.
+pub struct Request:
+    pub method: Method = .Get
+    pub url: Url
+    pub headers: Headers = Headers::new()
+    pub body: *mut Body = Body::empty()
+
+impl Request:
+    pub fn new(method: Method, url: Url) -> Request: panic("todo")
+    pub fn get(url: Url) -> Request: panic("todo")
+    pub fn post(url: Url) -> Request: panic("todo")
+
+    # Writers: return the changed request, so they chain.
+    ## JSON body and Content-Type.
+    pub fn set_json[T < Serialize](mut self, value: T) -> Request: panic("todo")
+    pub fn set_text(mut self, text: string) -> Request: panic("todo")
+    pub fn set_bytes(mut self, bytes: List[u8]) -> Request: panic("todo")
+    ## Form body, OpenAPI form style; one bracket level for a nested struct.
+    pub fn set_form[T < Serialize](mut self, value: T) -> Request: panic("todo")
+    ## Replaces the URL's query, same encoding as set_form.
+    pub fn set_query[T < Serialize](mut self, value: T) -> Request: panic("todo")
+    pub fn set_header(mut self, name: HeaderName, value: string) -> Request: panic("todo")
+    ## Adds `name=value` to the one Cookie header.
+    pub fn set_cookie(mut self, name: string, value: string) -> Request: panic("todo")
+
+    # Readers: the body ones consume the shared body once.
+    pub fn json[T < Deserialize](&self) -> Result[T, BodyError]: panic("todo")
+    pub fn text(&self) -> Result[string, BodyError]: panic("todo")
+    pub fn bytes(&self) -> Result[List[u8], BodyError]: panic("todo")
+    pub fn form[T < Deserialize](&self) -> Result[T, FormError]: panic("todo")
+    ## The whole query decoded, same rules as form.
+    pub fn query[T < Deserialize](&self) -> Result[T, FormError]: panic("todo")
+    pub fn header(&self, name: HeaderName) -> string?: panic("todo")
+    pub fn cookie(&self, name: string) -> string?: panic("todo")
+    pub fn cookies(&self) -> List[(string, string)]: panic("todo")
+
+    ## Validates headers, then sends through the covering provider.
+    pub fn send!(&self, redirects: usize = 10) -> Result[Response, HttpError] $ Http: panic("todo")
+
+# ---- Response ---------------------------------------------------------
+
+pub struct Response:
+    pub status: HttpStatus = .Ok
+    pub headers: Headers = Headers::new()
+    pub body: *mut Body = Body::empty()
+    ## The URL that answered, after redirects; set by send!.
+    pub url: Url? = .None
+
+impl Response:
+    pub fn status(code: HttpStatus) -> Response: panic("todo")
+
+    pub fn set_json[T < Serialize](mut self, value: T) -> Response: panic("todo")
+    pub fn set_text(mut self, text: string) -> Response: panic("todo")
+    pub fn set_bytes(mut self, bytes: List[u8]) -> Response: panic("todo")
+    pub fn set_header(mut self, name: HeaderName, value: string) -> Response: panic("todo")
+    ## Appends one Set-Cookie line per call.
+    pub fn set_cookie(mut self, cookie: Cookie) -> Response: panic("todo")
+
+    pub fn json[T < Deserialize](&self) -> Result[T, BodyError]: panic("todo")
+    pub fn text(&self) -> Result[string, BodyError]: panic("todo")
+    pub fn bytes(&self) -> Result[List[u8], BodyError]: panic("todo")
+    pub fn header(&self, name: HeaderName) -> string?: panic("todo")
+    ## Every Set-Cookie line, parsed.
+    pub fn cookies(&self) -> List[Cookie]: panic("todo")
+    ## `.Err(HttpError.Status(..))` unless the status is 2xx; does not read the body.
+    pub fn ok(&self) -> Result[Response, HttpError]: panic("todo")
+
+# ---- Provider and helpers -----------------------------------------------
+
+pub trait Http:
+    fn send!(&mut self, request: &Request, redirects: usize) -> Result[Response, HttpError]
+
+## GET `url` (text), checked with ok().
+pub fn get!(url: string) -> Result[Response, HttpError] $ Http: panic("todo")
+
+## POST `value` as JSON to `url` (text), checked with ok().
+pub fn post![T < Serialize](url: string, value: T) -> Result[Response, HttpError] $ Http: panic("todo")
+
+# ---- Errors -------------------------------------------------------------
+
+pub enum Method:
+    Get
+    Head
+    Post
+    Put
+    Patch
+    Delete
+    Options
+    Other(name: string)
+
+pub enum BodyError:
+    Used
+    Json(error: JsonError)
+
+pub enum FormError:
+    ## A nested struct deeper than one bracket level, a list of structs, or a map.
+    Unsupported(field: string)
+    Missing(field: string)
+    Invalid(field: string, text: string)
+
+pub enum HeaderError:
+    InvalidName(name: string)
+    InvalidValue(name: string)
+
+pub enum UrlError:
+    Invalid(text: string)
+    RelativeWithoutBase(text: string)
+
+pub enum HttpError:
+    NotGranted(host: string)
+    InvalidUrl(url: string)
+    InvalidHeader(name: string)
+    Dns(host: string)
+    Connect(message: string)
+    Tls(message: string)
+    Timeout
+    TooManyRedirects(url: string)
+    Status(status: HttpStatus)
+    Body(error: BodyError)
+    Other(message: string)
