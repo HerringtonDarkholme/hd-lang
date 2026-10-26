@@ -1402,16 +1402,27 @@ fn drive(m: &Module, cold: &Helper, params: &[Val], results: &[Val]) -> Func {
 }
 
 /// [`Helper::HostCancel`]: a leaf's cancel. A done or cancelled call is
-/// left; any other is marked cancelled, and a call waiting on the host is
-/// aborted. No completion will wake its awaiter, so the entry polls its
-/// root again.
+/// left; any other is marked cancelled, and abandoned under `abandon()`.
+/// A call waiting on the host is aborted. No completion will wake its
+/// awaiter, so the entry polls its root again.
 fn host_cancel(m: &Module) -> Func {
     let mut f = m.func("rt:host_cancel", vec![Val::I32], vec![]);
     flags_any(&mut f, 0, DONE | CANCELLED);
     f.op(Instruction::If(BlockType::Empty));
     f.op(Instruction::Return);
     f.op(Instruction::End);
-    flags_or(&mut f, 0, CANCELLED);
+    f.get(0);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, F_FLAGS, 2)));
+    f.i32(CANCELLED);
+    f.op(Instruction::I32Or);
+    f.global_get(Global::Aband);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::I32Eqz);
+    f.i32(ABANDONED);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Or);
+    f.op(Instruction::I32Store(mem(HEAP, F_FLAGS, 2)));
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(F_SAVED), 2)));
     f.i32(0);

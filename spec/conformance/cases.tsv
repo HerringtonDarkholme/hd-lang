@@ -1529,6 +1529,7 @@ runtime/valid/cancel-takes-over-exit-dispose.hd	runtime	accept	lang/11-requireme
 runtime/valid/cancel-cancelled-waiter.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.cancel.nested
 runtime/valid/cancel-cold-is-lazy.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.cancel.cold
 typing/invalid/cancel-cold-discarded.hd	type	reject:discarded-must-use-value	lang/11-requirements-and-suspension.md#r-req.cancel.cold.discard
+runtime/valid/abandon-cold-host-call.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.result
 runtime/valid/abandon-unwind-order.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.order
 runtime/valid/abandon-kills-waiting-dispose.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.dispose
 runtime/valid/host-cancel-waits-for-dispose.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.entry.cancel.wait
