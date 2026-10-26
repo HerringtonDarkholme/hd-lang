@@ -1,8 +1,8 @@
 # Replacing TIR: Five Directions
 
-Status: design exploration, 2026-10-21, for issue #667. Nothing here is
-decided, in the specification or in the compiler. It compares directions;
-the full design and a prototype follow once the owner picks one.
+Status: design exploration, 2026-10-21, for issue #667 (closed). The owner
+picked Direction 3, designed and built in [tir-v2.md](tir-v2.md); this
+document stays as the record of the alternatives.
 
 Under review: TIR ([crates/hd_tir/src/ir.rs](../../crates/hd_tir/src/ir.rs),
 [crates/hd_tir/DESIGN.md](../../crates/hd_tir/DESIGN.md) §4.13.11), the

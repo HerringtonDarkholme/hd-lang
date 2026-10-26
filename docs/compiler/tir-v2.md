@@ -1,7 +1,9 @@
 # TIR v2: Places And Explicit Ownership
 
-Status: detailed design, 2026-10-21, for issue #667. Stages 1 and 2 are
-implemented, and stage 3 through 3h (3i to 3k are stopped: the map stays in Rust, #180 closed).
+Status: detailed design, 2026-10-21, from issue #667 (closed 2026-10-26).
+Stages 1 and 2 are implemented, and stage 3 through 3h (3i to 3k are
+stopped: the map stays in Rust, #180 closed). The costs this design left
+open have their own issues: #857, #858, #859, #860, #861, #862.
 As-built notes are under [Commits](#commits). The owner chose Direction 3 of
 [tir-v2-directions.md](tir-v2-directions.md), which stays as the record
 of the alternatives. This document is the full design of that direction:
@@ -73,7 +75,7 @@ collector, never Wasm GC. A reference is one thin address. No
 whole-program or cross-function analysis (#702 and #703 stay held). No
 second copies of a callee for result demand (#681). Bounds-check
 elimination is separate (#711). The bit-0 tag on interior references
-(#704) is decided after stage 2; [Stage 2](#stage-2) says what places
+(#704) is parked (2026-10-26; the issue holds the discussion log); [Stage 2](#stage-2) says what places
 make cheaper. TIR v2 replaces TIR: the checker emits it, the emitter
 consumes it, and nothing sits between them. Compile time, memory,
 compiler size and cognitive load count as much as run time.
