@@ -422,10 +422,7 @@ fn callee(f: &mut Func) -> StageResult<()> {
     }
     let base = u32::try_from(np.len() - 1).expect("params");
     if let Some(names) = &mut f.local_names {
-        *names = std::mem::take(names)
-            .into_iter()
-            .map(|(l, n)| (to(l), n))
-            .collect();
+        *names = hd_base::btree_map(std::mem::take(names).into_iter().map(|(l, n)| (to(l), n)));
         names.insert(base, "args".to_owned());
     }
     let mut locals = if wp { params.clone() } else { Vec::new() };

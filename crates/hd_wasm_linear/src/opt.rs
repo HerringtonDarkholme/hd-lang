@@ -100,10 +100,10 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols) {
             }
         }
     }
-    let known: BTreeMap<Global, Write> = sets
-        .into_iter()
-        .filter_map(|(g, (n, at))| (n == 1).then_some(at).flatten().map(|at| (g, at)))
-        .collect();
+    let known = hd_base::btree_map(
+        sets.into_iter()
+            .filter_map(|(g, (n, at))| (n == 1).then_some(at).flatten().map(|at| (g, at))),
+    );
     if known.is_empty() {
         return;
     }
@@ -1739,11 +1739,12 @@ pub(crate) fn renumber(f: &mut Func) {
         }
     }
     if let Some(names) = &mut f.local_names {
-        *names = std::mem::take(names)
-            .into_iter()
-            .filter(|(l, _)| (*l as usize).checked_sub(np).is_none_or(|at| used[at]))
-            .map(|(l, n)| (to(l), n))
-            .collect();
+        *names = hd_base::btree_map(
+            std::mem::take(names)
+                .into_iter()
+                .filter(|(l, _)| (*l as usize).checked_sub(np).is_none_or(|at| used[at]))
+                .map(|(l, n)| (to(l), n)),
+        );
     }
     f.locals = kept;
 }

@@ -1577,7 +1577,7 @@ fn check_host_declarations(
     diags: &mut DiagBuf,
 ) {
     use hd_syntax::{SyntaxKind, TokenKind};
-    let packages: BTreeMap<_, _> = packages.iter().map(|p| (p.package, p)).collect();
+    let packages = hd_base::btree_map(packages.iter().map(|p| (p.package, p)));
     let mut found = BTreeSet::new();
     let mut declared = BTreeMap::new();
     for (m, module) in table.modules.iter().enumerate() {

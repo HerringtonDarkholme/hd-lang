@@ -16,7 +16,7 @@ pub mod wire;
 
 pub use append::{AppendVec, Col, Range32};
 pub use hash::{FixedState, HashMap, HashSet, set_hash_seed};
-pub use sort::SliceSort;
+pub use sort::{SliceSort, btree_map, btree_set};
 pub use stable::{StableHash, StableHasher};
 pub use unsupported::{NotImplemented, Stage, StageResult};
 

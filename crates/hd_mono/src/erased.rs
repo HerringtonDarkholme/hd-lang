@@ -507,8 +507,7 @@ impl WitnessCx {
         let mut out = Witnesses::default();
         // A call can reach a family no vtable of the program fills: its
         // witnesses have no fields.
-        let families: std::collections::BTreeSet<&Hash128> =
-            self.bodies.keys().chain(self.pairs.keys()).collect();
+        let families = hd_base::btree_set(self.bodies.keys().chain(self.pairs.keys()));
         for family in families {
             let mut keys: Vec<Hash128> = self
                 .bodies

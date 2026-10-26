@@ -855,7 +855,7 @@ impl Module {
         self.exports.push((name.into(), self.symbols.intern(s)));
     }
     pub fn retain_instances(&mut self, keys: &[Hash128]) {
-        let keys: BTreeSet<Hash128> = keys.iter().copied().collect();
+        let keys = hd_base::btree_set(keys.iter().copied());
         for (k, f) in self.funcs.iter().enumerate() {
             let id = SymId(u32::try_from(k).expect("symbols"));
             if f.is_some()
@@ -1229,13 +1229,11 @@ impl Module {
                 }
             }
         }
-        let imports: BTreeSet<Import> = import_ids
-            .iter()
-            .map(|id| match &*self.symbols.get(id) {
+        let imports =
+            hd_base::btree_set(import_ids.iter().map(|id| match &*self.symbols.get(id) {
                 Sym::Import(im) => im.clone(),
                 _ => unreachable!("import"),
-            })
-            .collect();
+            }));
         let mut index = Numbers::new();
         let mut next = 0u32;
         for im in &imports {
@@ -1305,11 +1303,12 @@ impl Module {
         }
         let static_end = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
         let heap_base = static_end.next_multiple_of(8);
-        let gindex: BTreeMap<Global, u32> = globals
-            .iter()
-            .enumerate()
-            .map(|(k, g)| (*g, u32::try_from(k).expect("globals")))
-            .collect();
+        let gindex = hd_base::btree_map(
+            globals
+                .iter()
+                .enumerate()
+                .map(|(k, g)| (*g, u32::try_from(k).expect("globals"))),
+        );
 
         let mut mapped_functions = Vec::new();
         let mut types = TypeSection::new();

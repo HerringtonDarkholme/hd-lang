@@ -16,11 +16,17 @@
 //! The compiler's sorts are short and few; checking and building a
 //! 10,000- or 50,000-line package took the same time within noise.
 //!
+//! `collect` into a `BTreeMap` or `BTreeSet` sorts its items with std's
+//! sort too, an instantiation per iterator type. `btree_map` and
+//! `btree_set` build them by insertion instead, which compiles to the
+//! map's own `insert`.
+//!
 //! Every method is stable. The `unstable` std methods map to them too: a
 //! stable order is one of the orders an unstable sort may produce, and it
 //! keeps output deterministic.
 
 use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Lengths up to this sort in place by insertion, without allocating.
 const SMALL: usize = 20;
@@ -63,6 +69,22 @@ impl<T> SliceSort<T> for [T] {
         let mut order = positions(self.len(), |a, b| keys[a as usize] < keys[b as usize]);
         permute(self, &mut order);
     }
+}
+
+/// `items` collected into a `BTreeMap` by insertion, without `collect`'s
+/// sort. A later item with an equal key replaces the earlier value, as
+/// with `collect`.
+pub fn btree_map<K: Ord, V>(items: impl IntoIterator<Item = (K, V)>) -> BTreeMap<K, V> {
+    let mut map = BTreeMap::new();
+    map.extend(items);
+    map
+}
+
+/// `items` collected into a `BTreeSet` by insertion, without `collect`'s sort.
+pub fn btree_set<T: Ord>(items: impl IntoIterator<Item = T>) -> BTreeSet<T> {
+    let mut set = BTreeSet::new();
+    set.extend(items);
+    set
 }
 
 fn sort_by_less<T>(v: &mut [T], mut less: impl FnMut(&T, &T) -> bool) {
@@ -171,6 +193,15 @@ mod tests {
                 assert_eq!(plain, std_plain, "plain n={n} range={range}");
             }
         }
+    }
+
+    #[test]
+    fn btree_builders_match_collect() {
+        let pairs: Vec<(u64, usize)> = numbers(200, 3, 40).into_iter().zip(0..).collect();
+        let expected: std::collections::BTreeMap<u64, usize> = pairs.iter().copied().collect();
+        assert_eq!(super::btree_map(pairs.iter().copied()), expected);
+        let keys: std::collections::BTreeSet<u64> = pairs.iter().map(|p| p.0).collect();
+        assert_eq!(super::btree_set(pairs.iter().map(|p| p.0)), keys);
     }
 
     #[test]
