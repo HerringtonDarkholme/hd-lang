@@ -115,13 +115,17 @@ impl Console for MemoryConsole:
 ## Writes `value`'s `Display` text and a line ending to the `Console` provider that covers the call; it panics when the write fails.
 ## See [module.console.println-one-write](../../spec/lang/10-modules.md#r-module.console.println-one-write).
 pub fn println[T < Display](value: T) -> void $ Console:
-    let mut console = $.use(Console)
-    let call: mut Suspend[Result[void, ConsoleError]] = console.write("$value\n")
+    let console: &mut dyn Console = $.use(Console)
+    if println_write(console, value.to_string()):
+        _ := println_write(console, "\n")
+
+fn println_write(console: &mut dyn Console, text: string) -> bool:
+    let call: mut Suspend[Result[void, ConsoleError]] = console.write(text)
     match block_on(call):
-        .Completed(.Ok(())) => pass
+        .Completed(.Ok(())) => true
         .Completed(.Err(_)) => panic("println: write! returned .Err(ConsoleError)")
-        .Cancelled => pass
-        .Abandoned => pass
+        .Cancelled => false
+        .Abandoned => false
 
 ## Writes Display text without a newline and drives the covering Console write to completion.
 ## See [std-console.print.decl](../../spec/std/console.md#r-std-console.print.decl).
