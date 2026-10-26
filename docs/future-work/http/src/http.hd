@@ -4,6 +4,7 @@
 use std.convert.From
 use std.hash.{Hash, Hasher}
 use std.task.TimedOut
+use std.text.Parse
 use std.json.JsonError
 use std.serde.{Deserialize, Serialize}
 use std.time.{Duration, Timestamp}
@@ -70,8 +71,12 @@ pub enum HeaderName:
 impl HeaderName:
     ## The lowercase name sent on the wire.
     pub fn wire_name(&self) -> string: panic("todo")
-    ## Any case; a known name gives its variant, never `Other`.
-    pub fn parse(name: string) -> HeaderName: panic("todo")
+
+## `"content-type".parse::[HeaderName]()` gives `.ContentType` in any case,
+## never `Other`; text that is not an RFC 9110 token is `InvalidName`.
+impl Parse for HeaderName:
+    type Error = HeaderError
+    fn parse(text: string) -> Result[HeaderName, HeaderError]: panic("todo")
 
 impl Eq for HeaderName:
     fn eq(self, other: HeaderName) -> bool: panic("todo")
@@ -86,9 +91,9 @@ pub struct Headers:
 
 impl Headers:
     pub fn new() -> Headers: panic("todo")
-    ## The first value of `name`.
+    ## Every value of `name`, joined with ", " as RFC 9110 §5.3 allows;
+    ## Set-Cookie lines are read with Response.cookies().
     pub fn get(&self, name: HeaderName) -> string?: panic("todo")
-    pub fn get_all(&self, name: HeaderName) -> List[string]: panic("todo")
     ## Replaces every value of `name`. A list-valued header takes one
     ## comma-separated value (RFC 9110 §5.3); Set-Cookie lines come from set_cookie.
     pub fn set(&mut self, name: HeaderName, value: string) -> void: panic("todo")
