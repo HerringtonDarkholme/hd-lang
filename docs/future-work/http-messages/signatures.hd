@@ -2,6 +2,8 @@
 # Bodies are `panic("todo")`; `hd check` this file to check the shapes.
 
 use std.convert.From
+use std.hash.{Hash, Hasher}
+use std.task.TimedOut
 use std.json.JsonError
 use std.serde.{Deserialize, Serialize}
 use std.time.{Duration, Timestamp}
@@ -9,6 +11,7 @@ use std.time.{Duration, Timestamp}
 # ---- Status and header names ----------------------------------------
 
 ## An HTTP status; known codes are variants, any other code is `Other`.
+@derive(Debug)
 pub enum HttpStatus:
     Ok
     Created
@@ -36,7 +39,15 @@ impl HttpStatus:
     ## 200 to 299.
     pub fn is_success(&self) -> bool: panic("todo")
 
+## Equal when the codes are equal: `.Other(404) == .NotFound`.
+impl Eq for HttpStatus:
+    fn eq(self, other: HttpStatus) -> bool: panic("todo")
+
+impl Hash for HttpStatus:
+    fn hash(self, state: &mut dyn Hasher) -> void: panic("todo")
+
 ## A header name; compared and hashed by its lowercase wire name.
+@derive(Debug)
 pub enum HeaderName:
     Accept
     Authorization
@@ -57,9 +68,19 @@ pub enum HeaderName:
     Other(name: string)
 
 impl HeaderName:
+    ## The lowercase name sent on the wire.
     pub fn wire_name(&self) -> string: panic("todo")
+    ## Any case; a known name gives its variant, never `Other`.
+    pub fn parse(name: string) -> HeaderName: panic("todo")
+
+impl Eq for HeaderName:
+    fn eq(self, other: HeaderName) -> bool: panic("todo")
+
+impl Hash for HeaderName:
+    fn hash(self, state: &mut dyn Hasher) -> void: panic("todo")
 
 ## Ordered name/value pairs; a name may repeat. Checked only when sent.
+@derive(Debug, Eq)
 pub struct Headers:
     pairs: List[(HeaderName, string)]
 
@@ -83,22 +104,30 @@ impl From[Map[string, string]] for Headers:
 
 # ---- URL --------------------------------------------------------------
 
+@derive(Debug, Eq)
 pub struct Url:
     text: string
 
 impl Url:
     pub fn parse(text: string) -> Result[Url, UrlError]: panic("todo")
+    pub fn scheme(&self) -> string: panic("todo")
+    pub fn host(&self) -> string: panic("todo")
+    pub fn port(&self) -> u16?: panic("todo")
     pub fn path(&self) -> string: panic("todo")
     ## The first value of a query key, percent-decoded.
     pub fn query(&self, name: string) -> string?: panic("todo")
     pub fn query_all(&self, name: string) -> List[string]: panic("todo")
     pub fn add_query[T < Display](&mut self, name: string, value: T) -> void: panic("todo")
     pub fn resolve(&self, reference: string) -> Result[Url, UrlError]: panic("todo")
-    pub fn to_string(&self) -> string: panic("todo")
+
+## The URL text as written.
+impl Display for Url:
+    fn to_string(self) -> string: panic("todo")
 
 # ---- Body -------------------------------------------------------------
 
-## A body read once: a second read is `BodyError.Used`.
+## A body read once: a second read is `BodyError.Used`. Equal and printed by its bytes.
+@derive(Debug, Eq)
 pub struct Body:
     bytes: List[u8]
     used: bool
@@ -110,12 +139,14 @@ impl Body:
 
 # ---- Cookies ----------------------------------------------------------
 
+@derive(Debug, Eq)
 pub enum SameSite:
     Strict
     Lax
     None
 
 ## A Set-Cookie value. The defaults are the secure ones.
+@derive(Debug, Eq)
 pub struct Cookie:
     pub name: string
     pub value: string
@@ -134,6 +165,7 @@ impl Cookie:
 # ---- Request ----------------------------------------------------------
 
 ## The same type in both directions: `set_*` writes, plain names read.
+@derive(Debug, Eq)
 pub struct Request:
     pub method: Method = .Get
     pub url: Url
@@ -160,9 +192,10 @@ impl Request:
 
     # Readers: the body ones consume the shared body once.
     pub fn json[T < Deserialize](&self) -> Result[T, BodyError]: panic("todo")
+    ## Invalid UTF-8 is replaced with U+FFFD.
     pub fn text(&self) -> Result[string, BodyError]: panic("todo")
     pub fn bytes(&self) -> Result[List[u8], BodyError]: panic("todo")
-    pub fn form[T < Deserialize](&self) -> Result[T, FormError]: panic("todo")
+    pub fn form[T < Deserialize](&self) -> Result[T, BodyError]: panic("todo")
     ## The whole query decoded, same rules as form.
     pub fn query[T < Deserialize](&self) -> Result[T, FormError]: panic("todo")
     pub fn header(&self, name: HeaderName) -> string?: panic("todo")
@@ -174,6 +207,7 @@ impl Request:
 
 # ---- Response ---------------------------------------------------------
 
+@derive(Debug, Eq)
 pub struct Response:
     pub status: HttpStatus = .Ok
     pub headers: Headers = Headers::new()
@@ -192,12 +226,14 @@ impl Response:
     pub fn set_cookie(mut self, cookie: Cookie) -> Response: panic("todo")
 
     pub fn json[T < Deserialize](&self) -> Result[T, BodyError]: panic("todo")
+    ## Invalid UTF-8 is replaced with U+FFFD.
     pub fn text(&self) -> Result[string, BodyError]: panic("todo")
     pub fn bytes(&self) -> Result[List[u8], BodyError]: panic("todo")
     pub fn header(&self, name: HeaderName) -> string?: panic("todo")
     ## Every Set-Cookie line, parsed.
     pub fn cookies(&self) -> List[Cookie]: panic("todo")
-    ## `.Err(HttpError.Status(..))` unless the status is 2xx; does not read the body.
+    ## A 400–599 status is `.Err(HttpError.Status(response))`, which keeps the
+    ## whole response so its error body can still be read.
     pub fn ok(&self) -> Result[Response, HttpError]: panic("todo")
 
 # ---- Provider and helpers -----------------------------------------------
@@ -213,6 +249,7 @@ pub fn post![T < Serialize](url: string, value: T) -> Result[Response, HttpError
 
 # ---- Errors -------------------------------------------------------------
 
+@derive(Debug, Eq)
 pub enum Method:
     Get
     Head
@@ -223,33 +260,78 @@ pub enum Method:
     Options
     Other(name: string)
 
+@error
+@derive(Debug, Eq)
 pub enum BodyError:
+    @error("the body was already read")
     Used
+    @error("invalid JSON body: $error")
     Json(error: JsonError)
+    @error("invalid form body: $error")
+    Form(error: FormError)
 
+@error
+@derive(Debug, Eq)
 pub enum FormError:
     ## A nested struct deeper than one bracket level, a list of structs, or a map.
+    @error("field ${field} has no form encoding")
     Unsupported(field: string)
+    @error("missing field ${field}")
     Missing(field: string)
+    @error("field ${field}: cannot read ${text}")
     Invalid(field: string, text: string)
 
+@error
+@derive(Debug, Eq)
 pub enum HeaderError:
+    @error("invalid header name ${name}")
     InvalidName(name: string)
+    @error("invalid value for header ${name}")
     InvalidValue(name: string)
 
+@error
+@derive(Debug, Eq)
 pub enum UrlError:
+    @error("invalid URL: ${text}")
     Invalid(text: string)
+    @error("relative URL without a base: ${text}")
     RelativeWithoutBase(text: string)
 
+@error
+@derive(Debug, Eq)
 pub enum HttpError:
+    @error("http access to ${host} is not granted")
     NotGranted(host: string)
+    @error("invalid URL: ${url}")
     InvalidUrl(url: string)
+    @error("invalid header ${name}")
     InvalidHeader(name: string)
+    @error("cannot resolve host ${host}")
     Dns(host: string)
+    @error("$message")
     Connect(message: string)
+    @error("TLS failed: ${message}")
     Tls(message: string)
+    @error("the request timed out")
     Timeout
+    @error("too many redirects; the last went to ${url}")
     TooManyRedirects(url: string)
-    Status(status: HttpStatus)
+    ## A 400–599 response from ok(), kept whole.
+    @error("HTTP status ${response.status.code()}")
+    Status(response: Response)
+    ## A body that could not be encoded when sent.
+    @error("$error")
     Body(error: BodyError)
+    @error("$message")
     Other(message: string)
+
+impl HttpError:
+    ## A timeout, a connection failure, or status 408, 429, 500, 502, 503 or 504.
+    pub fn is_transient(&self) -> bool: panic("todo")
+
+## A composed deadline has the same error as the operation it bounds.
+impl From[TimedOut] for HttpError:
+    fn from(error: TimedOut) -> HttpError: panic("todo")
+
+impl From[BodyError] for HttpError:
+    fn from(error: BodyError) -> HttpError: panic("todo")
