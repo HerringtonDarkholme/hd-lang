@@ -1,0 +1,17 @@
+hd> use std.random.fill
+hd> use std.fs.write_text
+hd> use std.path.Path
+hd> let count = 0
+hd> old_revision := revision()
+hd> _ := fill(64 * 1024 * 1024).len()
+hd> count = count + 1
+hd> count
+1 : usize
+hd> _ := write_text!(Path("src/lib.hd"), "fn revision() -> usize: 2\n").expect("update package")
+hd> :reload
+hd> revision()
+2 : usize
+hd> old_revision
+2 : usize
+hd> count
+1 : usize

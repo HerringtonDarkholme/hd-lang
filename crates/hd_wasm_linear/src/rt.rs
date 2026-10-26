@@ -1030,7 +1030,7 @@ fn teardown(m: &Module) -> Func {
         for (k, (v, l)) in s.vals.iter().zip(&ls).enumerate() {
             let g = Global::Storage(*h, u32::try_from(k).expect("k"), *v);
             if let Some((at, leaves)) = &s.slot {
-                f.u32(*at);
+                f.address(*at);
                 f.op(leaves[k].load(0));
             } else {
                 f.global_get(g);
@@ -1054,7 +1054,7 @@ fn teardown(m: &Module) -> Func {
         for (k, v) in s.vals.iter().enumerate() {
             let g = Global::Storage(*h, u32::try_from(k).expect("k"), *v);
             if let Some((at, leaves)) = &s.slot {
-                f.u32(*at);
+                f.address(*at);
                 crate::task::zero(&mut f, *v);
                 f.op(leaves[k].store(0));
             } else {
@@ -1330,7 +1330,7 @@ fn dyn_read(
 /// Writes the literal `text` to standard error.
 fn write_lit(f: &mut Func, m: &mut Module, text: &str) {
     let at = m.static_bytes(text.as_bytes(), 1);
-    f.u32(at);
+    f.static_addr(at);
     f.u32(u32::try_from(text.len()).expect("literal"));
     f.helper(Helper::ToBuf);
     f.call(rt_import("stderr", &[Val::I32], &[]));
@@ -2931,7 +2931,7 @@ fn each_elem(f: &mut Func, at: u32, n: u32, size: u32, body: &dyn Fn(&mut Func))
 fn type_id(parts: &TypeIdParts, params: Vec<Val>, m: &mut Module) -> Func {
     let mut f = m.func("rt:type_id", params, vec![Val::I32; 4]);
     for text in [&parts.name, &parts.shown] {
-        f.u32(m.static_bytes(text.as_bytes(), 1));
+        f.static_addr(m.static_bytes(text.as_bytes(), 1));
         f.u32(u32::try_from(text.len()).expect("type name"));
     }
     f

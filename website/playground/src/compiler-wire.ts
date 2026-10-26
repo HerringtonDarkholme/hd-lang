@@ -22,6 +22,7 @@ export const GOAL = {
   replStart: 4,
   replInput: 5,
   replOutcome: 6,
+  replRebuildInput: 7,
 } as const;
 /**
  * The outcome byte of a `replOutcome` request: the module ended with status
@@ -169,6 +170,14 @@ export function encodeReplInput(text: string, number?: number): Uint8Array {
   const out = header({}, "", GOAL.replInput);
   string(out, text);
   if (number !== undefined) leb(out, number);
+  return Uint8Array.from(out);
+}
+
+/** Build a whole initialized-base candidate for historical replay. */
+export function encodeReplRebuildInput(text: string, number: number): Uint8Array {
+  const out = header({}, "", GOAL.replRebuildInput);
+  string(out, text);
+  leb(out, number);
   return Uint8Array.from(out);
 }
 

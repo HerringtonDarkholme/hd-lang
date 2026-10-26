@@ -19,6 +19,8 @@ use crate::report::quote;
 /// The JS host's platform-neutral core: the import object and the entry
 /// driver.
 const CORE: &str = include_str!("../../../host/core.mjs");
+/// The initialized REPL session and checkpoint lifecycle imported by the core.
+const SESSION: &str = include_str!("../../../host/session.mjs");
 /// The checked descriptor report imported by the shared core.
 const CHECKED_REPORT: &str = include_str!("../../../host/checked-report.mjs");
 /// The JS host's Node layer: the providers that touch the machine.
@@ -241,6 +243,7 @@ impl Scratch {
         std::fs::create_dir_all(s.0.join("gen")).map_err(|e| format!("{}: {e}", s.0.display()))?;
         for (name, text) in [
             ("core.mjs", CORE),
+            ("session.mjs", SESSION),
             ("checked-report.mjs", CHECKED_REPORT),
             ("node.mjs", NODE),
             ("run.mjs", RUN),

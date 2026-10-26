@@ -15,6 +15,7 @@
 //! | 4 | repl start | the files the session acts in (its package); entry empty | none |
 //! | 5 | repl input | none; entry empty | the input's text (a string), then optionally its number |
 //! | 6 | repl outcome | none; entry empty | the module's number, then one outcome byte |
+//! | 7 | repl rebuild input | none; entry empty | the input's text, then its number; builds a whole linked base |
 //!
 //! Goal 3 compiles as goal 0 does, then prints the program as WebAssembly
 //! text with `wasmprinter`; the text is output kind 2 (`hd_output(2)`),
@@ -33,17 +34,20 @@
 //!
 //! - Repl start drops any earlier REPL session and starts a new one over
 //!   the files; it builds nothing and answers input 0 with no bytes. Repl
-//!   input builds the session program of the next input, `repl#N`: every
-//!   kept input and this one in one module, input K running from its
-//!   exports `hd.init.K` and `hd.poll.K`. N is the number the request
+//!   input builds the next input, `repl#N`, as a base or an extension
+//!   importing the completed inputs' initialized storage. It runs from
+//!   exports `hd.init.N` and `hd.poll.N`. N is the number the request
 //!   gives, which must be greater than every input's before it, or else
 //!   one more than the last input's; a host that rebuilds a session
-//!   builds its kept inputs again under their old numbers. Both answer
+//!   builds its kept inputs again under their old numbers with repl
+//!   rebuild input, producing a whole linked base for historical replay.
+//!   Both input goals answer
 //!   `{"diagnostics":[...],"input":N}` and the module in the bytes (output
 //!   kind 1), or no bytes and status 1 when it does not build; such an
 //!   input is dropped at once.
-//! - The host runs a module that built, replaying the kept inputs from its
-//!   journal before input N (host/core.mjs `createSession`), then reports
+//! - The host runs an ordinary input against initialized storage, or
+//!   replays history into a rebuilt base (host/core.mjs `createSession`),
+//!   then reports
 //!   how input N ended with repl outcome: outcome byte 0 when it ended
 //!   with status 0, so it joins the session; 1 when it did not run or was
 //!   stopped or cancelled, so it is dropped; 2 when it panicked or ended
@@ -91,6 +95,8 @@ pub enum Action {
     ReplInput { text: String, number: Option<u32> },
     /// Goal byte 6: how input `input` ended.
     ReplOutcome { input: u32, outcome: ReplOutcome },
+    /// Goal byte 7: a whole linked base for a recorded input's replay.
+    ReplRebuildInput { text: String, number: u32 },
 }
 
 /// Why a request did not decode.
@@ -122,6 +128,9 @@ pub fn respond(session: &mut Session, request: &[u8]) -> Response {
             text,
             number: Some(number),
         } => repl_build(session.repl_input_as(number, &text)),
+        Action::ReplRebuildInput { text, number } => {
+            repl_build(session.repl_rebuild_input_as(number, &text))
+        }
         Action::ReplOutcome { input, outcome } => match session.repl_outcome(input, outcome) {
             Ok(()) => Response {
                 status: STATUS_OK,
@@ -245,6 +254,12 @@ pub fn decode_request(bytes: &[u8]) -> Result<Request, WireError> {
                 )
             };
             Action::ReplInput { text, number }
+        }
+        7 => {
+            let text = r.string()?;
+            let number =
+                u32::try_from(r.leb()?).map_err(|_| WireError("number does not fit 32 bits"))?;
+            Action::ReplRebuildInput { text, number }
         }
         6 => {
             let input =
@@ -500,7 +515,7 @@ mod tests {
             Err(WireError("bytes after the request's last field"))
         );
         let mut goal = good.clone();
-        *goal.last_mut().unwrap() = 7;
+        *goal.last_mut().unwrap() = 255;
         assert_eq!(decode_request(&goal), Err(WireError("unknown goal byte")));
         // A count past 32 bits, a length past the end, and bad UTF-8.
         assert!(decode_request(&[0xff, 0xff, 0xff, 0xff, 0x7f]).is_err());
@@ -654,6 +669,16 @@ mod tests {
             Action::ReplOutcome {
                 input: 300,
                 outcome: ReplOutcome::Dropped
+            }
+        );
+        let mut rebuilt = request(&[], "", 7);
+        string(&mut rebuilt, "count = count + 1\n");
+        leb(&mut rebuilt, 300);
+        assert_eq!(
+            decode_request(&rebuilt).unwrap().action,
+            Action::ReplRebuildInput {
+                text: "count = count + 1\n".into(),
+                number: 300
             }
         );
         let bad = |bytes: &[u8]| decode_request(bytes).unwrap_err().0;

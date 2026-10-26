@@ -201,6 +201,7 @@ manifest-invalid-tables	cli.manifest.invalid,cli.manifest.invalid.cases,cli.exe.
 manifest-invalid-syntax	cli.manifest.invalid.syntax,cli.manifest.invalid,cli.json.diagnostic.fields,cli.exit.hd-failure
 repl-value	cli.repl.script,cli.repl.script.lines,cli.repl.script.echo,cli.repl.value,cli.repl.value.stream,cli.repl.input-types
 repl-value-stream	cli.repl.script.output,cli.repl.value.stream,cli.dbg.repl
+repl-checkpoint	cli.repl.checkpoint.continue,cli.repl.checkpoint.initialized,cli.repl.checkpoint.effects,cli.repl.checkpoint.history
 repl-declarations	cli.repl.declarations.bindings,cli.repl.redeclare.binding,cli.repl.redeclare.type
 repl-member	cli.repl.declarations.bindings,cli.repl.value
 repl-bang	cli.repl.input.driver,cli.repl.host.cwd,cli.repl.host.default-profile

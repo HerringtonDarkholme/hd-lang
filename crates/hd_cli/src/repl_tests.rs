@@ -200,7 +200,14 @@ fn a_session_builds_for_wasmtime_in_the_dev_pipeline() {
     program
         .sources
         .add_synthetic(&hd_project::repl_file(1), "x := +1\n");
-    let (wasm, diags) = super::build_session(&program, &store, &[], 1, super::PIPELINE.target);
+    let (wasm, _, diags) = super::build_session(
+        &program,
+        &store,
+        &[],
+        1,
+        super::PIPELINE.target,
+        &hd_driver::Session::linked(),
+    );
     assert!(wasm.is_some(), "{diags:?}");
     assert_eq!(crate::take_built(), [pipeline]);
 }
@@ -461,29 +468,37 @@ impl[T] Columns2 for T by Structure:
         w.out
 "#
     );
-    let dir = package("repl-late-member-facts", &[("src/lib.hd", &lib)]);
-    let script = Script::of(&[
-        "use std.structure.Structure",
-        "struct Row:",
-        "    id: i32",
-        "    total: i32",
-        "",
-        "impl Columns for Row by Structure",
-        "Row { id: +1, total: +2 }.columns()",
-        "impl Row by Structure:",
-        "    total += [column(\"sum_total\")]",
-        "",
-        "impl Columns2 for Row by Structure",
-        "Row { id: +1, total: +2 }.columns2()",
-        "Row { id: +1, total: +2 }.columns()",
-    ]);
-    let t = session_in(&dir, script, |_| {});
-    assert_eq!(
-        t.out,
-        "\"id/0;total/0;\" : string\n\
+    for kind in [
+        crate::engine::EngineKind::Node,
+        crate::engine::EngineKind::Wasmtime,
+    ] {
+        let dir = package(
+            &format!("repl-late-member-facts-{}", unique()),
+            &[("src/lib.hd", &lib)],
+        );
+        let script = Script::of(&[
+            "use std.structure.Structure",
+            "struct Row:",
+            "    id: i32",
+            "    total: i32",
+            "",
+            "impl Columns for Row by Structure",
+            "Row { id: +1, total: +2 }.columns()",
+            "impl Row by Structure:",
+            "    total += [column(\"sum_total\")]",
+            "",
+            "impl Columns2 for Row by Structure",
+            "Row { id: +1, total: +2 }.columns2()",
+            "Row { id: +1, total: +2 }.columns()",
+        ]);
+        let t = session_on(kind, &dir, script, |_| {}, None, Bounds::default(), None);
+        assert_eq!(
+            t.out,
+            "\"id/0;total/0;\" : string\n\
          \"id/0;sum_total/1;\" : string\n\
          \"id/0;total/0;\" : string\n"
-    );
+        );
+    }
 }
 
 /// `cli.repl.rebuild`: after `:reload` builds every input again from its
@@ -919,33 +934,39 @@ fn diagnostics_name_the_input_and_line() {
     );
 }
 
-/// Past its journal's cap the REPL says once, after the input that passed
-/// it, that the session can run no further input, since every input
-/// replays the journal (`docs/future-work/live-execution.md` §4.6); each
-/// later input and `:reload` is refused. The cap here is 200 bytes.
+/// A small active journal compacts rather than refusing the next input.
+/// Reload still has the historical evidence and can accept an extension.
 #[test]
-fn a_full_journal_is_noted_once() {
-    let dir = Scratch::new(SCRATCH, &format!("repl-journal-{}", unique()));
-    let script = Script::of(&[
-        "use std.time.{now}",
-        "a := now()",
-        "b := now()",
-        "c := now()",
-        "d := now()",
-        "+7",
-        ":reload",
-    ]);
-    let bounds = Bounds { journal_cap: 200 };
-    let t = session_with(&dir, script, |_| {}, None, bounds);
-    let lines: Vec<&str> = t.out.lines().collect();
-    assert_eq!(lines.first(), Some(&super::JOURNAL_FULL), "{}", t.out);
-    let refused = &lines[1..lines.len() - 1];
-    assert!(!refused.is_empty(), "{}", t.out);
-    assert!(refused.iter().all(|l| *l == super::NO_JOURNAL), "{}", t.out);
-    assert_eq!(
-        lines.last(),
-        Some(&"error: the session's record of host calls is full, so it cannot be rebuilt")
-    );
+fn a_full_journal_checkpoints_and_keeps_accepting_inputs() {
+    for kind in [
+        crate::engine::EngineKind::Node,
+        crate::engine::EngineKind::Wasmtime,
+    ] {
+        let dir = Scratch::new(SCRATCH, &format!("repl-journal-{}", unique()));
+        let script = Script::of(&[
+            "use std.time.{now}",
+            "a := now()",
+            "b := now()",
+            "c := now()",
+            "d := now()",
+            "+7",
+            ":reload",
+            "a == a",
+        ]);
+        let t = session_on(
+            kind,
+            &dir,
+            script,
+            |_| {},
+            None,
+            Bounds { journal_cap: 200 },
+            None,
+        );
+        assert_eq!(
+            t.out, "7 : i32\nreloaded: 6 inputs replayed\ntrue : bool\n",
+            "{kind:?}"
+        );
+    }
 }
 
 /// `cli.repl.rebuild` and `cli.repl.host.once`: `:reload` runs the inputs
@@ -1240,12 +1261,13 @@ fn long_session(mix: bool) {
                 let file = hd_project::repl_file(repl.next);
                 repl.program.sources.add_synthetic(&file, &text);
                 let start = Instant::now();
-                let (wasm, diags) = super::build_session(
+                let (wasm, added, diags) = super::build_session(
                     &repl.program,
                     &repl.store,
                     &[],
                     repl.next,
                     super::PIPELINE.target,
+                    &repl.metadata,
                 );
                 let build = start.elapsed().as_secs_f64();
                 let wasm = wasm.unwrap_or_else(|| panic!("input {index} {text:?}: {diags:?}"));
@@ -1258,6 +1280,7 @@ fn long_session(mix: bool) {
                     matches!(ran, Ok(super::Ran { live: Some((Outcome::Exit(0), _)), .. })),
                     "input {index}"
                 );
+                repl.metadata.add(added.expect("completed input metadata"));
                 repl.inputs.insert(
                     repl.next,
                     super::Kept {

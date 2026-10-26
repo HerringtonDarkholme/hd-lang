@@ -1165,6 +1165,11 @@ export async function driveNodeSession() {
             );
             break;
           }
+          case "clear":
+            session.clear();
+            recording = true;
+            send("cleared");
+            break;
           case "close":
             return;
           default:

@@ -1855,6 +1855,9 @@ pub struct Session {
     /// inputs before it and reading the store, so it does not redo the
     /// session's earlier inputs (`f1c55020:future-work/compiler/repl-plan.md` §4).
     inputs: BTreeMap<u32, InputEntries>,
+    /// Private linking ABI for initialized REPL modules; absent for a
+    /// whole-history rebuild used by older callers and replay recovery.
+    linked: Option<hd_wasm_linear::Session>,
 }
 
 /// A validated cache payload that retains the store's backing allocation.
@@ -1923,9 +1926,21 @@ impl Session {
         Session::default()
     }
 
+    /// Starts compilation of initialized base/extension REPL modules.
+    #[must_use]
+    pub fn linked() -> Session {
+        Session {
+            linked: Some(hd_wasm_linear::Session::default()),
+            ..Session::default()
+        }
+    }
+
     /// Adds cached source/check entries from an input.
     pub fn add(&mut self, added: Session) {
         self.inputs.extend(added.inputs);
+        if added.linked.is_some() {
+            self.linked = added.linked;
+        }
     }
 }
 
@@ -9461,10 +9476,12 @@ impl Run<'_> {
         };
         let inits = &c.collected.inits;
         let entry = match &c.roots {
-            // A linear module owns its memory, so it links to no earlier
-            // module: a session is one module of all its inputs
-            // ([`Packages::inputs_from`]) over a session with no module.
-            _ if self.session.is_some_and(|s| *s != Session::start()) => {
+            // Legacy whole-history sessions own their memory. Only the
+            // initialized linking ABI can import earlier modules.
+            _ if self
+                .session
+                .is_some_and(|s| s.linked.is_none() && *s != Session::start()) =>
+            {
                 hd_wasm_linear::Entry::Unsupported("a REPL input over earlier modules")
             }
             Roots::Fixture(roots) => hd_wasm_linear::Entry::Fixture {
@@ -9633,7 +9650,21 @@ impl Run<'_> {
             host_refs: &c.host_refs,
             own_cx: &env,
         };
-        let built = if self.map_instructions {
+        let linked = self.session.and_then(|s| s.linked.as_ref());
+        let built = if let Some(previous) = linked {
+            let built = if previous.is_empty() {
+                hd_wasm_linear::build_session_base(&input)
+            } else {
+                hd_wasm_linear::build_session_extension(&input, previous)
+            };
+            built.map(|(wasm, linked)| {
+                let _ = self.session_added.set(Session {
+                    linked: Some(linked),
+                    ..Session::default()
+                });
+                wasm
+            })
+        } else if self.map_instructions {
             hd_wasm_linear::build_with_origins(&input).map(|mapped| {
                 let _ = self.instruction_origins.set(mapped.functions);
                 mapped.wasm
@@ -9644,7 +9675,10 @@ impl Run<'_> {
         let Some(wasm) = self.stage(Stage::Link, built) else {
             return;
         };
-        if !self.map_instructions && !matches!(self.goal, Goal::Fixture { .. }) {
+        if !self.map_instructions
+            && self.session.is_none()
+            && !matches!(self.goal, Goal::Fixture { .. })
+        {
             self.put(EntryKind::Link, c.prog_key, &[&wasm]);
         }
         let _ = self.wasm.set(wasm);

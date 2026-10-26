@@ -1321,7 +1321,7 @@ impl Em<'_, '_, '_> {
                 return unsupported("a component a constant does not have");
             };
             for op in ops {
-                self.f.op(op);
+                self.f.push(op);
             }
             return Ok(());
         }
@@ -1335,7 +1335,7 @@ impl Em<'_, '_, '_> {
     /// Pushes constant `r`.
     fn konst(&mut self, r: u32) -> StageResult<()> {
         for op in self.konst_ops(r)?.into_iter().flatten() {
-            self.f.op(op);
+            self.f.push(op);
         }
         Ok(())
     }
@@ -1362,7 +1362,7 @@ impl Em<'_, '_, '_> {
     /// Constant `r`'s values, each as the instructions that push it: a
     /// string's bytes are static data, and the string is their address
     /// and length.
-    fn konst_ops(&mut self, r: u32) -> StageResult<Vec<Vec<Instruction>>> {
+    fn konst_ops(&mut self, r: u32) -> StageResult<Vec<Vec<Ins>>> {
         let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
         let ty = self.sub(ty);
         let stripped = hd_mono::layout::strip_newtype(self.pool(), self.env(), ty);
@@ -1377,12 +1377,12 @@ impl Em<'_, '_, '_> {
             self.f.mark_static(at);
             let len = u32::try_from(text.len()).expect("string constant");
             return Ok(vec![
-                vec![I::I32Const(at.cast_signed())],
-                vec![I::I32Const(len.cast_signed())],
+                vec![Ins::Static(at)],
+                vec![Ins::Op(I::I32Const(len.cast_signed()))],
             ]);
         }
         let low = u32::try_from(bits & 0xffff_ffff).expect("low bits");
-        Ok(match self.vals(ty)?.as_slice() {
+        let ops = match self.vals(ty)?.as_slice() {
             [] => vec![],
             [Val::I32] => vec![vec![I::I32Const(low.cast_signed())]],
             [Val::I64] => vec![vec![I::I64Const(bits.cast_signed())]],
@@ -1394,7 +1394,11 @@ impl Em<'_, '_, '_> {
             ]],
             [Val::F64] => vec![vec![I::F64Const(wasm_encoder::Ieee64::new(bits))]],
             _ => return unsupported(format!("a constant of type `{}`", self.pool().display(ty))),
-        })
+        };
+        Ok(ops
+            .into_iter()
+            .map(|ops| ops.into_iter().map(Ins::Op).collect())
+            .collect())
     }
 
     /// Instruction `i`'s locals, made on first use.
@@ -3095,12 +3099,14 @@ impl Em<'_, '_, '_> {
                 let no = self.m.static_bytes(b"false", 1);
                 self.f.mark_static(yes);
                 self.f.mark_static(no);
-                for (a, b) in [(yes, no), (4, 5)] {
-                    self.f.u32(a);
-                    self.f.u32(b);
-                    self.comp(args[0], 0)?;
-                    self.f.op(I::Select);
-                }
+                self.f.static_addr(yes);
+                self.f.static_addr(no);
+                self.comp(args[0], 0)?;
+                self.f.op(I::Select);
+                self.f.u32(4);
+                self.f.u32(5);
+                self.comp(args[0], 0)?;
+                self.f.op(I::Select);
                 self.store(i)
             }
             "to_string" if t == Ty::STRING => {

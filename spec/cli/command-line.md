@@ -1638,6 +1638,10 @@ hd> count = count + 1                          # a `let` binding is assigned, no
 1. r[cli.repl.rebuild] An implementation may rebuild a session by running its inputs again in order, with each host call's result served from a record of the first run. A rebuild repeats no host call.
 2. r[cli.repl.rebuild.prefix] A rebuild keeps the longest prefix of inputs that still check and make the same host calls as before. The first input that does not, and every later input, is dropped, and the REPL reports the first one.
 3. r[cli.repl.rebuild.stopped] A rebuild skips an input that was stopped, so that input's changes to earlier values may be lost. The REPL reports each stopped input that a rebuild skipped.
+4. r[cli.repl.checkpoint.continue] When the active host-call record exceeds its limit, the REPL checkpoints completed inputs and continues accepting inputs.
+5. r[cli.repl.checkpoint.initialized] Later inputs import the checkpoint's initialized bindings and code without executing the checkpointed inputs again.
+6. r[cli.repl.checkpoint.effects] Creating or restoring a checkpoint repeats no host call.
+7. r[cli.repl.checkpoint.history] The REPL retains the recorded host results needed to rebuild checkpointed inputs by [`cli.repl.rebuild.prefix`](#r-cli.repl.rebuild.prefix).
 
 > **Note.** A browser session is rebuilt after a Stop of a busy input or
 > a page reload, and a session is rebuilt after its package's files

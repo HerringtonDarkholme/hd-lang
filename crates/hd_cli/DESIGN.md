@@ -229,21 +229,21 @@ on wasmtime only.
    (`WasmtimeSession`, or the Node session). The main thread reads
    inputs and, on Ctrl-C, stops an input that computes or cancels one
    that waits on the host (`cli.repl.stop`, `cli.repl.cancel`).
-4. Each input builds the session program: every kept input and the new
-   one as one linear module (`Packages::inputs_from`), input N running
-   from its exports `hd.init.N` and `hd.poll.N`. The session instantiates
-   it, replays the kept inputs with their host calls served from the
-   journal, then runs the new input live (`cli.repl.rebuild`,
-   `cli.repl.host.once`). An input that panicked stays in the program,
-   hidden from later inputs (`Packages::failed_inputs`), so its changes
-   to earlier values are replayed (`cli.repl.panic.mutations`). A stopped
-   or cancelled input is dropped, and the REPL says that the next
-   rebuild skips it (`cli.repl.rebuild.stopped`).
-5. `:reload` reads the package from disk and rebuilds the session: the
-   inputs up to the first that no longer builds, then replays them,
-   dropping from the first that diverges (`cli.repl.rebuild.prefix`).
-6. Every input replays the journal, so a session whose journal passed
-   its cap runs no further input.
+4. Each input builds a linked module importing the initialized storage
+   and functions of earlier inputs. Only its numbered `hd.init.N` and
+   `hd.poll.N` entries run live. A completed outcome commits the new
+   compiler ABI. A panic keeps its mutations and code, with its declarations
+   hidden from later inputs (`Packages::failed_inputs`); a stop or cancel
+   commits neither code nor bindings, and the next input restores the last
+   completed boundary.
+5. `:reload` reads the package from disk and compiles a fresh linked base
+   for the longest checking prefix. It replays recorded host results,
+   drops the first divergent input and its suffix, and adopts a base for
+   exactly the surviving inputs (`cli.repl.rebuild.prefix`).
+6. When the active journal exceeds its threshold, the runtime snapshots
+   completed memory/global state and archives the call rows. Ordinary
+   continuation imports the initialized epochs without replay; historical
+   results remain available for reload (`cli.repl.checkpoint.history`).
 
 ### 7.9 The Playground
 
@@ -362,10 +362,11 @@ exports (crates/hd_run_wasmtime/DESIGN.md §16.4).
 
 ### 20.5 The REPL
 
-- The session is one wasmtime `Store` (`WasmtimeSession`). Each input is
-  checked (§7.8), then the accepted input history is rebuilt as one RC
-  Wasm module. Earlier host calls replay from the journal, and earlier
-  bindings are reconstructed in the module's linear memory.
+- A native session retains linked instances in one wasmtime `Store`;
+  a Node session retains the equivalent JS instances. Each checked input
+  imports earlier initialized code and storage instead of rebuilding its
+  values. Checkpoints retain the latest memory/global image and the
+  archived results needed for historical reload.
 - Each input runs once: its init function evaluates its statements and
   prints an expression input's value with its type
   ([`cli.repl.value`](../../spec/cli/command-line.md#r-cli.repl.value)).

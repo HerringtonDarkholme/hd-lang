@@ -1727,7 +1727,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 own_arg(&mut f, &j.decoded, j.decoded_walk.as_ref(), &get_res);
             }
             get_res(&mut f);
-            f.u32(lit);
+            f.static_addr(lit);
             f.u32(u32::try_from(checked.len()).expect("literal"));
             f.call(Sym::Inst(expect));
             for l in value.iter().rev() {

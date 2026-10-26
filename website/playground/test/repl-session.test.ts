@@ -21,6 +21,7 @@ import {
   STATUS,
   compileRequest,
   encodeReplInput,
+  encodeReplRebuildInput,
   encodeReplOutcome,
   encodeReplStart,
   type CompilerExports,
@@ -48,21 +49,27 @@ class Repl {
   /** The last session program built. */
   wasm: Uint8Array | null = null;
   session: Session;
+  journalCap: number;
 
-  constructor() {
+  constructor(journalCap = 64 * 1024 * 1024) {
+    this.journalCap = journalCap;
     this.session = this.fresh();
   }
 
   /** A new session over the same output. */
   fresh(): Session {
-    return createWebSession({
-      out: (text) => {
-        this.out += text;
+    return createWebSession(
+      {
+        out: (text) => {
+          this.out += text;
+        },
+        err: (text) => {
+          this.err += text;
+        },
       },
-      err: (text) => {
-        this.err += text;
-      },
-    });
+      {},
+      { journalCap: this.journalCap },
+    );
   }
 
   /** Starts the compiler's session. */
@@ -88,6 +95,24 @@ class Repl {
     assert.equal(compileRequest(compiler, encodeReplOutcome(number, outcome)).status, STATUS.ok);
     if (!stopped) this.texts.set(number, source);
     return live.status;
+  }
+
+  /** Build one complete base for replay, preserving recorded failed inputs. */
+  baseForReplay(texts = this.texts): Uint8Array {
+    const history = recorded(this.session.journal()!);
+    const started = compileRequest(compiler, encodeReplStart({}));
+    assert.equal(started.status, STATUS.ok);
+    let wasm: Uint8Array = new Uint8Array();
+    for (const [number, source] of texts) {
+      const built = compileRequest(compiler, encodeReplRebuildInput(source, number));
+      assert.equal(built.status, STATUS.ok, JSON.stringify(built.json));
+      wasm = built.wasm;
+      const end = history.inputs.find((i) => i.number === number)!.end!;
+      const outcome = end.kind === "exit" && end.status === 0 ? OUTCOME.joined : OUTCOME.failed;
+      assert.equal(compileRequest(compiler, encodeReplOutcome(number, outcome)).status, STATUS.ok);
+    }
+    this.wasm = wasm;
+    return wasm;
   }
 
   /** What was printed since the last call. */
@@ -143,9 +168,10 @@ test("a rebuild serves every host call from the journal and prints nothing", asy
   const journal = repl.session.journal()!;
   // Into the same session, as a rebuild after a stop does, and into a new
   // one, as a page that terminated its worker does.
+  const base = repl.baseForReplay();
   for (const session of [repl.session, repl.fresh()]) {
     const before = session.hostCalls();
-    const rebuilt = await session.run(repl.wasm!, repl.texts, null, journal);
+    const rebuilt = await session.run(base, repl.texts, null, journal);
     assert.deepEqual(rebuilt, {
       kept: [1, 2, 3, 4, 5],
       skipped: [],
@@ -210,8 +236,9 @@ impl[T] Columns for T by Structure:
   const shown = '"key;sum_total;" : string\n';
   assert.deepEqual(repl.printed(), [shown, ""]);
   const journal = repl.session.journal()!;
+  const base = repl.baseForReplay();
   repl.session = repl.fresh();
-  const rebuilt = await repl.session.run(repl.wasm!, repl.texts, null, journal);
+  const rebuilt = await repl.session.run(base, repl.texts, null, journal);
   assert.deepEqual(rebuilt.kept, [1, 2, 3, 4, 5]);
   assert.deepEqual(repl.printed(), ["", ""]);
   assert.equal(await repl.input("Row { id: +3, total: +4 }.columns()\n"), 0);
@@ -241,7 +268,8 @@ test("a stop cancels a waiting input; the next replay skips it, a rebuild drops 
   // Input 5 is no longer the text the session ran.
   const texts = new Map(repl.texts);
   texts.set(5, "kept = kept + 2\nprintln(kept)\n");
-  const rebuilt = await repl.session.run(repl.wasm!, texts, null);
+  const base = repl.baseForReplay(texts);
+  const rebuilt = await repl.session.run(base, texts, null);
   assert.deepEqual(rebuilt, {
     kept: [1, 2, 4],
     skipped: [],
@@ -252,4 +280,56 @@ test("a stop cancels a waiting input; the next replay skips it, a rebuild drops 
   assert.deepEqual(repl.printed(), ["", ""]);
   assert.deepEqual(journalInputs(repl.session), [1, 2, 4]);
   repl.session.close();
+});
+
+test("browser-provider checkpoints continue past the cap and restore without repeating effects", async () => {
+  for (const cap of [1, 20_000]) {
+    const repl = new Repl(cap);
+    repl.start();
+    assert.equal(
+      await repl.input(`use std.random.fill
+struct Counter:
+    value: usize
+let mut counter = Counter { value: 0 }
+let alias: *mut Counter = &mut counter
+`),
+      0,
+    );
+    for (let n = 1; n <= 24; n++) {
+      assert.equal(
+        await repl.input(`_ := fill(4096).len()
+alias.value += 1
+if counter.value != ${n}:
+    panic("checkpoint lost a counter update")
+pass
+`),
+        0,
+        repl.err,
+      );
+    }
+    const stats = repl.session.checkpointStats();
+    assert.ok(stats.archivedJournals > 0);
+    assert.ok(stats.activeJournalBytes <= cap || stats.activeJournalBytes === 24);
+    assert.ok(stats.snapshotBytes > 0);
+    const journal = repl.session.journal()!;
+    const calls = repl.session.hostCalls();
+    assert.equal(calls, 24);
+    const restored = await repl.session.run(repl.wasm!, repl.texts, null, journal);
+    assert.deepEqual(restored.kept, [...repl.texts.keys()]);
+    assert.equal(repl.session.hostCalls(), calls);
+    assert.deepEqual(repl.session.journal(), journal);
+    assert.deepEqual(repl.printed(), ["", ""]);
+    // A fresh worker reconstructs from historical results, then appends
+    // against its one initialized base. It never imports foreign storage.
+    const base = repl.baseForReplay();
+    repl.session.close();
+    repl.session = repl.fresh();
+    assert.deepEqual((await repl.session.run(base, repl.texts, null, journal)).kept, [
+      ...repl.texts.keys(),
+    ]);
+    assert.equal(repl.session.hostCalls(), 0);
+    assert.equal(await repl.input("println(counter.value)\n"), 0);
+    assert.deepEqual(repl.printed(), ["24\n", ""]);
+    repl.session.close();
+  }
 });

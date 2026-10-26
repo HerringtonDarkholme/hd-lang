@@ -278,7 +278,7 @@ impl Em<'_, '_, '_> {
         &mut self,
         h: hd_base::Hash128,
         t: Ty,
-        slot: Option<(u32, Vec<crate::layout::Leaf>)>,
+        slot: Option<(crate::module::Address, Vec<crate::layout::Leaf>)>,
     ) -> StageResult<()> {
         if self.input.runtime.and_then(|r| r.checked).is_none() {
             return Ok(());

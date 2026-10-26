@@ -143,11 +143,20 @@ export interface Session {
     live?: number | null,
     journal?: Uint8Array | null,
   ): Promise<Ran>;
+  /** Forget initialized guest inputs and history, retaining this provider. */
+  clear(): void;
   journal(): Uint8Array | null;
   setJournalCap(cap: number): void;
   takeJournalNotice(): boolean;
   stop(): void;
   hostCalls(): number;
+  checkpointStats(): {
+    epochs: number;
+    archivedJournals: number;
+    archivedBytes: number;
+    snapshotBytes: number;
+    activeJournalBytes: number;
+  };
   close(): void;
 }
 

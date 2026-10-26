@@ -226,7 +226,7 @@ impl Em<'_, '_, '_> {
             Kind::Data(tys) => {
                 if tys.is_empty() {
                     let at = self.empty_object();
-                    self.f.u32(at);
+                    self.f.static_addr(at);
                 } else {
                     let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
                     let walk = self.payload_walk(&tys);
@@ -414,7 +414,7 @@ impl Em<'_, '_, '_> {
             Kind::Data(tys) => {
                 if tys.is_empty() {
                     let at = self.empty_object();
-                    self.f.u32(at);
+                    self.f.static_addr(at);
                 } else {
                     let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
                     let walk = self.payload_walk(&tys);

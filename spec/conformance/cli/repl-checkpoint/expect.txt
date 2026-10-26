@@ -1,0 +1,5 @@
+# Cross the active-record limit, then change the package before reload.
+# The changed function and reconstructed binding prove reload ran; the
+# counter proves the checkpointed state and continuation remain correct.
+run: hd --repl session.in
+transcript: transcript.txt

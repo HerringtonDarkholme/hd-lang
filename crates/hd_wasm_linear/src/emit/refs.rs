@@ -1162,15 +1162,15 @@ impl Em<'_, '_, '_> {
 
     /// The static slot of top-level binding `def`, when some reference
     /// refers to it.
-    pub(super) fn def_slot(&self, def: DefId) -> Option<u32> {
+    pub(super) fn def_slot(&self, def: DefId) -> Option<crate::module::Address> {
         self.m.addressed.get(&self.env().path_hash(def)).copied()
     }
 
     /// `Read [@g]` `i` of a binding in static slot `at`.
-    pub(super) fn slot_get(&mut self, i: u32, at: u32) -> StageResult<()> {
+    pub(super) fn slot_get(&mut self, i: u32, at: crate::module::Address) -> StageResult<()> {
         let m = mem_of(self.pool(), self.env(), self.ty(i))?;
         for leaf in &m.leaves {
-            self.f.static_addr(at);
+            self.f.address(at);
             self.f.op(leaf.load(0));
         }
         self.store(i)
@@ -1233,7 +1233,7 @@ impl Em<'_, '_, '_> {
                 let t = self.sub(t);
                 if let Some(slot) = self.def_slot(def) {
                     let a = self.f.local(Val::I32);
-                    self.f.static_addr(slot);
+                    self.f.address(slot);
                     self.f.set(a);
                     return Ok((At::Mem(a, 0), t));
                 }

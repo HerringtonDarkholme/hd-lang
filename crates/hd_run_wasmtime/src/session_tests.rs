@@ -1770,3 +1770,474 @@ fn a_rebuilt_session_reads_no_fifo_again() {
     });
     writer.join().expect("the writer");
 }
+
+fn build_linked_input(
+    files: &hd_project::MemorySources,
+    store: &hd_cache::MemoryStore,
+    metadata: &hd_driver::Session,
+    failed: &[u32],
+    number: u32,
+) -> hd_driver::Output {
+    let host = hd_driver::Host {
+        render_tir: &[],
+        sources: files,
+        store,
+        clock: &hd_driver::NoClock,
+        executor: hd_driver::Executor::Serial(hd_sched::SerialOrder::Priority),
+    };
+    hd_driver::build_packages(
+        &host,
+        "app",
+        &hd_driver::Packages {
+            build_profile: hd_driver::BuildProfile::Checked,
+            target: hd_base::EngineTarget::Wasmtime,
+            session: Some(metadata),
+            failed_inputs: failed,
+            inputs_from: Some(1),
+            ..hd_driver::Packages::default()
+        },
+        &hd_driver::Goal::ReplInput { input: number },
+    )
+}
+
+#[test]
+fn linked_checkpoints_restore_aliases_and_replay_only_the_active_tail() {
+    for cap in [1024, 20_000, 1_000_000] {
+        with_session(move |session, io| {
+            session.set_journal_cap(cap);
+            let store = hd_cache::MemoryStore::default();
+            let mut files = hd_project::MemorySources::default();
+            let mut metadata = hd_driver::Session::linked();
+            let mut sources = Vec::new();
+            for number in 1..=12 {
+                let source = if number == 1 {
+                    "use std.random.fill\nstruct Counter:\n    value: usize\nlet mut counter = Counter { value: 0 }\nlet alias: *mut Counter = &mut counter\n".to_owned()
+                } else {
+                    format!(
+                        "_ := fill(4096).len()\nalias.value += 1\nif counter.value != {}:\n    panic(\"checkpoint lost a counter update\")\n",
+                        number - 1
+                    )
+                };
+                files.insert(&hd_project::repl_file(number), &source);
+                sources.push((number, source));
+                let mut out = build_linked_input(&files, &store, &metadata, &[], number);
+                assert!(!out.diags.has_errors(), "{}", out.render());
+                let wasm = out.wasm.take().expect("linked module");
+                let texts: Vec<_> = sources
+                    .iter()
+                    .map(|(n, text)| (*n, text.as_str()))
+                    .collect();
+                let ran = session.run(&wasm, &texts, Some(number)).expect("append");
+                assert_eq!(
+                    ran.live,
+                    Some((Outcome::Exit(0), End::Exit(0))),
+                    "{}",
+                    text(&io.err)
+                );
+                assert_eq!(session.host_calls(), u64::from(number - 1));
+                metadata.add(out.session_added.take().expect("linked metadata"));
+                if matches!(number, 1 | 6 | 12) {
+                    let journal = session.journal().expect("history").to_vec();
+                    let calls = session.host_calls();
+                    let restored = session
+                        .run(&wasm, &texts, None)
+                        .expect("same-provider restore");
+                    assert_eq!(restored.kept, (1..=number).collect::<Vec<_>>());
+                    assert_eq!(session.host_calls(), calls, "restore repeated an effect");
+                    assert_eq!(session.journal(), Some(journal.as_slice()));
+                    assert_eq!(text(&io.err), "");
+                }
+            }
+            let texts: Vec<_> = sources
+                .iter()
+                .map(|(n, text)| (*n, text.as_str()))
+                .collect();
+            let whole = build_session(&files, &store, &[], 12);
+            assert!(!whole.diags.has_errors(), "{}", whole.render());
+            let calls = session.host_calls();
+            let rebuilt = session
+                .run(whole.wasm.as_ref().unwrap(), &texts, None)
+                .expect("historical rebuild");
+            assert_eq!(rebuilt.kept, (1..=12).collect::<Vec<_>>());
+            assert_eq!(
+                session.host_calls(),
+                calls,
+                "archived history repeated an effect"
+            );
+            assert_eq!(
+                hd_run::replay::recorded(session.journal().unwrap())
+                    .unwrap()
+                    .inputs
+                    .len(),
+                12
+            );
+            assert_eq!(text(&io.out), "");
+            assert_eq!(text(&io.err), "");
+        });
+    }
+}
+
+#[test]
+fn linked_cancelled_input_rolls_back_before_the_next_extension() {
+    for cap in [1, 1_000_000] {
+        with_session(move |session, io| {
+            session.set_journal_cap(cap);
+            let store = hd_cache::MemoryStore::default();
+            let mut files = hd_project::MemorySources::default();
+            let mut metadata = hd_driver::Session::linked();
+            let first = "use std.time.{sleep, Duration}\nlet mut values: List[usize] = []\n";
+            files.insert(&hd_project::repl_file(1), first);
+            let mut out = build_linked_input(&files, &store, &metadata, &[], 1);
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            assert_eq!(
+                session
+                    .run(out.wasm.as_ref().unwrap(), &[(1, first)], Some(1))
+                    .unwrap()
+                    .live,
+                Some((Outcome::Exit(0), End::Exit(0)))
+            );
+            metadata.add(out.session_added.take().unwrap());
+            let cancelled = "fn nap!() -> void:\n    defer:\n        values.push(2)\n    values.push(1)\n    sleep!(Duration.seconds(+30))\nnap!()\n";
+            files.insert(&hd_project::repl_file(2), cancelled);
+            let out = build_linked_input(&files, &store, &metadata, &[], 2);
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            let stopper = session.stopper();
+            let stopping = std::thread::spawn(move || {
+                let limit = std::time::Instant::now() + std::time::Duration::from_secs(5);
+                while !stopper.waiting() && std::time::Instant::now() < limit {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                stopper.stop();
+            });
+            let ran = session
+                .run(
+                    out.wasm.as_ref().unwrap(),
+                    &[(1, first), (2, cancelled)],
+                    Some(2),
+                )
+                .unwrap();
+            stopping.join().unwrap();
+            assert_eq!(ran.live.as_ref().map(|(_, end)| end), Some(&End::Cancelled));
+            assert_eq!(text(&io.err), "cancelled\n");
+            let calls = session.host_calls();
+            files.retain(|path| path != hd_project::repl_file(2));
+            let next =
+                "if values.len() != 0:\n    panic(\"cancelled changes were restored\")\npass\n";
+            files.insert(&hd_project::repl_file(3), next);
+            let out = build_linked_input(&files, &store, &metadata, &[], 3);
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            let ran = session
+                .run(
+                    out.wasm.as_ref().unwrap(),
+                    &[(1, first), (3, next)],
+                    Some(3),
+                )
+                .unwrap();
+            assert_eq!(ran.skipped, [2]);
+            assert_eq!(
+                ran.live,
+                Some((Outcome::Exit(0), End::Exit(0))),
+                "{}",
+                text(&io.err)
+            );
+            assert_eq!(session.host_calls(), calls, "rollback repeated a host call");
+            assert!(!session.pending());
+            assert_eq!(text(&io.err), "");
+        });
+    }
+}
+
+#[test]
+fn linked_panic_retains_escaped_closure_code_across_a_checkpoint() {
+    for cap in [1, 1_000_000] {
+        with_session(move |session, io| {
+            session.set_journal_cap(cap);
+            let store = hd_cache::MemoryStore::default();
+            let mut files = hd_project::MemorySources::default();
+            let mut metadata = hd_driver::Session::linked();
+            let inputs = [
+                "let mut kept: fn() -> usize = fn() -> usize: 1\n",
+                "fn make(value: usize) -> fn() -> usize:\n    fn() -> usize: value\nkept = make(7)\npanic(\"retained code\")\n",
+                "if kept() != 7:\n    panic(\"escaped closure code was lost\")\npass\n",
+            ];
+            let mut sources = Vec::new();
+            for (offset, source) in inputs.iter().enumerate() {
+                let number = u32::try_from(offset + 1).unwrap();
+                files.insert(&hd_project::repl_file(number), source);
+                sources.push((number, *source));
+                let failed: &[u32] = if number == 3 { &[2] } else { &[] };
+                let mut out = build_linked_input(&files, &store, &metadata, failed, number);
+                assert!(!out.diags.has_errors(), "{}", out.render());
+                let wasm = out.wasm.take().unwrap();
+                let ran = session.run(&wasm, &sources, Some(number)).unwrap();
+                let status = if number == 2 { 3 } else { 0 };
+                assert_eq!(
+                    ran.live.as_ref().map(|(outcome, _)| outcome),
+                    Some(&Outcome::Exit(status)),
+                    "{}",
+                    text(&io.err)
+                );
+                metadata.add(out.session_added.take().unwrap());
+                let first_error = text(&io.err);
+                if number == 2 {
+                    assert!(first_error.contains("retained code"), "{first_error}");
+                }
+                let calls = session.host_calls();
+                session
+                    .run(&wasm, &sources, None)
+                    .expect("restore including failed input code");
+                assert_eq!(session.host_calls(), calls);
+                assert_eq!(text(&io.err), "", "restore printed the old panic");
+            }
+        });
+    }
+}
+
+/// Historical replay can become the initialized base of new extensions.
+/// In particular, a base containing several inputs is one code epoch,
+/// rather than one initialized epoch per source input.
+#[test]
+fn a_historical_rebuild_adopts_a_linked_base_on_both_hosts() {
+    use std::io::Write as _;
+    with_session(|session, io| {
+        session.set_journal_cap(1);
+        let store = hd_cache::MemoryStore::default();
+        let mut files = hd_project::MemorySources::default();
+        let mut metadata = hd_driver::Session::linked();
+        let sources = [
+            (
+                1,
+                "use std.random.fill\nstruct Counter:\n    value: usize\nlet mut count = Counter { value: 0 }\nlet alias: *mut Counter = &mut count\n",
+            ),
+            (2, "_ := fill(128).len()\nalias.value += 1\n"),
+            (3, "_ := fill(128).len()\nalias.value += 1\n"),
+            (
+                4,
+                "if count.value != 2:\n    panic(\"rebuilt state was not retained\")\nalias.value += 1\n_ := fill(128).len()\n",
+            ),
+        ];
+        let mut modules = Vec::new();
+        for (offset, &(number, source)) in sources[..3].iter().enumerate() {
+            files.insert(&hd_project::repl_file(number), source);
+            let mut out = build_linked_input(&files, &store, &metadata, &[], number);
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            let wasm = out.wasm.take().unwrap();
+            let ran = session
+                .run(&wasm, &sources[..=offset], Some(number))
+                .unwrap();
+            assert_eq!(ran.live, Some((Outcome::Exit(0), End::Exit(0))));
+            metadata.add(out.session_added.take().unwrap());
+            modules.push(wasm);
+        }
+        let mut metadata = hd_driver::Session::linked();
+        let mut base = build_linked_input(&files, &store, &metadata, &[], 3);
+        assert!(!base.diags.has_errors(), "{}", base.render());
+        let base_wasm = base.wasm.take().unwrap();
+        let calls = session.host_calls();
+        let rebuilt = session.run(&base_wasm, &sources[..3], None).unwrap();
+        assert_eq!(rebuilt.kept, [1, 2, 3]);
+        assert_eq!(session.host_calls(), calls, "rebuild repeated random calls");
+        metadata.add(base.session_added.take().unwrap());
+        let restored = session.run(&base_wasm, &sources[..3], None).unwrap();
+        assert_eq!(restored.kept, [1, 2, 3]);
+        assert_eq!(session.host_calls(), calls, "base restore repeated calls");
+        files.insert(&hd_project::repl_file(4), sources[3].1);
+        let out = build_linked_input(&files, &store, &metadata, &[], 4);
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        let tail = out.wasm.unwrap();
+        let next = session.run(&tail, &sources, Some(4)).unwrap();
+        assert_eq!(next.kept, [1, 2, 3]);
+        assert_eq!(next.live, Some((Outcome::Exit(0), End::Exit(0))));
+        let restored = session.run(&tail, &sources, None).unwrap();
+        assert_eq!(restored.kept, [1, 2, 3, 4]);
+        assert_eq!(session.host_calls(), calls + 1);
+        assert_eq!(text(&io.out), "");
+        assert_eq!(text(&io.err), "");
+        session.clear().unwrap();
+        let restarted = session.run(&modules[0], &sources[..1], Some(1)).unwrap();
+        assert!(restarted.kept.is_empty());
+        assert_eq!(restarted.live, Some((Outcome::Exit(0), End::Exit(0))));
+
+        let host = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../host/core.mjs")
+            .canonicalize()
+            .unwrap();
+        let pairs = sources
+            .iter()
+            .map(|(n, s)| format!("[{n},{s:?}]"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let script = format!(
+            r"
+import assert from 'node:assert/strict';
+import {{pathToFileURL}} from 'node:url';
+const {{createSession}} = await import(pathToFileURL({host:?}));
+const sources = [{pairs}];
+const modules = {modules:?}.map(bytes => new Uint8Array(bytes));
+const base = new Uint8Array({base_wasm:?});
+const tail = new Uint8Array({tail:?});
+const errors = [];
+const sink = {{out: t => errors.push(t), err: t => errors.push(t)}};
+const session = createSession(sink, {{}}, null, {{journalCap: 1}});
+const fresh = createSession(sink, {{}}, null, {{journalCap: 1}});
+try {{
+    for (const [at, wasm] of modules.entries()) {{
+        assert.equal((await session.run(wasm, sources.slice(0, at + 1), at + 1)).live.status, 0);
+    }}
+    const history = session.journal();
+    const calls = session.hostCalls();
+    const rebuilt = await session.run(base, sources.slice(0, 3), null);
+    assert.deepEqual(rebuilt.kept, [1, 2, 3]);
+    assert.equal(session.checkpointStats().epochs, 1);
+    assert.equal(session.hostCalls(), calls);
+    assert.deepEqual((await session.run(base, sources.slice(0, 3), null)).kept, [1, 2, 3]);
+    assert.equal(session.hostCalls(), calls);
+    assert.equal((await session.run(tail, sources, 4)).live.status, 0);
+    assert.deepEqual((await session.run(tail, sources, null)).kept, [1, 2, 3, 4]);
+    assert.equal(session.hostCalls(), calls + 1);
+    // A browser worker rebuild uses history, not a copied provider snapshot.
+    assert.deepEqual((await fresh.run(base, sources.slice(0, 3), null, history)).kept, [1, 2, 3]);
+    assert.equal(fresh.hostCalls(), 0);
+    assert.equal((await fresh.run(tail, sources, 4)).live.status, 0);
+    assert.deepEqual((await fresh.run(tail, sources, null)).kept, [1, 2, 3, 4]);
+    assert.equal(fresh.hostCalls(), 1);
+    session.clear();
+    fresh.clear();
+    for (const cleared of [session, fresh]) {{
+        const restarted = await cleared.run(modules[0], sources.slice(0, 1), 1);
+        assert.deepEqual(restarted.kept, []);
+        assert.equal(restarted.live.status, 0);
+    }}
+    assert.deepEqual(errors, []);
+}} finally {{ session.close(); fresh.close(); }}
+",
+            host = host.to_string_lossy()
+        );
+        let mut child = std::process::Command::new("node")
+            .args(["--input-type=module"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("Node");
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(script.as_bytes())
+            .unwrap();
+        let result = child.wait_with_output().unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    });
+}
+
+/// A type introduced after the base needs new release-table slots. Its
+/// cyclic graph and a closure retaining it survive every code epoch.
+#[test]
+fn linked_cycles_and_captured_references_survive_checkpoint_restore() {
+    use std::io::Write as _;
+    for cap in [1, 20_000] {
+        with_session(move |session, io| {
+            session.set_journal_cap(cap);
+            let store = hd_cache::MemoryStore::default();
+            let mut files = hd_project::MemorySources::default();
+            let mut metadata = hd_driver::Session::linked();
+            let sources = [
+                (1, "pass\n"),
+                (
+                    2,
+                    "struct Node:\n    children: List[*mut Node]\n    value: usize\nlet root: *mut Node = &mut Node { children: [], value: 1 }\nroot.children.push(root)\n",
+                ),
+                (
+                    3,
+                    "fn reader(node: *Node) -> fn() -> usize:\n    fn() -> usize: node.value\nsaved := reader(root)\n",
+                ),
+                (
+                    4,
+                    "root.children[0].value += 1\nif saved() != 2:\n    panic(\"captured cycle was lost\")\npass\n",
+                ),
+                (
+                    5,
+                    "root.children[0].value += 1\nif saved() != 3:\n    panic(\"restored cycle was lost\")\npass\n",
+                ),
+            ];
+            let mut modules = Vec::new();
+            for (at, &(number, source)) in sources.iter().enumerate() {
+                files.insert(&hd_project::repl_file(number), source);
+                let mut out = build_linked_input(&files, &store, &metadata, &[], number);
+                assert!(!out.diags.has_errors(), "{}", out.render());
+                let wasm = out.wasm.take().unwrap();
+                let ran = session.run(&wasm, &sources[..=at], Some(number)).unwrap();
+                assert_eq!(
+                    ran.live,
+                    Some((Outcome::Exit(0), End::Exit(0))),
+                    "{}",
+                    text(&io.err)
+                );
+                metadata.add(out.session_added.take().unwrap());
+                let journal = session.journal().unwrap().to_vec();
+                session.run(&wasm, &sources[..=at], None).unwrap();
+                assert_eq!(session.journal(), Some(journal.as_slice()));
+                modules.push(wasm);
+            }
+            assert_eq!(session.host_calls(), 0);
+            assert_eq!(text(&io.out), "");
+            assert_eq!(text(&io.err), "");
+            let host = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../host/core.mjs")
+                .canonicalize()
+                .unwrap();
+            let pairs = sources
+                .iter()
+                .map(|(n, s)| format!("[{n},{s:?}]"))
+                .collect::<Vec<_>>()
+                .join(",");
+            let script = format!(
+                r"
+import assert from 'node:assert/strict';
+import {{pathToFileURL}} from 'node:url';
+const {{createSession}} = await import(pathToFileURL({host:?}));
+const sources = [{pairs}];
+const modules = {modules:?}.map(bytes => new Uint8Array(bytes));
+const errors = [];
+const session = createSession({{out: t => errors.push(t), err: t => errors.push(t)}}, {{}}, null, {{journalCap: {cap}}});
+try {{
+    for (const [at, wasm] of modules.entries()) {{
+        const texts = sources.slice(0, at + 1);
+        assert.equal((await session.run(wasm, texts, at + 1)).live.status, 0);
+        const journal = session.journal();
+        assert.deepEqual((await session.run(wasm, texts, null)).kept, texts.map(([n]) => n));
+        assert.deepEqual(session.journal(), journal);
+        assert.equal(session.hostCalls(), 0);
+    }}
+    assert.deepEqual(errors, []);
+}} finally {{ session.close(); }}
+",
+                host = host.to_string_lossy()
+            );
+            let mut child = std::process::Command::new("node")
+                .args(["--input-type=module"])
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .expect("Node");
+            child
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(script.as_bytes())
+                .unwrap();
+            let result = child.wait_with_output().unwrap();
+            assert!(
+                result.status.success(),
+                "{}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+        });
+    }
+}

@@ -500,6 +500,24 @@ impl ReplSession {
         }
     }
 
+    /// Forget an empty rebuilt prefix without replacing its provider.
+    pub(crate) fn clear(&mut self) -> Result<(), String> {
+        match self {
+            Self::Node(session) => {
+                session.open()?;
+                session.send("{\"op\":\"clear\"}")?;
+                if session.receive()? != "cleared" {
+                    return Err("the Node session did not clear its inputs".into());
+                }
+                session.has_journal = true;
+                session.notice = false;
+                Ok(())
+            }
+            #[cfg(feature = "wasmtime")]
+            Self::Wasmtime(session) => session.clear(),
+        }
+    }
+
     pub(crate) fn set_journal_cap(&mut self, cap: usize) {
         match self {
             Self::Node(session) => session.cap = cap,

@@ -33,7 +33,7 @@ use hd_mono::{Collected, ProgramEnv};
 use hd_tir::ir::Body;
 use hd_types::{InternPool, Ty, TyData};
 
-pub use module::Sym;
+pub use module::{Session, Sym};
 pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
 pub use rt::Helper;
 
@@ -246,6 +246,7 @@ impl Entry {
 
 /// What [`build`] reads: the program's instances in content order, with
 /// each one's TIR body and collection's call targets.
+#[derive(Clone)]
 pub struct Input<'a> {
     pub pool: &'a InternPool,
     pub env: &'a dyn ProgramEnv,
@@ -523,16 +524,45 @@ impl Runtime {
 /// backend does not lower yet.
 pub fn build(input: &Input<'_>) -> StageResult<Vec<u8>> {
     // Every layout and walk the link asks for is computed once.
-    layout::cached(|| link(input, false)).map(|mapped| mapped.wasm)
+    layout::cached(|| link(input, false, None, None)).map(|mapped| mapped.wasm)
 }
 
 /// Builds the same module bytes as [`build`], with instruction origins separately.
 pub fn build_with_origins(input: &Input<'_>) -> StageResult<MappedModule> {
-    layout::cached(|| link(input, true))
+    layout::cached(|| link(input, true, None, None))
 }
 
-/// Both entry points run this link with the same layout cache.
-fn link(input: &Input<'_>, track_origins: bool) -> StageResult<MappedModule> {
+/// Builds a REPL base and records the symbols its later modules can import.
+/// The ordinary program entry points never expose this private ABI.
+pub fn build_session_base(input: &Input<'_>) -> StageResult<(Vec<u8>, Session)> {
+    let mut session = Session::default();
+    let mapped = layout::cached(|| link(input, false, Some(&mut session), None))?;
+    Ok((mapped.wasm, session))
+}
+
+/// Builds an extension importing the previous modules' initialized storage.
+pub fn build_session_extension(
+    input: &Input<'_>,
+    previous: &Session,
+) -> StageResult<(Vec<u8>, Session)> {
+    let mut session = Session::default();
+    let mapped = layout::cached(|| link(input, false, Some(&mut session), Some(previous)))?;
+    Ok((mapped.wasm, session))
+}
+
+/// Every entry point runs this link with the same layout cache.
+fn link(
+    input: &Input<'_>,
+    track_origins: bool,
+    session: Option<&mut Session>,
+    previous: Option<&Session>,
+) -> StageResult<MappedModule> {
+    let prepared = previous.map(|previous| {
+        let mut prepared = input.clone();
+        previous.prepare(&mut prepared.entry);
+        prepared
+    });
+    let input = prepared.as_ref().unwrap_or(input);
     let mut m = module::Module::default();
     m.track_origins = track_origins;
     m.runtime = input.runtime;
@@ -545,13 +575,41 @@ fn link(input: &Input<'_>, track_origins: bool) -> StageResult<MappedModule> {
             m.cycle_insts.insert(key);
         }
     }
-    address_globals(input, &mut m)?;
+    address_globals(input, &mut m, session.is_some(), previous)?;
     drive::collect(input, &mut m);
     for id in input.order {
         let f = emit::instance(input, &mut m, *id)?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);
     }
     rt::entry(input, &mut m)?;
+    if let Some(session) = session {
+        // Retain the base runtime even when input 1 does not use a facility
+        // that a later input needs. Its state must have one owner.
+        let runtime: Vec<_> = input
+            .order
+            .iter()
+            .filter_map(|id| {
+                (input.path)(input.collected.table.item[id.idx()])
+                    .starts_with("std/rt.")
+                    .then_some(input.collected.table.key[id.idx()])
+            })
+            .collect();
+        m.retain_instances(&runtime);
+        if previous.is_none() {
+            // Extension constants are static storage, not counted heap
+            // objects. The private bump allocator owns pages outside std's
+            // object allocator, so block_of never retains or frees them.
+            m.export("hd.session.alloc", Sym::Helper(Helper::Alloc));
+        }
+        let (mapped, mut linked) = if let Some(previous) = previous {
+            m.finish_extension(previous)?
+        } else {
+            m.finish_session(true)?
+        };
+        linked.complete(&input.entry);
+        *session = linked;
+        return Ok(mapped);
+    }
     if track_origins {
         m.finish_with_origins()
     } else {
@@ -565,23 +623,48 @@ fn link(input: &Input<'_>, track_origins: bool) -> StageResult<MappedModule> {
 /// Gives each top-level binding that some reference refers to a static
 /// slot of its layout, which its reads and writes use from then on
 /// (`crates/hd_wasm_linear/DESIGN.md` §23.20): a reference is its address.
-fn address_globals(input: &Input<'_>, m: &mut module::Module) -> StageResult<()> {
+fn address_globals(
+    input: &Input<'_>,
+    m: &mut module::Module,
+    session: bool,
+    previous: Option<&Session>,
+) -> StageResult<()> {
     for id in input.order {
         let Some(b) = (input.body)(*id) else {
             continue;
         };
         for i in 0..b.len() {
-            let Some((def, ty)) = referenced_global(b, i) else {
+            let global =
+                if session && matches!(b.tags[i], hd_tir::ir::Tag::Read | hd_tir::ir::Tag::Store) {
+                    b.decode_place(b.data[i][0]).and_then(|p| match p.root {
+                        hd_tir::ir::PlaceRoot::Global(def, ty) => Some((def, ty)),
+                        _ => None,
+                    })
+                } else {
+                    referenced_global(b, i)
+                };
+            let Some((def, ty)) = global else {
                 continue;
             };
             let h = input.env.path_hash(def);
             if m.addressed.contains_key(&h) {
                 continue;
             }
-            let lay = layout::mem(input.pool, input.env, ty)?;
-            let at = m.static_slot(lay.size, lay.align.max(4));
-            m.label_static(at, &(input.path)(def));
-            m.addressed.insert(h, at);
+            let address = if session {
+                if !previous.is_some_and(|p| p.has_binding(h)) {
+                    let lay = layout::mem(input.pool, input.env, ty)?;
+                    let at = m.static_slot(lay.size, lay.align.max(4));
+                    m.binding_slots.insert(h, at);
+                    m.label_static(at, &(input.path)(def));
+                }
+                module::Address::Binding(h)
+            } else {
+                let lay = layout::mem(input.pool, input.env, ty)?;
+                let at = m.static_slot(lay.size, lay.align.max(4));
+                m.label_static(at, &(input.path)(def));
+                module::Address::Static(at)
+            };
+            m.addressed.insert(h, address);
         }
     }
     Ok(())

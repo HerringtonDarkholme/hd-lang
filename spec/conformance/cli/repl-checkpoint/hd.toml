@@ -1,0 +1,7 @@
+[package]
+name = "checkpoint"
+
+[capabilities]
+Console = true
+Random = true
+FsWrite = true

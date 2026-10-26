@@ -4,8 +4,9 @@
 // compiler worker. The page numbers the inputs; each input is built under
 // its number (`encodeReplInput(text, number)`), so diagnostics, `dbg` lines
 // and the journal all name `repl#N` as the page shows it. Each input's
-// build is the session program, every kept input and the new one, which
-// the JS session runs after replaying the kept inputs from its journal.
+// build imports the initialized modules of completed inputs and runs
+// only its own entry. Historical rebuilds compile a fresh linked base,
+// replay the retained call history and then adopt that initialized base.
 //
 // The protocol, page to worker:
 //
@@ -34,6 +35,7 @@ import {
   STATUS,
   compileRequest,
   encodeReplInput,
+  encodeReplRebuildInput,
   encodeReplOutcome,
   encodeReplStart,
   type Compiled,
@@ -281,7 +283,9 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
       for (const i of inputs) {
         const source = given.get(i.number);
         const compiled =
-          source === undefined ? null : compileRequest(exports, encodeReplInput(source, i.number));
+          source === undefined
+            ? null
+            : compileRequest(exports, encodeReplRebuildInput(source, i.number));
         if (
           source === undefined ||
           compiled === null ||
@@ -326,10 +330,21 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
     } else {
       diagnostics = [];
     }
-    // The compiler holds an input that did not replay: build the kept ones
-    // again, so later inputs do not see it.
-    if (rebuilt.dropped.some((n) => built.has(n))) {
-      ({ built } = build(replayable.filter((i) => rebuilt.kept.includes(i.number))));
+    // Publish exactly the initialized prefix after a divergence or compile
+    // cut: rebuild its code ABI and adopt its replayed base before appending.
+    if (rebuilt.dropped.length > 0) {
+      const prefix = build(replayable.filter((i) => rebuilt.kept.includes(i.number)));
+      built = prefix.built;
+      if (prefix.wasm !== null) {
+        try {
+          await next.run(prefix.wasm, built, null);
+        } catch (error) {
+          next.close();
+          return done({ error: message(error) });
+        }
+      } else {
+        next.clear();
+      }
     }
     texts = new Map([...built].filter(([n]) => rebuilt.kept.includes(n)));
     session = next;

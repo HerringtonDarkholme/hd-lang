@@ -1198,6 +1198,7 @@ async function heldLookupHost(t) {
   for (const name of [
     "node.mjs",
     "core.mjs",
+    "session.mjs",
     "output.mjs",
     "output-worker.mjs",
     "worker-control.mjs",

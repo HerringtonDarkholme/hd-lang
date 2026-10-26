@@ -329,6 +329,10 @@ pub enum Global {
     /// The lowest address of the local stack's newest segment: a frame
     /// that does not fit above it starts a new one.
     LocalsBase,
+    /// This extension's allocated static segment (an immutable host import).
+    SessionData,
+    /// Stable storage address for a REPL top-level binding.
+    Binding(Hash128),
     /// One value of a top-level binding: its item's path hash and the
     /// value's index in its layout.
     Storage(Hash128, u32, Val),
@@ -359,11 +363,21 @@ impl Global {
             | Global::Tracing
             | Global::Stack
             | Global::Locals
-            | Global::LocalsBase => Val::I32,
+            | Global::LocalsBase
+            | Global::SessionData
+            | Global::Binding(_) => Val::I32,
             Global::HashSeed => Val::I64,
             Global::Storage(_, _, v) => *v,
         }
     }
+}
+
+/// An explicit storage address. A binding keeps its original cell when a
+/// later input first takes a reference to it.
+#[derive(Clone, Copy, Debug)]
+pub enum Address {
+    Static(u32),
+    Binding(Hash128),
 }
 
 /// One instruction of a body: a plain one, or one whose immediate
@@ -371,6 +385,9 @@ impl Global {
 #[derive(Clone, Copy, Debug)]
 pub enum Ins {
     Op(Instruction),
+    /// An explicit address in this module's static segment. Session linking
+    /// relocates this operand without interpreting unrelated integer constants.
+    Static(u32),
     Call(SymId),
     GlobalGet(GlobalId),
     GlobalSet(GlobalId),
@@ -588,7 +605,45 @@ impl Func {
     /// Pushes static data address `at`.
     pub fn static_addr(&mut self, at: u32) {
         self.mark_static(at);
-        self.u32(at);
+        self.push(Ins::Static(at));
+    }
+
+    pub fn address(&mut self, address: Address) {
+        match address {
+            Address::Static(at) => self.static_addr(at),
+            Address::Binding(key) => self.global_get(Global::Binding(key)),
+        }
+    }
+
+    /// Resolves static addresses before ordinary constant/local optimization.
+    /// A linked extension instead loads its allocated segment base from `base`.
+    pub fn resolve_statics(&mut self, base: Option<Global>) {
+        if base.is_none() {
+            for ins in &mut self.body {
+                if let Ins::Static(at) = *ins {
+                    *ins = Ins::Op(Instruction::I32Const(at.cast_signed()));
+                }
+            }
+            return;
+        }
+        let body = std::mem::take(&mut self.body);
+        let origins = self.origins.as_mut().map(std::mem::take);
+        let outer = self.origin_at;
+        for (i, ins) in body.into_iter().enumerate() {
+            self.origin_at = origins.as_ref().and_then(|o| o[i]);
+            if let Ins::Static(at) = ins {
+                self.global_get(base.expect("extension data base"));
+                let offset = at.checked_sub(STATIC_BASE).expect("static segment address");
+                if offset != 0 {
+                    self.u32(offset);
+                    self.op(Instruction::I32Add);
+                }
+            } else {
+                self.push(ins);
+            }
+        }
+        self.origin_at = outer;
+        self.rebuild_callees();
     }
 
     /// A fresh local of type `v`: its index.
@@ -737,6 +792,72 @@ pub const fn mem(memory: u32, offset: u64, align: u32) -> wasm_encoder::MemArg {
     }
 }
 
+/// The private symbols a later REPL module may import. Names belong to the
+/// module that defined them; they never depend on display names or dense IDs
+/// in the later compiler invocation.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Session {
+    functions: BTreeMap<Sym, SessionFunction>,
+    globals: BTreeMap<Global, SessionGlobal>,
+    table_slots: BTreeMap<Sym, u32>,
+    modules: u32,
+    table_len: u32,
+    inputs: BTreeSet<u32>,
+    initialized: BTreeSet<Hash128>,
+    #[cfg(feature = "checked-report")]
+    descriptors: Vec<(u32, u8)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SessionGlobal {
+    module: u32,
+    name: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SessionFunction {
+    module: u32,
+    name: String,
+    params: Vec<Val>,
+    results: Vec<Val>,
+}
+
+impl Session {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.modules == 0
+    }
+
+    pub(crate) fn prepare(&self, entry: &mut crate::Entry) {
+        if let crate::Entry::Inputs(inputs) = entry {
+            inputs.retain(|i| !self.inputs.contains(&i.number));
+            for input in inputs {
+                input
+                    .before
+                    .retain(|(key, _)| !self.initialized.contains(key));
+                input
+                    .after
+                    .retain(|(key, _)| !self.initialized.contains(key));
+            }
+        }
+    }
+
+    pub(crate) fn complete(&mut self, entry: &crate::Entry) {
+        if let crate::Entry::Inputs(inputs) = entry {
+            for input in inputs {
+                self.inputs.insert(input.number);
+                self.initialized.insert(input.key);
+                self.initialized
+                    .extend(input.before.iter().chain(&input.after).map(|(key, _)| *key));
+            }
+        }
+    }
+
+    pub(crate) fn has_binding(&self, key: Hash128) -> bool {
+        self.globals.contains_key(&Global::Binding(key))
+    }
+}
+
 /// The module under construction.
 #[derive(Default)]
 pub struct Module {
@@ -771,7 +892,9 @@ pub struct Module {
     /// The top-level bindings some reference refers to, by path hash:
     /// each lives in a static slot at this address, not in Wasm globals
     /// (`crates/hd_wasm_linear/DESIGN.md` §23.20).
-    pub addressed: BTreeMap<Hash128, u32>,
+    pub addressed: BTreeMap<Hash128, Address>,
+    /// New REPL bindings own these slots in this module's static segment.
+    pub binding_slots: BTreeMap<Hash128, u32>,
     /// In checked mode, each stored binding or once-cell, which the audit
     /// at exit releases and zeros first (§23.24).
     pub stored: BTreeMap<Hash128, Stored>,
@@ -811,7 +934,7 @@ pub struct Module {
 pub struct Stored {
     pub vals: Vec<Val>,
     pub walk: crate::layout::Walk,
-    pub slot: Option<(u32, Vec<crate::layout::Leaf>)>,
+    pub slot: Option<(Address, Vec<crate::layout::Leaf>)>,
 }
 
 /// Whether `f` allocates an object that takes part in cycle collection:
@@ -1044,7 +1167,83 @@ impl Module {
         self.finish_with_origins().map(|mapped| mapped.wasm)
     }
 
-    pub fn finish_with_origins(mut self) -> StageResult<crate::MappedModule> {
+    pub fn finish_with_origins(self) -> StageResult<crate::MappedModule> {
+        self.finish_session(false).map(|(mapped, _)| mapped)
+    }
+
+    /// Exposes the base's shared storage and the exact linked symbol ABI.
+    pub fn finish_session(self, session: bool) -> StageResult<(crate::MappedModule, Session)> {
+        self.finish_link(session, None)
+    }
+
+    pub fn finish_extension(
+        self,
+        previous: &Session,
+    ) -> StageResult<(crate::MappedModule, Session)> {
+        self.finish_link(true, Some(previous))
+    }
+
+    /// Replaces earlier definitions only after wide lowering, when the
+    /// manifest and every call agree on their lowered ABI signatures.
+    fn import_session(&mut self, previous: &Session) -> StageResult<()> {
+        let mut imports = BTreeMap::new();
+        for (symbol, export) in &previous.functions {
+            let id = self.symbols.intern(symbol.clone());
+            if let Some(Some(f)) = self.funcs.get(id.idx())
+                && (f.params != export.params || f.results != export.results)
+            {
+                return Err(NotImplemented::bug(
+                    Stage::Link,
+                    "a session symbol changed its lowered signature",
+                ));
+            }
+            let imported = self.symbols.intern(Sym::Import(Import::new(
+                &format!("hd:session:{}", export.module),
+                &export.name,
+                &export.params,
+                &export.results,
+            )));
+            imports.insert(id, imported);
+        }
+        let rewrite = |id: &mut SymId| {
+            if let Some(imported) = imports.get(id) {
+                *id = *imported;
+            }
+        };
+        for f in self.funcs.iter_mut().flatten() {
+            for ins in &mut f.body {
+                match ins {
+                    Ins::Call(id) | Ins::TableSlot(id) => rewrite(id),
+                    #[cfg(feature = "checked-report")]
+                    Ins::Descriptor(id, _) => rewrite(id),
+                    _ => {}
+                }
+            }
+            f.rebuild_callees();
+        }
+        for (_, id) in &mut self.exports {
+            rewrite(id);
+        }
+        for (slots, _, drives) in &mut self.vtables {
+            for id in slots.iter_mut().chain(drives) {
+                rewrite(id);
+            }
+        }
+        self.retained.retain(|id| !imports.contains_key(id));
+        self.inst_order.retain(|id| !imports.contains_key(id));
+        for id in imports.keys() {
+            if let Some(f) = self.funcs.get_mut(id.idx()) {
+                *f = None;
+            }
+        }
+        Ok(())
+    }
+
+    fn finish_link(
+        mut self,
+        session: bool,
+        previous: Option<&Session>,
+    ) -> StageResult<(crate::MappedModule, Session)> {
         // Discover cancellation roots without following the cancel slots of
         // every cold frame. Once a root exists, expand those slots before
         // choosing physical layouts and cycle-collection support.
@@ -1058,50 +1257,59 @@ impl Module {
                 .unwrap_or_default();
         }
         let mut seen = self.reached();
-        self.cancellable = seen.iter().any(|s| {
-            matches!(
-                &*self.symbols.get(s),
-                Sym::Helper(
-                    crate::rt::Helper::CancellationRoot
-                        | crate::rt::Helper::EntryCancel { .. }
-                        | crate::rt::Helper::CleanupCold
-                        | crate::rt::Helper::Race { part: 0, .. }
-                        | crate::rt::Helper::WakerNew
+        self.cancellable = session
+            || seen.iter().any(|s| {
+                matches!(
+                    &*self.symbols.get(s),
+                    Sym::Helper(
+                        crate::rt::Helper::CancellationRoot
+                            | crate::rt::Helper::EntryCancel { .. }
+                            | crate::rt::Helper::CleanupCold
+                            | crate::rt::Helper::Race { part: 0, .. }
+                            | crate::rt::Helper::WakerNew
+                    )
                 )
-            )
-        });
+            });
         if self.cancellable {
             self.keep(|_, s| !matches!(s, Sym::Helper(_)));
             seen = self.reached();
         }
-        if !seen.iter().any(|s| {
-            matches!(
-                &*self.symbols.get(s),
-                Sym::Helper(crate::rt::Helper::RefView { .. })
-            )
-        }) {
+        if !session
+            && !seen.iter().any(|s| {
+                matches!(
+                    &*self.symbols.get(s),
+                    Sym::Helper(crate::rt::Helper::RefView { .. })
+                )
+            })
+        {
             self.physical_projections();
             seen = self.reached();
         }
-        let cyclic = self.funcs.iter().enumerate().any(|(k, f)| {
-            f.as_ref().is_some_and(|f| {
-                seen.contains(SymId(u32::try_from(k).expect("symbols"))) && cyclic_desc(f)
-            })
-        });
+        // An extension can introduce cyclic objects, reference views, wakers
+        // and cancellation after this base has already been initialized.
+        // Closed-world absence facts are valid only for ordinary programs.
+        let cyclic = session
+            || self.funcs.iter().enumerate().any(|(k, f)| {
+                f.as_ref().is_some_and(|f| {
+                    seen.contains(SymId(u32::try_from(k).expect("symbols"))) && cyclic_desc(f)
+                })
+            });
         // Read the linked helper feature, including functions reused from
         // the code cache, rather than mutable state from fresh emission.
-        self.fixed_allocations = seen.iter().any(|s| {
-            matches!(
-                &*self.symbols.get(s),
-                Sym::Helper(crate::rt::Helper::NewFixed { .. })
-            )
-        });
-        self.wakers = seen.iter().any(|s| {
-            matches!(
-                &*self.symbols.get(s),
-                Sym::Helper(crate::rt::Helper::WakerNew)
-            )
-        });
+        self.fixed_allocations = session
+            || seen.iter().any(|s| {
+                matches!(
+                    &*self.symbols.get(s),
+                    Sym::Helper(crate::rt::Helper::NewFixed { .. })
+                )
+            });
+        self.wakers = session
+            || seen.iter().any(|s| {
+                matches!(
+                    &*self.symbols.get(s),
+                    Sym::Helper(crate::rt::Helper::WakerNew)
+                )
+            });
         if self.fixed_allocations || self.wakers {
             self.keep(|_, s| !matches!(s, Sym::Helper(_)));
         }
@@ -1131,13 +1339,14 @@ impl Module {
             }
         }
         self.reach();
-        let physical = !self.funcs.iter().enumerate().any(|(k, f)| {
-            f.is_some()
-                && matches!(
-                    &*self.symbols.get(SymId(u32::try_from(k).expect("symbols"))),
-                    Sym::Helper(crate::rt::Helper::RefView { .. })
-                )
-        });
+        let physical = !session
+            && !self.funcs.iter().enumerate().any(|(k, f)| {
+                f.is_some()
+                    && matches!(
+                        &*self.symbols.get(SymId(u32::try_from(k).expect("symbols"))),
+                        Sym::Helper(crate::rt::Helper::RefView { .. })
+                    )
+            });
         for f in self.funcs.iter_mut().flatten() {
             let body = std::mem::take(&mut f.body);
             let origins = f.origins.as_mut().map(std::mem::take);
@@ -1169,6 +1378,9 @@ impl Module {
             f.rebuild_callees();
         }
         self.reach();
+        for f in self.funcs.iter_mut().flatten() {
+            f.resolve_statics(previous.map(|_| Global::SessionData));
+        }
         crate::opt::constants(&mut self.funcs, &self.symbols);
         for f in self.funcs.iter_mut().flatten() {
             crate::opt::fold_constant_branches(f);
@@ -1207,7 +1419,13 @@ impl Module {
         for f in self.funcs.iter_mut().flatten() {
             crate::opt::coalesce(f);
         }
-        let stack = crate::wide::lower(&mut self.funcs, &self.exports, &self.symbols)?;
+        let stack = crate::wide::lower(&mut self.funcs, &self.exports, &self.symbols)? || session;
+        if let Some(previous) = previous {
+            // Wide lowering can introduce helpers; discover them before
+            // translating every old target to its imported ABI.
+            self.reach();
+            self.import_session(previous)?;
+        }
         // Wide lowering rebuilds each body's callees from its final code.
         // Calls removed by local/count optimization no longer keep helpers.
         self.reach();
@@ -1228,6 +1446,22 @@ impl Module {
                     _ => {}
                 }
             }
+        }
+        // An earlier module may supply an export or a vtable entry even
+        // when no new body calls it directly.
+        if previous.is_some() {
+            for id in self.exports.iter().map(|(_, id)| id).chain(
+                self.vtables
+                    .iter()
+                    .flat_map(|(slots, _, drives)| slots.iter().chain(drives)),
+            ) {
+                if matches!(&*self.symbols.get(*id), Sym::Import(_)) {
+                    import_ids.insert(*id);
+                }
+            }
+        }
+        if session {
+            globals.insert(Global::Stack);
         }
         let imports =
             hd_base::btree_set(import_ids.iter().map(|id| match &*self.symbols.get(id) {
@@ -1268,13 +1502,28 @@ impl Module {
         // The function table: every function a slot or a vtable names,
         // in the order first named.
         let mut slots: Vec<u32> = Vec::new();
+        let table_start = previous.map_or(0, |p| p.table_len);
         let mut slot_of = Numbers::new();
+        if let Some(previous) = previous {
+            for (symbol, slot) in &previous.table_slots {
+                let Some(export) = previous.functions.get(symbol) else {
+                    continue;
+                };
+                let imported = self.symbols.intern(Sym::Import(Import::new(
+                    &format!("hd:session:{}", export.module),
+                    &export.name,
+                    &export.params,
+                    &export.results,
+                )));
+                slot_of.insert(imported, *slot);
+            }
+        }
         let mut slot = |s: &SymId, slots: &mut Vec<u32>| -> StageResult<u32> {
             if let Some(k) = slot_of.get(*s) {
                 return Ok(*k);
             }
             let f = *index.get(*s).ok_or_else(|| undefined(s))?;
-            let k = u32::try_from(slots.len()).expect("table");
+            let k = table_start + u32::try_from(slots.len()).expect("table");
             slots.push(f);
             slot_of.insert(*s, k);
             Ok(k)
@@ -1286,6 +1535,7 @@ impl Module {
             self.data.push(0);
         }
         let mut vtable_at = Vec::new();
+        let mut data_relocations = Vec::new();
         for v in &self.vtables {
             vtable_at.push(STATIC_BASE + u32::try_from(self.data.len()).expect("static data"));
             for s in &v.0 {
@@ -1294,6 +1544,9 @@ impl Module {
             }
             // A parent is always numbered before the vtables that name it.
             for p in &v.1 {
+                if previous.is_some() {
+                    data_relocations.push(u32::try_from(self.data.len()).expect("data relocation"));
+                }
                 self.data.extend_from_slice(&vtable_at[*p].to_le_bytes());
             }
             for s in &v.2 {
@@ -1303,8 +1556,20 @@ impl Module {
         }
         let static_end = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
         let heap_base = static_end.next_multiple_of(8);
+        if previous.is_some() {
+            globals.insert(Global::SessionData);
+        }
+        let imported_global = |g: &Global| {
+            previous.is_some_and(|p| *g == Global::SessionData || p.globals.contains_key(g))
+        };
+        let ordered_globals: Vec<_> = globals
+            .iter()
+            .filter(|g| imported_global(g))
+            .chain(globals.iter().filter(|g| !imported_global(g)))
+            .copied()
+            .collect();
         let gindex = hd_base::btree_map(
-            globals
+            ordered_globals
                 .iter()
                 .enumerate()
                 .map(|(k, g)| (*g, u32::try_from(k).expect("globals"))),
@@ -1330,6 +1595,61 @@ impl Module {
         for im in &imports {
             let t = ty(&im.params, &im.results, &mut types);
             import_sec.import(&im.module, &im.name, EntityType::Function(t));
+        }
+        if let Some(previous) = previous {
+            for g in ordered_globals.iter().filter(|g| imported_global(g)) {
+                let (module, name, mutable) = if *g == Global::SessionData {
+                    ("hd:session".to_owned(), "data".to_owned(), false)
+                } else {
+                    let export = &previous.globals[g];
+                    (
+                        format!("hd:session:{}", export.module),
+                        export.name.clone(),
+                        true,
+                    )
+                };
+                import_sec.import(
+                    &module,
+                    &name,
+                    EntityType::Global(GlobalType {
+                        val_type: g.val().wasm(),
+                        mutable,
+                        shared: false,
+                    }),
+                );
+            }
+            for (name, maximum) in [
+                ("hd.x", None),
+                ("hd.session.heap", None),
+                ("hd.session.stack", Some(u64::from(STACK_PAGES))),
+            ] {
+                import_sec.import(
+                    "hd:session:0",
+                    name,
+                    EntityType::Memory(MemoryType {
+                        minimum: if maximum.is_some() {
+                            u64::from(STACK_PAGES)
+                        } else {
+                            1
+                        },
+                        maximum,
+                        memory64: false,
+                        shared: false,
+                        page_size_log2: None,
+                    }),
+                );
+            }
+            import_sec.import(
+                "hd:session:0",
+                "hd.session.table",
+                EntityType::Table(TableType {
+                    element_type: RefType::FUNCREF,
+                    table64: false,
+                    minimum: 0,
+                    maximum: None,
+                    shared: false,
+                }),
+            );
         }
         let mut funcs = FunctionSection::new();
         let mut code = CodeSection::new();
@@ -1446,6 +1766,19 @@ impl Module {
                         &mut body
                     }
                     Ins::Op(op) => body.instruction(&op.to_wasm(&f.labels)),
+                    Ins::Static(at) => {
+                        if previous.is_some() {
+                            body.instruction(&WasmInstruction::GlobalGet(
+                                gindex[&Global::SessionData],
+                            ));
+                            body.instruction(&WasmInstruction::I32Const(
+                                (at - STATIC_BASE).cast_signed(),
+                            ));
+                            body.instruction(&WasmInstruction::I32Add)
+                        } else {
+                            body.instruction(&WasmInstruction::I32Const(at.cast_signed()))
+                        }
+                    }
                     Ins::Call(c) => body.instruction(&WasmInstruction::Call(
                         *index.get(*c).ok_or_else(|| undefined(c))?,
                     )),
@@ -1457,7 +1790,14 @@ impl Module {
                     )),
                     #[cfg(feature = "checked-report")]
                     Ins::Descriptor(t, kind) => {
-                        let k = descriptor_slot(*t, *kind, &index, &mut slots, &mut descriptors)?;
+                        let k = descriptor_slot(
+                            *t,
+                            *kind,
+                            table_start,
+                            &index,
+                            &mut slots,
+                            &mut descriptors,
+                        )?;
                         body.instruction(&WasmInstruction::I32Const(k.cast_signed()))
                     }
                     Ins::TableSlot(t) => {
@@ -1470,7 +1810,14 @@ impl Module {
                             );
                         #[cfg(feature = "checked-report")]
                         let k = if descriptor {
-                            descriptor_slot(*t, 0, &index, &mut slots, &mut descriptors)?
+                            descriptor_slot(
+                                *t,
+                                0,
+                                table_start,
+                                &index,
+                                &mut slots,
+                                &mut descriptors,
+                            )?
                         } else {
                             slot(t, &mut slots)?
                         };
@@ -1491,7 +1838,19 @@ impl Module {
                         })
                     }
                     Ins::VTable(k) => {
-                        body.instruction(&WasmInstruction::I32Const(vtable_at[*k].cast_signed()))
+                        if previous.is_some() {
+                            body.instruction(&WasmInstruction::GlobalGet(
+                                gindex[&Global::SessionData],
+                            ));
+                            body.instruction(&WasmInstruction::I32Const(
+                                (vtable_at[*k] - STATIC_BASE).cast_signed(),
+                            ));
+                            body.instruction(&WasmInstruction::I32Add)
+                        } else {
+                            body.instruction(&WasmInstruction::I32Const(
+                                vtable_at[*k].cast_signed(),
+                            ))
+                        }
                     }
                     Ins::SaveAll | Ins::LoadAll => {
                         return Err(NotImplemented::bug(
@@ -1572,21 +1931,21 @@ impl Module {
             .iter()
             .flatten()
             .any(|f| f.body.iter().any(|i| matches!(i, Ins::CallIndirect(..))));
-        let table = indirect || !slots.is_empty();
-        if table {
+        let table = session || indirect || !slots.is_empty();
+        if table && previous.is_none() {
             let n = u64::try_from(slots.len()).expect("table");
             tables.table(TableType {
                 element_type: RefType::FUNCREF,
                 table64: false,
                 minimum: n,
-                maximum: Some(n),
+                maximum: if session { None } else { Some(n) },
                 shared: false,
             });
         }
         if !slots.is_empty() {
             elements.active(
                 None,
-                &ConstExpr::i32_const(0),
+                &ConstExpr::i32_const(table_start.cast_signed()),
                 Elements::Functions(slots.as_slice().into()),
             );
         }
@@ -1619,9 +1978,21 @@ impl Module {
             });
         }
         let mut global_sec = GlobalSection::new();
-        for g in &globals {
+        for g in globals.iter().filter(|g| !imported_global(g)) {
             let v = g.val();
             let init = match (g, v) {
+                (Global::Binding(key), _) => {
+                    let at = self.binding_slots[key];
+                    if previous.is_some() {
+                        ConstExpr::extended([
+                            WasmInstruction::GlobalGet(gindex[&Global::SessionData]),
+                            WasmInstruction::I32Const((at - STATIC_BASE).cast_signed()),
+                            WasmInstruction::I32Add,
+                        ])
+                    } else {
+                        ConstExpr::i32_const(at.cast_signed())
+                    }
+                }
                 (Global::HeapTop, _) => ConstExpr::i32_const(heap_base.cast_signed()),
                 (Global::HeapEnd, _) => ConstExpr::i32_const((heap_pages << 16).cast_signed()),
                 (Global::Stack, _) => ConstExpr::i32_const((STACK_PAGES << 16).cast_signed()),
@@ -1657,11 +2028,58 @@ impl Module {
         if self.runtime.is_some_and(|r| r.checked.is_some()) {
             exports.export("hd.heap", ExportKind::Memory, HEAP);
         }
+        let mut manifest = previous.cloned().unwrap_or_default();
+        let module_number = manifest.modules;
+        if session {
+            manifest.modules += 1;
+        }
+        if session {
+            exports.export("hd.session.heap", ExportKind::Memory, HEAP);
+            exports.export("hd.session.stack", ExportKind::Memory, STACK);
+            exports.export("hd.session.table", ExportKind::Table, 0);
+            for s in &defined {
+                let f = self.funcs[s.idx()].as_ref().expect("defined function");
+                let name = format!("hd.session.f.{}", index[s]);
+                exports.export(&name, ExportKind::Func, index[s]);
+                manifest.functions.insert(
+                    self.symbols.get(*s).clone(),
+                    SessionFunction {
+                        module: module_number,
+                        name,
+                        params: f.params.clone(),
+                        results: f.results.clone(),
+                    },
+                );
+            }
+            for (g, index) in gindex.iter().filter(|(g, _)| !imported_global(g)) {
+                let name = format!("hd.session.g.{index}");
+                exports.export(&name, ExportKind::Global, *index);
+                manifest.globals.insert(
+                    *g,
+                    SessionGlobal {
+                        module: module_number,
+                        name,
+                    },
+                );
+            }
+            for s in &defined {
+                if let Some(index) = slot_of.get(*s) {
+                    manifest
+                        .table_slots
+                        .insert(self.symbols.get(*s).clone(), *index);
+                }
+            }
+        }
+        manifest.table_len = table_start + u32::try_from(slots.len()).expect("table");
         let mut data = DataSection::new();
         if !self.data.is_empty() {
             data.active(
                 HEAP,
-                &ConstExpr::i32_const(STATIC_BASE.cast_signed()),
+                &if previous.is_some() {
+                    ConstExpr::global_get(gindex[&Global::SessionData])
+                } else {
+                    ConstExpr::i32_const(STATIC_BASE.cast_signed())
+                },
                 self.data.iter().copied(),
             );
         }
@@ -1678,16 +2096,37 @@ impl Module {
                 data: self.package_contract.encode().into(),
             });
         }
+        if session {
+            let mut metadata = Vec::new();
+            for value in [
+                1,
+                module_number,
+                u32::try_from(self.data.len()).expect("session data"),
+                manifest.table_len,
+                u32::try_from(data_relocations.len()).expect("data relocations"),
+            ] {
+                metadata.extend_from_slice(&value.to_le_bytes());
+            }
+            for offset in data_relocations {
+                metadata.extend_from_slice(&offset.to_le_bytes());
+            }
+            module.section(&wasm_encoder::CustomSection {
+                name: "hd.session".into(),
+                data: metadata.into(),
+            });
+        }
         module.section(&types);
-        if !imports.is_empty() {
+        if !imports.is_empty() || previous.is_some() {
             module.section(&import_sec);
         }
         module.section(&funcs);
-        if table {
+        if table && previous.is_none() {
             module.section(&tables);
         }
-        module.section(&memories);
-        if !globals.is_empty() {
+        if previous.is_none() {
+            module.section(&memories);
+        }
+        if globals.iter().any(|g| !imported_global(g)) {
             module.section(&global_sec);
         }
         module.section(&exports);
@@ -1718,8 +2157,15 @@ impl Module {
             descriptors.sort_stable_by(|((a, ka), _), ((b, kb), _)| {
                 self.symbols.cmp(*a, *b).then_with(|| ka.cmp(kb))
             });
-            for ((_, kind), slot) in descriptors {
-                data.extend_from_slice(&(slot + 1).to_le_bytes());
+            manifest.descriptors.extend(
+                descriptors
+                    .into_iter()
+                    .map(|((_, kind), slot)| (slot + 1, *kind)),
+            );
+            // Counts survive across epochs. Every new module's catalog
+            // therefore includes descriptors from the initialized prefix.
+            for (id, kind) in &manifest.descriptors {
+                data.extend_from_slice(&id.to_le_bytes());
                 data.push(*kind);
             }
             module.section(&wasm_encoder::CustomSection {
@@ -1732,10 +2178,13 @@ impl Module {
         if !paths.is_empty() {
             module.section(&inlined_frames(&frames, &paths));
         }
-        Ok(crate::MappedModule {
-            wasm: module.finish(),
-            functions: mapped_functions,
-        })
+        Ok((
+            crate::MappedModule {
+                wasm: module.finish(),
+                functions: mapped_functions,
+            },
+            manifest,
+        ))
     }
 }
 
@@ -1872,6 +2321,7 @@ fn compact_names(own: &[(u32, String)]) -> wasm_encoder::CustomSection<'static> 
 fn descriptor_slot(
     s: SymId,
     kind: u8,
+    table_start: u32,
     index: &Numbers,
     slots: &mut Vec<u32>,
     ids: &mut BTreeMap<(SymId, u8), u32>,
@@ -1883,7 +2333,7 @@ fn descriptor_slot(
     let f = *index
         .get(s)
         .ok_or_else(|| NotImplemented::bug(Stage::Link, "undefined descriptor glue"))?;
-    let k = u32::try_from(slots.len()).expect("descriptor table");
+    let k = table_start + u32::try_from(slots.len()).expect("descriptor table");
     if k >= GLUE {
         return crate::unsupported("a descriptor table exceeding the glue field");
     }
@@ -1903,16 +2353,38 @@ mod checked_descriptor_tests {
         let mut slots = Vec::new();
         let mut ids = BTreeMap::new();
         assert_eq!(
-            descriptor_slot(glue, 1, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(glue, 1, 0, &index, &mut slots, &mut ids).unwrap(),
             0
         );
         assert_eq!(
-            descriptor_slot(glue, 2, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(glue, 2, 0, &index, &mut slots, &mut ids).unwrap(),
             1
         );
         assert_eq!(
-            descriptor_slot(glue, 1, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(glue, 1, 0, &index, &mut slots, &mut ids).unwrap(),
             0
+        );
+        assert_eq!(slots, [7, 7]);
+    }
+
+    #[test]
+    fn extension_descriptors_follow_the_initialized_table_prefix() {
+        let glue = SymId(3);
+        let mut index = Numbers::new();
+        index.insert(glue, 7);
+        let mut slots = Vec::new();
+        let mut ids = BTreeMap::new();
+        assert_eq!(
+            descriptor_slot(glue, 1, 41, &index, &mut slots, &mut ids).unwrap(),
+            41
+        );
+        assert_eq!(
+            descriptor_slot(glue, 2, 41, &index, &mut slots, &mut ids).unwrap(),
+            42
+        );
+        assert_eq!(
+            descriptor_slot(glue, 1, 41, &index, &mut slots, &mut ids).unwrap(),
+            41
         );
         assert_eq!(slots, [7, 7]);
     }

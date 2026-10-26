@@ -60,7 +60,7 @@ compile is one serial driver run (`Executor::Serial`) with `NoClock`, on
 the browser pipeline (`EngineTarget::Browser`, `OptLevel::Dev`).
 
 ```ts
-type Goal = "run" | "check" | "test" | "wat" | "replStart" | "replInput" | "replOutcome";
+type Goal = "run" | "check" | "test" | "wat" | "replStart" | "replInput" | "replOutcome" | "replRebuildInput";
 interface CompileRequest {
   files: Record<string, string>;  // "src/main.hd" -> text (playground paths as they are)
   entry: string;                  // "src/main.hd"
@@ -98,7 +98,8 @@ interface CompileResult {
 **Wire format** (`hd_web::wire`, which documents each goal's fields and
 answers). Requests are LEB128 length-prefixed UTF-8: the file count,
 then path and text pairs, then the entry, then a goal byte (0 run,
-1 check, 2 test, 3 wat, 4 repl start, 5 repl input, 6 repl outcome),
+1 check, 2 test, 3 wat, 4 repl start, 5 repl input, 6 repl outcome,
+7 repl rebuild input),
 then the goal's own fields. A response is JSON text, written by hand
 (rule 2.2.4: no serde), plus the program bytes in a second buffer. The
 exports are `hd_input(len) -> ptr`, `hd_compile() -> status`,
@@ -106,28 +107,33 @@ exports are `hd_input(len) -> ptr`, `hd_compile() -> status`,
 buffers the crate owns, so Rust needs no raw-pointer `unsafe` blocks
 (§6).
 
-**REPL goals** drive one REPL session per worker,
-`Session::repl_start`, `repl_input` and `repl_outcome`. Each request
-builds or settles one module of the session; JS links and runs the
-modules.
+**REPL goals** drive one REPL session per worker through
+`Session::repl_start`, `repl_input`, `repl_rebuild_input_as` and
+`repl_outcome`. Each request builds or settles one module; JS links it.
 
 | Goal byte | Request after the goal byte | Response JSON | Output kind 1 |
 | --- | --- | --- | --- |
 | 4 repl start | nothing; the files are the session's package, entry empty | `{"diagnostics","input":0}` | empty |
-| 5 repl input | the input's text, then optionally its number N; no files, entry empty | `{"diagnostics","input":N}` | the whole-history module, when it built |
-| 6 repl outcome | module number, then outcome byte (0 joined, 1 dropped); no files, entry empty | `{"diagnostics":[],"input":N,"joined"}` | empty |
+| 5 repl input | the input's text, then optionally its number N; no files, entry empty | `{"diagnostics","input":N}` | base or extension, when it built |
+| 6 repl outcome | module number, then outcome byte (0 joined, 1 dropped, 2 failed); no files, entry empty | `{"diagnostics":[],"input":N,"outcome"}` | empty |
+| 7 repl rebuild input | the input's text, then its number N; no files, entry empty | `{"diagnostics","input":N}` | a whole linked base for historical replay |
 
-- Repl start drops the previous session and records the package sources.
-- Repl input builds the whole kept history plus the new `repl#N` input as
-  one module. The host replays earlier inputs from recorded host results
-  with output muted, then executes input N live.
-- There are no cross-module session imports or exported session keys.
+- Repl start drops the previous compiler session and records its package.
+- Repl input builds a base on the first input, then extensions importing
+  completed inputs' storage and functions through the private session ABI.
+  The host executes only the new input. Completed boundaries above the
+  active journal threshold produce a memory/global checkpoint and archive
+  the historical call rows.
+- Rebuild input instead compiles the whole kept prefix as a fresh base.
+  The host replays recorded results with output muted, then adopts the
+  initialized base before any later extension. A divergent suffix is
+  removed from both the compiler ABI and runtime state.
 - **Outcomes travel as their own request.** A module that built waits
-  until JS reports how it ended. Outcome byte 0 means status 0: the
-  module joins (`hd_driver::Session::add`), and later inputs see its
-  names. Byte 1 covers a failed instantiation, a panic, a stop or
-  cancel, and a nonzero status. The input then adds nothing and its
-  file leaves the source set (`cli.repl.panic.binding`). A failed input does not join the visible bindings.
+  until JS reports its outcome. Byte 0 commits its initialized ABI and
+  visible declarations. Byte 1 drops an unexecuted, stopped or cancelled
+  input without committing code or bindings. Byte 2 commits completed
+  failed code and mutations while hiding its declarations from later
+  inputs (`cli.repl.panic.binding`).
 - While a module waits, another repl input is refused. So is an
   outcome for another module, or any REPL request before a start.
   These answer status 2 with `{"error"}`, as a malformed request does.
