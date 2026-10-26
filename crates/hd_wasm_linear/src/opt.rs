@@ -1115,7 +1115,40 @@ fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
             | I::I32Clz
             | I::I64Clz
             | I::I32Ctz
-            | I::I64Ctz => (1, 1),
+            | I::I64Ctz
+            | I::I32Popcnt
+            | I::I64Popcnt
+            | I::I32Extend8S
+            | I::I32Extend16S
+            | I::I32ReinterpretF32
+            | I::I64ReinterpretF64
+            | I::F32ReinterpretI32
+            | I::F64ReinterpretI64
+            | I::I32TruncSatF32S
+            | I::I32TruncSatF32U
+            | I::I32TruncSatF64S
+            | I::I32TruncSatF64U
+            | I::I64TruncSatF32S
+            | I::I64TruncSatF32U
+            | I::I64TruncSatF64S
+            | I::I64TruncSatF64U
+            | I::F32ConvertI32S
+            | I::F32ConvertI32U
+            | I::F32ConvertI64S
+            | I::F32ConvertI64U
+            | I::F64ConvertI32S
+            | I::F64ConvertI32U
+            | I::F64ConvertI64S
+            | I::F64ConvertI64U
+            | I::F32DemoteF64
+            | I::F64PromoteF32
+            | I::F32Neg
+            | I::F64Neg
+            | I::F32Sqrt
+            | I::F64Sqrt
+            | I::MemoryGrow(_) => (1, 1),
+            I::MemorySize(_) => (0, 1),
+            I::MemoryCopy { .. } | I::MemoryFill(_) => (3, 0),
             I::I32Add
             | I::I32Sub
             | I::I32Mul
@@ -1153,7 +1186,35 @@ fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
             | I::I64LeU
             | I::I64LeS
             | I::I64GeU
-            | I::I64GeS => (2, 1),
+            | I::I64GeS
+            | I::I32DivS
+            | I::I32DivU
+            | I::I32RemS
+            | I::I32RemU
+            | I::I64DivS
+            | I::I64DivU
+            | I::I64RemS
+            | I::I64RemU
+            | I::F32Add
+            | I::F32Sub
+            | I::F32Mul
+            | I::F32Div
+            | I::F32Eq
+            | I::F32Ne
+            | I::F32Lt
+            | I::F32Gt
+            | I::F32Le
+            | I::F32Ge
+            | I::F64Add
+            | I::F64Sub
+            | I::F64Mul
+            | I::F64Div
+            | I::F64Eq
+            | I::F64Ne
+            | I::F64Lt
+            | I::F64Gt
+            | I::F64Le
+            | I::F64Ge => (2, 1),
             other if is_load(other) => (1, 1),
             other if with_offset(other, 0).is_some() => (2, 0),
             _ => return None,
