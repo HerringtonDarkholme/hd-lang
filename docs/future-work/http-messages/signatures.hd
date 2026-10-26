@@ -68,10 +68,9 @@ impl Headers:
     ## The first value of `name`.
     pub fn get(&self, name: HeaderName) -> string?: panic("todo")
     pub fn get_all(&self, name: HeaderName) -> List[string]: panic("todo")
-    ## Replaces every value of `name`.
+    ## Replaces every value of `name`. A list-valued header takes one
+    ## comma-separated value (RFC 9110 §5.3); Set-Cookie lines come from set_cookie.
     pub fn set(&mut self, name: HeaderName, value: string) -> void: panic("todo")
-    ## Adds another value, keeping the others (each Set-Cookie line).
-    pub fn append(&mut self, name: HeaderName, value: string) -> void: panic("todo")
     pub fn remove(&mut self, name: HeaderName) -> void: panic("todo")
     ## Rejects CR/LF in names and values; send! runs it too.
     pub fn validate(&self) -> Result[void, HeaderError]: panic("todo")
