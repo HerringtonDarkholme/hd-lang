@@ -16,7 +16,7 @@ pub fn main() -> void $ Console:
                 t := zr * zr - zi * zi + cr
                 zi = 2.0 * zr * zi + ci
                 zr = t
-                i = i + 1
+                i += 1
             if i == ITER:
-                inside = inside + 1
+                inside += 1
     println(inside)

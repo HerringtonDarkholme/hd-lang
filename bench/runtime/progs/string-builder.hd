@@ -2,10 +2,8 @@ use std.text.StringBuilder
 
 fn build(n: i32) -> string:
     out := StringBuilder::new()
-    let i = +0
-    while i < n:
+    for _ in 0..n:
         out.push("abcdefgh")
-        i = i + 1
     out.build()
 
 pub fn main() -> void $ Console:

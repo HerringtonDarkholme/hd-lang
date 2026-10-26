@@ -6,13 +6,11 @@ struct Point:
     y: i64
 
 pub fn main() -> void $ Console:
-    let mut points: List[Point] = []
-    for i in 0..N:
-        points.push(Point { x: i64(i), y: i64(i * 7 % 1000) })
+    let mut points = [for i in 0..N => Point { x: i64(i), y: i64(i * 7 % 1000) }]
     for round in 0..10:
         r := i64(round)
         points = points.map(fn(p): Point { x: (p.x + p.y) % 1_000_003, y: (p.y * 3 + r) % 1000 })
     let sum: i64 = 0
     for p in points:
-        sum = sum + p.x + p.y
+        sum += p.x + p.y
     println(sum)
