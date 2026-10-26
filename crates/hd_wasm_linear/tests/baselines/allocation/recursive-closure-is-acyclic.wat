@@ -13,12 +13,11 @@
     end
     ;; ...
   )
-  (func $recursive#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32) (local $sum.0 i32) (local $sum.1 i32) (local $t6 i32) (local $t5 i32) (local $t1 i32) (local $t0 i32) (local $t2 i64) (local $t3 i32) (local $t4 i64)
+  (func $recursive#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32) (local $t1 i32) (local $t0 i64)
     ;; 6 |     sum := fn(n: i32) -> i32:
     i32.const 0
-    local.set $sum.0
+    local.set $ctx
     local.get $env
-    local.tee $sum.1
     call $rt:retain_known
     block
     ;; 7 |         if n == 0: 0 else: n + sum(n - 1)
@@ -26,21 +25,17 @@
       i32.eqz
       if
       else
-        local.get $sum.0
-        local.get $sum.1
-        local.set $t0
-        local.set $t1
-        local.get $t0
+        local.get $env
         call $rt:retain_known
         local.get $n
         i64.extend_i32_s
         i32.const 1
         i64.extend_i32_s
         i64.sub
-        local.tee $t2
+        local.tee $t0
         i64.const 2147483647
         i64.gt_s
-        local.get $t2
+        local.get $t0
         i64.const -2147483648
         i64.lt_s
         i32.or
@@ -48,24 +43,24 @@
           call $rt:panic
           unreachable
         end
+        local.get $env
         local.get $t0
-        local.get $t2
         i32.wrap_i64
         i32.const 0
-        local.get $t1
+        local.get $ctx
         call_indirect $table0 (param i32 i32 i32) (result i32)
-        local.set $t3
-        local.get $t0
+        local.set $ctx
+        local.get $env
         call $rt:release_ref
         local.get $n
         i64.extend_i32_s
-        local.get $t3
+        local.get $ctx
         i64.extend_i32_s
         i64.add
-        local.tee $t4
+        local.tee $t0
         i64.const 2147483647
         i64.gt_s
-        local.get $t4
+        local.get $t0
         i64.const -2147483648
         i64.lt_s
         i32.or
@@ -73,16 +68,16 @@
           call $rt:panic
           unreachable
         end
-        local.get $t4
+        local.get $t0
         i32.wrap_i64
-        local.set $t5
+        local.set $t1
       end
     ;; 6 |     sum := fn(n: i32) -> i32:
-      local.get $sum.1
+      local.get $env
       call $rt:release_ref
-      local.get $t5
-      local.set $t6
+      local.get $t1
+      local.set $env
     end
-    local.get $t6
+    local.get $env
   )
 )

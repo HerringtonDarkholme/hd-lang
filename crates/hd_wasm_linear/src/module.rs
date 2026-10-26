@@ -1181,6 +1181,9 @@ impl Module {
                 self.reach();
             }
         }
+        for f in self.funcs.iter_mut().flatten() {
+            crate::opt::coalesce(f);
+        }
         let stack = crate::wide::lower(&mut self.funcs, &self.exports, &self.symbols)?;
         // Wide lowering rebuilds each body's callees from its final code.
         // Calls removed by local/count optimization no longer keep helpers.

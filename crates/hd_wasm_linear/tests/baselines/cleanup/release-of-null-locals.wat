@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $make (param $depth i32) (result i32) (local $t4 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $make (param $depth i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 12 |     if depth == 0:
     block
       local.get $depth
@@ -14,19 +14,19 @@
         i32.const -2147483647
         i32.add
         call $rt:new/class-2
-        local.tee $t0
+        local.tee $depth
         i32.const 0
         i32.store8 $heap
-        local.get $t0
+        local.get $depth
         i32.const 0
         i32.store $heap offset=4
-        local.get $t0
+        local.get $depth
         i32.const 0
         i32.store8 $heap offset=8
-        local.get $t0
+        local.get $depth
         i32.const 0
         i32.store $heap offset=12
-        local.get $t0
+        local.get $depth
     ;; 12 |     if depth == 0:
       else
     ;; 15 |         &Node { left: .Some(make(depth - 1)), right: .Some(make(depth - 1)) }
@@ -34,34 +34,34 @@
         i32.const 1
         i32.sub
         call $make
-        local.set $t1
+        local.set $t0
         local.get $depth
         i32.const 1
         i32.sub
         call $make
-        local.set $t2
+        local.set $depth
         i32.const 16
         i32.const 0
         i32.const -2147483647
         i32.add
         call $rt:new/class-2
-        local.tee $t3
+        local.tee $t1
         i32.const 1
         i32.store8 $heap
-        local.get $t3
         local.get $t1
+        local.get $t0
         i32.store $heap offset=4
-        local.get $t3
+        local.get $t1
         i32.const 1
         i32.store8 $heap offset=8
-        local.get $t3
-        local.get $t2
+        local.get $t1
+        local.get $depth
         i32.store $heap offset=12
-        local.get $t3
+        local.get $t1
     ;; 12 |     if depth == 0:
       end
-      local.set $t4
+      local.set $depth
     end
-    local.get $t4
+    local.get $depth
   )
 )

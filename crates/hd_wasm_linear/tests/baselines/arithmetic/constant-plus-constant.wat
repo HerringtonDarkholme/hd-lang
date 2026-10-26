@@ -2,40 +2,36 @@
 (module
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $label (param $name.0 i32) (param $name.1 i32) (result i32 i32) (local $t6 i32) (local $t5 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $label (param $name.0 i32) (param $name.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 7 |     "id $name"
     block
-      local.get $name.0
-      local.get $name.1
-      local.set $t0
-      local.set $t1
       i32.const 3
-      local.get $t0
+      local.get $name.1
       i32.add
-      local.tee $t2
+      local.tee $t0
       call $rt:str
-      local.tee $t3
-      local.tee $t4
+      local.tee $t1
+      local.tee $t2
       i32.const 65 ;; &"id "
       i32.const 3
       memory.copy $heap $heap
-      local.get $t4
+      local.get $t2
       i32.const 3
       i32.add
-      local.tee $t4
-      local.get $t1
-      local.get $t0
+      local.tee $t2
+      local.get $name.0
+      local.get $name.1
       memory.copy $heap $heap
-      local.get $t4
-      local.get $t0
+      local.get $t2
+      local.get $name.1
       i32.add
       drop
-      local.get $t3
-      local.get $t2
-      local.set $t5
-      local.set $t6
+      local.get $t1
+      local.get $t0
+      local.set $name.1
+      local.set $name.0
     end
-    local.get $t6
-    local.get $t5
+    local.get $name.0
+    local.get $name.1
   )
 )

@@ -3,7 +3,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $write_nested (param $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $write_nested (param $xs i32)
     block
       ;; ...
     ;; 8 |     set(&mut xs[0][0], 9)
@@ -11,47 +11,46 @@
       drop
       local.get $xs
       i32.load $heap
-      local.set $t0
+      local.set $xs
       i32.const 0
-      local.get $t0
+      local.get $xs
       i32.load $heap offset=4
       i32.ge_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $t0
+      local.get $xs
       i32.load $heap offset=16
-      local.set $t1
+      local.set $xs
       i32.const 0
-      local.get $t1
+      local.get $xs
       i32.load $heap offset=4
       i32.ge_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $t1
+      local.get $xs
       i32.const 16
       i32.add
-      local.tee $t2
+      local.tee $xs
       call $retain
-      local.get $t2
+      local.get $xs
       i32.const 9
       call $set
       ;; ...
     end
   )
-  (func $set (param $p i32) (param $v i32) (local $t0 i32)
+  (func $set (param $p i32) (param $v i32)
     ;; 5 |     *p = v
     block
       local.get $p
-      local.tee $t0
       drop
-      local.get $t0
+      local.get $p
       i32.load $heap
       drop
-      local.get $t0
+      local.get $p
       local.get $v
       i32.store $heap
     end

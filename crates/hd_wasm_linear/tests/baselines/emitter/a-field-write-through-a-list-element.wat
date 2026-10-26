@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $place (param $bodies i32) (param $i i32) (param $x f64) (local $t0 i32)
+  (func $place (param $bodies i32) (param $i i32) (param $x f64)
     block
       ;; ...
     ;; 7 |     bodies[i].x = x
@@ -10,16 +10,16 @@
       drop
       local.get $bodies
       i32.load $heap
-      local.set $t0
+      local.set $bodies
       local.get $i
-      local.get $t0
+      local.get $bodies
       i32.load $heap offset=4
       i32.ge_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $t0
+      local.get $bodies
       local.get $i
       i32.const 16
       i32.mul

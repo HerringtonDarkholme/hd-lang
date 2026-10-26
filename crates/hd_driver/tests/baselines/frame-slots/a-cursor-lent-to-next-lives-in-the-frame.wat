@@ -2,7 +2,7 @@
 (module
   (import "fixture" "impl Iterator [ i64 ] for Upto.next" (func $"impl Iterator [ i64 ] for Upto.next" (param i32) (result i32 i64)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $items.at i64) (param $items.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $t1 i32) (local $sum i64) (local $t3 i32) (local $t2 i64) (local $item i64)
+  (func $total (param $items.at i64) (param $items.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $t1 i32)
     ;; ...
     block
     ;; 20 |     let mut cursor = items
@@ -12,39 +12,35 @@
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $t1
+      local.tee $cursor
       local.get $items.at
       i64.store $heap
-      local.get $t1
+      local.get $cursor
       local.get $items.end
       i64.store $heap offset=8
-      local.get $t1
-      local.set $cursor
     ;; 21 |     let sum: i64 = 0
       i64.const 0
-      local.set $sum
+      local.set $items.at
     ;; 22 |     while true:
       block
         loop
     ;; 23 |         match cursor.next():
           local.get $cursor
           call $"impl Iterator [ i64 ] for Upto.next"
-          local.set $t2
-          local.set $t3
+          local.set $items.end
+          local.set $t1
           block
             block
               block
     ;; 24 |             .Some(item) => sum = sum + item
-                local.get $t3
+                local.get $t1
                 i32.const 1
                 i32.eq
                 if
-                  local.get $t2
-                  local.set $item
                   br 1
                 else
     ;; 25 |             .None => break
-                  local.get $t3
+                  local.get $t1
                   i32.eqz
                   br_if 2
                   unreachable
@@ -54,10 +50,10 @@
                 unreachable
               end
     ;; 24 |             .Some(item) => sum = sum + item
-              local.get $sum
-              local.get $item
+              local.get $items.at
+              local.get $items.end
               i64.add
-              local.set $sum
+              local.set $items.at
     ;; 23 |         match cursor.next():
               br 1
             end
@@ -70,9 +66,6 @@
           br 0
         end
       end
-    ;; 26 |     sum
-      local.get $sum
-      ;; ...
     end
     ;; ...
   )

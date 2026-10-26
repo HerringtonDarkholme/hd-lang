@@ -5,7 +5,7 @@
     ;; 7 | fn second() -> i32: +3
     i32.const 3
   )
-  (func $first (param $value i32) (result i32) (local $t0 i64) (local $t1 i64)
+  (func $first (param $value i32) (result i32) (local $t0 i64)
     ;; 4 |     copy := value + 1
     local.get $value
     i64.extend_i32_s
@@ -30,10 +30,10 @@
     i32.const 2
     i64.extend_i32_s
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 2147483647
     i64.gt_s
-    local.get $t1
+    local.get $t0
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -41,7 +41,7 @@
       call $rt:panic
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
   )
 )

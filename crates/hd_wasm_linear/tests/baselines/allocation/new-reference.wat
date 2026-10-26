@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $leaf (result i32) (local $t1 i32) (local $t0 i32)
+  (func $leaf (result i32) (local $t0 i32)
     ;; 14 |     &Node { left: .None, right: .None }
     block
       i32.const 16
@@ -22,9 +22,7 @@
       local.get $t0
       i32.const 0
       i32.store $heap offset=12
-      local.get $t0
-      local.set $t1
     end
-    local.get $t1
+    local.get $t0
   )
 )

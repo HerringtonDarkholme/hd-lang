@@ -45,7 +45,10 @@
 //!     reader by liveness and `R` is a straight-line run (panic guards
 //!     included), moves a pure push before the set to the get, or, when
 //!     `R` leaves the stack as it found it, is `R`; a `local.tee t` after
-//!     a pure push goes, the get pushing that push again.
+//!     a pure push goes, the get pushing that push again;
+//! 15. once the rules are done ([`coalesce`]), locals of one type whose
+//!     values are never live at once share one local, and a copy between
+//!     two locals that share one goes.
 //!
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
@@ -497,6 +500,218 @@ fn basic_blocks(edges: &[ZeroEdges], len: usize) -> (Vec<usize>, Vec<usize>) {
     (point_at, starts)
 }
 
+/// The locals live into each basic block of a body, by a backward pass
+/// to a fixed point (loop backedges included). `SaveAll` reads every
+/// local, and `LoadAll` writes none for this purpose.
+struct Live {
+    edges: Vec<ZeroEdges>,
+    point_at: Vec<usize>,
+    starts: Vec<usize>,
+    words: usize,
+    into: Vec<u64>,
+}
+
+impl Live {
+    fn new(f: &Func) -> Option<Self> {
+        let n = f.params.len() + f.locals.len();
+        if n == 0 || f.body.is_empty() {
+            return None;
+        }
+        let edges = zero_edges(&f.body, &f.labels)?;
+        let (point_at, starts) = basic_blocks(&edges, f.body.len());
+        let words = n.div_ceil(64);
+        let mut me = Self {
+            into: vec![0u64; starts.len() * words],
+            edges,
+            point_at,
+            starts,
+            words,
+        };
+        let mut live = vec![0u64; words];
+        loop {
+            let mut changed = false;
+            for p in (0..me.starts.len()).rev() {
+                me.out(p, f.body.len(), &mut live);
+                for ins in f.body[me.starts[p]..me.end(p, f.body.len())].iter().rev() {
+                    Self::step(ins, &mut live);
+                }
+                let row = &mut me.into[p * words..(p + 1) * words];
+                if row != live.as_slice() {
+                    row.copy_from_slice(&live);
+                    changed = true;
+                }
+            }
+            if !changed {
+                return Some(me);
+            }
+        }
+    }
+
+    fn end(&self, p: usize, len: usize) -> usize {
+        self.starts.get(p + 1).copied().unwrap_or(len)
+    }
+
+    /// The locals live after block `p`: those live into its successors.
+    fn out(&self, p: usize, len: usize, live: &mut [u64]) {
+        live.fill(0);
+        let end = self.end(p, len);
+        let w = self.words;
+        self.edges[end - 1].each(end, |to| {
+            if let Some(&q) = self.point_at.get(to) {
+                for (a, b) in live.iter_mut().zip(&self.into[q * w..(q + 1) * w]) {
+                    *a |= *b;
+                }
+            }
+        });
+    }
+
+    fn step(ins: &Ins, live: &mut [u64]) {
+        match ins {
+            Ins::Op(I::LocalGet(l)) => set_zero(live, *l, true),
+            Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => set_zero(live, *l, false),
+            Ins::SaveAll => live.fill(u64::MAX),
+            _ => {}
+        }
+    }
+
+    /// Visits each instruction of `body`, last to first within each
+    /// block, with the locals live just after it.
+    fn walk_back(&self, body: &[Ins], mut visit: impl FnMut(usize, &[u64])) {
+        let mut live = vec![0u64; self.words];
+        for p in 0..self.starts.len() {
+            self.out(p, body.len(), &mut live);
+            for at in (self.starts[p]..self.end(p, body.len())).rev() {
+                visit(at, &live);
+                Self::step(&body[at], &mut live);
+            }
+        }
+    }
+
+    /// The locals live at the function's entry.
+    fn entry(&self) -> &[u64] {
+        &self.into[..self.words]
+    }
+}
+
+/// Rule 15: locals of one type whose values are never live at once share
+/// one local, as a register allocator colors its interference graph. A
+/// write conflicts with each local live just after it, except with the
+/// source of a copy, which holds the same value; parameters are written
+/// at entry, where every local live there holds its parameter or its
+/// initial zero. Each local in turn joins the first class of its type
+/// (parameters first) it conflicts with no member of; a copy between two
+/// locals of one class then goes.
+pub fn coalesce(f: &mut Func) {
+    if f.raw.is_some()
+        || f.body
+            .iter()
+            .any(|i| matches!(i, Ins::SaveAll | Ins::LoadAll))
+    {
+        return;
+    }
+    let Some(live) = Live::new(f) else {
+        return;
+    };
+    let np = f.params.len();
+    let n = np + f.locals.len();
+    let w = live.words;
+    let body = &f.body;
+    // `rows[x]`: the locals live where `x` is written.
+    let mut rows = vec![0u64; n * w];
+    let mut used = vec![false; n];
+    let mut write = vec![0u64; w];
+    live.walk_back(body, |at, after| {
+        let Ins::Op(I::LocalSet(x) | I::LocalTee(x) | I::LocalGet(x)) = &body[at] else {
+            return;
+        };
+        let x = *x as usize;
+        used[x] = true;
+        if matches!(body[at], Ins::Op(I::LocalGet(_))) {
+            return;
+        }
+        write.copy_from_slice(after);
+        if let Some(Ins::Op(I::LocalGet(y))) = at.checked_sub(1).map(|p| &body[p]) {
+            set_zero(&mut write, *y, false);
+        }
+        for (r, a) in rows[x * w..(x + 1) * w].iter_mut().zip(&write) {
+            *r |= *a;
+        }
+    });
+    for p in 0..np {
+        for (r, a) in rows[p * w..(p + 1) * w].iter_mut().zip(live.entry()) {
+            *r |= *a;
+        }
+    }
+    let ty = |l: usize| {
+        if l < np {
+            f.params[l]
+        } else {
+            f.locals[l - np]
+        }
+    };
+    // Each class: its local, its type, its members and the union of
+    // their rows.
+    let mut classes: Vec<(u32, crate::module::Val, Vec<u64>, Vec<u64>)> = Vec::new();
+    let mut to: Vec<u32> = (0..u32::try_from(n).expect("locals")).collect();
+    for x in 0..n {
+        if x >= np && !used[x] {
+            continue;
+        }
+        let xl = u32::try_from(x).expect("locals");
+        let row = &rows[x * w..(x + 1) * w];
+        let fits = |(_, t, members, union): &&mut (u32, crate::module::Val, Vec<u64>, Vec<u64>)| {
+            *t == ty(x)
+                && !zero_local(union, xl)
+                && row.iter().zip(members.iter()).all(|(a, b)| a & b == 0)
+        };
+        if let Some((rep, _, members, union)) = classes.iter_mut().find(|c| x >= np && fits(c)) {
+            to[x] = *rep;
+            set_zero(members, xl, true);
+            for (u, r) in union.iter_mut().zip(row) {
+                *u |= *r;
+            }
+        } else {
+            let mut members = vec![0u64; w];
+            set_zero(&mut members, xl, true);
+            classes.push((xl, ty(x), members, row.to_vec()));
+        }
+    }
+    if to.iter().enumerate().all(|(x, t)| *t as usize == x) {
+        return;
+    }
+    let mut origins = Remap::new(f.origins.as_deref());
+    let mut out: Vec<Ins> = Vec::with_capacity(body.len());
+    for (at, ins) in body.iter().enumerate() {
+        let ins = match *ins {
+            Ins::Op(I::LocalGet(l)) => Ins::Op(I::LocalGet(to[l as usize])),
+            Ins::Op(I::LocalSet(l)) => Ins::Op(I::LocalSet(to[l as usize])),
+            Ins::Op(I::LocalTee(l)) => Ins::Op(I::LocalTee(to[l as usize])),
+            other => other,
+        };
+        match (out.last(), ins) {
+            (Some(Ins::Op(I::LocalGet(a))), Ins::Op(I::LocalSet(b))) if *a == b => {
+                out.pop();
+                origins.pop();
+            }
+            (Some(Ins::Op(I::LocalGet(a))), Ins::Op(I::LocalTee(b))) if *a == b => {}
+            _ => {
+                out.push(ins);
+                origins.copy(at..at + 1);
+            }
+        }
+    }
+    f.body = out;
+    origins.finish(f);
+    if let Some(names) = &mut f.local_names {
+        let mut merged = BTreeMap::new();
+        for (l, name) in std::mem::take(names) {
+            merged.entry(to[l as usize]).or_insert(name);
+        }
+        *names = merged;
+    }
+    renumber(f);
+}
+
 /// Rules 13 and 14, from one backward liveness pass over the basic blocks
 /// (loop backedges to a fixed point; `SaveAll` reads every local, and
 /// `LoadAll` writes none for this purpose).
@@ -520,67 +735,19 @@ fn basic_blocks(edges: &[ZeroEdges], len: usize) -> (Vec<usize>, Vec<usize>) {
 /// either nests in or follows an earlier one's, so the facts each
 /// rewrite reads still hold.
 fn live_rules(f: &mut Func, arity: &Arity) -> bool {
-    let n = f.params.len() + f.locals.len();
-    if n == 0 {
-        return false;
-    }
-    let Some(edges) = zero_edges(&f.body, &f.labels) else {
+    let Some(live) = Live::new(f) else {
         return false;
     };
-    let (point_at, starts) = basic_blocks(&edges, f.body.len());
-    let words = n.div_ceil(64);
-    let mut live_in = vec![0u64; starts.len() * words];
-    let mut live = vec![0u64; words];
     let body = &f.body;
-    // The locals live after block `p`: those live into its successors.
-    let live_out = |p: usize, live_in: &[u64], live: &mut [u64]| {
-        live.fill(0);
-        let end = starts.get(p + 1).copied().unwrap_or(body.len());
-        edges[end - 1].each(end, |to| {
-            if let Some(&q) = point_at.get(to) {
-                for (a, b) in live.iter_mut().zip(&live_in[q * words..(q + 1) * words]) {
-                    *a |= *b;
-                }
-            }
-        });
-    };
-    let step = |ins: &Ins, live: &mut [u64]| match ins {
-        Ins::Op(I::LocalGet(l)) => set_zero(live, *l, true),
-        Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => set_zero(live, *l, false),
-        Ins::SaveAll => live.fill(u64::MAX),
-        _ => {}
-    };
-    loop {
-        let mut changed = false;
-        for p in (0..starts.len()).rev() {
-            live_out(p, &live_in, &mut live);
-            let end = starts.get(p + 1).copied().unwrap_or(body.len());
-            for ins in body[starts[p]..end].iter().rev() {
-                step(ins, &mut live);
-            }
-            let row = &mut live_in[p * words..(p + 1) * words];
-            if row != live.as_slice() {
-                row.copy_from_slice(&live);
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
     // `dead[at]`: a write that no read follows, or a read after which
     // its local is dead.
     let mut dead = vec![false; body.len()];
-    for p in 0..starts.len() {
-        live_out(p, &live_in, &mut live);
-        let end = starts.get(p + 1).copied().unwrap_or(body.len());
-        for at in (starts[p]..end).rev() {
-            if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = &body[at] {
-                dead[at] = !zero_local(&live, *l);
-            }
-            step(&body[at], &mut live);
+    live.walk_back(body, |at, after| {
+        if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = &body[at] {
+            dead[at] = !zero_local(after, *l);
         }
-    }
+    });
+    let n = f.params.len() + f.locals.len();
     let mut origins = Remap::new(f.origins.as_deref());
     let mut out = Vec::with_capacity(body.len());
     let dead_write =
@@ -2660,6 +2827,70 @@ mod origin_tests {
             },
         );
         assert_eq!(f.body.len(), 5);
+    }
+
+    #[test]
+    fn coalesced_locals_never_hold_two_live_values() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let release = call(&symbols, Sym::Helper(Helper::ReleaseRef));
+        // Locals 1 and 2 live one after the other: one local. Local 3
+        // overlaps local 4, and local 5 is read before any write, so it
+        // keeps its own zero while 4 is live.
+        let body = vec![
+            op(I::LocalGet(0)),
+            op(I::LocalSet(1)),
+            op(I::LocalGet(1)),
+            release,
+            op(I::LocalGet(0)),
+            op(I::I32Eqz),
+            op(I::LocalSet(2)),
+            op(I::LocalGet(2)),
+            release,
+            op(I::I32Const(7)),
+            op(I::LocalSet(3)),
+            op(I::I32Const(8)),
+            op(I::LocalSet(4)),
+            op(I::LocalGet(3)),
+            op(I::LocalGet(4)),
+            op(I::I32Add),
+            release,
+            op(I::LocalGet(5)),
+            release,
+        ];
+        let mut f = run(tracked(&symbols, 1, 5, body), coalesce);
+        let named: Vec<u32> = f
+            .body
+            .iter()
+            .filter_map(|i| match i {
+                Ins::Op(I::LocalGet(l) | I::LocalSet(l)) => Some(*l),
+                _ => None,
+            })
+            .collect();
+        // 1 and 2 take the parameter's local, whose value is dead after
+        // its last read; 3 joins them too. 4 and 5 stay apart.
+        assert_eq!(named, [0, 0, 0, 0, 0, 1, 0, 1, 2], "{:?}", f.body);
+        assert_eq!(f.locals.len(), 2);
+        // A copy whose source keeps its value shares the source's local
+        // and goes.
+        f = run(
+            tracked(
+                &symbols,
+                1,
+                1,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::LocalSet(1)),
+                    op(I::LocalGet(0)),
+                    release,
+                    op(I::LocalGet(1)),
+                    release,
+                ],
+            ),
+            coalesce,
+        );
+        assert_eq!(f.body.len(), 4);
+        assert!(f.locals.is_empty());
     }
 
     #[test]

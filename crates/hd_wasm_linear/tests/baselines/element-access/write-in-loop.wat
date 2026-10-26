@@ -3,13 +3,12 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $ramp (param $n i32) (result i32) (local $xs i32) (local $t4 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $i i32)
+  (func $ramp (param $n i32) (result i32) (local $xs i32) (local $t1 i32) (local $i i32) (local $t0 i32)
     block
       ;; ...
     ;; 12 |     for i in 0..n:
       local.get $t0
       local.get $n
-      local.tee $t1
       i32.lt_u
       if
         local.get $xs
@@ -17,31 +16,30 @@
         local.set $xs
       end
       local.get $xs
-      local.tee $t2
       i32.load $heap offset=4
-      local.set $t3
+      local.set $t1
       block
         loop
-          local.get $t4
-          local.get $t1
+          local.get $t0
+          local.get $n
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t4
+          local.get $t0
           local.set $i
-          local.get $t4
+          local.get $t0
           i32.const 1
           i32.add
-          local.set $t4
+          local.set $t0
     ;; 13 |         xs[i] = i
           local.get $i
-          local.get $t3
+          local.get $t1
           i32.ge_u
           if
             call $rt:panic
             unreachable
           end
-          local.get $t2
+          local.get $xs
           local.get $i
           i32.const 4
           i32.mul

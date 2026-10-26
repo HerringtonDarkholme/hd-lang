@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $copied (param $seed i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $copied (param $seed i32) (result i32 i32) (local $t0 i32)
     ;; 5 |     fn() -> i32: seed
     block
       i32.const 0
@@ -12,22 +12,18 @@
       local.tee $t0
       local.get $seed
       i32.store $heap
-      local.get $t0
-      local.set $t1
-      local.set $t2
+      local.set $seed
     end
-    local.get $t2
-    local.get $t1
+    local.get $seed
+    local.get $t0
   )
-  (func $copied#1 (param $env i32) (param $ctx i32) (result i32) (local $seed i32) (local $t0 i32)
+  (func $copied#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 5 |     fn() -> i32: seed
     local.get $env
     i32.load $heap
-    local.set $seed
+    local.set $env
     block
-      local.get $seed
-      local.set $t0
     end
-    local.get $t0
+    local.get $env
   )
 )

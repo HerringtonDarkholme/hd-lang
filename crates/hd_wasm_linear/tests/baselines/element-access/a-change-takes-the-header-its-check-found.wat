@@ -2,47 +2,42 @@
 (module
   (import "fixture" "rt:list_grow" (func $rt:list_grow (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $push (param $b i32) (param $text.0 i32) (param $text.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $push (param $b i32) (param $text.0 i32) (param $text.1 i32) (local $t1 i32) (local $t0 i32)
     block
-    ;; 11 |     b.parts.push(text)
-      local.get $text.0
-      local.get $text.1
-      local.set $t0
-      local.set $t1
       ;; ...
-      local.tee $t2
+    ;; 11 |     b.parts.push(text)
       i32.load $heap offset=4
-      local.set $t3
-      local.get $t2
+      local.set $t0
+      local.get $t1
       i32.load $heap offset=8
-      local.get $t3
-      local.get $t2
+      local.get $t0
+      local.get $t1
       i32.load $heap
       i32.eq
       i32.or
       if
-        local.get $t2
+        local.get $t1
         call $rt:list_grow
-        local.set $t2
+        local.set $t1
         local.get $b
         drop
         local.get $b
-        local.get $t2
+        local.get $t1
         i32.store $heap
       end
-      local.get $t2
-      local.get $t3
+      local.get $t1
+      local.get $t0
       i32.const 8
       i32.mul
       i32.add
-      local.tee $t4
-      local.get $t1
+      local.tee $b
+      local.get $text.0
       i32.store $heap offset=16
-      local.get $t4
-      local.get $t0
+      local.get $b
+      local.get $text.1
       i32.store $heap offset=20
-      local.get $t2
-      local.get $t3
+      local.get $t1
+      local.get $t0
       i32.const 1
       i32.add
       i32.store $heap offset=4

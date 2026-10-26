@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "table0" (table $table0 0 funcref))
-  (func $apply (param $f.0 i32) (param $f.1 i32) (param $x i32) (result i32) (local $t0 i32)
+  (func $apply (param $f.0 i32) (param $f.1 i32) (param $x i32) (result i32)
     ;; 7 |     f(x)
     block
       local.get $f.1
@@ -10,10 +10,10 @@
       i32.const 0
       local.get $f.0
       call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $t0
+      local.set $f.0
     end
     local.get $f.1
     call $rt:release_ref
-    local.get $t0
+    local.get $f.0
   )
 )
