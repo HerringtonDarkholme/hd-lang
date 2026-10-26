@@ -1,8 +1,11 @@
 # Usage examples for the proposed std.http message API (src/http.hd).
 
 use std.convert.From
+use std.fs.{FsError, FsRead, FsWrite, read_text, write_text}
+use std.json.{decode, encode}
+use std.path.Path
 use std.serde.{Deserialize, Serialize}
-use pkg.http.{Body, Cookie, HeaderName, Headers, Http, HttpError, HttpStatus, Request, Response, Url, get, post}
+use pkg.http.{Body, Client, Cookie, CookieJar, HeaderName, Headers, Http, HttpError, HttpStatus, Request, Response, Url, get, post}
 
 @derive(Serialize, Deserialize)
 struct NewOrder:
@@ -192,3 +195,44 @@ fn strip_and_log(req: &Request, code: u16) -> Response:
         .Err(_) => 1
     agent := req.header(.UserAgent).unwrap_or("unknown")
     Response::status(HttpStatus::from_code(code)).set_text("$id $page $agent ${seen.join(",")}")
+
+# ---- A client that keeps its cookies across runs ----------------------------
+
+@error
+enum SessionError:
+    @error("$error")
+    Http(error: HttpError)
+    @error("$error")
+    Fs(error: FsError)
+
+impl From[HttpError] for SessionError:
+    fn from(error: HttpError) -> SessionError: .Http(error)
+
+impl From[FsError] for SessionError:
+    fn from(error: FsError) -> SessionError: .Fs(error)
+
+fn load_jar!(path: Path) -> CookieJar $ FsRead:
+    match read_text!(path):
+        .Ok(text) => decode::[CookieJar](text).unwrap_or(CookieJar::new())
+        .Err(_) => CookieJar::new()
+
+fn fetch_page!(client: &mut Client, api: Url) -> Result[string, HttpError] $ Http:
+    # The jar sends the saved session cookie and records any new one.
+    response := client.send!(&Request::get(api.resolve("/dashboard")?))?
+    .Ok(response.ok()?.text()?)
+
+fn dashboard!(api: Url, path: Path) -> Result[string, SessionError] $ Http + FsRead + FsWrite:
+    let mut client = Client::with_jar(load_jar!(path))
+    page := fetch_page!(&mut client, api)?
+    client.jar.clear_expired()
+    write_text!(path, encode(client.jar))?
+    .Ok(page)
+
+# The same jar by hand, with a plain send!: fill, send, store.
+fn manual_jar!(jar: &mut CookieJar, url: Url) -> Result[HttpStatus, HttpError] $ Http:
+    let mut req = Request::get(url)
+    for (name, value) in jar.cookies_for(&req.url):
+        req.headers.set_cookie(name, value)
+    response := req.send!()?
+    jar.store(&req.url, &response)
+    .Ok(response.status)

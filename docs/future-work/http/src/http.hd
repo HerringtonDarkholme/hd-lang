@@ -247,6 +247,45 @@ impl Cookie:
     ## A cookie that deletes `name` (Max-Age=0).
     pub fn expired(name: string) -> Cookie: panic("todo")
 
+# ---- Client cookie jar ----------------------------------------------------
+
+## Cookies a client keeps between requests: matched by domain, path,
+## expiry and Secure (RFC 6265). Plain data, so a program saves it with
+## serde through its own file capability.
+@derive(Debug, Eq, Serialize, Deserialize)
+pub struct CookieJar:
+    cookies: List[StoredCookie]
+
+@derive(Debug, Eq, Serialize, Deserialize)
+struct StoredCookie:
+    name: string
+    value: string
+    domain: string
+    host_only: bool
+    path: string
+    expires: Timestamp?
+    secure: bool
+    http_only: bool
+
+impl CookieJar:
+    pub fn new() -> CookieJar: panic("todo")
+    ## The name/value pairs to send to `url`.
+    pub fn cookies_for(&self, url: &Url) -> List[(string, string)]: panic("todo")
+    ## Records a response's Set-Cookie lines; Max-Age=0 deletes.
+    pub fn store(&mut self, url: &Url, response: &Response) -> void: panic("todo")
+    ## Drops expired cookies.
+    pub fn clear_expired(&mut self) -> void: panic("todo")
+
+## Sends requests with one jar: fills the Cookie header before each send
+## and stores every Set-Cookie line after, across redirects too.
+pub struct Client:
+    pub jar: CookieJar = CookieJar::new()
+
+impl Client:
+    pub fn new() -> Client: panic("todo")
+    pub fn with_jar(jar: CookieJar) -> Client: panic("todo")
+    pub fn send!(&mut self, request: &Request, redirects: usize = 10) -> Result[Response, HttpError] $ Http: panic("todo")
+
 # ---- Request ----------------------------------------------------------
 
 ## The same type in both directions: `set_*` writes, plain names read.
