@@ -65,7 +65,7 @@ Each line is a question from #873 or #874, or one this design raises, with
 the **Recommendation**.
 
 1. Does `.Always` override the size limit, the reference-parameter rule, or both? **Both**; the bars of rule 6 in How It Works stay.
-2. Does `.Always` hold in dev builds? **It follows the profile rule**: std functions in every build, other packages' in release only.
+2. Does `.Always` hold in dev builds? **Yes, in every build and every package**: `.Always` means always. `.Auto` follows std's profile: it applies in every build too, so a decorated function is treated like std's. Only undecorated functions outside std are copied in release builds alone.
 3. What does `.Always` on a recursive function report? **An error, `inline-always-uncopyable`**, when every function on the cycle is `.Always`; a cycle through an undecorated function breaks at that function.
 4. Does the choice follow generic instances and trait impls? **Yes**, every instance, impl method and default body; calls through `&dyn` or a function value stay calls, with no diagnostic.
 5. What does `@cold` change? **Inlining and call lowering**, not branch layout: V8 ignores branch hints by default.
@@ -179,9 +179,9 @@ The rules, for [Prefix Decorators](../../spec/lang/14-annotations.md#prefix-deco
 1. The compiler recognizes `std.annotation.inline` and `std.annotation.cold` by qualified name, through an alias or a path. They attach no value, so `facts_of` leaves them out.
 2. They go on a module-level function or a method with a body. A trait requirement with no default body, or an `@intrinsic` declaration, is `invalid-inline-decorator`.
 3. The argument of `inline` is written `.Auto`, `.Always` or `.Never`, or left out, and is read as written, as `annotate`'s kinds are. Anything else is `invalid-inline-decorator`. A bare `@inline` is `@inline(.Auto)`: a decorator that names a function whose parameters all have defaults calls it. The compiler does this today (probed: `facts_of` gives `.Auto`), but [`annot.decorator.bare-call`](../../spec/lang/14-annotations.md#r-annot.decorator.bare-call) says "no parameters", so its text widens to "no parameters without a default".
-3a. `.Auto`: in a build that copies the function, a call is a copy when the body has at most 64 instructions; reference parameters are allowed. A body that rule 6 makes uncopyable stays a call, with no diagnostic.
+3a. `.Auto`: in every build, as std's functions are, a call is a copy when the body has at most 64 instructions; reference parameters are allowed. A body that rule 6 makes uncopyable stays a call, with no diagnostic.
 4. `@cold` with an `@inline` line on one declaration is `invalid-inline-decorator`.
-5. `.Always`: in a build that copies the function, every call whose callee is known once generic arguments are filled in is a copy. Size and reference parameters do not matter.
+5. `.Always`: in every build, dev and release, and in every package, every call whose callee is known once generic arguments are filled in is a copy. Size and reference parameters do not matter.
 6. `.Always` is `inline-always-uncopyable` on a function that suspends, has a `defer`, makes a closure, has a requirement row or `with`, or is in `std.rt`. So is a cycle of calls whose every function is `.Always`.
 7. `.Never` and `@cold`: no build copies the function.
 8. `@cold`: in every build, each direct call of the function is a call through the function table.
@@ -190,8 +190,8 @@ The rules, for [Prefix Decorators](../../spec/lang/14-annotations.md#prefix-deco
 | Decorator | hd's inliner | Wasm call | Builds |
 | --- | --- | --- | --- |
 | none | the #856 rule: at most 16 instructions, no reference parameter, not recursive | `call` | std every build; others release |
-| `@inline` (`.Auto`) | copies up to 64 instructions, reference parameters too; otherwise a call, silently | `call` where not copied | std every build; others release |
-| `@inline(.Always)` | always copies, any size, reference parameters too | none: the body is copied | std every build; others release |
+| `@inline` (`.Auto`) | copies up to 64 instructions, reference parameters too; otherwise a call, silently | `call` where not copied | every build |
+| `@inline(.Always)` | always copies, any size, reference parameters too | none: the body is copied | every build |
 | `@inline(.Never)` | never copies | `call` (V8 may still inline it) | every build |
 | `@cold` | never copies | `call_indirect` through the table | every build |
 
