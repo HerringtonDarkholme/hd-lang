@@ -155,8 +155,9 @@ Every perf change reports the same table, so results compare across jobs.
     2 MB is a hard cap).
 - **Compile time:** json release compile, cold cache, interleaved. The
   compiler must not get slower.
-- **Against MoonBit's linear backend:**
-  `node bench/study/moonbit/compare.mjs`, when the job targets that gap.
+- **MoonBit:** not part of a per-commit report. Measure hd only, before
+  and after. The orchestrator runs `node bench/study/moonbit/compare.mjs`
+  once after a round of merges (owner, 2026-10-26).
 - **Goal:** beat hand-written JS on every program except
   `progs/string-build` (the deliberately naive `out + s` loop). After
   that, beat MoonBit's linear backend.
