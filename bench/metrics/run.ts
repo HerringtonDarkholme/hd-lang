@@ -261,13 +261,13 @@ export function metricsReadme(
     lines.push("");
   }
   lines.push(
-    "## Recent daily files",
+    "## Recent runs",
     "",
     ...days
       .slice()
       .sort()
       .reverse()
-      .slice(0, 14)
+      .slice(0, 28)
       .map((day) => `- [${day}](daily/${day}.json)`),
     "",
   );
@@ -285,11 +285,13 @@ export function storeDailyMetrics(run: MetricsRun, directory: string): string {
   const historyFile = join(directory, "history.tsv");
   const history = existsSync(historyFile) ? readFileSync(historyFile, "utf8") : "";
   const previous = previousMetrics(history, run);
-  const day = run.finished.slice(0, 10);
-  writeFileSync(join(directory, "daily", day + ".json"), JSON.stringify(run, null, 2) + "\n");
+  // One file per run, named by its UTC date and hour, so the 00:00 and
+  // 12:00 runs of one day keep separate files.
+  const stamp = run.finished.slice(0, 13);
+  writeFileSync(join(directory, "daily", stamp + ".json"), JSON.stringify(run, null, 2) + "\n");
   writeFileSync(historyFile, appendMetricsHistory(history, run));
   const days = readdirSync(join(directory, "daily"))
-    .filter((name) => /^\d{4}-\d{2}-\d{2}\.json$/.test(name))
+    .filter((name) => /^\d{4}-\d{2}-\d{2}(T\d{2})?\.json$/.test(name))
     .map((name) => name.slice(0, -5));
   writeFileSync(join(directory, "README.md"), metricsReadme(run, previous, days));
   return metricsChanges(run, previous);

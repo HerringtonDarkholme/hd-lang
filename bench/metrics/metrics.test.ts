@@ -617,14 +617,17 @@ describe("daily metrics", () => {
   });
 
   it("groups pillars, marks small timing changes as noise and limits daily links", () => {
-    const days = Array.from({ length: 20 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
+    const days = Array.from(
+      { length: 30 },
+      (_, i) => `2026-10-${String(Math.floor(i / 2) + 1).padStart(2, "0")}T${i % 2 ? "12" : "00"}`,
+    );
     const text = metricsReadme(run("105 ms"), run().results, days);
     assert.match(text, /## Pillar 1/);
     assert.match(text, /ubuntu-latest, 4 CPUs/);
     assert.match(text, /Timing change ≤10%: noise/);
-    assert.equal(text.match(/\]\(daily\//g)?.length, 14);
-    assert.match(text, /daily\/2026-10-20.json/);
-    assert.doesNotMatch(text, /daily\/2026-10-06.json/);
+    assert.equal(text.match(/\]\(daily\//g)?.length, 28);
+    assert.match(text, /daily\/2026-10-15T12.json/);
+    assert.doesNotMatch(text, /daily\/2026-10-01T12.json/);
   });
 
   it("escapes metric text in Markdown and keeps TSV cells on one line", () => {
@@ -651,7 +654,7 @@ describe("daily metrics", () => {
         new RegExp(summary.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
       );
       const daily = JSON.parse(
-        readFileSync(join(directory, "daily/2026-10-25.json"), "utf8"),
+        readFileSync(join(directory, "daily/2026-10-25T07.json"), "utf8"),
       ) as MetricsRun;
       assert.deepEqual(daily, second);
       assert.equal(

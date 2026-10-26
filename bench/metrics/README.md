@@ -60,15 +60,16 @@ not prevent publishing. The explicit JSON output is the runner's only
 write outside its temporary measurement directories.
 
 [The metrics-data branch](https://github.com/HerringtonDarkholme/hd-lang/tree/metrics-data#readme)
-contains `daily/YYYY-MM-DD.json`, `history.tsv`, and a regenerated README.
-Each daily file is that day's latest full run. History retains one row per
+contains `daily/YYYY-MM-DDTHH.json`, `history.tsv`, and a regenerated README.
+The workflow runs at 00:00 and 12:00 UTC, and each run keeps its own file,
+named by the UTC date and hour it finished. History retains one row per
 run, including repeated runs that day, with value and status columns per
 target; missing targets have empty cells. Adding a target preserves older
 rows and expands the columns. Republishing the same `finished` timestamp
 is idempotent.
 
 The README groups targets by pillar, records the runner and CPU count, and
-links the last fourteen daily files. Its comparison and the Actions summary
+links the last 28 run files. Its comparison and the Actions summary
 list status flips and numeric movements greater than 10%. Smaller timing
 changes are marked as noise. The comparison uses the previous history row,
 including when both runs share a date. Comparable time, byte and throughput
