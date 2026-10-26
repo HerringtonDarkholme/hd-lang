@@ -2,7 +2,7 @@
 
 use std.convert.From
 use std.serde.{Deserialize, Serialize}
-use pkg.http.{Cookie, HeaderName, Headers, Http, HttpError, HttpStatus, Request, Response, Url, get, post}
+use pkg.http.{Body, Cookie, HeaderName, Headers, Http, HttpError, HttpStatus, Request, Response, Url, get, post}
 
 @derive(Serialize, Deserialize)
 struct NewOrder:
@@ -34,8 +34,8 @@ fn create_order!(api: string, token: string, order: NewOrder) -> Result[Order, H
 
 fn search!(api: string) -> Result[List[Order], HttpError] $ Http:
     let mut url = Url::parse("$api/orders")?
-    url.add_query("page", 2)
-    url.add_query("tag", "tea")
+    url.set_query(Page { page: 2, tags: ["tea", "green"] })
+    url.add_param("sort", "newest")
     orders := Request::get(url).send!()?.ok()?.json::[List[Order]]()?
     .Ok(orders)
 
@@ -55,7 +55,7 @@ fn explain!(api: string) -> string $ Http:
 # ---- Server: read a request, write a response ---------------------------
 
 fn handle(req: &Request) -> Response:
-    match req.url.path():
+    match req.url.path:
         "/orders" => orders(req)
         "/login" => login(req)
         _ => Response::status(.NotFound)
@@ -70,7 +70,7 @@ fn orders(req: &Request) -> Response:
             match req.json::[NewOrder]():
                 .Ok(order) => Response::status(.Created).set_json(save(order))
                 .Err(error) => Response::status(.BadRequest).set_text("$error")
-        _ => Response::status(.Other(405))
+        _ => Response::status(.MethodNotAllowed).set_header(.Allow, "GET, POST")
 
 fn login(req: &Request) -> Response:
     if req.cookie("session").is_some():
@@ -107,16 +107,88 @@ impl From[ApiHeaders] for Headers:
         headers.set(.XRequestId, value.request_id)
         headers
 
-fn with_headers!(url: Url, auth: ApiHeaders) -> Result[HttpStatus, HttpError] $ Http:
+fn with_headers!(url: Url, auth: ApiHeaders, session: string) -> Result[HttpStatus, HttpError] $ Http:
     let mut req = Request::get(url)
     req.headers = Headers::from(auth)
+    req.headers.set_cookie("session", session)
     response := req.send!()?
-    for cookie in response.cookies():
+    for cookie in response.headers.set_cookies():
         _ := cookie.name
     .Ok(response.status)
+
+# ---- Lower-level atoms: Url fields, Body, Headers ------------------------
+
+fn atoms(req: &Request) -> Response:
+    # A parsed URL's parts are fields; one key at a time is param.
+    origin := "${req.url.scheme}://${req.url.host}"
+    let mut next = req.url
+    next.add_param("cursor", 42)
+    # The body is shared and read once; the message readers are shorthands.
+    match req.body.text():
+        .Ok(text) =>
+            let mut headers = Headers::new()
+            headers.set(.AccessControlAllowOrigin, origin)
+            headers.set(.Vary, "Origin")
+            headers.add_set_cookie(Cookie { name: "seen", value: "1", same_site: .Strict })
+            Response { status: .Ok, headers: headers, body: Body::from_bytes(text.to_utf8()), url: .Some(next) }
+        .Err(.Used) => Response::status(.Conflict)
+        .Err(_) => Response::status(.BadRequest)
 
 fn list_orders(page: Page) -> List[Order]:
     []
 
 fn save(order: NewOrder) -> Order:
     Order { id: 1, item: order.item, quantity: order.quantity }
+
+# ---- More client and server cases -----------------------------------------
+
+@derive(Serialize, Deserialize)
+struct LoginForm:
+    user: string
+    password: string
+
+# Form bodies in both directions; a 3xx Location resolved against the base.
+fn sign_in!(base: Url, form: LoginForm) -> Result[Url, HttpError] $ Http:
+    response := Request::post(base.resolve("/login")?).set_form(form).send!(redirects=0)?
+    match response.header(.Location):
+        .Some(location) => .Ok(base.resolve(location)?)
+        .None => .Ok(base)
+
+fn handle_login(req: &Request) -> Response:
+    match req.form::[LoginForm]():
+        .Ok(form) if form.password != "" => Response::status(.SeeOther).set_header(.Location, "/home")
+        .Ok(_) => Response::status(.Unauthorized).set_header(.WwwAuthenticate, "Basic")
+        .Err(error) => Response::status(.UnsupportedMediaType).set_text("$error")
+
+# Raw bytes up and down; status checks without a body read.
+fn mirror!(api: string, file: List[u8]) -> Result[List[u8], HttpError] $ Http:
+    url := Url::parse("$api/upload")?
+    response := Request::post(url).set_header(.ContentType, "application/octet-stream").set_bytes(file).send!()?
+    if !response.status.is_success():
+        return .Err(.Status(response))
+    for cookie in response.cookies():
+        _ := cookie.max_age
+    .Ok(get!("$api/download")?.bytes()?)
+
+# Retry only what may succeed on retry.
+fn fetch_with_retry!(api: string) -> Result[string, HttpError] $ Http:
+    match get!(api):
+        .Ok(response) => .Ok(response.text()?)
+        .Err(error) if error.is_transient() => .Ok(get!(api)?.text()?)
+        .Err(error) => .Err(error)
+
+# A proxy drops the caller's cookies; a mock answers with a configured code.
+fn strip_and_log(req: &Request, code: u16) -> Response:
+    let mut forwarded = req.headers
+    forwarded.remove(.Cookie)
+    let mut seen: List[string] = []
+    for (name, _) in forwarded.entries():
+        seen.push(name.wire_name())
+    for (name, _) in req.headers.cookies():
+        seen.push("cookie:$name")
+    id := req.url.param("id").unwrap_or("none")
+    page := match req.url.query_as::[Page]():
+        .Ok(page) => page.page
+        .Err(_) => 1
+    agent := req.header(.UserAgent).unwrap_or("unknown")
+    Response::status(HttpStatus::from_code(code)).set_text("$id $page $agent ${seen.join(",")}")
