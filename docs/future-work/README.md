@@ -29,6 +29,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
+- [Inline And Cold Decorators](INLINE_AND_COLD.md): proposed `@inline(.Always)`, `@inline(.Never)` and `@cold` compiler decorators over the release inliner and table calls; owner review (#873, #874, #884).
 
 ### Tooling
 
