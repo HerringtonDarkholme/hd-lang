@@ -5,7 +5,7 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $shared#1 (param $env i32) (param $ctx i32) (result i32) (local $count i32) (local $t1 i32) (local $t0 i32)
+  (func $shared#1 (param $env i32) (param $ctx i32) (result i32) (local $count i32) (local $t0 i32)
     ;; 8 |     read := fn() -> i32: count
     local.get $env
     i32.load $heap
@@ -14,15 +14,13 @@
     block
       local.get $count
       i32.load $heap
-      local.set $t0
       local.get $count
       call $rt:release_ref
-      local.get $t0
-      local.set $t1
+      local.set $t0
     end
-    local.get $t1
+    local.get $t0
   )
-  (func $shared (param $seed i32) (result i32 i32) (local $count i32) (local $t0 i32) (local $t1 i32) (local $read.0 i32) (local $read.1 i32)
+  (func $shared (param $seed i32) (result i32 i32) (local $count i32) (local $t0 i32)
     block
       ;; ...
     ;; 8 |     read := fn() -> i32: count
@@ -37,11 +35,8 @@
       i32.store $heap
       local.get $t0
       call $rt:retain_fields
-      local.set $t1
-      local.get $t1
+      ;; ...
       local.get $t0
-      local.set $read.1
-      local.set $read.0
       ;; ...
     end
     ;; ...

@@ -2,17 +2,16 @@
 (module
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $copy_nested (param $xs i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $copy_nested (param $xs i32) (result i32) (local $t0 i32)
     ;; 5 |     *xs
     block
       local.get $xs
-      local.tee $t0
       drop
-      local.get $t0
+      local.get $xs
       i32.load $heap
       call $rt:coll_copy
-      local.set $t1
+      local.set $t0
     end
-    local.get $t1
+    local.get $t0
   )
 )

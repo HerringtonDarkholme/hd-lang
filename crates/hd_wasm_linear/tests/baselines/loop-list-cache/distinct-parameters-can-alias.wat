@@ -4,43 +4,33 @@
   (import "fixture" "rt:list_grow" (func $rt:list_grow (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $read_after_resize (param $read i32) (param $write i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $i i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32)
+  (func $read_after_resize (param $read i32) (param $write i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $i i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32)
     block
       ;; ...
     ;; 7 |     for i in 0..3:
       i32.const 0
-      local.set $t0
+      local.tee $t0
       i32.const 3
-      local.set $t1
-      local.get $t0
-      local.set $t2
-      local.get $t1
-      local.set $t3
-      local.get $t2
-      local.get $t3
+      local.tee $t1
       i32.lt_u
       if
         local.get $write
         i32.load $heap
-        local.tee $t4
+        local.tee $t2
         call $rt:list_unique
-        local.tee $t5
-        local.get $t4
+        local.tee $t3
+        local.get $t2
         i32.ne
         if
           local.get $write
-          local.get $t5
+          local.get $t3
           i32.store $heap
         end
       end
       block
         loop
           local.get $t0
-          local.set $t2
           local.get $t1
-          local.set $t3
-          local.get $t2
-          local.get $t3
           i32.lt_u
           i32.eqz
           br_if 1
@@ -52,70 +42,65 @@
           local.set $t0
     ;; 8 |         write.push(i)
           local.get $i
-          local.set $t6
+          local.set $t4
     ;; 7 |     for i in 0..3:
           local.get $write
-          local.tee $t7
           drop
-          local.get $t7
+          local.get $write
           i32.load $heap
     ;; 8 |         write.push(i)
-          local.tee $t8
+          local.tee $t5
           i32.load $heap offset=4
-          local.set $t9
-          local.get $t8
+          local.set $t6
+          local.get $t5
           i32.load $heap offset=8
-          local.get $t9
-          local.get $t8
+          local.get $t6
+          local.get $t5
           i32.load $heap
           i32.eq
           i32.or
           if
-            local.get $t8
+            local.get $t5
             call $rt:list_grow
-            local.set $t8
+            local.set $t5
             local.get $write
             drop
             local.get $write
-            local.get $t8
+            local.get $t5
             i32.store $heap
           end
-          local.get $t8
-          local.get $t9
+          local.get $t5
+          local.get $t6
           i32.const 4
           i32.mul
           i32.add
-          local.get $t6
+          local.get $t4
           i32.store $heap offset=16
-          local.get $t8
-          local.get $t9
+          local.get $t5
+          local.get $t6
           i32.const 1
           i32.add
           i32.store $heap offset=4
     ;; 9 |         total = total + read[3 + i]
-          local.get $total
-          local.set $t10
           i32.const 3
           local.get $i
           i32.add
-          local.set $t11
           local.get $read
           drop
           local.get $read
           i32.load $heap
-          local.set $t12
-          local.get $t11
-          local.tee $t13
-          local.get $t12
+          local.set $t7
+          local.tee $t8
+          local.get $t7
           i32.load $heap offset=4
           i32.ge_u
           if
             call $rt:panic
             unreachable
           end
-          local.get $t10
-          local.get $t12
-          local.get $t13
+          local.get $total
+          local.get $t7
+          local.get $t8
           i32.const 4
           i32.mul
           i32.add

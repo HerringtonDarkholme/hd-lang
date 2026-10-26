@@ -4,7 +4,7 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $write (param $xs i32) (param $n i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $write (param $xs i32) (param $n i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t2 i32) (local $t3 i32)
     block
     ;; 9 |     for i in 0..n:
       i32.const 0
@@ -27,42 +27,38 @@
     ;; 10 |         grow(xs)
           local.get $xs
           call $grow
-    ;; 11 |         xs[i] = i
-          local.get $i
-          local.set $t2
     ;; 9 |     for i in 0..n:
           local.get $xs
           drop
           local.get $xs
           i32.load $heap
           call $rt:list_unique
-          local.set $t3
+          local.set $t2
           local.get $xs
           drop
           local.get $xs
-          local.get $t3
+          local.get $t2
           i32.store $heap
     ;; 11 |         xs[i] = i
           local.get $xs
           drop
           local.get $xs
           i32.load $heap
-          local.set $t4
+          local.set $t3
           local.get $i
-          local.tee $t5
-          local.get $t4
+          local.get $t3
           i32.load $heap offset=4
           i32.ge_u
           if
             call $rt:panic
             unreachable
           end
-          local.get $t4
-          local.get $t5
+          local.get $t3
+          local.get $i
           i32.const 4
           i32.mul
           i32.add
-          local.get $t2
+          local.get $i
           i32.store $heap offset=16
     ;; 9 |     for i in 0..n:
           br 0

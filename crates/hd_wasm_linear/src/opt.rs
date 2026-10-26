@@ -40,7 +40,12 @@
 //!     local facts prove them zero on every path, including loop backedges;
 //! 13. a `local.set` or `local.tee` of a local that no path reads before
 //!     its next write goes, a set's value dropped: the zero a move leaves
-//!     in a local stays only where some release still reads it.
+//!     in a local stays only where some release still reads it;
+//! 14. `local.set t; R; local.get t`, where that get is the set's only
+//!     reader by liveness and `R` is a straight-line run (panic guards
+//!     included), moves a pure push before the set to the get, or, when
+//!     `R` leaves the stack as it found it, is `R`; a `local.tee t` after
+//!     a pure push goes, the get pushing that push again.
 //!
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
@@ -188,7 +193,7 @@ pub fn locals(f: &mut Func, arity: &Arity) {
         changed |= shapes(f, np);
         changed |= fold(f);
         changed |= schedule(f, np, arity);
-        if !changed && !zero_releases(f) && !dead_stores(f) {
+        if !changed && !zero_releases(f) && !live_rules(f, arity) {
             break;
         }
     }
@@ -492,14 +497,29 @@ fn basic_blocks(edges: &[ZeroEdges], len: usize) -> (Vec<usize>, Vec<usize>) {
     (point_at, starts)
 }
 
-/// Rule 13: a `local.set` or `local.tee` of a local that no path reads
-/// before its next write goes (a set's value is dropped, a pure push with
-/// it). Liveness runs backward over the basic blocks to a fixed point,
-/// loop backedges included; `SaveAll` reads every local, and `LoadAll`
-/// writes none for this purpose. A zero left in a moved-from local stays
-/// exactly when some path still releases it (the one exit, a loop's next
-/// drop, a suspension's saved frame).
-fn dead_stores(f: &mut Func) -> bool {
+/// Rules 13 and 14, from one backward liveness pass over the basic blocks
+/// (loop backedges to a fixed point; `SaveAll` reads every local, and
+/// `LoadAll` writes none for this purpose).
+///
+/// Rule 13 deletes a `local.set` or `local.tee` of a local that no path
+/// reads before its next write, dropping a set's value, or the pure push
+/// that made it. A zero left in a moved-from local stays exactly when
+/// some path still releases it (the one exit, a loop's next drop, a
+/// suspension's saved frame).
+///
+/// Rule 14 keeps a value read once on the stack when rule 13 finds
+/// nothing: `local.set t; R; local.get t`, where that get is the first
+/// access of `t` after the set and `t` is dead after it, and `R` is a
+/// straight-line run (panic guards `if ... unreachable end` included),
+/// either moves a pure push before the set to the get (rule 4 by
+/// liveness rather than by counts), or, when `R` leaves the stack as it
+/// found it without reaching below, is `R` with the value left under it.
+/// A `local.tee t` after a pure push goes the same way, the get pushing
+/// that push again.
+/// Each local takes part in one rewrite per pass, and a rewrite's span
+/// either nests in or follows an earlier one's, so the facts each
+/// rewrite reads still hold.
+fn live_rules(f: &mut Func, arity: &Arity) -> bool {
     let n = f.params.len() + f.locals.len();
     if n == 0 {
         return false;
@@ -548,39 +568,111 @@ fn dead_stores(f: &mut Func) -> bool {
             break;
         }
     }
+    // `dead[at]`: a write that no read follows, or a read after which
+    // its local is dead.
     let mut dead = vec![false; body.len()];
     for p in 0..starts.len() {
         live_out(p, &live_in, &mut live);
         let end = starts.get(p + 1).copied().unwrap_or(body.len());
         for at in (starts[p]..end).rev() {
-            if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = &body[at] {
+            if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = &body[at] {
                 dead[at] = !zero_local(&live, *l);
             }
             step(&body[at], &mut live);
         }
     }
-    if !dead.iter().any(|d| *d) {
-        return false;
-    }
     let mut origins = Remap::new(f.origins.as_deref());
     let mut out = Vec::with_capacity(body.len());
-    for (at, ins) in body.iter().enumerate() {
-        match ins {
-            Ins::Op(I::LocalTee(_)) if dead[at] => {}
-            Ins::Op(I::LocalSet(_)) if dead[at] => {
-                if at > 0
-                    && pure_push(&body[at - 1])
-                    && matches!(out.last(), Some(p) if pure_push(p))
-                {
-                    out.pop();
-                    origins.pop();
-                } else {
-                    out.push(Ins::Op(I::Drop));
+    let dead_write =
+        |at: usize| matches!(body[at], Ins::Op(I::LocalSet(_) | I::LocalTee(_))) && dead[at];
+    if (0..body.len()).any(dead_write) {
+        for (at, ins) in body.iter().enumerate() {
+            match ins {
+                Ins::Op(I::LocalTee(_)) if dead[at] => {}
+                Ins::Op(I::LocalSet(_)) if dead[at] => {
+                    if at > 0
+                        && pure_push(&body[at - 1])
+                        && matches!(out.last(), Some(p) if pure_push(p))
+                    {
+                        out.pop();
+                        origins.pop();
+                    } else {
+                        out.push(Ins::Op(I::Drop));
+                        origins.copy(at..at + 1);
+                    }
+                }
+                other => {
+                    out.push(*other);
                     origins.copy(at..at + 1);
                 }
             }
-            other => {
-                out.push(*other);
+        }
+    } else {
+        let mut gone = vec![false; body.len()];
+        let mut moved = vec![None; body.len()];
+        let mut touched = vec![false; n];
+        let mut open: Vec<usize> = Vec::new();
+        for k in 0..body.len() {
+            let (t, tee) = match body[k] {
+                Ins::Op(I::LocalSet(t)) => (t, false),
+                Ins::Op(I::LocalTee(t)) => (t, true),
+                _ => continue,
+            };
+            if touched[t as usize] {
+                continue;
+            }
+            while open.last().is_some_and(|&e| e < k) {
+                open.pop();
+            }
+            let Some((j, level)) = single_use(body, k, t, &dead, arity, &f.symbols) else {
+                continue;
+            };
+            if open.last().is_some_and(|&e| j > e) {
+                continue;
+            }
+            let push = k.checked_sub(1).map(|p| body[p]);
+            let source = match push {
+                Some(Ins::Op(I::LocalGet(s))) => Some(s as usize),
+                _ => None,
+            };
+            if let Some(push) = push
+                && pure_push(&push)
+                && !gone[k - 1]
+                && moved[k - 1].is_none()
+                && source.is_none_or(|s| !touched[s])
+                && !body[k + 1..j].iter().any(|i| clobbers(&push, i))
+            {
+                // A tee's push stays where it is, and the get reads it
+                // again.
+                gone[k - 1] = !tee;
+                moved[j] = Some(k - 1);
+                if let Some(s) = source {
+                    touched[s] = true;
+                }
+            } else if level && !tee {
+                gone[j] = true;
+            } else {
+                continue;
+            }
+            gone[k] = true;
+            open.push(j);
+            touched[t as usize] = true;
+        }
+        if !gone.iter().any(|g| *g) {
+            return false;
+        }
+        for (at, ins) in body.iter().enumerate() {
+            if gone[at] {
+                continue;
+            }
+            if let Some(p) = moved[at] {
+                out.push(body[p]);
+                let origin = origins
+                    .first(p..p + 2)
+                    .or_else(|| origins.first(at..at + 1));
+                origins.repeat(origin, 1);
+            } else {
+                out.push(*ins);
                 origins.copy(at..at + 1);
             }
         }
@@ -588,6 +680,60 @@ fn dead_stores(f: &mut Func) -> bool {
     f.body = out;
     origins.finish(f);
     true
+}
+
+/// The read that rule 14 pairs with the write of `t` at `k`, and whether
+/// the run between leaves the stack as it found it without reaching
+/// below: the first access of `t` after the write within a straight-line
+/// run (a panic guard counts as straight line), when it is a get after
+/// which `t` is dead.
+fn single_use(
+    b: &[Ins],
+    k: usize,
+    t: u32,
+    dead: &[bool],
+    arity: &Arity,
+    symbols: &Symbols,
+) -> Option<(usize, bool)> {
+    // Bounds the scan, so the rule stays linear in the body.
+    const REACH: usize = 128;
+    let (mut depth, mut low) = (0usize, false);
+    let mut j = k + 1;
+    while j < b.len().min(k + REACH) {
+        let i = &b[j];
+        let (pops, pushes) = match i {
+            Ins::Op(I::LocalGet(u)) if *u == t => {
+                return dead[j].then_some((j, depth == 0 && !low));
+            }
+            Ins::Op(I::LocalSet(u) | I::LocalTee(u)) if *u == t => return None,
+            Ins::Op(I::If(wasm_encoder::BlockType::Empty)) => {
+                j = guard_end(b, j)?;
+                (1, 0)
+            }
+            _ if ends_run(i) => return None,
+            _ => effect(i, arity, symbols)?,
+        };
+        low |= pops > depth;
+        depth = depth.saturating_sub(pops) + pushes;
+        j += 1;
+    }
+    None
+}
+
+/// The `end` of the `if` at `at` when its one arm calls with constant
+/// arguments and ends in `unreachable`, as a bounds or overflow check's
+/// panic does: no local, branch or stack value of the code around it.
+fn guard_end(b: &[Ins], at: usize) -> Option<usize> {
+    for (j, i) in b.iter().enumerate().skip(at + 1) {
+        match i {
+            Ins::Op(I::End) => return matches!(b[j - 1], Ins::Op(I::Unreachable)).then_some(j),
+            Ins::Op(I::Unreachable | I::I32Const(_) | I::I64Const(_))
+            | Ins::Call(_)
+            | Ins::Anchor(_) => {}
+            _ => return None,
+        }
+    }
+    None
 }
 
 /// An instruction that pushes one value and has no other effect.
@@ -1812,15 +1958,16 @@ mod origin_tests {
         let f = run(
             tracked(
                 &symbols,
-                0,
+                1,
                 1,
                 vec![
                     op(I::I32Const(1)),
-                    op(I::LocalSet(0)),
-                    op(I::I32Const(2)),
-                    op(I::LocalSet(0)),
+                    op(I::LocalSet(1)),
                     op(I::LocalGet(0)),
-                    op(I::LocalGet(0)),
+                    op(I::I32Eqz),
+                    op(I::LocalSet(1)),
+                    op(I::LocalGet(1)),
+                    op(I::LocalGet(1)),
                     op(I::I32Add),
                 ],
             ),
@@ -1830,7 +1977,7 @@ mod origin_tests {
             f.body
                 .iter()
                 .zip(f.origins.as_ref().unwrap())
-                .any(|(i, s)| matches!(i, Ins::Op(I::LocalTee(_))) && *s == Some(13))
+                .any(|(i, s)| matches!(i, Ins::Op(I::LocalTee(_))) && *s == Some(14))
         );
         let f = run(
             tracked(
@@ -2356,7 +2503,7 @@ mod origin_tests {
         };
         for (head, exit, kept) in [(false, false, 0), (true, false, 1), (false, true, 1)] {
             let f = run(body(head, exit), |f| {
-                dead_stores(f);
+                live_rules(f, &Arity::new());
             });
             assert_eq!(zeros(&f), kept, "{:?}", f.body);
         }
@@ -2370,7 +2517,7 @@ mod origin_tests {
                 vec![op(I::I32Const(0)), op(I::LocalSet(1)), Ins::SaveAll],
             ),
             |f| {
-                assert!(!dead_stores(f));
+                assert!(!live_rules(f, &Arity::new()));
             },
         );
         assert_eq!(zeros(&f), 1);
@@ -2387,11 +2534,71 @@ mod origin_tests {
                 ],
             ),
             |f| {
-                assert!(dead_stores(f));
+                assert!(live_rules(f, &Arity::new()));
             },
         );
         assert_eq!(f.body.len(), 2);
         assert_eq!(spans(&f), [10, 11]);
+    }
+
+    #[test]
+    fn single_uses_stay_on_the_stack_by_liveness() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let guard = [
+            op(I::If(BlockType::Empty)),
+            call(&symbols, Sym::Helper(Helper::ReleaseRef)),
+            op(I::Unreachable),
+            op(I::End),
+        ];
+        // Local 2 is written twice, so the count rules leave it; each
+        // write has one reader, and the loop head writes it again.
+        let mut body = vec![op(I::Loop(BlockType::Empty))];
+        body.extend([op(I::LocalGet(0)), op(I::LocalSet(2))]);
+        body.extend([op(I::LocalGet(1)), op(I::I32Eqz)]);
+        body.extend(guard);
+        body.extend([op(I::LocalGet(2)), op(I::Drop)]);
+        body.extend([op(I::LocalGet(1)), op(I::I32Const(1)), op(I::I32Add)]);
+        body.extend([op(I::LocalSet(2)), op(I::LocalGet(1)), op(I::LocalSet(3))]);
+        body.extend([
+            op(I::LocalGet(2)),
+            op(I::LocalGet(3)),
+            op(I::BrIf(0)),
+            op(I::Drop),
+        ]);
+        body.push(op(I::End));
+        let f = run(tracked(&symbols, 2, 2, body), |f| {
+            while live_rules(f, &Arity::new()) {}
+        });
+        let shown: Vec<String> = f.body.iter().map(|i| format!("{i:?}")).collect();
+        // The copy of 0 moves past the guard to its read, the copy of 1
+        // moves to its read, and the sum stays on the stack under it.
+        assert!(
+            !shown
+                .iter()
+                .any(|i| i.contains("Local") && i.contains("(2)")),
+            "{shown:?}"
+        );
+        assert!(!shown.iter().any(|i| i.contains("(3)")), "{shown:?}");
+        // A run that consumes the value keeps its local.
+        let f = run(
+            tracked(
+                &symbols,
+                1,
+                1,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::I32Eqz),
+                    op(I::LocalSet(1)),
+                    op(I::Drop),
+                    op(I::LocalGet(1)),
+                ],
+            ),
+            |f| {
+                assert!(!live_rules(f, &Arity::new()));
+            },
+        );
+        assert_eq!(f.body.len(), 5);
     }
 
     #[test]

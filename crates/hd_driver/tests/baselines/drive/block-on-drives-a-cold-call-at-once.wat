@@ -7,7 +7,7 @@
   (import "fixture" "rewake" (global $rewake (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 0 funcref))
-  (func $drive_put (param $s.0 i32) (param $s.1 i32) (param $text.0 i32) (param $text.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t8 i32) (local $t7 i32) (local $t9 i32) (local $n i32)
+  (func $drive_put (param $s.0 i32) (param $s.1 i32) (param $text.0 i32) (param $text.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32) (local $t8 i32) (local $n i32)
     block
     ;; 11 |     let call: mut Suspend[i32] = s.put(text)
       local.get $s.0
@@ -21,17 +21,15 @@
       i32.load $heap offset=4
       call_indirect $table0 (param i32 i32 i32) (result i32 i32)
       local.set $t1
-      local.set $t2
       ;; ...
-      local.get $t2
     ;; 12 |     match block_on(call):
+      local.tee $t2
       local.tee $t3
-      local.tee $t4
       i32.eqz
-      local.set $t5
+      local.set $t4
       block
         loop
-          local.get $t5
+          local.get $t4
           br_if 1
           global.get $rewake
           if
@@ -42,44 +40,44 @@
             call $rt:wake_mark
           end
           i32.const 1
-          local.set $t6
-          local.get $t4
-          local.get $t4
+          local.set $t5
+          local.get $t3
+          local.get $t3
           i32.load $heap
           call_indirect $table0 (param i32) (result i32 i32)
           local.set $t1
-          local.set $t5
+          local.set $t4
           br 0
         end
       end
-      local.get $t6
+      local.get $t5
       global.get $rewake
       i32.or
       global.set $rewake
       i32.const 0
       local.get $t1
+      local.set $t6
       local.set $t7
-      local.set $t8
       ;; ...
       block
         block
           block
             block
     ;; 13 |         .Completed(n) => n
-              local.get $t8
+              local.get $t7
               i32.eqz
               if
-                local.get $t7
+                local.get $t6
                 local.set $n
                 br 1
               else
     ;; 14 |         .Cancelled => 0
-                local.get $t8
+                local.get $t7
                 i32.const 1
                 i32.eq
                 br_if 2
     ;; 15 |         .Abandoned => 0
-                local.get $t8
+                local.get $t7
                 i32.const 2
                 i32.eq
                 br_if 3
@@ -92,7 +90,7 @@
     ;; 13 |         .Completed(n) => n
             local.get $n
     ;; 12 |     match block_on(call):
-            local.set $t9
+            local.set $t8
             br 2
           end
           br 1

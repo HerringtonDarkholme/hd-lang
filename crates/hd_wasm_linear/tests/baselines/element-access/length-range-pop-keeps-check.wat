@@ -3,64 +3,55 @@
   (import "fixture" "impl [ T ] List [ T ].pop[i32]" (func $"impl [ T ] List [ T ].pop[i32]" (param i32) (result i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $sum i32) (local $t2 i32) (local $t3 i32) (local $i i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $total (param $xs i32) (result i32) (local $sum i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     block
     ;; 5 |     n := xs.len()
       local.get $xs
-      local.tee $t0
       drop
-      local.get $t0
+      local.get $xs
       i32.load $heap
       i32.load $heap offset=4
-      local.set $t1
     ;; 6 |     let sum = +0
       i32.const 0
       local.set $sum
     ;; 7 |     for i in 0..n:
       i32.const 0
-      local.set $t2
-    ;; 5 |     n := xs.len()
-      local.get $t1
-    ;; 7 |     for i in 0..n:
-      local.set $t3
+      local.set $t0
+      local.set $t1
       block
         loop
-          local.get $t2
-          local.get $t3
+          local.get $t0
+          local.get $t1
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t2
-          local.set $i
-          local.get $t2
+          local.get $t0
+          local.get $t0
           i32.const 1
           i32.add
-          local.set $t2
+          local.set $t0
     ;; 8 |         _ := xs.pop()
           local.get $xs
           call $"impl [ T ] List [ T ].pop[i32]"
           drop
           drop
     ;; 9 |         sum += xs[i]
-          local.get $sum
-          local.set $t4
           local.get $xs
           drop
           local.get $xs
           i32.load $heap
-          local.set $t5
-          local.get $i
-          local.tee $t6
-          local.get $t5
+          local.set $t2
+          local.tee $t3
+          local.get $t2
           i32.load $heap offset=4
           i32.ge_u
           if
             call $rt:panic
             unreachable
           end
-          local.get $t4
-          local.get $t5
-          local.get $t6
+          local.get $sum
+          local.get $t2
+          local.get $t3
           i32.const 4
           i32.mul
           i32.add

@@ -3,11 +3,10 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl [ T ] Members [ T ].position_at[i32]" (param $self.infos i32) (param $self.tag i32) (param $i i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $"impl [ T ] Members [ T ].position_at[i32]" (param $self.infos i32) (param $self.tag i32) (param $i i32) (result i32) (local $t0 i32)
     ;; 16 |         self.infos[i].position
     block
       local.get $i
-      local.tee $t0
       local.get $self.infos
       i32.load $heap offset=4
       i32.ge_u
@@ -16,22 +15,21 @@
         unreachable
       end
       local.get $self.infos
-      local.get $t0
+      local.get $i
       i32.const 12
       i32.mul
       i32.add
       i32.load $heap offset=16
-      local.set $t1
+      local.set $t0
     end
     local.get $self.infos
     call $rt:release_ref
-    local.get $t1
+    local.get $t0
   )
-  (func $position_at (param $infos i32) (param $i i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $position_at (param $infos i32) (param $i i32) (result i32) (local $t0 i32)
     ;; 19 |     infos[i].position
     block
       local.get $i
-      local.tee $t0
       local.get $infos
       i32.load $heap offset=4
       i32.ge_u
@@ -40,14 +38,14 @@
         unreachable
       end
       local.get $infos
-      local.get $t0
+      local.get $i
       i32.const 12
       i32.mul
       i32.add
       i32.load $heap offset=16
-      local.set $t1
+      local.set $t0
     end
-    local.get $t1
+    local.get $t0
   )
   (func $use_generic (param $m.infos i32) (param $m.tag i32) (param $i i32) (result i32) (local $t0 i32)
     ;; 22 |     m.position_at(i)

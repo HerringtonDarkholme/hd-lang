@@ -15,7 +15,7 @@
         ;; ...
     ;; 10 |     s.put!(text)
         local.get $s.0
-        local.get $s.1
+        ;; ...
         local.set $t0
         local.tee $t1
         call $retain
