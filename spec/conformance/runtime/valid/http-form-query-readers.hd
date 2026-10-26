@@ -1,0 +1,161 @@
+# test: Body and query readers share typed scalar, repeated-list and one-level deepObject decoding.
+# Spec: std-http.form-codec.deep-object, std-http.form-codec.repeated-scalars.
+use std.http.{Body, BodyError, Url, FormError}
+use std.serde.{Serialize, Deserialize, rename}
+
+fn parsed(text: string) -> Url:
+    match Url::parse(text):
+        .Ok(url) => url
+        .Err(error) => panic("$error")
+
+@derive(Serialize, Deserialize, Debug, Eq)
+struct Filter:
+    @rename("wire-count")
+    count: u32
+    note: string?
+    defaulted: usize = 17
+
+@derive(Serialize, Deserialize, Debug, Eq)
+struct Query:
+    filter: Filter
+    tags: List[string]
+    active: bool
+    optional: usize?
+
+@derive(Serialize, Deserialize, Debug, Eq)
+struct Page:
+    page: usize = 1
+    tags: List[string]
+    note: string?
+
+@derive(Serialize, Deserialize, Debug, Eq)
+enum State:
+    Draft
+    Done
+    Data(value: usize)
+
+@derive(Serialize, Deserialize, Debug, Eq)
+struct StateQuery:
+    state: State
+    states: List[State]
+
+@derive(Serialize, Deserialize)
+struct RecordList:
+    items: List[Filter]
+
+@derive(Serialize, Deserialize)
+struct OptionalRecord:
+    filter: Filter?
+
+@derive(Serialize, Deserialize)
+struct MapQuery:
+    entries: Map[string, string]
+
+@derive(Serialize, Deserialize)
+struct NestedList:
+    items: List[List[usize]]
+
+@derive(Serialize, Deserialize)
+struct Deep:
+    query: Query
+
+@derive(Deserialize)
+struct Bracketed:
+    @rename("value[nested]")
+    value: usize
+
+@derive(Serialize, Deserialize, Debug, Eq)
+struct TupleQuery:
+    pair: (string, u32)
+
+@derive(Deserialize, Debug, Eq)
+struct Numbers:
+    signed: i64
+    small_signed: i8
+    unsigned: u64
+    small_unsigned: u8
+    single: f32
+    double: f64
+    letter: char
+
+@derive(Deserialize)
+struct OptionalNumber:
+    value: usize?
+
+tests:
+    it("query and form bodies decode the same typed values"):
+        text := "filter[wire-count]=42&filter[note]=a+b%2Bc&tags=one&tags=two&active=true"
+        expected := Query { filter: Filter { count: 42, note: .Some("a b+c") }, tags: ["one", "two"], active: true, optional: .None }
+        assert_equal(parsed("https://x/?$text").query_as::[Query](), .Ok(expected), reason="decoded query pairs")
+        body := Body::from_bytes(text.to_utf8())
+        assert_equal(body.form::[Query](), .Ok(expected), reason="same one-level form codec")
+        assert_equal(body.text(), .Err(BodyError.Used), reason="form read claimed the shared body")
+
+    it("missing lists and optionals are empty and serde defaults apply"):
+        assert_equal(parsed("https://x/").query_as::[Page](), .Ok(Page { tags: [], note: .None }), reason="list and optional absence")
+        assert_equal(parsed("https://x/?note=").query_as::[Page](), .Ok(Page { tags: [], note: .Some("") }), reason="empty text is present")
+        assert_equal(parsed("https://x/?page=7&unknown=value").query_as::[Page](), .Ok(Page { page: 7, tags: [], note: .None }), reason="unknown keys ignored")
+
+    it("duplicate scalar keys retain the first input in Invalid"):
+        assert_equal(parsed("https://x/?page=first&page=second").query_as::[Page](), .Err(FormError.Invalid("page", "first")), reason="scalar ambiguity rejected before conversion")
+        assert_equal(parsed("https://x/?page=2&page=2").query_as::[Page](), .Err(FormError.Invalid("page", "2")), reason="equal duplicates still ambiguous")
+        assert_equal(parsed("https://x/?tags=a&tags=b&tags=a").query_as::[Page]().map(fn(page): page.tags), .Ok(["a", "b", "a"]), reason="list duplicates preserve occurrence order")
+
+    it("missing and invalid scalar errors identify the declared wire path"):
+        assert_equal(parsed("https://x/?filter[note]=yes&active=true").query_as::[Query](), .Err(FormError.Missing("filter[wire-count]")), reason="required nested scalar")
+        assert_equal(parsed("https://x/?filter[wire-count]=oops&active=true").query_as::[Query](), .Err(FormError.Invalid("filter[wire-count]", "oops")), reason="original conversion text")
+        assert_equal(parsed("https://x/?page=18446744073709551615").query_as::[Page](), .Err(FormError.Invalid("page", "18446744073709551615")), reason="usize range checked by serde")
+
+    it("unit enum variants are named scalars including repeated fields"):
+        found := parsed("https://x/?state=Done&states=Draft&states=Done").query_as::[StateQuery]()
+        assert_equal(found, .Ok(StateQuery { state: .Done, states: [.Draft, .Done] }), reason="names select units")
+        assert_equal(parsed("https://x/?state=unknown").query_as::[StateQuery](), .Err(FormError.Invalid("state", "unknown")), reason="unknown enum name")
+        assert_equal(parsed("https://x/?state=Data").query_as::[StateQuery](), .Err(FormError.Unsupported("state")), reason="visited payload variant")
+
+    it("unsupported containers and deeper records return typed errors"):
+        assert_equal(parsed("https://x/?entries[key]=value").query_as::[MapQuery]().map(fn(value): +0), .Err(FormError.Unsupported("entries")), reason="dynamic map unsupported")
+        assert_equal(parsed("https://x/?items=1").query_as::[NestedList]().map(fn(value): +0), .Err(FormError.Unsupported("items")), reason="nested list unsupported")
+        assert_equal(parsed("https://x/?items=x").query_as::[RecordList]().map(fn(value): +0), .Err(FormError.Unsupported("items")), reason="visited record element unsupported")
+        assert_equal(parsed("https://x/?query[filter][wire-count]=2").query_as::[Deep]().map(fn(value): +0), .Err(FormError.Unsupported("query[filter]")), reason="third record frame unsupported")
+        assert_equal(parsed("https://x/?value[nested]=2").query_as::[Bracketed]().map(fn(value): +0), .Err(FormError.Unsupported("value[nested]")), reason="member rename cannot inject brackets")
+
+    it("empty record lists and absent optional records need no schema preflight"):
+        assert(parsed("https://x/").query_as::[RecordList]().is_ok(), reason="no unsupported list value visited")
+        assert(parsed("https://x/").query_as::[OptionalRecord]().is_ok(), reason="absent record value not visited")
+
+    it("form decoding validates percent escapes and UTF-8 even in unknown fields"):
+        for text in ["unknown=%", "unknown=%GG", "unknown=%FF", "%FF=value", "unknown=%C3%28"]:
+            body := Body::from_bytes(text.to_utf8())
+            assert(body.form::[Page]().is_err(), reason="malformed input is never replaced or ignored")
+            assert_equal(body.bytes(), .Err(BodyError.Used), reason="malformed form still claims the body")
+        body := Body::from_bytes([255u8])
+        assert(body.form::[Page]().is_err(), reason="raw invalid UTF-8 is also rejected")
+        assert_equal(body.bytes(), .Err(BodyError.Used), reason="raw decoding failure consumed once")
+
+    it("scalar tuples use repeated keys and enforce their arity"):
+        assert_equal(parsed("https://x/?pair=tea&pair=42").query_as::[TupleQuery](), .Ok(TupleQuery { pair: ("tea", 42) }), reason="tuple follows serde list model")
+        for query in ["", "pair=tea", "pair=tea&pair=42&pair=extra"]:
+            match parsed("https://x/?$query").query_as::[TupleQuery]():
+                .Err(.Invalid(field, _)) => assert_equal(field, "pair", reason="wrong tuple count is a field conversion error")
+                _ => panic("tuple arity must be checked")
+
+    it("all scalar families use their actual serde conversions"):
+        text := "signed=-9223372036854775808&small_signed=-128&unsigned=18446744073709551615&small_unsigned=255&single=1.5&double=-2.25&letter=%CE%BB"
+        expected := Numbers { signed: -9223372036854775808i64, small_signed: -128i8, unsigned: 18446744073709551615u64, small_unsigned: 255u8, single: 1.5f32, double: -2.25, letter: 'λ' }
+        assert_equal(parsed("https://x/?$text").query_as::[Numbers](), .Ok(expected), reason="numeric widths and Unicode char")
+        assert_equal(Body::from_bytes(text.to_utf8()).form::[Numbers](), .Ok(expected), reason="body shares all scalar conversions")
+
+    it("present empty scalar values cannot silently take defaults or become None"):
+        assert_equal(parsed("https://x/?page=").query_as::[Page](), .Err(FormError.Invalid("page", "")), reason="a default applies only to absence")
+        match parsed("https://x/?value=").query_as::[OptionalNumber]():
+            .Err(.Invalid(field, text)) =>
+                assert_equal(field, "value", reason="present optional scalar path")
+                assert_equal(text, "", reason="empty original text")
+            _ => panic("empty optional number is not absent")
+
+    it("public query pairs and form components are never decoded twice"):
+        let mut url = parsed("https://x/")
+        url.query = [("page", "%31")]
+        assert_equal(url.query_as::[Page](), .Err(FormError.Invalid("page", "%31")), reason="public pairs already contain decoded data")
+        assert_equal(url.to_string(), "https://x/?page=%2531", reason="literal percent is encoded once")
+        assert_equal(Body::from_bytes("page=%2531".to_utf8()).form::[Page](), .Err(BodyError.Form(FormError.Invalid("page", "%31"))), reason="percent escapes decode exactly once")

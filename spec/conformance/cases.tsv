@@ -39,6 +39,9 @@ runtime/valid/cli-enum-values.hd	runtime	accept	std/cli.md#enum-value-sets
 runtime/valid/cli-positional-fact.hd	runtime	accept	std/cli.md#positional-field-facts
 runtime/valid/cli-short-fact.hd	runtime	accept	std/cli.md#short-field-facts
 runtime/valid/host-driver-turns.hd	runtime	accept	std/time.md#clock
+runtime/valid/http-body-read-once.hd	runtime	accept	std/http.md#read-once-bodies
+runtime/valid/http-form-query-readers.hd	runtime	accept	std/http.md#typed-query-and-form-values
+runtime/valid/http-form-query-writers.hd	runtime	accept	std/http.md#typed-query-and-form-values
 runtime/valid/http-core-errors.hd	runtime	accept	std/http.md#message-conversion-errors
 runtime/valid/http-header-names.hd	runtime	accept	std/http.md#r-std-http.header-name.parse-known
 runtime/valid/http-headers-collection.hd	runtime	accept	std/http.md#header-collections

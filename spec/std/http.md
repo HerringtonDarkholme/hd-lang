@@ -17,6 +17,62 @@ over the language tier:
 Which provider a command binds, and which hosts its grant covers, is CLI
 tier ([Host Capabilities](../cli/command-line.md#host-capabilities)).
 
+## Read-Once Bodies
+
+A `Body` is a value whose copies share private consumption state.
+
+1. r[std-http.body.declaration] `std.http` declares `Body` with private shared state.
+2. r[std-http.body.from-bytes] `Body::from_bytes(bytes: List[u8]) -> Body` creates a fresh unread body holding those bytes.
+3. r[std-http.body.shared-state] Copying a `Body` shares its bytes and read state with the original.
+4. r[std-http.body.bytes] `bytes(&self) -> Result[List[u8], BodyError]` claims the body and returns its bytes.
+5. r[std-http.body.used] Any later read through any copy returns `BodyError.Used`.
+6. r[std-http.body.claim-before-decode] Every reader claims the body before decoding; a decoding failure leaves it used.
+7. r[std-http.body.empty-claim] Reading an empty body also claims it.
+8. r[std-http.body.text] `text(&self) -> Result[string, BodyError]` reads UTF-8, replacing malformed sequences with U+FFFD.
+9. r[std-http.body.json] `json[T < Deserialize](&self) -> Result[T, BodyError]` decodes the body's text through `std.json`.
+10. r[std-http.body.json-error] A JSON decoding failure returns `BodyError.Json` containing the decoder's error.
+11. r[std-http.body.form] `form[T < Deserialize](&self) -> Result[T, BodyError]` decodes a URL-encoded form using [Typed Query And Form Values](#typed-query-and-form-values).
+12. r[std-http.body.form-error] A form decoding failure returns `BodyError.Form` containing its `FormError`.
+13. r[std-http.body.value-equality] `Body` implements `Eq` by comparing payload and read state, independently of allocation identity.
+14. r[std-http.body.debug-private] `Body` implements `Debug`, showing its length and read state without its bytes.
+
+## Typed Query And Form Values
+
+Query pairs and URL-encoded bodies share one serde codec.
+
+1. r[std-http.form-codec.query-reader] `Url.query_as[T < Deserialize](&self) -> Result[T, FormError]` decodes its query pairs into `T`.
+2. r[std-http.form-codec.parameter-record] The root value is a struct whose fields are parameters named by their serde wire names.
+3. r[std-http.form-codec.scalar] Scalar values use the existing serde textual conversions.
+4. r[std-http.form-codec.deep-object] A struct-valued parameter uses one bracket level, `parameter[property]`, whose properties are scalars or optional scalars.
+5. r[std-http.form-codec.repeated-scalars] A list or tuple of supported scalars uses repeated occurrences of its parameter name, in occurrence order.
+6. r[std-http.form-codec.tuple-count] A tuple with the wrong number of values returns `Invalid(field, text)`.
+7. r[std-http.form-codec.duplicate-scalar] Repeated scalar parameters return `Invalid(field, text)` with the first occurrence's text, even when the texts are equal.
+8. r[std-http.form-codec.missing-list] An absent list parameter decodes to an empty list.
+9. r[std-http.form-codec.optional] An absent optional value decodes to `None`; an explicit empty string remains present.
+10. r[std-http.form-codec.defaults] An absent field with a declared serde default takes that default.
+11. r[std-http.form-codec.unknown] Unknown keys are ignored after percent-encoding and UTF-8 validation.
+12. r[std-http.form-codec.missing-scalar] A missing required scalar returns `Missing(field)` with its declared wire path.
+13. r[std-http.form-codec.invalid-scalar] A failed scalar conversion returns `Invalid(field, text)` with its declared wire path and original text.
+14. r[std-http.form-codec.unit-enum] A selected unit enum variant is a scalar whose text is its variant name.
+15. r[std-http.form-codec.payload-enum] A visited enum variant with payload fields returns `Unsupported(field)`.
+16. r[std-http.form-codec.unsupported-containers] A visited dynamic map, deeper record or nested list returns `Unsupported(field)`.
+17. r[std-http.form-codec.unsupported-visits] Unsupported values are rejected when visited, without schema preflight.
+18. r[std-http.form-codec.empty-unvisited] Empty record lists and absent optional records encode and decode as empty or absent without error.
+19. r[std-http.form-codec.bracketed-rename] A member wire name containing `[` or `]` returns `Unsupported(field)`.
+20. r[std-http.form-codec.body-pairs] Form decoding splits nonempty parts at `&` and each part's first `=`, retaining their order.
+21. r[std-http.form-codec.body-empty-value] A form part without `=` has an empty value.
+22. r[std-http.form-codec.body-decode] Form names and values percent-decode UTF-8 and interpret `+` as space.
+23. r[std-http.form-codec.strict-input] Invalid percent-encoding or invalid UTF-8 returns `FormError`, including in unknown pairs.
+24. r[std-http.form-codec.query-writer] `Url.set_query_as[T < Serialize](&mut self, value: T) -> void` replaces the query using the same serde codec.
+25. r[std-http.form-codec.query-write-order] Writing retains member declaration order and list or tuple item order as decoded query pairs.
+26. r[std-http.form-codec.query-write-absence] Writing an absent optional value emits no pair.
+27. r[std-http.form-codec.query-write-empty] Every query write clears the explicit empty-query presence bit.
+28. r[std-http.form-codec.query-write-error] A failed query write retains a private `FormError`, which later `query_as` returns directly.
+29. r[std-http.form-codec.query-replacement] A successful `set_query_as` replaces the query and clears its pending preparation error.
+30. r[std-http.form-codec.query-append-error] `add_param` does not clear a pending query preparation error.
+31. r[std-http.form-codec.query-resolve-inherit] Resolution retains a pending query error exactly when RFC 3986 inherits the base query, including empty and fragment-only references.
+32. r[std-http.form-codec.query-resolve-replace] A reference replacing the query clears its pending error, including an explicit query, new path, authority or scheme.
+
 ## Named Status Codes
 
 1. r[std-http.status.declaration] `std.http` declares `HttpStatus` with the variants and numeric codes below, and `Other(code: u16)`.

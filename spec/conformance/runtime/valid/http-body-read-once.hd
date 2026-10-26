@@ -1,0 +1,58 @@
+# test: Copies and local references share a single body claim, including failed reads.
+# Spec: std-http.body.shared-state, std-http.body.claim-before-decode.
+use std.http.{Body, BodyError}
+use std.json.JsonError
+use std.serde.Deserialize
+
+@derive(Deserialize, Debug, Eq)
+struct Payload:
+    value: usize
+
+fn read_through(body: &Body) -> Result[string, BodyError]: body.text()
+
+tests:
+    it("body copies share consumption through a local reference"):
+        body := Body::from_bytes("secret payload".to_utf8())
+        copy := body
+        assert_equal(read_through(&copy), .Ok("secret payload"), reason="a local reference can claim shared state")
+        assert_equal(body.bytes(), .Err(BodyError.Used), reason="original sees the same claim")
+        assert_equal(copy.text(), .Err(BodyError.Used), reason="text cannot reread a used body")
+
+    it("an empty body also has one read"):
+        body := Body::from_bytes([])
+        assert_equal(body.bytes(), .Ok([]), reason="empty payload is a real body")
+        assert_equal(body.bytes(), .Err(BodyError.Used), reason="empty payload consumption is observable")
+
+    it("separately constructed bodies are independent and compare by value"):
+        first := Body::from_bytes("same".to_utf8())
+        second := Body::from_bytes("same".to_utf8())
+        assert_equal(first, second, reason="same bytes and unread state")
+        assert_equal(first.text(), .Ok("same"), reason="first body read")
+        assert(first != second, reason="consumption is part of equality")
+        assert_equal(second.text(), .Ok("same"), reason="second allocation remains unread")
+        assert_equal(first, second, reason="same bytes and used state")
+
+    it("text replaces malformed UTF-8 and still consumes once"):
+        body := Body::from_bytes([65u8, 255u8, 66u8])
+        assert_equal(body.text(), .Ok("A�B"), reason="replacement follows text-reader contract")
+        assert_equal(body.bytes(), .Err(BodyError.Used), reason="replacement does not leave the original reusable")
+
+    it("JSON decode succeeds through the same shared claim"):
+        body := Body::from_bytes("{\"value\":42}".to_utf8())
+        assert_equal(body.json::[Payload](), .Ok(Payload { value: 42 }), reason="typed decode")
+        assert_equal(body.json::[Payload](), .Err(BodyError.Used), reason="a second typed read does not rerun the codec")
+
+    it("failed JSON decode claims the body before reporting its error"):
+        body := Body::from_bytes("".to_utf8())
+        assert_equal(body.json::[Payload](), .Err(BodyError.Json(JsonError.UnexpectedEnd(0))), reason="typed JSON error retained")
+        assert_equal(body.text(), .Err(BodyError.Used), reason="decode failure cannot restore a consumed body")
+
+    it("Debug shows metadata and never body bytes"):
+        body := Body::from_bytes("password".to_utf8())
+        before := debug(body)
+        assert(before.contains("8"), reason="length is visible")
+        assert(!before.contains("password"), reason="payload is private")
+        _ := body.bytes()
+        after := debug(body)
+        assert(after != before, reason="current claim state is visible")
+        assert(!after.contains("password"), reason="used payload is also private")

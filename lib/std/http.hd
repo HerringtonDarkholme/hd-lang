@@ -8,8 +8,9 @@ use std.task.TimedOut
 use std.time.{Duration, Timestamp}
 use std.text.{StringBuilder, Parse}
 use std.hash.Hasher
+use std.format.DebugWriter
 use std.json.{JsonError, decode, encode}
-use std.serde.{Deserialize, Serialize, Serializer, member_name}
+use std.serde.{Deserialize, Serialize, Serializer, Deserializer, ValueKind, member_name}
 use std.structure.{Facts, VariantInfo, Member}
 
 # The message API's shared core; current request/response migration follows.
@@ -297,6 +298,56 @@ pub enum HeaderError:
     @error("invalid value for header ${name}")
     InvalidValue(name: string)
 
+## A shared read-once message body. Copying the value shares consumption.
+pub struct Body:
+    state: *mut BodyState
+
+struct BodyState:
+    payload: Result[List[u8], FormError]
+    used: bool = false
+
+impl Body:
+    fn empty() -> Body: Body::from_bytes([])
+
+    pub fn from_bytes(bytes: List[u8]) -> Body:
+        Body { state: &mut BodyState { payload: .Ok(bytes) } }
+
+    fn prepared(payload: Result[List[u8], FormError]) -> Body:
+        Body { state: &mut BodyState { payload: payload } }
+
+    pub fn bytes(&self) -> Result[List[u8], BodyError]:
+        if self.state.used: return .Err(.Used)
+        self.state.used = true
+        self.state.payload.map_err(fn(error): BodyError.Form(error))
+
+    pub fn text(&self) -> Result[string, BodyError]:
+        bytes := self.bytes()?
+        .Ok(match string::from_utf8(bytes):
+            .Ok(text) => text
+            .Err(_) => lossy_text(bytes)
+        )
+
+    pub fn json[T < Deserialize](&self) -> Result[T, BodyError]:
+        text := self.text()?
+        decode::[T](text).map_err(fn(error): BodyError.Json(error))
+
+    pub fn form[T < Deserialize](&self) -> Result[T, BodyError]:
+        bytes := self.bytes()?
+        text := match string::from_utf8(bytes):
+            .Ok(text) => text
+            .Err(_) => return .Err(.Form(.Invalid("$", lossy_text(bytes))))
+        pairs := message_form_parse(&text).map_err(fn(error): BodyError.Form(error))?
+        message_form_decode::[T](&pairs).map_err(fn(error): BodyError.Form(error))
+
+impl Eq for Body:
+    fn eq(self, other: Body) -> bool:
+        self.state.used == other.state.used && self.state.payload == other.state.payload
+
+impl Debug for Body:
+    fn debug(self, out: *mut DebugWriter) -> void:
+        length := self.state.payload.map(fn(bytes): bytes.len()).unwrap_or(0)
+        out.write("Body { len: $length, used: ${self.state.used} }")
+
 ## A typed message-body read failure.
 @error
 @derive(Debug, Eq)
@@ -468,6 +519,220 @@ fn parse_request_cookies(text: &string) -> List[(string, string)]:
                 if !name.trim().is_empty(): cookies.push((name.trim(), value.trim()))
             .None => pass
     cookies
+
+# The typed form codec uses serde's record/list/scalar protocol. Its frame
+# stack permits the parameter record plus one deepObject property level.
+struct MessageFormFrame:
+    path: string
+    facts: Facts
+
+fn message_form_path(parent: &string, name: &string) -> string:
+    if parent.is_empty(): *name else: "$parent[$name]"
+
+fn message_form_member_name(frame: &MessageFormFrame, member: Member) -> Result[string, FormError]:
+    name := member_name(member, frame.facts)
+    path := message_form_path(&frame.path, &name)
+    if name.contains("[") || name.contains("]"): return .Err(.Unsupported(path))
+    .Ok(path)
+
+struct MessageFormWriter:
+    frames: List[MessageFormFrame] = []
+    path: string = ""
+    keyed: bool = false
+    repeated: bool = false
+    started: bool = false
+    finished: bool = false
+    tagged: bool = false
+    tag: string = ""
+    pairs: List[(string, string)] = []
+
+impl MessageFormWriter:
+    fn unsupported(&self) -> FormError:
+        .Unsupported(if self.path.is_empty(): "$" else: self.path)
+
+    fn scalar(&mut self, value: string) -> Result[void, FormError]:
+        if self.frames.is_empty() || !self.keyed || self.finished || self.tagged: return .Err(self.unsupported())
+        self.pairs.push((self.path, value))
+        self.keyed = self.repeated
+        .Ok(())
+
+impl Serializer for MessageFormWriter:
+    type Error = FormError
+    fn null(&mut self) -> Result[void, FormError]:
+        if !self.keyed || self.repeated || self.frames.is_empty() || self.tagged: return .Err(self.unsupported())
+        self.keyed = false
+        .Ok(())
+    fn bool(&mut self, value: bool) -> Result[void, FormError]: self.scalar(if value: "true" else: "false")
+    fn int(&mut self, value: i64) -> Result[void, FormError]: self.scalar("$value")
+    fn uint(&mut self, value: u64) -> Result[void, FormError]: self.scalar("$value")
+    fn float(&mut self, value: f64) -> Result[void, FormError]: self.scalar("$value")
+    fn text(&mut self, value: string) -> Result[void, FormError]: self.scalar(value)
+    fn begin_list(&mut self, len: usize) -> Result[void, FormError]:
+        if !self.keyed || self.repeated || self.frames.len() != 1 || self.tagged: return .Err(self.unsupported())
+        self.repeated = true
+        .Ok(())
+    fn end_list(&mut self) -> Result[void, FormError]:
+        if !self.repeated || self.tagged: return .Err(self.unsupported())
+        self.repeated = false
+        self.keyed = false
+        .Ok(())
+    fn begin_map(&mut self, len: usize) -> Result[void, FormError]: .Err(self.unsupported())
+    fn key(&mut self, key: string) -> Result[void, FormError]: .Err(self.unsupported())
+    fn end_map(&mut self) -> Result[void, FormError]: .Err(self.unsupported())
+    fn begin_variant(&mut self, facts: Facts, variant: VariantInfo) -> Result[void, FormError]:
+        if self.finished || self.tagged: return .Err(self.unsupported())
+        if !variant.of_data:
+            if self.frames.is_empty() || !self.keyed: return .Err(self.unsupported())
+            self.tagged = true
+            self.tag = variant.name
+            return .Ok(())
+        if self.repeated || self.frames.len() >= 2 || (self.started && self.frames.is_empty()): return .Err(self.unsupported())
+        self.started = true
+        self.frames.push(MessageFormFrame { path: self.path, facts: facts })
+        self.keyed = false
+        .Ok(())
+    fn member(&mut self, member: Member) -> Result[void, FormError]:
+        if self.frames.is_empty() || self.keyed || self.repeated || self.tagged: return .Err(self.unsupported())
+        frame := self.frames[self.frames.len() - 1]
+        self.path = message_form_member_name(&frame, member)?
+        self.keyed = true
+        .Ok(())
+    fn end_variant(&mut self) -> Result[void, FormError]:
+        if self.tagged:
+            self.tagged = false
+            return self.scalar(self.tag)
+        if self.frames.is_empty() || self.keyed || self.repeated: return .Err(self.unsupported())
+        frame := match self.frames.pop():
+            .Some(frame) => frame
+            .None => return .Err(self.unsupported())
+        self.path = frame.path
+        self.keyed = false
+        self.finished = self.frames.is_empty()
+        .Ok(())
+
+fn message_form_encode[T < Serialize](value: T) -> Result[List[(string, string)], FormError]:
+    let mut writer = MessageFormWriter {}
+    value.serialize(&mut writer)?
+    if !writer.finished: return .Err(writer.unsupported())
+    .Ok(writer.pairs)
+
+struct MessageFormReader:
+    groups: Map[string, *mut List[string]]
+    frames: List[MessageFormFrame] = []
+    path: string = ""
+    values: List[string] = []
+    current: string? = .None
+    repeated: bool = false
+    tagged: bool = false
+    at: usize = 0
+
+impl MessageFormReader:
+    fn unsupported(&self) -> FormError:
+        .Unsupported(if self.path.is_empty(): "$" else: self.path)
+
+    fn present(&self) -> bool:
+        if self.groups.contains_key(self.path): return true
+        prefix := self.path + "["
+        for (key, _) in self.groups:
+            if key.starts_with(prefix): return true
+        false
+
+    fn read_text(&self) -> Result[string, FormError]:
+        if !self.repeated && self.values.len() > 1:
+            return .Err(.Invalid(self.path, self.values[0]))
+        match self.current:
+            .Some(value) => .Ok(value)
+            .None => .Err(.Missing(self.path))
+
+    fn parse[T < Parse[Error = E], E](&self) -> Result[T, FormError]:
+        text := self.read_text()?
+        match T::parse(text):
+            .Ok(value) => .Ok(value)
+            .Err(_) => .Err(.Invalid(self.path, text))
+
+impl Deserializer for MessageFormReader:
+    type Error = FormError
+    fn peek(&mut self) -> Result[ValueKind, FormError]:
+        .Ok(if self.current.is_some(): .Text else: .Null)
+    fn is_null(&mut self) -> Result[bool, FormError]:
+        .Ok(if self.repeated: self.current.is_none() else: !self.present())
+    fn bool(&mut self, expected: string) -> Result[bool, FormError]: self.parse::[bool]()
+    fn int(&mut self, expected: string) -> Result[i64, FormError]: self.parse::[i64]()
+    fn uint(&mut self, expected: string) -> Result[u64, FormError]: self.parse::[u64]()
+    fn float(&mut self, expected: string) -> Result[f64, FormError]: self.parse::[f64]()
+    fn text(&mut self, expected: string) -> Result[string, FormError]: self.read_text()
+    fn begin_list(&mut self) -> Result[void, FormError]:
+        if self.repeated || self.frames.len() != 1 || self.tagged: return .Err(self.unsupported())
+        self.repeated = true
+        self.at = 0
+        .Ok(())
+    fn next_item(&mut self) -> Result[bool, FormError]:
+        if !self.repeated: return .Err(self.unsupported())
+        if self.at == self.values.len():
+            self.repeated = false
+            return .Ok(false)
+        self.current = .Some(self.values[self.at])
+        self.at += 1
+        .Ok(true)
+    fn begin_map(&mut self) -> Result[void, FormError]: .Err(self.unsupported())
+    fn next_key(&mut self) -> Result[string?, FormError]: .Err(self.unsupported())
+    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, FormError]:
+        if choices.is_empty() || self.tagged: return .Err(self.unsupported())
+        if !choices[0].of_data:
+            if self.frames.is_empty(): return .Err(self.unsupported())
+            name := self.read_text()?
+            for index in 0..choices.len():
+                if choices[index].name == name:
+                    self.tagged = true
+                    return .Ok(index)
+            return .Err(.Invalid(self.path, name))
+        if self.repeated || self.frames.len() >= 2 || choices.len() != 1: return .Err(self.unsupported())
+        self.frames.push(MessageFormFrame { path: self.path, facts: facts })
+        .Ok(0)
+    fn member(&mut self, member: Member) -> Result[void, FormError]:
+        if self.tagged || self.frames.is_empty(): return .Err(self.unsupported())
+        frame := self.frames[self.frames.len() - 1]
+        self.path = message_form_member_name(&frame, member)?
+        self.values = match self.groups.get(self.path):
+            .Some(values) => *values
+            .None => []
+        self.current = self.values.get(0)
+        .Ok(())
+    fn end_variant(&mut self) -> Result[void, FormError]:
+        if self.tagged:
+            self.tagged = false
+            return .Ok(())
+        frame := match self.frames.pop():
+            .Some(frame) => frame
+            .None => return .Err(self.unsupported())
+        self.path = frame.path
+        .Ok(())
+    fn invalid(&mut self, expected: string) -> FormError:
+        .Invalid(self.path, self.current.unwrap_or(""))
+    fn is_absent(&mut self) -> bool: !self.present()
+
+fn message_form_decode[T < Deserialize](pairs: &List[(string, string)]) -> Result[T, FormError]:
+    let mut groups: Map[string, *mut List[string]] = {}
+    for (key, value) in pairs:
+        match groups.get(key):
+            .Some(values) => values.push(value)
+            .None => groups[key] = &mut [value]
+    let mut reader = MessageFormReader { groups: groups }
+    T::deserialize(&mut reader)
+
+fn message_form_parse(text: &string) -> Result[List[(string, string)], FormError]:
+    let mut pairs: List[(string, string)] = []
+    for part in text.split("&"):
+        if part.is_empty(): continue
+        let (name, value) = part.split_once("=").unwrap_or((part, ""))
+        key := match url_decode_component(&name, true):
+            .Some(key) => key
+            .None => return .Err(.Invalid("$", name))
+        decoded := match url_decode_component(&value, true):
+            .Some(decoded) => decoded
+            .None => return .Err(.Invalid(key, value))
+        pairs.push((key, decoded))
+    .Ok(pairs)
 
 ## The SameSite policy of a response cookie.
 @derive(Debug, Eq)
@@ -689,6 +954,7 @@ pub struct Url:
     pub fragment: string? = .None
     raw_path: string
     force_query: bool
+    query_error: FormError? = .None
 
 impl Url:
     pub fn parse(text: string) -> Result[Url, UrlError]:
@@ -735,20 +1001,12 @@ impl Url:
         path := match url_decode_component(&raw_path, false):
             .Some(path) => path
             .None => return .Err(.Invalid(text))
-        let mut query: List[(string, string)] = []
-        match parts.query:
-            .Some(raw_query) =>
-                for pair in raw_query.split("&"):
-                    if pair.is_empty(): continue
-                    let (name, value) = pair.split_once("=").unwrap_or((pair, ""))
-                    key := match url_decode_component(&name, true):
-                        .Some(name) => name
-                        .None => return .Err(.Invalid(text))
-                    decoded_value := match url_decode_component(&value, true):
-                        .Some(value) => value
-                        .None => return .Err(.Invalid(text))
-                    query.push((key, decoded_value))
-            .None => pass
+        query := match parts.query:
+            .Some(raw) =>
+                match message_form_parse(&raw):
+                    .Ok(pairs) => pairs
+                    .Err(_) => return .Err(.Invalid(text))
+            .None => []
         let fragment: string? = .None
         match parts.fragment:
             .Some(raw) =>
@@ -759,7 +1017,26 @@ impl Url:
         .Ok(Url { scheme: scheme, host: header_ascii_lower(&host), port: port, path: path, query: query, fragment: fragment, raw_path: raw_path, force_query: parts.query.is_some() && query.is_empty() })
 
     pub fn resolve(&self, reference: string) -> Result[Url, UrlError]:
-        Url::parse(redirect_url(self.to_string(), reference))
+        let mut target = Url::parse(redirect_url(self.to_string(), reference))?
+        parts := client_url_parts(reference)
+        if parts.scheme.is_none() && parts.authority.is_none() && parts.path.is_empty() && parts.query.is_none():
+            target.query_error = self.query_error
+        .Ok(target)
+
+    pub fn query_as[T < Deserialize](&self) -> Result[T, FormError]:
+        match self.query_error:
+            .Some(error) => .Err(error)
+            .None => message_form_decode::[T](&self.query)
+
+    pub fn set_query_as[T < Serialize](&mut self, value: T) -> void:
+        self.force_query = false
+        match message_form_encode(value):
+            .Ok(pairs) =>
+                self.query = pairs
+                self.query_error = .None
+            .Err(error) =>
+                self.query = []
+                self.query_error = .Some(error)
 
     pub fn param(&self, name: string) -> string?:
         for (key, value) in self.query:
