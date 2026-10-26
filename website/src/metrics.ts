@@ -332,7 +332,7 @@ export function metricsPage(dir: string | undefined): { body: string; headings: 
     return `<h${level} id="${id}">${escapeHtml(text)}</h${level}>`;
   };
   const intro = `${h(1, "daily-goal-metrics", "Daily goal metrics")}
-<p>hd is built for programs written by coding agents, so we judge it with the <em>Agentic Programming Language Arena</em>: three pillars that ask what agent-driven development actually costs and produces. Each pillar is kept on its own and compared on a Pareto frontier rather than folded into one score, because a faster compiler that makes agents retry more is not a win. Compiler correctness is a gate in front of all three. Every metric is a script with a fixed target; no AI or agent run is involved, and the same scripts run against any <code>hd</code> binary. They run twice a day, at 00:00 and 12:00 UTC.</p>`;
+<p>hd is built for programs written by coding agents, so we judge it with the <em>Agentic Programming Language Arena</em>: three pillars that ask what agent-driven development actually costs and produces. Each pillar is kept on its own and compared on a Pareto frontier rather than folded into one score, because a faster compiler that makes agents retry more is not a win. Compiler correctness is a gate in front of all three. Every metric is a script with a fixed target; no AI or agent run is involved, and the same scripts run against any <code>hd</code> binary. They run twice a day, at 00:00 and 12:00 UTC. More on the idea: <a href="https://x.com/hd_nvim/status/2107634125083451468">the announcement on X</a>.</p>`;
   if (!dir || !existsSync(join(dir, "history.tsv")))
     return {
       headings,
@@ -345,13 +345,17 @@ export function metricsPage(dir: string | undefined): { body: string; headings: 
   const runs = [...new Set(series.flatMap((s) => s.points.map((p) => p.finished)))].sort();
   const parts = [intro];
 
+  const card = (p: Pillar, i: number): string => {
+    const targets = inPillar(p.key);
+    const met = targets.filter((s) => s.points.at(-1)?.status === "pass").length;
+    return `<div class="metric-pillar"><dt><span class="metric-swatch ${PILLAR_COLOUR[i]}"></span>${escapeHtml(p.title)}<span class="metric-count">${met} of ${targets.length} met</span></dt><dd><strong>${escapeHtml(p.question)}</strong> ${escapeHtml(p.explain)}</dd></div>`;
+  };
+  const gate = PILLARS.findIndex((p) => p.key === "gate");
   parts.push(
-    h(2, "the-pillars", "The pillars"),
-    `<dl class="metric-pillars">${PILLARS.map((p, i) => {
-      const targets = inPillar(p.key);
-      const met = targets.filter((s) => s.points.at(-1)?.status === "pass").length;
-      return `<div class="metric-pillar"><dt><span class="metric-swatch ${PILLAR_COLOUR[i]}"></span>${escapeHtml(p.title)}<span class="metric-count">${met} of ${targets.length} met</span></dt><dd><strong>${escapeHtml(p.question)}</strong> ${escapeHtml(p.explain)}</dd></div>`;
-    }).join("")}</dl>`,
+    h(2, "correctness-first", "First: correctness"),
+    `<dl class="metric-pillars">${card(PILLARS[gate]!, gate)}</dl>`,
+    h(2, "the-pillars", "The three pillars"),
+    `<dl class="metric-pillars">${PILLARS.map((p, i) => (p.key === "gate" ? "" : card(p, i))).join("")}</dl>`,
   );
 
   parts.push(
