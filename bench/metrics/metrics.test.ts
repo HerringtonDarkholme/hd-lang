@@ -324,6 +324,19 @@ describe("corpora", () => {
     }
   });
 
+  it("selects lint explicitly while ordinary mistakes default to check", () => {
+    const text =
+      "# mistake: m\n# log: l\n# expect: unused-local-binding\n# fixed: _value := +1\n\nvalue := +1  # warning: unused-local-binding\n";
+    assert.equal(parseMistake("p", "p.hd", text).tool, "check");
+    const lint = parseMistake("p", "p.hd", "# tool: lint\n" + text);
+    assert.equal(lint.tool, "lint");
+    assert.ok(lint.fixedText?.startsWith("# tool: lint\n"));
+    assert.throws(
+      () => parseMistake("p", "p.hd", "# tool: build\n" + text),
+      /tool must be check or lint/,
+    );
+  });
+
   it("rejects a program whose marker and header disagree", () => {
     const text = "# mistake: m\n# log: l\n# expect: a\n\nx  # diagnostic: b\n";
     assert.throws(() => parseMistake("bad", "bad.hd", text), /differs/);

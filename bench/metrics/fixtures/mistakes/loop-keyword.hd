@@ -1,5 +1,6 @@
 # mistake: Rust's `loop:` for an endless loop
 # log: 2026-10-05 default profile #312; 2026-10-05 usability probe #77
+# tool: lint
 # expect: unknown-name
 # cascade: unused-local-binding
 # fixed:     while true:
