@@ -1409,6 +1409,24 @@ impl Em<'_, '_, '_> {
         Ok(ls)
     }
 
+    /// Coercion `i` of `a` that keeps its values: a consumed operand's
+    /// locals become `i`'s, count and all, with nothing emitted; any other
+    /// is copied with a count of its own. In a suspending body the operand
+    /// keeps its locals, which a cancelled point's unwind may release.
+    fn same_value(&mut self, i: u32, a: u32) -> StageResult<()> {
+        if self.take(a)
+            && self.susp.is_none()
+            && !self.vals.contains_key(&i)
+            && let Some(ls) = self.vals.remove(&a)
+        {
+            self.vals.insert(i, ls);
+            return Ok(());
+        }
+        let moved = self.moving.contains(&(i, a));
+        self.push(a)?;
+        self.store_as(i, moved)
+    }
+
     /// Stores the values on the stack as instruction `i`'s, a copy that
     /// takes a count of its own ([`Em::store_as`]).
     fn store(&mut self, i: u32) -> StageResult<()> {
@@ -1730,9 +1748,10 @@ impl Em<'_, '_, '_> {
                         }
                         // A function value's code looks its row up in the
                         // context its caller passes, so a row that changes
-                        // changes nothing (`ctx.rs`).
-                        self.push(a)?;
-                        self.store(i)?;
+                        // changes nothing (`ctx.rs`). The value is the
+                        // operand's, which it consumes: it takes the
+                        // operand's count, or none of a borrow.
+                        self.same_value(i, a)?;
                     }
                     k if k == Coercion::WrapSome as u32 => {
                         self.new_variant(i, 1, &[value::Src::Ref(a)])?;
@@ -1749,10 +1768,7 @@ impl Em<'_, '_, '_> {
                     }
                     k if k == Coercion::RefAsProvider as u32 => self.ref_as_provider(i, a)?,
                     // The provider is the reference itself.
-                    k if k == Coercion::ProviderAsRef as u32 => {
-                        self.push(a)?;
-                        self.store(i)?;
-                    }
+                    k if k == Coercion::ProviderAsRef as u32 => self.same_value(i, a)?,
                     _ => return unsupported("provider references and `Any` coercions"),
                 }
             }

@@ -1076,10 +1076,15 @@ impl Backward for Live<'_> {
         }
     }
 
-    /// A use of value `v`: it, and every borrow it lives on.
+    /// A use of value `v`: it, and every borrow it lives on. A coercion
+    /// of a borrow is that borrow ([`Body::is_borrowed_coercion`]).
     fn uses(&mut self, b: &Body, v: u32, s: &mut BitArena, live: usize) {
         let mut x = v;
         for _ in 0..b.len() {
+            if b.is_borrowed_coercion(x) {
+                x = b.data[x as usize][0];
+                continue;
+            }
             let Some(&k) = self.bit.get(x as usize) else {
                 return;
             };

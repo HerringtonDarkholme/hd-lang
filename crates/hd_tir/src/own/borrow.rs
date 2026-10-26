@@ -12,10 +12,13 @@
 //!
 //! 1. **Every use lends**: no use consumes the value (an owned argument, a
 //!    construction's part, a `Return` or `Break` value, a block's tail),
-//!    passes it on as another value (a coercion), or addresses its storage
-//!    (a `Ref` rooted at it). A copy of it for a consumer is a read rooted
-//!    at it, which lends. One consumer is let through: a `Store` of the
-//!    read into all of a **binding local** (below).
+//!    passes it on as another value (a coercion that changes its values),
+//!    or addresses its storage (a `Ref` rooted at it). A copy of it for a
+//!    consumer is a read rooted at it, which lends. Two consumers are let
+//!    through: a `Store` of the read into all of a **binding local**
+//!    (below), and a coercion that keeps its values
+//!    ([`Body::same_value_coercion`]) whose own uses lend, which is then a
+//!    borrow too, its drops gone, the span running to its last drop.
 //! 2. **Nothing writes what it reads.** The place is resolved through the
 //!    values its root reads (`%h = Read [$xs]` makes `[%h [%i]]` an
 //!    element of `$xs`), and through binding locals to the read they hold:
@@ -168,6 +171,9 @@ pub(crate) struct Tables {
     keeps: Vec<bool>,
     stored: Vec<u32>,
     last_drop: Vec<u32>,
+    /// Per value: the coercion that keeps its values and consumes it
+    /// ([`Body::same_value_coercion`]), or `NONE`.
+    alias: Vec<u32>,
     /// Per local: the stores into it, whether a reference or a closure
     /// reaches it, whether an `IsUnique` or a `Pin` changes it in place,
     /// whether every value stored into it is fresh, the first and last read
@@ -224,6 +230,7 @@ impl Tables {
         fill(&mut self.keeps, n, false);
         fill(&mut self.stored, n, NONE);
         fill(&mut self.last_drop, n, NONE);
+        fill(&mut self.alias, n, NONE);
         fill(&mut self.stores, locals, 0);
         fill(&mut self.reached, locals, false);
         fill(&mut self.changed, locals, false);
@@ -537,6 +544,11 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             }
             t.uses[v] += 1;
             let keeps = match op.role {
+                // Decided once the coercion's own uses are known.
+                Role::Consume if b.same_value_coercion(i) && t.alias[v] == NONE => {
+                    t.alias[v] = u32_of(i);
+                    false
+                }
                 Role::Consume if tag == Tag::Store && op.at == Loc::Data(1) => {
                     if t.stored[v] == NONE {
                         t.stored[v] = u32_of(i);
@@ -583,6 +595,17 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         }
     }
     t.ops = ops;
+    // A value a coercion consumes is kept where the coercion's value is
+    // (by a use, a store, another coercion) or where it has another use.
+    // Coercions follow their operands in the columns, so a chain resolves
+    // from its end.
+    for v in (0..n).rev() {
+        let c = t.alias[v];
+        if c != NONE {
+            let c = c as usize;
+            t.keeps[v] |= t.keeps[c] || t.stored[c] != NONE || t.alias[c] != NONE || t.uses[v] > 1;
+        }
+    }
 }
 
 /// Indexes every write by the roots it writes, and the heap writes, the
@@ -742,8 +765,19 @@ fn decide(
         return;
     }
     let x = u32_of(r);
-    // The span's end: the read's last drop, or a binding local's.
-    let (end, bind) = if t.last_drop[r] != NONE && t.stored[r] == NONE {
+    // A read that a coercion keeping its values consumes lives on as the
+    // coercion's value: the span ends at that value's last drop, and the
+    // coercion is a borrow too. One whose instance may make it fresh
+    // keeps its count.
+    let alias = t.alias[r];
+    if alias != NONE && (keeps_drops(b, cx, r) || t.last_drop[alias as usize] == NONE) {
+        return;
+    }
+    // The span's end: the read's last drop, a binding local's, or the
+    // coercion's.
+    let (end, bind) = if alias != NONE {
+        (t.last_drop[alias as usize], NONE)
+    } else if t.last_drop[r] != NONE && t.stored[r] == NONE {
         (t.last_drop[r], NONE)
     } else if t.last_drop[r] == NONE && t.stored[r] != NONE && t.uses[r] == 1 {
         match binding(b, t, t.stored[r]) {
@@ -793,7 +827,16 @@ fn decide(
     }
     b.data[r][1] = ReadMode::Borrow as u32;
     let locals = u32_of(b.local_ty.len());
-    if bind == NONE {
+    if alias != NONE {
+        // The coercion's value is the borrow: its drops go.
+        for k in t.start[(locals + alias) as usize]..t.start[(locals + alias) as usize + 1] {
+            let d = t.rows[k as usize].at;
+            if is_whole_drop(b, d, Root::Value(alias)) {
+                t.gone[d as usize] = true;
+                edits.remove(d);
+            }
+        }
+    } else if bind == NONE {
         if !keep {
             for k in t.start[(locals + x) as usize]..t.start[(locals + x) as usize + 1] {
                 let d = t.rows[k as usize].at;

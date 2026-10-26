@@ -46,8 +46,7 @@ fn evens(n: usize) -> List[usize]:
 >   %32 = Loop %31 - : ()
 >   %33 = Read move [$1] : mut List[usize]
 >   %34 = Coerce %33 [Weaken -] : List[usize]
->   %35 = Drop [%33] : ()
->   %36 = Block %34 : List[usize]
+>   %35 = Block %34 : List[usize]
 
 fn counted(n: usize) -> List[usize]:
     [for i in (0..n).iter() => i]
@@ -83,6 +82,5 @@ fn counted(n: usize) -> List[usize]:
 >   %28 = Drop [$3] : ()
 >   %29 = Read move [$1] : mut List[usize]
 >   %30 = Coerce %29 [Weaken -] : List[usize]
->   %31 = Drop [%29] : ()
->   %32 = Block %30 : List[usize]
+>   %31 = Block %30 : List[usize]
 >   %6 finds [$2] full

@@ -1,0 +1,20 @@
+# @dump: own counts
+# @build: v8 release
+# A `&mut self` receiver passed to a `&self` method is weakened to `&T`:
+# the coercion keeps the reference as it is, so the call borrows it and
+# no count is taken (json: `TextReader.member` calling `self.top()`).
+struct Frame:
+    count: usize
+
+struct Reader:
+    frames: List[*mut Frame]
+    open: usize
+
+impl Reader:
+    fn top(&self) -> *mut Frame:
+        self.frames[self.open - 1]
+
+    fn next(&mut self) -> usize:
+        # subject
+        frame := self.top()
+        frame.count

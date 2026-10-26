@@ -195,9 +195,13 @@ emitter emits the same loads for all four.
 `move` read, a `Ref` of a celled local, `Interp` and a `Closure` produce
 owned values. A use of a value either **consumes** it (a `Store`, an
 owned argument, a construction part, a `Return` or `Break` value, a
-capture) or **lends** it (a borrowed argument, an operand of `Prim`, an
-element index, the root of a place). After the passes, every owned
-value has exactly one consumer or one `Drop`.
+capture, a coercion that keeps its operand's values) or **lends** it (a
+borrowed argument, an operand of `Prim`, an element index, the root of a
+place). After the passes, every owned value has exactly one consumer or
+one `Drop`. A coercion that keeps its operand's values (`Weaken`,
+`Variance`, `RowSubsume`, `SuspendFnToCtor`, `Identity`,
+`ProviderAsRef`) is its operand under another type: it takes the
+operand's count, and a coercion of a `borrow` read is a borrow too.
 
 ### Ownership statements
 
@@ -821,6 +825,8 @@ on the place's count. A read borrows when all of these hold over its
 
 1. **Every use lends.** No consumer needs a count of its own (an owned
    argument, a store, a return). A borrowed value has no count to give.
+   A coercion that keeps the value's values passes the read on: the
+   coercion's uses must lend, and the span runs to its last use.
 2. **Nothing writes an overlapping place.** No `Store`, `Drop`, `move`
    read, `IsUnique` or mutable `Ref` of a place that overlaps the read's
    place stands in the span.
@@ -1798,7 +1804,8 @@ is worth deciding only if they are hot.
 8. Borrow.
    As built: `own/borrow.rs`, between insertion and move. One walk in
    instruction order decides each `copy` read of a counted type. It
-   borrows when every use lends (no consumer, no coercion, no `Ref` into
+   borrows when every use lends (no consumer, no coercion other than one
+   that keeps the value's values and whose own uses lend, no `Ref` into
    the value itself) and nothing in its span writes what it reads, may
    reach it from outside the body, or suspends. The span is the
    statements of its `Drop`'s block from the one that holds the read to

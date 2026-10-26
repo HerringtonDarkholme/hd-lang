@@ -954,6 +954,40 @@ impl Body {
         }
     }
 
+    /// Whether instruction `i` is a `Coerce` that keeps its operand's
+    /// values as they are (`Weaken`, `Variance`, `RowSubsume`,
+    /// `SuspendFnToCtor`, `Identity`, `ProviderAsRef`): its value is its
+    /// operand's, so it takes the operand's count, or none of a borrow.
+    #[must_use]
+    pub fn same_value_coercion(&self, i: usize) -> bool {
+        self.tags.get(i) == Some(&Tag::Coerce)
+            && self
+                .extra
+                .get(self.data[i][1] as usize + 1)
+                .is_some_and(|&k| {
+                    [
+                        Coercion::Weaken,
+                        Coercion::Variance,
+                        Coercion::RowSubsume,
+                        Coercion::SuspendFnToCtor,
+                        Coercion::Identity,
+                        Coercion::ProviderAsRef,
+                    ]
+                    .iter()
+                    .any(|c| *c as u32 == k)
+                })
+    }
+
+    /// Whether value `v` is a [`Body::same_value_coercion`] of a `borrow`
+    /// read: a borrow too, which holds no count.
+    #[must_use]
+    pub fn is_borrowed_coercion(&self, v: u32) -> bool {
+        Ref(v).as_inst().is_some()
+            && (v as usize) < self.len()
+            && self.same_value_coercion(v as usize)
+            && self.is_borrow(self.data[v as usize][0])
+    }
+
     /// Whether value `v` is a `borrow` read's value.
     #[must_use]
     pub fn is_borrow(&self, v: u32) -> bool {

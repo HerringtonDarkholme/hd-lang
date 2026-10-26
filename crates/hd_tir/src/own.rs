@@ -272,7 +272,7 @@ pub(crate) fn tracked(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
     if t == Ty::VOID || t == Ty::NEVER || t == Ty::POISON {
         return false;
     }
-    if b.is_borrow(u32_of(i)) {
+    if b.is_borrow(u32_of(i)) || b.is_borrowed_coercion(u32_of(i)) {
         return false;
     }
     if matches!(

@@ -126,6 +126,10 @@ impl Em<'_, '_, '_> {
                     let flag = self.f.local(crate::module::Val::I32);
                     self.view_loans.insert(x, flag);
                 }
+                // A coercion of a borrow keeps its value, with no count.
+                Tag::Coerce if self.b.is_borrowed_coercion(x) => {
+                    self.loans.insert(x);
+                }
                 Tag::Store if self.b.is_borrow(w) => {
                     let l = if a & place::BARE_LOCAL != 0 {
                         Some(a & !place::BARE_LOCAL)

@@ -119,7 +119,11 @@ fn layout(tag: Tag) -> [Layout; 2] {
 /// data word has none.
 pub fn slots(b: &Body, i: usize, mut f: impl FnMut(Loc, u32, Word)) {
     let tag = b.tags[i];
-    let layouts = layout(tag);
+    let mut layouts = layout(tag);
+    // A coercion that keeps its operand's values takes its count.
+    if b.same_value_coercion(i) {
+        layouts[0] = L::One(Word::Value(Role::Consume));
+    }
     for k in if tag == Tag::NewTuple { [1, 0] } else { [0, 1] } {
         let word = b.data[i][k];
         if word == NONE {

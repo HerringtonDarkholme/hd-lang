@@ -52,8 +52,7 @@ fn fill(n: usize) -> List[bool]:
 >   %38 = Loop %37 - : ()
 >   %39 = Read move [$1] : mut List[bool]
 >   %40 = Coerce %39 [Weaken -] : List[bool]
->   %41 = Drop [%39] : ()
->   %42 = Block %40 : List[bool]
+>   %41 = Block %40 : List[bool]
 
 fn doubled(xs: List[i32]) -> List[i32]:
     [for x in xs => x * 2]
@@ -113,7 +112,6 @@ fn doubled(xs: List[i32]) -> List[i32]:
 >   %45 = Drop [%41] : ()
 >   %46 = Read move [$1] : mut List[i32]
 >   %47 = Coerce %46 [Weaken -] : List[i32]
->   %48 = Drop [%46] : ()
->   %49 = Block %47 : List[i32]
+>   %48 = Block %47 : List[i32]
 >   exit sub 0 drops [$0]
 >   loop %40 keeps [$3]
