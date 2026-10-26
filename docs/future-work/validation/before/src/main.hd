@@ -1,0 +1,24 @@
+# Handwritten count-only control for the same configuration workflow.
+use std.json.decode
+use std.serde.{Deserialize, rename}
+use std.structure.Structure
+
+struct Config:
+    ignored: usize = 7
+    port: u32
+    tls: bool
+    certificate: string?
+
+impl Deserialize for Config by Structure:
+    port = [rename("listenPort")]
+
+fn count_errors(value: Config) -> usize:
+    let count = 0
+    if value.port < 1 || value.port > 65535: count += 1
+    if value.tls && value.certificate.is_none(): count += 1
+    count
+
+pub fn main() -> void $ Console:
+    match decode::[Config]("{\"listenPort\":8080,\"tls\":false,\"certificate\":null}"):
+        .Ok(value) => println(count_errors(value))
+        .Err(_) => panic("configuration control must decode")

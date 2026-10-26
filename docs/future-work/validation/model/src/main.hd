@@ -1,0 +1,267 @@
+# Bounded post-decode validation model; no std implementation or fused-reader claim.
+use std.annotation.annotate
+use std.json.decode
+use std.serde.{Deserialize, Deserializer, rename}
+use std.structure.{Structure, Walker, Variant, Field}
+
+@derive(Eq, Debug)
+enum Step:
+    Field(variant: usize, position: usize, name: string)
+    Index(value: usize)
+
+@derive(Eq, Debug)
+struct Violation:
+    path: List[Step]
+    code: string
+
+@derive(Eq, Debug)
+enum Mode:
+    First
+    All
+
+struct Report:
+    mode: Mode
+    limit: usize = 64
+    path: List[Step] = []
+    errors: List[Violation] = []
+    stopped: bool = false
+    truncated: bool = false
+
+impl Report:
+    fn fail(&mut self, code: string) -> void:
+        if self.stopped: return
+        if self.errors.len() == self.limit:
+            self.truncated = true
+            self.stopped = true
+            return
+        self.errors.push(Violation { path: self.path, code: code })
+        if self.mode == .First: self.stopped = true
+
+struct Rule[T]:
+    apply: fn(T, *mut Report) -> void
+
+fn check[T](code: string, predicate: fn(T) -> bool) -> Rule[T]:
+    Rule::[T] { apply: fn(value: T, report: *mut Report) -> void:
+        if !report.stopped && !predicate(value): report.fail(code)
+    }
+
+fn each[T](rule: Rule[T]) -> Rule[List[T]]:
+    Rule::[List[T]] { apply: fn(values: List[T], report: *mut Report) -> void:
+        for at in 0..values.len():
+            if report.stopped: break
+            report.path.push(.Index(at))
+            (rule.apply)(values[at], report)
+            _ := report.path.pop()
+    }
+
+@annotate::[T](.Field)
+struct Rules[T]:
+    items: List[Rule[T]]
+
+fn rules[T](items: List[Rule[T]]) -> Rules[T]: Rules::[T] { items: items }
+
+impl[T] Rules[T]:
+    fn apply(self, value: T, report: *mut Report) -> void:
+        for rule in self.items:
+            if report.stopped: break
+            (rule.apply)(value, report)
+
+trait Validate:
+    fn collect(self, report: *mut Report) -> void
+    fn record(self, report: *mut Report) -> void: pass
+
+struct ValidationWalker[S]:
+    pub report: *mut Report
+    pub variant: usize = 0
+
+impl[S] Walker[S] for ValidationWalker[S]:
+    type Error = bool
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, bool]:
+        self.variant = variant.info.index
+        .Ok(())
+    fn member[F](&mut self, handle: Field[S, F], value: F) -> Result[void, bool]:
+        if self.report.stopped: return .Err(true)
+        match handle.fact::[Rules[F]]():
+            .Some(found) =>
+                self.report.path.push(.Field(self.variant, handle.info.position, handle.info.name))
+                found.apply(value, self.report)
+                _ := self.report.path.pop()
+            .None => pass
+        .Ok(())
+
+impl[T] Validate for T by Structure:
+    fn collect(self, report: *mut Report) -> void:
+        let mut walker = ValidationWalker::[T] { report: report }
+        _ := Structure::walk(self, &mut walker)
+        if !report.stopped: self.record(report)
+
+fn validate[T < Validate](value: T, mode: Mode = .All) -> List[Violation]:
+    report := &mut Report { mode: mode }
+    value.collect(report)
+    report.errors
+
+fn nested[T < Validate]() -> Rule[T]:
+    Rule::[T] { apply: fn(value: T, report: *mut Report) -> void:
+        if !report.stopped: value.collect(report)
+    }
+
+struct Config:
+    ignored: usize = 7
+    port: u32
+    tls: bool
+    certificate: string?
+
+fn port_rule() -> Rule[u32]:
+    check("port-range", fn(value: u32) -> bool: value >= 1 && value <= 65535)
+
+fn tls_rule() -> Rule[Config]:
+    check("certificate-required", fn(value: Config) -> bool: !value.tls || value.certificate.is_some())
+
+impl Deserialize for Config by Structure:
+    port = [rename("listenPort")]
+
+impl Validate for Config by Structure:
+    ignored = pass
+    port = [rules([port_rule()])]
+    fn record(self, report: *mut Report) -> void:
+        rule := tls_rule()
+        (rule.apply)(self, report)
+
+struct Group:
+    configs: List[Config]
+
+impl Validate for Group by Structure:
+    configs = [rules([each(nested::[Config]())])]
+
+struct DefaultConfig:
+    port: u32 = 0
+
+impl Deserialize for DefaultConfig by Structure
+impl Validate for DefaultConfig by Structure:
+    port = [rules([port_rule()])]
+
+struct Opaque:
+    value: u32
+
+impl Deserialize for Opaque:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Opaque, R::Error]:
+        .Ok(Opaque { value: u32::deserialize(input)? })
+
+impl Validate for Opaque by Structure:
+    value = [rules([port_rule()])]
+
+struct Address:
+    street: string
+    city: string
+
+impl Deserialize for Address by Structure
+impl Validate for Address by Structure:
+    street = [rules([check("street-required", fn(value: string) -> bool: !value.is_empty())])]
+    city = [rules([check("city-required", fn(value: string) -> bool: !value.is_empty())])]
+
+struct Signup:
+    name: string
+    age: u8
+    addresses: List[Address]
+    password: string
+    confirmation: string
+    invited: bool
+    invite: string?
+
+impl Deserialize for Signup by Structure
+impl Validate for Signup by Structure:
+    name = [rules([check("name-length", fn(value: string) -> bool: value.chars().count() >= 1 && value.chars().count() <= 80)])]
+    age = [rules([check("age-range", fn(value: u8) -> bool: value >= 18 && value <= 130)])]
+    addresses = [rules([check("address-count", fn(value: List[Address]) -> bool: value.len() >= 1 && value.len() <= 8), each(nested::[Address]())])]
+    password = [rules([check("password-length", fn(value: string) -> bool: value.chars().count() >= 12)])]
+    fn record(self, report: *mut Report) -> void:
+        if self.password != self.confirmation: report.fail("confirmation-mismatch")
+        if self.invited && self.invite.is_none(): report.fail("invite-required")
+
+let model_calls: *mut List[usize] = &mut []
+
+fn counted_rule() -> Rule[u32]:
+    check("positive", fn(value: u32) -> bool:
+        model_calls.push(1)
+        value > 0
+    )
+
+struct Counted:
+    value: u32
+
+impl Deserialize for Counted by Structure
+impl Validate for Counted by Structure:
+    value = [rules([counted_rule()])]
+
+fn render_port(style: string, violation: Violation) -> string:
+    match violation.path[0]:
+        .Field(_, position, name) =>
+            if position != 1: return name
+            if style == "json": "$.listenPort"
+            else if style == "cli": "--port"
+            else: "APP_PORT"
+        .Index(_) => "index"
+
+pub fn main() -> void $ Console:
+    match decode::[Config]("{\"listenPort\":8080,\"tls\":false,\"certificate\":null}"):
+        .Ok(value) => println(validate(value).len())
+        .Err(_) => panic("configuration control must decode")
+
+tests:
+    it("independent Deserialize rename and Validate facts"):
+        value := decode::[Config]("{\"listenPort\":0,\"tls\":false,\"certificate\":null}")
+        match value:
+            .Ok(config) =>
+                errors := validate(config)
+                assert_equal(errors.len(), 1, reason="only port rule fails")
+                assert_equal(render_port("json", errors[0]), "$.listenPort", reason="reader name is independent")
+                assert_equal(render_port("cli", errors[0]), "--port", reason="same semantic field")
+                assert_equal(render_port("env", errors[0]), "APP_PORT", reason="environment prefix")
+            .Err(_) => panic("JSON control must decode")
+
+    it("first versus all and completed-parent required-if"):
+        value := Config { port: 0, tls: true, certificate: .None }
+        assert_equal(validate(value, .First).len(), 1, reason="stop at first field violation")
+        assert_equal(validate(value, .All).len(), 2, reason="field and completed record violation")
+
+    it("nested record-list path snapshots retain element indices"):
+        bad := Config { port: 0, tls: false, certificate: .None }
+        errors := validate(Group { configs: [bad, bad] })
+        assert_equal(errors.len(), 2, reason="both invalid elements")
+        assert_equal(errors[0].path[1], .Index(0), reason="snapshot first index")
+        assert_equal(errors[1].path[1], .Index(1), reason="snapshot second index")
+
+    it("report cap bounds retained errors"):
+        report := &mut Report { mode: .All, limit: 1 }
+        report.fail("first")
+        report.fail("second")
+        assert_equal(report.errors.len(), 1, reason="one retained issue")
+        assert(report.truncated, reason="caller knows remaining issues were dropped")
+
+    it("absent defaults and handwritten decoders are validated uniformly"):
+        match decode::[DefaultConfig]("{}"):
+            .Ok(value) => assert_equal(validate(value).len(), 1, reason="invalid default is checked")
+            .Err(_) => panic("default construction control must decode")
+        match decode::[Opaque]("0"):
+            .Ok(value) => assert_equal(validate(value).len(), 1, reason="manual atomic decode has no hook obligation")
+            .Err(_) => panic("custom decoder control must decode")
+
+    it("signup keeps nested and completed-record failures distinct"):
+        text := "{\"name\":\"\",\"age\":17,\"addresses\":[{\"street\":\"\",\"city\":\"\"}],\"password\":\"short\",\"confirmation\":\"wrong\",\"invited\":true,\"invite\":null}"
+        match decode::[Signup](text):
+            .Ok(value) =>
+                errors := validate(value)
+                assert_equal(errors.len(), 7, reason="independent field nested and parent checks")
+                assert_equal(errors[2].path[1], .Index(0), reason="address issue retains list index")
+                assert_equal(errors[5].code, "confirmation-mismatch", reason="completed parent checks run last")
+                assert_equal(errors[6].code, "invite-required", reason="required-if sees final optional value")
+            .Err(_) => panic("signup control must decode")
+
+    it("post-decode check does not re-read input or repeat callbacks"):
+        model_calls.clear()
+        match decode::[Counted]("{\"value\":0}"):
+            .Ok(value) =>
+                assert_equal(model_calls.len(), 0, reason="ordinary reader has no validation hooks")
+                assert_equal(validate(value).len(), 1, reason="one semantic error")
+                assert_equal(model_calls.len(), 1, reason="one configured check visit")
+            .Err(_) => panic("counter control must decode")

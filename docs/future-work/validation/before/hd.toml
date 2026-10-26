@@ -1,0 +1,5 @@
+[package]
+name = "validation-before"
+
+[capabilities]
+Console = true
