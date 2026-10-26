@@ -1,0 +1,15 @@
+[package]
+name = "hd_wat"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasmprinter = { version = "0.261.0", default-features = false }
+
+[lints]
+workspace = true

@@ -48,12 +48,14 @@ before(async () => {
   directory = await mkdtemp(join(tmpdir(), "hd-playground-"));
   // The compiler wasm is a build output (not committed); build it when a
   // fresh checkout has none.
-  if (!existsSync(COMPILER_WASM))
+  if (!existsSync(COMPILER_WASM) || !existsSync(join(playground, "assets/hd_wat.wasm")))
     execFileSync(process.execPath, [join(playground, "../../scripts/build-web-compiler.js")], {
       stdio: "inherit",
     });
   const { createRustRunner } = await bundled<typeof RustRunnerModule>("rust-runner.ts");
-  rust = createRustRunner(await readFile(COMPILER_WASM));
+  rust = createRustRunner(await readFile(COMPILER_WASM), () =>
+    readFile(join(playground, "assets/hd_wat.wasm")),
+  );
 });
 
 /** Run, Check or Test, as the worker serves them. */
@@ -966,4 +968,25 @@ test("without main, the WAT is the script's module", async () => {
   const shown = await rust.watProject(single('x := 20\nprintln("start")\nx + 1\nx * 2\n'));
   assert.equal(shown.status, "ok", shown.summary);
   assert.match(shown.module!.wat, /^\(module/);
+});
+
+test("ordinary compiler modes do not load WAT, including a failed WAT compile", async () => {
+  const { createRustRunner } = await bundled<typeof RustRunnerModule>("rust-runner.ts");
+  let loads = 0;
+  const runner = createRustRunner(await readFile(COMPILER_WASM), async () => {
+    loads += 1;
+    throw new Error("printer offline");
+  });
+  const project = single("pub fn main() -> void:\n    pass\n");
+  for (const mode of ["check", "run", "test"] as const) await runner.compileProject(project, mode);
+  assert.equal(loads, 0);
+  const broken = await runner.watProject(single('pub fn main() -> void:\n    let x: i32 = "no"\n'));
+  assert.equal(broken.status, "compile-error");
+  assert.equal(loads, 0);
+  const failed = await runner.watProject(project);
+  assert.equal(failed.status, "failure");
+  assert.match(failed.summary, /printer offline/);
+  assert.equal(loads, 1);
+  await runner.compileProject(project, "check");
+  assert.equal(loads, 1);
 });

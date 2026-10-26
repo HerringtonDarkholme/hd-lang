@@ -67,8 +67,7 @@ interface CompileRequest {
   goal: Goal;
 }
 interface CompileResult {
-  wat?: string;                   // goal "wat": the program as WebAssembly text (wasmprinter); output kind 2
-  wasm?: Uint8Array;              // run, wat and test, when there are no errors; test: the programs one after another
+  wasm?: Uint8Array;              // run and test, when there are no errors; test: the programs one after another
   diagnostics: RunDiagnostic[];   // path, code, severity, message, line, column, endLine, endColumn
   programs?: { file: string | null; size: number }[];  // goal "test": the unit-test program, then each tests/ file's
   tests?: TestCase[];             // goal "test": hd_driver::TestCase, in hd test's report order
@@ -83,9 +82,18 @@ interface CompileResult {
   programs `hd test` builds (`hd_driver::test_programs`): the unit-test
   program, then each integration test file as its own `Goal::Tests`
   build.
-- `wat` compiles as `run`, then prints the program with `wasmprinter`
-  (no default features: no validation, no component model). Names come
-  from the name section `hd_wasm_linear` writes.
+- The worker's `wat` request compiles as `run`, then prints the same
+  program bytes with the independent `hd_wat.wasm`. Only that request
+  loads the printer; Run, Check, Test and REPL do not. The WAT panel
+  shows “Loading WAT printer…” during the first load. The printer uses
+  the same folded `wasmprinter` configuration, with no default features.
+  Names come from the name section `hd_wasm_linear` writes.
+- `hd_wat` owns its input and output buffers. `hd_input(len)` gives the
+  input address; `hd_print()` returns 0 for success or 1 for an error.
+  `hd_output()` and `hd_output_len()` describe UTF-8 WAT or error text.
+  Like the compiler exports, they have no unsafe blocks or raw-pointer
+  dereferences. JS takes fresh memory views after calls. A failed
+  download can be retried; a successful instance is reused.
 - `hd_project::Root::of` maps `src/`, `tests/` and `tasks/` paths, so
   playground paths pass through unchanged.
 - Diagnostics use `hd_driver::diagnostics::from_output`, the shape the
@@ -230,3 +238,7 @@ In rough order, none built:
 2. IndexedDB persistence of store entries (crates/hd_cache/DESIGN.md §5.8);
 3. stepping slices with cancel on edit (crates/hd_sched/DESIGN.md §6.2);
 4. a threaded browser build (#189).
+
+The web build script builds both modules with the same web profile and
+relocation compression, and copies them beside the worker. The compiler
+has no normal dependency on `wasmprinter`; native tests use a dev dependency.

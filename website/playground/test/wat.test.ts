@@ -12,6 +12,7 @@ import {
   encodeRequest,
   type CompilerExports,
 } from "../src/compiler-wire.ts";
+import { printWat, type WatExports } from "../src/wat-printer.ts";
 import { tokenizeWat, type WatTokenKind } from "../src/wat.ts";
 
 const root = resolve(import.meta.dirname, "../../..");
@@ -141,10 +142,10 @@ test("quoted names", () => {
 });
 
 test("tokens concatenate back to the text the compiler wasm prints", async () => {
-  // The WAT view shows what the wat goal of crates/hd_web prints with
-  // wasmprinter; the wasm is a build output, built when a checkout has none.
+  // The optional WAT module prints the same Run bytes; both modules are
+  // build outputs, built when a checkout has none.
   const wasm = resolve(import.meta.dirname, "../assets/hd_web.wasm");
-  if (!existsSync(wasm))
+  if (!existsSync(wasm) || !existsSync(resolve(import.meta.dirname, "../assets/hd_wat.wasm")))
     execFileSync(process.execPath, [resolve(root, "scripts/build-web-compiler.js")], {
       stdio: "inherit",
     });
@@ -152,10 +153,14 @@ test("tokens concatenate back to the text the compiler wasm prints", async () =>
   const source = 'pub fn main() -> void $ Console:\n    println("hi")\n';
   const compiled = compileRequest(
     instance.exports as unknown as CompilerExports,
-    encodeRequest({ "src/main.hd": source }, "src/main.hd", GOAL.wat),
+    encodeRequest({ "src/main.hd": source }, "src/main.hd", GOAL.run),
   );
   assert.equal(compiled.status, STATUS.ok);
-  const text = compiled.wat;
+  const printer = await WebAssembly.instantiate(
+    await readFile(resolve(import.meta.dirname, "../assets/hd_wat.wasm")),
+    {},
+  );
+  const text = printWat(printer.instance.exports as unknown as WatExports, compiled.wasm);
   assert.ok(text.startsWith("(module"), text.slice(0, 40));
   assert.match(text, /\(func \$playground\/main\/main#0 /);
   const tokens = tokenizeWat(text);

@@ -11,16 +11,14 @@
 //! | 0 | run | the playground's files; the file Run builds | none |
 //! | 1 | check | the same | none |
 //! | 2 | test | the same | none |
-//! | 3 | wat | the same | none |
+//! | 3 | legacy run alias | the same | none |
 //! | 4 | repl start | the files the session acts in (its package); entry empty | none |
 //! | 5 | repl input | none; entry empty | the input's text (a string), then optionally its number |
 //! | 6 | repl outcome | none; entry empty | the module's number, then one outcome byte |
 //! | 7 | repl rebuild input | none; entry empty | the input's text, then its number; builds a whole linked base |
 //!
-//! Goal 3 compiles as goal 0 does, then prints the program as WebAssembly
-//! text with `wasmprinter`; the text is output kind 2 (`hd_output(2)`),
-//! empty for every other goal and when there is no program. The JSON and
-//! the program bytes answer as for run.
+//! WAT requests compile as Run. The worker prints those bytes with the
+//! separate `hd_wat` module, loaded only when the WAT view requests it.
 //!
 //! A response is JSON text, written by hand (rule 2.2.4: no serde), plus the
 //! programs' bytes when there are any. A compiled request answers
@@ -85,9 +83,8 @@ pub struct Request {
 /// What a request asks for, by its goal byte.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Action {
-    /// Goal bytes 0 to 3; `wat` (byte 3) compiles as run, then prints the
-    /// program.
-    Compile { goal: Goal, wat: bool },
+    /// Goal bytes 0 to 3; byte 3 remains an alias for Run.
+    Compile { goal: Goal },
     /// Goal byte 4: start a REPL session over the request's files.
     ReplStart,
     /// Goal byte 5: build the REPL session's next input, numbered
@@ -110,8 +107,6 @@ pub struct Response {
     /// The programs one after another; empty when the compile produced
     /// none.
     pub wasm: Vec<u8>,
-    /// The WAT goal's text of the program; empty for every other goal.
-    pub wat: String,
 }
 
 /// Decodes `request` and runs it in `session`.
@@ -121,7 +116,7 @@ pub fn respond(session: &mut Session, request: &[u8]) -> Response {
         Err(WireError(reason)) => return refused(reason),
     };
     match req.action {
-        Action::Compile { goal, wat } => compile(session, req.files, &req.entry, goal, wat),
+        Action::Compile { goal } => compile(session, req.files, &req.entry, goal),
         Action::ReplStart => repl_build(session.repl_start(req.files)),
         Action::ReplInput { text, number: None } => repl_build(session.repl_input(&text)),
         Action::ReplInput {
@@ -143,7 +138,6 @@ pub fn respond(session: &mut Session, request: &[u8]) -> Response {
                     }
                 ),
                 wasm: Vec::new(),
-                wat: String::new(),
             },
             Err(ReplError(reason)) => refused(&reason),
         },
@@ -156,7 +150,6 @@ fn refused(reason: &str) -> Response {
         status: STATUS_MALFORMED,
         json: format!("{{\"error\":{}}}", quote(reason)),
         wasm: Vec::new(),
-        wat: String::new(),
     }
 }
 
@@ -166,7 +159,6 @@ fn compile(
     files: Vec<(String, String)>,
     entry: &str,
     goal: Goal,
-    print: bool,
 ) -> Response {
     let result = session.compile(files, entry, goal);
     let wasm: Vec<u8> = result
@@ -176,23 +168,10 @@ fn compile(
         .flatten()
         .copied()
         .collect();
-    let mut wat = String::new();
-    if print && !wasm.is_empty() {
-        match print_wat(&wasm) {
-            Ok(text) => wat = text,
-            Err(e) => {
-                return Response {
-                    wasm,
-                    ..refused(&format!("the module did not print: {e}"))
-                };
-            }
-        }
-    }
     Response {
         status: status(&result.diagnostics),
         json: encode_result(&result, goal),
         wasm,
-        wat,
     }
 }
 
@@ -211,7 +190,6 @@ fn repl_build(result: Result<ReplBuild, ReplError>) -> Response {
             status: status(&build.diagnostics),
             json: encode_repl(&build),
             wasm: build.wasm.unwrap_or_default(),
-            wat: String::new(),
         },
         Err(ReplError(reason)) => refused(&reason),
     }
@@ -230,18 +208,9 @@ pub fn decode_request(bytes: &[u8]) -> Result<Request, WireError> {
     let entry = r.string()?;
     let byte = r.byte()?;
     let action = match byte {
-        0 | 3 => Action::Compile {
-            goal: Goal::Run,
-            wat: byte == 3,
-        },
-        1 => Action::Compile {
-            goal: Goal::Check,
-            wat: false,
-        },
-        2 => Action::Compile {
-            goal: Goal::Test,
-            wat: false,
-        },
+        0 | 3 => Action::Compile { goal: Goal::Run },
+        1 => Action::Compile { goal: Goal::Check },
+        2 => Action::Compile { goal: Goal::Test },
         4 => Action::ReplStart,
         5 => {
             let text = r.string()?;
@@ -431,18 +400,6 @@ fn opt_num(n: Option<usize>) -> String {
     n.map_or_else(|| "null".to_owned(), |n| n.to_string())
 }
 
-/// The module's text, folded (`(if (ref.is_null (global.get 3)) ...)`)
-/// rather than one instruction per line, so each operand sits inside the
-/// instruction that consumes it.
-fn print_wat(wasm: &[u8]) -> Result<String, String> {
-    let mut text = String::new();
-    wasmprinter::Config::new()
-        .fold_instructions(true)
-        .print(wasm, &mut wasmprinter::PrintFmtWrite(&mut text))
-        .map_err(|e| e.to_string())?;
-    Ok(text)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -493,10 +450,7 @@ mod tests {
                     ("src/a.hd".into(), long),
                 ],
                 entry: "src/main.hd".into(),
-                action: Action::Compile {
-                    goal: Goal::Test,
-                    wat: false,
-                },
+                action: Action::Compile { goal: Goal::Test },
             }
         );
     }
@@ -546,7 +500,7 @@ mod tests {
     }
 
     #[test]
-    fn the_wat_goal_prints_the_program() {
+    fn the_legacy_wat_goal_builds_the_same_program() {
         let mut session = Session::new();
         let files = [(
             "src/main.hd",
@@ -558,17 +512,15 @@ mod tests {
             (STATUS_OK, "{\"diagnostics\":[]}")
         );
         assert_eq!(&r.wasm[..4], b"\0asm");
-        assert!(r.wat.starts_with("(module"), "{}", &r.wat[..40]);
-        // Only the wat goal prints.
         let run = respond(&mut session, &request(&files, "src/main.hd", 0));
-        assert!(run.wat.is_empty());
+        assert_eq!(r.wasm, run.wasm);
         // A broken file has no program to print.
         let bad = respond(
             &mut session,
             &request(&[("main.hd", "x := \"a\\b\" + 1\n")], "main.hd", 3),
         );
         assert_eq!(bad.status, STATUS_ERRORS);
-        assert!(bad.wat.is_empty());
+        assert!(bad.wasm.is_empty());
     }
 
     #[test]

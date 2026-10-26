@@ -29,6 +29,8 @@ interface CompilerClientOptions {
   readonly workerUrl?: string | URL;
   /** Called each time a worker has loaded the compiler. */
   readonly onReady?: () => void;
+  /** The first WAT request is loading its optional printer. */
+  readonly onWatLoading?: () => void;
   /** Wait for the first request, or `start()`, before loading the worker. */
   readonly lazy?: boolean;
 }
@@ -107,7 +109,8 @@ export class CompilerClient {
   /** A worker's answer or output for the request in progress. */
   private deliver(data: Exclude<WorkerMessage | RunMessage, { kind: "ready" }>): void {
     if (!("id" in data) || data.id !== this.pending?.id) return;
-    if (data.kind === "stdout") this.pending.onStdout(data.line, data.debug);
+    if (data.kind === "wat-loading") this.options.onWatLoading?.();
+    else if (data.kind === "stdout") this.pending.onStdout(data.line, data.debug);
     else if (data.kind === "result" || data.kind === "wat" || data.kind === "compiled")
       this.settle(data);
   }

@@ -84,3 +84,4 @@ temp/
 
 # Claude Code agent worktrees (the rest of .claude/ may be tracked)
 .claude/worktrees/
+website/playground/assets/hd_wat.wasm

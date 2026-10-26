@@ -944,6 +944,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hd_wat"
+version = "0.0.0"
+dependencies = [
+ "wasmprinter 0.261.0",
+]
+
+[[package]]
 name = "hd_web"
 version = "0.0.0"
 dependencies = [
