@@ -45,7 +45,7 @@ struct Hits:
     count: usize
 
 fn handle!(request: Request, hits: &mut Hits) -> Response:
-    hits.count = hits.count + 1
+    hits.count += 1
     Response::status(.Other(200)).set_bytes("${hits.count} ${request.url}".to_utf8())
 
 struct FailedSource: pass

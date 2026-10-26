@@ -19,7 +19,7 @@ fn handle!(request: Request, hits: &mut Hits) -> Response $ Clock:
     input := match request.json::[Input]():
         .Ok(input) => input
         .Err(_) => return Response::status(.BadRequest)
-    hits.count = hits.count + 1
+    hits.count += 1
     count := hits.count
     if request.url.path.ends_with("/slow"):
         sleep!(ms(150))

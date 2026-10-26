@@ -42,7 +42,7 @@ struct Hits:
     count: usize
 
 fn handle!(request: Request, hits: &mut Hits) -> Response:
-    hits.count = hits.count + 1
+    hits.count += 1
     Response::status(.Ok).set_text("${hits.count} ${request.url}")
 
 struct FailedSource: pass
