@@ -29,7 +29,7 @@
       local.get $t4
       local.get $t0
       i32.add
-      local.set $t4
+      drop
       local.get $t3
       local.get $t2
       local.set $t5

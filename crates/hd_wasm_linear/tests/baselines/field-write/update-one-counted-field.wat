@@ -4,53 +4,43 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $name_next (param $state i32) (param $key.0 i32) (param $key.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
+  (func $name_next (param $state i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 14 |     state.pending = key
     block
       local.get $key.0
-      local.get $key.1
       local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $key.0
-      i32.const 0
-      local.set $key.1
       local.get $state
-      local.set $t2
-      local.get $t1
+      local.set $t1
       local.get $t0
+      local.get $key.1
+      local.set $t2
       local.set $t3
-      local.set $t4
-      local.get $t2
+      local.get $t1
       drop
+      local.get $t1
+      local.set $t4
+      local.get $t3
       local.get $t2
+      call $rt:retain
+      local.get $t4
+      drop
+      local.get $t4
+      i32.load $heap
       local.set $t5
       local.get $t4
-      local.get $t3
-      call $rt:retain
-      local.get $t5
-      drop
-      local.get $t5
-      i32.load $heap
-      local.set $t6
-      local.get $t5
       i32.load $heap offset=4
-      local.set $t7
-      local.get $t5
+      local.set $t6
       local.get $t4
-      i32.store $heap
-      local.get $t5
       local.get $t3
+      i32.store $heap
+      local.get $t4
+      local.get $t2
       i32.store $heap offset=4
+      local.get $t5
       local.get $t6
-      local.get $t7
       call $rt:release
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
-      i32.const 0
-      local.set $t1
-      i32.const 0
-      local.set $t0
     end
   )
 )

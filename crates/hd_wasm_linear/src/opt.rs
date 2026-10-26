@@ -37,7 +37,10 @@
 //! 11. a local no instruction names is not declared, and the others are
 //!     numbered again in order;
 //! 12. a release of zero and a redundant store of zero go when forward
-//!     local facts prove them zero on every path, including loop backedges.
+//!     local facts prove them zero on every path, including loop backedges;
+//! 13. a `local.set` or `local.tee` of a local that no path reads before
+//!     its next write goes, a set's value dropped: the zero a move leaves
+//!     in a local stays only where some release still reads it.
 //!
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
@@ -185,7 +188,7 @@ pub fn locals(f: &mut Func, arity: &Arity) {
         changed |= shapes(f, np);
         changed |= fold(f);
         changed |= schedule(f, np, arity);
-        if !changed && !zero_releases(f) {
+        if !changed && !zero_releases(f) && !dead_stores(f) {
             break;
         }
     }
@@ -344,32 +347,10 @@ fn zero_releases(f: &mut Func) -> bool {
     let Some(edges) = zero_edges(&f.body, &f.labels) else {
         return false;
     };
-    let mut point_at = vec![usize::MAX; f.body.len()];
-    let Some(first) = point_at.first_mut() else {
+    if f.body.is_empty() {
         return false;
-    };
-    *first = 0;
-    for (at, edge) in edges.iter().enumerate() {
-        if !matches!(edge, ZeroEdges::Next) {
-            // A terminator ends its block, even when what follows is
-            // unreachable. All non-fallthrough destinations begin blocks.
-            if let Some(next) = point_at.get_mut(at + 1) {
-                *next = 0;
-            }
-            edge.each(at + 1, |to| {
-                if let Some(target) = point_at.get_mut(to) {
-                    *target = 0;
-                }
-            });
-        }
     }
-    let mut starts = Vec::new();
-    for (at, point) in point_at.iter_mut().enumerate() {
-        if *point == 0 {
-            *point = starts.len();
-            starts.push(at);
-        }
-    }
+    let (point_at, starts) = basic_blocks(&edges, f.body.len());
     let n = f.params.len() + f.locals.len();
     let words = n.div_ceil(64);
     let mut known = vec![0u64; words];
@@ -477,6 +458,145 @@ fn zero_releases(f: &mut Func) -> bool {
         .collect();
     origins.finish(f);
     true
+}
+
+/// The basic blocks of a body whose control edges are `edges`: each
+/// instruction's block, and each block's first instruction. A
+/// terminator ends its block and every branch target starts one.
+fn basic_blocks(edges: &[ZeroEdges], len: usize) -> (Vec<usize>, Vec<usize>) {
+    let mut point_at = vec![usize::MAX; len];
+    if let Some(first) = point_at.first_mut() {
+        *first = 0;
+    }
+    for (at, edge) in edges.iter().enumerate() {
+        if !matches!(edge, ZeroEdges::Next) {
+            if let Some(next) = point_at.get_mut(at + 1) {
+                *next = 0;
+            }
+            edge.each(at + 1, |to| {
+                if let Some(target) = point_at.get_mut(to) {
+                    *target = 0;
+                }
+            });
+        }
+    }
+    let mut starts = Vec::new();
+    for (at, point) in point_at.iter_mut().enumerate() {
+        if *point == 0 {
+            *point = starts.len();
+            starts.push(at);
+        } else {
+            *point = starts.len() - 1;
+        }
+    }
+    (point_at, starts)
+}
+
+/// Rule 13: a `local.set` or `local.tee` of a local that no path reads
+/// before its next write goes (a set's value is dropped, a pure push with
+/// it). Liveness runs backward over the basic blocks to a fixed point,
+/// loop backedges included; `SaveAll` reads every local, and `LoadAll`
+/// writes none for this purpose. A zero left in a moved-from local stays
+/// exactly when some path still releases it (the one exit, a loop's next
+/// drop, a suspension's saved frame).
+fn dead_stores(f: &mut Func) -> bool {
+    let n = f.params.len() + f.locals.len();
+    if n == 0 {
+        return false;
+    }
+    let Some(edges) = zero_edges(&f.body, &f.labels) else {
+        return false;
+    };
+    let (point_at, starts) = basic_blocks(&edges, f.body.len());
+    let words = n.div_ceil(64);
+    let mut live_in = vec![0u64; starts.len() * words];
+    let mut live = vec![0u64; words];
+    let body = &f.body;
+    // The locals live after block `p`: those live into its successors.
+    let live_out = |p: usize, live_in: &[u64], live: &mut [u64]| {
+        live.fill(0);
+        let end = starts.get(p + 1).copied().unwrap_or(body.len());
+        edges[end - 1].each(end, |to| {
+            if let Some(&q) = point_at.get(to) {
+                for (a, b) in live.iter_mut().zip(&live_in[q * words..(q + 1) * words]) {
+                    *a |= *b;
+                }
+            }
+        });
+    };
+    let step = |ins: &Ins, live: &mut [u64]| match ins {
+        Ins::Op(I::LocalGet(l)) => set_zero(live, *l, true),
+        Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => set_zero(live, *l, false),
+        Ins::SaveAll => live.fill(u64::MAX),
+        _ => {}
+    };
+    loop {
+        let mut changed = false;
+        for p in (0..starts.len()).rev() {
+            live_out(p, &live_in, &mut live);
+            let end = starts.get(p + 1).copied().unwrap_or(body.len());
+            for ins in body[starts[p]..end].iter().rev() {
+                step(ins, &mut live);
+            }
+            let row = &mut live_in[p * words..(p + 1) * words];
+            if row != live.as_slice() {
+                row.copy_from_slice(&live);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    let mut dead = vec![false; body.len()];
+    for p in 0..starts.len() {
+        live_out(p, &live_in, &mut live);
+        let end = starts.get(p + 1).copied().unwrap_or(body.len());
+        for at in (starts[p]..end).rev() {
+            if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = &body[at] {
+                dead[at] = !zero_local(&live, *l);
+            }
+            step(&body[at], &mut live);
+        }
+    }
+    if !dead.iter().any(|d| *d) {
+        return false;
+    }
+    let mut origins = Remap::new(f.origins.as_deref());
+    let mut out = Vec::with_capacity(body.len());
+    for (at, ins) in body.iter().enumerate() {
+        match ins {
+            Ins::Op(I::LocalTee(_)) if dead[at] => {}
+            Ins::Op(I::LocalSet(_)) if dead[at] => {
+                if at > 0
+                    && pure_push(&body[at - 1])
+                    && matches!(out.last(), Some(p) if pure_push(p))
+                {
+                    out.pop();
+                    origins.pop();
+                } else {
+                    out.push(Ins::Op(I::Drop));
+                    origins.copy(at..at + 1);
+                }
+            }
+            other => {
+                out.push(*other);
+                origins.copy(at..at + 1);
+            }
+        }
+    }
+    f.body = out;
+    origins.finish(f);
+    true
+}
+
+/// An instruction that pushes one value and has no other effect.
+fn pure_push(i: &Ins) -> bool {
+    matches!(
+        i,
+        Ins::Op(I::LocalGet(_) | I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_))
+            | Ins::GlobalGet(_)
+    )
 }
 
 /// Rule 4: moves each copy into a local read once to its read.
@@ -2196,6 +2316,82 @@ mod origin_tests {
             })),
             1
         );
+    }
+
+    #[test]
+    fn dead_stores_go_unless_a_release_reads_them_on_some_path() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let release = call(&symbols, Sym::Helper(Helper::ReleaseRef));
+        let zeros = |f: &Func| {
+            f.body
+                .windows(2)
+                .filter(|w| matches!(w, [Ins::Op(I::I32Const(0)), Ins::Op(I::LocalSet(1))]))
+                .count()
+        };
+        // A loop that moves local 1 out and zeroes it: the zero stays when
+        // the release after the loop, or the release at the loop head on
+        // the backedge, reads it, and goes when the next iteration
+        // overwrites it first.
+        let body = |head_release: bool, exit_release: bool| {
+            let mut b = vec![op(I::Loop(BlockType::Empty))];
+            if head_release {
+                b.extend([op(I::LocalGet(1)), release]);
+            }
+            b.extend([
+                op(I::LocalGet(0)),
+                op(I::LocalSet(1)),
+                op(I::LocalGet(1)),
+                op(I::Drop),
+                op(I::I32Const(0)),
+                op(I::LocalSet(1)),
+                op(I::LocalGet(0)),
+                op(I::BrIf(0)),
+                op(I::End),
+            ]);
+            if exit_release {
+                b.extend([op(I::LocalGet(1)), release]);
+            }
+            tracked(&symbols, 1, 1, b)
+        };
+        for (head, exit, kept) in [(false, false, 0), (true, false, 1), (false, true, 1)] {
+            let f = run(body(head, exit), |f| {
+                dead_stores(f);
+            });
+            assert_eq!(zeros(&f), kept, "{:?}", f.body);
+        }
+        // A suspension saves every local, so a store before it stays; a
+        // dead set of a call's result keeps the call and drops its value.
+        let f = run(
+            tracked(
+                &symbols,
+                1,
+                1,
+                vec![op(I::I32Const(0)), op(I::LocalSet(1)), Ins::SaveAll],
+            ),
+            |f| {
+                assert!(!dead_stores(f));
+            },
+        );
+        assert_eq!(zeros(&f), 1);
+        let f = run(
+            tracked(
+                &symbols,
+                1,
+                1,
+                vec![
+                    op(I::LocalGet(0)),
+                    release,
+                    op(I::I32Const(5)),
+                    op(I::LocalSet(1)),
+                ],
+            ),
+            |f| {
+                assert!(dead_stores(f));
+            },
+        );
+        assert_eq!(f.body.len(), 2);
+        assert_eq!(spans(&f), [10, 11]);
     }
 
     #[test]

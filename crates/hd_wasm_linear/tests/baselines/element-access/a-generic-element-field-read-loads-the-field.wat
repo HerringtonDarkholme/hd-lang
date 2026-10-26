@@ -49,29 +49,15 @@
     end
     local.get $t1
   )
-  (func $use_generic (param $m.infos i32) (param $m.tag i32) (param $i i32) (result i32) (local $t3 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $use_generic (param $m.infos i32) (param $m.tag i32) (param $i i32) (result i32) (local $t0 i32)
     ;; 22 |     m.position_at(i)
     block
       local.get $m.infos
       local.get $m.tag
-      local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $m.infos
-      i32.const 0
-      local.set $m.tag
-      local.get $t1
-      local.get $t0
       local.get $i
       call $"impl [ T ] Members [ T ].position_at[i32]"
-      local.set $t2
-      i32.const 0
-      local.set $t1
-      i32.const 0
       local.set $t0
-      local.get $t2
-      local.set $t3
     end
-    local.get $t3
+    local.get $t0
   )
 )

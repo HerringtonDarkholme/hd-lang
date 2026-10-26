@@ -17,14 +17,12 @@
       local.set $t0
       local.get $count
       call $rt:release_ref
-      i32.const 0
-      local.set $count
       local.get $t0
       local.set $t1
     end
     local.get $t1
   )
-  (func $shared (param $seed i32) (result i32 i32) (local $count i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $read.0 i32) (local $read.1 i32)
+  (func $shared (param $seed i32) (result i32 i32) (local $count i32) (local $t0 i32) (local $t1 i32) (local $read.0 i32) (local $read.1 i32)
     block
       ;; ...
     ;; 8 |     read := fn() -> i32: count
@@ -39,17 +37,11 @@
       i32.store $heap
       local.get $t0
       call $rt:retain_fields
-      local.get $t0
       local.set $t1
-      local.set $t2
-      local.get $t2
       local.get $t1
+      local.get $t0
       local.set $read.1
       local.set $read.0
-      i32.const 0
-      local.set $t2
-      i32.const 0
-      local.set $t1
       ;; ...
     end
     ;; ...

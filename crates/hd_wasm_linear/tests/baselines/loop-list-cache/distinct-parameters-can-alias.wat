@@ -32,8 +32,6 @@
           local.get $t5
           i32.store $heap
         end
-        local.get $t5
-        local.set $t4
       end
       block
         loop

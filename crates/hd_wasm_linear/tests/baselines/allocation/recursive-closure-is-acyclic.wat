@@ -4,15 +4,11 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "table0" (table $table0 1 funcref))
-  (func $recursive (result i32 i32) (local $sum.0 i32) (local $t0 i32)
+  (func $recursive (result i32 i32)
     block
+      ;; ...
     ;; 6 |     sum := fn(n: i32) -> i32:
       i32.const 0
-      local.set $t0
-      local.get $t0
-      local.set $sum.0
-      i32.const 0
-      local.set $t0
       ;; ...
     end
     ;; ...
@@ -63,10 +59,6 @@
         local.set $t4
         local.get $t1
         call $rt:release_ref
-        i32.const 0
-        local.set $t2
-        i32.const 0
-        local.set $t1
         local.get $t0
         i64.extend_i32_s
         local.get $t4
@@ -90,10 +82,6 @@
     ;; 6 |     sum := fn(n: i32) -> i32:
       local.get $sum.1
       call $rt:release_ref
-      i32.const 0
-      local.set $sum.0
-      i32.const 0
-      local.set $sum.1
       local.get $t6
       local.set $t7
     end

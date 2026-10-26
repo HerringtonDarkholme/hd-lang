@@ -53,7 +53,6 @@
           drop
           local.get $items
           i32.load $heap
-          local.tee $t5
           call $rt:list_unique
           local.set $t5
           local.get $items

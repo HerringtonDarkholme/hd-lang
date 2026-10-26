@@ -22,8 +22,6 @@
           local.get $t1
           i32.store $heap
         end
-        local.get $t1
-        local.set $t0
       end
       local.get $items
       i32.load $heap

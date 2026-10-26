@@ -12,10 +12,7 @@
       call $"impl string.split"
       local.set $t0
       local.get $t0
-      local.set $t1
-      i32.const 0
-      local.set $t0
-      local.get $t1
+      local.tee $t1
       i32.load $heap offset=4
       local.set $t2
       block
@@ -66,8 +63,6 @@
               end
               local.get $t10
               local.set $t11
-              i32.const 0
-              local.set $t10
             end
             local.get $t7
             local.get $t11

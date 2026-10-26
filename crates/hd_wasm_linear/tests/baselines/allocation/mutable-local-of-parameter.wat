@@ -127,7 +127,6 @@
           br 0
         end
       end
-      ;; ...
     ;; 26 |     sum
       local.get $sum
       ;; ...

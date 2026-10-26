@@ -9,10 +9,6 @@
       local.get $text.1
       local.set $t0
       local.set $t1
-      i32.const 0
-      local.set $text.0
-      i32.const 0
-      local.set $text.1
       ;; ...
       local.tee $t2
       i32.load $heap offset=4
@@ -50,10 +46,6 @@
       i32.const 1
       i32.add
       i32.store $heap offset=4
-      i32.const 0
-      local.set $t1
-      i32.const 0
-      local.set $t0
     end
   )
 )

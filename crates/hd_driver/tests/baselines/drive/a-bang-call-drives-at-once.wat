@@ -220,8 +220,6 @@
               call $rt:release_ref
             end
           end
-          i32.const 0
-          local.set $t4
           local.get $t7
           local.set $t15
           br 1
@@ -366,20 +364,10 @@
           local.get $t16
           call $rt:release_ref
         end
-        i32.const 0
-        local.set $t4
         local.get $t1
         call $rt:release_ref
-        i32.const 0
-        local.set $t1
-        i32.const 0
-        local.set $t0
         local.get $t3
         call $rt:release_ref
-        i32.const 0
-        local.set $t3
-        i32.const 0
-        local.set $t2
         i32.const 0
         local.set $t10
         i32.const 1

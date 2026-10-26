@@ -35,7 +35,6 @@
           drop
           local.get $xs
           i32.load $heap
-          local.tee $t3
           call $rt:list_unique
           local.set $t3
           local.get $xs
