@@ -332,7 +332,7 @@ export function metricsPage(dir: string | undefined): { body: string; headings: 
     return `<h${level} id="${id}">${escapeHtml(text)}</h${level}>`;
   };
   const intro = `${h(1, "daily-goal-metrics", "Daily goal metrics")}
-<p>hd is built for programs written by coding agents, so we judge it with the <em>Agentic Programming Language Arena</em>: three pillars that ask what agent-driven development actually costs and produces. Each pillar is kept on its own and compared on a Pareto frontier rather than folded into one score, because a faster compiler that makes agents retry more is not a win. Compiler correctness is a gate in front of all three. Every metric is a script with a fixed target; no AI or agent run is involved, and the same scripts run against any <code>hd</code> binary. They run twice a day, at 00:00 and 12:00 UTC. More on the idea: <a href="https://x.com/hd_nvim/status/2107634125083451468">the announcement on X</a>.</p>`;
+<p>hd is built for programs written by coding agents, so we judge it with the <a href="https://x.com/hd_nvim/status/2107634125083451468"><em>Agentic Programming Language Arena</em></a>: three pillars that ask what agent-driven development actually costs and produces. Each pillar is kept on its own and compared on a Pareto frontier rather than folded into one score, because a faster compiler that makes agents retry more is not a win. Compiler correctness is a gate in front of all three. Every metric is a script with a fixed target; no AI or agent run is involved, and the same scripts run against any <code>hd</code> binary. They run twice a day, at 00:00 and 12:00 UTC.</p>`;
   if (!dir || !existsSync(join(dir, "history.tsv")))
     return {
       headings,
