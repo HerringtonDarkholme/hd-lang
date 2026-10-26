@@ -1,0 +1,19 @@
+{{! The library of an integration-test package (lib/gen.ts), with one doc test per `docs` entry, numbered `d`. }}
+use std.testing.assert_equal
+
+## Formats one CSV line of a name and a count.
+{{#each docs}}
+##
+## ```hd
+## use pkg.{csv_line}
+## use std.testing.assert_equal
+##
+## assert_equal(csv_line("doc{{d}}", {{d}}), "doc{{d}},{{d}}", reason="example {{d}}")
+## ```
+{{/each}}
+pub fn csv_line(name: string, count: i32) -> string:
+    "${name},${count}"
+
+tests:
+    it("formats a line"):
+        assert_equal(csv_line("a", 1), "a,1", reason="csv")

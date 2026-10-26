@@ -1,0 +1,41 @@
+# The types and functions under test in proptest-perf: a record, an enum
+# with payloads, and an order that nests both, each deriving Arbitrary.
+use std.testing.Arbitrary
+
+@derive(Arbitrary, Debug)
+pub struct Item:
+    pub name: string
+    pub price: i32
+    pub count: i32
+
+@derive(Arbitrary, Debug)
+pub enum Shape:
+    Dot
+    Circle(radius: i32)
+    Rect(width: i32, height: i32)
+
+@derive(Arbitrary, Debug)
+pub struct Order:
+    pub id: i64
+    pub items: List[Item]
+    pub shape: Shape
+
+pub fn cost(item: Item) -> i64:
+    i64(item.price) * i64(item.count)
+
+pub fn area(shape: Shape) -> i64:
+    match shape:
+        .Dot => 0
+        .Circle(radius) => i64(radius) * i64(radius)
+        .Rect(width, height) => i64(width) * i64(height)
+
+pub fn flipped(shape: Shape) -> Shape:
+    match shape:
+        .Rect(width, height) => Shape.Rect(height, width)
+        _ => shape
+
+pub fn order_total(order: Order) -> i64:
+    let total: i64 = 0
+    for item in order.items:
+        total = total.wrapping_add(cost(item))
+    total

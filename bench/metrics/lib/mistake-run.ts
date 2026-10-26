@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { loadMistakes, type Mistake } from "./corpus.ts";
 import { fixOf, applyEdits, hasFixField } from "./fixit.ts";
 import { diagnosticsOf, runHd, type HdCommand } from "./hd.ts";
-import type { MetricContext } from "./metric.ts";
+import { errorText, type MetricContext } from "./metric.ts";
 import { withTempDir } from "./tmp.ts";
 
 export interface MistakeOutcome {
@@ -78,14 +78,14 @@ async function runOne(hd: HdCommand, mistake: Mistake): Promise<MistakeOutcome> 
         text: "",
         fixFieldSeen: false,
         fixApplied: false,
-        problem: error instanceof Error ? error.message : String(error),
+        problem: errorText(error),
       };
     }
   });
 }
 
 async function runAll(context: MetricContext): Promise<MistakeOutcome[]> {
-  const corpus = loadMistakes(join(context.repoRoot, "bench", "metrics", "mistakes"));
+  const corpus = loadMistakes();
   context.log(`mistake corpus: checking ${corpus.length} programs`);
   const outcomes: MistakeOutcome[] = Array.from({ length: corpus.length });
   let next = 0;

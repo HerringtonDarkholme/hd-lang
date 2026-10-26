@@ -1,0 +1,11 @@
+{{! Module `k` of a unit-test package (lib/gen.ts): a pure function and the first half of its test cases. Each `cases` entry has an input `j` and the `expected` result. }}
+use std.testing.assert_equal
+
+pub fn scale{{k}}(x: i64) -> i64:
+    x * {{factor}} + 1
+
+tests:
+{{#each cases}}
+    it("scale{{k}} block case {{j}}"):
+        assert_equal(scale{{k}}({{j}}), {{expected}}, reason="linear")
+{{/each}}

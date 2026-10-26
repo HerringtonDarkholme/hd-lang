@@ -12,8 +12,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { runProblem } from "../lib/fixture.ts";
-import { canMeasure, runHd } from "../lib/hd.ts";
+import { canMeasure, runHd, runProblem } from "../lib/hd.ts";
 import type { MetricContext } from "../lib/metric.ts";
 import { failed, judge, notApplicable, type Metric, type TargetResult } from "../lib/metric.ts";
 import { p50 } from "../lib/stats.ts";

@@ -8,10 +8,10 @@
 // n/a: a query whose `hd help COMMAND` fails. Neither command is in the CLI
 // specification yet; the names come from compiler/goals.md.
 
-import { materialize, runProblem } from "../lib/fixture.ts";
-import { runHd, supportsCommand } from "../lib/hd.ts";
+import { runHd, runProblem, supportsCommand } from "../lib/hd.ts";
 import { failed, judge, notApplicable, type Metric, type TargetResult } from "../lib/metric.ts";
 import { p95 } from "../lib/stats.ts";
+import { materialize } from "../lib/gen.ts";
 
 const NAME = "lookup-latency";
 const RUNS = 10;

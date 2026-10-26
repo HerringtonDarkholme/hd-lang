@@ -13,16 +13,16 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { runProblem } from "./fixture.ts";
-import { runHd, supportsCommand, type HdCommand } from "./hd.ts";
+import { fixture, manifest } from "./fixtures.ts";
+import { type HdCommand, runHd, runProblem, supportsCommand } from "./hd.ts";
 import { listTree, makeTempDir, writeTree } from "./tmp.ts";
 
 const HOST = "hd-metrics.invalid";
 
-/** The tagged tree of the dependency, version 1.0.0. */
+/** The tagged tree of the dependency, version 1.0.0 (fixtures/deps/dep.hd). */
 export const DEPENDENCY_FILES: ReadonlyMap<string, string> = new Map([
-  ["hd.toml", '[package]\nname = "dep"\n'],
-  ["src/lib.hd", "## Twice x.\npub fn twice(x: i32) -> i32:\n    x * 2\n"],
+  ["hd.toml", manifest("dep")],
+  ["src/lib.hd", fixture("deps/dep.hd")],
 ]);
 
 export interface LocalRemote {
@@ -101,15 +101,16 @@ export function makeLocalRemote(): LocalRemote {
 }
 
 /**
- * Writes a package that uses the dependency as `dep`: its library calls
- * `twice`. Its hd.toml has no dependency line; `hd add` writes it.
+ * Writes a package that uses the dependency as `dep`: its library
+ * (fixtures/deps/dependent.hd) calls `twice`. Its hd.toml has no dependency
+ * line; `hd add` writes it.
  */
 export function writeDependent(dir: string): void {
   writeTree(
     dir,
     new Map([
-      ["hd.toml", '[package]\nname = "app"\n'],
-      ["src/lib.hd", "use dep.dep.{twice}\n\npub fn quad(x: i32) -> i32:\n    twice(twice(x))\n"],
+      ["hd.toml", manifest("app")],
+      ["src/lib.hd", fixture("deps/dependent.hd")],
     ]),
   );
 }

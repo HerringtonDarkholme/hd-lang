@@ -1,0 +1,8 @@
+# mistake: calling `assert` outside `tests:` without importing it
+# log: 2026-10-02 #202; 2026-10-06 P1j
+# expect: unknown-name
+# fixed:     if n % 2 != 0: panic("odd")
+
+fn half(n: i32) -> i32:
+    assert(n % 2 == 0, reason="even")  # diagnostic: unknown-name
+    n / 2

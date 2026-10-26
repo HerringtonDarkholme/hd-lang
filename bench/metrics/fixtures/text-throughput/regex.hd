@@ -1,0 +1,17 @@
+# Finds every match of `[a-z]+-[0-9]+` in a text of 100,000 words
+# `word-I `, `repeat` times.
+use std.regex.Regex
+use std.text.StringBuilder
+
+pub fn main() -> void $ Console:
+    builder := StringBuilder::new()
+    let words: i64 = 100000  # param: words
+    for i in 0..words:
+        builder.push("word-${i} ")
+    text := builder.build()
+    pattern := Regex::new("[a-z]+-[0-9]+").expect("the pattern")
+    let total: usize = 0
+    let repeat: i64 = 1  # param: repeat
+    for _ in 0..repeat:
+        total = total + pattern.find_all(text).len()
+    println("bytes=${text.len()} total=${total}")

@@ -1,0 +1,12 @@
+# A program that uses no std module. dead-code builds it next to
+# unused-uses.hd, the same program with five unused `use` declarations in
+# place of the rest of this comment, so that both programs keep the same
+# line numbers and only the uses differ.
+#
+#
+
+fn fib(n: i32) -> i32:
+    if n < 2: n else: fib(n - 1) + fib(n - 2)
+
+pub fn main() -> void:
+    if fib(20) != 6765: panic("wrong")

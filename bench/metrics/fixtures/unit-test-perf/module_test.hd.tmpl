@@ -1,0 +1,9 @@
+{{! The test module of module `k` of a unit-test package (lib/gen.ts): the second half of its test cases. }}
+use pkg.m{{k}}.{scale{{k}}}
+use std.testing.assert_equal
+
+{{#each cases}}
+it("scale{{k}} module case {{j}}"):
+    assert_equal(scale{{k}}({{j}}), {{expected}}, reason="linear")
+
+{{/each}}

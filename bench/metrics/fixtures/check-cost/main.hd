@@ -1,0 +1,4 @@
+use pkg.sum.sum_loop
+
+pub fn main() -> void $ Console:
+    println("${sum_loop()}")

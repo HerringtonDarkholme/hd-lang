@@ -1,0 +1,6 @@
+# The package's front door.
+use pkg.m000.{Item0, total0}
+
+## The total of one item.
+pub fn one_total(item: Item0) -> i64:
+    total0([item])

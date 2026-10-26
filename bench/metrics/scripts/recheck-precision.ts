@@ -10,9 +10,8 @@
 // convention (README.md).
 // n/a: both lines, when the summary has no numeric `modules_checked`.
 
-import { dependentsOf, editBody, editSignature } from "../lib/gen.ts";
-import { editFile, freshCache, materialize, runProblem } from "../lib/fixture.ts";
-import { runHd, summaryOf } from "../lib/hd.ts";
+import { dependentsOf, editBody, editFile, editSignature, materialize } from "../lib/gen.ts";
+import { freshCache, runHd, runProblem, summaryOf } from "../lib/hd.ts";
 import { failed, judge, notApplicable, type Metric } from "../lib/metric.ts";
 
 const NAME = "recheck-precision";

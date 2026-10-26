@@ -1,0 +1,7 @@
+# mistake: `._2` for the second element of a pair, counting from 1
+# log: 2026-10-01 #144 scratch test
+# expect: unknown-field
+# fixed:     pair._1
+
+fn second(pair: (string, i32)) -> i32:
+    pair._2  # diagnostic: unknown-field

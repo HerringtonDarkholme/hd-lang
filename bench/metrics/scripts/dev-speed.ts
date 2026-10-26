@@ -2,8 +2,9 @@
 // fixed.
 //
 // The cases are the `runtime` micro cases (bench/micro), each turned
-// into a test case: the case's `main` becomes a plain function that a
-// `tests:` block calls. `hd test` may use the dev pipeline, and `hd test
+// into a test case (fixtures/dev-speed/case-test.hd.tmpl): the case's
+// `main` becomes a plain function that one test runs REPEAT times, so the
+// optimized pipeline's work stays above the noise. `hd test` may use the dev pipeline, and `hd test
 // --release` uses the optimized one; both keep the test profile
 // (cli.profile.test, cli.profile.test.release, cli.profile.pipeline.release).
 // A case's time in a pipeline is its median wall time minus the median of
@@ -13,12 +14,25 @@
 // n/a: when `hd help test` names no `--release` flag, as with an
 // implementation that has no separate pipelines.
 
-import { runHd, supportsFlag } from "../lib/hd.ts";
-import { runProblem } from "../lib/fixture.ts";
-import { failed, judge, notApplicable, type Metric, type TargetResult } from "../lib/metric.ts";
+import { MICRO_CASES, microSource } from "../lib/artifact.ts";
+import {
+  manifest,
+  renderFixture,
+  writePackage,
+  writeProgram,
+  type Files,
+} from "../lib/fixtures.ts";
+import { supportsFlag, timedSeries } from "../lib/hd.ts";
+import {
+  errorText,
+  failed,
+  judge,
+  notApplicable,
+  type Metric,
+  type MetricContext,
+  type TargetResult,
+} from "../lib/metric.ts";
 import { geomean, p50 } from "../lib/stats.ts";
-import { makeTempDir, writeTree } from "../lib/tmp.ts";
-import { MICRO_CASES, microSource } from "./runtime.ts";
 
 const NAME = "dev-speed";
 const RUNS = 3;
@@ -28,39 +42,31 @@ const GEOMEAN_LIMIT = 4;
 const CASE_LIMIT = 10;
 const GEOMEAN_LABEL = "geomean dev / optimized";
 const WORST_LABEL = "worst case dev / optimized";
+/** How many times a test runs its case. */
+const REPEAT = 30;
 
-/** A micro case as test source: its `main` is called by one test case. */
-export function asTestCase(source: string): string {
+/** A micro case as test source: its `main` becomes `case_main`, which one test case runs. */
+export function asTestCase(source: string, repeat = REPEAT): string {
   if (!source.includes("pub fn main() -> void:")) throw new Error("not a micro case program");
-  return `${source.replace("pub fn main() -> void:", "fn case_main() -> void:").trimEnd()}
-
-tests:
-    it("runs the case"):
-        case_main()
-`;
+  return renderFixture("dev-speed/case-test.hd.tmpl", {
+    case: source.replace("pub fn main() -> void:", "fn case_main() -> void:").trimEnd(),
+    repeat,
+  });
 }
 
-/** A test with no work, to subtract build and start-up time. */
-export const EMPTY_TEST = 'tests:\n    it("empty"):\n        pass\n';
-
-const packageWith = (label: string, source: string): string => {
-  const dir = makeTempDir(label);
-  writeTree(
-    dir,
-    new Map([
-      ["hd.toml", '[package]\nname = "case"\n'],
-      ["src/main.hd", source],
-    ]),
-  );
-  return dir;
-};
+/** The package of a micro case as a test. */
+export const casePackage = (context: MetricContext, name: string): Files =>
+  new Map([
+    ["hd.toml", manifest("case")],
+    ["src/main.hd", asTestCase(microSource(context, name))],
+  ]);
 
 export const devSpeed: Metric = {
   name: NAME,
   pillar: 1,
   summary: "run time of the micro cases as tests, dev pipeline vs optimized pipeline",
   async run(context) {
-    const empty = packageWith("dev-empty", EMPTY_TEST);
+    const empty = writeProgram("dev-speed/empty-test", {}, "dev-empty");
     const geomeanTarget = `≤ ${GEOMEAN_LIMIT.toFixed(2)}x`;
     const worstTarget = `≤ ${CASE_LIMIT.toFixed(2)}x`;
     if (!(await supportsFlag(context.hd, "test", "--release", empty)))
@@ -69,15 +75,16 @@ export const devSpeed: Metric = {
         notApplicable(NAME, WORST_LABEL, worstTarget, "hd test has no --release"),
       ];
     const time = async (dir: string, optimized: boolean) => {
-      const samples: number[] = [];
       const args = optimized ? ["test", "--release"] : ["test"];
-      for (let index = 0; index < RUNS; index++) {
-        const result = await runHd(context.hd, args, { cwd: dir, timeoutMs: TIMEOUT_MS });
-        const problem = runProblem(result, TIMEOUT_MS, `hd ${args.join(" ")}`);
-        if (problem) throw new Error(problem);
-        samples.push(result.wallMs);
-      }
-      return p50(samples);
+      const series = await timedSeries(
+        context.hd,
+        RUNS,
+        () => args,
+        { cwd: dir, timeoutMs: TIMEOUT_MS },
+        `hd ${args.join(" ")}`,
+      );
+      if (series.problem) throw new Error(series.problem);
+      return p50(series.samples);
     };
     try {
       context.log(`${NAME}: ${MICRO_CASES.length} cases, ${RUNS} runs each in 2 pipelines`);
@@ -86,7 +93,7 @@ export const devSpeed: Metric = {
       const ratios: { name: string; ratio: number }[] = [];
       const noisy: string[] = [];
       for (const name of MICRO_CASES) {
-        const dir = packageWith(`dev-${name}`, asTestCase(microSource(context, name)));
+        const dir = writePackage(`dev-${name}`, casePackage(context, name));
         const dev = (await time(dir, false)) - emptyDev;
         const optimized = (await time(dir, true)) - emptyOptimized;
         if (optimized < NOISE_MS) noisy.push(`${name} (${optimized.toFixed(1)} ms)`);
@@ -114,10 +121,9 @@ export const devSpeed: Metric = {
       ];
       return results;
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
       return [
-        failed(NAME, GEOMEAN_LABEL, geomeanTarget, reason),
-        failed(NAME, WORST_LABEL, worstTarget, reason),
+        failed(NAME, GEOMEAN_LABEL, geomeanTarget, errorText(error)),
+        failed(NAME, WORST_LABEL, worstTarget, errorText(error)),
       ];
     }
   },

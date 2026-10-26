@@ -11,11 +11,12 @@
 // any implementation's output; see README.md.
 // n/a: the doc line, when `hd help doc` fails.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { failingPackage, firstLines } from "../lib/fixture.ts";
-import { diagnosticsOf, jsonLines, runHd, supportsCommand } from "../lib/hd.ts";
+import { fixture } from "../lib/fixtures.ts";
+import { failingPackage } from "../lib/gen.ts";
+import { diagnosticsOf, firstLines, jsonLines, runHd, supportsCommand } from "../lib/hd.ts";
 import { failed, judge, notApplicable, type Metric, type TargetResult } from "../lib/metric.ts";
 import { makeTempDir } from "../lib/tmp.ts";
 
@@ -101,8 +102,7 @@ export const answerSize: Metric = {
     );
 
     const mistakeDir = makeTempDir("answer");
-    const source = join(context.repoRoot, "bench", "metrics", "mistakes", "length-as-i32.hd");
-    writeFileSync(join(mistakeDir, "length-as-i32.hd"), readFileSync(source, "utf8"));
+    writeFileSync(join(mistakeDir, "length-as-i32.hd"), fixture("mistakes/length-as-i32.hd"));
     const check = await run(["check", "--format", "json", "length-as-i32.hd"], mistakeDir);
     const diagnostic = diagnosticsOf(check.stdout)[0];
     results.push(

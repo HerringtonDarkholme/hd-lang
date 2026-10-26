@@ -18,14 +18,27 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { buildProgram, howNote, runProgram, type Program } from "../lib/artifact.ts";
-import { firstLines, runProblem } from "../lib/fixture.ts";
-import { canMeasure, runProcess } from "../lib/hd.ts";
+import {
+  buildFixture,
+  buildProgram,
+  howNote,
+  MICRO_CASES,
+  microPackage,
+  runProgram,
+  type Program,
+} from "../lib/artifact.ts";
+import { canMeasure, firstLines, runProblem, runProcess } from "../lib/hd.ts";
 import type { MetricContext, TargetResult } from "../lib/metric.ts";
-import { failed, formatValue, judge, notApplicable, type Metric } from "../lib/metric.ts";
+import {
+  errorText,
+  failed,
+  formatValue,
+  judge,
+  notApplicable,
+  type Metric,
+} from "../lib/metric.ts";
 import { p50 } from "../lib/stats.ts";
 import { makeTempDir } from "../lib/tmp.ts";
-import { BASELINE_PROGRAM, MICRO_CASES, microSource } from "./runtime.ts";
 
 const NAME = "size-startup-heap";
 const TIMEOUT_MS = 60_000;
@@ -37,19 +50,12 @@ const HEAP_LIMIT = 2;
 const HEAP_FLOOR = 1024 * 1024;
 const HEAP_CASES = ["map", "string-build"] as const;
 
-export const TINY_PROGRAM = ["pub fn main() -> void $ Console:", '    println("ready")', ""].join(
-  "\n",
-);
-
 /** A micro case's `main` run once, for a peak heap. */
 export function nodeOnce(source: string): string {
   const tail = source.indexOf("const times = [];");
   if (tail < 0) throw new Error("not a micro case program");
   return `${source.slice(0, tail)}main();\n`;
 }
-
-const errorText = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
 
 async function sizeLine(context: MetricContext, tiny: Program): Promise<TargetResult> {
   const label = "tiny program, release Wasm size";
@@ -59,7 +65,7 @@ async function sizeLine(context: MetricContext, tiny: Program): Promise<TargetRe
   const sizes: string[] = [];
   for (const name of MICRO_CASES) {
     try {
-      const program = await buildProgram(context.hd, microSource(context, name), `size-${name}`);
+      const program = await buildProgram(context.hd, microPackage(context, name), `size-${name}`);
       sizes.push(`${name} ${program.bytes ?? "?"} B`);
     } catch (error) {
       sizes.push(`${name} failed: ${errorText(error).slice(0, 80)}`);
@@ -117,7 +123,7 @@ async function heapLines(context: MetricContext): Promise<TargetResult[]> {
   let base: { readonly hd: number; readonly node: number };
   const nodeDir = makeTempDir("node-heap");
   try {
-    const baseline = await buildProgram(context.hd, BASELINE_PROGRAM, "heap-baseline");
+    const baseline = await buildFixture(context.hd, "runtime/baseline", {}, "heap-baseline");
     writeFileSync(join(nodeDir, "empty.mjs"), "\n");
     base = {
       hd: await peakRss(baseline.argv, baseline.dir, "the baseline program"),
@@ -134,7 +140,7 @@ async function heapLines(context: MetricContext): Promise<TargetResult[]> {
   for (const [index, name] of HEAP_CASES.entries()) {
     const label = labels[index]!;
     try {
-      const program = await buildProgram(context.hd, microSource(context, name), `heap-${name}`);
+      const program = await buildProgram(context.hd, microPackage(context, name), `heap-${name}`);
       const hd = (await peakRss(program.argv, program.dir, name)) - base.hd;
       const file = join(nodeDir, `${name}.mjs`);
       const source = readFileSync(join(context.repoRoot, "bench", "micro", `${name}.js`), "utf8");
@@ -166,7 +172,7 @@ export const sizeStartupHeap: Metric = {
   async run(context) {
     let tiny: Program;
     try {
-      tiny = await buildProgram(context.hd, TINY_PROGRAM, "tiny");
+      tiny = await buildFixture(context.hd, "size-startup-heap/tiny");
     } catch (error) {
       return [
         failed(

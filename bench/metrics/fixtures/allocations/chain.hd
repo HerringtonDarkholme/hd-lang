@@ -1,0 +1,5 @@
+# An iterator chain: map, filter and sum over a range.
+pub fn main() -> void $ Console:
+    let n: i64 = 1000  # param: n
+    let total: i64 = (0..n).iter().map(fn(x: i64) -> i64: x * 2).filter(fn(x: i64) -> bool: x % 3 != 0).sum()
+    println("${total}")

@@ -2,9 +2,9 @@
 // from what its runs write. Pillar 2 metrics use these probes to report
 // `n/a` for a feature this hd lacks. Each probe runs once per hd command.
 
-import { freshCache, materialize, runProblem } from "./fixture.ts";
-import { runHd, type HdCommand } from "./hd.ts";
+import { freshCache, type HdCommand, runHd, runProblem } from "./hd.ts";
 import { listTree, makeTempDir } from "./tmp.ts";
+import { materialize } from "./gen.ts";
 
 /** The commands whose help text the probes read. */
 const HELP_COMMANDS = ["check", "test", "build", "clean", "cache gc", "add", "fetch", "repl"];

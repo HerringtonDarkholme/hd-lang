@@ -14,7 +14,8 @@
 // - No corruption: every check succeeds, and so does a second check in
 //   each copy.
 // - Written once: the shared cache then holds the same files as after a
-//   single check with a cache of its own.
+//   single check with a cache of its own, hash-named files matched by
+//   their place (`cacheShape`).
 // Targets (Pillar 2): no corruption; each entry computed once.
 // n/a: the dependency lines with no git, no `hd add`, or no help text that
 // names HD_CACHE; the compilation lines when `hd check` writes no cache,
@@ -22,11 +23,11 @@
 
 import { findCompileCache } from "../lib/capability.ts";
 import { entryProblem, prepareDependent } from "../lib/deps.ts";
-import { copyPackage, freshCache, materialize, runProblem } from "../lib/fixture.ts";
-import { runHd } from "../lib/hd.ts";
+import { freshCache, runHd, runProblem } from "../lib/hd.ts";
 import type { MetricContext } from "../lib/metric.ts";
 import { failed, judgeBool, notApplicable, type Metric, type TargetResult } from "../lib/metric.ts";
 import { listTree, makeTempDir } from "../lib/tmp.ts";
+import { copyPackage, materialize } from "../lib/gen.ts";
 
 const NAME = "cache-contention";
 const N = 8;
@@ -107,6 +108,14 @@ async function dependencyLines(context: MetricContext): Promise<TargetResult[]> 
   ];
 }
 
+/**
+ * The files of a cache with each hash-named file stem (16 or more hex
+ * digits) written `*`, sorted: an implementation may name an entry at
+ * random, as a pack file, so two caches of the same work differ only there.
+ */
+export const cacheShape = (files: readonly string[]): string[] =>
+  files.map((path) => path.replaceAll(/\b[0-9a-f]{16,}\b/g, "*")).sort();
+
 async function compileLines(context: MetricContext): Promise<TargetResult[]> {
   const safeLabel = `compilation cache, ${N} concurrent checks: ${SAFE}`;
   const onceLabel = `compilation cache, ${N} concurrent checks: written once`;
@@ -141,8 +150,8 @@ async function compileLines(context: MetricContext): Promise<TargetResult[]> {
       safe,
       notApplicable(NAME, onceLabel, ONCE, "the cache lives in each package, so none is shared"),
     ];
-  const expected = listTree(alone.HD_CACHE!);
-  const found = listTree(env.HD_CACHE!);
+  const expected = cacheShape(listTree(alone.HD_CACHE!));
+  const found = cacheShape(listTree(env.HD_CACHE!));
   const same = expected.length === found.length && expected.every((path, k) => found[k] === path);
   return [
     safe,

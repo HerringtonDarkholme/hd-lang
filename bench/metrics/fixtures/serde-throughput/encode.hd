@@ -1,0 +1,12 @@
+# Encodes the document `repeat` times.
+use pkg.orders.orders
+use std.json.encode
+
+pub fn main() -> void $ Console:
+    docs := orders(200)  # param: orders
+    text := encode(docs)
+    let total: usize = 0
+    let repeat: i64 = 2  # param: repeat
+    for _ in 0..repeat:
+        total = total + encode(docs).len()
+    println("bytes=${text.len()} total=${total}")

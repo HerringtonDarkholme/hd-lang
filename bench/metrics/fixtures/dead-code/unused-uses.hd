@@ -1,0 +1,12 @@
+# The std-free program with unused `use` declarations of five std modules.
+use std.json.encode
+use std.regex.Regex
+use std.text.StringBuilder
+use std.fs.read_text
+use std.time.Duration
+
+fn fib(n: i32) -> i32:
+    if n < 2: n else: fib(n - 1) + fib(n - 2)
+
+pub fn main() -> void:
+    if fib(20) != 6765: panic("wrong")

@@ -1,10 +1,13 @@
-// A deterministic generator of hd packages for the metrics.
+// The generator of the metrics' synthetic packages, from the templates in
+// fixtures/package/, fixtures/unit-test-perf/ and
+// fixtures/integration-test-perf/.
 //
 // `generatePackage({ seed, lines })` returns the files of one package of
-// about `lines` lines: modules `src/m000.hd`, `src/m001.hd`, ... with data,
-// enums, traits, impls, matches, `?`, loops, and a `tests:` block each, plus
-// `src/lib.hd`, one integration test and `hd.toml`. The same seed and size
-// always give byte-identical files.
+// about `lines` lines: modules `src/m000.hd`, `src/m001.hd`, ... of
+// fixtures/package/module.hd.tmpl, each with structs, enums, traits, impls,
+// matches, `?`, loops, a `tests:` block and 6 to 12 helpers drawn from
+// fixtures/package/helpers.hd.tmpl, plus `src/lib.hd`, one integration test
+// and `hd.toml`. The same seed and size always give byte-identical files.
 //
 // Each module carries two edit sites the metrics use:
 // - a private body edit: the line `    let bump = +N` in `fn tweakK`;
@@ -12,6 +15,15 @@
 //   defaulted parameter, so its callers still type-check.
 // Module K calls `shape(K-1)` and `total(K-1)`, so module K+1 is the direct
 // dependent of module K.
+//
+// `unitPackage`, `integrationPackage` and `docTestPackage` write the test
+// packages of unit-test-perf and integration-test-perf.
+
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { fixture, manifest, render, renderFixture, writePackage, type Files } from "./fixtures.ts";
+import { copyTree, makeTempDir } from "./tmp.ts";
 
 export interface GeneratedModule {
   /** The module path segment, as `m007`. */
@@ -85,146 +97,34 @@ function wrap(next: () => number): Random {
   };
 }
 
-/** Helper function bodies; each takes the module index and a helper index. */
-const HELPERS: readonly ((k: number, h: number, r: Random) => string[])[] = [
-  (k, h, r) => [
-    `fn step${k}_${h}(x: i32, y: i32) -> i32:`,
-    "    let acc = x",
-    "    for i in +0..y:",
-    `        if i % ${r.int(2, 7)} == 0:`,
-    "            acc = acc + i",
-    "        else:",
-    `            acc = acc - ${r.int(1, 9)}`,
-    "    acc",
-  ],
-  (k, h, r) => [
-    `fn classify${k}_${h}(n: i32) -> string:`,
-    "    if n < 0:",
-    '        "negative"',
-    "    else if n == 0:",
-    '        "zero"',
-    `    else if n > ${r.int(10, 900)}:`,
-    '        "large ${n}"',
-    "    else:",
-    '        "small ${n}"',
-  ],
-  (k, h, r) => [
-    `fn collect${k}_${h}(limit: i32) -> List[i32]:`,
-    "    let out: mut List[i32] = []",
-    "    for i in +0..limit:",
-    `        out.push(i * ${r.int(2, 9)})`,
-    "    out",
-  ],
-  (k, h, r) => [
-    `fn describe${k}_${h}(item: Item${k}) -> string:`,
-    `    tag := if item.count > ${r.int(1, 20)}: "bulk" else: "single"`,
-    '    "${item.name} x${item.count} (${tag})"',
-  ],
-  (k, h, r) => [
-    `fn priced${k}_${h}(items: List[Item${k}], name: string) -> i64?:`,
-    `    item := find${k}(items, name)?`,
-    `    item.cost() + ${r.int(1, 99)}`,
-  ],
-  (k, h, r) => [
-    `fn weight${k}_${h}(status: Status${k}) -> i32:`,
-    "    match status:",
-    `        .Pending => ${r.int(0, 9)}`,
-    `        .Paid(amount) => i32(amount % ${r.int(3, 50)})`,
-    "        .Shipped(code, days) => days + i32(code.len())",
-    "        .Cancelled(_) => -1",
-  ],
-  (k, h, r) => [
-    `fn sum_words${k}_${h}(words: List[string]) -> usize:`,
-    "    let total: usize = 0",
-    "    for word in words:",
-    `        if word.len() > ${r.int(1, 6)}:`,
-    "            total = total + word.len()",
-    "    total",
-  ],
-];
+/** The helper templates: one per paragraph of helpers.hd.tmpl, comments left out. */
+export const helperTemplates = (): string[] =>
+  fixture("package/helpers.hd.tmpl")
+    .split(/\n\s*\n/)
+    .map((paragraph) =>
+      paragraph
+        .split("\n")
+        .filter((line) => !/^\s*\{\{!.*\}\}\s*$/.test(line))
+        .join("\n")
+        .trim(),
+    )
+    .filter(Boolean);
 
-function generateModule(k: number, r: Random, deps: readonly number[]): string[] {
+function generateModule(k: number, r: Random, deps: readonly number[]): string {
+  const int = (low: string, high: string) => r.int(Number(low), Number(high));
   const word = r.pick(WORDS);
-  const lines: string[] = [
-    `# Module ${k}: line items, order states, and their labels.`,
-    "use std.testing.assert_equal",
-  ];
-  for (const dep of deps)
-    lines.push(`use pkg.${moduleName(dep)}.{Item${dep}, shape${dep}, total${dep}}`);
-  lines.push(
-    "",
-    `## A line item of module ${k}.`,
-    `pub data Item${k}:`,
-    "    pub name: string",
-    "    pub price: i64",
-    "    pub count: i32",
-    "",
-    "## The state of an order.",
-    "@derive(Eq)",
-    `pub enum Status${k}:`,
-    "    Pending",
-    "    Paid(amount: i64)",
-    "    Shipped(code: string, days: i32)",
-    "    Cancelled(reason: string)",
-    "",
-    "## Something with a cost.",
-    `pub trait Costed${k}:`,
-    "    fn cost(self) -> i64",
-    "",
-    `impl Costed${k} for Item${k}:`,
-    "    fn cost(self) -> i64:",
-    "        self.price * i64(self.count)",
-    "",
-    "## The label of a status.",
-    `pub fn label${k}(status: Status${k}) -> string:`,
-    "    match status:",
-    '        .Pending => "pending"',
-    '        .Paid(amount) => "paid ${amount}"',
-    '        .Shipped(code, days) => "shipped ${code} in ${days} days"',
-    '        .Cancelled(reason) => "cancelled: ${reason}"',
-    "",
-    "## The total cost of the items.",
-    `pub fn total${k}(items: List[Item${k}]) -> i64:`,
-    "    let sum: i64 = 0",
-    "    for item in items:",
-    "        sum = sum + item.cost()",
-    "    sum",
-    "",
-    "## A public function whose signature the recheck metric edits.",
-    `pub fn shape${k}(x: i32) -> i32:`,
-    `    x * ${r.int(2, 9)} + tweak${k}(x)`,
-    "",
-    `fn tweak${k}(x: i32) -> i32:`,
-    "    let bump = +1",
-    "    x + bump",
-    "",
-    `fn find${k}(items: List[Item${k}], name: string) -> Item${k}?:`,
-    "    for item in items:",
-    "        if item.name == name:",
-    "            return item",
-    "    .None",
-    "",
+  const templates = helperTemplates();
+  const helpers = Array.from({ length: r.int(6, 12) }, (_, h) =>
+    render(r.pick(templates), { k, h, int }, "package/helpers.hd.tmpl"),
   );
-  for (const dep of deps)
-    lines.push(
-      `## Uses module ${dep}.`,
-      `pub fn bridge${k}_${dep}(items: List[Item${dep}]) -> i64:`,
-      `    total${dep}(items) + i64(shape${dep}(${r.int(1, 9)}))`,
-      "",
-    );
-  const helperCount = r.int(6, 12);
-  for (let h = 0; h < helperCount; h++) lines.push(...r.pick(HELPERS)(k, h, r), "");
-  lines.push(
-    "tests:",
-    `    it("t${pad(k)}a totals items"):`,
-    `        items := [Item${k} { name: "${word}", price: 3, count: 2 }]`,
-    `        assert_equal(total${k}(items), 6, reason="price times count")`,
-    "",
-    `    it("t${pad(k)}b labels a status"):`,
-    `        assert_equal(label${k}(Status${k}.Paid(5)), "paid 5", reason="paid label")`,
-    "",
-  );
-  return lines;
+  return renderFixture("package/module.hd.tmpl", {
+    k,
+    word,
+    test: `t${pad(k)}`,
+    deps: deps.map((j) => ({ j, jname: moduleName(j) })),
+    helpers: helpers.map((text) => `${text}\n`).join("\n"),
+    int,
+  });
 }
 
 export interface GenerateOptions {
@@ -243,9 +143,9 @@ export function generatePackage(options: GenerateOptions): GeneratedPackage {
   for (let k = 0; total < options.lines - 20; k++) {
     const deps = k === 0 ? [] : k >= 3 && r.int(0, 1) === 1 ? [k - 1, k - 3] : [k - 1];
     const text = generateModule(k, r, deps);
-    total += text.length;
+    total += text.split("\n").length;
     const file = `src/${moduleName(k)}.hd`;
-    files.set(file, text.join("\n"));
+    files.set(file, text);
     modules.push({
       name: moduleName(k),
       file,
@@ -253,34 +153,36 @@ export function generatePackage(options: GenerateOptions): GeneratedPackage {
       testName: `t${pad(k)}a`,
     });
   }
-  const lib = [
-    "# The package's front door.",
-    "use pkg.m000.{Item0, total0}",
-    "",
-    "## The total of one item.",
-    "pub fn one_total(item: Item0) -> i64:",
-    "    total0([item])",
-    "",
-  ];
-  const integration = [
-    "use pkg.{one_total}",
-    "use pkg.m000.Item0",
-    "use std.testing.assert_equal",
-    "",
-    'it("integration totals one item"):',
-    '    assert_equal(one_total(Item0 { name: "pen", price: 2, count: 3 }), 6, reason="one item")',
-    "",
-  ];
-  files.set("src/lib.hd", lib.join("\n"));
-  files.set("tests/smoke.hd", integration.join("\n"));
-  files.set("hd.toml", `[package]\nname = "${options.name ?? "gen"}"\n`);
-  total += lib.length + integration.length + 2;
+  const lib = fixture("package/lib.hd");
+  const smoke = fixture("package/smoke.hd");
+  files.set("src/lib.hd", lib);
+  files.set("tests/smoke.hd", smoke);
+  files.set("hd.toml", manifest(options.name ?? "gen", { capabilities: ["Console"] }));
+  total += lib.split("\n").length + smoke.split("\n").length + 2;
   return { files, modules, lines: total };
 }
 
 /** The dependents of module `name`: the modules that import it directly. */
 export const dependentsOf = (pkg: GeneratedPackage, name: string): GeneratedModule[] =>
   pkg.modules.filter((module) => module.imports.includes(name));
+
+/** The executable `src/main.hd` of a generated package: it prints one item's total. */
+export const executable = (): string => fixture("package/main.hd");
+
+/** An executable for a generated package that calls into every module. */
+export function reachEveryModule(pkg: GeneratedPackage): string {
+  return renderFixture("package/reach-all.hd.tmpl", {
+    modules: pkg.modules.map((module, k) => ({ k, name: module.name, price: k + 1 })),
+  });
+}
+
+// ------------------------------------------------------------- edits
+
+function replaceOnce(text: string, pattern: RegExp, replacement: string, what: string): string {
+  const next = text.replace(pattern, replacement);
+  if (next === text) throw new Error(`no ${what} in the module`);
+  return next;
+}
 
 /** Edits the private body of `tweakK`: `let bump = +N` becomes +(N+1). */
 export function editBody(text: string): string {
@@ -293,11 +195,139 @@ export function editBody(text: string): string {
 }
 
 /** Edits the public signature of `shapeK`: it gains a defaulted parameter. */
-export function editSignature(text: string): string {
-  const next = text.replace(
+export const editSignature = (text: string): string =>
+  replaceOnce(
+    text,
     /^(pub fn shape\d+\(x: i32)\) -> i32:$/m,
     "$1, extra: i32 = 0) -> i32:",
+    "signature edit site",
   );
-  if (next === text) throw new Error("no signature edit site in the module");
-  return next;
+
+/** Puts a type error into the body of `tweakK`. */
+export const breakBody = (text: string): string =>
+  replaceOnce(text, /^ {4}x \+ bump$/m, "    x + bump + true", "body to break");
+
+/** Takes the type error of `breakBody` out again. */
+export const repairBody = (text: string): string =>
+  replaceOnce(text, /^ {4}x \+ bump \+ true$/m, "    x + bump", "broken body");
+
+/** Breaks the expectation of the module's first test case: 6 becomes 7. */
+export const breakTest = (text: string): string =>
+  replaceOnce(text, /(assert_equal\(total\d+\(items\), )6,/, "$17,", "test expectation to break");
+
+/** Repairs the expectation `breakTest` broke. */
+export const repairTest = (text: string): string =>
+  replaceOnce(text, /(assert_equal\(total\d+\(items\), )7,/, "$16,", "broken test expectation");
+
+/** Appends the public function `addedK_N`. */
+export const addFunction = (text: string, k: number, n: number): string =>
+  `${text.trimEnd()}\n\n## An added function.\npub fn added${k}_${n}(x: i32) -> i32:\n    x + ${n}\n`;
+
+// --------------------------------------------- packages on disk
+
+/** Writes a generated package of a named size into a fresh temporary directory. */
+export function materialize(
+  size: SizeName,
+  seed: string,
+): { readonly dir: string; readonly pkg: GeneratedPackage } {
+  const pkg = generatePackage({ seed, lines: SIZES[size] });
+  return { dir: writePackage(`pkg-${size}`, pkg.files), pkg };
 }
+
+/** Adds the executable `src/main.hd` to a generated package, so `hd build` has a program. */
+export function addExecutable(dir: string): void {
+  writeFileSync(join(dir, "src", "main.hd"), executable());
+}
+
+/** A fresh temporary copy of a package directory. */
+export function copyPackage(source: string, label: string): string {
+  const dir = makeTempDir(label);
+  copyTree(source, dir);
+  return dir;
+}
+
+/** Rewrites one file of a package directory in place. */
+export function editFile(dir: string, file: string, edit: (text: string) => string): void {
+  const path = join(dir, file);
+  writeFileSync(path, edit(readFileSync(path, "utf8")));
+}
+
+/**
+ * A small generated package whose test case `t001a` fails: its expected
+ * total is off by one. Returns the directory and the failing test's filter.
+ */
+export function failingPackage(seed: string): { readonly dir: string; readonly filter: string } {
+  const { dir, pkg } = materialize("small", seed);
+  const module = pkg.modules[1]!;
+  editFile(dir, module.file, breakTest);
+  return { dir, filter: module.testName };
+}
+
+// ------------------------------------------------------ test packages
+
+/** The modules of a unit-test package. */
+export const UNIT_MODULES = 10;
+
+/**
+ * A package of `tests` unit tests over UNIT_MODULES modules: each module
+ * has a pure function and half its tests in its `tests:` block, the other
+ * half in its test module `src/mK_test.hd`.
+ */
+export function unitPackage(tests: number): Files {
+  const files = new Map<string, string>([["hd.toml", manifest("units")]]);
+  const perModule = tests / UNIT_MODULES;
+  const half = Math.ceil(perModule / 2);
+  for (let k = 0; k < UNIT_MODULES; k++) {
+    const factor = k + 2;
+    const cases = (from: number, to: number) =>
+      Array.from({ length: to - from }, (_, index) => ({
+        j: from + index,
+        expected: (from + index) * factor + 1,
+      }));
+    files.set(
+      `src/m${k}.hd`,
+      renderFixture("unit-test-perf/module.hd.tmpl", { k, factor, cases: cases(0, half) }),
+    );
+    files.set(
+      `src/m${k}_test.hd`,
+      renderFixture("unit-test-perf/module_test.hd.tmpl", { k, cases: cases(half, perModule) }),
+    );
+  }
+  return files;
+}
+
+/** The library of an integration-test package, with `docs` doc tests. */
+const integrationLib = (docs: number): string =>
+  renderFixture("integration-test-perf/lib.hd.tmpl", {
+    docs: Array.from({ length: docs }, (_, d) => ({ d })),
+  });
+
+const integrationManifest = (): string =>
+  manifest("shop", { devCapabilities: ["FsRead", "FsWrite"] });
+
+/**
+ * A package with `programs` integration test programs under `tests/`,
+ * each with 2 cases that write a file into `temp_dir()` and read it back.
+ */
+export function integrationPackage(programs: number): Files {
+  const files = new Map<string, string>([
+    ["hd.toml", integrationManifest()],
+    ["src/lib.hd", integrationLib(0)],
+  ]);
+  for (let p = 0; p < programs; p++)
+    files.set(
+      `tests/export${p}.hd`,
+      renderFixture("integration-test-perf/export.hd.tmpl", {
+        p,
+        cases: [0, 1].map((c) => ({ c })),
+      }),
+    );
+  return files;
+}
+
+/** A package whose library function carries `count` doc tests. */
+export const docTestPackage = (count: number): Files =>
+  new Map([
+    ["hd.toml", integrationManifest()],
+    ["src/lib.hd", integrationLib(count)],
+  ]);

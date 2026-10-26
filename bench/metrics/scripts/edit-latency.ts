@@ -6,9 +6,8 @@
 // Targets (Pillar 1): p50 ≤ 50 ms, p95 ≤ 200 ms.
 // No n/a case: every hd has `hd check`.
 
-import { editBody } from "../lib/gen.ts";
-import { editFile, freshCache, materialize, runProblem, timedSeries } from "../lib/fixture.ts";
-import { runHd } from "../lib/hd.ts";
+import { editBody, editFile, materialize } from "../lib/gen.ts";
+import { freshCache, runHd, runProblem, timedSeries } from "../lib/hd.ts";
 import { failed, judge, type Metric } from "../lib/metric.ts";
 import { p50, p95 } from "../lib/stats.ts";
 

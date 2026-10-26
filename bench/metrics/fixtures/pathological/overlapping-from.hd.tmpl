@@ -1,0 +1,21 @@
+{{! Locals bound by `Cents::from(N)`, each choosing between two `From` impls (F-626); one `locals` entry per local, numbered `i`. }}
+use std.convert.From
+
+struct Cents:
+    value: i64
+
+impl From[i32] for Cents:
+    fn from(value: i32) -> Cents:
+        Cents { value: i64(value) }
+
+impl From[string] for Cents:
+    fn from(value: string) -> Cents:
+        Cents { value: i64(value.len()) }
+
+fn run() -> i64:
+    let total: i64 = 0
+{{#each locals}}
+    let c{{i}} = Cents::from({{i}})
+    total = total + c{{i}}.value
+{{/each}}
+    total

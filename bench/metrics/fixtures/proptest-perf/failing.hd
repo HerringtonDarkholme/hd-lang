@@ -1,0 +1,9 @@
+# One property that fails for a price of 1,000 or more; `shrink` caps the
+# shrinking steps.
+use pkg.shop.Item
+use std.testing.{assert, it_prop}
+
+tests:
+    it_prop("prices stay under 1000", shrink=500, prop=fn!(item: Item):  # param: shrink
+        assert(item.price < 1000, reason="a price of 1000 or more")
+    )

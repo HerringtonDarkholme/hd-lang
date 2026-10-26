@@ -1,0 +1,7 @@
+# The executable of a generated package: the total of one item, through
+# the package's library.
+use pkg.{one_total}
+use pkg.m000.Item0
+
+pub fn main() -> void $ Console:
+    println(one_total(Item0 { name: "pen", price: 2, count: 3 }))

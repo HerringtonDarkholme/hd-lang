@@ -1,0 +1,3 @@
+# A one-line program: its check time is the start-up the scaling check subtracts.
+fn run() -> i32:
+    1

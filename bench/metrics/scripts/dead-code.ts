@@ -7,7 +7,7 @@
 //   / (thousands of lines between them).
 // - Unused std: a program that uses no std module (recursive fib, checked
 //   with `panic`), and the same program with unused `use` declarations of
-//   five std modules. Both must be the same size, and the first program's
+//   five std modules (fixtures/dead-code/). Both must be the same size, and the first program's
 //   import and export names must name no std module (the file names of
 //   spec/std/). Names are read with WebAssembly.Module.imports and
 //   .exports, so that half needs a .wasm file; the size half does not.
@@ -18,49 +18,15 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { buildProgram, howNote, MANIFEST, type Program } from "../lib/artifact.ts";
-import { generatePackage, SIZES, type GeneratedPackage } from "../lib/gen.ts";
+import { buildFixture, buildProgram, howNote, type Program } from "../lib/artifact.ts";
+import { PACKAGE } from "../lib/fixtures.ts";
+import { generatePackage, reachEveryModule, SIZES, type GeneratedPackage } from "../lib/gen.ts";
 import type { MetricContext, TargetResult } from "../lib/metric.ts";
-import { failed, formatValue, judge, judgeBool, type Metric } from "../lib/metric.ts";
+import { errorText, failed, formatValue, judge, judgeBool, type Metric } from "../lib/metric.ts";
 
 const NAME = "dead-code";
 const LIMIT_PER_1000 = 10 * 1024;
 const TIMEOUT_MS = 300_000;
-
-/** An executable for a generated package that calls into every module. */
-export function reachEveryModule(pkg: GeneratedPackage): string {
-  const lines = pkg.modules.map(
-    (module, k) => `use pkg.${module.name}.{Item${k}, Status${k}, label${k}, shape${k}, total${k}}`,
-  );
-  lines.push("", "pub fn main() -> void $ Console:", "    let sum: i64 = 0");
-  for (const [k] of pkg.modules.entries()) {
-    lines.push(
-      `    sum = sum + i64(shape${k}(${k}))`,
-      `    sum = sum + total${k}([Item${k} { name: "n${k}", price: ${k + 1}, count: 2 }])`,
-      `    sum = sum + i64(label${k}(Status${k}.Paid(${k})).len())`,
-    );
-  }
-  lines.push('    println("${sum}")', "");
-  return lines.join("\n");
-}
-
-const STD_FREE = [
-  "fn fib(n: i32) -> i32:",
-  "    if n < 2: n else: fib(n - 1) + fib(n - 2)",
-  "",
-  "pub fn main() -> void:",
-  '    if fib(20) != 6765: panic("wrong")',
-  "",
-].join("\n");
-
-const UNUSED_USES = [
-  "use std.json.encode",
-  "use std.regex.Regex",
-  "use std.text.StringBuilder",
-  "use std.fs.read_text",
-  "use std.time.Duration",
-  "",
-];
 
 /**
  * Std module names that mark std code when a Wasm name holds one as a
@@ -113,18 +79,14 @@ function wasmNames(path: string): string[] {
   ];
 }
 
-const errorText = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
 async function bytesPerThousand(context: MetricContext): Promise<TargetResult> {
   const label = "Wasm bytes per 1,000 lines";
   const target = `≤ ${formatValue(LIMIT_PER_1000, "bytes")}`;
   try {
     const built: { pkg: GeneratedPackage; program: Program }[] = [];
     for (const size of ["small", "10k"] as const) {
-      const pkg = generatePackage({ seed: "dead-code", lines: SIZES[size], name: "bench" });
+      const pkg = generatePackage({ seed: "dead-code", lines: SIZES[size], name: PACKAGE });
       const files = new Map(pkg.files);
-      files.set("hd.toml", MANIFEST);
       files.set("src/main.hd", reachEveryModule(pkg));
       built.push({
         pkg,
@@ -154,12 +116,8 @@ async function unusedStd(context: MetricContext): Promise<TargetResult> {
   const label = "no unused std in the program";
   const target = "none";
   try {
-    const bare = await buildProgram(context.hd, STD_FREE, "dead-bare");
-    const withUses = await buildProgram(
-      context.hd,
-      [...UNUSED_USES, STD_FREE].join("\n"),
-      "dead-uses",
-    );
+    const bare = await buildFixture(context.hd, "dead-code/std-free");
+    const withUses = await buildFixture(context.hd, "dead-code/unused-uses");
     if (bare.bytes === undefined || withUses.bytes === undefined)
       throw new Error(`the build wrote no file to measure (${howNote(bare)})`);
     const problems: string[] = [];

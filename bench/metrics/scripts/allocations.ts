@@ -1,8 +1,8 @@
 // allocations: heap allocation per iteration of user loops.
 //
-// Four loops of i64 work: a counted `for` over a range, `for` loops over a
-// small list and a small map, n times, and an iterator chain,
-// `(0..n).iter().map(...).filter(...).sum()`. Each is built at two
+// Four loops of i64 work (fixtures/allocations/): a counted `for` over a
+// range, `for` loops over a small list and a small map, n times, and an
+// iterator chain, `(0..n).iter().map(...).filter(...).sum()`. Each is built at two
 // sizes, SMALL and LARGE iterations, and run 3 times each. The allocated
 // bytes per iteration are the median of (bytes at LARGE - bytes at SMALL)
 // / (LARGE - SMALL), which cancels start-up.
@@ -19,9 +19,10 @@
 // n/a: when the program does not run on Node, so the V8 probe writes
 // nothing.
 
-import { buildProgram, heapProbe, howNote, runProgram, type Program } from "../lib/artifact.ts";
+import { buildFixture, heapProbe, howNote, runProgram, type Program } from "../lib/artifact.ts";
+import type { ProgramName } from "../lib/fixtures.ts";
 import type { TargetResult } from "../lib/metric.ts";
-import { failed, judge, notApplicable, type Metric } from "../lib/metric.ts";
+import { errorText, failed, judge, notApplicable, type Metric } from "../lib/metric.ts";
 import { p50 } from "../lib/stats.ts";
 
 const NAME = "allocations";
@@ -34,7 +35,8 @@ interface Loop {
   readonly label: string;
   readonly limit: number;
   readonly target: string;
-  readonly source: (n: number) => string;
+  /** The program fixture, whose param `n` is the iteration count. */
+  readonly program: ProgramName;
 }
 
 const LOOPS: readonly Loop[] = [
@@ -42,68 +44,27 @@ const LOOPS: readonly Loop[] = [
     label: "counted loop, bytes per iteration",
     limit: 0.99,
     target: "0 allocations (< 1 B/iter)",
-    source: (n) =>
-      [
-        "pub fn main() -> void $ Console:",
-        `    let n: i64 = ${n}`,
-        "    let total: i64 = 0",
-        "    for i in 0..n:",
-        "        total = total + i * 3 - i / 2",
-        '    println("${total}")',
-        "",
-      ].join("\n"),
+    program: "allocations/counted",
   },
   {
     label: "list loop, bytes per iteration",
     limit: 0.99,
     target: "0 allocations (< 1 B/iter)",
-    source: (n) =>
-      [
-        "pub fn main() -> void $ Console:",
-        `    let n: i64 = ${n}`,
-        "    let items: List[i64] = [1, 2, 3, 4, 5, 6, 7, 8]",
-        "    let total: i64 = 0",
-        "    for i in 0..n:",
-        "        for x in items:",
-        "            total = total + x * i",
-        '    println("${total}")',
-        "",
-      ].join("\n"),
+    program: "allocations/list",
   },
   {
     label: "map loop, bytes per iteration",
     limit: 0.99,
     target: "0 allocations (< 1 B/iter)",
-    source: (n) =>
-      [
-        "pub fn main() -> void $ Console:",
-        `    let n: i64 = ${n}`,
-        '    let table: Map[string, i64] = {"a": 1, "b": 2, "c": 3, "d": 4}',
-        "    let total: i64 = 0",
-        "    for i in 0..n:",
-        "        for (key, value) in table:",
-        "            total = total + value * i + i64(key.len())",
-        '    println("${total}")',
-        "",
-      ].join("\n"),
+    program: "allocations/map",
   },
   {
     label: "iterator chain, bytes per iteration",
     limit: 32,
     target: "≤ 1 allocation (≤ 32 B/iter)",
-    source: (n) =>
-      [
-        "pub fn main() -> void $ Console:",
-        `    let n: i64 = ${n}`,
-        "    total := (0..n).iter().map(fn(x: i64) -> i64: x * 2).filter(fn(x: i64) -> bool: x % 3 != 0).sum()",
-        '    println("${total}")',
-        "",
-      ].join("\n"),
+    program: "allocations/chain",
   },
 ];
-
-const errorText = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
 
 export const allocations: Metric = {
   name: NAME,
@@ -118,8 +79,10 @@ export const allocations: Metric = {
     );
     for (const [index, loop] of LOOPS.entries()) {
       try {
-        const small = await buildProgram(context.hd, loop.source(SMALL), `alloc-${index}-small`);
-        const large = await buildProgram(context.hd, loop.source(LARGE), `alloc-${index}-large`);
+        const build = (n: number, size: string) =>
+          buildFixture(context.hd, loop.program, { n }, `alloc-${index}-${size}`);
+        const small = await build(SMALL, "small");
+        const large = await build(LARGE, "large");
         const bytes = async (program: Program, run: number): Promise<number | undefined> => {
           const tag = `loop${index}-${program === small ? "small" : "large"}-${run}`;
           const result = await runProgram(program, loop.label, {

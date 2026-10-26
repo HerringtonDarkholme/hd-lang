@@ -1,0 +1,10 @@
+{{! A generic wrapper instantiated `depth` levels deep: `wraps` holds the `wrap(` calls, `closes` their parentheses and `inners` as many `.inner` reads. }}
+struct Wrap[T]:
+    inner: T
+
+fn wrap[T](value: T) -> Wrap[T]:
+    Wrap { inner: value }
+
+fn run(n: i32) -> i32:
+    nested := {{wraps}}n{{closes}}
+    nested{{inners}}

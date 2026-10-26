@@ -1,0 +1,2 @@
+# One of three filler modules, so list_dir! of src/ returns 4 entries.
+pub fn value() -> i32: 1

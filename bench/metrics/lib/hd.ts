@@ -202,6 +202,50 @@ export const runHd = (
   options: RunOptions,
 ): Promise<RunResult> => runProcess([...hd.argv, ...args], options);
 
+/** A fresh, empty cache directory, passed to `hd` as HD_CACHE. */
+export const freshCache = (): Record<string, string> => ({ HD_CACHE: makeTempDir("cache") });
+
+/** The first lines of a run's output, for a failure note. */
+export const firstLines = (result: RunResult, count = 2): string =>
+  (result.stdout + result.stderr).trim().split("\n").slice(0, count).join(" | ").slice(0, 300);
+
+/** Why a run that should succeed did not, or undefined when it succeeded. */
+export function runProblem(result: RunResult, timeoutMs: number, what: string): string | undefined {
+  if (result.timedOut) return `${what} timed out after ${timeoutMs / 1000} s`;
+  if (result.status !== 0) return `${what} exited ${String(result.status)}: ${firstLines(result)}`;
+  return undefined;
+}
+
+export interface Series {
+  readonly samples: number[];
+  /** Set when a run failed or timed out; later runs were skipped. */
+  readonly problem?: string;
+}
+
+/**
+ * Runs `hd ARGS` up to `count` times and collects the wall time of each
+ * run. `before` runs ahead of each timed run, as an edit. The series stops
+ * at the first run that times out or fails.
+ */
+export async function timedSeries(
+  hd: HdCommand,
+  count: number,
+  args: (index: number) => readonly string[],
+  options: RunOptions & { readonly timeoutMs: number },
+  what: string,
+  before?: (index: number) => void,
+): Promise<Series> {
+  const samples: number[] = [];
+  for (let index = 0; index < count; index++) {
+    before?.(index);
+    const result = await runHd(hd, args(index), options);
+    const problem = runProblem(result, options.timeoutMs, `${what} ${index + 1}`);
+    if (problem) return { samples, problem };
+    samples.push(result.wallMs);
+  }
+  return { samples };
+}
+
 /** Whether this `hd` has COMMAND: `hd help COMMAND` succeeds (cli.command.help.command). */
 export async function supportsCommand(hd: HdCommand, command: string, cwd: string) {
   const result = await runHd(hd, ["help", command], { cwd, timeoutMs: 30_000 });

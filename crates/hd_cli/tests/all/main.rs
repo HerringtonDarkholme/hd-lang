@@ -18,6 +18,8 @@ mod host_traits;
 mod install;
 #[cfg(unix)]
 mod interrupt_signal;
+#[cfg(unix)]
+mod metrics_fixtures;
 mod node_host_exit;
 mod panic_frames;
 mod property_tests;

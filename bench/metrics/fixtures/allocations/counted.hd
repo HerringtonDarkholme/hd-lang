@@ -1,0 +1,7 @@
+# A counted loop of i64 work over a range.
+pub fn main() -> void $ Console:
+    let n: i64 = 1000  # param: n
+    let total: i64 = 0
+    for i in 0..n:
+        total = total + i * 3 - i / 2
+    println("${total}")

@@ -22,11 +22,22 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { findCompileCache } from "../lib/capability.ts";
-import { copyPackage, freshCache, materialize } from "../lib/fixture.ts";
-import { editBody, editSignature, makeRandom, type GeneratedPackage } from "../lib/gen.ts";
-import { jsonLines, runHd, type HdCommand } from "../lib/hd.ts";
+import {
+  addFunction,
+  breakBody,
+  breakTest,
+  copyPackage,
+  editBody,
+  editSignature,
+  type GeneratedPackage,
+  makeRandom,
+  materialize,
+  repairBody,
+  repairTest,
+} from "../lib/gen.ts";
+import { freshCache, type HdCommand, jsonLines, runHd } from "../lib/hd.ts";
 import type { MetricContext } from "../lib/metric.ts";
-import { failed, judge, type Metric } from "../lib/metric.ts";
+import { errorText, failed, judge, type Metric } from "../lib/metric.ts";
 import { removeTempDir } from "../lib/tmp.ts";
 
 const NAME = "incremental-soundness";
@@ -78,31 +89,24 @@ export function applyEdit(
       if (state.signed.has(k)) return undefined;
       state.signed.add(k);
       return editSignature(text);
-    case "break": {
+    case "break":
       if (state.broken.has(k)) return undefined;
       state.broken.add(k);
-      return replaceOnce(text, /^ {4}x \+ bump$/m, "    x + bump + true");
-    }
+      return breakBody(text);
     case "repair":
       if (!state.broken.delete(k)) return undefined;
-      return replaceOnce(text, /^ {4}x \+ bump \+ true$/m, "    x + bump");
+      return repairBody(text);
     case "break-test":
       if (state.brokenTests.has(k)) return undefined;
       state.brokenTests.add(k);
-      return replaceOnce(text, /(assert_equal\(total\d+\(items\), )6,/, "$17,");
+      return breakTest(text);
     case "repair-test":
       if (!state.brokenTests.delete(k)) return undefined;
-      return replaceOnce(text, /(assert_equal\(total\d+\(items\), )7,/, "$16,");
+      return repairTest(text);
     case "add":
       state.added += 1;
-      return `${text.trimEnd()}\n\n## An added function.\npub fn added${k}_${state.added}(x: i32) -> i32:\n    x + ${state.added}\n`;
+      return addFunction(text, k, state.added);
   }
-}
-
-function replaceOnce(text: string, pattern: RegExp, replacement: string): string {
-  const next = text.replace(pattern, replacement);
-  if (next === text) throw new Error(`no edit site for ${String(pattern)}`);
-  return next;
 }
 
 /**
@@ -249,7 +253,7 @@ export const incrementalSoundness: Metric = {
         { ...judged, status: "n/a", note: `no incremental mode detected; the sample: ${note}` },
       ];
     } catch (error) {
-      return [failed(NAME, LABEL, TARGET, error instanceof Error ? error.message : String(error))];
+      return [failed(NAME, LABEL, TARGET, errorText(error))];
     }
   },
 };

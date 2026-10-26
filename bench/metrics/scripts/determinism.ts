@@ -11,10 +11,11 @@
 // run differs from a warm one by design (`cli.json.summary.modules-checked`).
 // Target (Pillar 1): every input byte-identical across its 10 runs.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { failingPackage } from "../lib/fixture.ts";
+import { fixture } from "../lib/fixtures.ts";
+import { failingPackage } from "../lib/gen.ts";
 import { runHd, supportsCommand } from "../lib/hd.ts";
 import { judgeBool, type Metric } from "../lib/metric.ts";
 import { makeTempDir } from "../lib/tmp.ts";
@@ -32,10 +33,7 @@ export const determinism: Metric = {
     const { dir } = failingPackage(NAME);
     const programs = makeTempDir("determinism");
     for (const name of PROGRAMS)
-      writeFileSync(
-        join(programs, `${name}.hd`),
-        readFileSync(join(context.repoRoot, "bench", "metrics", "mistakes", `${name}.hd`), "utf8"),
-      );
+      writeFileSync(join(programs, `${name}.hd`), fixture(`mistakes/${name}.hd`));
     const inputs: { label: string; args: string[]; cwd: string }[] = [
       { label: "check", args: ["check"], cwd: dir },
       { label: "check json", args: ["check", "--format", "json"], cwd: dir },

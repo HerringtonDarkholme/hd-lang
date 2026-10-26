@@ -1,0 +1,29 @@
+# The serde-throughput document: a list of orders, each with an id, a
+# customer name, a flag, an optional note, a list of tags and 3 line
+# records, about 45 KB of JSON for 200 orders.
+use std.serde.{Deserialize, Serialize}
+
+@derive(Serialize, Deserialize)
+pub struct Line:
+    pub sku: string
+    pub quantity: i32
+    pub price: f64
+
+@derive(Serialize, Deserialize)
+pub struct Order:
+    pub id: i64
+    pub customer: string
+    pub paid: bool
+    pub note: string?
+    pub tags: List[string]
+    pub lines: List[Line]
+
+pub fn orders(count: i64) -> List[Order]:
+    let mut out: List[Order] = []
+    for i in 0..count:
+        let mut lines: List[Line] = []
+        for j in 0..3:
+            lines.push(Line { sku: "SKU-${i}-${j}", quantity: i32(j + 1), price: 9.5 })
+        let note: string? = if i % 3 == 0: .Some("leave at door") else: .None
+        out.push(Order { id: i, customer: "customer ${i}", paid: i % 2 == 0, note: note, tags: ["web", "eu"], lines: lines })
+    out

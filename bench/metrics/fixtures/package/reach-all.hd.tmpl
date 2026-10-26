@@ -1,0 +1,13 @@
+{{! An executable for a generated package that calls into every module (dead-code). Each `modules` entry has the module's index `k` and name `name`. }}
+{{#each modules}}
+use pkg.{{name}}.{Item{{k}}, Status{{k}}, label{{k}}, shape{{k}}, total{{k}}}
+{{/each}}
+
+pub fn main() -> void $ Console:
+    let sum: i64 = 0
+{{#each modules}}
+    sum = sum + i64(shape{{k}}({{k}}))
+    sum = sum + total{{k}}([Item{{k}} { name: "n{{k}}", price: {{price}}, count: 2 }])
+    sum = sum + i64(label{{k}}(Status{{k}}.Paid({{k}})).len())
+{{/each}}
+    println("${sum}")

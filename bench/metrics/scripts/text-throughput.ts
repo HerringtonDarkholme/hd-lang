@@ -5,17 +5,17 @@
 // - build: a StringBuilder (Node: an array and join) of 100,000 words, N times;
 // - split: `split(" ")` of a text of 100,000 words, N times;
 // - regex: `find_all` of `[a-z]+-[0-9]+` over that text, N times.
-// Each hd program is built at two sizes, N = small and N = large; the time
-// per unit is the median of (large run i - small run i) / (large - small),
-// after a warm-up. The bytes per unit are the printed text length.
-// Node does the same in its own process. Each build
-// produces the same text; only the number of repetitions changes.
+// Each hd program (fixtures/text-throughput/) is built at two sizes, N =
+// small and N = large; the time per unit is the median of (large run i -
+// small run i) / (large - small), after a warm-up. The bytes per unit are
+// the printed text length. Node does the same in its own process. Each
+// build produces the same text; only the number of repetitions changes.
 // Target (Pillar 3): within 2x of Node, so hd MB/s / Node MB/s ≥ 0.5.
 // n/a: never; a program that fails to build or run fails its line.
 
 import { howNote, nodeMedian, printed, runNodeProgram, scaledCost } from "../lib/artifact.ts";
 import type { TargetResult } from "../lib/metric.ts";
-import { failed, formatValue, judge, type Metric } from "../lib/metric.ts";
+import { errorText, failed, formatValue, judge, type Metric } from "../lib/metric.ts";
 
 const NAME = "text-throughput";
 const WORDS = 100_000;
@@ -24,19 +24,10 @@ const TIMEOUT_MS = 120_000;
 const LIMIT = 0.5;
 const MB = 1024 * 1024;
 
-const builder = (words: string): string[] => [
-  "    let mut builder = StringBuilder::new()",
-  `    let words: i64 = ${words}`,
-  "    for i in 0..words:",
-  '        builder.push("word-${i} ")',
-  "    text := builder.build()",
-];
-
 interface Operation {
   readonly name: "build" | "split" | "regex";
   readonly label: string;
   readonly sizes: { readonly small: number; readonly large: number };
-  readonly source: (size: number) => string;
   /** Bytes of work per unit of size, from the large program's output. */
   readonly bytesPerUnit: (
     largeOutput: string,
@@ -45,32 +36,11 @@ interface Operation {
   ) => number;
 }
 
-const program = (body: readonly string[]): string =>
-  [
-    "use std.regex.Regex",
-    "use std.text.StringBuilder",
-    "",
-    "pub fn main() -> void $ Console:",
-    ...body,
-    "",
-  ].join("\n");
-
 const OPERATIONS: readonly Operation[] = [
   {
     name: "build",
     label: "string build, hd / Node MB/s",
     sizes: { small: 1, large: 11 },
-    source: (size) =>
-      program([
-        "    let total: usize = 0",
-        "    let bytes: usize = 0",
-        `    let repeat: i64 = ${size}`,
-        "    for k in 0..repeat:",
-        ...builder(String(WORDS)).map((line) => `    ${line}`),
-        "        bytes = text.len()",
-        "        total = total + bytes",
-        '    println("bytes=${bytes} total=${total}")',
-      ]),
     bytesPerUnit: (large, sizes, small) => {
       const bytes = printed(large, "bytes");
       if (
@@ -86,31 +56,12 @@ const OPERATIONS: readonly Operation[] = [
     name: "split",
     label: "split, hd / Node MB/s",
     sizes: { small: 1, large: 11 },
-    source: (size) =>
-      program([
-        ...builder(String(WORDS)),
-        "    let total: usize = 0",
-        `    let repeat: i64 = ${size}`,
-        "    for k in 0..repeat:",
-        '        total = total + text.split(" ").len()',
-        '    println("bytes=${text.len()} total=${total}")',
-      ]),
     bytesPerUnit: (large) => printed(large, "bytes"),
   },
   {
     name: "regex",
     label: "regex find_all, hd / Node MB/s",
     sizes: { small: 1, large: 6 },
-    source: (size) =>
-      program([
-        ...builder(String(WORDS)),
-        '    pattern := Regex::new("[a-z]+-[0-9]+").expect("the pattern")',
-        "    let total: usize = 0",
-        `    let repeat: i64 = ${size}`,
-        "    for k in 0..repeat:",
-        "        total = total + pattern.find_all(text).len()",
-        '    println("bytes=${text.len()} total=${total}")',
-      ]),
     bytesPerUnit: (large) => printed(large, "bytes"),
   },
 ];
@@ -145,8 +96,7 @@ export const textThroughput: Metric = {
     try {
       node = await runNodeProgram(NODE_BODY, "text");
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      return OPERATIONS.map((operation) => failed(NAME, operation.label, target, reason));
+      return OPERATIONS.map((operation) => failed(NAME, operation.label, target, errorText(error)));
     }
     context.log(`${NAME}: build, split and regex, ${RUNS} runs at each of two sizes`);
     const results: TargetResult[] = [];
@@ -154,11 +104,12 @@ export const textThroughput: Metric = {
       try {
         const measured = await scaledCost(
           context.hd,
-          operation.source,
+          `text-throughput/${operation.name}`,
+          "repeat",
           operation.sizes,
-          `text ${operation.name}`,
           RUNS,
           TIMEOUT_MS,
+          { words: WORDS },
         );
         if (measured.msPerUnit <= 0) throw new Error("no work measured beyond start-up");
         const bytes = operation.bytesPerUnit(measured.large, operation.sizes, measured.small);
@@ -179,14 +130,7 @@ export const textThroughput: Metric = {
           ),
         );
       } catch (error) {
-        results.push(
-          failed(
-            NAME,
-            operation.label,
-            target,
-            error instanceof Error ? error.message : String(error),
-          ),
-        );
+        results.push(failed(NAME, operation.label, target, errorText(error)));
       }
     }
     return results;

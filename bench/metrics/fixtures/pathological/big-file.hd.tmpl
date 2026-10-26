@@ -1,0 +1,13 @@
+{{! One file of ordinary functions, one per `functions` entry, numbered `i`, with a `modulus` and a `step`. }}
+{{#each functions}}
+fn step_{{i}}(x: i32, y: i32) -> i32:
+    let acc = x
+    for i in +0..y:
+        if i % {{modulus}} == 0:
+            acc = acc + i
+        else:
+            acc = acc - {{step}}
+    acc
+
+
+{{/each}}

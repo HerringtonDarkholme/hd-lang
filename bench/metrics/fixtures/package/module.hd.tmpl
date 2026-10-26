@@ -1,0 +1,72 @@
+{{! One module of a generated package (lib/gen.ts). `k` and `name` are the module's index and name; each `deps` entry is a module it imports, with index `j` and name `jname`. `int A B` draws a seeded integer from A to B. The edit sites the metrics use are `let bump = +1` in `tweak` and the signature of `shape`. }}
+# Module {{k}}: line items, order states, and their labels.
+use std.testing.assert_equal
+{{#each deps}}
+use pkg.{{jname}}.{Item{{j}}, shape{{j}}, total{{j}}}
+{{/each}}
+
+## A line item of module {{k}}.
+pub struct Item{{k}}:
+    pub name: string
+    pub price: i64
+    pub count: i32
+
+## The state of an order.
+@derive(Eq)
+pub enum Status{{k}}:
+    Pending
+    Paid(amount: i64)
+    Shipped(code: string, days: i32)
+    Cancelled(reason: string)
+
+## Something with a cost.
+pub trait Costed{{k}}:
+    fn cost(self) -> i64
+
+impl Costed{{k}} for Item{{k}}:
+    fn cost(self) -> i64:
+        self.price * i64(self.count)
+
+## The label of a status.
+pub fn label{{k}}(status: Status{{k}}) -> string:
+    match status:
+        .Pending => "pending"
+        .Paid(amount) => "paid ${amount}"
+        .Shipped(code, days) => "shipped ${code} in ${days} days"
+        .Cancelled(reason) => "cancelled: ${reason}"
+
+## The total cost of the items.
+pub fn total{{k}}(items: List[Item{{k}}]) -> i64:
+    let sum: i64 = 0
+    for item in items:
+        sum = sum + item.cost()
+    sum
+
+## A public function whose signature the recheck metric edits.
+pub fn shape{{k}}(x: i32) -> i32:
+    x * {{int 2 9}} + tweak{{k}}(x)
+
+fn tweak{{k}}(x: i32) -> i32:
+    let bump = +1
+    x + bump
+
+fn find{{k}}(items: List[Item{{k}}], name: string) -> Item{{k}}?:
+    for item in items:
+        if item.name == name:
+            return item
+    .None
+
+{{#each deps}}
+## Uses module {{j}}.
+pub fn bridge{{k}}_{{j}}(items: List[Item{{j}}]) -> i64:
+    total{{j}}(items) + i64(shape{{j}}({{int 1 9}}))
+
+{{/each}}
+{{helpers}}
+tests:
+    it("{{test}}a totals items"):
+        items := [Item{{k}} { name: "{{word}}", price: 3, count: 2 }]
+        assert_equal(total{{k}}(items), 6, reason="price times count")
+
+    it("{{test}}b labels a status"):
+        assert_equal(label{{k}}(Status{{k}}.Paid(5)), "paid 5", reason="paid label")

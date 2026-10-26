@@ -18,8 +18,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  buildFixture,
   buildProgram,
   howNote,
+  MICRO_CASES,
+  microPackage,
   nodeMedian,
   runNodeProgram,
   timeInterleaved,
@@ -27,7 +30,7 @@ import {
 } from "../lib/artifact.ts";
 import { runProcess } from "../lib/hd.ts";
 import type { MetricContext, TargetResult } from "../lib/metric.ts";
-import { failed, judge, type Metric } from "../lib/metric.ts";
+import { errorText, failed, judge, type Metric } from "../lib/metric.ts";
 import { geomean, spread } from "../lib/stats.ts";
 import { makeTempDir } from "../lib/tmp.ts";
 
@@ -37,21 +40,7 @@ const TIMEOUT_MS = 60_000;
 const GEOMEAN_LIMIT = 1.5;
 const CASE_LIMIT = 3;
 
-/** The cases of bench/micro, as their JavaScript and Python files name them. */
-export const MICRO_CASES = ["fib", "sum", "string-build", "map", "sort"] as const;
-
-/** A program with no work, to subtract start-up from each case. */
-export const BASELINE_PROGRAM = [
-  "pub fn main() -> void:",
-  '    if 1 + 1 != 2: panic("wrong")',
-  "",
-].join("\n");
-
 const microDir = (context: MetricContext): string => join(context.repoRoot, "bench", "micro");
-
-/** The hd source of a micro case; hd module paths spell `-` as `_`. */
-export const microSource = (context: MetricContext, name: string): string =>
-  readFileSync(join(microDir(context), `${name.replaceAll("-", "_")}.hd`), "utf8");
 
 /**
  * The self-timing Node body for a micro case: the case's own `main`, with
@@ -88,10 +77,11 @@ export const runtime: Metric = {
     const ratios: number[] = [];
     let baseline: Program;
     try {
-      baseline = await buildProgram(context.hd, BASELINE_PROGRAM, "runtime-baseline");
+      baseline = await buildFixture(context.hd, "runtime/baseline");
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      return [failed(NAME, "geomean hd / Node", `≤ ${GEOMEAN_LIMIT.toFixed(2)}x`, reason)];
+      return [
+        failed(NAME, "geomean hd / Node", `≤ ${GEOMEAN_LIMIT.toFixed(2)}x`, errorText(error)),
+      ];
     }
     context.log(`${NAME}: ${MICRO_CASES.length} cases, ${RUNS} runs each after a warm-up`);
     for (const name of MICRO_CASES) {
@@ -100,7 +90,7 @@ export const runtime: Metric = {
       try {
         const program = await buildProgram(
           context.hd,
-          microSource(context, name),
+          microPackage(context, name),
           `runtime-${name}`,
         );
         const [caseMs, baseMs] = await timeInterleaved(
@@ -124,9 +114,7 @@ export const runtime: Metric = {
         ratios.push(ratio);
         results.push(judge(NAME, label, ratio, CASE_LIMIT, "x", "at-most", note));
       } catch (error) {
-        results.push(
-          failed(NAME, label, target, error instanceof Error ? error.message : String(error)),
-        );
+        results.push(failed(NAME, label, target, errorText(error)));
       }
     }
     const allMeasured = ratios.length === MICRO_CASES.length;

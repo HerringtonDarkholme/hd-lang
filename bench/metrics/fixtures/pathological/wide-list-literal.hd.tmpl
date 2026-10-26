@@ -1,0 +1,8 @@
+{{! One list literal of integers; each `rows` entry holds 20 `values`. }}
+fn run() -> usize:
+    let values: List[i64] = [
+{{#each rows}}
+        {{values}},
+{{/each}}
+    ]
+    values.len()

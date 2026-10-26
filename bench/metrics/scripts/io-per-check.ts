@@ -14,9 +14,8 @@ import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 
 import { findCompileCache } from "../lib/capability.ts";
-import { editBody } from "../lib/gen.ts";
-import { editFile, freshCache, materialize, runProblem } from "../lib/fixture.ts";
-import { runProcess, runHd } from "../lib/hd.ts";
+import { editBody, editFile, materialize } from "../lib/gen.ts";
+import { freshCache, runHd, runProblem, runProcess } from "../lib/hd.ts";
 import { failed, judge, notApplicable, type Metric } from "../lib/metric.ts";
 import { makeTempDir } from "../lib/tmp.ts";
 import { fileTracer, parseStrace } from "../lib/trace.ts";

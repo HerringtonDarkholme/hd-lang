@@ -1,0 +1,21 @@
+{{! An enum of one variant per `variants` entry, numbered `i`, every third with a payload, and an exhaustive match over it. }}
+enum Code:
+{{#each variants}}
+{{#if payload}}
+    V{{i}}(amount: i32)
+{{/if}}
+{{#unless payload}}
+    V{{i}}
+{{/unless}}
+{{/each}}
+
+fn weight(code: Code) -> i32:
+    match code:
+{{#each variants}}
+{{#if payload}}
+        .V{{i}}(amount) => amount + {{i}}
+{{/if}}
+{{#unless payload}}
+        .V{{i}} => {{i}}
+{{/unless}}
+{{/each}}

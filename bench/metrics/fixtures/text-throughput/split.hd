@@ -1,0 +1,14 @@
+# Splits a text of 100,000 words `word-I ` at spaces, `repeat` times.
+use std.text.StringBuilder
+
+pub fn main() -> void $ Console:
+    builder := StringBuilder::new()
+    let words: i64 = 100000  # param: words
+    for i in 0..words:
+        builder.push("word-${i} ")
+    text := builder.build()
+    let total: usize = 0
+    let repeat: i64 = 1  # param: repeat
+    for _ in 0..repeat:
+        total = total + text.split(" ").len()
+    println("bytes=${text.len()} total=${total}")

@@ -12,10 +12,10 @@
 // n/a: no git on PATH, no `hd add`, or an `hd add` that writes nothing under HD_CACHE.
 
 import { prepareDependent } from "../lib/deps.ts";
-import { copyPackage, runProblem } from "../lib/fixture.ts";
-import { runHd } from "../lib/hd.ts";
+import { runHd, runProblem } from "../lib/hd.ts";
 import { failed, judgeBool, notApplicable, type Metric } from "../lib/metric.ts";
 import { makeTempDir } from "../lib/tmp.ts";
+import { copyPackage } from "../lib/gen.ts";
 
 const NAME = "fetch-dedup";
 const WORKTREES = 4;

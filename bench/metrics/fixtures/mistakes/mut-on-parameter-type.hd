@@ -1,0 +1,11 @@
+# mistake: `mut` on a parameter's type instead of before its name
+# log: 2026-09-29 property-test trial; 2026-10-05 usability probe
+# expect: mut-on-struct
+# cascade: non-reassignable-parameter-binding
+# fixed: fn bump(mut counter: Counter) -> void:
+
+struct Counter:
+    hits: i32
+
+fn bump(counter: mut Counter) -> void:  # diagnostic: mut-on-struct
+    counter.hits = counter.hits + 1

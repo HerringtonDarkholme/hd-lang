@@ -1,0 +1,48 @@
+# Eight of the semantic errors and two syntax errors, so a parser must
+# recover.
+fn label(n: i32) -> string:
+    let text: string = n  # diagnostic: type-mismatch
+    text
+
+
+fn negate(ready: bool) -> bool:
+    not ready  # diagnostic: syntax-error
+
+
+fn shout(text: string) -> string:
+    text.shout()  # diagnostic: unknown-method
+
+
+fn add(a: i32, b: i32) -> i32:
+    a + b
+
+fn three() -> i32:
+    add(1)  # diagnostic: argument-count
+
+
+fn width(text: Strng) -> usize:  # diagnostic: unknown-type
+    0
+
+
+fn pieces(text: string) -> List[string]:
+    let found: List[string] = []
+    found.push(text)  # diagnostic: not-writable
+    found
+
+
+fn first(pair: (string, i32)) -> string:
+    pair.0  # diagnostic: syntax-error
+
+
+fn grow(base: i64, values: List[i64]) -> i64:
+    base + values.len()  # diagnostic: mixed-signedness
+
+
+fn hello(name: string?) -> string:
+    "hello ${name}"  # diagnostic: unsatisfied-trait-bound
+
+
+fn table() -> Map[string, i32]:
+    let scores: Map[string, i32] = {}
+    scores["ada"] = 1  # diagnostic: not-writable
+    scores

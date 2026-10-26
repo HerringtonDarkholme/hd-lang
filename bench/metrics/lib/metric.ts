@@ -172,3 +172,7 @@ export const failed = (
   target: string,
   reason: string,
 ): TargetResult => ({ metric, name, value: "-", target, status: "fail", note: reason });
+
+/** The message of a thrown value, for a failed line's note. */
+export const errorText = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);

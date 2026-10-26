@@ -1,4 +1,4 @@
-// The single-mistake corpus in bench/metrics/mistakes/.
+// The single-mistake corpus in bench/metrics/fixtures/mistakes/.
 //
 // Each program holds exactly one mistake, taken from docs/audit/hd-writing-log.md.
 // Its header comments say what the mistake is and which code the
@@ -18,9 +18,16 @@
 // starts another line; `# fixed-lines: N` makes it replace N lines from the
 // marked one. The corpus check uses it to confirm that the program
 // holds no other mistake; no metric reads it as the expected fix-it.
+// `# cascade: CODE, ...` is optional too: codes that hd also reports today
+// as a consequence of the one mistake, such as `not-writable` after a
+// rejected `mut`. check-fixtures.ts allows them and no other code; the
+// `mistakes` metric still counts such a program as more than one
+// diagnostic.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+
+import { FIXTURES } from "./fixtures.ts";
 
 export interface Mistake {
   /** The file name without `.hd`. */
@@ -36,6 +43,8 @@ export interface Mistake {
   readonly line: number;
   /** The corrected program, when the header gives one. */
   readonly fixedText?: string;
+  /** Codes hd may also report as a consequence of the mistake. */
+  readonly cascade: readonly string[];
 }
 
 const header = (text: string, name: string): string | undefined =>
@@ -71,12 +80,16 @@ export function parseMistake(name: string, file: string, text: string): Mistake 
     code,
     severity: match[1] === "warning" ? "warning" : "error",
     line: index + 1,
+    cascade: (header(text, "cascade") ?? "")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean),
     ...(fixedText === undefined ? {} : { fixedText }),
   };
 }
 
 /** Every program of the corpus directory, sorted by name. */
-export function loadMistakes(dir: string): Mistake[] {
+export function loadMistakes(dir = join(FIXTURES, "mistakes")): Mistake[] {
   return readdirSync(dir)
     .filter((entry) => entry.endsWith(".hd"))
     .sort()

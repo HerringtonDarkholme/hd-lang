@@ -3,9 +3,9 @@
 //
 // The document is a list of 200 orders, each with an id, a customer name,
 // a flag, an optional note, a list of tags, and 3 line records: about
-// 45 KB of JSON. In hd the types derive Serialize and Deserialize, and the
-// program encodes (`std.json.encode`) or decodes (`std.json.decode`) the
-// document N times. Two builds, N = SMALL and N = LARGE, give the time
+// 45 KB of JSON. In hd (fixtures/serde-throughput/) the types derive
+// Serialize and Deserialize, and the program encodes (`std.json.encode`)
+// or decodes (`std.json.decode`) the document N times. Two builds, N = SMALL and N = LARGE, give the time
 // per operation as the median of (large run i - small run i) / (LARGE -
 // SMALL), after a warm-up. Node builds the same objects and times
 // JSON.stringify and JSON.parse in its own process.
@@ -14,7 +14,7 @@
 
 import { howNote, nodeMedian, printed, runNodeProgram, scaledCost } from "../lib/artifact.ts";
 import type { TargetResult } from "../lib/metric.ts";
-import { failed, formatValue, judge, type Metric } from "../lib/metric.ts";
+import { errorText, failed, formatValue, judge, type Metric } from "../lib/metric.ts";
 
 const NAME = "serde-throughput";
 const ORDERS = 200;
@@ -23,60 +23,6 @@ const RUNS = 5;
 const TIMEOUT_MS = 120_000;
 const LIMIT = 0.5;
 const MB = 1024 * 1024;
-
-const DOCUMENT = [
-  "use std.json.{decode, encode}",
-  "use std.serde.{Deserialize, Serialize}",
-  "",
-  "@derive(Serialize, Deserialize)",
-  "data Line:",
-  "    sku: string",
-  "    quantity: i32",
-  "    price: f64",
-  "",
-  "@derive(Serialize, Deserialize)",
-  "data Order:",
-  "    id: i64",
-  "    customer: string",
-  "    paid: bool",
-  "    note: string?",
-  "    tags: List[string]",
-  "    lines: List[Line]",
-  "",
-  "fn orders(count: i64) -> List[Order]:",
-  "    let out: mut List[Order] = []",
-  "    for i in 0..count:",
-  "        let lines: mut List[Line] = []",
-  "        for j in 0..3:",
-  '            lines.push(Line { sku: "SKU-${i}-${j}", quantity: i32(j + 1), price: 9.5 })',
-  '        let note: string? = if i % 3 == 0: .Some("leave at door") else: .None',
-  '        out.push(Order { id: i, customer: "customer ${i}", paid: i % 2 == 0, note: note, tags: ["web", "eu"], lines: lines })',
-  "    out",
-  "",
-];
-
-/** The hd program that encodes, or decodes, the document `repeat` times. */
-export function serdeProgram(operation: "encode" | "decode", repeat: number): string {
-  const body =
-    operation === "encode"
-      ? ["        total = total + encode(docs).len()"]
-      : [
-          '        back := decode::[List[Order]](text).expect("the document decodes")',
-          "        total = total + back.len()",
-        ];
-  return [
-    ...DOCUMENT,
-    "pub fn main() -> void $ Console:",
-    `    docs := orders(${ORDERS})`,
-    "    text := encode(docs)",
-    "    let total: usize = 0",
-    `    let repeat: i64 = ${repeat}`,
-    "    for k in 0..repeat:",
-    ...body,
-    '    println("bytes=${text.len()} total=${total}")',
-    "",
-  ].join("\n");
-}
 
 const NODE_BODY = `
 const orders = [];
@@ -108,8 +54,7 @@ export const serdeThroughput: Metric = {
     try {
       node = await runNodeProgram(NODE_BODY, "serde");
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      return labels.map((label) => failed(NAME, label, target, reason));
+      return labels.map((label) => failed(NAME, label, target, errorText(error)));
     }
     context.log(
       `${NAME}: ${ORDERS} orders, ${SIZES.small} and ${SIZES.large} operations, ${RUNS} runs each`,
@@ -120,11 +65,12 @@ export const serdeThroughput: Metric = {
       try {
         const measured = await scaledCost(
           context.hd,
-          (repeat) => serdeProgram(operation, repeat),
+          `serde-throughput/${operation}`,
+          "repeat",
           SIZES,
-          `serde ${operation}`,
           RUNS,
           TIMEOUT_MS,
+          { orders: ORDERS },
         );
         const bytes = printed(measured.large, "bytes");
         if (measured.msPerUnit <= 0) throw new Error("no work measured beyond start-up");
@@ -142,9 +88,7 @@ export const serdeThroughput: Metric = {
           ),
         );
       } catch (error) {
-        results.push(
-          failed(NAME, label, target, error instanceof Error ? error.message : String(error)),
-        );
+        results.push(failed(NAME, label, target, errorText(error)));
       }
     }
     return results;

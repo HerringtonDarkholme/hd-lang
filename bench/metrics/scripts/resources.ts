@@ -14,9 +14,8 @@
 // Targets (Pillar 2): warm check of 10k lines ≤ 0.2 CPU-s and ≤ 50 MB.
 // n/a: every line, when there is no /usr/bin/time to measure with.
 
-import type { SizeName } from "../lib/gen.ts";
-import { addExecutable, copyPackage, freshCache, materialize, runProblem } from "../lib/fixture.ts";
-import { canMeasure, runHd, type RunResult } from "../lib/hd.ts";
+import { addExecutable, copyPackage, materialize, type SizeName } from "../lib/gen.ts";
+import { canMeasure, freshCache, runHd, runProblem, type RunResult } from "../lib/hd.ts";
 import {
   failed,
   formatValue,

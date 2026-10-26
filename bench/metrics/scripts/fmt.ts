@@ -5,10 +5,10 @@
 // Targets (Pillar 1): ≤ 200 ms; idempotent.
 // n/a: both lines, when `hd help fmt` fails (no formatter).
 
-import { materialize, runProblem } from "../lib/fixture.ts";
-import { runHd, supportsCommand } from "../lib/hd.ts";
+import { runHd, runProblem, supportsCommand } from "../lib/hd.ts";
 import { failed, judge, judgeBool, notApplicable, type Metric } from "../lib/metric.ts";
 import { readTree } from "../lib/tmp.ts";
+import { materialize } from "../lib/gen.ts";
 
 const NAME = "fmt";
 const TIMEOUT_MS = 30_000;

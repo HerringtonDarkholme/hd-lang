@@ -12,9 +12,8 @@
 import { availableParallelism } from "node:os";
 
 import { findThreadControl, helpText, type ThreadControl } from "../lib/capability.ts";
-import type { SizeName } from "../lib/gen.ts";
-import { copyPackage, freshCache, materialize, runProblem } from "../lib/fixture.ts";
-import { runHd } from "../lib/hd.ts";
+import { copyPackage, materialize, type SizeName } from "../lib/gen.ts";
+import { freshCache, runHd, runProblem } from "../lib/hd.ts";
 import { failed, judge, notApplicable, type Metric } from "../lib/metric.ts";
 
 const NAME = "parallel-speedup";

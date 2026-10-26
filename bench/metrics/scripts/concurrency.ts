@@ -16,8 +16,7 @@
 
 import { availableParallelism } from "node:os";
 
-import { copyPackage, freshCache, materialize, runProblem } from "../lib/fixture.ts";
-import { canMeasure, runHd, type RunResult } from "../lib/hd.ts";
+import { canMeasure, freshCache, runHd, runProblem, type RunResult } from "../lib/hd.ts";
 import type { MetricContext } from "../lib/metric.ts";
 import {
   failed,
@@ -30,6 +29,7 @@ import {
 } from "../lib/metric.ts";
 import { growthExponent, p50, p95 } from "../lib/stats.ts";
 import { removeTempDir } from "../lib/tmp.ts";
+import { copyPackage, materialize } from "../lib/gen.ts";
 
 const NAME = "concurrency";
 const TIMEOUT_MS = 60_000;

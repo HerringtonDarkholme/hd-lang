@@ -1,0 +1,8 @@
+{{! `if` blocks nested one per `levels` entry, `level` deep, with `indent` the entry's indentation. }}
+fn run(n: i32) -> i32:
+    let total = n
+{{#each levels}}
+{{indent}}if total > {{level}}:
+{{indent}}    total = total - 1
+{{/each}}
+    total

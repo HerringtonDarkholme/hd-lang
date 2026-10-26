@@ -1,0 +1,4 @@
+use dep.dep.{twice}
+
+pub fn quad(x: i32) -> i32:
+    twice(twice(x))

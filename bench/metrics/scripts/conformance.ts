@@ -5,7 +5,8 @@
 // - known failures: the rows of KNOWN_FAILURES.tsv;
 // - pass rate (only with --suite): runs the two cargo conformance tiers in
 //   the repository root (`hd_driver --test conformance` and
-//   `hd_cli --test cli_conformance`; the `--hd` command is not used) and
+//   `hd_cli --test cli_conformance --features wasmtime`, as CI runs the CLI
+//   cases with the wasmtime engine; the `--hd` command is not used) and
 //   reads their summary lines: passed / (total - known).
 // It takes minutes, so the pass rate runs only with --suite.
 // Targets (gate): 100% of the cases not listed; 0 known failures.
@@ -24,15 +25,16 @@ const RATE_TARGET = "≥ 100.0%";
 const KNOWN_LABEL = "listed known failures";
 const KNOWN_TARGET = "≤ 0";
 const TIMEOUT_MS = 30 * 60_000;
+/** Each tier's crate, test target and cargo features. */
 const TIERS = [
-  ["hd_driver", "conformance"],
-  ["hd_cli", "cli_conformance"],
+  ["hd_driver", "conformance", []],
+  ["hd_cli", "cli_conformance", ["--features", "wasmtime"]],
 ] as const;
 
 /**
  * The counts of the conformance tiers' summary lines
- * (`driver conformance on node: pass N, known K, fail F, unsupported U, total T`),
- * summed over every tier in the output.
+ * (`driver conformance on node, dev pipeline: pass N, known K, fail F,
+ * unsupported U, total T`), summed over every tier in the output.
  */
 export function conformanceCounts(
   output: string,
@@ -41,7 +43,7 @@ export function conformanceCounts(
   let selected = 0;
   let found = false;
   for (const line of output.matchAll(
-    /^\S+ conformance on \S+: pass (\d+), known (\d+), fail \d+, unsupported \d+, total (\d+)$/gm,
+    /^\S+ conformance on [^:\n]+: pass (\d+), known (\d+), fail \d+, unsupported \d+, total (\d+)$/gm,
   )) {
     found = true;
     passed += Number(line[1]);
@@ -76,12 +78,15 @@ export const conformance: Metric = {
       ];
     context.log(`${NAME}: the cargo conformance tiers, up to ${TIMEOUT_MS / 60_000} min`);
     let output = "";
-    for (const [crate, test] of TIERS) {
-      const result = await runProcess(["cargo", "test", "-q", "-p", crate, "--test", test], {
-        cwd: context.repoRoot,
-        timeoutMs: TIMEOUT_MS,
-        env: { HD_CACHE: makeTempDir(`${NAME}-cache`) },
-      });
+    for (const [crate, test, features] of TIERS) {
+      const result = await runProcess(
+        ["cargo", "test", "-q", "-p", crate, "--test", test, ...features],
+        {
+          cwd: context.repoRoot,
+          timeoutMs: TIMEOUT_MS,
+          env: { HD_CACHE: makeTempDir(`${NAME}-cache`) },
+        },
+      );
       if (result.timedOut)
         return [failed(NAME, RATE_LABEL, RATE_TARGET, `${test} timed out`), knownLine];
       output += result.stdout;

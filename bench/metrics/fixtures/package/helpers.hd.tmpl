@@ -1,0 +1,47 @@
+{{! The helper functions of a generated module (lib/gen.ts), one per paragraph. The generator draws 6 to 12 of them per module; `k` is the module's index and `h` the helper's. }}
+fn step{{k}}_{{h}}(x: i32, y: i32) -> i32:
+    let acc = x
+    for i in +0..y:
+        if i % {{int 2 7}} == 0:
+            acc = acc + i
+        else:
+            acc = acc - {{int 1 9}}
+    acc
+
+fn classify{{k}}_{{h}}(n: i32) -> string:
+    if n < 0:
+        "negative"
+    else if n == 0:
+        "zero"
+    else if n > {{int 10 900}}:
+        "large ${n}"
+    else:
+        "small ${n}"
+
+fn collect{{k}}_{{h}}(limit: i32) -> List[i32]:
+    let mut out: List[i32] = []
+    for i in +0..limit:
+        out.push(i * {{int 2 9}})
+    out
+
+fn describe{{k}}_{{h}}(item: Item{{k}}) -> string:
+    tag := if item.count > {{int 1 20}}: "bulk" else: "single"
+    "${item.name} x${item.count} (${tag})"
+
+fn priced{{k}}_{{h}}(items: List[Item{{k}}], name: string) -> i64?:
+    item := find{{k}}(items, name)?
+    item.cost() + {{int 1 99}}
+
+fn weight{{k}}_{{h}}(status: Status{{k}}) -> i32:
+    match status:
+        .Pending => {{int 0 9}}
+        .Paid(amount) => i32(amount % {{int 3 50}})
+        .Shipped(code, days) => days + i32(code.len())
+        .Cancelled(_) => -1
+
+fn sum_words{{k}}_{{h}}(words: List[string]) -> usize:
+    let total: usize = 0
+    for word in words:
+        if word.len() > {{int 1 6}}:
+            total = total + word.len()
+    total

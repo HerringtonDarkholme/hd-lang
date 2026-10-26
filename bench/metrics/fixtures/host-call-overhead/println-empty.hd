@@ -1,0 +1,11 @@
+# The println loop without the call.
+use std.fs.{FsRead, read_text}
+use std.path.Path
+
+pub fn main!() -> void $ Console + FsRead:
+    let total: usize = 0
+    let i: i64 = 0
+    while i < 100000:  # param: count
+        total = total + 1
+        i = i + 1
+    println("total ${total}")

@@ -16,13 +16,28 @@ import { accessSync, constants, readFileSync, statSync, writeFileSync } from "no
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { copyPackage, firstLines, runProblem } from "./fixture.ts";
-import { runHd, runProcess, supportsFlag, type HdCommand, type RunResult } from "./hd.ts";
+import {
+  manifest,
+  PACKAGE,
+  programFiles,
+  writePackage,
+  type Files,
+  type Params,
+  type ProgramName,
+} from "./fixtures.ts";
+import { copyPackage } from "./gen.ts";
+import {
+  firstLines,
+  type HdCommand,
+  runHd,
+  runProblem,
+  runProcess,
+  type RunResult,
+  supportsFlag,
+} from "./hd.ts";
+import type { MetricContext } from "./metric.ts";
 import { p50 } from "./stats.ts";
-import { listTree, makeTempDir, removeTempDir, writeTree } from "./tmp.ts";
-
-/** The package name of every built program; the executable takes it. */
-export const PACKAGE = "bench";
+import { listTree, makeTempDir, removeTempDir } from "./tmp.ts";
 
 export interface Program {
   /** The package directory, the working directory of every run. */
@@ -81,42 +96,44 @@ export function pickArtifact(
   return native ? { path: native, kind: "native" } : undefined;
 }
 
-/** `[package]` with the name every program shares. */
-export const MANIFEST = `[package]\nname = "${PACKAGE}"\n`;
+/** The cases of bench/micro, as their JavaScript and Python files name them. */
+export const MICRO_CASES = ["fib", "sum", "string-build", "map", "sort"] as const;
 
-/**
- * Writes a package whose `src/main.hd` is `main` (or the given files, which
- * then hold `hd.toml` too) and builds it. Throws when the build fails.
- */
+/** The name of a bench/micro case's hd file: hd module paths spell `-` as `_`. */
+export const microFile = (name: string): string => `${name.replaceAll("-", "_")}.hd`;
+
+/** The source of a bench/micro case in hd. */
+export const microSource = (context: MetricContext, name: string): string =>
+  readFileSync(join(context.repoRoot, "bench", "micro", microFile(name)), "utf8");
+
+/** The package of a bench/micro case: its hd file as `src/main.hd`. */
+export const microPackage = (context: MetricContext, name: string): Files =>
+  new Map([
+    ["hd.toml", manifest(PACKAGE)],
+    ["src/main.hd", microSource(context, name)],
+  ]);
+
+/** Writes a package (lib/fixtures.ts) and builds it. Throws when the build fails. */
 export async function buildProgram(
   hd: HdCommand,
-  main: string | ReadonlyMap<string, string>,
+  files: Files,
   label: string,
   timeoutMs = 120_000,
 ): Promise<Program> {
-  const dir = makeTempDir(label);
-  writeTree(
-    dir,
-    typeof main === "string"
-      ? new Map([
-          ["hd.toml", MANIFEST],
-          ["src/main.hd", main],
-        ])
-      : main,
-  );
+  const dir = writePackage(label, files);
   const release = await hasReleaseBuild(hd);
   const args = release ? ["build", "--release"] : ["build"];
   const result = await runHd(hd, args, { cwd: dir, timeoutMs });
   const problem = runProblem(result, timeoutMs, `hd ${args.join(" ")} (${label})`);
   if (problem) throw new Error(problem);
   const buildDir = join(dir, "build");
-  let files: string[] = [];
+  let built: string[] = [];
   try {
-    files = listTree(buildDir);
+    built = listTree(buildDir);
   } catch {
     // No build directory: the program runs through `hd run`.
   }
-  const found = pickArtifact(files, release, (path) => isExecutable(join(buildDir, path)));
+  const found = pickArtifact(built, release, (path) => isExecutable(join(buildDir, path)));
   if (!found)
     return {
       dir,
@@ -134,6 +151,14 @@ export async function buildProgram(
     release,
   };
 }
+
+/** Builds the program fixture `name` (lib/fixtures.ts PROGRAMS) with `params`. */
+export const buildFixture = (
+  hd: HdCommand,
+  name: ProgramName,
+  params: Params = {},
+  label: string = name.replaceAll("/", "-"),
+): Promise<Program> => buildProgram(hd, programFiles(name, params), label);
 
 /** A note on how a program ran, for a result line. */
 export const howNote = (program: Program): string =>
@@ -200,27 +225,28 @@ export async function timeWithOutput(
 }
 
 /**
- * Builds a program at two sizes, `source(small)` and `source(large)`, times
- * both (`timeWithOutput`), and returns the median ms per unit of size, with
- * the large program and both outputs.
+ * Builds the program fixture `name` with its param `param` at two sizes,
+ * and `params` for the rest, times both (`timeWithOutput`), and returns
+ * the median ms per unit of size, with the large program and both outputs.
  */
 export async function scaledCost(
   hd: HdCommand,
-  source: (size: number) => string,
+  name: ProgramName,
+  param: string,
   sizes: { readonly small: number; readonly large: number },
-  label: string,
   runs: number,
   timeoutMs: number,
+  params: Params = {},
 ): Promise<{
   readonly msPerUnit: number;
   readonly program: Program;
   readonly small: string;
   readonly large: string;
 }> {
-  const tag = label.replaceAll(/[^a-z0-9]+/gi, "-");
-  const small = await buildProgram(hd, source(sizes.small), `${tag}-small`);
-  const large = await buildProgram(hd, source(sizes.large), `${tag}-large`);
-  const { samples, outputs } = await timeWithOutput([large, small], runs, label, timeoutMs);
+  const tag = name.replaceAll("/", "-");
+  const small = await buildFixture(hd, name, { ...params, [param]: sizes.small }, `${tag}-small`);
+  const large = await buildFixture(hd, name, { ...params, [param]: sizes.large }, `${tag}-large`);
+  const { samples, outputs } = await timeWithOutput([large, small], runs, name, timeoutMs);
   return {
     msPerUnit: unitCost(samples[0]!, samples[1]!, sizes.large - sizes.small),
     program: large,

@@ -1,0 +1,4 @@
+# A test with no work, to subtract build and start-up time.
+tests:
+    it("empty"):
+        pass

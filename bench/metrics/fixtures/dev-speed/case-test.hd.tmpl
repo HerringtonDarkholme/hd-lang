@@ -1,0 +1,7 @@
+{{! A bench/micro case as a test (dev-speed): `case` is the case's source with its `main` renamed `case_main`, which one test case runs `repeat` times, so the optimized pipeline's work stays above the noise. }}
+{{case}}
+
+tests:
+    it("runs the case"):
+        for _ in 0..{{repeat}}:
+            case_main()

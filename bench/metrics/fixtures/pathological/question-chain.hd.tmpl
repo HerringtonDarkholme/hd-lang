@@ -1,0 +1,13 @@
+{{! One function of `?` propagations, one per `steps` entry. }}
+enum StepError:
+    TooLarge(value: i32)
+
+fn step(value: i32) -> Result[i32, StepError]:
+    if value > 1_000_000: .Err(StepError.TooLarge(value)) else: .Ok(value + 1)
+
+fn run(start: i32) -> Result[i32, StepError]:
+    let value = start
+{{#each steps}}
+    value = step(value)?
+{{/each}}
+    .Ok(value)

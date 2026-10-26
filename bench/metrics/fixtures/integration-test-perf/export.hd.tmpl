@@ -1,0 +1,13 @@
+{{! Integration test program `p` of an integration-test package (lib/gen.ts): two cases, `c` 0 and 1, that write a file into `temp_dir()` and read it back. }}
+use pkg.{csv_line}
+use std.fs.{read_text, write_text}
+use std.path.Path
+use std.testing.{assert_equal, temp_dir}
+
+{{#each cases}}
+it("program {{p}} writes and reads export {{c}}"):
+    out := Path("${temp_dir()}/export-{{c}}.csv")
+    write_text!(out, csv_line("item{{p}}", {{c}})).expect("the export")
+    assert_equal(read_text!(out).expect("the written export"), "item{{p}},{{c}}", reason="round trip")
+
+{{/each}}

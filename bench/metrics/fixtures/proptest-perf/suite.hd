@@ -1,0 +1,21 @@
+# Three properties that hold; `cases` is the number of cases each runs.
+use pkg.shop.{Item, Order, Shape, area, cost, flipped, order_total}
+use std.testing.{assert, it_prop}
+
+tests:
+    it_prop("a cost commutes", cases=100, prop=fn!(item: Item):  # param: cases
+        assert(cost(item) == i64(item.count) * i64(item.price), reason="price times count")
+    )
+
+    it_prop("flipping keeps the area", cases=100, prop=fn!(shape: Shape):  # param: cases
+        assert(area(flipped(shape)) == area(shape), reason="width times height commutes")
+    )
+
+    it_prop("an order adds its items", cases=100, prop=fn!(order: Order):  # param: cases
+        let reversed: i64 = 0
+        let index = order.items.len()
+        while index > 0:
+            index = index - 1
+            reversed = reversed.wrapping_add(cost(order.items[index]))
+        assert(order_total(order) == reversed, reason="addition order does not matter")
+    )

@@ -1,0 +1,33 @@
+# A simulated JSON service with bounded state: each request is encoded,
+# decoded, counted in a map of 500 sessions and answered. It runs until
+# stopped and prints a progress line every 2,000 requests.
+use std.json.{decode, encode}
+use std.serde.{Deserialize, Serialize}
+
+@derive(Serialize, Deserialize)
+struct Request:
+    id: i64
+    path: string
+    user: string
+
+@derive(Serialize, Deserialize)
+struct Response:
+    id: i64
+    status: i32
+    body: string
+
+fn handle(sessions: &mut Map[string, i64], text: string) -> string:
+    request := decode::[Request](text).expect("a request")
+    seen := sessions.get(request.user).unwrap_or(0)
+    sessions[request.user] = seen + 1
+    encode(Response { id: request.id, status: 200, body: "${request.path} for ${request.user}: visit ${seen + 1}" })
+
+pub fn main() -> void $ Console:
+    let mut sessions: Map[string, i64] = {}
+    let id: i64 = 0
+    while true:
+        text := encode(Request { id: id, path: "/orders/${id % 97}", user: "user-${id % 500}" })
+        response := handle(&mut sessions, text)
+        id = id + 1
+        if id % 2000 == 0:
+            println("served=${id} sessions=${sessions.len()} bytes=${response.len()}")

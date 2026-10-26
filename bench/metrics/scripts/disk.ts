@@ -18,10 +18,10 @@
 import { existsSync, lstatSync, realpathSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join } from "node:path";
 
-import { addExecutable, freshCache, materialize, runProblem } from "../lib/fixture.ts";
-import { runHd } from "../lib/hd.ts";
+import { freshCache, runHd, runProblem } from "../lib/hd.ts";
 import { failed, formatValue, judge, type Metric } from "../lib/metric.ts";
 import { listTree, treeBytes } from "../lib/tmp.ts";
+import { addExecutable, materialize } from "../lib/gen.ts";
 
 const NAME = "disk";
 const LIMIT = 10 * 1024 * 1024;

@@ -1,7 +1,7 @@
 // pathological: compile-time stress cases, each within a time and memory
 // budget, with check time growing near-linearly in input size.
 //
-// Each case of pathological/cases.ts is generated at scales 1, 2 and 4 and
+// Each case of lib/pathological.ts is generated at scales 1, 2 and 4 and
 // checked as a single file with `hd check FILE`, measuring wall time and
 // peak RSS. Three lines per case:
 // - wall time at scale 4 within the case's budget (2 s by default);
@@ -17,13 +17,13 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { CASES, type PathologicalCase } from "../pathological/cases.ts";
-import { firstLines } from "../lib/fixture.ts";
-import { canMeasure, runHd, type RunResult } from "../lib/hd.ts";
+import { fixture } from "../lib/fixtures.ts";
+import { canMeasure, firstLines, runHd, type RunResult } from "../lib/hd.ts";
 import type { MetricContext } from "../lib/metric.ts";
 import { failed, judge, notApplicable, type Metric, type TargetResult } from "../lib/metric.ts";
 import { growthExponent, p50 } from "../lib/stats.ts";
 import { makeTempDir } from "../lib/tmp.ts";
+import { CASES, generate, STARTUP, type PathologicalCase } from "../lib/pathological.ts";
 
 const NAME = "pathological";
 const TIMEOUT_MS = 30_000;
@@ -53,7 +53,7 @@ async function runCase(context: MetricContext, entry: PathologicalCase, startup:
   let problem: string | undefined;
   for (const scale of SCALES) {
     context.log(`${NAME}: ${name} at ${scale}x`);
-    const result = await checkProgram(context, name, entry.generate(scale));
+    const result = await checkProgram(context, name, generate(entry, scale));
     if (result.timedOut) problem = `${scale}x timed out after ${TIMEOUT_MS / 1000} s`;
     else if (result.status !== 0) problem = `${scale}x: hd check failed: ${firstLines(result)}`;
     if (problem) break;
@@ -118,7 +118,7 @@ export const pathological: Metric = {
   async run(context) {
     const startupRuns: number[] = [];
     for (let index = 0; index < 3; index++) {
-      const result = await checkProgram(context, "startup", "fn run() -> i32:\n    1\n");
+      const result = await checkProgram(context, "startup", fixture(STARTUP));
       if (result.status !== 0 || result.timedOut)
         return [
           failed(

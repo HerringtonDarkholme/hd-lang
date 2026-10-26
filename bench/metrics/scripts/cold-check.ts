@@ -5,10 +5,10 @@
 // Target (Pillar 1): ≤ 1 s. No n/a case.
 
 import { copyTree, makeTempDir } from "../lib/tmp.ts";
-import { freshCache, materialize, runProblem } from "../lib/fixture.ts";
-import { runHd } from "../lib/hd.ts";
+import { freshCache, runHd, runProblem } from "../lib/hd.ts";
 import { failed, judge, type Metric } from "../lib/metric.ts";
 import { p50 } from "../lib/stats.ts";
+import { materialize } from "../lib/gen.ts";
 
 const NAME = "cold-check";
 const RUNS = 3;

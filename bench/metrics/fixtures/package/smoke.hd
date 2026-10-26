@@ -1,0 +1,6 @@
+use pkg.{one_total}
+use pkg.m000.Item0
+use std.testing.assert_equal
+
+it("integration totals one item"):
+    assert_equal(one_total(Item0 { name: "pen", price: 2, count: 3 }), 6, reason="one item")

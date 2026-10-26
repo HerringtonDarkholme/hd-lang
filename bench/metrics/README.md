@@ -95,23 +95,23 @@ target, so a slow `hd` fails fast instead of holding the run for minutes.
 
 ## Pillar 1 Metrics
 
-| Script              | Measures                                                                                                                                                                                                    | Target                                                                                           | n/a when                                 |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------- |
-| `edit-latency`      | 10k-line package: warm-up `hd check`, then 20 edits of a private function body, each followed by `hd check`                                                                                                 | p50 ≤ 50 ms, p95 ≤ 200 ms                                                                        | never                                    |
-| `cold-check`        | `hd check` of a fresh copy of the 10k-line package with an empty `HD_CACHE`, median of 3                                                                                                                    | ≤ 1 s                                                                                            | never                                    |
-| `test-latency`      | 10k-line package: edit one module, then `hd test --filter NAME` of one of its test cases, median of 5                                                                                                       | ≤ 300 ms                                                                                         | never                                    |
-| `mistakes`          | the [mistake corpus](#mistake-corpus): diagnostics per program, the expected code, the fix-it, the text size                                                                                                | one diagnostic in ≥ 95%; expected code in ≥ 95%; fix-it resolves ≥ 80%; largest text ≤ 60 tokens | fix-it line: no `fix` field              |
-| `answer-size`       | bytes of `hd doc m001.Item1`, one failing `hd test`, its JSON test object, one JSON diagnostic object                                                                                                       | doc ≤ 1,000 B; failing test ≤ 800 B; test object ≤ 400 B; diagnostic object ≤ 600 B              | doc line: no `hd doc`                    |
-| `determinism`       | 8 or 9 fixed inputs, each run 10 times: exit status, stdout and stderr                                                                                                                                      | byte-identical                                                                                   | never                                    |
-| `pathological`      | the [stress cases](#pathological-cases) at scales 1, 2 and 4                                                                                                                                                | at 4x: ≤ 2 s and ≤ 200 MB; growth exponent ≤ 1.3                                                 | RSS line: no `/usr/bin/time`             |
-| `recheck-precision` | small package: modules rechecked after a private body edit, then after a public signature edit                                                                                                              | 1; that module and its direct dependents                                                         | no `modules_checked` in the JSON summary |
-| `errors-per-run`    | two files of 10 independent mistakes, one with 2 syntax errors among them                                                                                                                                   | all 10 reported, each once                                                                       | never                                    |
-| `diag-location`     | the mistake corpus: the reporting diagnostic's line against the marked line                                                                                                                                 | ≥ 95%                                                                                            | never                                    |
-| `fixit-safety`      | the mistake corpus: errors after applying each offered fix-it                                                                                                                                               | 100% add no new error code                                                                       | no `fix` field, or no fix-it offered     |
-| `lookup-latency`    | 10k-line package: canned program-database queries `hd callers NAME` and `hd needs Http`, 10 runs each after a warm-up                                                                                       | p95 ≤ 100 ms each                                                                                | a query whose `hd help COMMAND` fails    |
-| `fmt`               | `hd fmt` on a copy of the 10k-line package, then a second `hd fmt`                                                                                                                                          | ≤ 200 ms; the second run changes nothing                                                         | no `hd fmt`                              |
-| `check-cost`        | a checked-arithmetic loop in the optimized pipeline with checks on (a test case run by `hd test --release`) and off (an executable run by `hd run --release`), at two sizes; each time is large minus small | checked ≤ 1.3x unchecked                                                                         | `hd help test` names no `--release`      |
-| `dev-speed`         | the `runtime` micro cases as test cases in the test profile, run by `hd test` (dev pipeline) and `hd test --release` (optimized pipeline); each time is the case minus an empty test                        | dev ≤ 4x optimized, geomean; no case > 10x                                                       | `hd help test` names no `--release`      |
+| Script              | Measures                                                                                                                                                                                                           | Target                                                                                           | n/a when                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| `edit-latency`      | 10k-line package: warm-up `hd check`, then 20 edits of a private function body, each followed by `hd check`                                                                                                        | p50 ≤ 50 ms, p95 ≤ 200 ms                                                                        | never                                    |
+| `cold-check`        | `hd check` of a fresh copy of the 10k-line package with an empty `HD_CACHE`, median of 3                                                                                                                           | ≤ 1 s                                                                                            | never                                    |
+| `test-latency`      | 10k-line package: edit one module, then `hd test --filter NAME` of one of its test cases, median of 5                                                                                                              | ≤ 300 ms                                                                                         | never                                    |
+| `mistakes`          | the [mistake corpus](#mistake-corpus): diagnostics per program, the expected code, the fix-it, the text size                                                                                                       | one diagnostic in ≥ 95%; expected code in ≥ 95%; fix-it resolves ≥ 80%; largest text ≤ 60 tokens | fix-it line: no `fix` field              |
+| `answer-size`       | bytes of `hd doc m001.Item1`, one failing `hd test`, its JSON test object, one JSON diagnostic object                                                                                                              | doc ≤ 1,000 B; failing test ≤ 800 B; test object ≤ 400 B; diagnostic object ≤ 600 B              | doc line: no `hd doc`                    |
+| `determinism`       | 8 or 9 fixed inputs, each run 10 times: exit status, stdout and stderr                                                                                                                                             | byte-identical                                                                                   | never                                    |
+| `pathological`      | the [stress cases](#pathological-cases) at scales 1, 2 and 4                                                                                                                                                       | at 4x: ≤ 2 s and ≤ 200 MB; growth exponent ≤ 1.3                                                 | RSS line: no `/usr/bin/time`             |
+| `recheck-precision` | small package: modules rechecked after a private body edit, then after a public signature edit                                                                                                                     | 1; that module and its direct dependents                                                         | no `modules_checked` in the JSON summary |
+| `errors-per-run`    | two files of 10 independent mistakes, one with 2 syntax errors among them                                                                                                                                          | all 10 reported, each once                                                                       | never                                    |
+| `diag-location`     | the mistake corpus: the reporting diagnostic's line against the marked line                                                                                                                                        | ≥ 95%                                                                                            | never                                    |
+| `fixit-safety`      | the mistake corpus: errors after applying each offered fix-it                                                                                                                                                      | 100% add no new error code                                                                       | no `fix` field, or no fix-it offered     |
+| `lookup-latency`    | 10k-line package: canned program-database queries `hd callers NAME` and `hd needs Http`, 10 runs each after a warm-up                                                                                              | p95 ≤ 100 ms each                                                                                | a query whose `hd help COMMAND` fails    |
+| `fmt`               | `hd fmt` on a copy of the 10k-line package, then a second `hd fmt`                                                                                                                                                 | ≤ 200 ms; the second run changes nothing                                                         | no `hd fmt`                              |
+| `check-cost`        | a checked-arithmetic loop in the optimized pipeline with checks on (a test case run by `hd test --release`) and off (an executable run by `hd run --release`), at two sizes; each time is large minus small        | checked ≤ 1.3x unchecked                                                                         | `hd help test` names no `--release`      |
+| `dev-speed`         | the `runtime` micro cases as test cases in the test profile, each run 30 times by one test, under `hd test` (dev pipeline) and `hd test --release` (optimized pipeline); each time is the case minus an empty test | dev ≤ 4x optimized, geomean; no case > 10x                                                       | `hd help test` names no `--release`      |
 
 Notes on the choices:
 
@@ -227,9 +227,10 @@ Notes on the choices:
 Notes on the choices:
 
 - **Programs.** [`lib/artifact.ts`](lib/artifact.ts) writes each program
-  as `src/main.hd` of a package named `bench` and builds it with
-  `hd build --release` (plain `hd build` without `--release`). A `.wasm`
-  file the build wrote runs as `hd FILE.wasm`
+  (a [fixture](#fixtures) package, or a bench/micro case as `src/main.hd`)
+  as a package named `bench` and builds it with `hd build --release`
+  (plain `hd build` without `--release`). A `.wasm` file the build wrote
+  runs as `hd FILE.wasm`
   ([`cli.wasm.run`](../../spec/cli/command-line.md#r-cli.wasm.run)), an
   executable file runs directly, and with neither the program runs with
   `hd run`. Every result line's note says which.
@@ -268,7 +269,7 @@ Notes on the choices:
 
 | Script                  | Measures                                                                                                                                                                                                                     | Target                 | n/a when                                         |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------ |
-| `conformance`           | the rows of the root `KNOWN_FAILURES.tsv`; with `--suite`, the cargo conformance tiers (`hd_driver --test conformance`, `hd_cli --test cli_conformance`): passed / unlisted cases                                            | 100%; 0 known failures | pass rate: without `--suite`                     |
+| `conformance`           | the rows of the root `KNOWN_FAILURES.tsv`; with `--suite`, the cargo conformance tiers (`hd_driver --test conformance`, `hd_cli --test cli_conformance --features wasmtime`): passed / unlisted cases                        | 100%; 0 known failures | pass rate: without `--suite`                     |
 | `incremental-soundness` | a seeded script of 16 edits to the small package: after each, `hd check --tests --format json` in the working copy, with its own cache, against a fresh copy with an empty cache; `hd test --format json` too every 4th edit | 100% match             | no compilation cache: a 4-edit sample still runs |
 
 - **Conformance** reads the tiers' summary lines, so the listed known
@@ -281,13 +282,52 @@ Notes on the choices:
   and test outcomes, in any order. Without an incremental mode, a mismatch
   still fails: it shows nondeterminism.
 
+## Fixtures
+
+Every hd program a metric runs or generates is a file under
+[`fixtures/`](fixtures), one directory per metric, never a string in a
+script. [`lib/fixtures.ts`](lib/fixtures.ts) reads them:
+
+- A **program fixture** is a `.hd` file that checks as it stands. A line
+  ending in `# param: NAME` holds one integer literal outside its strings,
+  which a metric replaces, as a loop count; the literal written there is
+  the default. `PROGRAMS` names each package a metric builds: which
+  fixture becomes which file, and the capabilities its `hd.toml` grants
+  ([`cli.cap.table.required`](../../spec/cli/command-line.md#r-cli.cap.table.required)).
+  `programFiles`, `writeProgram` and `buildFixture` write or build one.
+- A **template**, `.hd.tmpl`, is the hd text of a generator: `{{name}}`,
+  `{{name ARG...}}` for a function, the line blocks `{{#each name}}`,
+  `{{#if name}}` and `{{#unless name}}`, and `{{! comment }}` lines. The
+  package generator ([`lib/gen.ts`](lib/gen.ts)), the test packages of
+  `unit-test-perf` and `integration-test-perf`, the `dev-speed` test
+  wrapper and the [pathological cases](#pathological-cases) are templates.
+- The **mistake corpus** ([`fixtures/mistakes/`](fixtures/mistakes)) and the
+  `errors-per-run` files carry line markers instead.
+
+[`check-fixtures.ts`](check-fixtures.ts) checks all of them with one `hd`,
+in about 2 s: each program package with its default params and each
+generator's output at its smallest size checks clean (`hd check --tests`),
+each mistake program reports its expected code and no code beyond its
+`# cascade:` list, its `# fixed:` variant checks clean, and each
+`errors-per-run` file reports its marked lines. A fixture file no check
+uses fails too. `cargo test -p hd_cli --test all metrics_fixtures` runs it
+with the `hd` it builds, so CI fails when a language change breaks a
+fixture; then update the fixture to today's hd.
+
+```sh
+node --experimental-strip-types bench/metrics/check-fixtures.ts [--hd "COMMAND"] [--verbose]
+```
+
+`--verbose` prints what hd reports for each mistake program.
+
 ## Mistake Corpus
 
-[`mistakes/`](mistakes) holds 72 programs, one per distinct mistake in
-[docs/audit/hd-writing-log.md](../../docs/audit/hd-writing-log.md), deduplicated.
-Each holds exactly one mistake. Its header says what the mistake is, which
-log rows it comes from, and the code the specification gives it; its
-mistake line ends in the conformance line marker
+[`fixtures/mistakes/`](fixtures/mistakes) holds 70 programs, one per
+distinct mistake in
+[docs/audit/hd-writing-log.md](../../docs/audit/hd-writing-log.md),
+deduplicated and restated in today's hd. Each holds exactly one mistake.
+Its header says what the mistake is, which log rows it comes from, and the
+code it gets; its mistake line ends in the conformance line marker
 ([spec/conformance/README.md](../../spec/conformance/README.md)):
 
 ```text
@@ -300,33 +340,36 @@ fn negate(ready: bool) -> bool:
     not ready  # diagnostic: syntax-error
 ```
 
-- `# expect:` is the specification's code, not what any implementation
-  prints. Warnings use `# warning: CODE` as the line marker.
+- `# expect:` is the code the specification gives the mistake, and the one
+  `check-fixtures.ts` requires. Warnings use `# warning: CODE` as the line
+  marker.
 - `# fixed:` is optional: the corrected text of the marked line. `\n`
   starts another line, and `# fixed-lines: N` replaces N lines. No metric
-  reads it; it lets a reviewer confirm the program holds no other mistake.
+  reads it; it confirms the program holds no other mistake.
+- `# cascade: CODE, ...` is optional: codes hd also reports today as a
+  consequence of the one mistake, such as `not-writable` after a rejected
+  `mut` on a type. The fixture check allows them; the `mistakes` metric
+  still counts the program as more than one diagnostic.
 - Log rows left out: runtime failures, mistakes inside `lib/std` or the std
-  loader, compiler bugs that the specification makes valid code, and
-  mistakes that need a package layout or a host.
-
-To see what an `hd` reports for each program, and whether each fixed
-variant checks clean:
-
-```sh
-node --experimental-strip-types bench/metrics/mistakes/check-corpus.ts [--hd "COMMAND"] [NAME...]
-```
+  loader, compiler bugs that the specification makes valid code, mistakes
+  that need a package layout or a host, and mistakes the language has since
+  made valid, such as a Rust literal suffix (`1u32`).
 
 ## Pathological Cases
 
-[`pathological/cases.ts`](pathological/cases.ts) generates each case at a
-scale of 1, 2 or 4; the budget applies at 4. Every program must
-type-check.
+[`lib/pathological.ts`](lib/pathological.ts) renders each case from its
+template in [`fixtures/pathological/`](fixtures/pathological) at a scale
+of 1, 2 or 4; the budget applies at 4. Every program must type-check, so
+the nesting cases stay below 160 levels at scale 4: the spec lets an
+implementation limit nesting
+([`grammar.limit.nesting`](../../spec/lang/02-grammar.md)), and deeper
+source is a `nesting-too-deep` error, not a stress case.
 
 | Case                | At scale 4                                                                             |
 | ------------------- | -------------------------------------------------------------------------------------- |
 | `overlapping-from`  | 1,600 locals bound by `Cents::from(N)`, each choosing between two `From` impls (F-626) |
-| `deep-blocks`       | `if` blocks nested 96 deep                                                             |
-| `deep-parens`       | an expression nested 1,000 parentheses deep                                            |
+| `deep-blocks`       | `if` blocks nested 72 deep                                                             |
+| `deep-parens`       | an expression nested 144 parentheses deep                                              |
 | `method-chain`      | 2,000 chained string method calls                                                      |
 | `iterator-chain`    | 200 `map` and `filter` stages with typed closures                                      |
 | `wide-list-literal` | one list literal of 20,000 integers                                                    |
@@ -340,28 +383,30 @@ size^k` from scale 2 to scale 4, where start-up is the median check of a
 one-line program. k ≤ 1.3 counts as near-linear. When the work beyond
 start-up stays under 100 ms at scale 4, growth is within noise and passes.
 
-To print one program: `node --experimental-strip-types bench/metrics/pathological/cases.ts CASE SCALE`.
+To print one program: `node --experimental-strip-types bench/metrics/lib/pathological.ts CASE SCALE`.
 
 ## Layout
 
-| Path                                                  | Holds                                                                                                                                            |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `run.ts`                                              | the runner                                                                                                                                       |
-| `scripts/`                                            | one file per metric, and `index.ts`, the list the runner reads                                                                                   |
-| `lib/hd.ts`                                           | running `hd`: command parsing, timeouts, CPU time and peak RSS, time to first output, JSON lines, paced sessions and long runs sampled with `ps` |
-| `lib/artifact.ts`                                     | user programs: release builds, how a built program runs, interleaved timings and their differences, self-timing Node programs, the V8 heap probe |
-| `lib/gen.ts`                                          | the seeded package generator: small, 10k and 50k lines                                                                                           |
-| `lib/fixture.ts`                                      | generated packages in temporary directories, an added executable, timed series                                                                   |
-| `lib/stats.ts`                                        | percentiles, growth exponents, token estimates                                                                                                   |
-| `lib/tmp.ts`                                          | temporary directories, including read-only cache entries; tree sizes                                                                             |
-| `lib/metric.ts`                                       | the metric contract and target judging                                                                                                           |
-| `lib/corpus.ts`, `lib/mistake-run.ts`, `lib/fixit.ts` | the mistake corpus, its shared run, fix-it application                                                                                           |
-| `lib/capability.ts`                                   | probes of what this `hd` offers: help text, thread control, cache cap, compilation cache, REPL                                                   |
-| `lib/deps.ts`                                         | the local remote that counts fetches, and a dependent package                                                                                    |
-| `lib/trace.ts`                                        | `strace` file-call tracing and its parser                                                                                                        |
-| `mistakes/`, `pathological/`                          | the corpora                                                                                                                                      |
-| `metrics.test.ts`                                     | unit tests of the helpers, part of `pnpm test`: `node --test --experimental-strip-types bench/metrics/metrics.test.ts`. They start no process.   |
-| `integration/`                                        | opt-in tests that start processes, outside the `pnpm test` glob: `node --test --experimental-strip-types 'bench/metrics/integration/*.test.ts'`  |
+| Path                                                  | Holds                                                                                                                                                                   |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run.ts`                                              | the runner                                                                                                                                                              |
+| `scripts/`                                            | one file per metric, and `index.ts`, the list the runner reads                                                                                                          |
+| `fixtures/`                                           | every hd program the metrics run: program fixtures, templates, the mistake corpus                                                                                       |
+| `check-fixtures.ts`                                   | the fixture check with one `hd`                                                                                                                                         |
+| `lib/fixtures.ts`                                     | reading fixtures: params, templates, manifests, the `PROGRAMS` packages, packages in temporary directories                                                              |
+| `lib/gen.ts`                                          | the seeded package generator (small, 10k and 50k lines), its edits and executables, the unit, integration and doc test packages                                         |
+| `lib/pathological.ts`                                 | the pathological cases                                                                                                                                                  |
+| `lib/hd.ts`                                           | running `hd`: command parsing, timeouts, CPU time and peak RSS, time to first output, timed series, JSON lines, paced sessions and long runs sampled with `ps`          |
+| `lib/artifact.ts`                                     | user programs: release builds, how a built program runs, the bench/micro cases, interleaved timings and their differences, self-timing Node programs, the V8 heap probe |
+| `lib/stats.ts`                                        | percentiles, growth exponents, token estimates                                                                                                                          |
+| `lib/tmp.ts`                                          | temporary directories, including read-only cache entries; tree sizes                                                                                                    |
+| `lib/metric.ts`                                       | the metric contract and target judging                                                                                                                                  |
+| `lib/corpus.ts`, `lib/mistake-run.ts`, `lib/fixit.ts` | the mistake corpus, its shared run, fix-it application                                                                                                                  |
+| `lib/capability.ts`                                   | probes of what this `hd` offers: help text, thread control, cache cap, compilation cache, REPL                                                                          |
+| `lib/deps.ts`                                         | the local remote that counts fetches, and a dependent package                                                                                                           |
+| `lib/trace.ts`                                        | `strace` file-call tracing and its parser                                                                                                                               |
+| `metrics.test.ts`                                     | unit tests of the helpers, part of `pnpm test`: `node --test --experimental-strip-types bench/metrics/metrics.test.ts`. They start no process.                          |
+| `integration/`                                        | opt-in tests that start processes, outside the `pnpm test` glob: `node --test --experimental-strip-types 'bench/metrics/integration/*.test.ts'`                         |
 
 CPU time and peak RSS come from `/usr/bin/time -l` on macOS and `-v` on
 Linux, written to a temporary file with `-o`. Each run starts in its own
@@ -370,12 +415,14 @@ process group, so a timeout kills `hd` and every process it started.
 ## Generated Packages
 
 `generatePackage({ seed, lines })` writes modules `src/m000.hd`,
-`src/m001.hd`, ... of about 130 lines each, plus `src/lib.hd`, one
-integration test and `hd.toml`. A module has a data type, an enum with
-payloads, a trait and its impl, a `match`, a `?`, loops, a `tests:` block
-of two cases, and helper functions drawn from seven shapes. Module K
-imports module K-1, and sometimes K-3. The same seed and size give the same
-bytes. Each module has two edit sites: the private body line
+`src/m001.hd`, ... of about 130 lines each from
+[`fixtures/package/module.hd.tmpl`](fixtures/package/module.hd.tmpl), plus
+`src/lib.hd`, one integration test and `hd.toml`. A module has a struct, an
+enum with payloads, a trait and its impl, a `match`, a `?`, loops, a
+`tests:` block of two cases, and helper functions drawn from the seven
+shapes of [`helpers.hd.tmpl`](fixtures/package/helpers.hd.tmpl). Module K
+imports module K-1, and sometimes K-3. The same seed and size give the
+same bytes. Each module has two edit sites: the private body line
 `let bump = +N` in `tweakK`, and the public signature of `shapeK`, which
 gains a defaulted parameter so its callers still type-check.
 
@@ -387,8 +434,11 @@ A new metric is added the same way:
    one-line summary, and `run(context)`, which returns one `TargetResult`
    per target. Use `judge`, `judgeBool`, `notApplicable` and `failed` from
    `lib/metric.ts`.
-2. Add it to `scripts/index.ts`, in the order of the Goal Metrics tables.
-3. Add a row to its pillar's table above, with its n/a condition.
+2. Put its hd programs under `fixtures/NAME/` and name their packages in
+   `PROGRAMS` of `lib/fixtures.ts`, or render a template from a generator
+   that `check-fixtures.ts` checks; run `check-fixtures.ts`.
+3. Add it to `scripts/index.ts`, in the order of the Goal Metrics tables.
+4. Add a row to its pillar's table above, with its n/a condition.
 
 `runProcess` with `measure: true` gives CPU time and peak RSS, and
 `materialize("50k", seed)` the large package, for the resource metrics.

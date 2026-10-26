@@ -6,9 +6,8 @@
 // Each run must pass exactly that one test case. The value is the median.
 // Target (Pillar 1): ≤ 300 ms. No n/a case.
 
-import { editBody } from "../lib/gen.ts";
-import { editFile, freshCache, materialize, runProblem } from "../lib/fixture.ts";
-import { jsonLines, runHd } from "../lib/hd.ts";
+import { editBody, editFile, materialize } from "../lib/gen.ts";
+import { freshCache, jsonLines, runHd, runProblem } from "../lib/hd.ts";
 import { failed, judge, type Metric } from "../lib/metric.ts";
 import { p50 } from "../lib/stats.ts";
 

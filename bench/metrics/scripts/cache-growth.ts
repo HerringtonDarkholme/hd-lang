@@ -13,9 +13,8 @@ import { lstatSync } from "node:fs";
 import { join } from "node:path";
 
 import { findCacheCap, findCompileCache, helpText } from "../lib/capability.ts";
-import { editBody, editSignature } from "../lib/gen.ts";
-import { editFile, freshCache, materialize, runProblem } from "../lib/fixture.ts";
-import { runHd } from "../lib/hd.ts";
+import { editBody, editFile, editSignature, materialize } from "../lib/gen.ts";
+import { freshCache, runHd, runProblem } from "../lib/hd.ts";
 import { failed, judge, notApplicable, type Metric } from "../lib/metric.ts";
 import { listTree, treeBytes } from "../lib/tmp.ts";
 

@@ -1,0 +1,9 @@
+{{! One iterator chain of alternating `map` and `filter` stages with typed closures; each `pairs` entry is a map adding `add` and a filter by `modulus`. }}
+fn run(values: List[i32]) -> usize:
+    values
+        .iter()
+{{#each pairs}}
+        .map(fn(x: i32) -> i32: x + {{add}})
+        .filter(fn(x: i32) -> bool: x % {{modulus}} != 0)
+{{/each}}
+        .count()

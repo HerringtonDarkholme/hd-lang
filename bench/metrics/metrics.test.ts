@@ -15,8 +15,15 @@ import {
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { CASES } from "./pathological/cases.ts";
-import { freedBytes, passedCount, perUnit, pickArtifact, printed } from "./lib/artifact.ts";
+import { fixtureChecks, markerProblem, mistakeProblem } from "./check-fixtures.ts";
+import {
+  freedBytes,
+  MICRO_CASES,
+  passedCount,
+  perUnit,
+  pickArtifact,
+  printed,
+} from "./lib/artifact.ts";
 import {
   appendMetricsHistory,
   formatTable,
@@ -29,8 +36,31 @@ import {
 import { findCacheCap, findThreadControl } from "./lib/capability.ts";
 import { loadMistakes, parseMistake } from "./lib/corpus.ts";
 import { applyEdits, fixOf, hasFixField } from "./lib/fixit.ts";
-import { dependentsOf, editBody, editSignature, generatePackage, makeRandom } from "./lib/gen.ts";
-import { parsePsRss, parseTimeReport, splitCommand } from "./lib/hd.ts";
+import {
+  FIXTURES,
+  fixture,
+  fixturePaths,
+  manifest,
+  paramsOf,
+  PROGRAMS,
+  programFiles,
+  render,
+  withParams,
+  type TemplateScope,
+} from "./lib/fixtures.ts";
+import {
+  dependentsOf,
+  docTestPackage,
+  editBody,
+  editSignature,
+  generatePackage,
+  helperTemplates,
+  integrationPackage,
+  makeRandom,
+  reachEveryModule,
+  unitPackage,
+} from "./lib/gen.ts";
+import { parseHdCommand, parsePsRss, parseTimeReport, splitCommand } from "./lib/hd.ts";
 import { formatValue, judge } from "./lib/metric.ts";
 import {
   estimateTokens,
@@ -43,21 +73,21 @@ import {
 } from "./lib/stats.ts";
 import { makeTempDir, removeTempDir, treeBytes } from "./lib/tmp.ts";
 import { parseStrace } from "./lib/trace.ts";
+import { cacheShape } from "./scripts/cache-contention.ts";
 import { latencyBound } from "./scripts/concurrency.ts";
 import { toolchainOf } from "./scripts/disk.ts";
-import { assemble, FILES } from "./scripts/errors-per-run.ts";
+import { CASES, generate } from "./lib/pathological.ts";
+import { FILES, markedLines } from "./scripts/errors-per-run.ts";
 import { newErrors } from "./scripts/fixit-safety.ts";
 import { METRICS } from "./scripts/index.ts";
 import { under } from "./scripts/io-per-check.ts";
 import { growthBound, growthFrom, parseSamples, replInput } from "./scripts/long-session.ts";
 import { conformanceCounts, tsvRows } from "./scripts/conformance.ts";
-import { reachEveryModule, stdModules, stdNamesIn } from "./scripts/dead-code.ts";
+import { stdModules, stdNamesIn } from "./scripts/dead-code.ts";
 import { applyEdit, difference, newEditState, outcome } from "./scripts/incremental-soundness.ts";
-import { docTestPackage, integrationPackage } from "./scripts/integration-test-perf.ts";
 import { flatGrowth } from "./scripts/long-run-memory.ts";
-import { MICRO_CASES, nodeBody } from "./scripts/runtime.ts";
+import { nodeBody } from "./scripts/runtime.ts";
 import { nodeOnce } from "./scripts/size-startup-heap.ts";
-import { unitPackage } from "./scripts/unit-test-perf.ts";
 
 describe("stats", () => {
   it("takes nearest-rank percentiles", () => {
@@ -206,9 +236,87 @@ describe("fix-its", () => {
   });
 });
 
+describe("fixtures", () => {
+  it("replaces the literal of each param line, and only there", () => {
+    const text = 'let n: i64 = 1_000  # param: n\nf("1000 ${n}", 3)  # param: m\nx := 5\n';
+    assert.deepEqual(
+      [...paramsOf(text)],
+      [
+        ["n", 1000],
+        ["m", 3],
+      ],
+    );
+    assert.equal(
+      withParams(text, { n: 7, m: 40 }),
+      'let n: i64 = 7  # param: n\nf("1000 ${n}", 40)  # param: m\nx := 5\n',
+    );
+    assert.throws(() => withParams(text, { k: 1 }), /no param k/);
+    assert.throws(() => paramsOf("f(1, 2)  # param: n"), /exactly one integer/);
+  });
+
+  it("renders fields, functions, blocks and comments of a template", () => {
+    const template = [
+      "{{! a comment }}",
+      "fn f{{k}}() -> i32: {{twice 4}}",
+      "{{#each items}}",
+      "    v{{i}}{{tail}}",
+      "{{/each}}",
+      "{{#if on}}",
+      "on",
+      "{{/if}}",
+      "{{#unless on}}",
+      "off",
+      "{{/unless}}",
+    ].join("\n");
+    const scope: TemplateScope = {
+      k: 3,
+      twice: (n: string) => 2 * Number(n),
+      items: [{ i: 1 }, { i: 2, tail: "!" }],
+      tail: "",
+      on: false,
+    };
+    assert.equal(render(template, scope), "fn f3() -> i32: 8\n    v1\n    v2!\noff");
+    assert.throws(() => render("{{missing}}", {}), /unset/);
+    assert.throws(() => render("{{#each items}}\nx", { items: [] }), /not closed/);
+  });
+
+  it("writes capability tables into a manifest", () => {
+    assert.equal(manifest("a"), '[package]\nname = "a"\n');
+    assert.equal(
+      manifest("b", { capabilities: ["Console"], devCapabilities: ["FsRead"] }),
+      '[package]\nname = "b"\n\n[capabilities]\nConsole = true\n\n[dev-capabilities]\nFsRead = true\n',
+    );
+  });
+
+  it("builds every program package with its default and its own params", () => {
+    for (const name of Object.keys(PROGRAMS) as (keyof typeof PROGRAMS)[]) {
+      const files = programFiles(name);
+      assert.ok(files.has("hd.toml") && [...files.keys()].some((path) => path.startsWith("src/")));
+      for (const source of Object.values(PROGRAMS[name].files)) assert.ok(fixture(source));
+    }
+    assert.match(
+      programFiles("serde-throughput/encode", { repeat: 32 }).get("src/main.hd")!,
+      /= 32 /,
+    );
+    assert.throws(() => programFiles("runtime/baseline", { repeat: 1 }), /no param repeat/);
+  });
+
+  it("uses every fixture file in some check", () => {
+    const { unused, checks } = fixtureChecks(parseHdCommand("hd"));
+    assert.deepEqual(unused, []);
+    assert.ok(checks.length > 100, `${checks.length} checks`);
+    assert.ok(fixturePaths().every((path) => existsSync(join(FIXTURES, path))));
+  });
+
+  it("draws helpers from every paragraph of the helper template", () => {
+    assert.equal(helperTemplates().length, 7);
+    assert.ok(helperTemplates().every((text) => text.startsWith("fn ")));
+  });
+});
+
 describe("corpora", () => {
   it("loads the mistake corpus", () => {
-    const corpus = loadMistakes(join(import.meta.dirname, "mistakes"));
+    const corpus = loadMistakes();
     assert.ok(corpus.length >= 40 && corpus.length <= 80, `${corpus.length} programs`);
     for (const mistake of corpus) {
       assert.ok(mistake.line > 1, mistake.name);
@@ -231,14 +339,34 @@ describe("corpora", () => {
 
   it("generates pathological cases that grow with scale", () => {
     for (const entry of CASES) {
-      assert.equal(entry.generate(1), entry.generate(1), entry.name);
-      assert.ok(entry.generate(4).length > entry.generate(2).length, entry.name);
+      assert.equal(generate(entry, 1), generate(entry, 1), entry.name);
+      assert.ok(generate(entry, 4).length > generate(entry, 2).length, entry.name);
     }
   });
 
   it("marks ten mistakes in each errors-per-run file", () => {
-    for (const functions of Object.values(FILES))
-      assert.equal(assemble(functions).lines.length, 10);
+    for (const label of FILES)
+      assert.equal(markedLines(fixture(`errors-per-run/${label}.hd`)).length, 10, label);
+  });
+
+  it("reads the cascade codes a mistake allows", () => {
+    const text = "# mistake: m\n# log: l\n# expect: a\n# cascade: b, c\n\nx  # diagnostic: a\n";
+    const mistake = parseMistake("p", "p.hd", text);
+    assert.deepEqual(mistake.cascade, ["b", "c"]);
+    const at = (code: string, line = 6) => ({ code, line });
+    assert.equal(mistakeProblem(mistake, [at("a"), at("b", 9)]), undefined);
+    assert.match(mistakeProblem(mistake, [at("b")])!, /expected a/);
+    assert.match(mistakeProblem(mistake, [at("a"), at("d")])!, /also got d@6/);
+  });
+
+  it("judges an errors-per-run report against its markers", () => {
+    const text = "f  # diagnostic: unknown-name\ng  # diagnostic: syntax-error\nh\n";
+    const at = (code: string, line: number) => ({ code, line });
+    assert.equal(markerProblem(text, [at("syntax-error", 2)]), undefined);
+    assert.match(markerProblem(text, [at("syntax-error", 3)])!, /unmarked/);
+    assert.match(markerProblem(text, [])!, /not reported: syntax-error@2/);
+    const parsing = "f  # diagnostic: unknown-name\n";
+    assert.match(markerProblem(parsing, [])!, /not reported: unknown-name@1/);
   });
 });
 
@@ -358,6 +486,18 @@ describe("pillar 2 helpers", () => {
       "/p/src/m002.hd",
       "/p/src/m003.hd",
     ]);
+  });
+
+  it("matches hash-named cache files by their place", () => {
+    const pack = (hash: string) => `obj/pack-v1/${hash}.pack`;
+    assert.deepEqual(cacheShape([pack("5bab78bb9d0fea6a2297b731bf7942b7"), "obj/pack-v1/index"]), [
+      "obj/pack-v1/*.pack",
+      "obj/pack-v1/index",
+    ]);
+    assert.deepEqual(
+      cacheShape([pack("8220cddcb8057615261e169576720938")]),
+      cacheShape([pack("525ef66a5bc28d6893f8dfa60ea5495f")]),
+    );
   });
 
   it("bounds concurrent latency by the core count", () => {
@@ -508,7 +648,7 @@ describe("pillar 3 helpers", () => {
 
   it("reads a conformance summary and a TSV", () => {
     const output =
-      "........\ndriver conformance on node: pass 90, known 1, fail 9, unsupported 0, total 100\n  unsupported:Link (1):\nCLI conformance on node: pass 4, known 0, fail 0, unsupported 0, total 4\n";
+      "........\ndriver conformance on node, dev pipeline: pass 90, known 1, fail 9, unsupported 0, total 100\n  unsupported:Link (1):\nCLI conformance on node: pass 4, known 0, fail 0, unsupported 0, total 4\n";
     assert.deepEqual(conformanceCounts(output), { passed: 94, selected: 103 });
     assert.equal(conformanceCounts("nothing"), undefined);
     assert.deepEqual(tsvRows("path\treason\na\tb\n\nc\td\n"), ["a\tb", "c\td"]);

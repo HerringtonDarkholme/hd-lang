@@ -1,0 +1,12 @@
+# A loop of FsRead.list_dir! of src/, a list of 4 records across the serde boundary.
+use std.fs.{FsRead, read_text}
+use std.path.Path
+
+pub fn main!() -> void $ Console + FsRead:
+    let total: usize = 0
+    let i: i64 = 0
+    while i < 10000:  # param: count
+        found := $.use(FsRead).list_dir!(Path("src")).expect("src")
+        total = total + found.len()
+        i = i + 1
+    println("total ${total}")
