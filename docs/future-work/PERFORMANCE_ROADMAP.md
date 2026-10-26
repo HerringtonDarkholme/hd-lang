@@ -19,7 +19,7 @@ speed is not a gate today. These rules shape the plan:
   `StringBuilder` or `join`, and `+` copies.
 - Intrinsics stay low-level, one machine operation each; algorithms are
   std hd code. Where hd is slow, the fix is the missing low-level
-  primitive (#514), not moving the algorithm into the compiler.
+  primitive, not moving the algorithm into the compiler.
 - A speed fix never grows hello.wasm. It may grow programs that use the
   feature when it gains at least 5% speed for each 10% of size.
 - Allocation removal (escape analysis, scalar replacement, bounded
@@ -262,7 +262,7 @@ counts 2 toward the bound. std adds boxes the layout does not need:
 **Today.** `join` copies each byte once through `concat_all`
 (`0b1429b47`). `StringBuilder` is one `List[u8]`: `push` copies a
 string's bytes onto it (`bytes_append`) and `build` hands the buffer to
-the string with no copy (#514). The costs left are per piece and
+the string with no copy (6ad81d02e, 20ed738e8). The costs left are per piece and
 per digit: about 8 ns per small piece and 3 ns per byte (#376); integer
 text that prepends a digit string per digit; a getter call per literal
 use; one new string per nesting level of `Display`; and `+` chains in
@@ -271,10 +271,9 @@ loops in std (`cli.usage`, `Timestamp.format`, `to_rfc3339`,
 
 | Fix | Gain | Cost | Risk | Waits on |
 | --- | --- | --- | --- | --- |
-| **`format_int`** (#357, owner-approved): integer `Display` through the runtime's `IntToStr` | `i64` text 91 to about 27 ms (the helper's measured speed); string build about 2x | one intrinsic body; the fixture and property test on `park/357-int-text` | low; the helper links only where an integer is shown, and hello must stay 4257 B (the parked hd version grew it by 537 B) | nothing |
 | **A literal without a call per use** (#361) | 22% of integer parsing before #358; 5% to 20% of string-heavy code (estimate) | `hd_wasm` getter and link: fill the tables at init, or hoist getter calls out of loops (`cse-getters`) | medium: §15.4 keeps literal numbers out of code so an edit recompiles nothing else; either fix must keep that | nothing |
 | **Cheaper piece push and `concat_all`** (#376) | at least 2x per piece (the issue's target); JSON encode follows | `hd_wasm` list push for two-array elements, the `flush` per push | low | nothing |
-| **`Display.write` into a builder** (#436, approved API) | one string per nested value per `Display`; interpolation pushes in place | std, every `Display` impl's default, interpolation lowering | medium | `format_int`, so integers push without a string |
+| **`Display.write` into a builder** (#426 sub-item; #436 closed after hello measured +33%) | one string per nested value per `Display`; interpolation pushes in place | std, every `Display` impl's default, interpolation lowering | medium | #858 (frame-allocated builder), #861 (reservation per instance), #862 (one set of byte kernels), #863 (a benchmark that shows the gain) |
 | **UTF-8 conversions in bulk** (review fix 14): `string_to_bytes` with one `array.copy`, `array.copy` in `string_from_list`, an ASCII fast loop in `from_utf8` | `to_utf8` plus `from_utf8` 56 to about 10 ms (5x) | one new primitive (question 1), one lowering change, std | low | question 1 |
 | **Builders in std's `+` loops** (the redesign's findings, review fix 25) | O(n²) to O(n) in each | std only, about eight call sites | low | nothing |
 | **`MemoryFs.append_text!` in place** | O(n²) to O(n) over many appends | std only | low | nothing |
@@ -399,12 +398,12 @@ steps for them.
 | 1 | Re-run pillar 3 on HEAD; profile JSON encode, decode and text build on V8; run the review's cases on wasmtime. A new metrics record, no code | #426 | the whole pillar 3 table; GC share per profile |
 | 4 | Find why `sum` is 4.77x | - | ns per iteration on V8 with and without Liftoff, on wasmtime, and for a hand-written loop; the WAT of the hot loop |
 | 8 | SipHash-1-3 on native adds for string bucket hashes | #353 follow-up | 1M short keys insert and lookup (63 / 52-57 ms), 200k 63-byte keys (19 / 17 ms), the colliding-key tests (stay near 0) |
-| 12 | `Display.write` into a builder | #436 | `debug` of a record 100k (78 ms), `Display` of a three-level nested value, text build |
+| 12 | `Display.write` into a builder | #426 sub-item, after #858, #861, #862, #863 | `debug` of a record 100k (78 ms), `Display` of a three-level nested value, text build |
 | 16 | Time types as newtypes | #426 | the `Duration` shape's bytes per iteration, `to_rfc3339` 10⁵ times |
 | 25 | Property runner: one import object per test, synchronous instantiation | #426 | cases per second (28k) |
 | 26 | One `realpath` per host file call, in both hosts | #426 | `list_dir!` (41 µs), `read_text!` (32 µs) |
 | 27 | The literal host fast path | #426 | tiny program release bytes (2399 B), hello.wasm, start to first output |
-| 28 | Buffer primitives: `StringBuilder` byte path, `format_int` and concat in hd | #514 | text-build MB/s, integer-interpolation bytes per iteration, hello.wasm |
+| 28 | `format_int` in hd (the `StringBuilder` byte path landed in 6ad81d02e) | #426 sub-item, after #857, #858, #859 | text-build MB/s, integer-interpolation bytes per iteration, hello.wasm |
 | 29 | SIMD128 intrinsics for byte scans, called from std hd, after TIR v2 stage 3 | #428 | byte scan of 1 MiB, JSON string scan, Wasm bytes |
 | 30 | Map update probes once; `unwrap_or` inlines | #683 | map update loop ns per op |
 
@@ -416,8 +415,9 @@ tests. It waits on question 1.
 - **SIMD for byte scans** is step 29 (#428), after TIR v2 stage 3 ([3.9](#39-simd-byte-scans-428)).
 - **A lazy DFA for regex.** The Pike VM with a prefilter is linear; a DFA
   is a larger design for a row at 0.16x. Text and JSON come first.
-- **`Map` in hd** (#180). Not a speed item. `Set` without its `bool`
-  waits for it.
+- **`Map` stays in Rust** (#180 closed 2026-10-26: the `std.rt.memory`
+  primitives can't build its table yet). `Set` without its `bool` needs
+  a smaller map change.
 - **`a + b + c` as one allocation.** Go's model says loops use a builder;
   #317 left it optional.
 - **`wasm-opt` and other Wasm-level passes.** They would break the code

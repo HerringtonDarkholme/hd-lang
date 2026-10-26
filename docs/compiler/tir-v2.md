@@ -1,7 +1,7 @@
 # TIR v2: Places And Explicit Ownership
 
 Status: detailed design, 2026-10-21, for issue #667. Stages 1 and 2 are
-implemented, and stage 3 through 3h (3i to 3k are stopped; see #180).
+implemented, and stage 3 through 3h (3i to 3k are stopped: the map stays in Rust, #180 closed).
 As-built notes are under [Commits](#commits). The owner chose Direction 3 of
 [tir-v2-directions.md](tir-v2-directions.md), which stays as the record
 of the alternatives. This document is the full design of that direction:

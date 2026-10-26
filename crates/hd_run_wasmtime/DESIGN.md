@@ -19,7 +19,7 @@ build.
 | Piece | Where | Notes |
 | --- | --- | --- |
 | `Set`, `Deque`, `Heap`, `ListView`, string operations, formatting, `Debug`, `Display`, JSON, iterators | hd in `lib/std` | over `Array[T]` and string intrinsics; `Deque` and `Heap` store `T?` in `List` slots, laid out as in crates/hd_wasm_linear/DESIGN.md §15.2 |
-| `Map` | hd in `lib/std`: a compact insertion-ordered table | Implementation differs: `Map`'s table is runtime helpers the emitter writes (`hd_wasm/src/map.rs`), which is worse: library code in the compiler. See #180 |
+| `Map` | hd in `lib/std`: a compact insertion-ordered table | Implementation differs: `Map`'s table is runtime helpers the emitter writes (`hd_wasm/src/map.rs`), which is worse: library code in the compiler. It stays in Rust for now (#180 closed 2026-10-26) |
 | `Choices`, shrink-free generators, structured assert diffs | hd in `lib/std` (`std.testing`) | the runner shrinks on the host side |
 | `block_on`, `all!`, `race!`'s frame, `Waker` | compiler intrinsics | the spec names them so ([Standard Combinators](../../spec/lang/11-requirements-and-suspension.md#standard-combinators)); `race!` itself is hd in `std.task` |
 | default-profile provider types (`HostConsole`, `HostFs`, ...) | hd declarations in `lib/std` whose method bodies are intrinsic | an intrinsic body maps to a host import by the ABI table (§17.1); the signature is plain hd |

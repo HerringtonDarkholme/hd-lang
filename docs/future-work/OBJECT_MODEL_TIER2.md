@@ -1092,7 +1092,7 @@ rule only: counting and codegen are unchanged. The rules are in
 [Local References](../../spec/lang/13-values-and-references.md#local-references)
 (commits d354a1e49 and ea28c85b8).
 
-**Later steps, each needing its own approval.** The design below goes
+**Later steps, each needing its own approval.** Step 2, interior places get only local references so a `*T` count skips `block_of` (#704), was parked on 2026-10-26: it needs too much language change. #704 holds the discussion log and the no-language-change candidate, a tag bit on interior references. The design below goes
 further, as the owner sketched it on 2026-10-24: local references are
 never counted; an interior place (a field, an element, a map value) has
 only a local reference, so a count of a `*T` always lands on an
