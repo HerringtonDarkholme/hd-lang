@@ -96,6 +96,15 @@ thread_local! {
 /// off.
 const INLINE_LIMIT: usize = 8;
 
+/// The most instructions a callee outside std may have for a call of it
+/// to inline, in a release build only, as the other cross-function work
+/// (`docs/future-work/RELEASE_INTERPROC.md`); such a callee must also be a
+/// leaf ([`hd_tir::inline::leaf`]), so a copy adds no call to its caller.
+/// 16 takes in a one-line arithmetic helper such as `spectral_norm`'s
+/// `a(i, j)` (15 instructions), which V8 without call feedback
+/// (`--no-liftoff`) leaves a call.
+const LEAF_INLINE_LIMIT: usize = 16;
+
 /// The intrinsics that read only their arguments and write nothing
 /// (`OwnCx::may_write`): the scalar square root and the byte reads of a
 /// string, which return a scalar and never change memory.
@@ -390,8 +399,9 @@ impl Env<'_> {
         Ok((body, summary))
     }
 
-    /// Copies into `body` each call of a small std function outside
-    /// `std.rt` (`docs/compiler/tir-v2.md`, "The inliner"), before the
+    /// Copies into `body` each call of a small function
+    /// [`Env::inline_callee`] allows (`docs/compiler/tir-v2.md`, "The
+    /// inliner"), before the
     /// passes, each parameter bound by its pass mode, and returns the
     /// body's hash with each copied callee's TIR hash.
     fn inline_calls(&self, body: &mut Body, hash: Hash128) -> Hash128 {
@@ -531,17 +541,20 @@ impl Env<'_> {
     }
 
     /// A fresh decoding of the checker's body of `def`, for the caller to
-    /// change, and its hash, when a call of it inlines: a std function
-    /// outside `std.rt`, not the caller, with a body of its own, that
-    /// does not suspend, and that [`hd_tir::inline::inlinable`] allows at
-    /// [`INLINE_LIMIT`].
+    /// change, and its hash, when a call of it inlines: a function outside
+    /// `std.rt`, not the caller, with a body of its own, that does not
+    /// suspend, and that [`hd_tir::inline::inlinable`] allows at
+    /// [`INLINE_LIMIT`] when it is in std, or, in a release build, at
+    /// [`LEAF_INLINE_LIMIT`] when it is a leaf outside std.
     fn inline_callee(&self, def: DefId, caller: DefId) -> Option<(Body, Hash128)> {
         let module = self.run.item_module_text(def);
+        let std = module.starts_with("std.");
         let rt = module == "std.rt" || module.starts_with("std.rt.");
+        let release = self.run.summaries.is_some();
         if INLINE_LIMIT == 0
             || def == caller
-            || !module.starts_with("std.")
             || rt
+            || !(std || release)
             || self.intrinsic(def).is_some()
         {
             return None;
@@ -552,7 +565,10 @@ impl Env<'_> {
         let path = self.run.paths.hash(hd_base::PathId::from_raw(def.raw()));
         let lazy = self.p.bodies.all.get(&path)?;
         let (body, hash) = self.run.decode(lazy)?;
-        if !hd_tir::inline::inlinable(body, INLINE_LIMIT) {
+        let limit = if std { INLINE_LIMIT } else { LEAF_INLINE_LIMIT };
+        if !hd_tir::inline::inlinable(body, limit)
+            || !(std || hd_tir::inline::leaf(body) && !self.takes_reference(def))
+        {
             return None;
         }
         let (_, entry, at) = lazy.wire.as_ref()?;
@@ -560,6 +576,28 @@ impl Env<'_> {
         let fresh =
             hd_tir::wire::read_body(entry.get(at.clone())?, &run.pool, &run.paths, &run.syms)?;
         Some((fresh, *hash))
+    }
+
+    /// Whether a parameter of `def` is, or may be in an instance, a
+    /// reference. A copy binds a parameter in a local, and a reference held
+    /// in a local is counted, and makes a local it points at a counted cell,
+    /// where a call lends both; so a leaf outside std that takes one stays a
+    /// call.
+    fn takes_reference(&self, def: DefId) -> bool {
+        let Some(sig) = self.sig(def) else {
+            return true;
+        };
+        let pool = &self.run.pool;
+        sig.params.iter().any(|&(_, t)| {
+            let mut t = self.low(t);
+            while let TyData::Mut(inner) = pool.get(t) {
+                t = inner;
+            }
+            self.is_open(t)
+                || matches!(pool.get(t), TyData::Ref { .. })
+                || matches!(pool.get(t), TyData::Adt { def, .. } if def == self.run.known.ref_cell)
+                || self.layout_facts(t).1
+        })
     }
 
     /// A body collection generates (a supplied method's, a `dbg` body),

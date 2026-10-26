@@ -37,20 +37,25 @@ fn ping(c: Config, n: i64) -> i64:
 > app/main/ping
 >   local $0 c: Config [param read]
 >   local $1 n: i64 [param read]
+>   local $2 c: Config [read]
 >   %0 = Read copy [$1] : i64
 >   %1 = Prim Eq [%0 0:i64] : bool
->   %6 = If %1 [%5 -] : ()
->   %11 = Block %10 : i64
+>   %10 = If %1 [%9 -] : ()
+>   %15 = Block %14 : i64
         return depth(c)
 >   %2 = Read borrow [$0] : Config
->   %3 = Call app/main/depth[] (%2) : i64
->   %4 = Return %3 : never
->   %5 = Block - : never
+>   %3 = Store [$2] %2 : ()
+>   %4 = Read copy [$2 .depth] : i64
+>   %5 = Break L0 %4 : never
+>   %6 = Block - : i64
+>   %7 = Scope %6 [] : i64
+>   %8 = Return %7 : never
+>   %9 = Block - : never
     pong(c, n - 1)
->   %7 = Read move [$0] : Config
->   %8 = Read copy [$1] : i64
->   %9 = Prim Sub [%8 1:i64] : i64
->   %10 = Call app/main/pong[] (%7, %9) : i64
+>   %11 = Read move [$0] : Config
+>   %12 = Read copy [$1] : i64
+>   %13 = Prim Sub [%12 1:i64] : i64
+>   %14 = Call app/main/pong[] (%11, %13) : i64
 >   exit sub 0 drops [$0]
 >   summary kept [$0] recursive
 

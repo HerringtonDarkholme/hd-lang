@@ -4,7 +4,9 @@
 # Release writes, the controls: `prune` clears the parent's field,
 # `prune_global` stores through the top-level alias `ROOT`, and `ping`
 # calls `pong`, which writes, in one component. The child each caller
-# holds keeps its count across the call.
+# holds keeps its count across the call. `prune_global` calls `zero` and
+# the others take a reference, so a release build copies none of them into
+# its caller.
 struct Node:
     left: (*Node)?
     value: i64
@@ -34,9 +36,18 @@ fn prune_global() -> i64:
 > app/main/prune_global
 >   %0 = NewVariant #0 [] : Ref[Node]?
 >   %1 = Store [*@app/main/ROOT .left] %0 : ()
->   %2 = Block 0:i64 : i64
+>   %5 = Block %4 : i64
+    zero()
+>   %2 = Break L0 0:i64 : never
+>   %3 = Block - : i64
+>   %4 = Scope %3 [] : i64
 >   summary kept [] writes
+
+fn zero() -> i64:
     0
+> app/main/zero
+>   %0 = Block 0:i64 : i64
+>   summary kept []
 
 fn ping(node: *mut Node, k: i64) -> i64:
     if k == 0:

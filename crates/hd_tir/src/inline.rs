@@ -101,6 +101,18 @@ pub fn inlinable(c: &Body, limit: usize) -> bool {
         && !(0..n).any(refused)
 }
 
+/// Whether `c` calls nothing, not even a function value, so that its copy
+/// adds no call to its caller.
+#[must_use]
+pub fn leaf(c: &Body) -> bool {
+    !c.tags.iter().any(|t| {
+        matches!(
+            t,
+            Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall
+        )
+    })
+}
+
 /// A call to copy ([`inline_calls`]): the caller's `Call` `call` and the
 /// callee's copy `copy` with the call's types.
 pub struct Site {
@@ -378,7 +390,7 @@ mod tests {
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::{Ty, TyList};
 
-    use super::{Site, inlinable, inline_calls, plain_call, rechoose, u32_of};
+    use super::{Site, inlinable, inline_calls, leaf, plain_call, rechoose, u32_of};
     use crate::ir::{
         Body, BodyKind, Callee, ChoiceKind, IntrinsicOp, Op, Place, PlaceRoot, Proj, Providers,
         ReadMode, Ref, Tag, TirBuilder, TirSink, local_flags, map_body_types, verify, verify_owned,
@@ -452,6 +464,7 @@ mod tests {
         let mut b = caller();
         let c = callee();
         assert!(inlinable(&c, 9) && !inlinable(&c, 8));
+        assert!(leaf(&c) && !leaf(&b));
         let item = Callee::Item {
             def: DefId::from_raw(3),
             targs: TyList::EMPTY,

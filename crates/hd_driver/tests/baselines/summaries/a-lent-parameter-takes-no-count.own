@@ -7,18 +7,28 @@
 # `weight` through a function value: the value's caller passes `f` owned,
 # and the adapter releases it after the call. `set_first` keeps nothing,
 # but `pinned` passes it a mutable reference into `xs` beside `xs`, so
-# `xs` is copied for the call.
+# `xs` is copied for the call. `weight` calls `one`, so it is no leaf, and
+# a release build leaves it a call.
 struct Field:
     name: string
     n: i64
 
 fn weight(f: Field) -> i64:
-    f.n + 1
+    f.n + one()
 > app/main/weight
 >   local $0 f: Field [param read]
 >   %0 = Read copy [$0 .n] : i64
->   %1 = Prim Add [%0 1:i64] : i64
->   %2 = Block %1 : i64
+>   %1 = Break L0 1:i64 : never
+>   %2 = Block - : i64
+>   %3 = Scope %2 [] : i64
+>   %4 = Prim Add [%0 %3] : i64
+>   %5 = Block %4 : i64
+>   summary kept []
+
+fn one() -> i64:
+    1
+> app/main/one
+>   %0 = Block 1:i64 : i64
 >   summary kept []
 
 fn remember(all: &mut List[Field], f: Field) -> void:

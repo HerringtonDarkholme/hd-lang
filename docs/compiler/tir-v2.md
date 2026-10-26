@@ -2890,6 +2890,16 @@ instructions). The ownership passes then run on the combined body, so a
 `ListIter.next` inlined into a loop borrows its list like a hand-written
 index loop.
 
+A release build also copies a call of a leaf outside std (2026-10-26,
+#165): a function that calls nothing, not even a function value, takes
+no reference, and has at most 16 instructions (`LEAF_INLINE_LIMIT`), so
+a one-line helper such as spectral_norm's `a(i, j)` (15) is no call in
+a hot loop, which V8 without call feedback (`--no-liftoff`) would leave
+a call. A reference parameter would be bound in a local, where it is
+counted and makes a local it points at a counted cell; a call lends both,
+so such a leaf stays a call. Dev builds copy only std, like the other
+cross-function work, which is release-only.
+
 A copy's parameter bound from a binding local borrows it the way any
 binding local does, and does not stop that local from borrowing in turn
 (2026-10-24, #667): in `for part in parts: n += part.len()`, the copied

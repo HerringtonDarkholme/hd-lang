@@ -1,0 +1,31 @@
+# @dump: own
+# @build: v8 release
+# Release inlining copies only small leaves outside std: `twice` calls
+# `half`, so it is no leaf; `long` has more than 16 instructions; `first`
+# takes a reference, which a copy would count in a local; `run` calls a
+# function value; `make` creates a closure: each of those calls stays a
+# call. `need` declares a provider but reads none, so its call is copied.
+fn half(x: i64) -> i64:
+    x / 2
+
+fn twice(x: i64) -> i64:
+    half(x) * 4
+
+fn long(x: i64) -> i64:
+    (x + 1) * (x + 2) * (x + 3) * (x + 4) * (x + 5) / (x + 6)
+
+fn first(xs: &List[i64]) -> i64:
+    xs[0]
+
+fn run(g: fn(i64) -> i64, x: i64) -> i64:
+    g(x)
+
+fn make(k: i64) -> fn(i64) -> i64:
+    fn(x: i64) -> i64: x + k
+
+fn need(x: i64) -> i64 $ Console:
+    x
+
+fn calls(xs: List[i64]) -> i64 $ Console:
+    # subject
+    twice(1) + long(2) + first(&xs) + run(half, 3) + make(4)(5) + need(6)
