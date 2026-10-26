@@ -226,7 +226,8 @@ pub enum Helper {
         size: u32,
         cyclic: bool,
     },
-    /// A known small class, with page-list maintenance on the std slow path.
+    /// `() -> address`: a block of the known small class `class`, of
+    /// `bytes` bytes, with page-list maintenance on the std slow path.
     AllocClass {
         class: u32,
         bytes: u32,
@@ -2315,33 +2316,20 @@ fn note_allocation(f: &mut Func, m: &Module, table: u32) {
     f.op(Instruction::I32Store(mem(HEAP, 244, 2)));
 }
 
-fn allocated_slot(f: &mut Func, page: u32, slot: u32) {
-    f.get(page);
-    f.get(page);
-    f.op(Instruction::I32Load16U(mem(HEAP, 12, 1)));
-    f.i32(1);
-    f.op(Instruction::I32Add);
-    f.op(Instruction::I32Store16(mem(HEAP, 12, 1)));
-    f.get(slot);
-    f.op(Instruction::Return);
-}
-
 /// Pop a free slot or bump within the head page when it remains non-full.
 /// The last available slot, a missing page/table, and page-list maintenance
-/// stay in std. There is no call between reading metadata and updating it.
+/// stay in std, which is given the class's bytes as the size. There is no
+/// call between reading metadata and updating it. Both fast paths share
+/// one tail, so that V8 inlines this into each allocation.
 fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
-    let mut f = m.func(
-        format!("rt:alloc_class/{class}"),
-        vec![Val::I32],
-        vec![Val::I32],
-    );
+    let mut f = m.func(format!("rt:alloc_class/{class}"), vec![], vec![Val::I32]);
     let Some(r) = m.runtime else {
-        f.get(0);
+        f.u32(bytes);
         f.helper(Helper::Alloc);
         return f;
     };
     if r.checked.is_some() {
-        f.get(0);
+        f.u32(bytes);
         f.call(Sym::Inst(r.alloc));
         return f;
     }
@@ -2352,46 +2340,44 @@ fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
         f.local(Val::I32),
         f.local(Val::I32),
     );
+    f.op(Instruction::Block(BlockType::Empty));
     f.call(Sym::Inst(r.small.metadata));
-    f.set(table);
-    f.get(table);
-    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::LocalTee(table));
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(0));
     f.get(table);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(class * 4), 2)));
-    f.set(page);
-    f.get(page);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(page);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.set(slot);
+    f.op(Instruction::LocalTee(page));
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(0));
     f.get(page);
     f.op(Instruction::I32Load16U(mem(HEAP, 14, 1)));
     f.i32(4);
     f.op(Instruction::I32Shl);
     f.set(bump);
-    f.get(slot);
+    f.get(page);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::LocalTee(slot));
     f.op(Instruction::If(BlockType::Empty));
+    // Pop the free list unless that leaves the page full.
     f.get(slot);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.set(next);
-    f.get(next);
+    f.op(Instruction::LocalTee(next));
     f.get(bump);
     f.u32(65536 - bytes);
     f.op(Instruction::I32LeU);
     f.op(Instruction::I32Or);
-    f.op(Instruction::If(BlockType::Empty));
-    note_allocation(&mut f, m, table);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
     f.get(page);
     f.get(next);
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    allocated_slot(&mut f, page, slot);
-    f.op(Instruction::End);
     f.op(Instruction::Else);
+    // Bump unless that leaves the page full.
     f.get(bump);
     f.u32(65536 - 2 * bytes);
-    f.op(Instruction::I32LeU);
-    f.op(Instruction::If(BlockType::Empty));
-    note_allocation(&mut f, m, table);
+    f.op(Instruction::I32GtU);
+    f.op(Instruction::BrIf(1));
     f.get(page);
     f.get(bump);
     f.u32(bytes);
@@ -2403,12 +2389,18 @@ fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
     f.get(bump);
     f.op(Instruction::I32Add);
     f.set(slot);
-    allocated_slot(&mut f, page, slot);
     f.op(Instruction::End);
+    note_allocation(&mut f, m, table);
+    f.get(page);
+    f.get(page);
+    f.op(Instruction::I32Load16U(mem(HEAP, 12, 1)));
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Store16(mem(HEAP, 12, 1)));
+    f.get(slot);
+    f.op(Instruction::Return);
     f.op(Instruction::End);
-    f.op(Instruction::End);
-    f.op(Instruction::End);
-    f.get(0);
+    f.u32(bytes);
     f.u32(class);
     f.call(Sym::Inst(r.small.alloc));
     f
@@ -2537,11 +2529,14 @@ fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
         f.cold_helper(Helper::Collect, vec![], vec![]);
         f.op(Instruction::End);
     }
-    f.get(0);
-    f.u32(HEADER);
-    f.op(Instruction::I32Add);
-    match m.runtime {
-        Some(r) => {
+    match (m.runtime, small) {
+        // The class's block holds the header, the payload and any
+        // collector word.
+        (Some(_), Some((class, bytes))) => f.helper(Helper::AllocClass { class, bytes }),
+        (Some(r), None) => {
+            f.get(0);
+            f.u32(HEADER);
+            f.op(Instruction::I32Add);
             if !m.acyclic {
                 f.get(1);
                 f.i32(31);
@@ -2550,13 +2545,14 @@ fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
                 f.op(Instruction::I32Mul);
                 f.op(Instruction::I32Add);
             }
-            if let Some((class, bytes)) = small {
-                f.helper(Helper::AllocClass { class, bytes });
-            } else {
-                f.call(Sym::Inst(r.alloc));
-            }
+            f.call(Sym::Inst(r.alloc));
         }
-        None => f.helper(Helper::Alloc),
+        (None, _) => {
+            f.get(0);
+            f.u32(HEADER);
+            f.op(Instruction::I32Add);
+            f.helper(Helper::Alloc);
+        }
     }
     f.set(block);
     f.get(block);
