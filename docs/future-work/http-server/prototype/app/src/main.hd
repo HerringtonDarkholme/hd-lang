@@ -1,5 +1,6 @@
+use std.convert.From
 use std.host.{Args, args}
-use std.http.{Http, HttpError, Request, Response, get}
+use std.http.{Headers, Http, HttpError, Request, Response, Url, get}
 use std.json.{decode, encode}
 use std.serde.{Deserialize, Serialize}
 use std.task.{TimedOut, apply, block_on, timeout}
@@ -26,45 +27,48 @@ struct Name:
 struct Greeting:
     greeting: string
 
-fn json_response(request: Request) -> Response:
-    text := match string::from_utf8(request.body):
+fn json_response(request: &Request) -> Response:
+    text := match request.text():
         .Ok(value) => value
-        .Err(_) => return Response { status: 400 }
+        .Err(_) => return Response::status(.BadRequest)
     name := match decode::[Name](text):
         .Ok(value) => value
-        .Err(_) => return Response { status: 400 }
-    Response { status: 200, headers: [("content-type", "application/json")], body: encode(Greeting { greeting: "Hello ${name.name}" }).to_utf8() }
+        .Err(_) => return Response::status(.BadRequest)
+    Response::status(.Ok).set_json(Greeting { greeting: "Hello ${name.name}" })
 
 fn slow!() -> Response $ Clock:
     sleep!(50ms)
-    Response { status: 200, body: "late".to_utf8() }
+    Response::status(.Ok).set_text("late")
 
-pub fn handle!(request: Request) -> Response $ Http + Clock:
-    if request.url.ends_with("/json"):
+pub fn handle!(request: &Request) -> Response $ Http + Clock:
+    if request.url.path.ends_with("/json"):
         return json_response(request)
-    if request.url.ends_with("/timeout"):
+    if request.url.path.ends_with("/timeout"):
         let result: Result[Response, TimedOut] = apply!(timeout(1ms, cleanup=1ms)):
             let completed: Result[Response, TimedOut] = .Ok(slow!())
             completed
         return match result:
             .Ok(response) => response
-            .Err(_) => Response { status: 504, body: "deadline".to_utf8() }
-    if request.url.ends_with("/blocking"):
-        upstream := string::from_utf8(request.body).expect("upstream URL is UTF-8")
+            .Err(_) => Response::status(.GatewayTimeout).set_text("deadline")
+    if request.url.path.ends_with("/blocking"):
+        upstream := request.text().expect("upstream URL is UTF-8")
         let call: mut Suspend[Result[Response, HttpError]] = get(upstream)
         return match block_on(call):
             .Completed(.Ok(response)) => response
-            _ => Response { status: 502 }
-    if request.url.ends_with("/fetch"):
-        upstream := string::from_utf8(request.body).expect("upstream URL is UTF-8")
+            _ => Response::status(.BadGateway)
+    if request.url.path.ends_with("/fetch"):
+        upstream := request.text().expect("upstream URL is UTF-8")
         return match get!(upstream):
             .Ok(response) => response
-            .Err(_) => Response { status: 502, body: "upstream failed".to_utf8() }
-    Response { status: 200, headers: [("content-type", "application/json")], body: encode(request.url).to_utf8() }
+            .Err(_) => Response::status(.BadGateway).set_text("upstream failed")
+    Response::status(.Ok).set_json(request.url.to_string())
 
 # Control bridge only: this is not the proposed handler registration or ABI.
 pub fn main!() -> void $ Args + Console + Http + Clock:
     incoming := decode::[Incoming](args()[0]).expect("request envelope")
-    request := Request { method: .Other(incoming.method), url: incoming.url, headers: incoming.headers, body: incoming.body }
-    response := handle!(request)
-    println(encode(Outgoing { status: response.status, headers: response.headers, body: response.body }))
+    request := Request::new(.Other(incoming.method), Url::parse(incoming.url).expect("request URL")).set_bytes(incoming.body)
+    let mut prepared = request
+    prepared.headers = Headers::from(incoming.headers)
+    response := handle!(&prepared)
+    headers := response.headers.entries().map(fn(pair): (pair._0.wire_name(), pair._1))
+    println(encode(Outgoing { status: response.status.code(), headers: headers, body: response.bytes().expect("response body") }))

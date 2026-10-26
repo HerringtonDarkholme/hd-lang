@@ -56,6 +56,7 @@ runtime/valid/http-core-errors.hd	runtime	accept	std/http.md#message-conversion-
 runtime/valid/http-header-names.hd	runtime	accept	std/http.md#r-std-http.header-name.parse-known
 runtime/valid/http-headers-collection.hd	runtime	accept	std/http.md#header-collections
 runtime/valid/http-response-cookies.hd	runtime	accept	std/http.md#response-cookies
+runtime/valid/http-reviewed-examples.hd	runtime	accept	std/http.md#requests-and-responses
 runtime/valid/http-status-codes.hd	runtime	accept	std/http.md#r-std-http.status.numeric-equality
 runtime/valid/http-url-parts.hd	runtime	accept	std/http.md#parsed-urls
 runtime/valid/impl-trait-associated-and-nested.hd	runtime	accept	lang/04-type-system.md#opaque-result-types

@@ -1,7 +1,7 @@
 use dep.model.{Event, Reply, State, handle, start, stop}
 use dep.transport.serve_typed
 use std.host.{Args, args}
-use std.http.Request
+use std.http.{Request, Url}
 use std.net.{Net, NetError}
 use std.serde.Deserialize
 use std.time.{Clock, sleep}
@@ -20,7 +20,7 @@ fn public_failure(error: Failure) -> Reply:
 
 fn dispatch!(input: Input, state: &mut State) -> Result[Reply, Failure] $ Clock:
     event := match input.kind:
-        "http" => Event.Http(Request { url: "/greet", body: input.body.to_utf8() })
+        "http" => Event.Http(Request::post(Url::parse("https://example.test/greet").expect("URL")).set_text(input.body))
         "worker" => Event.Work(input.number)
         "hold" =>
             sleep!(200ms)

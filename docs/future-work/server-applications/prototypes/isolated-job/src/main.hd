@@ -1,6 +1,6 @@
 use dep.model.{Event, Reply, handle, start, stop}
 use std.host.{Args, args}
-use std.http.Request
+use std.http.{Request, Url}
 use std.json.encode
 use std.serde.Serialize
 use std.time.Clock
@@ -15,7 +15,7 @@ pub fn main!() -> void $ Args + Console + Clock:
     words := args()
     kind := words[0]
     event := if kind == "http":
-        Event.Http(Request { url: "/greet", body: words[1].to_utf8() })
+        Event.Http(Request::post(Url::parse("https://example.test/greet").expect("URL")).set_text(words[1]))
     else:
         number := words[1].parse::[i32]().expect("job number")
         match kind:

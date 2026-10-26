@@ -1,7 +1,7 @@
 use dep.model.json
-use std.http.Request
+use std.http.{Request, Url}
 
 # The HTTP handler needs neither Clock nor outbound Http.
 pub fn main() -> void $ Console:
-    response := json(Request { url: "/greet", body: "{\"name\":\"Ada\"}".to_utf8() })
-    println(string::from_utf8(response.body).expect("JSON is UTF-8"))
+    response := json(&Request::post(Url::parse("https://example.test/greet").expect("URL")).set_text("{\"name\":\"Ada\"}"))
+    println(response.text().expect("JSON is UTF-8"))

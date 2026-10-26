@@ -5,7 +5,7 @@ use std.net.{Net, NetError}
 use std.time.Clock
 
 # These hooks remain ordinary functions. main emulates the missing driver.
-pub fn initialize!() -> &mut State: start()
+pub fn initialize!() -> *mut State: start()
 
 pub fn dispatch!(text: string, state: &mut State) -> string $ Clock:
     wire!(text, state)

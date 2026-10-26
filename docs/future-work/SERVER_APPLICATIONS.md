@@ -37,7 +37,7 @@ An application is an ordinary `main!`. There is no `handle!` entry, no manifest 
 `main!` creates one explicit state object and joins a fixed group of worker loops over it with `all!` or `map_all!`.
 
 `HttpServer` is a capability trait owned by a server SDK package and delivered through package-declared host capabilities (#51).
-Its requests and responses are the existing boundary-safe `Request` and `Response` values from `std.http`.
+The SDK exchanges byte wire DTOs at its host boundary and converts them to the public `Request` and `Response` values from `std.http`.
 Routing is ordinary hd code over `Request`.
 
 One Wasm instance is retained per adapter. Each admitted request gets a lease: its ID, deadline, cancellation controller and the outgoing operations it owns.
@@ -52,7 +52,7 @@ struct Hits:
 
 fn handle!(req: Request, hits: &mut Hits) -> Response:
     hits.n = hits.n + 1
-    Response { status: 200, body: "hit ${hits.n}".to_utf8() }
+    Response::status(.Ok).set_text("hit ${hits.n}")
 
 pub fn main!() -> void $ HttpServer:
     let mut hits = Hits { n: 0 }

@@ -1,0 +1,391 @@
+# test: reviewed HTTP usage examples execute against the real standard library
+# expect: test
+
+use std.testing.{assert, assert_equal}
+use std.convert.From
+use std.fs.{FsError, FsRead, FsWrite, MemoryFs, read_text, write_text}
+use std.json.{decode, encode}
+use std.path.Path
+use std.time.{Clock, ManualClock, Timestamp}
+use std.serde.{Deserialize, Serialize}
+use std.http.{Body, BodyError, Client, Cookie, CookieJar, HeaderName, Headers, Http, HttpError, HttpStatus, Request, Response, ScriptedHttp, Url, get, post}
+
+@derive(Serialize, Deserialize)
+struct NewOrder:
+    item: string
+    quantity: u32
+
+@derive(Serialize, Deserialize)
+struct Order:
+    id: u64
+    item: string
+    quantity: u32
+
+@derive(Serialize, Deserialize)
+struct Page:
+    page: u32 = 1
+    per_page: u32 = 20
+    tags: List[string] = []
+
+# ---- Client: write a request, read a response ---------------------------
+
+fn create_order!(api: string, token: string, order: NewOrder) -> Result[Order, HttpError] $ Http:
+    url := Url::parse("$api/orders")?
+    response := Request::post(url)
+        .set_header(.Authorization, "Bearer $token")
+        .set_json(order)
+        .send!()?
+    created := response.ok()?.json::[Order]()?
+    .Ok(created)
+
+fn search!(api: string) -> Result[List[Order], HttpError] $ Http:
+    let mut url = Url::parse("$api/orders")?
+    url.set_query_as(Page { page: 2, tags: ["tea", "green"] })
+    url.add_param("sort", "newest")
+    orders := Request::get(url).send!()?.ok()?.json::[List[Order]]()?
+    .Ok(orders)
+
+# The free helpers take URL text.
+fn quick!(api: string) -> Result[string, HttpError] $ Http:
+    health := get!("$api/health")?.text()?
+    _ := post!("$api/events", NewOrder { item: "tea", quantity: 1 })?
+    .Ok(health)
+
+# A 400-599 error keeps the response, so its body can still be read.
+fn explain!(api: string) -> string $ Http:
+    match get!("$api/missing"):
+        .Ok(response) => response.status.code().to_string()
+        .Err(.Status(response)) => response.text().unwrap_or("")
+        .Err(error) => "$error"
+
+# ---- Server: read a request, write a response ---------------------------
+
+fn handle(req: &Request) -> Response:
+    match req.url.path:
+        "/orders" => orders(req)
+        "/login" => login(req)
+        _ => Response::status(.NotFound)
+
+fn orders(req: &Request) -> Response:
+    match req.method:
+        .Get =>
+            match req.query_as::[Page]():
+                .Ok(page) => Response::status(.Ok).set_json(list_orders(page))
+                .Err(error) => Response::status(.BadRequest).set_text("$error")
+        .Post =>
+            match req.json::[NewOrder]():
+                .Ok(order) => Response::status(.Created).set_json(save(order))
+                .Err(error) => Response::status(.BadRequest).set_text("$error")
+        _ => Response::status(.MethodNotAllowed).set_header(.Allow, "GET, POST")
+
+fn login(req: &Request) -> Response:
+    if req.cookie("session").is_some():
+        return Response::status(.NoContent)
+    Response::status(.Ok)
+        .set_header(.CacheControl, "no-store")
+        .set_cookie(Cookie { name: "session", value: "s3cr3t", max_age: .Some(3600s) })
+
+fn logout() -> Response:
+    Response::status(.NoContent).set_cookie(Cookie::expired("session"))
+
+# ---- Proxy: forward an incoming request ---------------------------------
+
+fn forward!(req: &Request, upstream: Url) -> Response $ Http:
+    let mut out = Request::new(req.method, upstream)
+    out.headers = req.headers
+    out.body = req.body
+    out = out.set_header(.XForwardedFor, "10.0.0.1")
+    match out.send!():
+        .Ok(response) => response
+        .Err(.Status(response)) => response
+        .Err(_) => Response::status(.BadGateway)
+
+# ---- Typed headers through the ordinary From trait ------------------------
+
+struct ApiHeaders:
+    token: string
+    request_id: string
+
+impl From[ApiHeaders] for Headers:
+    fn from(value: ApiHeaders) -> Headers:
+        let mut headers = Headers::new()
+        headers.set(.Authorization, "Bearer ${value.token}")
+        headers.set(.XRequestId, value.request_id)
+        headers
+
+fn with_headers!(url: Url, auth: ApiHeaders, session: string) -> Result[HttpStatus, HttpError] $ Http:
+    let mut req = Request::get(url)
+    req.headers = Headers::from(auth)
+    req.headers.set_request_cookie("session", session)
+    response := req.send!()?
+    for cookie in response.headers.response_cookies():
+        _ := cookie.name
+    .Ok(response.status)
+
+# ---- Lower-level atoms: Url fields, Body, Headers ------------------------
+
+fn atoms(req: &Request) -> Response:
+    # A parsed URL's parts are fields; one key at a time is param.
+    origin := "${req.url.scheme}://${req.url.host}"
+    let mut next = req.url
+    next.add_param("cursor", 42)
+    # The body is shared and read once; the message readers are shorthands.
+    match req.body.text():
+        .Ok(text) =>
+            let mut headers = Headers::new()
+            headers.set(.AccessControlAllowOrigin, origin)
+            headers.set(.Vary, "Origin")
+            headers.set_response_cookie(Cookie { name: "seen", value: "1", same_site: .Strict })
+            Response { status: .Ok, headers: headers, body: Body::from_bytes(text.to_utf8()), url: .Some(next) }
+        .Err(.Used) => Response::status(.Conflict)
+        .Err(_) => Response::status(.BadRequest)
+
+fn list_orders(page: Page) -> List[Order]:
+    []
+
+fn save(order: NewOrder) -> Order:
+    Order { id: 1, item: order.item, quantity: order.quantity }
+
+# ---- More client and server cases -----------------------------------------
+
+@derive(Serialize, Deserialize)
+struct LoginForm:
+    user: string
+    password: string
+
+# Form bodies in both directions; a 3xx Location resolved against the base.
+fn sign_in!(base: Url, form: LoginForm) -> Result[Url, HttpError] $ Http:
+    response := Request::post(base.resolve("/login")?).set_form(form).send!(redirects=0)?
+    match response.header(.Location):
+        .Some(location) => .Ok(base.resolve(location)?)
+        .None => .Ok(base)
+
+fn handle_login(req: &Request) -> Response:
+    match req.form::[LoginForm]():
+        .Ok(form) if form.password != "" => Response::status(.SeeOther).set_header(.Location, "/home")
+        .Ok(_) => Response::status(.Unauthorized).set_header(.WwwAuthenticate, "Basic")
+        .Err(error) => Response::status(.UnsupportedMediaType).set_text("$error")
+
+# Raw bytes up and down; status checks without a body read.
+fn mirror!(api: string, file: List[u8]) -> Result[List[u8], HttpError] $ Http:
+    url := Url::parse("$api/upload")?
+    response := Request::post(url).set_header(.ContentType, "application/octet-stream").set_bytes(file).send!()?
+    if !response.status.is_success():
+        return .Err(.Status(response))
+    for cookie in response.cookies():
+        _ := cookie.max_age
+    .Ok(get!("$api/download")?.bytes()?)
+
+# Retry only what may succeed on retry.
+fn fetch_with_retry!(api: string) -> Result[string, HttpError] $ Http:
+    match get!(api):
+        .Ok(response) => .Ok(response.text()?)
+        .Err(error) if error.is_transient() => .Ok(get!(api)?.text()?)
+        .Err(error) => .Err(error)
+
+# A proxy drops the caller's cookies; a mock answers with a configured code.
+fn strip_and_log(req: &Request, code: u16) -> Response:
+    let mut forwarded = req.headers
+    forwarded.remove(.Cookie)
+    let mut seen: List[string] = []
+    for (name, _) in forwarded.entries():
+        seen.push(name.wire_name())
+    for (name, _) in req.headers.request_cookies():
+        seen.push("cookie:$name")
+    id := req.url.param("id").unwrap_or("none")
+    page := match req.url.query_as::[Page]():
+        .Ok(page) => page.page
+        .Err(_) => 1
+    agent := req.header(.UserAgent).unwrap_or("unknown")
+    theme := req.headers.request_cookie("theme").unwrap_or("light")
+    Response::status(HttpStatus::from_code(code)).set_text("$id $page $agent $theme ${seen.join(",")}")
+
+# ---- A client that keeps its cookies across runs ----------------------------
+
+@error
+enum SessionError:
+    @error("$error")
+    Http(error: HttpError)
+    @error("$error")
+    Fs(error: FsError)
+
+impl From[HttpError] for SessionError:
+    fn from(error: HttpError) -> SessionError: .Http(error)
+
+impl From[FsError] for SessionError:
+    fn from(error: FsError) -> SessionError: .Fs(error)
+
+fn load_jar!(path: Path) -> CookieJar $ FsRead:
+    match read_text!(path):
+        .Ok(text) => decode::[CookieJar](text).unwrap_or(CookieJar::new())
+        .Err(_) => CookieJar::new()
+
+fn fetch_page!(client: &mut Client, api: Url) -> Result[string, HttpError] $ Http + Clock:
+    # The jar sends the saved session cookie and records any new one.
+    response := client.send!(&Request::get(api.resolve("/dashboard")?))?
+    .Ok(response.ok()?.text()?)
+
+fn dashboard!(api: Url, path: Path) -> Result[string, SessionError] $ Http + Clock + FsRead + FsWrite:
+    let mut client = Client::with_jar(load_jar!(path))
+    page := fetch_page!(&mut client, api)?
+    client.jar.clear_expired($.use(Clock).now())
+    write_text!(path, encode(client.jar))?
+    .Ok(page)
+
+# The same jar by hand, with a plain send!: fill, send, store.
+fn manual_jar!(jar: &mut CookieJar, url: Url) -> Result[HttpStatus, HttpError] $ Http + Clock:
+    now := $.use(Clock).now()
+    let mut req = Request::get(url)
+    pairs := jar.cookies_for(&req.url, now)
+    if !pairs.is_empty():
+        req.headers.set(.Cookie, pairs.map(fn(pair): "${pair._0}=${pair._1}").join("; "))
+    response := req.send!()?
+    jar.store(&req.url, &response, now)
+    .Ok(response.status)
+
+fn parsed(text: string) -> Url: Url::parse(text).expect("fixture URL")
+fn fixed_clock() -> *mut ManualClock: ManualClock::new(Timestamp::from_unix_milliseconds(0))
+
+tests:
+    it("client creation, query search and free helpers use real typed messages"):
+        api := "https://shop.test"
+        http := ScriptedHttp::new()
+        http.reply("$api/orders", .Ok(Response::status(.Created).set_json(Order { id: 7, item: "tea", quantity: 2 })))
+        http.reply("$api/orders?page=2&per_page=20&tags=tea&tags=green&sort=newest", .Ok(Response::status(.Ok).set_json([Order { id: 9, item: "green tea", quantity: 1 }])))
+        http.reply("$api/health", .Ok(Response::status(.Ok).set_text("healthy")))
+        http.reply("$api/events", .Ok(Response::status(.Accepted)))
+        $.with(Http=http):
+            created := create_order!(api, "token", NewOrder { item: "tea", quantity: 2 }).expect("created")
+            assert_equal((created.id, created.item, created.quantity), (7, "tea", 2), reason="typed created response")
+            found := search!(api).expect("search")
+            assert_equal(found.len(), 1, reason="query response list")
+            assert_equal(found[0].id, 9, reason="typed list item")
+            assert_equal(quick!(api), .Ok("healthy"), reason="both free helpers")
+        sent := http.received()
+        assert_equal(sent.len(), 4, reason="create, search, health and event")
+        assert_equal(sent[0].header(.Authorization), .Some("Bearer token"), reason="explicit authorization")
+        assert_equal(sent[0].json::[NewOrder]().expect("JSON request").quantity, 2, reason="typed request encoding")
+        assert_equal(sent[1].query_as::[Page]().expect("query").tags, ["tea", "green"], reason="repeated tags")
+        assert_equal(sent[3].method, .Post, reason="post helper method")
+
+    it("server handlers read requests and build typed responses"):
+        query := Request::get(parsed("https://shop.test/orders?page=2&tags=tea"))
+        listed := handle(&query)
+        assert_equal(listed.status, .Ok, reason="GET route")
+        assert_equal(listed.json::[List[Order]]().expect("list").len(), 0, reason="example repository is empty")
+        created := handle(&Request::post(parsed("https://shop.test/orders")).set_json(NewOrder { item: "tea", quantity: 3 }))
+        assert_equal(created.status, .Created, reason="POST route")
+        assert_equal(created.json::[Order]().expect("order").quantity, 3, reason="request JSON reached the handler")
+        assert_equal(handle(&Request::post(parsed("https://shop.test/orders")).set_text("bad JSON")).status, .BadRequest, reason="decode failure")
+        unsupported := orders(&Request::new(.Delete, parsed("https://shop.test/orders")))
+        assert_equal(unsupported.status, .MethodNotAllowed, reason="unsupported method")
+        assert_equal(unsupported.header(.Allow), .Some("GET, POST"), reason="allowed methods header")
+        assert_equal(handle(&Request::get(parsed("https://shop.test/missing"))).status, .NotFound, reason="unknown route")
+
+    it("server cookie writers and request cookie readers remain distinct"):
+        fresh := login(&Request::get(parsed("https://shop.test/login")))
+        assert_equal(fresh.header(.CacheControl), .Some("no-store"), reason="login response cache policy")
+        cookies := fresh.cookies()
+        assert_equal(cookies.len(), 1, reason="one response cookie")
+        assert_equal((cookies[0].name, cookies[0].value), ("session", "s3cr3t"), reason="session cookie")
+        assert(cookies[0].secure && cookies[0].http_only, reason="secure outgoing defaults")
+        assert_equal(login(&Request::get(parsed("https://shop.test/login")).set_cookie("session", "existing")).status, .NoContent, reason="request cookie recognized")
+        assert_equal(logout().cookies()[0].max_age, .Some(0s), reason="logout deletes via Max-Age zero")
+
+    it("proxy forwarding borrows locally and consumes the shared body exactly once"):
+        http := ScriptedHttp::new()
+        target := parsed("https://upstream.test/proxy")
+        http.reply(target.to_string(), .Ok(Response::status(.Created).set_text("upstream")))
+        incoming := Request::post(parsed("https://shop.test/proxy")).set_text("payload").set_header(.UserAgent, "fixture")
+        $.with(Http=http):
+            response := forward!(&incoming, target)
+            assert_equal(response.status, .Created, reason="status forwarded")
+            assert_equal(response.text(), .Ok("upstream"), reason="response body forwarded")
+        sent := http.received()[0]
+        assert_equal(sent.header(.XForwardedFor), .Some("10.0.0.1"), reason="forwarding metadata")
+        assert_equal(sent.text(), .Ok("payload"), reason="request body forwarded")
+        assert_equal(incoming.text().err(), .Some(BodyError.Used), reason="incoming copy observes consumption")
+        assert_equal(incoming.header(.XForwardedFor), .None, reason="original headers remain values")
+
+    it("ordinary From headers and low-level atoms use the same core values"):
+        target := parsed("https://shop.test/headers")
+        http := ScriptedHttp::new()
+        http.reply(target.to_string(), .Ok(Response::status(.Accepted).set_cookie(Cookie { name: "seen", value: "1" })))
+        $.with(Http=http):
+            assert_equal(with_headers!(target, ApiHeaders { token: "secret", request_id: "r1" }, "s1"), .Ok(HttpStatus.Accepted), reason="custom From conversion")
+        sent := http.received()[0]
+        assert_equal(sent.header(.Authorization), .Some("Bearer secret"), reason="converted header")
+        assert_equal(sent.header(.XRequestId), .Some("r1"), reason="second converted header")
+        assert_equal(sent.cookie("session"), .Some("s1"), reason="request cookie")
+        request := Request::post(parsed("https://shop.test/atoms")).set_text("atom")
+        response := atoms(&request)
+        assert_equal(response.header(.AccessControlAllowOrigin), .Some("https://shop.test"), reason="URL fields")
+        assert_equal(response.url.expect("derived URL").param("cursor"), .Some("42"), reason="appended parsed parameter")
+        assert_equal(response.cookies()[0].same_site, .Strict, reason="response cookie metadata")
+        assert_equal(response.text(), .Ok("atom"), reason="direct Body reader and constructor")
+        assert_equal(atoms(&request).status, .Conflict, reason="second body read")
+
+    it("form login runs in both directions and resolves a redirect explicitly"):
+        target := parsed("https://shop.test/base")
+        form := LoginForm { user: "Ada", password: "tea + green" }
+        incoming := Request::post(parsed("https://shop.test/login")).set_form(form)
+        reply := handle_login(&incoming)
+        assert_equal(reply.status, .SeeOther, reason="typed form decoded")
+        http := ScriptedHttp::new()
+        http.reply("https://shop.test/login", .Ok(reply))
+        $.with(Http=http):
+            assert_equal(sign_in!(target, form), .Ok(parsed("https://shop.test/home")), reason="Location resolved by the caller")
+        assert_equal(http.received()[0].form::[LoginForm]().expect("sent form").password, "tea + green", reason="form bytes round-trip")
+        assert_equal(handle_login(&Request::post(parsed("https://shop.test/login")).set_form(LoginForm { user: "Ada", password: "" })).status, .Unauthorized, reason="empty password rejected")
+        assert_equal(handle_login(&Request::post(parsed("https://shop.test/login")).set_bytes([255])).status, .UnsupportedMediaType, reason="malformed form rejected")
+
+    it("binary mirroring, retained errors and retry classification are executable"):
+        api := "https://shop.test"
+        http := ScriptedHttp::new()
+        http.reply("$api/upload", .Ok(Response::status(.Created)))
+        http.reply("$api/download", .Ok(Response::status(.Ok).set_bytes([0, 255, 42])))
+        http.reply("$api/missing", .Ok(Response::status(.NotFound).set_text("not here")))
+        http.reply("$api/retry", .Ok(Response::status(.ServiceUnavailable).set_text("later")))
+        http.reply("$api/retry", .Ok(Response::status(.Ok).set_text("ready")))
+        $.with(Http=http):
+            assert_equal(mirror!(api, [0, 255]), .Ok([0, 255, 42]), reason="binary bodies in both directions")
+            assert_equal(explain!(api), "not here", reason="status error retained the unread body")
+            assert_equal(fetch_with_retry!("$api/retry"), .Ok("ready"), reason="one transient error retries")
+        assert_equal(http.received()[0].bytes(), .Ok([0, 255]), reason="raw upload bytes")
+
+    it("header and cookie logging reads only the local request"):
+        request := Request::get(parsed("https://shop.test/log?id=42&page=3")).set_header(.UserAgent, "fixture").set_cookie("theme", "dark")
+        response := strip_and_log(&request, 202)
+        assert_equal(response.status, .Accepted, reason="status conversion")
+        assert_equal(response.text(), .Ok("42 3 fixture dark user-agent,cookie:theme"), reason="parsed query and cookie readers")
+        assert_equal(request.cookie("theme"), .Some("dark"), reason="removing the copied Cookie header does not mutate the original")
+
+    it("a dashboard serializes and reloads its jar through explicit file capabilities"):
+        api := parsed("https://shop.test/")
+        path := Path("/jar.json")
+        files := MemoryFs::new()
+        http := ScriptedHttp::new()
+        http.reply("https://shop.test/dashboard", .Ok(Response::status(.Ok).set_text("dashboard").set_cookie(Cookie { name: "session", value: "saved", max_age: .Some(3600s) })))
+        clock := fixed_clock()
+        $.with(FsRead=files, FsWrite=files, Http=http, Clock=clock):
+            assert_equal(load_jar!(path), CookieJar::new(), reason="missing file starts empty")
+            match dashboard!(api, path):
+                .Ok(value) => assert_equal(value, "dashboard", reason="first dashboard send")
+                .Err(error) => panic("dashboard: $error")
+            loaded := load_jar!(path)
+            assert_equal(loaded.cookies_for(&api, Timestamp::from_unix_milliseconds(0)), [("session", "saved")], reason="saved cookie round-trip")
+            let mut client = Client::with_jar(loaded)
+            assert_equal(fetch_page!(&mut client, api), .Ok("dashboard"), reason="restored client sends")
+        assert_equal(http.received()[0].cookie("session"), .None, reason="first send starts empty")
+        assert_equal(http.received()[1].cookie("session"), .Some("saved"), reason="restored jar supplies the cookie")
+
+    it("manual jar composition preserves same-name cookies at different paths"):
+        target := parsed("https://shop.test/app/page")
+        let mut jar = CookieJar::new()
+        headers := Headers::from([("Set-Cookie", "id=root; Path=/"), ("Set-Cookie", "id=deep; Path=/app")])
+        jar.store(&target, &Response { headers: headers }, Timestamp::from_unix_milliseconds(0))
+        http := ScriptedHttp::new()
+        http.reply(target.to_string(), .Ok(Response::status(.Accepted)))
+        $.with(Http=http, Clock=fixed_clock()):
+            assert_equal(manual_jar!(&mut jar, target), .Ok(HttpStatus.Accepted), reason="manual fill, send and store")
+        assert_equal(http.received()[0].header(.Cookie), .Some("id=deep; id=root"), reason="preserve path order and repeated names")
