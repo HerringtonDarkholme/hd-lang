@@ -84,7 +84,9 @@ impl Eq for HeaderName:
 impl Hash for HeaderName:
     fn hash(self, state: &mut dyn Hasher) -> void: panic("todo")
 
-## Ordered name/value pairs; a name may repeat. Checked only when sent.
+## Ordered name/value pairs; a name may repeat. Incoming headers are
+## checked by the host when it parses the request; outgoing ones by send!
+## and the server, which reject CR/LF before writing (InvalidHeader).
 @derive(Debug, Eq)
 pub struct Headers:
     pairs: List[(HeaderName, string)]
@@ -98,8 +100,6 @@ impl Headers:
     ## comma-separated value (RFC 9110 §5.3); Set-Cookie lines come from set_cookie.
     pub fn set(&mut self, name: HeaderName, value: string) -> void: panic("todo")
     pub fn remove(&mut self, name: HeaderName) -> void: panic("todo")
-    ## Rejects CR/LF in names and values; send! runs it too.
-    pub fn validate(&self) -> Result[void, HeaderError]: panic("todo")
 
 impl From[List[(string, string)]] for Headers:
     fn from(pairs: List[(string, string)]) -> Headers: panic("todo")
