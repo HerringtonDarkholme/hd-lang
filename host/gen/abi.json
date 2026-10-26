@@ -99,6 +99,11 @@
     ]}
   ],
   "types": {
+    "BodyError": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
+      { "name": "Used", "fields": [] },
+      { "name": "Json", "fields": [{ "name": "error", "type": "JsonError" }] },
+      { "name": "Form", "fields": [{ "name": "error", "type": "FormError" }] }
+    ] },
     "Command": { "kind": "data", "module": "lib/std/process.hd", "generics": [], "fields": [{ "name": "program", "type": "string" }, { "name": "args", "type": "List[string]" }, { "name": "env", "type": "List[(string, string)]" }, { "name": "current_dir", "type": "Path?" }, { "name": "stdin", "type": "string" }] },
     "ConsoleError": { "kind": "enum", "module": "lib/std/console.hd", "generics": [], "variants": [
       { "name": "Closed", "fields": [] },
@@ -112,6 +117,11 @@
       { "name": "File", "fields": [] },
       { "name": "Directory", "fields": [] },
       { "name": "Symlink", "fields": [] }
+    ] },
+    "FormError": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
+      { "name": "Unsupported", "fields": [{ "name": "field", "type": "string" }] },
+      { "name": "Missing", "fields": [{ "name": "field", "type": "string" }] },
+      { "name": "Invalid", "fields": [{ "name": "field", "type": "string" }, { "name": "text", "type": "string" }] }
     ] },
     "FsError": { "kind": "enum", "module": "lib/std/fs.hd", "generics": [], "variants": [
       { "name": "NotFound", "fields": [{ "name": "path", "type": "Path" }] },
@@ -139,7 +149,21 @@
       { "name": "Timeout", "fields": [] },
       { "name": "TooManyRedirects", "fields": [{ "name": "url", "type": "string" }] },
       { "name": "Other", "fields": [{ "name": "message", "type": "string" }] },
-      { "name": "Status", "fields": [{ "name": "response", "type": "Response" }] }
+      { "name": "Status", "fields": [{ "name": "response", "type": "Response" }] },
+      { "name": "InvalidHeader", "fields": [{ "name": "name", "type": "string" }] },
+      { "name": "Body", "fields": [{ "name": "error", "type": "BodyError" }] }
+    ] },
+    "JsonError": { "kind": "enum", "module": "lib/std/json.hd", "generics": [], "variants": [
+      { "name": "UnexpectedEnd", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "UnexpectedCharacter", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "InvalidEscape", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "LoneSurrogate", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "ControlCharacter", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "NumberOutOfRange", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "NestingTooDeep", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "WrongType", "fields": [{ "name": "path", "type": "string" }, { "name": "expected", "type": "string" }] },
+      { "name": "MissingField", "fields": [{ "name": "path", "type": "string" }] },
+      { "name": "UnknownVariant", "fields": [{ "name": "path", "type": "string" }, { "name": "name", "type": "string" }] }
     ] },
     "Method": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
       { "name": "Get", "fields": [] },

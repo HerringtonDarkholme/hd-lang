@@ -21,6 +21,28 @@ import {
 } from "../wire.mjs";
 
 // Each std type a host method crosses, from its declaration in lib/std.
+export const JsonError = variants({
+  UnexpectedEnd: { position: unsigned },
+  UnexpectedCharacter: { position: unsigned },
+  InvalidEscape: { position: unsigned },
+  LoneSurrogate: { position: unsigned },
+  ControlCharacter: { position: unsigned },
+  NumberOutOfRange: { position: unsigned },
+  NestingTooDeep: { position: unsigned },
+  WrongType: { path: str, expected: str },
+  MissingField: { path: str },
+  UnknownVariant: { path: str, name: str },
+});
+export const FormError = variants({
+  Unsupported: { field: str },
+  Missing: { field: str },
+  Invalid: { field: str, text: str },
+});
+export const BodyError = variants({
+  Used: {},
+  Json: { error: JsonError },
+  Form: { error: FormError },
+});
 export const Path = newtype(str);
 export const Command = data({
   program: str,
@@ -89,6 +111,8 @@ export const HttpError = variants({
   TooManyRedirects: { url: str },
   Other: { message: str },
   Status: { response: Response },
+  InvalidHeader: { name: str },
+  Body: { error: BodyError },
 });
 export const Method = variants({
   Get: {},

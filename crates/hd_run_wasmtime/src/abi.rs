@@ -13,6 +13,43 @@ use hd_host_abi::{Codec, ResourceArg, Scalar, Wait};
 
 use crate::codec::{Dec, Enc, Handle, Wire};
 
+/// `BodyError` of `lib/std/http.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BodyError {
+    Used,
+    Json { error: JsonError },
+    Form { error: FormError },
+}
+
+impl Wire for BodyError {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            Self::Used => {
+                e.leb(0);
+            }
+            Self::Json { error } => {
+                e.leb(1);
+                error.enc(e);
+            }
+            Self::Form { error } => {
+                e.leb(2);
+                error.enc(e);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(3)? {
+            0 => Self::Used,
+            1 => Self::Json {
+                error: Wire::dec(d)?,
+            },
+            _ => Self::Form {
+                error: Wire::dec(d)?,
+            },
+        })
+    }
+}
+
 /// `Command` of `lib/std/process.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Command {
@@ -176,6 +213,48 @@ impl Wire for EntryKind {
     }
 }
 
+/// `FormError` of `lib/std/http.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FormError {
+    Unsupported { field: String },
+    Missing { field: String },
+    Invalid { field: String, text: String },
+}
+
+impl Wire for FormError {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            Self::Unsupported { field } => {
+                e.leb(0);
+                field.enc(e);
+            }
+            Self::Missing { field } => {
+                e.leb(1);
+                field.enc(e);
+            }
+            Self::Invalid { field, text } => {
+                e.leb(2);
+                field.enc(e);
+                text.enc(e);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(3)? {
+            0 => Self::Unsupported {
+                field: Wire::dec(d)?,
+            },
+            1 => Self::Missing {
+                field: Wire::dec(d)?,
+            },
+            _ => Self::Invalid {
+                field: Wire::dec(d)?,
+                text: Wire::dec(d)?,
+            },
+        })
+    }
+}
+
 /// `FsError` of `lib/std/fs.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FsError {
@@ -326,6 +405,8 @@ pub enum HttpError {
     TooManyRedirects { url: String },
     Other { message: String },
     Status { response: Response },
+    InvalidHeader { name: String },
+    Body { error: BodyError },
 }
 
 impl Wire for HttpError {
@@ -366,10 +447,18 @@ impl Wire for HttpError {
                 e.leb(8);
                 response.enc(e);
             }
+            Self::InvalidHeader { name } => {
+                e.leb(9);
+                name.enc(e);
+            }
+            Self::Body { error } => {
+                e.leb(10);
+                error.enc(e);
+            }
         }
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(match d.tag(9)? {
+        Ok(match d.tag(11)? {
             0 => Self::NotGranted {
                 host: Wire::dec(d)?,
             },
@@ -388,8 +477,114 @@ impl Wire for HttpError {
             7 => Self::Other {
                 message: Wire::dec(d)?,
             },
-            _ => Self::Status {
+            8 => Self::Status {
                 response: Wire::dec(d)?,
+            },
+            9 => Self::InvalidHeader {
+                name: Wire::dec(d)?,
+            },
+            _ => Self::Body {
+                error: Wire::dec(d)?,
+            },
+        })
+    }
+}
+
+/// `JsonError` of `lib/std/json.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum JsonError {
+    UnexpectedEnd { position: usize },
+    UnexpectedCharacter { position: usize },
+    InvalidEscape { position: usize },
+    LoneSurrogate { position: usize },
+    ControlCharacter { position: usize },
+    NumberOutOfRange { position: usize },
+    NestingTooDeep { position: usize },
+    WrongType { path: String, expected: String },
+    MissingField { path: String },
+    UnknownVariant { path: String, name: String },
+}
+
+impl Wire for JsonError {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            Self::UnexpectedEnd { position } => {
+                e.leb(0);
+                position.enc(e);
+            }
+            Self::UnexpectedCharacter { position } => {
+                e.leb(1);
+                position.enc(e);
+            }
+            Self::InvalidEscape { position } => {
+                e.leb(2);
+                position.enc(e);
+            }
+            Self::LoneSurrogate { position } => {
+                e.leb(3);
+                position.enc(e);
+            }
+            Self::ControlCharacter { position } => {
+                e.leb(4);
+                position.enc(e);
+            }
+            Self::NumberOutOfRange { position } => {
+                e.leb(5);
+                position.enc(e);
+            }
+            Self::NestingTooDeep { position } => {
+                e.leb(6);
+                position.enc(e);
+            }
+            Self::WrongType { path, expected } => {
+                e.leb(7);
+                path.enc(e);
+                expected.enc(e);
+            }
+            Self::MissingField { path } => {
+                e.leb(8);
+                path.enc(e);
+            }
+            Self::UnknownVariant { path, name } => {
+                e.leb(9);
+                path.enc(e);
+                name.enc(e);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(10)? {
+            0 => Self::UnexpectedEnd {
+                position: Wire::dec(d)?,
+            },
+            1 => Self::UnexpectedCharacter {
+                position: Wire::dec(d)?,
+            },
+            2 => Self::InvalidEscape {
+                position: Wire::dec(d)?,
+            },
+            3 => Self::LoneSurrogate {
+                position: Wire::dec(d)?,
+            },
+            4 => Self::ControlCharacter {
+                position: Wire::dec(d)?,
+            },
+            5 => Self::NumberOutOfRange {
+                position: Wire::dec(d)?,
+            },
+            6 => Self::NestingTooDeep {
+                position: Wire::dec(d)?,
+            },
+            7 => Self::WrongType {
+                path: Wire::dec(d)?,
+                expected: Wire::dec(d)?,
+            },
+            8 => Self::MissingField {
+                path: Wire::dec(d)?,
+            },
+            _ => Self::UnknownVariant {
+                path: Wire::dec(d)?,
+                name: Wire::dec(d)?,
             },
         })
     }
