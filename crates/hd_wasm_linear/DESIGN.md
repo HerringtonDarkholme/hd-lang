@@ -791,7 +791,10 @@ changes preserve collection value semantics (§23.7).
   neither copies nor panics on a pin. After it the list has room for
   `count` more elements with no further growth: a shared buffer, or one
   short of room, becomes one new buffer as above; a buffer the list owns
-  with the room stays.
+  with the room stays. The TIR's `ListReserve` (a list comprehension
+  over a range or a list, before its loop) is the same routine on a
+  list value, as `ListPush` is: its new buffer goes back into the
+  operand's place.
 - **Release.** A buffer's release glue (`rt:drop_elems`) releases each element's counted references up to the
   length. A list of strings or of structs holding lists frees everything
   at its last release.

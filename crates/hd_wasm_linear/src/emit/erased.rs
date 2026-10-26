@@ -100,14 +100,15 @@ fn raw_ty(b: &hd_tir::ir::Body, r: u32) -> Ty {
 }
 
 /// The operand that open instruction `at` changes in place, when it is a
-/// collection change (`hd_tir::own::changed`'s push, map store or removal).
+/// collection change (`hd_tir::own::changed`'s push, reserve, map store or
+/// removal).
 fn outlined_change(b: &hd_tir::ir::Body, at: u32) -> Option<u32> {
-    use hd_tir::ir::IntrinsicOp::{ListPush, MapRemove, MapSet};
+    use hd_tir::ir::IntrinsicOp::{ListPush, ListReserve, MapRemove, MapSet};
     let [a, w] = b.data[at as usize];
     (b.tags[at as usize] == Tag::Intrinsic
         && matches!(
             hd_tir::ir::IntrinsicOp::from_u32(a),
-            Some(ListPush | MapSet | MapRemove)
+            Some(ListPush | ListReserve | MapSet | MapRemove)
         ))
     .then(|| b.record(w)[0])
 }

@@ -1855,6 +1855,7 @@ impl Em<'_, '_, '_> {
                 match op {
                     Some(IntrinsicOp::ListLen) => self.list_len(i, args[0])?,
                     Some(IntrinsicOp::ListPush) => self.list_push(&args)?,
+                    Some(IntrinsicOp::ListReserve) => self.list_reserve(&args)?,
                     Some(IntrinsicOp::SnapBegin) => self.snap_begin(i, args[0])?,
                     Some(IntrinsicOp::SnapEnd) => self.snap_end(args[1])?,
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,

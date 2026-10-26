@@ -167,7 +167,7 @@ struct Cand {
     external: bool,
     /// Rules 2 and 3 hold so far.
     ok: bool,
-    /// A `ListPush` changes it.
+    /// A `ListPush` or `ListReserve` changes it.
     pushes: bool,
     /// An element read or store, or a `ListLen`, reads it.
     used: bool,
@@ -881,7 +881,7 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, tag: Tag, [a, w]: [u3
                 let cs = &t.csteps[c.start as usize..(c.start + c.len) as usize];
                 let mine = l == c.local && prefix(cs, &steps);
                 let exact = mine && steps.len() == cs.len();
-                if exact && op == Some(IntrinsicOp::ListPush) {
+                if exact && matches!(op, Some(IntrinsicOp::ListPush | IntrinsicOp::ListReserve)) {
                     c.pushes = true;
                 }
                 if exact && op == Some(IntrinsicOp::ListLen) {

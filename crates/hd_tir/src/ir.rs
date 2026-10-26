@@ -285,10 +285,15 @@ pub enum IntrinsicOp {
     /// place checks its index there. Entry numbers survive the copy that
     /// makes a map's table unique; only growth renumbers them.
     MapEntry,
+    /// `(list, count)`: room for `count` more elements, so that many
+    /// pushes grow no buffer (std's `list_reserve` on a value). A
+    /// comprehension over a source of known length reserves its result
+    /// once before its loop. It changes the list as a push does.
+    ListReserve,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 16] = [
+    pub const ALL: [IntrinsicOp; 17] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::MapLen,
@@ -305,6 +310,7 @@ impl IntrinsicOp {
         IntrinsicOp::SnapBegin,
         IntrinsicOp::SnapEnd,
         IntrinsicOp::MapEntry,
+        IntrinsicOp::ListReserve,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {

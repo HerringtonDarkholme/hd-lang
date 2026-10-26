@@ -387,6 +387,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub bare_step: bool,
     /// The next `for` loop's `else` suite and the loop's result type.
     pub loop_else: Option<(NodeRefIdx, Ty)>,
+    /// The next `for` loop's comprehension result, a local and its type,
+    /// which reserves room once before the loop when the source's length
+    /// is known then.
+    pub reserve_into: Option<(hd_base::LocalId, Ty)>,
     /// The function body block, for `missing-return-value`.
     pub fn_body: Option<NodeRefIdx>,
     /// Whether the function omits its result type: its result is
@@ -611,6 +615,7 @@ pub(crate) fn new_ck<'a, 'c>(
         pipe_arg: None,
         bare_step: false,
         loop_else: None,
+        reserve_into: None,
         fn_body: None,
         result_omitted: false,
         fn_body_tail: None,

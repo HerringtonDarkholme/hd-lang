@@ -915,7 +915,7 @@ is a run ID.
 | `f(xs...)` at a vararg | the `xs` value itself as the vararg's collected value |
 | `f(a, b, xs...)` after a tuple vararg's arguments | `a`, `b` as ordinary arguments, `xs` as the rest-element list |
 | `f(xs...)` before fixed parameters | `xs` evaluated once into a temp, then ordinary arguments: element reads for the fixed inputs, the rest list for a `List[T]` vararg |
-| `[for x in xs if c => e]`, map comprehensions | a `Block`: an empty `NewList` or `NewMap`, a loop, a push `Call` |
+| `[for x in xs if c => e]`, map comprehensions | a `Block`: an empty `NewList` or `NewMap`, a loop, a push `Call`; a list comprehension of one `for` and no `if` over a range or a `List` reserves the source's length once before the loop (`ListReserve`) |
 | `e?` | `SwitchTag` on the `Result` or `Option`; the failing leaf converts the error with the resolved `From` call and `Return`s |
 | `while c: body` | `Loop` whose body is `If c then body else Break` |
 | `for` over a std numeric range | a counting `Loop` with cursor/end/inclusive locals and ordinary tests and assignments; the cursor advances before the body, and the inclusive endpoint clears its flag instead of overflowing |

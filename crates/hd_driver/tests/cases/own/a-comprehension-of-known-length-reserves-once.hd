@@ -1,0 +1,9 @@
+# @dump: own
+# A list comprehension of one `for` and no `if` over a range or a list
+# reserves its result's room once, `ListReserve`, before the loop, so no
+# push in the loop grows the buffer (#165).
+fn fill(n: usize) -> List[bool]:
+    [for _ in 0..n => true]
+
+fn doubled(xs: List[i32]) -> List[i32]:
+    [for x in xs => x * 2]

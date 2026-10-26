@@ -1194,6 +1194,28 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// `ListReserve`: room for `count` more elements, through
+    /// [`Helper::ListReserve`], which panics on a pinned list and copies a
+    /// shared buffer; the buffer it returns goes back into the operand's
+    /// place. A count of 0 does nothing, so an empty list keeps the static
+    /// empty buffer.
+    pub(super) fn list_reserve(&mut self, args: &[u32]) -> StageResult<()> {
+        let (_, e) = self.elem(self.ty_of(args[0]))?;
+        let count = self.f.local(Val::I32);
+        self.push(args[1])?;
+        self.f.set(count);
+        self.f.get(count);
+        self.f.op(I::If(BlockType::Empty));
+        let b = self.buffer(args[0])?;
+        self.f.get(b);
+        self.f.get(count);
+        self.f.helper(Helper::ListReserve { elem: e });
+        self.f.set(b);
+        self.put_back(args[0], b)?;
+        self.f.op(I::End);
+        Ok(())
+    }
+
     /// std's changes of a list through a reference: `list_truncate(items:
     /// &mut List[T], n)`, `list_extend(items, other)`,
     /// `list_reserve(items, count)` and `bytes_append(bytes: &mut

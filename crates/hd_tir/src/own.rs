@@ -243,14 +243,15 @@ pub(crate) fn owner_takes_tail(b: &Body, owner: u32, blk: u32) -> bool {
 }
 
 /// The collection operands instruction `i` changes in place, as (`extra`
-/// position, value): a push's list, a map store's or removal's map.
+/// position, value): a push's or reserve's list, a map store's or
+/// removal's map.
 pub(crate) fn changed(b: &Body, i: usize) -> impl Iterator<Item = (u32, u32)> + '_ {
-    use IntrinsicOp::{ListPush, MapRemove, MapSet};
+    use IntrinsicOp::{ListPush, ListReserve, MapRemove, MapSet};
     let [a, w] = b.data[i];
     let direct = b.tags[i] == Tag::Intrinsic
         && matches!(
             IntrinsicOp::from_u32(a),
-            Some(ListPush | MapSet | MapRemove)
+            Some(ListPush | ListReserve | MapSet | MapRemove)
         );
     direct.then(|| (w + 1, b.record(w)[0])).into_iter()
 }
