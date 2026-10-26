@@ -1,4 +1,0 @@
-use std.http.{Request, Response}
-
-pub fn handle!(request: &Request) -> Response:
-    Response::status(.Ok).set_text(request.url.to_string())

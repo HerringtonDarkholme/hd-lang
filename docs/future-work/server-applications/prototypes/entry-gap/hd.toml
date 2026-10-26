@@ -1,7 +1,0 @@
-[package]
-name = "server_entry_gap"
-
-[[executable]]
-name = "service"
-module = "service"
-kind = "application"

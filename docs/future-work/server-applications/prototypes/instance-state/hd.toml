@@ -1,9 +1,0 @@
-[package]
-name = "server_instance_state"
-
-[dependencies]
-model = { path = "../model" }
-
-[capabilities]
-Clock = true
-Console = true

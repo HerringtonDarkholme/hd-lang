@@ -1,7 +1,0 @@
-[package]
-name = "server_poison_control"
-
-[capabilities]
-Args = true
-Clock = true
-Console = true

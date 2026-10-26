@@ -1,8 +1,0 @@
-# These ordinary functions are not registered application entries today.
-pub fn start!() -> usize: 0
-
-pub fn handle!(state: &mut usize, input: string) -> string:
-    *state = *state + 1
-    input
-
-pub fn stop!(state: &mut usize) -> void: pass

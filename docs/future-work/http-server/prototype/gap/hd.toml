@@ -1,7 +1,0 @@
-[package]
-name = "handler-gap"
-
-[[executable]]
-name = "handler"
-module = "handler"
-kind = "handler"

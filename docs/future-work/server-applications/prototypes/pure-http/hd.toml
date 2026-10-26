@@ -1,8 +1,0 @@
-[package]
-name = "server_pure_http"
-
-[dependencies]
-model = { path = "../model" }
-
-[capabilities]
-Console = true

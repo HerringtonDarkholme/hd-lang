@@ -1,5 +1,0 @@
-[package]
-name = "server_values_control"
-
-[capabilities]
-Console = true
