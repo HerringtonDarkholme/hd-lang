@@ -2509,7 +2509,7 @@ fn free_object(f: &mut Func, m: &Module, block: u32) {
 /// With the runtime, a collection runs first when the collector's buffer
 /// is full, and an object whose descriptor has [`CYCLIC`] takes part in
 /// collections: its block has room for the collector word at its end,
-/// which std's `track` zeroes (§23.28).
+/// which std's `track` zeroes, or this function at a known class (§23.28).
 fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
     let small = fixed.and_then(|(size, cyclic)| {
         m.runtime.filter(|r| r.checked.is_none())?;
@@ -2573,7 +2573,14 @@ fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
         f.op(Instruction::I32LtS);
         f.op(Instruction::If(BlockType::Empty));
         f.get(block);
-        f.call(Sym::Inst(r.cycle.track));
+        if let Some((_, bytes)) = small {
+            // std's `track`, without finding the block's size: the
+            // collector word is the last word of the class's block.
+            f.i32(0);
+            f.op(Instruction::I32Store(mem(HEAP, u64::from(bytes - 4), 2)));
+        } else {
+            f.call(Sym::Inst(r.cycle.track));
+        }
         f.op(Instruction::End);
     }
     f.get(block);

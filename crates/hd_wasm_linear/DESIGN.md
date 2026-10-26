@@ -1642,7 +1642,8 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
 - **The collector word** sits in the last 4 bytes of the block; the
   allocator supplies its size. `rt:new` asks for 4 more
   bytes when the descriptor has `CYCLIC` and has std's `track` zero the
-  word; any other object has no collector word. Its low 2 bits are the
+  word, or zeroes it itself at the class's last word when the size class
+  is known (`rt:new/class-N`); any other object has no collector word. Its low 2 bits are the
   color (black, gray, white) and bit 2 marks a frame. Only a collection
   reads it: no release or free needs the block's size.
 - **Candidates.** Std's `release` (`std.rt.alloc`'s and
