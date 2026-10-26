@@ -1,0 +1,30 @@
+# fixture-runtime-profile: pending-write
+# expect-stdout: inner 0
+# expect-stdout: sum 1
+# expect-stdout: inner 1
+# expect-stdout: sum 3
+# expect-stdout: inner 2
+# expect-stdout: sum 5
+# test: a nested synchronous host drive keeps another async host completion, with caller storage reused in each iteration
+# Spec lang/11 Driving A Stored Suspension: req.drive.block-on.inner-only, req.drive.block-on.completed.
+use std.task.{all, block_on}
+
+fn older!(n: usize) -> usize $ Console:
+    let console: &mut dyn Console = $.use(Console)
+    _ := console.write!("")
+    n + 1
+
+fn inner!(n: usize) -> usize $ Console:
+    println("inner $n")
+    n
+
+fn pair!(n: usize) -> usize $ Console:
+    values := all!(older(n), inner(n))
+    values._0 + values._1
+
+pub fn main() -> void $ Console:
+    for n in 0..3:
+        sum := match block_on(pair(n)):
+            .Completed(value) => value
+            _ => 100
+        println("sum $sum")

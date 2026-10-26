@@ -104,6 +104,11 @@ const LEAF_ARGS: u32 = (F_SAVED + 4).next_multiple_of(8);
 /// Reserved padding in a host leaf's prefix: a borrowed leaf's argument-drop callback.
 /// Other frame kinds do not read it.
 pub const BORROWED_DROP: u64 = 20;
+// Host leaves do not use a resume state or an owned child. A borrowed leaf
+// uses those words for its live registration, which cannot outlive the drive.
+const BLOCKING_NEXT: u64 = F_STATE;
+const BLOCKING_READY: u64 = F_CHILD;
+const HOST_BORROWED: i32 = 256;
 
 /// Room for a host leaf, whose record of `values` has at most eight bytes per leaf.
 pub fn host_frame_capacity(values: usize) -> u32 {
@@ -246,12 +251,13 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             res,
         } => host_cold(m, module, method, args, area, res),
         Helper::HostPoll {
+            blocking,
             module,
             method,
             args,
             area,
             res,
-        } => host_poll(m, module, method, args, area, res),
+        } => host_poll(m, *blocking, module, method, args, area, res),
         Helper::HostCancel => host_cancel(m),
         Helper::HostDrive {
             blocking,
@@ -688,8 +694,8 @@ fn waker_drop(m: &Module) -> Func {
     f
 }
 
-/// [`Helper::WakeSlot`]: grows the registration table before either a
-/// registration or a wake. Allocating once per capacity keeps lookup O(1).
+/// [`Helper::WakeSlot`]: grows the general registration table before a
+/// registration. Allocating once per capacity keeps lookup O(1).
 fn wake_slot(m: &Module) -> Func {
     let mut f = m.func("rt:wake_slot", vec![Val::I32], vec![Val::I32]);
     let (cap, fresh) = (f.local(Val::I32), f.local(Val::I32));
@@ -749,6 +755,83 @@ fn wake_address(f: &mut Func, h: u32) {
     f.i32(WAKE_STRIDE);
     f.op(Instruction::I32Mul);
     f.op(Instruction::I32Add);
+}
+
+/// Register only storage whose synchronous Wasm invocation remains active.
+fn blocking_wake_register(f: &mut Func, frame: u32) {
+    f.get(frame);
+    f.global_get(Global::BlockingWakes);
+    f.op(Instruction::I32Store(mem(HEAP, BLOCKING_NEXT, 2)));
+    f.get(frame);
+    f.global_set(Global::BlockingWakes);
+}
+
+/// Remove by address, including a cancelled outer drive below a nested one.
+fn blocking_wake_remove(f: &mut Func, frame: u32) {
+    let (previous, at, next) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    f.global_get(Global::BlockingWakes);
+    f.set(at);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(at);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, BLOCKING_NEXT, 2)));
+    f.set(next);
+    f.get(at);
+    f.get(frame);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(previous);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(previous);
+    f.get(next);
+    f.op(Instruction::I32Store(mem(HEAP, BLOCKING_NEXT, 2)));
+    f.op(Instruction::Else);
+    f.get(next);
+    f.global_set(Global::BlockingWakes);
+    f.op(Instruction::End);
+    for offset in [BLOCKING_NEXT, BLOCKING_READY] {
+        f.get(at);
+        f.i32(0);
+        f.op(Instruction::I32Store(mem(HEAP, offset, 2)));
+    }
+    f.op(Instruction::Br(2));
+    f.op(Instruction::End);
+    f.get(at);
+    f.set(previous);
+    f.get(next);
+    f.set(at);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+}
+
+fn blocking_wake_mark(f: &mut Func, handle: u32) {
+    let at = f.local(Val::I32);
+    f.global_get(Global::BlockingWakes);
+    f.set(at);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(at);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, u64::from(F_SAVED), 2)));
+    f.get(handle);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(at);
+    f.i32(1);
+    f.op(Instruction::I32Store(mem(HEAP, BLOCKING_READY, 2)));
+    f.op(Instruction::End);
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, BLOCKING_NEXT, 2)));
+    f.set(at);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
 }
 
 /// [`Helper::WakeSignal`]: a wake follows only its enclosing waiters,
@@ -1044,8 +1127,14 @@ fn wake_mark(m: &Module) -> Func {
     f.op(Instruction::I32Mul);
     f.op(Instruction::I32Load(mem(BUF, 0, 2)));
     f.set(h);
-    f.get(h);
-    f.helper(Helper::WakeSlot);
+    blocking_wake_mark(&mut f, h);
+    // Delivery never creates a registration. A valid general registration
+    // already reserved its slot before returning Pending to the host driver.
+    slot(&mut f, h);
+    f.global_get(Global::WakeCap);
+    f.op(Instruction::I32LtU);
+    f.op(Instruction::If(BlockType::Empty));
+    wake_address(&mut f, h);
     f.set(at);
     f.get(at);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
@@ -1059,6 +1148,7 @@ fn wake_mark(m: &Module) -> Func {
     f.get(at);
     f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
     f.helper(Helper::WakeNotify);
+    f.op(Instruction::End);
     f.op(Instruction::End);
     f.get(i);
     f.i32(1);
@@ -1166,6 +1256,7 @@ fn host_cold(
             area,
             res,
         },
+        false,
     );
     f.get(fr);
     f
@@ -1179,7 +1270,7 @@ struct HostLeaf<'a> {
     res: &'a HostRes,
 }
 
-fn init_host_leaf(f: &mut Func, m: &Module, fr: u32, leaf: &HostLeaf<'_>) {
+fn init_host_leaf(f: &mut Func, m: &Module, fr: u32, leaf: &HostLeaf<'_>, blocking: bool) {
     let HostLeaf {
         module,
         method,
@@ -1188,6 +1279,7 @@ fn init_host_leaf(f: &mut Func, m: &Module, fr: u32, leaf: &HostLeaf<'_>) {
         res,
     } = *leaf;
     let poll = Sym::Helper(Helper::HostPoll {
+        blocking,
         module: module.to_owned(),
         method: method.to_owned(),
         args: args.to_vec(),
@@ -1227,6 +1319,7 @@ fn init_host_leaf(f: &mut Func, m: &Module, fr: u32, leaf: &HostLeaf<'_>) {
 /// until the wake table holds the handle, then calls `.finish`.
 fn host_poll(
     m: &Module,
+    blocking: bool,
     module: &str,
     method: &str,
     args: &[HostArg],
@@ -1237,7 +1330,10 @@ fn host_poll(
     let mut results = vec![Val::I32];
     results.extend(rvals.iter().copied());
     let mut f = m.func(
-        format!("rt:{module}/{method}.poll"),
+        format!(
+            "rt:{module}/{method}.{}",
+            if blocking { "block_poll" } else { "poll" }
+        ),
         vec![Val::I32],
         results,
     );
@@ -1257,41 +1353,51 @@ fn host_poll(
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(F_SAVED), 2)));
     f.set(h);
-    f.get(h);
-    f.i32(0);
-    f.op(Instruction::I32LtS);
-    f.op(Instruction::If(BlockType::Empty));
-    let leaves = area.leaves.clone();
-    let imp = crate::boundary::push_args(&mut f, args, &|f, k| {
+    if blocking {
         f.get(0);
-        f.op(leaves[k as usize].load(LEAF_ARGS));
-    });
-    f.call(Sym::Import(Import::new(
-        module,
-        &format!("{method}.start"),
-        &imp,
-        &[Val::I32, Val::I32],
-    )));
-    f.set(n);
-    f.set(st);
-    f.get(st);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(0);
-    f.get(n);
-    f.op(Instruction::I32Store(mem(HEAP, u64::from(F_SAVED), 2)));
-    f.get(n);
-    f.helper(Helper::WakeRegister);
-    pending(&mut f);
-    f.op(Instruction::End);
-    f.op(Instruction::Else);
-    f.get(h);
-    f.helper(Helper::WakeRegister);
-    f.get(h);
-    f.helper(Helper::WakeTake);
-    f.op(Instruction::I32Eqz);
-    f.op(Instruction::If(BlockType::Empty));
-    pending(&mut f);
-    f.op(Instruction::End);
+        f.op(Instruction::I32Load(mem(HEAP, BLOCKING_READY, 2)));
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::If(BlockType::Empty));
+        pending(&mut f);
+        f.op(Instruction::End);
+        blocking_wake_remove(&mut f, 0);
+    } else {
+        f.get(h);
+        f.i32(0);
+        f.op(Instruction::I32LtS);
+        f.op(Instruction::If(BlockType::Empty));
+        let leaves = area.leaves.clone();
+        let imp = crate::boundary::push_args(&mut f, args, &|f, k| {
+            f.get(0);
+            f.op(leaves[k as usize].load(LEAF_ARGS));
+        });
+        f.call(Sym::Import(Import::new(
+            module,
+            &format!("{method}.start"),
+            &imp,
+            &[Val::I32, Val::I32],
+        )));
+        f.set(n);
+        f.set(st);
+        f.get(st);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(0);
+        f.get(n);
+        f.op(Instruction::I32Store(mem(HEAP, u64::from(F_SAVED), 2)));
+        f.get(n);
+        f.helper(Helper::WakeRegister);
+        pending(&mut f);
+        f.op(Instruction::End);
+        f.op(Instruction::Else);
+        f.get(h);
+        f.helper(Helper::WakeRegister);
+        f.get(h);
+        f.helper(Helper::WakeTake);
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::If(BlockType::Empty));
+        pending(&mut f);
+        f.op(Instruction::End);
+    }
     f.get(h);
     f.call(Sym::Import(Import::new(
         module,
@@ -1300,7 +1406,9 @@ fn host_poll(
         &[Val::I32],
     )));
     f.set(n);
-    f.op(Instruction::End);
+    if !blocking {
+        f.op(Instruction::End);
+    }
     flags_or(&mut f, 0, DONE);
     f.i32(1);
     host_result(&mut f, res, n);
@@ -1400,7 +1508,9 @@ fn host_drive(
                 area,
                 res,
             },
+            true,
         );
+        flags_or(&mut f, fr, HOST_BORROWED);
         f.get(fr);
         if let Some(drop) = leaf_drop(area) {
             f.table_slot(drop);
@@ -1424,8 +1534,12 @@ fn host_drive(
     f.get(fr);
     f.get(n);
     f.op(Instruction::I32Store(mem(HEAP, u64::from(F_SAVED), 2)));
-    f.get(n);
-    f.helper(Helper::WakeRegister);
+    if blocking {
+        blocking_wake_register(&mut f, fr);
+    } else {
+        f.get(n);
+        f.helper(Helper::WakeRegister);
+    }
     f.get(fr);
     for v in &rvals {
         zero(&mut f, *v);
@@ -1520,13 +1634,26 @@ fn host_cancel(m: &Module) -> Func {
     f.i32(0);
     f.op(Instruction::I32GeS);
     f.op(Instruction::If(BlockType::Empty));
+    flags_any(&mut f, 0, HOST_BORROWED);
+    f.op(Instruction::If(BlockType::Empty));
+    blocking_wake_remove(&mut f, 0);
+    f.op(Instruction::End);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(F_SAVED), 2)));
     f.call(Sym::Import(Import::new("hd:rt", "abort", &[Val::I32], &[])));
     let at = f.local(Val::I32);
+    flags_any(&mut f, 0, HOST_BORROWED);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    let h = f.local(Val::I32);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(F_SAVED), 2)));
-    f.helper(Helper::WakeSlot);
+    f.set(h);
+    slot(&mut f, h);
+    f.global_get(Global::WakeCap);
+    f.op(Instruction::I32LtU);
+    f.op(Instruction::If(BlockType::Empty));
+    wake_address(&mut f, h);
     f.set(at);
     f.get(at);
     f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
@@ -1534,6 +1661,8 @@ fn host_cancel(m: &Module) -> Func {
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(F_SAVED), 2)));
     f.helper(Helper::WakeRemove);
+    f.op(Instruction::End);
+    f.op(Instruction::End);
     f.i32(1);
     f.global_set(Global::Rewake);
     f.op(Instruction::End);
@@ -2999,6 +3128,202 @@ mod origin_tests {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn synchronous_wake_helper_graph_has_no_allocation_edge() {
+        use crate::module::{Ins, Sym};
+        let mut m = crate::module::Module::default();
+        m.cancellable = true;
+        let mut pending = vec![
+            super::Helper::WakeMark,
+            super::Helper::HostDrive {
+                blocking: true,
+                module: "test".into(),
+                method: "write".into(),
+                args: vec![],
+                area: crate::rt::Elem {
+                    size: 0,
+                    leaves: vec![],
+                    walk: None,
+                    colls: vec![],
+                    cyclic: false,
+                },
+                res: super::HostRes::Void,
+            },
+        ];
+        let mut seen = hd_base::HashSet::default();
+        while let Some(helper) = pending.pop() {
+            assert!(
+                !matches!(
+                    helper,
+                    super::Helper::Alloc
+                        | super::Helper::New
+                        | super::Helper::WakeSlot
+                        | super::Helper::WakeRegister
+                        | super::Helper::HostCold { .. }
+                ),
+                "{helper:?}"
+            );
+            if !seen.insert(helper.clone()) {
+                continue;
+            }
+            let f = crate::rt::helper(&helper, &mut m);
+            for ins in &f.body {
+                if let Ins::Call(id) | Ins::TableSlot(id) = ins
+                    && let Sym::Helper(callee) = &*f.symbols.get(*id)
+                {
+                    pending.push(callee.clone());
+                }
+            }
+        }
+        assert!(seen.contains(&super::Helper::HostCancel));
+    }
+
+    #[test]
+    fn scoped_host_wakes_preserve_nested_async_stale_cancel_and_reset_paths() {
+        use crate::module::Global;
+        let mut m = Module::default();
+        m.cancellable = true;
+        m.export("cancellation", Sym::Helper(Helper::CancellationRoot));
+        let area = crate::rt::Elem {
+            size: 0,
+            leaves: vec![],
+            walk: None,
+            colls: vec![],
+            cyclic: false,
+        };
+        for blocking in [false, true] {
+            for (name, helper) in [
+                (
+                    if blocking { "drive" } else { "asyncDrive" },
+                    Helper::HostDrive {
+                        blocking,
+                        module: "test".into(),
+                        method: "write".into(),
+                        args: vec![],
+                        area: area.clone(),
+                        res: super::HostRes::Void,
+                    },
+                ),
+                (
+                    if blocking { "poll" } else { "asyncPoll" },
+                    Helper::HostPoll {
+                        blocking,
+                        module: "test".into(),
+                        method: "write".into(),
+                        args: vec![],
+                        area: area.clone(),
+                        res: super::HostRes::Void,
+                    },
+                ),
+            ] {
+                m.export(name, Sym::Helper(helper));
+            }
+        }
+        for (name, helper) in [
+            ("wake", Helper::WakeMark),
+            ("cancel", Helper::HostCancel),
+            ("reset", Helper::EntryReset),
+        ] {
+            m.export(name, Sym::Helper(helper));
+        }
+        for (number, (name, global)) in [
+            ("head", Global::BlockingWakes),
+            ("capacity", Global::WakeCap),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut f = m.func(name, vec![], vec![Val::I32]);
+            f.global_get(global);
+            let key = Sym::Inst(hd_base::Hash128(90_100 + number as u128));
+            m.define(key.clone(), f);
+            m.export(name, key);
+        }
+        let mut f = m.func("peek", vec![Val::I32; 2], vec![Val::I32]);
+        f.get(0);
+        f.get(1);
+        f.op(I::I32Add);
+        f.op(I::I32Load(mem(HEAP, 0, 2)));
+        let key = Sym::Inst(hd_base::Hash128(90_102));
+        m.define(key.clone(), f);
+        m.export("peek", key);
+        let mut f = m.func("abandon", vec![Val::I32], vec![]);
+        f.get(0);
+        f.global_set(Global::Aband);
+        let key = Sym::Inst(hd_base::Hash128(90_103));
+        m.define(key.clone(), f);
+        m.export("abandon", key);
+        let wasm = m.finish().expect("scoped host wake module");
+        let script = r"
+const fs = require('node:fs'), assert = require('node:assert/strict');
+const module_ = new WebAssembly.Module(fs.readFileSync(0)), imports = {};
+let next = 0, fail = false;
+const finished = [], aborted = [];
+for (const i of WebAssembly.Module.imports(module_))
+  (imports[i.module] ??= {})[i.name] = () => { throw Error(i.module + ':' + i.name); };
+imports.test['write.start'] = () => [1, next];
+imports.test['write.finish'] = h => { if (fail) throw Error('failed finish'); finished.push(h); return 0; };
+imports['hd:rt'].abort = h => aborted.push(h);
+const w = new WebAssembly.Instance(module_, imports).exports;
+const mark = (...handles) => { new Uint32Array(w['hd.x'].buffer).set(handles); w.wake(handles.length); };
+const drive = (h, frame) => { next = h; assert.equal(w.drive(0, frame), frame); };
+const a = 16384, b = 32768, h1 = 0x100003, h2 = 0x100005, h3 = 0x100007;
+mark(0x7fffffff);
+assert.equal(w.capacity(), 0, 'unknown wakes never grow the indexed table');
+drive(h1, a); drive(h2, b);
+assert.equal(w.head(), b);
+next = h3; const async = w.asyncDrive(0), capacity = w.capacity();
+assert.ok(capacity > 0, 'escaping async uses the indexed registration');
+mark(h1, h2 + 0x100000, h3, 0x7fffffff);
+assert.equal(w.capacity(), capacity);
+assert.equal(w.poll(a), 1, 'an outer completion survives a nested registration');
+assert.equal(w.head(), b, 'removing an outer node retains the inner one');
+assert.equal(w.poll(b), 0, 'the stale generation did not complete the inner call');
+assert.equal(w.asyncPoll(async), 1, 'the same batch also woke an async registration');
+drive(h1 + 0x100000, a);
+mark(h1);
+assert.equal(w.poll(a), 0, 'reuse of caller storage preserves generation checks');
+mark(h1 + 0x100000); assert.equal(w.poll(a), 1); assert.equal(w.head(), b);
+w.abandon(1); w.cancel(b); w.abandon(0);
+assert.equal(w.head(), 0); assert.equal(w.peek(b, 12) & 40, 40, 'abandoned cleanup status survives');
+w.cancel(b); assert.deepEqual(aborted, [h2], 'cancel and unlink occur once');
+mark(h2); assert.equal(w.head(), 0, 'late wake after cancel cannot retain a frame');
+drive(h3 + 0x100000, a); w.cancel(a);
+assert.equal(w.head(), 0); assert.equal(w.peek(a, 12) & 32, 0, 'ordinary cancellation is not abandonment');
+assert.deepEqual(aborted, [h2, h3 + 0x100000]);
+next = h3 + 0x200000; const stopped = w.asyncDrive(0); w.cancel(stopped);
+assert.deepEqual(aborted, [h2, h3 + 0x100000, h3 + 0x200000], 'indexed cancellation still aborts its registration');
+mark(h3 + 0x200000); assert.equal(w.asyncPoll(stopped), 0);
+drive(h2 + 0x100000, b); mark(h2 + 0x100000); fail = true;
+assert.throws(() => w.poll(b), /failed finish/);
+assert.equal(w.head(), 0, 'unlink precedes the host finish call'); fail = false;
+drive(h1 + 0x200000, a);
+w.reset(); assert.equal(w.head(), 0, 'session reset discards scopes skipped by a trap');
+drive(h2 + 0x200000, b); mark(h1 + 0x200000);
+assert.equal(w.poll(b), 0, 'old input wake cannot touch the next scoped call');
+mark(h2 + 0x200000); assert.equal(w.poll(b), 1); assert.equal(w.head(), 0);
+assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
+";
+        let mut child = Command::new("node")
+            .args(["-e", script])
+            .stdin(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("node");
+        child
+            .stdin
+            .take()
+            .expect("stdin")
+            .write_all(&wasm)
+            .expect("write wasm");
+        let result = child.wait_with_output().expect("node completed");
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+
     #[test]
     fn blocking_host_drive_has_no_heap_frame_edge_and_uses_reserved_leaf_word() {
         use crate::layout::{Leaf, Walk};

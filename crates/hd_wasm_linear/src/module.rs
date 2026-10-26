@@ -301,6 +301,8 @@ pub enum Global {
     /// The wake table: its address and its capacity in handles.
     WakeTab,
     WakeCap,
+    /// Live caller-local host leaves owned by synchronous drives, innermost first.
+    BlockingWakes,
     /// Weak waker registry: raw table, capacity, used slots, free head.
     NodeTab,
     NodeCap,
@@ -351,6 +353,7 @@ impl Global {
             | Global::Owner
             | Global::WakeTab
             | Global::WakeCap
+            | Global::BlockingWakes
             | Global::NodeTab
             | Global::NodeCap
             | Global::NodeLen

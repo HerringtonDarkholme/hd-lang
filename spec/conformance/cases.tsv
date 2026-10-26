@@ -1504,6 +1504,7 @@ typing/valid/mutable-loop-element-mutation.hd	type	accept	lang/06-control-flow.m
 runtime/valid/callee-and-operand-evaluation-order.hd	runtime	accept	lang/05-expressions.md#calls
 runtime/panic/block-on-completed-suspension.hd	runtime	panic:suspension-invalid-state	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/block-on-cancelled.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.cancelled
+runtime/valid/block-on-nested-host-wakes.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.inner-only
 typing/invalid/row-parameter-propagates-callback-requirement.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#requirement-polymorphism
 typing/invalid/row-extension-keeps-other-keys.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#requirement-rows
 runtime/valid/f64-nan-ordering.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators

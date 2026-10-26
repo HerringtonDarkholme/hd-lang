@@ -515,6 +515,7 @@ pub enum Helper {
     /// `(frame) -> (ready, results)`: the leaf's `.start`, then its
     /// `.finish` once the wake table holds its handle.
     HostPoll {
+        blocking: bool,
         module: String,
         method: String,
         args: Vec<crate::task::HostArg>,
@@ -1468,6 +1469,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 Global::Owner,
                 Global::WakeTab,
                 Global::WakeCap,
+                Global::BlockingWakes,
                 Global::Waker,
                 Global::WakeBit,
                 Global::Releasing,
