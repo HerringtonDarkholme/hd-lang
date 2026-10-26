@@ -1,6 +1,6 @@
 # hd vs MoonBit (linear-memory wasm backend)
 
-MoonBit ports of the 18 hd benchmark programs (11 in `bench/study`, 7 in
+MoonBit ports of the 19 hd benchmark programs (11 in `bench/study`, 8 in
 `bench/runtime/progs`) plus `empty`, and a runner that compares hd's release
 Wasm with `moon build --target wasm` output. Same algorithm, sizes and stdout
 as the hd source; `compare.mjs` fails if the two stdouts differ.
@@ -38,3 +38,23 @@ and the load average.
 Ports use core `Array`/`Map`/`StringBuilder`, `for .. in` ranges and
 iterators. `moon fmt` rewrites `Int` as `Int32`; they are the same type.
 (`moon fmt` writes `Int32`).
+
+## Nested Display
+
+`progs_nested_display` formats 200,000 orders. Each contains three lines,
+with a money amount in each line. The three `Show.to_string` implementations
+mirror hd's nested `Display` interpolation; the JS twin uses `toString`.
+Every character is ASCII. All three fold the complete text into the same
+rolling checksum, `563962784`.
+
+The benchmark is registered in both hd runners and this comparison:
+
+```sh
+node bench/runtime/run.mjs target/bench-nested-display-runtime --release --hd target/debug/hd --only nested-display
+node bench/study/run.mjs --only progs/nested-display --engines node --hd target/debug/hd --work target/bench-nested-display-study
+node bench/study/moonbit/compare.mjs --build --only progs_nested_display --hd target/debug/hd
+node bench/study/moonbit/compare.mjs --only progs_nested_display --runs 5
+```
+
+`--hd` selects an existing compiler, including a dev compiler. `--only` also
+limits the comparison's build step; it leaves other built programs in place.

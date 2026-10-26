@@ -78,6 +78,7 @@ const PROGS = [
   "int-loop",
   "list-sort",
   "map-count",
+  "nested-display",
   "string-build",
   "string-builder",
   "trait-dispatch",

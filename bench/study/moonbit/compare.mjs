@@ -40,6 +40,7 @@ const progs = [
   "int-loop",
   "list-sort",
   "map-count",
+  "nested-display",
   "string-build",
   "string-builder",
   "trait-dispatch",
@@ -56,26 +57,30 @@ const EMPTY_CASE = { name: "empty", src: EMPTY };
 const hdWasm = (c) => join(WORK, c.name, "build", "release", `${c.name.replaceAll("_", "-")}.wasm`);
 const mbtWasm = (c) => join(MBT_BUILD, c.name, `${c.name}.wasm`);
 
-function build() {
-  rmSync(WORK, { recursive: true, force: true });
-  for (const c of [...CASES, EMPTY_CASE]) {
+function build(cases, hd) {
+  for (const c of cases) {
     const dir = join(WORK, c.name);
+    rmSync(dir, { recursive: true, force: true });
     mkdirSync(join(dir, "src"), { recursive: true });
     writeFileSync(
       join(dir, "hd.toml"),
       `[package]\nname = "${c.name.replaceAll("_", "-")}"\n\n[capabilities]\nConsole = true\nClock = true\n`,
     );
     writeFileSync(join(dir, "src", "main.hd"), c.src ?? readFileSync(c.hd, "utf8"));
-    execFileSync("nice", [HD, "build", "--release", "--engine", "node"], {
+    execFileSync("nice", [hd, "build", "--release", "--engine", "node"], {
       cwd: dir,
       env: { ...process.env, HD_CACHE: join(WORK, "cache") },
       stdio: ["ignore", "ignore", "inherit"],
     });
   }
-  execFileSync("nice", [MOON, "build", "--target", "wasm", "--release"], {
-    cwd: HERE,
-    stdio: ["ignore", "ignore", "inherit"],
-  });
+  execFileSync(
+    "nice",
+    [MOON, "build", "--target", "wasm", "--release", ...cases.map((c) => c.name)],
+    {
+      cwd: HERE,
+      stdio: ["ignore", "ignore", "inherit"],
+    },
+  );
 }
 
 // ---- child: one module, one run ----
@@ -167,15 +172,19 @@ function measure(c, flags, runs) {
 async function main() {
   const argv = process.argv.slice(2);
   if (argv[0] === "--child") return child(argv[1], argv[2]);
-  if (argv.includes("--build")) return build();
   let runs = 11;
   let only;
+  let hd = HD;
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--runs") runs = Number(argv[++i]);
+    if (argv[i] === "--build") continue;
+    else if (argv[i] === "--hd" && argv[i + 1]) hd = resolve(argv[++i]);
+    else if (argv[i] === "--runs") runs = Number(argv[++i]);
     else if (argv[i] === "--only") only = argv[++i].split(",");
     else throw new Error(`unknown flag ${argv[i]}`);
   }
   const cases = [...CASES, EMPTY_CASE].filter((c) => !only || only.includes(c.name));
+  if (!cases.length) throw new Error("no matching program");
+  if (argv.includes("--build")) return build(cases, hd);
   const tiers = [[], ["--no-liftoff"]];
   const rows = [];
   for (const c of cases) {
