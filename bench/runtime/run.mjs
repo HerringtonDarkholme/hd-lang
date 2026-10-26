@@ -92,7 +92,7 @@ function main() {
     const dir = join(workRoot, name);
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(join(dir, "src"), { recursive: true });
-    writeFileSync(join(dir, "hd.toml"), `[package]\nname = "${name}"\n`);
+    writeFileSync(join(dir, "hd.toml"), `[package]\nname = "${name}"\n\n[capabilities]\nConsole = true\n`);
     writeFileSync(join(dir, "src", "main.hd"), src);
     const cache = join(workRoot, `cache-${name}`);
     rmSync(cache, { recursive: true, force: true });
