@@ -859,7 +859,7 @@ impl Ck<'_, '_> {
         ct: Ty,
         n: NodeRef<'_>,
     ) {
-        if self.cx.comparisons.is_none() {
+        if self.cx.source_facts.is_none() {
             return;
         }
         let operand = |node, ty| {

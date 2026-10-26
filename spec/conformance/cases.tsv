@@ -955,7 +955,7 @@ typing/invalid/private-type-embedded-in-public-data.hd	type	reject:private-type-
 typing/valid/private-data-embeds-private-type.hd	type	accept	lang/08-data-and-enums.md#field-visibility
 typing/invalid/variance-position.hd	type	reject:invalid-variance	lang/04-type-system.md#variance
 typing/warnings/unreachable-code.hd	type	warn:unreachable-code	lang/06-control-flow.md#unreachable-code
-typing/warnings/unused-local-binding.hd	type	warn:unused-local-binding	lang/06-control-flow.md#blocks-and-completion
+typing/warnings/unused-local-binding.hd	type	accept	lang/06-control-flow.md#blocks-and-completion
 typing/invalid/duplicate-field.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#construction-and-access
 typing/valid/requirements-and-suspension.hd	type	accept	lang/11-requirements-and-suspension.md
 typing/valid/annotations.hd	type	accept	lang/14-annotations.md#member-metadata
@@ -1358,7 +1358,7 @@ runtime/valid/match-guards.hd	runtime	accept	lang/06-control-flow.md#match-expre
 runtime/valid/optional-propagation.hd	runtime	accept	lang/04-type-system.md#optional-types
 runtime/valid/result-propagation.hd	runtime	accept	lang/04-type-system.md#result-types
 runtime/valid/result-pattern-nested-enum.hd	runtime	accept	lang/10-modules.md#use-forms
-typing/warnings/unused-nested-optional-binding.hd	type	warn:unused-local-binding	lang/04-type-system.md#optional-types
+typing/warnings/unused-nested-optional-binding.hd	type	accept	lang/04-type-system.md#optional-types
 typing/invalid/discarded-optional-result.hd	type	reject:discarded-must-use-value	lang/06-control-flow.md#blocks-and-completion
 typing/valid/optional-result-explicitly-discarded.hd	type	accept	lang/06-control-flow.md#blocks-and-completion
 runtime/valid/comprehensions.hd	runtime	accept	lang/05-expressions.md#comprehensions
@@ -2549,7 +2549,7 @@ typing/valid/error-generated-bounds.hd	type	accept	lang/14-annotations.md#genera
 typing/valid/error-without-import.hd	type	accept	lang/14-annotations.md#r-annot.error.no-use
 parse/valid/same-line-suite-let-list.hd	parse	accept	lang/02-grammar.md#r-grammar.inline.let-pattern
 parse/invalid/same-line-suite-bare-let-list.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.inline.bare-comma
-typing/warnings/same-line-let-list-unused.hd	type	warn:unused-local-binding	lang/02-grammar.md#r-grammar.inline.let-pattern
+typing/warnings/same-line-let-list-unused.hd	type	accept	lang/02-grammar.md#r-grammar.inline.let-pattern
 runtime/panic/string-slice-inside-scalar.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.string.slice.bad-offset
 runtime/panic/string-slice-past-end.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.string.slice.bad-offset
 runtime/panic/string-slice-reversed.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.string.slice.reversed
@@ -3664,7 +3664,7 @@ runtime/valid/result-type-candidate.hd	runtime	accept	lang/09-traits.md#r-trait.
 runtime/valid/numeric-candidate-tie-break.hd	runtime	accept	lang/09-traits.md#r-trait.resolve.literal-arg
 typing/invalid/numeric-candidate-no-fit.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.literal-arg.no-apply
 typing/invalid/no-fit-candidate.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.no-apply
-typing/warnings/unused-after-rejected-trials.hd	type	warn:unused-local-binding	lang/06-control-flow.md#r-flow.unused.lint
+typing/warnings/unused-after-rejected-trials.hd	type	accept	lang/06-control-flow.md#r-flow.unused.lint
 runtime/valid/lazy-result-candidate.hd	runtime	accept	lang/09-traits.md#r-trait.resolve.applies.expected
 runtime/valid/ord-supertrait-dispatch.hd	runtime	accept	lang/09-traits.md#comparison-traits
 runtime/valid/generic-inherent-box.hd	runtime	accept	lang/09-traits.md#trait-implementations
@@ -3717,7 +3717,7 @@ runtime/valid/generic-data-let-pattern.hd	runtime	accept	lang/06-control-flow.md
 runtime/valid/generic-data-pattern-nested-generic.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.data.generic
 runtime/valid/generic-data-match-pattern.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.data.generic
 runtime/valid/generic-data-pattern-in-generic-function.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.data.generic
-typing/valid/unused-underscore-bindings.hd	type	warn:unused-local-binding	lang/06-control-flow.md#r-flow.unused.underscore
+typing/valid/unused-underscore-bindings.hd	type	accept	lang/06-control-flow.md#r-flow.unused.underscore
 runtime/valid/generic-call-nested-fresh-literal.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer
 runtime/valid/generic-call-nested-fresh-pair.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer
 typing/valid/generic-call-fresh-list-of-boxes.hd	type	accept	lang/04-type-system.md#r-types.generic.infer

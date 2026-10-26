@@ -51,7 +51,7 @@ pub struct BodyCx<'a> {
     /// build rejects in the user's own code (`module.dbg.release`).
     pub dbg_refs: std::cell::RefCell<Vec<crate::dbg::DbgRef>>,
     /// Optional source facts requested by tooling; absent on ordinary builds.
-    pub comparisons: Option<std::cell::RefCell<Vec<crate::comparison::Comparison>>>,
+    pub source_facts: Option<std::cell::RefCell<crate::comparison::SourceFacts>>,
     /// The module's block-local declarations, lifted to hidden items
     /// (`crates/hd_tir/DESIGN.md` "Local items lift to hidden module items").
     pub locals: &'a [hd_resolve::LocalItem],
@@ -414,7 +414,7 @@ pub(crate) struct Ck<'a, 'c> {
     /// Set when `declare_pattern` rejected a pattern; its arm then takes
     /// no part in the reachability and exhaustiveness checks.
     pub pattern_rejected: bool,
-    /// The locals the source binds by name, for `unused-local-binding`.
+    /// Source bindings for unread-suspension checks and optional tooling facts.
     pub user_locals: Vec<LocalId>,
     /// Whether the body read a name that a failed `use` poisoned, or a
     /// local whose declared type is poison (a header parameter's type in
@@ -1237,26 +1237,23 @@ impl Ck<'_, '_> {
         (w, g)
     }
 
-    /// `unused-local-binding` (flow.unused.warning): a local the source
-    /// binds and never reads; a name beginning with `_` is exempt.
-    fn unused_locals(&mut self) {
-        // One warning per line: a `let` pattern's unread names share it.
-        let mut lines = hd_base::HashSet::default();
+    /// Unread suspensions are errors even for underscore-prefixed names.
+    /// Tooling may request neutral binding/read facts; advice lives outside checking.
+    fn finish_bindings(&mut self) -> Vec<crate::comparison::Binding> {
+        let mut bindings = Vec::new();
         for l in std::mem::take(&mut self.user_locals) {
             let body = self.b.body_mut();
-            let (flags, name, at) = (
+            let (item, flags, name, at) = (
+                body.item,
                 body.local_flags[l.idx()],
                 body.local_name[l.idx()],
                 body.local_syn[l.idx()],
             );
-            let text = self.cx.names.text(name);
-            if flags & local_flags::READ != 0 {
-                continue;
-            }
-            // flow.unused.must-use: an unread suspension binding is an
-            // error, whatever its name; `Result` and `T?` stay warnings.
+            let read = flags & local_flags::READ != 0;
             let lt = self.b.local_ty(l);
-            if self.must_use_in(lt, true) == Some(true) {
+            // flow.unused.must-use: a readonly binding does not lift the obligation.
+            if !read && self.must_use_in(lt, true) == Some(true) {
+                let text = self.cx.names.text(name);
                 let span = self.cx.src.span(self.cx.src.parse.tree.node(at));
                 let msg = format!(
                     "`{text}` binds a {} value that is never read; handle it or write `_ := ...`",
@@ -1269,26 +1266,18 @@ impl Ck<'_, '_> {
                     &msg,
                     None,
                 );
-                continue;
             }
-            if text.starts_with('_') {
-                continue;
+            if self.cx.source_facts.is_some() {
+                bindings.push(crate::comparison::Binding {
+                    body: item,
+                    local: l,
+                    name: self.cx.names.text(name).to_owned(),
+                    span: self.cx.src.span(self.cx.src.parse.tree.node(at)),
+                    read,
+                });
             }
-            let msg = format!("`{text}` is never read; name it `_{text}` to keep it");
-            let span = self.cx.src.span(self.cx.src.parse.tree.node(at));
-            let source = self.cx.src.text;
-            let lo = usize::try_from(span.lo).unwrap_or(0).min(source.len());
-            if !lines.insert(source[..lo].rfind('\n')) {
-                continue;
-            }
-            self.diags.push(
-                Code::UnusedLocalBinding,
-                hd_diag::Severity::Warning,
-                span,
-                &msg,
-                None,
-            );
         }
+        bindings
     }
 
     /// `expr.arith.unary-minus`: `-` on an operand whose type turned out
@@ -4518,7 +4507,7 @@ impl Ck<'_, '_> {
         ret: Ty,
         fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
-        self.unused_locals();
+        let bindings = self.finish_bindings();
         self.redundant_primitive_let_mut();
         self.report_conflicts();
         if self.module_init.is_none() {
@@ -4773,9 +4762,11 @@ impl Ck<'_, '_> {
             .finish_in(root, &modes, tolerated, &known)
             .map_err(|e| VerifyError::bug(Stage::Body, "TIR verifier", &e))?;
         if !self.diags.has_errors()
-            && let Some(sink) = &self.cx.comparisons
+            && let Some(sink) = &self.cx.source_facts
         {
-            sink.borrow_mut().extend(self.comparisons);
+            let mut sink = sink.borrow_mut();
+            sink.comparisons.extend(self.comparisons);
+            sink.bindings.extend(bindings);
         }
         Ok((body, ret, facts))
     }

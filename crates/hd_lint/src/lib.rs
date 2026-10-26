@@ -4,11 +4,12 @@
 use std::sync::Arc;
 
 use hd_base::SliceSort as _;
-use hd_check::comparison::Comparison;
+use hd_check::comparison::{Binding, Comparison, SourceFacts};
 use hd_diag::{Code, DiagBuf, Severity};
 use hd_syntax::TokenKind;
 use hd_types::Prim;
 
+pub const UNUSED_BINDING: &str = "unused-local-binding";
 pub const UNSIGNED_COMPARISON: &str = "unsigned-comparison-always";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,17 +23,20 @@ pub enum Level {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Policy {
     unsigned: Option<Level>,
+    unused: Option<Level>,
 }
 
 impl Policy {
     pub fn set(&mut self, name: &str, level: Level) -> Result<(), String> {
-        if name != UNSIGNED_COMPARISON {
-            return Err(format!("unknown lint `{name}`"));
-        }
-        if self.unsigned.is_some_and(|old| old != level) {
+        let slot = match name {
+            UNSIGNED_COMPARISON => &mut self.unsigned,
+            UNUSED_BINDING => &mut self.unused,
+            _ => return Err(format!("unknown lint `{name}`")),
+        };
+        if slot.is_some_and(|old| old != level) {
             return Err(format!("conflicting levels for lint `{name}`"));
         }
-        self.unsigned = Some(level);
+        *slot = Some(level);
         Ok(())
     }
 
@@ -44,7 +48,13 @@ impl Policy {
 
 /// Preserves the existing literal-zero predicate, exact message, and comparison span.
 #[must_use]
-pub fn analyze(facts: &[Comparison], texts: &[Arc<str>], policy: Policy) -> DiagBuf {
+pub fn analyze(facts: &SourceFacts, texts: &[Arc<str>], policy: Policy) -> DiagBuf {
+    let mut diags = comparisons(&facts.comparisons, texts, policy);
+    bindings(&mut diags, &facts.bindings, texts, policy);
+    diags
+}
+
+fn comparisons(facts: &[Comparison], texts: &[Arc<str>], policy: Policy) -> DiagBuf {
     let mut diags = DiagBuf::default();
     let severity = match policy.unsigned_level() {
         Level::Allow => return diags,
@@ -94,4 +104,42 @@ pub fn analyze(facts: &[Comparison], texts: &[Arc<str>], policy: Policy) -> Diag
         );
     }
     diags
+}
+
+/// Preserve the original first unread binding per source line, independently per body.
+fn bindings(diags: &mut DiagBuf, facts: &[Binding], texts: &[Arc<str>], policy: Policy) {
+    let severity = match policy.unused.unwrap_or(Level::Warn) {
+        Level::Allow => return,
+        Level::Warn => Severity::Warning,
+        Level::Deny => Severity::Error,
+    };
+    let mut facts: Vec<_> = facts.iter().collect();
+    facts.sort_stable_by(|a, b| {
+        (a.span.file.raw(), a.body.raw(), a.local.raw()).cmp(&(
+            b.span.file.raw(),
+            b.body.raw(),
+            b.local.raw(),
+        ))
+    });
+    facts.dedup();
+    let mut lines = hd_base::HashSet::default();
+    for fact in facts {
+        if fact.read || fact.name.starts_with('_') {
+            continue;
+        }
+        let source = texts.get(fact.span.file.idx()).map_or("", |s| s.as_ref());
+        let lo = (fact.span.lo as usize).min(source.len());
+        let line = source.get(..lo).and_then(|prefix| prefix.rfind('\n'));
+        if !lines.insert((fact.span.file, fact.body, line)) {
+            continue;
+        }
+        let name = &fact.name;
+        diags.push(
+            Code::UnusedLocalBinding,
+            severity,
+            fact.span,
+            &format!("`{name}` is never read; name it `_{name}` to keep it"),
+            None,
+        );
+    }
 }

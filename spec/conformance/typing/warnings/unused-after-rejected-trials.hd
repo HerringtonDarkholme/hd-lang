@@ -1,5 +1,5 @@
-# test: a local unused by the winning candidate still warns
-# Spec 06 Control Flow: flow.unused.lint (an unread ordinary binding warns).
+# test: a local unused by the winning candidate is accepted without lint
+# Spec 06 Control Flow: flow.unused.lint (ordinary checking does not report optional advice).
 trait Parse[T]:
     fn parse(raw: T) -> i32
 
@@ -13,5 +13,5 @@ impl Parse[string] for Item:
 
 pub fn main() -> void:
     text := "7"
-    extra := +99  # warning: unused-local-binding
+    extra := +99
     _ := Item::parse(text)

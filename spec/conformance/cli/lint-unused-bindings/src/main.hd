@@ -1,0 +1,16 @@
+fn exercise() -> void:
+    let (first, second) = (+1, +2)
+    _exempt := +3
+    captured := +4
+    closure := fn() -> i32: captured
+    _ := closure()
+    item := +5
+    if true:
+        item := +6
+        _ := item
+    let nested: string?? = .None
+    let result: Result[i32, string] = .Ok(+7)
+    pass
+
+pub fn main() -> void:
+    exercise()

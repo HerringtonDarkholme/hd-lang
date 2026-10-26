@@ -289,11 +289,10 @@ fn a_type_is_not_declared_again() {
     );
 }
 
-/// `cli.repl.redefine.impl`: an implementation that overlaps one of an
-/// earlier input or of `src/lib.hd` is `overlapping-impl`, as in one
-/// module, and the first one stays.
+/// `cli.lint.ordinary-errors`: unused-binding advice never appears in a
+/// REPL input or when a later input rebuilds it.
 #[test]
-fn an_earlier_input_s_warning_is_shown_once() {
+fn unused_binding_advice_is_absent_across_rebuilds() {
     let t = session(&[
         "fn f() -> i32:",
         "    let unused = 1",
@@ -304,7 +303,7 @@ fn an_earlier_input_s_warning_is_shown_once() {
     ]);
     assert_eq!(
         t.out.matches("unused-local-binding").count(),
-        1,
+        0,
         "{}",
         t.out
     );

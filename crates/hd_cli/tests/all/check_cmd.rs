@@ -235,7 +235,7 @@ fn second_run_is_warm() {
 }
 
 /// A library package with one clean module and three modules with problems:
-/// `a.hd` has two `unknown-name` errors and a warning, `b.hd` a
+/// `a.hd` has two `unknown-name` errors and an unused binding, `b.hd` a
 /// `type-mismatch` error, and `c.hd` an `unknown-name` error.
 fn broken_library(name: &str) -> Scratch {
     let dir = scratch(name);
@@ -268,7 +268,7 @@ fn text_summary_line_says_ok_or_failed_with_both_counts() {
     assert_eq!(bad.out, "");
     assert_eq!(
         bad.err.lines().last(),
-        Some("check result: FAILED. errors: 4; warnings: 1"),
+        Some("check result: FAILED. errors: 4; warnings: 0"),
         "{}",
         bad.err
     );
@@ -286,10 +286,9 @@ fn summary_mode_counts_per_file_and_code_in_path_then_code_order() {
     assert_eq!(
         r.err,
         "error: src/a.hd: unknown-name: 2\n\
-         warning: src/a.hd: unused-local-binding: 1\n\
          error: src/b.hd: type-mismatch: 1\n\
          error: src/c.hd: unknown-name: 1\n\
-         check result: FAILED. errors: 4; warnings: 1\n"
+         check result: FAILED. errors: 4; warnings: 0\n"
     );
 }
 
@@ -306,7 +305,7 @@ fn max_errors_stops_printing_but_not_counting_or_the_status() {
     assert!(shown < all.err.lines().filter(|l| l.contains(": src/")).count());
     assert_eq!(
         two.err.lines().last(),
-        Some("check result: FAILED. errors: 4; warnings: 1")
+        Some("check result: FAILED. errors: 4; warnings: 0")
     );
     let eq = check(&dir, &["--max-errors=2"]);
     assert_eq!(eq.err, two.err);
@@ -332,10 +331,10 @@ fn json_ignores_summary_and_max_errors() {
         &dir,
         &["--format", "json", "--summary", "--max-errors", "1"],
     );
-    assert_eq!(plain.out.lines().count(), 6, "{}", plain.out);
+    assert_eq!(plain.out.lines().count(), 5, "{}", plain.out);
     assert_eq!(
-        plain.out.lines().take(5).collect::<Vec<_>>(),
-        opts.out.lines().take(5).collect::<Vec<_>>()
+        plain.out.lines().take(4).collect::<Vec<_>>(),
+        opts.out.lines().take(4).collect::<Vec<_>>()
     );
 }
 

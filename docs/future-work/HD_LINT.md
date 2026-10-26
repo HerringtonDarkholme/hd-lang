@@ -4,7 +4,8 @@ Accepted command boundary and migration plan, owner 2026-10-26,
 [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855).
 The earlier review is in [#651](https://github.com/HerringtonDarkholme/hd-lang/issues/651).
 Implementation proceeds in independently checked slices. The initial `hd lint`
-command reports `unsigned-comparison-always` with exact-name CLI levels.
+command reports `unsigned-comparison-always` and `unused-local-binding`
+with exact-name CLI levels.
 The remaining warnings, manifest policy and site suppressions still await
 their slices; ordinary commands retain those unmigrated warnings.
 Later lints, custom exports, plugins and fixes retain their stated proposal status.
@@ -53,7 +54,7 @@ Today `hd check` checks without running the program and reports
 Whether any fix command should remain is undecided in
 [#805](https://github.com/HerringtonDarkholme/hd-lang/issues/805).
 
-The command now reports the first migrated warning, `unsigned-comparison-always`.
+The command now reports `unsigned-comparison-always` and `unused-local-binding`.
 Output for later new lints below remains a proposal, not an executed result.
 The baseline compiler still emits the warnings inventoried next; this proposal describes their migration.
 
@@ -82,7 +83,7 @@ The inventory below names actual current producers, including ones outside hd_ch
 | `unsigned-comparison-always` | [hd_lint](../../crates/hd_lint/src/lib.rs) | Moved. hd_check exposes optional source comparison facts, including the checked primitive, operand spans and unsuffixed-zero classification. The lint owns the decision and message; normal builds collect no facts. |
 | `unused-debug-text` | hd_check format-expression checking in body.rs | Move. Retain the discarded expression-statement span and resolved prelude debug identity. A local function named debug must not match; lowered string-building calls lose that distinction. |
 | `unused-derivation-fact` | hd_resolve/decorators.rs | Move. Read decorator occurrence, supported fact kind, target and consumed-fact identities. Invalid decorators remain resolver errors. |
-| `unused-local-binding` | hd_check body finalization | Move only advisory unused-binding selection. Export binding identity, scope, final type, use/capture state and source line. Unread must-use values remain discarded-must-use-value errors in hd_check. |
+| `unused-local-binding` | [hd_lint](../../crates/hd_lint/src/lib.rs) | Moved. Optional checker facts retain body/local identity, actual source name/span and final read state, including capture reads. Lint selects unread non-underscore names and the first finding per body/line. Unread suspensions remain discarded-must-use-value errors in hd_check. |
 | `variant-binding-name-mismatch` | [hd_check/pat.rs](../../crates/hd_check/src/pat.rs) | Move. Read the checked pattern's enum variant, field position, source binding name and any suppression conditions; no matching by text alone. |
 
 No warning must remain in hd_check merely because it currently reads private state.

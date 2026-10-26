@@ -1,0 +1,15 @@
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd build --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd test --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"unused-local-binding","severity":"warning","message":"`first` is never read; name it `_first` to keep it","file":"src/main.hd","line":2,"column":10,"fixes":[]},{"kind":"diagnostic","code":"unused-local-binding","severity":"warning","message":"`item` is never read; name it `_item` to keep it","file":"src/main.hd","line":7,"column":5,"fixes":[]},{"kind":"diagnostic","code":"unused-local-binding","severity":"warning","message":"`nested` is never read; name it `_nested` to keep it","file":"src/main.hd","line":11,"column":9,"fixes":[]},{"kind":"diagnostic","code":"unused-local-binding","severity":"warning","message":"`result` is never read; name it `_result` to keep it","file":"src/main.hd","line":12,"column":9,"fixes":[]},{"kind":"summary","errors":0,"warnings":4,"status":0}]
+run: hd lint --allow unused-local-binding --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --deny unused-local-binding --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unused-local-binding","severity":"error","message":"`first` is never read; name it `_first` to keep it","file":"src/main.hd","line":2,"column":10,"fixes":[]},{"kind":"diagnostic","code":"unused-local-binding","severity":"error","message":"`item` is never read; name it `_item` to keep it","file":"src/main.hd","line":7,"column":5,"fixes":[]},{"kind":"diagnostic","code":"unused-local-binding","severity":"error","message":"`nested` is never read; name it `_nested` to keep it","file":"src/main.hd","line":11,"column":9,"fixes":[]},{"kind":"diagnostic","code":"unused-local-binding","severity":"error","message":"`result` is never read; name it `_result` to keep it","file":"src/main.hd","line":12,"column":9,"fixes":[]},{"kind":"summary","errors":4,"warnings":0,"status":101}]
+run: hd lint --allow unsigned-comparison-always --format json
+stdout-json: [{"kind":"diagnostic","code":"unused-local-binding","severity":"warning","message":"`first` is never read; name it `_first` to keep it","file":"src/main.hd","line":2,"column":10,"fixes":[]},{"kind":"diagnostic","code":"unused-local-binding","severity":"warning","message":"`item` is never read; name it `_item` to keep it","file":"src/main.hd","line":7,"column":5,"fixes":[]},{"kind":"diagnostic","code":"unused-local-binding","severity":"warning","message":"`nested` is never read; name it `_nested` to keep it","file":"src/main.hd","line":11,"column":9,"fixes":[]},{"kind":"diagnostic","code":"unused-local-binding","severity":"warning","message":"`result` is never read; name it `_result` to keep it","file":"src/main.hd","line":12,"column":9,"fixes":[]},{"kind":"summary","errors":0,"warnings":4,"status":0}]

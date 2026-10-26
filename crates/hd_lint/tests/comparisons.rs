@@ -18,7 +18,7 @@ fn checked(source: &str, store: &MemoryStore, collect: bool, executor: Executor)
         },
         "app",
         &Packages {
-            collect_comparisons: collect,
+            collect_source_facts: collect,
             ..Packages::default()
         },
         &Goal::Analyze,
@@ -33,7 +33,7 @@ fn lint(source: &str, policy: Policy) -> (Output, DiagBuf) {
         Executor::Serial(SerialOrder::Priority),
     );
     assert!(!out.diags.has_errors(), "{}", out.render());
-    let findings = analyze(&out.comparisons, &out.texts, policy);
+    let findings = analyze(&out.source_facts, &out.texts, policy);
     (out, findings)
 }
 
@@ -129,16 +129,16 @@ fn lint_rechecks_warm_normal_entries_and_never_caches_a_finding() {
     let store = MemoryStore::default();
     let serial = Executor::Serial(SerialOrder::Priority);
     let normal = checked(source, &store, false, serial);
-    assert!(normal.comparisons.is_empty());
+    assert!(normal.source_facts.comparisons.is_empty());
     for _ in 0..2 {
         let out = checked(source, &store, true, serial);
         assert_eq!(
-            analyze(&out.comparisons, &out.texts, Policy::default()).len(),
+            analyze(&out.source_facts, &out.texts, Policy::default()).len(),
             2
         );
     }
     let normal = checked(source, &store, false, serial);
-    assert!(normal.comparisons.is_empty());
+    assert!(normal.source_facts.comparisons.is_empty());
     assert!(!normal.diags.code.contains(&Code::UnsignedComparisonAlways));
     assert!(
         normal.counters.modules_checked.is_empty(),
@@ -156,7 +156,7 @@ fn inferred_bodies_and_parallel_batches_keep_their_facts_once() {
     for executor in [Executor::Serial(SerialOrder::Priority), Executor::Pool(4)] {
         let out = checked(&source, &MemoryStore::default(), true, executor);
         assert!(!out.diags.has_errors(), "{}", out.render());
-        let findings = analyze(&out.comparisons, &out.texts, Policy::default());
+        let findings = analyze(&out.source_facts, &out.texts, Policy::default());
         assert_eq!(findings.len(), 65, "{executor:?}");
     }
 }
@@ -177,7 +177,8 @@ fn choose(value: u32) -> bool:
     assert_eq!(findings.len(), 1);
     let span = findings.primary[0];
     assert_eq!(
-        out.comparisons
+        out.source_facts
+            .comparisons
             .iter()
             .filter(|fact| fact.span == span)
             .count(),

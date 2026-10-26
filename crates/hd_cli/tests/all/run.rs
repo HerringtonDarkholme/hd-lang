@@ -199,7 +199,7 @@ fn rendered_diagnostics_do_not_repeat_their_code() {
 /// `cli.diagnostics.text`: each diagnostic prints its severity, then
 /// `file:line:column`, the code once, and the message.
 #[test]
-fn warning_and_error_print_severity_location_code_and_message() {
+fn errors_print_severity_location_code_and_message_without_unused_advice() {
     let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-severity");
     let file = dir.join("mixed.hd");
     std::fs::write(
@@ -215,8 +215,7 @@ fn warning_and_error_print_severity_location_code_and_message() {
     let err = String::from_utf8_lossy(&output.stderr);
     assert_eq!(
         err,
-        "warning: mixed.hd:5:5: unused-local-binding: `u` is never read; name it `_u` to keep it\n\
-         error: mixed.hd:6:10: argument-count: `add` takes 2 arguments\n"
+        "error: mixed.hd:6:10: argument-count: `add` takes 2 arguments\n"
     );
 }
 

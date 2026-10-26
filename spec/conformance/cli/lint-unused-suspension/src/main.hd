@@ -1,0 +1,5 @@
+fn work!() -> void:
+    pass
+
+pub fn main() -> void:
+    _pending := work()

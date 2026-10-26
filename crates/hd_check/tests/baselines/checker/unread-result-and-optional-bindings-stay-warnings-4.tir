@@ -17,4 +17,3 @@ pub fn main() -> void:
 >   %0 = Call app/main/opt[] () : i32?
 >   %1 = Store [$0] %0 : ()
 >   %2 = Block - : ()
-> warning: main.hd:192..193: unused-local-binding: `o` is never read; name it `_o` to keep it

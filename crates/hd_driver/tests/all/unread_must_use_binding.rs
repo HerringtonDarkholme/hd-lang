@@ -60,6 +60,6 @@ fn read_or_discarded_bindings_are_fine() {
 }
 
 #[test]
-fn plain_unused_binding_stays_a_warning() {
-    assert_eq!(check("    x := +1"), [Code::UnusedLocalBinding]);
+fn plain_unused_binding_is_accepted_without_advice() {
+    assert!(check("    x := +1").is_empty());
 }

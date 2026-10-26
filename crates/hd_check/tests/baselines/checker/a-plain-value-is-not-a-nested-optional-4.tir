@@ -8,5 +8,4 @@ pub fn main() -> void:
     let n: i32 = 1
     let mut nested: i32?? = .None
     nested = n
-> warning: main.hd:176..186: unused-local-binding: `nested` is never read; name it `_nested` to keep it
 > error: main.hd:215..216: type-mismatch: in assignment: expected i32??, found i32

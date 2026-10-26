@@ -265,7 +265,7 @@ fn check_role(
     // they use, deeply (crates/hd_cli/DESIGN.md §7.2), the modules `shown`
     // keeps.
     let mut packages = t.program.packages();
-    packages.collect_comparisons = lint.is_some();
+    packages.collect_source_facts = lint.is_some();
     packages.check_roots = t.only.as_ref().map(|only| {
         std::iter::once(only.clone())
             .chain(docs.iter().map(|d| d.path.clone()))
@@ -275,7 +275,7 @@ fn check_role(
     if let Some(policy) = lint
         && !shown(&out, t, docs).iter().any(Diag::is_error)
     {
-        let findings = hd_lint::analyze(&out.comparisons, &out.texts, policy);
+        let findings = hd_lint::analyze(&out.source_facts, &out.texts, policy);
         out.diags.append(&findings);
     }
     let mut shown = shown(&out, t, docs);
