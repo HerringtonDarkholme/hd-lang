@@ -36,9 +36,10 @@ struct DelayedHttp:
     closed_before_backup: usize
 
 impl Http for DelayedHttp:
-    fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
-        self.urls.push(request.url)
-        if request.url == "http://primary/item":
+    fn send!(&mut self, request: &Request, redirects: usize) -> Result[Response, HttpError]:
+        url := request.url.to_string()
+        self.urls.push(url)
+        if url == "http://primary/item":
             self.started += 1
             defer: self.closed += 1
             let wait: mut Suspend[void] = if self.started == 1: self.first_wait else: self.second_wait
@@ -46,11 +47,11 @@ impl Http for DelayedHttp:
             self.finished += 1
         else:
             self.closed_before_backup = self.closed
-        .Ok(Response { status: 200 })
+        .Ok(Response { status: .Ok })
 
 fn fetch!(url: string) -> Result[string, RequestFailure] $ Http:
     response := get!(url)?
-    .Ok("${response.status}")
+    .Ok("${response.status.code()}")
 
 struct Activity:
     primary: usize
