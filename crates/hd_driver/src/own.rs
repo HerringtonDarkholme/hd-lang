@@ -571,10 +571,15 @@ impl Env<'_> {
         {
             return None;
         }
-        let (_, entry, at) = lazy.wire.as_ref()?;
+        let (m, entry, at) = lazy.wire.as_ref()?;
         let run = self.run;
-        let fresh =
+        let mut fresh =
             hd_tir::wire::read_body(entry.get(at.clone())?, &run.pool, &run.paths, &run.syms)?;
+        // A fetched package's `dbg` prints nothing (`module.dbg.dependency`):
+        // the copy keeps the suppression `decode` gave its body.
+        if run.fetched[usize::from(run.table.modules[*m].package)] {
+            crate::dbg::suppress(&mut fresh, &run.names());
+        }
         Some((fresh, *hash))
     }
 
