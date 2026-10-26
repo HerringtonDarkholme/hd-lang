@@ -553,6 +553,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   through the page table (§23.5), so a string's view and a slice count
   their buffer, and static data, which is in no block, is never counted:
   literals, the empty string and fieldless data objects need no check.
+  An address below the heap's first page (null, or static data, which
+  precedes every page the allocator takes) returns before the lookup.
   `release` hands back the block at its last count; `rt:release_ref` then
   calls the descriptor's glue on the payload and frees the block.
 - **Which values count.** A type's `layout::walk` identifies counted

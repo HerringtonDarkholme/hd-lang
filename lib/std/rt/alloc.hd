@@ -52,6 +52,10 @@ let capacity: usize = 0
 let known: usize = 0
 # No page below this one is free.
 let hint: usize = 0
+# Every address below this one is null or static data, in no block: the
+# table's first page, set by the first allocation (0 before it, when no
+# address is in a block).
+let heap: usize = 0
 
 ## Allocates a block of at least `size` bytes and gives its address, which is a multiple of 16; its bytes are not zeroed.
 pub fn alloc(size: usize) -> usize:
@@ -143,7 +147,7 @@ pub fn free(address: usize) -> void:
 ## Frees the block at `address`, which `alloc` gave and which is not yet freed, as `free` does, for a block the cycle collector never sees.
 pub fn free_block(address: usize) -> void:
     page_number := address / PAGE
-    entry := usize(get(page_number))
+    entry := usize(load_u32(table + LISTS + 4 * page_number))
     kind := entry / SMALL
     if kind == 2:
         fill(table + LISTS + 4 * page_number, 0, 4 * (entry & LOW))
@@ -207,7 +211,7 @@ pub fn block_of(address: usize) -> usize:
     # Before the first allocation `known` is 0 too.
     if page_number >= known:
         return 0
-    entry := usize(get(page_number))
+    entry := usize(load_u32(table + LISTS + 4 * page_number))
     kind := entry / SMALL
     page := page_number * PAGE
     if kind == 2:
@@ -233,6 +237,8 @@ pub fn block_of(address: usize) -> usize:
 
 ## Adds one to the count of the block that holds `address`; an address in static data or in no block has no count.
 pub fn retain(address: usize) -> void:
+    if address < heap:
+        return
     block := block_of(address)
     if block != 0:
         store_u32(block, load_u32(block) + 1)
@@ -247,6 +253,8 @@ pub fn retain_known(address: usize) -> void:
 
 ## Takes one from the count of the block that holds `address` and gives the block when that was its last count, so the caller releases and frees it; else 0. A count left above zero on an object that takes part in cycle collection makes it a candidate (std.rt.cycle); any other object's release is the decrement alone.
 pub fn release(address: usize) -> usize:
+    if address < heap:
+        return 0
     block := block_of(address)
     if block == 0:
         return 0
@@ -275,6 +283,8 @@ pub fn release_known(address: usize) -> usize:
 
 ## Takes one from the count of the block that holds `address`, as `release` does, in a program where no object takes part in cycle collection: the decrement alone, so nothing links the collector.
 pub fn release_acyclic(address: usize) -> usize:
+    if address < heap:
+        return 0
     block := block_of(address)
     if block == 0:
         return 0
@@ -299,7 +309,7 @@ pub fn release_known_acyclic(address: usize) -> usize:
 
 ## The bytes of the block at `block`, which `alloc` gave: its size class's, or its run's whole pages.
 pub fn block_bytes(block: usize) -> usize:
-    entry := usize(get(block / PAGE))
+    entry := usize(load_u32(table + LISTS + 4 * (block / PAGE)))
     if entry / SMALL == 2: (entry & LOW) * PAGE else: class_bytes(entry & LOW)
 
 ## The bytes of the block that `alloc(size)` gives: its size class, or whole pages over 2 KiB.
@@ -394,9 +404,6 @@ fn head(class: usize) -> usize:
 fn set_head(class: usize, page: usize) -> void:
     store_u32(table + 4 * class, u32(page))
 
-fn get(page_number: usize) -> u32:
-    load_u32(table + LISTS + 4 * page_number)
-
 fn set(page_number: usize, entry: u32) -> void:
     store_u32(table + LISTS + 4 * page_number, entry)
 
@@ -409,6 +416,7 @@ fn lower_hint(page_number: usize) -> void:
 fn start() -> void:
     at := grown(1)
     table = at * PAGE
+    heap = table
     capacity = (PAGE - LISTS) / 4
     init_classes()
     claim(at, 1, u32(SMALL))
@@ -421,7 +429,7 @@ fn take(count: usize) -> usize:
     let run: usize = 0
     let page_number = hint
     while page_number < known && run < count:
-        if get(page_number) == 0:
+        if load_u32(table + LISTS + 4 * page_number) == 0:
             run = run + 1
         else:
             first = page_number + 1
