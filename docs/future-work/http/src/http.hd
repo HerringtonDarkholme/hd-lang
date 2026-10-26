@@ -192,7 +192,7 @@ impl Url:
     ## takes repeated keys, a struct field one bracket level (`f[x]=1`).
     pub fn query_as[T < Deserialize](&self) -> Result[T, FormError]: panic("todo")
     ## Replaces the whole query with `value`, the same encoding.
-    pub fn set_query[T < Serialize](&mut self, value: T) -> void: panic("todo")
+    pub fn set_query_as[T < Serialize](&mut self, value: T) -> void: panic("todo")
     ## The first value of one key.
     pub fn param(&self, name: string) -> string?: panic("todo")
     ## Adds one `name=value` pair.
@@ -308,8 +308,8 @@ impl Request:
     pub fn set_bytes(mut self, bytes: List[u8]) -> Request: panic("todo")
     ## Form body, OpenAPI form style; one bracket level for a nested struct.
     pub fn set_form[T < Serialize](mut self, value: T) -> Request: panic("todo")
-    ## url.set_query, chained.
-    pub fn set_query[T < Serialize](mut self, value: T) -> Request: panic("todo")
+    ## url.set_query_as, chained.
+    pub fn set_query_as[T < Serialize](mut self, value: T) -> Request: panic("todo")
     ## headers.set, chained.
     pub fn set_header(mut self, name: HeaderName, value: string) -> Request: panic("todo")
     ## headers.set_request_cookie, chained. A request cookie is only a name and value.
@@ -320,7 +320,7 @@ impl Request:
     pub fn text(&self) -> Result[string, BodyError]: panic("todo")
     pub fn bytes(&self) -> Result[List[u8], BodyError]: panic("todo")
     pub fn form[T < Deserialize](&self) -> Result[T, BodyError]: panic("todo")
-    pub fn query[T < Deserialize](&self) -> Result[T, FormError]: panic("todo")
+    pub fn query_as[T < Deserialize](&self) -> Result[T, FormError]: panic("todo")
     pub fn header(&self, name: HeaderName) -> string?: panic("todo")
     pub fn cookie(&self, name: string) -> string?: panic("todo")
 

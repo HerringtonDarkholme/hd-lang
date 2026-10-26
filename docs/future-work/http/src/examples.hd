@@ -37,7 +37,7 @@ fn create_order!(api: string, token: string, order: NewOrder) -> Result[Order, H
 
 fn search!(api: string) -> Result[List[Order], HttpError] $ Http:
     let mut url = Url::parse("$api/orders")?
-    url.set_query(Page { page: 2, tags: ["tea", "green"] })
+    url.set_query_as(Page { page: 2, tags: ["tea", "green"] })
     url.add_param("sort", "newest")
     orders := Request::get(url).send!()?.ok()?.json::[List[Order]]()?
     .Ok(orders)
@@ -66,7 +66,7 @@ fn handle(req: &Request) -> Response:
 fn orders(req: &Request) -> Response:
     match req.method:
         .Get =>
-            match req.query::[Page]():
+            match req.query_as::[Page]():
                 .Ok(page) => Response::status(.Ok).set_json(list_orders(page))
                 .Err(error) => Response::status(.BadRequest).set_text("$error")
         .Post =>
