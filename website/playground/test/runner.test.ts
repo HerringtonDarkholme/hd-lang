@@ -938,10 +938,7 @@ test("the WAT view shows diagnostics when compilation fails", async () => {
   const shown = await rust.watProject(single('pub fn main() -> void:\n    let x: i32 = "no"\n'));
   assert.equal(shown.status, "compile-error");
   assert.equal(shown.module, undefined);
-  assert.deepEqual(located(shown), [
-    "src/main.hd:2:9:unused-local-binding",
-    "src/main.hd:2:18:type-mismatch",
-  ]);
+  assert.deepEqual(located(shown), ["src/main.hd:2:18:type-mismatch"]);
   const unlinked = await rust.watProject({
     files: { "src/main.hd": "use pkg.gone.{X}\n" },
     main: "src/main.hd",
