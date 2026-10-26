@@ -2,16 +2,17 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "101af150570ab62d7f5aef548d5778a4288cd8f2",
-    "compilerBaseRevision": "101af150570ab62d7f5aef548d5778a4288cd8f2",
-    "compilerSha256": "a7aae5cefc06a4a793cf8055a839b5d59d39f7a312a02a6a9354505c68df5bcd",
-    "referenceWasmSha256": "30f738e7a346081fcdab6dd8042bbef7c357ea197384ba7b721d5ca4c95f2d7a",
-    "referenceContractSha256": "f58f31a3b34969130bb5a85ed638584ace7a68f478b39edbfdd29a21b3c08b8d",
-    "probeSha256": "944168255af1002af5ff9732d0fd01b3b5d205bd9c3b96441f01308752e90e52",
+    "sourceBaseRevision": "6f7812d7753edcb93cbe1fc1fc6f5a87b24ff090",
+    "compilerBaseRevision": "6f7812d7753edcb93cbe1fc1fc6f5a87b24ff090",
+    "compilerSha256": "9a9d9bd8b4bb9383424c4514be1988b7d11a2d1fef448b85a7e8aa4fc7be2883",
+    "referenceWasmSha256": "549ee2c50721fc42f69a4303eed11858c94aebb7dded0a55e788e50472a65d4b",
+    "referenceContractSha256": "0351cc8388f31274c0bf7255f26ebb5b75ed584afd1b9730fb3614bc650f568f",
+    "probeSha256": "d44128ba67997f25eba8bbb3a826195787a0c8f51a0d285a35332f683b16fce3",
     "sourceHashes": {
-      "packages/server-sdk/src/server.hd": "5825f5245b249a625c113b6be7b033f62217d155ac38495eb8ddb823906c1eab",
+      "packages/server-sdk/src/server.hd": "13ab7b6e948bdcc5f2b73ebcc355b116251e90f23154f86c383b311528268335",
       "lib/std/console.hd": "f24ba01178bd5583a5b66ac7d92bb44422ff598098310b12b1cc98c0a9710ae2",
-      "lib/std/http.hd": "46f510b0e5f3c98ff477e32be6d69ae31602409438f19078ca6591f217d6a770",
+      "lib/std/http.hd": "3beade8fa62db238ca4cdcbe62e31e0c61e943e8fc9f1571232dd2b4f3ed82c8",
+      "lib/std/http_wire.hd": "d58415dc76138985a78a6283a085c1e2f78ea908ca40240bdc31502297d63484",
       "lib/std/time.hd": "47936ab15caf80205da34a0edebf75cd5f31aee857dd7e3e77ac28b1772146e3"
     }
   },
@@ -77,7 +78,6 @@
                             ]
                           ],
                           ["url", [6]],
-                          ["query", [8, [10, [[6], [6]]]]],
                           ["headers", [8, [10, [[6], [6]]]]],
                           ["body", [7]],
                           ["redirects", [3, 32, false]]
@@ -298,7 +298,6 @@
                     ]
                   ],
                   ["url", [6]],
-                  ["query", [8, [10, [[6], [6]]]]],
                   ["headers", [8, [10, [[6], [6]]]]],
                   ["body", [7]],
                   ["redirects", [3, 32, false]]
@@ -456,5 +455,5 @@
       }
     ]
   },
-  "fingerprint": "9a530f2f8bde9c9df60cceca414d3b216cd6b6e3fb2a5f244657edd149d31a3d"
+  "fingerprint": "e0912669a13f868cf23068f64bbbb33da5dcd24f245d46b39d1848a09dc0d4f0"
 }
