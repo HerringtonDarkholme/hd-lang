@@ -144,7 +144,7 @@ pub struct Headers:
 impl Headers:
     pub fn new() -> Headers: panic("todo")
     ## Every value of `name`, joined with ", " as RFC 9110 §5.3 allows.
-    ## Set-Cookie lines can't be joined; read them with set_cookies().
+    ## Set-Cookie lines can't be joined; read them with response_cookies().
     pub fn get(&self, name: HeaderName) -> string?: panic("todo")
     ## Replaces every value of `name`. A list-valued header takes one
     ## comma-separated value (RFC 9110 §5.3).
@@ -153,16 +153,16 @@ impl Headers:
     ## Every name/value pair in order, as received or set.
     pub fn entries(&self) -> List[(HeaderName, string)]: panic("todo")
 
-    # The Cookie header (requests): name=value pairs, no attributes.
-    pub fn cookie(&self, name: string) -> string?: panic("todo")
-    pub fn cookies(&self) -> List[(string, string)]: panic("todo")
+    # Request cookies, the Cookie header: name=value pairs, no attributes.
+    pub fn request_cookie(&self, name: string) -> string?: panic("todo")
+    pub fn request_cookies(&self) -> List[(string, string)]: panic("todo")
     ## Sets `name=value` in the one Cookie header, replacing that name.
-    pub fn set_cookie(&mut self, name: string, value: string) -> void: panic("todo")
+    pub fn set_request_cookie(&mut self, name: string, value: string) -> void: panic("todo")
 
-    # Set-Cookie lines (responses): one line per cookie, with attributes.
-    pub fn set_cookies(&self) -> List[Cookie]: panic("todo")
-    ## Adds one Set-Cookie line, replacing an earlier line for the same name.
-    pub fn add_set_cookie(&mut self, cookie: Cookie) -> void: panic("todo")
+    # Response cookies, the Set-Cookie lines: one line per cookie, with attributes.
+    pub fn response_cookies(&self) -> List[Cookie]: panic("todo")
+    ## Sets one Set-Cookie line, replacing an earlier line for the same name.
+    pub fn set_response_cookie(&mut self, cookie: Cookie) -> void: panic("todo")
 
 impl From[List[(string, string)]] for Headers:
     fn from(pairs: List[(string, string)]) -> Headers: panic("todo")
@@ -312,7 +312,7 @@ impl Request:
     pub fn set_query[T < Serialize](mut self, value: T) -> Request: panic("todo")
     ## headers.set, chained.
     pub fn set_header(mut self, name: HeaderName, value: string) -> Request: panic("todo")
-    ## headers.set_cookie, chained. A request cookie is only a name and value.
+    ## headers.set_request_cookie, chained. A request cookie is only a name and value.
     pub fn set_cookie(mut self, name: string, value: string) -> Request: panic("todo")
 
     # Readers, short for body.*, url.query_as and headers.* .
@@ -344,7 +344,7 @@ impl Response:
     pub fn set_text(mut self, text: string) -> Response: panic("todo")
     pub fn set_bytes(mut self, bytes: List[u8]) -> Response: panic("todo")
     pub fn set_header(mut self, name: HeaderName, value: string) -> Response: panic("todo")
-    ## headers.add_set_cookie, chained: one Set-Cookie line with its attributes.
+    ## headers.set_response_cookie, chained: one Set-Cookie line with its attributes.
     pub fn set_cookie(mut self, cookie: Cookie) -> Response: panic("todo")
 
     # Readers, short for body.* and headers.* .
@@ -352,7 +352,7 @@ impl Response:
     pub fn text(&self) -> Result[string, BodyError]: panic("todo")
     pub fn bytes(&self) -> Result[List[u8], BodyError]: panic("todo")
     pub fn header(&self, name: HeaderName) -> string?: panic("todo")
-    ## headers.set_cookies: every Set-Cookie line, parsed.
+    ## headers.response_cookies: every Set-Cookie line, parsed.
     pub fn cookies(&self) -> List[Cookie]: panic("todo")
     ## A 400–599 status is `.Err(HttpError.Status(response))`, which keeps the
     ## whole response so its error body can still be read.

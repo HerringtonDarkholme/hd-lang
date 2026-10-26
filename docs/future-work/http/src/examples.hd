@@ -113,9 +113,9 @@ impl From[ApiHeaders] for Headers:
 fn with_headers!(url: Url, auth: ApiHeaders, session: string) -> Result[HttpStatus, HttpError] $ Http:
     let mut req = Request::get(url)
     req.headers = Headers::from(auth)
-    req.headers.set_cookie("session", session)
+    req.headers.set_request_cookie("session", session)
     response := req.send!()?
-    for cookie in response.headers.set_cookies():
+    for cookie in response.headers.response_cookies():
         _ := cookie.name
     .Ok(response.status)
 
@@ -132,7 +132,7 @@ fn atoms(req: &Request) -> Response:
             let mut headers = Headers::new()
             headers.set(.AccessControlAllowOrigin, origin)
             headers.set(.Vary, "Origin")
-            headers.add_set_cookie(Cookie { name: "seen", value: "1", same_site: .Strict })
+            headers.set_response_cookie(Cookie { name: "seen", value: "1", same_site: .Strict })
             Response { status: .Ok, headers: headers, body: Body::from_bytes(text.to_utf8()), url: .Some(next) }
         .Err(.Used) => Response::status(.Conflict)
         .Err(_) => Response::status(.BadRequest)
@@ -187,14 +187,15 @@ fn strip_and_log(req: &Request, code: u16) -> Response:
     let mut seen: List[string] = []
     for (name, _) in forwarded.entries():
         seen.push(name.wire_name())
-    for (name, _) in req.headers.cookies():
+    for (name, _) in req.headers.request_cookies():
         seen.push("cookie:$name")
     id := req.url.param("id").unwrap_or("none")
     page := match req.url.query_as::[Page]():
         .Ok(page) => page.page
         .Err(_) => 1
     agent := req.header(.UserAgent).unwrap_or("unknown")
-    Response::status(HttpStatus::from_code(code)).set_text("$id $page $agent ${seen.join(",")}")
+    theme := req.headers.request_cookie("theme").unwrap_or("light")
+    Response::status(HttpStatus::from_code(code)).set_text("$id $page $agent $theme ${seen.join(",")}")
 
 # ---- A client that keeps its cookies across runs ----------------------------
 
@@ -232,7 +233,7 @@ fn dashboard!(api: Url, path: Path) -> Result[string, SessionError] $ Http + FsR
 fn manual_jar!(jar: &mut CookieJar, url: Url) -> Result[HttpStatus, HttpError] $ Http:
     let mut req = Request::get(url)
     for (name, value) in jar.cookies_for(&req.url):
-        req.headers.set_cookie(name, value)
+        req.headers.set_request_cookie(name, value)
     response := req.send!()?
     jar.store(&req.url, &response)
     .Ok(response.status)
