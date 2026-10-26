@@ -525,9 +525,11 @@ pub enum Helper {
     HostCancel,
     /// A host provider's drive slot for a method that may wait (§23.39):
     /// `(data, arguments) -> (frame, results)`. It calls `.start` at once;
-    /// only a call the host left pending gets a leaf frame, whose handle
-    /// is that call's, and the results are zero then.
+    /// only a call the host left pending gets a leaf frame and zero results.
+    /// A blocking slot takes a final caller-local buffer instead of allocating
+    /// a frame; the caller explicitly drops that buffer's retained arguments.
     HostDrive {
+        blocking: bool,
         module: String,
         method: String,
         args: Vec<crate::task::HostArg>,
@@ -537,8 +539,10 @@ pub enum Helper {
     /// The drive slot beside cold slot `cold` (§23.39): `(params) ->
     /// (frame, results)`. It calls `cold` and polls its frame once; a
     /// Ready frame is released and 0 returned with the results, a Pending
-    /// one returned with zero results.
+    /// one returned with zero results. Blocking slots take and ignore an
+    /// additional caller buffer: an hd-provider's frame stays owned.
     Drive {
+        blocking: bool,
         cold: Box<Helper>,
         params: Vec<Val>,
         results: Vec<Val>,

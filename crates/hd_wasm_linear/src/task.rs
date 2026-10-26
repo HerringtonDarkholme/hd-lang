@@ -101,6 +101,14 @@ impl HostRes {
 /// [`F_SAVED`], 8-aligned, laid out as one record (`Helper::HostCold`'s
 /// `area`).
 const LEAF_ARGS: u32 = (F_SAVED + 4).next_multiple_of(8);
+/// Reserved padding in a host leaf's prefix: a borrowed leaf's argument-drop callback.
+/// Other frame kinds do not read it.
+pub const BORROWED_DROP: u64 = 20;
+
+/// Room for a host leaf, whose record of `values` has at most eight bytes per leaf.
+pub fn host_frame_capacity(values: usize) -> u32 {
+    LEAF_ARGS + u32::try_from(values).expect("host arguments") * 8
+}
 
 /// The size of a `v` in memory.
 fn size_of(v: Val) -> u32 {
@@ -246,17 +254,19 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         } => host_poll(m, module, method, args, area, res),
         Helper::HostCancel => host_cancel(m),
         Helper::HostDrive {
+            blocking,
             module,
             method,
             args,
             area,
             res,
-        } => host_drive(m, module, method, args, area, res),
+        } => host_drive(m, *blocking, module, method, args, area, res),
         Helper::Drive {
+            blocking,
             cold,
             params,
             results,
-        } => drive(m, cold, params, results),
+        } => drive(m, *blocking, cold, params, results),
         Helper::HostCall {
             module,
             method,
@@ -1145,6 +1155,38 @@ fn host_cold(
     let mut f = m.func(format!("rt:{module}/{method}"), params, vec![Val::I32]);
     // A leaf frame takes part as its arguments' types say.
     let fr = new_zeroed(&mut f, LEAF_ARGS + area.size, leaf_drop(area), area.cyclic);
+    init_host_leaf(
+        &mut f,
+        m,
+        fr,
+        &HostLeaf {
+            module,
+            method,
+            args,
+            area,
+            res,
+        },
+    );
+    f.get(fr);
+    f
+}
+
+struct HostLeaf<'a> {
+    module: &'a str,
+    method: &'a str,
+    args: &'a [HostArg],
+    area: &'a Elem,
+    res: &'a HostRes,
+}
+
+fn init_host_leaf(f: &mut Func, m: &Module, fr: u32, leaf: &HostLeaf<'_>) {
+    let HostLeaf {
+        module,
+        method,
+        args,
+        area,
+        res,
+    } = *leaf;
     let poll = Sym::Helper(Helper::HostPoll {
         module: module.to_owned(),
         method: method.to_owned(),
@@ -1155,7 +1197,7 @@ fn host_cold(
     f.get(fr);
     f.table_slot(poll);
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
-    cancel_slot(&mut f, m, fr, Sym::Helper(Helper::HostCancel));
+    cancel_slot(f, m, fr, Sym::Helper(Helper::HostCancel));
     f.get(fr);
     f.i32(-1);
     f.op(Instruction::I32Store(mem(HEAP, u64::from(F_SAVED), 2)));
@@ -1173,12 +1215,10 @@ fn host_cold(
         f.i32(1);
         f.helper(Helper::CopyElems { elem: area.clone() });
     } else if let Some(w) = &area.walk {
-        crate::rt::walk_code(&mut f, w, &|f, k| f.get(k + 1), &|f, _| {
+        crate::rt::walk_code(f, w, &|f, k| f.get(k + 1), &|f, _| {
             f.call(Sym::Helper(Helper::RetainAny));
         });
     }
-    f.get(fr);
-    f
 }
 
 /// [`Helper::HostPoll`]: `(frame) -> (ready, results)`. The first poll
@@ -1301,11 +1341,14 @@ fn host_result(f: &mut Func, res: &HostRes, n: u32) {
 /// host method that may wait, awaited at once (§23.39). It calls `.start`
 /// with the arguments as the leaf's first poll would. A call that
 /// finished at once answers frame 0 and its results, with no frame made.
-/// A pending one gets the leaf frame that [`Helper::HostCold`] makes,
-/// holding the arguments as today, with the call's handle in place and
-/// registered with the current waker, as that first poll leaves it.
+/// An async Pending call gets the owned leaf that [`Helper::HostCold`] makes.
+/// A blocking slot receives caller-local storage as its final parameter;
+/// Pending initializes the same prefix and retained arguments there instead.
+/// Both register the handle with the current waker. The blocking caller
+/// drops the retained fields explicitly when its drive ends.
 fn host_drive(
     m: &Module,
+    blocking: bool,
     module: &str,
     method: &str,
     args: &[HostArg],
@@ -1318,7 +1361,11 @@ fn host_drive(
     let mut results = vec![Val::I32];
     results.extend(rvals.iter().copied());
     let nparams = u32::try_from(params.len()).expect("params");
-    let mut f = m.func(format!("rt:{module}/{method}.drive"), params, results);
+    if blocking {
+        params.push(Val::I32);
+    }
+    let suffix = if blocking { "block_drive" } else { "drive" };
+    let mut f = m.func(format!("rt:{module}/{method}.{suffix}"), params, results);
     let (st, n, fr) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     let imp = crate::boundary::push_args(&mut f, args, &|f, k| f.get(k + 1));
     f.call(Sym::Import(Import::new(
@@ -1331,17 +1378,49 @@ fn host_drive(
     f.set(st);
     f.get(st);
     f.op(Instruction::If(BlockType::Empty));
-    for k in 0..nparams {
-        f.get(k);
+    if blocking {
+        // The caller's lexical shadow frame outlives the synchronous drive.
+        // Its zero count header makes any ordinary reference drop a no-op.
+        f.get(nparams);
+        f.set(fr);
+        f.get(fr);
+        f.u32(crate::module::HEADER);
+        f.op(Instruction::I32Sub);
+        f.i32(0);
+        f.u32(crate::module::HEADER + LEAF_ARGS + area.size);
+        f.op(Instruction::MemoryFill(HEAP));
+        init_host_leaf(
+            &mut f,
+            m,
+            fr,
+            &HostLeaf {
+                module,
+                method,
+                args,
+                area,
+                res,
+            },
+        );
+        f.get(fr);
+        if let Some(drop) = leaf_drop(area) {
+            f.table_slot(drop);
+        } else {
+            f.i32(-1);
+        }
+        f.op(Instruction::I32Store(mem(HEAP, BORROWED_DROP, 2)));
+    } else {
+        for k in 0..nparams {
+            f.get(k);
+        }
+        f.helper(Helper::HostCold {
+            module: module.to_owned(),
+            method: method.to_owned(),
+            args: args.to_vec(),
+            area: area.clone(),
+            res: res.clone(),
+        });
+        f.set(fr);
     }
-    f.helper(Helper::HostCold {
-        module: module.to_owned(),
-        method: method.to_owned(),
-        args: args.to_vec(),
-        area: area.clone(),
-        res: res.clone(),
-    });
-    f.set(fr);
     f.get(fr);
     f.get(n);
     f.op(Instruction::I32Store(mem(HEAP, u64::from(F_SAVED), 2)));
@@ -1363,10 +1442,23 @@ fn host_drive(
 /// hd behaves and allocates as a cold call polled at once does. A Ready
 /// frame is released here, its results handed on; a Pending one is
 /// handed on with zero results.
-fn drive(m: &Module, cold: &Helper, params: &[Val], results: &[Val]) -> Func {
+fn drive(m: &Module, blocking: bool, cold: &Helper, params: &[Val], results: &[Val]) -> Func {
     let mut all = vec![Val::I32];
     all.extend(results.iter().copied());
-    let mut f = m.func("rt:drive", params.to_vec(), all);
+    let signature = if blocking {
+        [params.to_vec(), vec![Val::I32]].concat()
+    } else {
+        params.to_vec()
+    };
+    let mut f = m.func(
+        if blocking {
+            "rt:block_drive"
+        } else {
+            "rt:drive"
+        },
+        signature,
+        all,
+    );
     let fr = f.local(Val::I32);
     let tmp: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
     for k in 0..u32::try_from(params.len()).expect("params") {
@@ -2907,6 +2999,65 @@ mod origin_tests {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn blocking_host_drive_has_no_heap_frame_edge_and_uses_reserved_leaf_word() {
+        use crate::layout::{Leaf, Walk};
+        use crate::module::{HEAP, Ins};
+        let m = crate::module::Module::default();
+        let area = crate::rt::Elem {
+            size: 8,
+            leaves: [0, 4]
+                .into_iter()
+                .map(|offset| Leaf {
+                    offset,
+                    val: crate::module::Val::I32,
+                    bytes: 4,
+                    signed: false,
+                })
+                .collect(),
+            walk: Some(Walk::Ref(0)),
+            colls: vec![],
+            cyclic: false,
+        };
+        for blocking in [false, true] {
+            let f = super::host_drive(
+                &m,
+                blocking,
+                "test:writer",
+                "write",
+                &[super::HostArg::Str],
+                &area,
+                &super::HostRes::Void,
+            );
+            let heap = f.body.iter().any(|ins| {
+                matches!(ins, Ins::Call(id)
+                if matches!(&*f.symbols.get(*id), crate::module::Sym::Helper(
+                    crate::rt::Helper::HostCold { .. } | crate::rt::Helper::New)))
+            });
+            assert_eq!(heap, !blocking);
+            assert_eq!(f.params.len(), if blocking { 4 } else { 3 });
+            assert_eq!(
+                f.body
+                    .iter()
+                    .filter(|ins| matches!(ins,
+                Ins::Op(super::Instruction::I32Store(arg))
+                    if arg.memory_index == HEAP && arg.offset == super::BORROWED_DROP))
+                    .count(),
+                usize::from(blocking)
+            );
+        }
+        let cold = super::host_cold(
+            &m,
+            "test:writer",
+            "write",
+            &[super::HostArg::Str],
+            &area,
+            &super::HostRes::Void,
+        );
+        assert!(!cold.body.iter().any(|ins| matches!(ins,
+            Ins::Op(super::Instruction::I32Store(arg)) if arg.offset == super::BORROWED_DROP)));
+    }
+
     #[test]
     fn generic_and_pending_frames_link_cancel_slots_only_when_needed() {
         let mut m = crate::module::Module::default();

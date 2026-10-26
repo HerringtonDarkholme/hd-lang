@@ -1,0 +1,23 @@
+# @dump: wat
+# expected: synchronous block_on passes caller-local storage; stored and asynchronous calls keep their heap lifetime.
+use std.task.block_on
+
+# subject
+pub fn synchronous(text: string) -> bool $ Console:
+    let console: &mut dyn Console = $.use(Console)
+    let call: mut Suspend[Result[void, ConsoleError]] = console.write(text)
+    match block_on(call):
+        .Completed(.Ok(())) => true
+        _ => false
+
+pub fn stored(text: string) -> bool $ Console:
+    let console: &mut dyn Console = $.use(Console)
+    let call: mut Suspend[Result[void, ConsoleError]] = console.write(text)
+    println("stored")
+    match block_on(call):
+        .Completed(.Ok(())) => true
+        _ => false
+
+pub fn asynchronous!(text: string) -> Result[void, ConsoleError] $ Console:
+    let console: &mut dyn Console = $.use(Console)
+    console.write!(text)

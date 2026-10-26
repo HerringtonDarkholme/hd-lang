@@ -1377,3 +1377,24 @@ fn node_session_rebuilds_without_repeating_host_calls() {
     assert_eq!(lines[2], "reloaded: 4 inputs replayed");
     assert_eq!(lines[3], lines[1]);
 }
+
+/// A trait value keeps the vtable of its defining module. Later inputs may
+/// use a different suspension-driving mode without changing that interface.
+#[test]
+fn a_saved_provider_supports_later_blocking_async_and_stored_calls() {
+    for engine in [
+        crate::engine::EngineKind::Node,
+        crate::engine::EngineKind::Wasmtime,
+    ] {
+        let dir = Scratch::new(SCRATCH, &format!("repl-retained-drive-{}", unique()));
+        let script = Script::of(&[
+            "use std.task.block_on",
+            "let console: *mut dyn Console = if true:\n    let provider: *mut dyn Console = $.use(Console)\n    _ := block_on(provider.write(\"first\\n\"))\n    provider\nelse:\n    $.use(Console)",
+            "_ := console.write!(\"second\\n\")",
+            "let pending: mut Suspend[Result[void, ConsoleError]] = console.write(\"third\\n\")",
+            "_ := block_on(pending)",
+        ]);
+        let t = session_on(engine, &dir, script, |_| {}, None, Bounds::default(), None);
+        assert_eq!(t.out, "first\nsecond\nthird\n");
+    }
+}

@@ -768,7 +768,7 @@ impl Em<'_, '_, '_> {
         }
         self.f.set(ready);
         self.f.op(I::Else);
-        self.push_dyn(a, args, None, Some(self.ty(i)))?;
+        self.push_dyn(a, args, None, Some((self.ty(i), None)))?;
         for l in tmp.iter().rev() {
             self.f.set(*l);
         }
@@ -1223,13 +1223,23 @@ pub(super) fn finish(
     }
     let mut vals_all: Vec<Val> = em.f.params.clone();
     vals_all.extend(em.f.locals.iter().copied());
-    let (area, size) = save_area(&vals_all, &[FRAME, pc]);
+    let local_frame = em.frame.filter(|(base, _)| *base != NONE);
+    let mut skipped = vec![FRAME, pc];
+    if let Some((base, _)) = local_frame {
+        skipped.push(base);
+    }
+    let (area, size) = save_area(&vals_all, &skipped);
     expand(&mut em.f, &area);
     em.m.frames.insert(key, size);
     let at_of = |l: u32| area.iter().find(|x| x.0 == l).map(|x| (x.1, x.2));
     let results = em.results.clone();
     let name = em.f.name.clone();
     crate::task::guard_frame(&mut em.f);
+    if let Some((base, size)) = local_frame {
+        // This is a physical poll/body invocation, not the persistent task
+        // frame. Its base is deliberately absent from suspension save areas.
+        crate::wide::locals_frame(&mut em.f, base, size);
+    }
     let body = std::mem::take(&mut em.f);
 
     // The release glue: the places the body owns while it waits, unless

@@ -1039,6 +1039,8 @@ struct Em<'i, 'a, 'm> {
     /// With slots: the local holding the frame's address, and the
     /// frame's size.
     frame: Option<(u32, u32)>,
+    /// One reusable caller-local host leaf, after ordinary addressable locals.
+    drive_buffer: Option<(u32, u32)>,
     /// In an erased body, the local holding the address of its thunks'
     /// table, read from the witness (`erased.rs`).
     ops: Option<u32>,
@@ -1072,7 +1074,7 @@ struct Em<'i, 'a, 'm> {
     changed: Option<u32>,
     /// Each `block_on` whose cold dynamic call went through its drive
     /// slot (§23.39): the locals holding that call's results.
-    driven: HashMap<u32, Vec<u32>>,
+    driven: HashMap<u32, (Vec<u32>, u32)>,
 }
 
 impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
@@ -1152,6 +1154,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             static_cells: None,
             slot_takes: HashMap::default(),
             frame: None,
+            drive_buffer: None,
             ops: None,
             owned: false,
             sub_id: 0,
@@ -2281,7 +2284,9 @@ impl Em<'_, '_, '_> {
     /// the method's drive slot (§23.39), if one does.
     fn drive_target(&self, i: u32, a: u32) -> Option<u32> {
         let (trait_, method) = crate::drive::callee(self.b, a)?;
-        if !self.m.driven.contains(&method) || !crate::drive::drivable(self.env(), trait_, method) {
+        if !self.m.blocking_driven.contains(&method)
+            || !crate::drive::drivable(self.env(), trait_, method)
+        {
             return None;
         }
         crate::drive::block_on_of(self.b, &self.topo, self.calls, i)
@@ -2295,12 +2300,38 @@ impl Em<'_, '_, '_> {
         let inner = self.susp_inner(self.ty(i))?;
         let res: Vec<u32> = self.vals(inner)?.iter().map(|v| self.f.local(*v)).collect();
         self.f.helper(Helper::ForbidCheck);
-        self.push_dyn(a, args, None, Some(inner))?;
+        let buffer = self.blocking_buffer(args)?;
+        self.push_dyn(a, args, None, Some((inner, Some(buffer))))?;
         for l in res.iter().rev() {
             self.f.set(*l);
         }
-        self.driven.insert(on, res);
+        self.driven.insert(on, (res, buffer));
         self.store_owned(i)
+    }
+
+    /// Reserve a leaf in the running Wasm invocation's shadow frame. A synchronous
+    /// drive cannot suspend that invocation, so later calls may reuse this storage.
+    fn blocking_buffer(&mut self, args: &[u32]) -> StageResult<u32> {
+        let mut values = 0;
+        for arg in args.iter().skip(1) {
+            values += self.vals(self.ty_of(*arg))?.len();
+        }
+        let capacity =
+            (crate::module::HEADER + crate::task::host_frame_capacity(values)).next_multiple_of(8);
+        let (mut base, size) = self.frame.unwrap_or((NONE, 0));
+        let (offset, previous) = self.drive_buffer.unwrap_or((size, 0));
+        let capacity = previous.max(capacity);
+        if base == NONE {
+            base = self.f.local(Val::I32);
+        }
+        self.frame = Some((base, offset + capacity));
+        self.drive_buffer = Some((offset, capacity));
+        let buffer = self.f.local(Val::I32);
+        self.f.get(base);
+        self.f.u32(offset + crate::module::HEADER);
+        self.f.op(Instruction::I32Add);
+        self.f.set(buffer);
+        Ok(buffer)
     }
 
     /// Pushes a dynamic call's results, of type `result`, or its cold frame
@@ -2314,7 +2345,7 @@ impl Em<'_, '_, '_> {
         a: u32,
         args: &[u32],
         result: Option<Ty>,
-        drive: Option<Ty>,
+        drive: Option<(Ty, Option<u32>)>,
     ) -> StageResult<()> {
         let Some(Callee::TraitMethod {
             trait_,
@@ -2346,13 +2377,15 @@ impl Em<'_, '_, '_> {
         let kept = result.is_some() && self.env().suspends(method);
         let results = match (result, &open, drive) {
             // The drive slot (§23.39): the frame or 0, then the results.
-            (_, _, Some(t)) => [vec![Val::I32], self.vals(t)?].concat(),
+            (_, _, Some((t, _))) => [vec![Val::I32], self.vals(t)?].concat(),
             (Some(_), Some(o), _) if o.ret => vec![Val::I32],
             (Some(t), _, _) => self.vals(t)?,
             (None, _, _) => vec![Val::I32],
         };
         let slot = match drive {
-            Some(_) => crate::drive::index(self.env(), self.m, trait_, method) as usize,
+            Some((_, buffer)) => {
+                crate::drive::index(self.env(), self.m, trait_, method, buffer.is_some()) as usize
+            }
             None => slot,
         };
         let Some((&recv, rest)) = args.split_first() else {
@@ -2408,6 +2441,10 @@ impl Em<'_, '_, '_> {
         } else {
             None
         };
+        if let Some((_, Some(buffer))) = drive {
+            self.f.get(buffer);
+            params.push(Val::I32);
+        }
         let steps = self.dyn_steps(value_ty, trait_, targs)?;
         if let Some(value) = &payload {
             self.f.get(value[1]);
@@ -2953,7 +2990,7 @@ impl Em<'_, '_, '_> {
             self.f.local(Val::I32),
         );
         let tmp: Vec<u32> = match &fused {
-            Some(ls) => ls.clone(),
+            Some((ls, _)) => ls.clone(),
             None => result.iter().map(|v| self.f.local(*v)).collect(),
         };
         self.comp(s, 0)?;
@@ -3064,6 +3101,37 @@ impl Em<'_, '_, '_> {
         self.new_variant(i, 0, &[value::Src::Locals(tmp.clone())])?;
         self.release_locals(&tmp, inner)?;
         self.close();
+        if let Some((_, buffer)) = fused {
+            self.f.get(frame);
+            self.f.get(buffer);
+            self.f.op(Instruction::I32Eq);
+            self.f.op(Instruction::If(BlockType::Empty));
+            let drop = self.f.local(Val::I32);
+            self.f.get(frame);
+            self.f.op(Instruction::I32Load(mem(
+                HEAP,
+                crate::task::BORROWED_DROP,
+                2,
+            )));
+            self.f.op(Instruction::LocalTee(drop));
+            self.f.i32(0);
+            self.f.op(Instruction::I32GeS);
+            self.f.op(Instruction::If(BlockType::Empty));
+            // Static shadow storage has no automatic descriptor drop. Clear the
+            // callback before invoking it, so every terminal outcome drops once.
+            self.f.get(frame);
+            self.f.i32(-1);
+            self.f.op(Instruction::I32Store(mem(
+                HEAP,
+                crate::task::BORROWED_DROP,
+                2,
+            )));
+            self.f.get(frame);
+            self.f.get(drop);
+            self.f.call_indirect(vec![Val::I32], vec![]);
+            self.f.op(Instruction::End);
+            self.f.op(Instruction::End);
+        }
         Ok(())
     }
 

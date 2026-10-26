@@ -876,11 +876,13 @@ pub struct Module {
     data: Vec<u8>,
     data_at: BTreeMap<Vec<u8>, u32>,
     /// Static vtables: each one's slots, then the vtables of its direct
-    /// supertraits, then its drive slots (§23.39), laid out after the data.
+    /// supertraits, then async and blocking drive slots (§23.39), after the data.
     vtables: Vec<(Vec<SymId>, Vec<usize>, Vec<SymId>)>,
     /// The bang methods that some call awaits at once through a trait
     /// value, whose vtables carry a drive slot (§23.39).
     pub driven: hd_base::HashSet<hd_base::DefId>,
+    /// Methods synchronously consumed by `block_on`, with caller-local host storage.
+    pub blocking_driven: hd_base::HashSet<hd_base::DefId>,
     exports: Vec<(String, SymId)>,
     /// Development fixture roots, independent of the public export ABI.
     retained: Vec<SymId>,

@@ -5095,3 +5095,4 @@ runtime/panic/never-if-call-argument.hd	runtime	panic:explicit-panic	lang/04-typ
 runtime/valid/unsigned-comparison-evaluates-operand.hd	runtime	accept	lang/05-expressions.md#r-expr.order.left-to-right
 typing/valid/a-generic-result-method-chain-infers-from-the-return-type.hd	type	accept	lang/04-type-system.md#r-types.generic.infer
 typing/valid/a-try-hint-solves-a-parameter-named-only-in-bounds.hd	type	accept	lang/04-type-system.md#r-types.generic.infer.bound.one
+runtime/valid/block-on-host-pending-across-resume.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.signature

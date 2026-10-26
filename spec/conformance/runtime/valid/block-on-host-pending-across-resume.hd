@@ -1,0 +1,45 @@
+# fixture-runtime-profile: pending-write
+# expect-stdout: first 1
+# expect-stdout: middle
+# expect-stdout: last 2
+# expect-stdout: between
+# expect-stdout: escaped 3
+# test: immediate host drives before and after an async yield preserve owned arguments and caller-local storage.
+use std.task.block_on
+use std.testing.assert
+
+# This counted provider and its argument escape the helper's local scope.
+fn cold_write(text: string) -> mut Suspend[Result[void, ConsoleError]] $ Console:
+    let console: *mut dyn Console = $.use(Console)
+    console.write(text)
+
+pub fn main!() -> void $ Console:
+    let console: &mut dyn Console = $.use(Console)
+    let first: mut Suspend[Result[void, ConsoleError]] = console.write("first ${+1}\n")
+    first_completed := match block_on(first):
+        .Completed(.Ok(())) => true
+        _ => false
+    assert(first_completed, reason="the first owned write completed")
+    _ := console.write!("middle\n")
+    let last: mut Suspend[Result[void, ConsoleError]] = console.write("last ${+2}\n")
+    last_completed := match block_on(last):
+        .Completed(.Ok(())) => true
+        _ => false
+    assert(last_completed, reason="the resumed body used fresh caller-local storage")
+
+    let escaped: mut Suspend[Result[void, ConsoleError]] = cold_write("escaped ${+3}\n")
+    _ := console.write!("between\n")
+    escaped_completed := match block_on(escaped):
+        .Completed(.Ok(())) => true
+        _ => false
+    assert(escaped_completed, reason="the cold frame and owned argument survived return and yield")
+
+    let cancelled: mut Suspend[Result[void, ConsoleError]] = cold_write("cancelled ${+4}\n")
+    _ := cancelled.cancel!()
+    was_cancelled := match block_on(cancelled):
+        .Cancelled => true
+        _ => false
+    assert(was_cancelled, reason="cancelling the cold write released its argument once")
+
+    let abandoned: mut Suspend[Result[void, ConsoleError]] = cold_write("abandoned ${+5}\n")
+    abandoned.abandon()

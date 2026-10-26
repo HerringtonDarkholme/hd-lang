@@ -1,10 +1,9 @@
 //! Fused call-and-drive slots (`crates/hd_wasm_linear/DESIGN.md` §23.39).
 //!
-//! A bang method called through a trait value and awaited at once goes
-//! through a second slot of its vtable, its drive slot: the cold call and
-//! its first poll in one, so a host provider makes a frame only for a call
-//! the host leaves pending. This module decides where a call is awaited at
-//! once, which methods therefore get drive slots, and builds those slots.
+//! An immediately driven trait call uses an extra vtable slot. Async await
+//! slots return an owned frame when Pending; synchronous `block_on` slots
+//! receive caller-local storage for host leaves. Keeping the sets separate
+//! avoids linking an async constructor merely for a synchronous call.
 
 use hd_base::{DefId, HashMap, StageResult};
 use hd_mono::{ProgramEnv, Target, TargetKind};
@@ -110,10 +109,8 @@ pub fn block_on_of(b: &Body, topo: &Topology, calls: &HashMap<u32, Target>, c: u
     }
 }
 
-/// Fills `m.driven` before any vtable is built: every drivable method that
-/// some body awaits at once through a trait value. Emission uses a drive
-/// slot only for a method in this set, so a vtable never lacks one a call
-/// reads.
+/// Classifies the async and blocking drive slots before any vtable is built.
+/// Each set contains exactly the methods whose corresponding call form appears.
 pub fn collect(input: &Input<'_>, m: &mut Module) {
     let env = input.env;
     for id in input.order {
@@ -134,35 +131,66 @@ pub fn collect(input: &Input<'_>, m: &mut Module) {
             let Some((trait_, method)) = callee(b, b.data[i][0]) else {
                 continue;
             };
-            if !drivable(env, trait_, method) || m.driven.contains(&method) {
+            if !drivable(env, trait_, method) {
                 continue;
             }
-            let fused = tag == Tag::Await || {
-                let t = topo.get_or_insert_with(|| Topology::new(b));
-                block_on_of(b, t, calls, x).is_some()
-            };
-            if fused {
+            if tag == Tag::Await {
                 m.driven.insert(method);
+            } else {
+                let t = topo.get_or_insert_with(|| Topology::new(b));
+                if block_on_of(b, t, calls, x).is_some() {
+                    m.blocking_driven.insert(method);
+                }
             }
         }
     }
 }
 
-/// The vtable word index of `method`'s drive slot: after the trait's
-/// method slots (a drivable trait has no supertrait words), in method
-/// order among the driven methods.
-pub fn index(env: &dyn ProgramEnv, m: &Module, trait_: DefId, method: DefId) -> u32 {
+/// The vtable word index of a drive slot: normal methods, async drive
+/// slots, then blocking drive slots, each group in declaration order.
+pub fn index(
+    env: &dyn ProgramEnv,
+    m: &Module,
+    trait_: DefId,
+    method: DefId,
+    blocking: bool,
+) -> u32 {
     let methods = env.trait_methods(trait_);
+    let selected = |candidate, blocking| needs_slot(env, m, trait_, candidate, blocking);
+    let preceding = if blocking {
+        methods.iter().filter(|d| selected(**d, false)).count()
+    } else {
+        0
+    };
     let rank = methods
         .iter()
         .take_while(|d| **d != method)
-        .filter(|d| m.driven.contains(*d))
+        .filter(|d| selected(**d, blocking))
         .count();
-    u32::try_from(methods.len() + rank).expect("slots")
+    u32::try_from(methods.len() + preceding + rank).expect("slots")
 }
 
-/// The vtable of trait `trait_` with `slots` and `parents`, followed by a
-/// drive slot for each of its driven methods.
+/// Persistent vtable values can be called by later inputs in either mode.
+/// Give those interfaces a fixed layout, even for methods not yet driven.
+fn needs_slot(
+    env: &dyn ProgramEnv,
+    m: &Module,
+    trait_: DefId,
+    method: DefId,
+    blocking: bool,
+) -> bool {
+    if m.open_world {
+        return drivable(env, trait_, method);
+    }
+    if blocking {
+        m.blocking_driven.contains(&method)
+    } else {
+        m.driven.contains(&method)
+    }
+}
+
+/// The vtable of trait `trait_`, with async and then blocking drive slots
+/// after its normal slots and parents.
 pub fn vtable(
     input: &Input<'_>,
     m: &mut Module,
@@ -171,11 +199,16 @@ pub fn vtable(
     parents: Vec<usize>,
 ) -> StageResult<usize> {
     let mut drives = Vec::new();
-    if !m.driven.is_empty() {
+    if m.open_world || !m.driven.is_empty() || !m.blocking_driven.is_empty() {
         let methods = input.env.trait_methods(trait_);
         for (method, cold) in methods.iter().zip(&slots) {
-            if m.driven.contains(method) {
-                drives.push(slot(input, *method, cold)?);
+            if needs_slot(input.env, m, trait_, *method, false) {
+                drives.push(slot(input, *method, cold, false)?);
+            }
+        }
+        for (method, cold) in methods.iter().zip(&slots) {
+            if needs_slot(input.env, m, trait_, *method, true) {
+                drives.push(slot(input, *method, cold, true)?);
             }
         }
         // `index` counts on the method slots alone before the drive slots.
@@ -187,7 +220,7 @@ pub fn vtable(
 }
 
 /// The drive slot of `method` beside its cold slot `cold`.
-fn slot(input: &Input<'_>, method: DefId, cold: &Sym) -> StageResult<Sym> {
+fn slot(input: &Input<'_>, method: DefId, cold: &Sym, blocking: bool) -> StageResult<Sym> {
     let (pool, env) = (input.pool, input.env);
     let (ptys, ret) = crate::boundary::signature(pool, env, method, None);
     let mut params = vec![Val::I32];
@@ -209,6 +242,7 @@ fn slot(input: &Input<'_>, method: DefId, cold: &Sym) -> StageResult<Sym> {
             area,
             res,
         } => Helper::HostDrive {
+            blocking,
             module: module.clone(),
             method: method.clone(),
             args: args.clone(),
@@ -216,10 +250,15 @@ fn slot(input: &Input<'_>, method: DefId, cold: &Sym) -> StageResult<Sym> {
             res: res.clone(),
         },
         Helper::DynTrap { .. } => Helper::DynTrap {
-            params,
+            params: if blocking {
+                [params, vec![Val::I32]].concat()
+            } else {
+                params
+            },
             results: [vec![Val::I32], results].concat(),
         },
         other => Helper::Drive {
+            blocking,
             cold: Box::new(other.clone()),
             params,
             results,
