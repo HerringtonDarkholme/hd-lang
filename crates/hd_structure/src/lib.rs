@@ -41,10 +41,12 @@
 //! hidden fields (`hd_get`, `hd_holds`, `hd_default`) are closures over the
 //! target. A member's handle `Field[S, F]` is a reference to its
 //! `FieldRecord`, held in a local's cell that a handle body keeps in static
-//! data. The witness field, which no std body reads, holds the member's
-//! information as a `dyn Inspectable`. A variant's shared constructor
-//! data is read from the globals that hold it. Declaration documentation
-//! comes from the resolver's auxiliary item docs, outside semantic hashes.
+//! data; `Variant[S]`, `Members[S]` and each `Key[S]` are references to
+//! records held the same way. The witness field, which no std body reads,
+//! holds the member's information as a `dyn Inspectable`. A variant's
+//! shared constructor data is read from the globals that hold it.
+//! Declaration documentation comes from the resolver's auxiliary item
+//! docs, outside semantic hashes.
 
 mod dbg;
 
@@ -57,8 +59,8 @@ use hd_intern::PathKind;
 use hd_resolve::{FnSig, Generic, Item, ItemData, Lookup, Names};
 use hd_tir::Body;
 use hd_tir::ir::{
-    BodyKind, Callee, ChoiceKind, Coercion, NONE, Providers, Ref, Tag, TirBuilder, TirSink,
-    VerifyError, local_flags,
+    BodyKind, Callee, ChoiceKind, Coercion, NONE, Place, PlaceRoot, Proj, Providers, ReadMode, Ref,
+    Tag, TirBuilder, TirSink, VerifyError, local_flags,
 };
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
@@ -395,13 +397,10 @@ fn helper_ret(cx: &Cx<'_, '_>, mode: Handles, h: Handle) -> Ty {
     let names = cx.names;
     let g = Gen::new(cx, param(names, h.def, 0), h.def, mode);
     match h.kind {
-        HandleKind::Variant => g.adt(g.std("Variant"), &[g.target]),
+        HandleKind::Variant => g.variant_ty(),
         HandleKind::Field(_) => g.handle_ty(param(names, h.def, 1)),
-        HandleKind::Members => g.adt(g.std("Members"), &[g.target]),
-        HandleKind::Choices => {
-            let variant = g.adt(g.std("Variant"), &[g.target]);
-            g.fresh(g.adt(names.known.list, &[variant]))
-        }
+        HandleKind::Members => g.members_ty(),
+        HandleKind::Choices => g.fresh(g.adt(names.known.list, &[g.variant_ty()])),
     }
 }
 
@@ -570,7 +569,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let owner = self.handles.owner(self.names);
         // A variant's index is its place in the variant list.
         let var = v.index as usize;
-        let ty = self.adt(self.std("Variant"), &[self.target]);
+        let ty = self.variant_ty();
         let def = hidden_method(self.names, owner, &format!("handle {}", v.index));
         self.handle_call(
             owner,
@@ -616,7 +615,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// The chosen variant's immutable member directory, shared by builds.
     fn members(&mut self, v: &Var) -> Ref {
         let owner = self.handles.owner(self.names);
-        let ty = self.adt(self.std("Members"), &[self.target]);
+        let ty = self.members_ty();
         let def = hidden_method(self.names, owner, &format!("members {}", v.index));
         self.handle_call(
             owner,
@@ -630,28 +629,37 @@ impl<'a, 'n> Gen<'a, 'n> {
         )
     }
 
+    /// The directory `Members[S]` of `v`'s walked members, with one key
+    /// per member, each a reference to its own record.
     fn new_members(&mut self, v: &Var) -> StageResult<Ref> {
-        let mut infos = Vec::new();
+        let (mut infos, mut keys) = (Vec::new(), Vec::new());
         let member_t = self.adt(self.std("Member"), &[]);
+        let s = self.target;
+        let key_def = self.std("KeyRecord");
+        let key_t = self.record_ref(key_def, &[s]);
         for m in v.members.iter().filter(|m| !m.omitted) {
             let handle = self.field_handle(v, m, m.ty);
+            infos.push(self.handle_info(handle, member_t)?);
             let info = self.handle_info(handle, member_t)?;
-            infos.push(info);
+            let any = self.closure(&[s], Ty::BOOL, |g, _| Ok(g.bool_(true)))?;
+            let key = self.new_data(key_def, &[s], &[("info", info), ("hd_type", any)])?;
+            keys.push(self.static_ref(key, key_t));
         }
         let rec = self.b.refs_record(&infos);
         let lt = self.fresh(self.adt(self.names.known.list, &[member_t]));
         let infos = self.b.emit(Tag::NewList, NONE, rec, lt, SYN);
-        let s = self.target;
-        let any = self.closure(&[s], Ty::BOOL, |g, _| Ok(g.bool_(true)))?;
-        let def = self.std("Members");
-        self.new_data(def, &[s], &[("infos", infos), ("hd_type", any)])
+        let rec = self.b.refs_record(&keys);
+        let kt = self.fresh(self.adt(self.names.known.list, &[key_t]));
+        let keys = self.b.emit(Tag::NewList, NONE, rec, kt, SYN);
+        let def = self.std("MembersRecord");
+        let record = self.new_data(def, &[s], &[("infos", infos), ("hd_keys", keys)])?;
+        Ok(self.static_ref(record, self.members_ty()))
     }
 
     /// One variant directory per derived type, rather than per build.
     fn choices(&mut self) -> Ref {
         let owner = self.handles.owner(self.names);
-        let vt = self.adt(self.std("Variant"), &[self.target]);
-        let ty = self.fresh(self.adt(self.names.known.list, &[vt]));
+        let ty = self.fresh(self.adt(self.names.known.list, &[self.variant_ty()]));
         let def = hidden_method(self.names, owner, "choices");
         self.handle_call(
             owner,
@@ -670,8 +678,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         for v in vars {
             handles.push(self.variant_handle(v));
         }
-        let vt = self.adt(self.std("Variant"), &[self.target]);
-        let ty = self.fresh(self.adt(self.names.known.list, &[vt]));
+        let ty = self.fresh(self.adt(self.names.known.list, &[self.variant_ty()]));
         let rec = self.b.refs_record(&handles);
         self.b.emit(Tag::NewList, NONE, rec, ty, SYN)
     }
@@ -688,10 +695,10 @@ impl<'a, 'n> Gen<'a, 'n> {
         })
     }
 
-    /// A member's handle type `Field[S, F]`: a shared reference to its
-    /// `FieldRecord[S, F]`.
-    fn handle_ty(&self, f: Ty) -> Ty {
-        let record = self.adt(self.names.known.field, &[self.target, f]);
+    /// A shared reference to the `std.structure` record `def[args]`, the
+    /// type of a handle, key or member directory.
+    fn record_ref(&self, def: DefId, args: &[Ty]) -> Ty {
+        let record = self.adt(def, args);
         self.names.pool.intern_ty(&TyData::Ref {
             inner: record,
             mutable: false,
@@ -699,14 +706,71 @@ impl<'a, 'n> Gen<'a, 'n> {
         })
     }
 
+    /// A member's handle type `Field[S, F]`: a shared reference to its
+    /// `FieldRecord[S, F]`.
+    fn handle_ty(&self, f: Ty) -> Ty {
+        self.record_ref(self.names.known.field, &[self.target, f])
+    }
+
+    /// A variant's handle type `Variant[S]`: a shared reference to its
+    /// `VariantRecord[S]`.
+    fn variant_ty(&self) -> Ty {
+        self.record_ref(self.std("VariantRecord"), &[self.target])
+    }
+
+    /// A member directory's type `Members[S]`: a shared reference to its
+    /// `MembersRecord[S]`.
+    fn members_ty(&self) -> Ty {
+        self.record_ref(self.std("MembersRecord"), &[self.target])
+    }
+
     /// The `info` of the record that `handle`, a `Field`, refers to.
     fn handle_info(&mut self, handle: Ref, member_t: Ty) -> StageResult<Ref> {
-        let fs = self.std_fields(self.names.known.field)?;
-        let Some(k) = fs.iter().position(|f| self.names.text(f.name) == "info") else {
-            return self.cx.unsupported("the `std.structure` field `info`");
-        };
-        let k = u32::try_from(k).unwrap_or(0);
-        Ok(self.b.data_field(handle, k, member_t, SYN))
+        self.record_field(handle, self.names.known.field, "info", member_t)
+    }
+
+    /// Field `name` of the `std.structure` record `def` that `r` refers to.
+    fn record_field(&mut self, r: Ref, def: DefId, name: &str, t: Ty) -> StageResult<Ref> {
+        self.record_path(r, &[(def, name)], t)
+    }
+
+    /// The value at `path` in the `std.structure` record that `r` refers
+    /// to, read in one place: each step is a data type and its field.
+    fn record_path(&mut self, r: Ref, path: &[(DefId, &str)], t: Ty) -> StageResult<Ref> {
+        let mut proj = vec![Proj::Deref];
+        for &(def, name) in path {
+            let fs = self.std_fields(def)?;
+            let Some(k) = fs.iter().position(|f| self.names.text(f.name) == name) else {
+                return self
+                    .cx
+                    .unsupported(format!("the `std.structure` field `{name}`"));
+            };
+            proj.push(Proj::Field(u32::try_from(k).unwrap_or(0)));
+        }
+        let word = self.b.place(&Place {
+            root: PlaceRoot::Value(r),
+            proj,
+        });
+        Ok(self.b.emit(Tag::Read, word, ReadMode::Use as u32, t, SYN))
+    }
+
+    /// A reference of type `t` to `record`, held in a local's cell, which
+    /// a handle body places in static data (`hd_wasm_linear`), so the
+    /// reference is one address no count changes.
+    fn static_ref(&mut self, record: Ref, t: Ty) -> Ref {
+        let rt = self.b.ty_of(record);
+        let held = self.b.local(
+            rt,
+            self.names.syms.intern("$record"),
+            local_flags::READ
+                | local_flags::ASSIGNED
+                | local_flags::CAPTURED
+                | local_flags::CAPTURED_ASSIGNED,
+            SYN,
+        );
+        self.b.set(held, record, SYN);
+        let word = self.b.place(&Place::local(held));
+        self.b.emit(Tag::Ref, word, 0, t, SYN)
     }
 
     fn fresh(&self, t: Ty) -> Ty {
@@ -1076,8 +1140,9 @@ impl<'a, 'n> Gen<'a, 'n> {
             let other = g.b.close_block(eb, Some(f), Ty::BOOL, SYN);
             Ok(g.switch_tag(x, index, then, other, Ty::BOOL))
         })?;
-        let var = self.std("Variant");
-        self.new_data(var, &[s], &[("info", info), ("hd_holds", holds)])
+        let var = self.std("VariantRecord");
+        let record = self.new_data(var, &[s], &[("info", info), ("hd_holds", holds)])?;
+        Ok(self.static_ref(record, self.variant_ty()))
     }
 
     /// `Member` of `m`.
@@ -1156,21 +1221,7 @@ impl<'a, 'n> Gen<'a, 'n> {
                 ("hd_witness", witness),
             ],
         )?;
-        // The handle refers to the record in a local's cell, which a
-        // handle body places in static data (`hd_wasm_linear`).
-        let rt = self.b.ty_of(record);
-        let held = self.b.local(
-            rt,
-            self.names.syms.intern("$record"),
-            local_flags::READ
-                | local_flags::ASSIGNED
-                | local_flags::CAPTURED
-                | local_flags::CAPTURED_ASSIGNED,
-            SYN,
-        );
-        self.b.set(held, record, SYN);
-        let word = self.b.place(&hd_tir::ir::Place::local(held));
-        Ok(self.b.emit(Tag::Ref, word, 0, self.handle_ty(f), SYN))
+        Ok(self.static_ref(record, self.handle_ty(f)))
     }
 
     /// A call of a walker, describer or source method through the body's
@@ -1409,22 +1460,6 @@ impl<'a, 'n> Gen<'a, 'n> {
         Ok(self.switch_tag(r, 0, ok, other, ok_t))
     }
 
-    /// A field of a `std.structure` value by name.
-    fn std_field(&mut self, v: Ref, def: DefId, name: &str, t: Ty) -> StageResult<Ref> {
-        let fs = self.std_fields(def)?;
-        let Some(k) = fs.iter().position(|f| self.names.text(f.name) == name) else {
-            return self
-                .cx
-                .unsupported(format!("the `std.structure` field `{name}`"));
-        };
-        let k = u32::try_from(k).unwrap_or(0);
-        Ok(if self.data_object(def) {
-            self.b.data_field(v, k, t, SYN)
-        } else {
-            self.b.field(v, k, t, SYN)
-        })
-    }
-
     /// `SwitchInt v [#value then else]` of type `t`.
     fn switch_int(&mut self, v: Ref, value: u32, then: Ref, other: Ref, t: Ty) -> Ref {
         let rec = self.b.refs_record(&[Ref(value), then, other]);
@@ -1455,7 +1490,6 @@ impl<'a, 'n> Gen<'a, 'n> {
         let source = names.known.source;
         let s = self.target;
         let walked: Vec<&Mem> = v.members.iter().filter(|m| !m.omitted).collect();
-        let member_t = self.adt(self.std("Member"), &[]);
         let members = self.members(v);
         let slots: Vec<LocalId> = walked
             .iter()
@@ -1476,8 +1510,8 @@ impl<'a, 'n> Gen<'a, 'n> {
         let lb = self.b.open_block();
         let r = self.protocol_call(source, "next", src, &[], &[members])?;
         let key_option = self.try_value(r, ret)?;
-        let key_def = self.std("Key");
-        let key_ty = self.adt(key_def, &[s]);
+        let key_def = self.std("KeyRecord");
+        let key_ty = self.record_ref(key_def, &[s]);
         let nb = self.b.open_block();
         self.b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, SYN);
         let none = self.b.close_block(nb, None, Ty::NEVER, SYN);
@@ -1485,8 +1519,9 @@ impl<'a, 'n> Gen<'a, 'n> {
         let key = self.b.payload(key_option, 1, 0, key_ty, SYN);
         let some = self.b.close_block(sb, Some(key), key_ty, SYN);
         let key = self.switch_tag(key_option, 0, none, some, key_ty);
-        let info = self.std_field(key, key_def, "info", member_t)?;
-        let pos = self.std_field(info, self.std("Member"), "position", Ty::prim(Prim::Usize))?;
+        let member = self.std("Member");
+        let path = [(key_def, "info"), (member, "position")];
+        let pos = self.record_path(key, &path, Ty::prim(Prim::Usize))?;
         self.read_key(v, &walked, &slots, pos, src, ret)?;
         let body = self.b.close_block(lb, None, Ty::VOID, SYN);
         self.b.close_loop(lp, body, Ty::VOID, SYN);
@@ -1575,14 +1610,11 @@ impl<'a, 'n> Gen<'a, 'n> {
         let value = match vars {
             [v] if v.of_data() => self.build_variant(v, src, ret)?,
             _ => {
-                let vi = self.adt(self.std("VariantInfo"), &[]);
-                let info = self.std_field(chosen, self.std("Variant"), "info", vi)?;
-                let index = self.std_field(
-                    info,
-                    self.std("VariantInfo"),
-                    "index",
-                    Ty::prim(Prim::Usize),
-                )?;
+                let path = [
+                    (self.std("VariantRecord"), "info"),
+                    (self.std("VariantInfo"), "index"),
+                ];
+                let index = self.record_path(chosen, &path, Ty::prim(Prim::Usize))?;
                 self.build_choice(vars, index, src, ret)?
             }
         };

@@ -1003,7 +1003,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   - a local in a structure handle's body (kind `Handle`), which runs once
     per instance, lives in a static cell: a zero count word, then the
     value, which the program never releases (`Em::static_cell`), so a
-    `Field` handle is one static address;
+    `Field`, `Variant`, `Members` or `Key` value is one static address;
   - a place through a reference is that address plus the path's offset;
   - a field of a compiler-supplied data object is its payload address
     plus the field's offset;

@@ -805,20 +805,26 @@ impl[S, F] FieldRecord[S, F]:
     pub fn default(&self) -> F?: pass
     pub fn fact[M](&self) -> M?: pass
 
-pub struct Variant[S]:
+pub type Variant[S] = *VariantRecord[S]
+
+pub struct VariantRecord[S]:
     pub info: VariantInfo
 
-impl[S] Variant[S]:
-    pub fn holds(self, s: S) -> bool: pass
+impl[S] VariantRecord[S]:
+    pub fn holds(&self, s: S) -> bool: pass
 
-pub struct Members[S]:
+pub type Members[S] = *MembersRecord[S]
+
+pub struct MembersRecord[S]:
     pub infos: List[Member]
 
-impl[S] Members[S]:
-    pub fn at(self, position: usize) -> Key[S]?: pass
-    pub fn find(self, matches: fn(Member) -> bool) -> Key[S]?: pass
+impl[S] MembersRecord[S]:
+    pub fn at(&self, position: usize) -> Key[S]?: pass
+    pub fn find(&self, matches: fn(Member) -> bool) -> Key[S]?: pass
 
-pub struct Key[S]:
+pub type Key[S] = *KeyRecord[S]
+
+pub struct KeyRecord[S]:
     pub info: Member
 
 pub trait Walker[S]:
@@ -840,7 +846,7 @@ pub trait Source[S]:
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, Self::Error]
 ```
 
-1. r[annot.structure.decl] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `FieldRecord`, `Variant`, `Members`, `Key`, `Walker`, `Describer`, and `Source`. `Facts`, `Member`, `VariantInfo`, `FieldRecord`, `Variant`, `Members`, and `Key` are struct values: a copy is independent of the value it was copied from. `Field` is a read-only counted reference to a `FieldRecord`.
+1. r[annot.structure.decl] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `FieldRecord`, `Variant`, `VariantRecord`, `Members`, `MembersRecord`, `Key`, `KeyRecord`, `Walker`, `Describer`, and `Source`. `Facts`, `Member`, `VariantInfo` and the four record types are struct values: a copy is independent of the value it was copied from. `Field`, `Variant`, `Members`, and `Key` are read-only counted references to a `FieldRecord`, `VariantRecord`, `MembersRecord`, and `KeyRecord` respectively.
 2. r[annot.structure.bodies] The compiler supplies every body written `pass` in the declarations above, and the `Facts` type.
 3. r[annot.structure.reference-facts] `Facts` holds shared references to the facts attached to one type, member, variant, or module-level function, in source order.
 4. r[annot.structure.find-copy] `facts.find::[F]()` copies the first fact of concrete type `F` through `downcast_ref`, or returns `.None`.
@@ -849,7 +855,7 @@ pub trait Source[S]:
 7. r[annot.structure.members.at-option] `members.at(position: usize)` returns `.Some(key)` for the member at that position.
 8. r[annot.structure.members.find-option] `members.find(matches)` returns `.Some(key)` for the first member that `matches` accepts.
 9. r[annot.structure.members.lookup-none] Either lookup returns `.None` when no member fits.
-10. r[annot.structure.members.key-entry] A `Key[S]` represents a found member and carries its `Member` information.
+10. r[annot.structure.members.key-entry] A `Key[S]` represents a found member and carries its `Member` information. The keys and the member directory of one variant live as long as the program.
 11. r[annot.structure.lookup-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
 12. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
 13. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
@@ -1612,9 +1618,9 @@ struct Node:
 A **handle** is a compiler-generated constant that names one member or
 variant of a derivation's target.
 
-1. r[annot.handle.constants] Each member has one constant handle of type `Field[S, F]`, and each variant one of type `Variant[S]`. A member's handle refers to a `FieldRecord` that lives as long as the program.
+1. r[annot.handle.constants] Each member has one constant handle of type `Field[S, F]`, and each variant one of type `Variant[S]`. A handle refers to a record that lives as long as the program.
 2. r[annot.handle.member-type] `walk`, `describe`, and `build` pass handles whose `F` is the member's declared type: for `hits: *mut Counter`, it is `*mut Counter`.
-3. r[annot.handle.field-variance] `Field` is invariant in `S` and `F`, as a counted reference is in its referent ([`ref.type.kind-distinct`](13-values-and-references.md#r-ref.type.kind-distinct)).
+3. r[annot.handle.field-variance] `Field` is invariant in `S` and `F`, and `Variant`, `Members`, and `Key` are invariant in `S`, as a counted reference is in its referent ([`ref.type.kind-distinct`](13-values-and-references.md#r-ref.type.kind-distinct)).
 4. r[annot.handle.get] `h.get(x)` accepts any `S`. Its type is the type that the field access `x.member` would have, for a member declared `F`.
 5. r[annot.handle.get.variant] `h.get(x)` on a payload member, when `x` holds another variant, is a checked runtime panic with category `structure-variant-mismatch`.
 6. r[annot.handle.holds] `v.holds(x)` is true exactly when `x` holds the variant `v`.
