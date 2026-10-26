@@ -1,0 +1,21 @@
+# @dump: own
+# Hoisting: a change in an inner loop that stands in the outer loop's
+# iteration block makes the list unique once, before the outer loop
+# (`IsUnique hoisted` before `while k != 0`), since nothing in the outer
+# loop shares it. Both loops keep the list stable.
+fn flips(perm: List[usize]) -> i64:
+    let mut perm = perm
+    let flips: i64 = 0
+    let k = perm[0]
+    while k != 0:
+        let i: usize = 0
+        let j = k
+        while i < j:
+            t := perm[i]
+            perm[i] = perm[j]
+            perm[j] = t
+            i = i + 1
+            j = j - 1
+        flips = flips + 1
+        k = perm[0]
+    flips

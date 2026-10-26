@@ -1,0 +1,27 @@
+# @dump: own
+# Hoisting out of an outer loop: the inner loop's check stays inside the
+# outer loop, hoisted to the inner loop at most, when the outer loop runs
+# the inner one under an `if` (`branch`), copies the list (`copy`), or
+# calls an unknown function while the list is behind a reference (`call`).
+fn branch(items: List[usize], n: usize) -> List[usize]:
+    let mut items = items
+    for r in 0..n:
+        if r % 2 == 0:
+            for i in 0..items.len():
+                items[i] = r
+    items
+
+fn copy(items: List[usize], n: usize) -> List[List[usize]]:
+    let mut items = items
+    let mut saved: List[List[usize]] = []
+    for r in 0..n:
+        saved.push(items)
+        for i in 0..items.len():
+            items[i] = r
+    saved
+
+fn call(items: &mut List[usize], n: usize, f: fn() -> void) -> void:
+    for r in 0..n:
+        f()
+        for i in 0..items.len():
+            items[i] = r

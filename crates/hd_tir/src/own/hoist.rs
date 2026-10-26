@@ -11,7 +11,9 @@
 //! 1. it runs on every iteration that is entered: it is a statement of the
 //!    loop's iteration block, the arm of the **entry test** (the loop
 //!    body's first `If`, one arm of which only breaks out of the loop) that
-//!    goes on, with no `If`, `Match` or inner loop around it; and the
+//!    goes on, with no `If` or `Match` around it, or of the iteration block
+//!    of an inner loop with an entry test that stands there in turn, at any
+//!    depth, so it runs whenever that inner loop is entered; and the
 //!    statements before the entry test are pure, so the backend can run
 //!    them once more before the loop as its guard;
 //! 2. the loop never copies `p` or a place holding it, takes no `Ref` of a
@@ -50,7 +52,10 @@
 //! copy, snapshot or reference of the header, which is held nowhere
 //! else) and nothing outside the body can reach the place while the loop
 //! runs (rule 3). An empty loop runs no `IsUnique`, and uniqueness is never
-//! observable but through its cost.
+//! observable but through its cost. One taken from an inner loop costs a
+//! copy the loop did not need only when the buffer is shared and no
+//! iteration enters that inner loop: one copy per entry at most, against
+//! a check per entry of the inner loop.
 //!
 //! Data layout: dense tables per instruction and local, reused; the uses
 //! of every value in compressed rows; one scan to gather a loop's
@@ -631,9 +636,24 @@ fn hoist_loop(
         let prefix_pure = loop_statements(b, l)
             .take(e.prefix)
             .all(|x| pure(b, cx, x, &mut budget));
-        if prefix_pure {
-            for k in 0..b.record(b.data[e.iteration as usize][0]).len() {
-                let x = b.record(b.data[e.iteration as usize][0])[k];
+        // The iteration block's statements, and those of the iteration
+        // block of each loop that stands among them, at any depth: an
+        // `IsUnique` there runs whenever that inner loop is entered.
+        let mut blocks = if prefix_pure {
+            vec![e.iteration]
+        } else {
+            Vec::new()
+        };
+        while let Some(blk) = blocks.pop() {
+            for k in 0..b.record(b.data[blk as usize][0]).len() {
+                let x = b.record(b.data[blk as usize][0])[k];
+                if b.tags[x as usize] == Tag::Loop
+                    && !t.pending.dead[x as usize]
+                    && let Some(inner) = entry_test(b, x)
+                {
+                    blocks.push(inner.iteration);
+                    continue;
+                }
                 if b.tags[x as usize] != Tag::IsUnique
                     || t.gone[x as usize]
                     || t.pending.dead[x as usize]

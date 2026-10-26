@@ -915,8 +915,11 @@ Hoisting moves an `IsUnique` out of a loop (#653, #710). An `IsUnique`
 of place `p` inside a loop moves to just before the loop, guarded by the
 loop's entry test so an empty loop copies nothing, when:
 
-1. the `IsUnique` runs on every iteration that is entered (no `If`,
-   `Match` or inner loop around it skips it);
+1. the `IsUnique` runs on every iteration that is entered (no `If` or
+   `Match` around it skips it), or whenever an inner loop is entered that
+   stands so in the loop, at any depth, the inner loop having an entry
+   test; a shared buffer then costs a copy the loop did not need only if
+   no iteration enters that inner loop;
 2. the loop never copies `p` or an overlapping place, takes no `Ref` of
    it, pins nothing, and holds no suspension point;
 3. no call in the loop may write, unless `p`'s root is a local that is
@@ -2078,7 +2081,9 @@ is worth deciding only if they are hot.
    - **Rule 1** is a statement of the loop's **entry test**'s iteration
      block: the loop body's first `If`, one arm of which only breaks out
      of the loop (`own::entry_test`; a `while` and a `for` over a range
-     lower to it). The statements before the test must be pure (copies of
+     lower to it), or of the iteration block of an inner loop with an
+     entry test that is such a statement, at any depth. The statements
+     before the test must be pure (copies of
      values with no counted leaf, borrows and their kept drops,
      primitives, lengths, `and` and `or` of these), since the guard runs
      them once more before the loop.
