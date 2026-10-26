@@ -1,6 +1,6 @@
 ---
 name: compiler-tests
-description: Test the hd compiler with stage fixtures and benchmarks - write a focused .hd case, pick the view that shows one topic (tokens, tree, tir, own, wat, counts, layout), bless and review generated baselines, record bad emitted code with an expected note, and measure performance with bench/study (about 300 ms per program, --quick, hd-only before/after). Use when adding or changing a compiler test, checking what a stage emits for some code, or measuring a perf change.
+description: Test the hd compiler with stage fixtures and benchmarks - write a focused .hd case, pick the view that shows one topic (tokens, tree, tir, own, wat, counts, layout), bless and review generated baselines, record bad emitted code with an expected note, and measure performance, run the gates for a compiler change (conformance in three modes, stage tests), and report perf and size in the standard table (all 18 programs against JS, the three V8 tier columns, sizes, compile time). Use when adding or changing a compiler test, checking what a stage emits for some code, gating a compiler change, or measuring a perf change.
 ---
 
 # Test The hd Compiler
@@ -113,19 +113,52 @@ dead branch), add a case for it under a topic such as `counts/` or
 fix it. The fix then shows up as a reviewed baseline diff. Do not fix it by
 special-casing the pattern in the emitter; fix the cause.
 
-## Benchmarks
+## Gates For A Compiler Change
 
-`bench/study/` has each program in hd, JavaScript, Go and Python, tuned
-so hd on V8 takes about 300 ms. Results and the Wasm GC-era column are in
-[bench/README.md](../../../bench/README.md).
+Run these in the background, and grep each whole log for
+`FAILED|panicked`; the count must be 0. Use `nice` and `-j 4`, with the
+dev profile for tests.
 
-- `node bench/study/run.mjs --quick`: hd on V8 only, 3 runs, about a
-  minute. Use it before and after every perf change.
-- `node bench/study/run.mjs`: hd on V8 and wasmtime plus the references,
-  median of 5, about 7 minutes. Run it once after a batch of perf work.
-- Report integer milliseconds. For a perf issue, measure **hd only, before
-  and after**, on the programs it targets, on the same machine; note the
-  load if it is high.
-- Owner target: every program at most 1.2x its Wasm GC-era time, then
-  Node parity.
-- Release builds wrap integer overflow (`--release`), as Rust does.
+- `cargo fmt --check`, and `cargo clippy --all-targets -- -D warnings`.
+- Driver conformance in three modes: `cargo test -p hd_driver --test
+  conformance`, again with `HD_CONFORMANCE_PIPELINE=optimized`, and again
+  with `HD_CONFORMANCE_CHECKED=1`.
+- `cargo test -p hd_driver`, the touched crates' tests, `cargo test -p
+  hd_check --test stages`, and `bash spec/check.sh`.
+- Add the rest of shared-rules.md "Git And Safety" for other touched
+  paths: `hd_cli` tests, the web compiler, UI.
+- Bless a baseline only for an intended change, and list each blessed
+  file in the report.
+
+## Perf And Size Report
+
+Every perf change reports the same table, so results compare across jobs.
+
+- **All 18 programs against hand-written JS, base and head:**
+  - `node bench/study/run.mjs` in release mode with `--engines node` runs
+    the 11 study programs plus the 7 in `bench/runtime/progs`;
+  - `node bench/runtime/run.mjs --release` is the second runner.
+
+  Give hd/JS before and after for each program, the geometric mean, and
+  the machine load.
+- **Three V8 columns** for any program whose Wasm changed: default tier,
+  `--no-liftoff` and `--liftoff-only`. Wasm has no on-stack replacement,
+  so one long call stays in Liftoff (#724; the owner leaves tiering
+  alone). Name any default-tier change that comes only from tiering.
+- **Interleaved base/head runs,** median of 15 or more, for each program
+  whose Wasm changed. Programs whose Wasm is byte-identical (check md5)
+  need no timing.
+- **Sizes:**
+  - hello.wasm in dev and release; unexplained growth blocks the commit;
+  - each program's Wasm bytes;
+  - the web compiler's gzip size (`node scripts/build-web-compiler.js`;
+    2 MB is a hard cap).
+- **Compile time:** json release compile, cold cache, interleaved. The
+  compiler must not get slower.
+- **Against MoonBit's linear backend:**
+  `node bench/study/moonbit/compare.mjs`, when the job targets that gap.
+- **Goal:** beat hand-written JS on every program except
+  `progs/string-build` (the deliberately naive `out + s` loop). After
+  that, beat MoonBit's linear backend.
+- Report integer milliseconds. Release builds wrap integer overflow, as
+  Rust does.
