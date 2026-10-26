@@ -1175,7 +1175,11 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Or);
         self.f.op(I::If(BlockType::Empty));
         self.f.get(b);
-        self.f.helper(Helper::ListGrow { elem: e.clone() });
+        self.f.cold_helper(
+            Helper::ListGrow { elem: e.clone() },
+            vec![Val::I32],
+            vec![Val::I32],
+        );
         self.f.set(b);
         self.put_back(args[0], b)?;
         self.f.op(I::End);

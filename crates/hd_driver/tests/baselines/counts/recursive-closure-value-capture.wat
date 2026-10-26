@@ -4,7 +4,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 1 funcref))
+  (import "fixture" "table0" (table $table0 3 funcref))
   (func $sum_to#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32) (local $seed i32)
     ;; 6 |     sum := fn(n: i32) -> i32:
     i32.const 0

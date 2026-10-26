@@ -304,9 +304,15 @@ pub enum Helper {
         elem: Elem,
     },
     /// `(list) -> list`: the list's buffer made its own before a change:
-    /// a buffer it shares is copied, and the place's count goes to the
-    /// copy.
+    /// a buffer it shares is copied ([`Helper::ListCopy`]), and the
+    /// place's count goes to the copy.
     ListUnique {
+        elem: Elem,
+    },
+    /// `(list) -> list`: [`Helper::ListUnique`]'s slow path, out of line:
+    /// a copy of the shared buffer at its length, whose elements take
+    /// their own counts; the old buffer loses one holder.
+    ListCopy {
         elem: Elem,
     },
     /// `(list) -> list`: a `push`'s slow path: a pinned list panics
@@ -1628,9 +1634,14 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.i32(-1);
             f.op(Instruction::I32Eq);
             f.op(Instruction::If(BlockType::Empty));
-            f.helper(Helper::Panic(
-                "heap-exhausted: the exchange buffer cannot grow".into(),
-            ));
+            // A cold call: the panic writes its message through here, and
+            // a cycle of direct calls is one an engine's inliner unrolls.
+            f.cold_helper(
+                Helper::Panic("heap-exhausted: the exchange buffer cannot grow".into()),
+                vec![],
+                vec![],
+            );
+            f.op(Instruction::Unreachable);
             f.op(Instruction::End);
             f.op(Instruction::End);
             f.i32(0);
@@ -1694,6 +1705,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::CtxNew => ctx_new(m),
         Helper::CopyElems { elem } => copy_elems(elem, m),
         Helper::ListUnique { elem } => list_unique(elem, m),
+        Helper::ListCopy { elem } => list_copy(elem, m),
         Helper::ListGrow { elem } => list_grow(elem, m),
         Helper::MapTable { entry } => map::table(m, entry),
         Helper::DropEntries { entry } => map::drop_entries(m, entry),
@@ -3017,11 +3029,13 @@ fn copy_elems(elem: &Elem, m: &Module) -> Func {
     f
 }
 
-/// [`Helper::ListUnique`]: a shared buffer is copied at its length; its
-/// elements take their own counts and the old buffer one holder less.
+/// [`Helper::ListUnique`]: a buffer with more than one holder and no owner
+/// word is copied by [`Helper::ListCopy`], a cold call (`Func::cold_helper`).
+/// What a hot caller's engine inlines is then a few loads and a compare,
+/// not the copy loop and the allocator behind it.
 fn list_unique(elem: &Elem, m: &Module) -> Func {
     let mut f = m.func("rt:list_unique", vec![Val::I32], vec![Val::I32]);
-    let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
+    let b = 0;
     f.get(b);
     f.u32(HEADER);
     f.op(Instruction::I32Sub);
@@ -3035,6 +3049,23 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
     f.op(Instruction::I32Eqz);
     f.op(Instruction::I32And);
     f.op(Instruction::If(BlockType::Empty));
+    f.get(b);
+    f.cold_helper(
+        Helper::ListCopy { elem: elem.clone() },
+        vec![Val::I32],
+        vec![Val::I32],
+    );
+    f.set(b);
+    f.op(Instruction::End);
+    f.get(b);
+    f
+}
+
+/// [`Helper::ListCopy`]: a shared buffer is copied at its length; its
+/// elements take their own counts and the old buffer one holder less.
+fn list_copy(elem: &Elem, m: &Module) -> Func {
+    let mut f = m.func("rt:list_copy", vec![Val::I32], vec![Val::I32]);
+    let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.set(n);
@@ -3067,9 +3098,6 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
     f.get(b);
     f.helper(Helper::ReleaseKnown);
     f.get(nb);
-    f.set(b);
-    f.op(Instruction::End);
-    f.get(b);
     f
 }
 

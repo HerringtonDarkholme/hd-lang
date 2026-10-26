@@ -753,6 +753,19 @@ changes preserve collection value semantics (§23.7).
   the old block without releasing its elements, which moved. Either
   stores the new buffer into the place the change names. A store counts
   the new element before it releases the old one.
+- **Cold calls** (#165). The copy of a shared buffer (`rt:list_copy`,
+  behind `rt:list_unique`'s check), a `push`'s `rt:list_grow`, the panics
+  that format a string (`rt:panic_str`, `rt:panic_with`) and the
+  exchange buffer's growth failure in `rt:to_buf` are called through the
+  function table (`Func::cold_helper`), not with `call`. V8 inlines no
+  `call_indirect` by default, and without call feedback (`--no-liftoff`)
+  it inlines small direct callees by size. Through a `call`,
+  `rt:list_unique` brought the copy loop, the allocator and its panics
+  into each function that changes a list, and the cycle of a panic and
+  `rt:to_buf` was unrolled about 20 calls deep, so the caller's budget
+  never reached its own small callees (spectral_norm's `a`). What the
+  engine inlines now is the check: a few loads and a compare. A table
+  slot costs a few bytes per call site.
 - **Bulk appends.** std's `list_extend(items: &mut List[T], other)`
   (`List.extend`) reads the list through its reference, as
   `list_truncate` does, and stores the buffer back. `rt:list_extend`

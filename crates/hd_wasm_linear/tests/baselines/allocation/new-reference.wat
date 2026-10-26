@@ -6,7 +6,7 @@
     ;; 14 |     &Node { left: .None, right: .None }
     block
       i32.const 16
-      i32.const 0
+      i32.const 1
       i32.const -2147483647
       i32.add
       call $rt:new/class-2

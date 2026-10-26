@@ -24,9 +24,9 @@
     block
       ;; ...
     ;; 8 |     read := fn() -> i32: count
-      i32.const 0
-      i32.const 4
       i32.const 1
+      i32.const 4
+      i32.const 2
       i32.const -2147483647
       i32.add
       call $rt:new/class-1

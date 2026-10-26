@@ -377,3 +377,112 @@ fn instruction_origins_do_not_change_bytes_and_offsets_match_operators() {
         }
     }
 }
+
+/// The cold paths are calls through the table (`Func::cold_helper`): from
+/// a function that changes a list, pushes onto one and panics with a
+/// formatted message, direct calls reach none of the copy, growth and
+/// formatting helpers, and the direct calls among the helpers have no
+/// cycle (#165): V8 inlines direct calls without call feedback, and an
+/// unrolled cycle filled a hot caller's budget.
+#[test]
+fn cold_paths_are_no_direct_calls() {
+    let mut m = Module::default();
+    let main = Hash128(11);
+    let elem = string_area();
+    let mut f = m.func("main", vec![], vec![]);
+    let l = f.local(Val::I32);
+    f.get(l);
+    f.helper(Helper::ListUnique { elem: elem.clone() });
+    f.op(crate::op::Op::Drop);
+    f.get(l);
+    f.cold_helper(Helper::ListGrow { elem }, vec![Val::I32], vec![Val::I32]);
+    f.op(crate::op::Op::Drop);
+    f.helper(Helper::Panic("index-out-of-bounds: x".into()));
+    for _ in 0..4 {
+        f.get(l);
+    }
+    f.helper(Helper::PanicWith);
+    m.define(Sym::Inst(main), f);
+    m.export("hd.init", Sym::Helper(Helper::EntryInit { inits: vec![] }));
+    m.export(
+        "hd.poll",
+        Sym::Helper(Helper::EntryPoll {
+            providers: vec![],
+            main,
+            results: 0,
+            report: None,
+            then: vec![],
+            bang: None,
+        }),
+    );
+    let wasm = m.finish().expect("link");
+    validate(&wasm);
+    // Each defined function's name and the functions it calls directly.
+    let (mut imports, mut names, mut calls) = (0, Vec::new(), Vec::new());
+    for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
+        match payload.expect("payload") {
+            wasmparser::Payload::ImportSection(r) => {
+                for i in r.into_imports() {
+                    if matches!(i.expect("import").ty, wasmparser::TypeRef::Func(_)) {
+                        imports += 1;
+                    }
+                }
+            }
+            wasmparser::Payload::CodeSectionEntry(body) => {
+                let mut out = Vec::new();
+                let mut ops = body.get_operators_reader().expect("operators");
+                while !ops.eof() {
+                    if let wasmparser::Operator::Call { function_index } = ops.read().expect("op") {
+                        out.extend(function_index.checked_sub(imports));
+                    }
+                }
+                calls.push(out);
+            }
+            wasmparser::Payload::CustomSection(c) if c.name() == "name" => {
+                let wasmparser::KnownCustom::Name(r) = c.as_known() else {
+                    continue;
+                };
+                for n in r {
+                    if let wasmparser::Name::Function(map) = n.expect("names") {
+                        for x in map {
+                            let x = x.expect("name");
+                            if let Some(k) = x.index.checked_sub(imports) {
+                                names.push((k, x.name.to_owned()));
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let name = |k: u32| {
+        names
+            .iter()
+            .find(|(i, _)| *i == k)
+            .map_or("?", |(_, n)| n.as_str())
+            .to_owned()
+    };
+    let root = names.iter().find(|(_, n)| n == "main").expect("main").0;
+    // Depth-first from `main`, a function on the path again being a cycle.
+    let mut reached = Vec::new();
+    let mut stack = vec![(root, vec![root])];
+    while let Some((k, path)) = stack.pop() {
+        reached.push(name(k));
+        for &c in &calls[k as usize] {
+            assert!(
+                !path.contains(&c),
+                "a cycle of direct calls through {}",
+                name(c)
+            );
+            stack.push((c, [path.clone(), vec![c]].concat()));
+        }
+    }
+    for cold in ["rt:list_copy", "rt:list_grow", "rt:panic_with", "rt:alloc"] {
+        assert!(
+            !reached.iter().any(|n| n.starts_with(cold)),
+            "{cold} is a direct call from main: {reached:?}"
+        );
+    }
+    assert!(reached.iter().any(|n| n.starts_with("rt:list_unique")));
+}

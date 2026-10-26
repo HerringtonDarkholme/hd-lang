@@ -670,10 +670,31 @@ impl Func {
         // engine need not treat the call as returning and keep state live
         // across it (#165).
         let diverges = matches!(h, Helper::Panic(_) | Helper::PanicStr | Helper::PanicWith);
-        self.call(Sym::Helper(h));
+        // A panic that formats a string writes it through `rt:to_buf`:
+        // a cold call ([`Func::cold_helper`]), so an engine copies none of
+        // it into a hot caller.
+        match h {
+            Helper::PanicStr => self.cold_helper(h, vec![Val::I32; 2], vec![]),
+            Helper::PanicWith => self.cold_helper(h, vec![Val::I32; 4], vec![]),
+            h => self.call(Sym::Helper(h)),
+        }
         if diverges {
             self.op(Instruction::Unreachable);
         }
+    }
+
+    /// A call of helper `h`, of signature `params -> results`, through the
+    /// function table, for a path a caller rarely takes (a copy-on-write
+    /// copy, a buffer's growth, a panic's formatting). V8 inlines no
+    /// `call_indirect` (`--wasm-inlining-call-indirect` is off by default),
+    /// while without call feedback (`--no-liftoff`) it inlines small direct
+    /// callees by size, so the path, and the allocator and panic code it
+    /// reaches, stay out of a hot caller's inlining budget, which then goes
+    /// to its small callees (#165). The table slot costs a few bytes per
+    /// call site.
+    pub fn cold_helper(&mut self, h: Helper, params: Vec<Val>, results: Vec<Val>) {
+        self.table_slot(Sym::Helper(h));
+        self.call_indirect(params, results);
     }
 
     pub fn i32(&mut self, v: i32) {
