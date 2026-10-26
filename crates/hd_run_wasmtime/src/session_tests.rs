@@ -680,7 +680,7 @@ fn journal_shape(session: &WasmtimeSession) -> Vec<String> {
 /// The session's journal holds a row per host call of each input, between
 /// the input's `Input` and `End` rows, in the order they happened: its
 /// clock reading, the handle a sleep waits on, woken and then finished,
-/// a line written at once and the panic report, both by digest.
+/// its text and newline writes, then its panic report.
 #[test]
 fn a_session_journal_records_each_input_s_host_calls_in_order() {
     use hd_run::journal::{Event, Request, Value};
@@ -720,6 +720,8 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
             "end Exit(0)",
             "input 4",
         ];
+        // println drives the Display text and newline as separate writes.
+        want.extend_from_slice(write);
         want.extend_from_slice(write);
         want.extend([
             "end Exit(0)",
@@ -766,14 +768,20 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
         let handle = u32::try_from(*handle).expect("a handle");
         assert!(matches!(&events[8], Event::Wake { handles, .. } if handles == &[handle]));
         assert!(matches!(&events[9], Event::Finish { handle: h, .. } if *h == handle));
-        // `println("hi")` writes `hi\n`: its length then its bytes.
+        // `println("hi")` writes the text, then the newline, with a
+        // separate length and byte sequence for each host call.
         let Event::Call { request, .. } = &events[12] else {
             panic!("{:?}", events[12]);
         };
-        assert_eq!(request, &Request::Args(vec![3, b'h', b'i', b'\n']));
-        // The panic stub starts its report, then writes it. On Windows the
-        // write above also blocks and finishes, two more events.
-        let panic_at = if cfg!(windows) { 17 } else { 15 };
+        assert_eq!(request, &Request::Args(vec![2, b'h', b'i']));
+        let newline_at = 12 + write.len();
+        let Event::Call { request, .. } = &events[newline_at] else {
+            panic!("{:?}", events[newline_at]);
+        };
+        assert_eq!(request, &Request::Args(vec![1, b'\n']));
+        // The panic stub follows both writes; each also blocks and
+        // finishes on Windows.
+        let panic_at = 14 + 2 * write.len();
         assert!(matches!(
             &events[panic_at],
             Event::Call { request: Request::Args(args), .. } if args.is_empty()
