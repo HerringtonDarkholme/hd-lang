@@ -1,0 +1,27 @@
+# test: the standard Display implementations of the numbers, string, and char override write with the text of their to_string
+# Spec std/format Display For Standard Types: std-format.display.write.std and std-format.display.write.string (owner decision 2026-10-17, #436).
+use std.text.StringBuilder
+
+# The text that `value`'s `write` pushes to a new builder.
+fn written[T < Display](value: T) -> string:
+    out := StringBuilder::new()
+    value.write(out)
+    out.build()
+
+tests:
+    use std.testing.assert_equal
+
+    it("each override pushes its to_string text"):
+        assert_equal(written(-12i64), "-12", reason="a signed integer pushes its digits with the sign")
+        assert_equal(written(255u8), (255u8).to_string(), reason="an unsigned integer pushes its to_string text")
+        assert_equal(written(usize(7)), "7", reason="a usize pushes its digits")
+        assert_equal(written(2.5), (2.5).to_string(), reason="an f64 pushes its canonical text")
+        assert_equal(written(1.5f32), (1.5f32).to_string(), reason="an f32 pushes its canonical text")
+        assert_equal(written("tea"), "tea", reason="a string pushes itself")
+        assert_equal(written('é'), "é", reason="a char pushes its scalar's UTF-8 bytes")
+        assert_equal(written(true), "true", reason="bool keeps the default write over to_string")
+
+    it("interpolation writes each value into one builder"):
+        n := -3
+        c := 'x'
+        assert_equal("$n$c${1.5}$n", "-3x1.5-3", reason="values written in source order")

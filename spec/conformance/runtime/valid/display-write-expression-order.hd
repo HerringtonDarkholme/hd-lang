@@ -1,0 +1,32 @@
+# test: an earlier Display.write runs before a later string-producing expression
+# Spec 05 String Interpolation: expr.interp.write.order.
+# expect-stdout: first after
+# expect-stdout: first changed
+use std.text.StringBuilder
+
+struct Counter:
+    value: usize
+    text: string
+
+struct First:
+    counter: *mut Counter
+
+impl Display for First:
+    fn to_string(self) -> string:
+        "first"
+
+    fn write(self, out: &mut StringBuilder) -> void:
+        self.counter.value += 1
+        self.counter.text = "changed"
+        out.push("first")
+
+fn following(counter: &Counter) -> string:
+    if counter.value != 1:
+        panic("the later expression ran before the earlier write")
+    "after"
+
+pub fn main() -> void $ Console:
+    let counter: *mut Counter = &mut Counter { value: 0, text: "before" }
+    println("${First { counter: counter }} ${following(counter)}")
+    counter.text = "before"
+    println("${First { counter: counter }} ${counter.text}")

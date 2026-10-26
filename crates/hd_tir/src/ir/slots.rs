@@ -90,7 +90,7 @@ fn layout(tag: Tag) -> [Layout; 2] {
         _ => L::Opaque,
     };
     let (a, b) = (plain(tag.operands().0), plain(tag.operands().1));
-    let (consume, lend) = (Word::Value(Role::Consume), Word::Value(Role::Lend));
+    let consume = Word::Value(Role::Consume);
     match tag {
         Tag::Block => [L::Each(Word::Inst), L::One(Word::Value(Role::Tail))],
         Tag::Drop => [L::Place(Role::Dropped), b],
@@ -104,7 +104,6 @@ fn layout(tag: Tag) -> [Layout; 2] {
         Tag::With | Tag::ContextNew => [L::Pairs(Word::Provider), b],
         Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => [a, L::Cases],
         Tag::Intrinsic => [a, L::Stored],
-        Tag::Interp => [a, L::Each(lend)],
         // A `defer`'s suite and a `Hook`'s observed instruction sit in
         // meta words.
         Tag::Defer => [L::One(Word::Block), b],

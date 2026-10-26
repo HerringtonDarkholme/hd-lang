@@ -500,7 +500,7 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   `EMPTY` (the first static address) and length 0: an interpolation or a
   concatenation with no bytes, an empty slice and an empty host result all
   give it, so no empty buffer is ever allocated.
-- **Kernels.** An interpolation or a concatenation sums its parts'
+- **Kernels.** A concatenation (`+` and `rt:concat_all`) sums its parts'
   lengths, allocates once and copies each part with `memory.copy`; one
   part is itself. `s[i]` and `bytes_at` check the index and load a byte.
   `bytes_slice` checks `start <= end <= len` and makes a view of the same

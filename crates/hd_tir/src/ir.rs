@@ -119,7 +119,6 @@ tags! {
     CallHost: Meta, Values;
     Intrinsic: Meta, Record;
     DefaultCall: Record, Values;
-    Interp: None, Record;
     Coerce: Value, Record;
     // suspension and hooks
     Await: Record, Values;
@@ -1050,7 +1049,7 @@ impl Body {
     pub fn value_operands(&self, i: usize) -> Option<Vec<u32>> {
         let outlined = match self.tags[i] {
             Tag::Prim | Tag::NewStruct | Tag::NewVariant | Tag::NewMap | Tag::DefaultCall => true,
-            Tag::Call | Tag::CallValue | Tag::Intrinsic | Tag::Interp | Tag::Is => true,
+            Tag::Call | Tag::CallValue | Tag::Intrinsic | Tag::Is => true,
             Tag::Coerce | Tag::CopyStruct | Tag::NewTuple | Tag::ProviderGet | Tag::ItemRef => true,
             Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Pin | Tag::Store => true,
             Tag::NewList => self.data[i][0] == NONE,

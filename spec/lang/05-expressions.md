@@ -216,35 +216,49 @@ fn demo() -> void:
 
 #### String Interpolation
 
-An interpreted string may embed expressions, which are formatted through the
-`Display` trait. The canonical signature is:
+An interpreted string may embed expressions, which are written through the
+`Display` trait ([Display Trait](09-traits.md#display-trait)). The canonical
+declaration is:
 
 ```text
+use std.text.StringBuilder
+
 trait Display:
     fn to_string(self) -> string
+
+    fn write(self, out: &mut StringBuilder) -> void:
+        _ := out.push(self.to_string())
 ```
 
 1. r[expr.interp.forms] Interpreted strings support `$name`, `$self`, and `${expression}` interpolation.
 2. r[expr.interp.self] `"value: $self"` inside a method interpolates the receiver.
 3. r[expr.interp.order] Embedded expressions are evaluated from left to right at the position of their segment.
 4. r[expr.interp.display] Each embedded expression's type must implement the canonical `std.format.Display` trait.
-5. r[expr.interp.append] The compiler appends the string returned by that implementation.
-6. r[expr.interp.no-display] An embedded expression whose type does not implement `Display` is an error. Error: `unsatisfied-trait-bound`.
-7. r[expr.interp.no-fallback] There is no fallback conversion through `Any`, runtime reflection, or debug output.
-8. r[expr.interp.std] The standard library provides `Display` implementations for ordinary printable primitive types and `string`.
-9. r[expr.interp.std.tuple.template] It also declares a tuple template for `Display`, so every tuple whose elements implement `Display` implements it, at every size. It writes the elements' texts inside parentheses, separated by `, `, as in `(1, a)`.
-10. r[expr.interp.std.tuple.rest-inline] For a tuple with a rest element `List[T]...`, `T` must implement `Display`. The rest's items are written inline after the fixed elements, as in `(1, 2, 3, 4)`.
-11. r[expr.interp.std.tuple.one] A tuple of one element writes a comma after it, as its source syntax does: `(1,)`. A rest tuple counts each of its rest's items as an element.
-12. r[expr.interp.user] Optional and user-defined values are displayable only when the corresponding type implements `Display`.
-13. r[expr.interp.prefixed] A prefixed string does not append its values: they become the values of a template, as [Prefixed Strings](#prefixed-strings) specifies.
-14. r[expr.interp.constant] A string with no interpolation segments is an ordinary constant value and performs no `Display` calls.
-15. r[expr.interp.reference] A reference interpolates as the value it refers to, since `std` implements `Display` for `&T` when `T` has it ([References](../std/format.md#references)).
+5. r[expr.interp.builder] A string with interpolation segments makes one new `StringBuilder`. It pushes the string's text pieces and writes its segments' values in source order, and its value is the builder's `build()`.
+6. r[expr.interp.write] Each segment's value is written by the `write` of its type's `Display` implementation, with that one builder as `out`.
+7. r[expr.interp.write.order] A segment's `write` runs after its expression is evaluated and before the next segment's expression.
+8. r[expr.interp.builder.push] When the string is the one argument of `StringBuilder.push` and each value is a name or a field path, the receiver may serve as the string's builder. Its pieces and values are then pushed and written to the receiver itself.
+9. r[expr.interp.no-display] An embedded expression whose type does not implement `Display` is an error. Error: `unsatisfied-trait-bound`.
+10. r[expr.interp.no-fallback] There is no fallback conversion through `Any`, runtime reflection, or debug output.
+11. r[expr.interp.std] The standard library provides `Display` implementations for ordinary printable primitive types and `string`.
+12. r[expr.interp.std.tuple.template] It also declares a tuple template for `Display`, so every tuple whose elements implement `Display` implements it, at every size. It writes the elements' texts inside parentheses, separated by `, `, as in `(1, a)`.
+13. r[expr.interp.std.tuple.rest-inline] For a tuple with a rest element `List[T]...`, `T` must implement `Display`. The rest's items are written inline after the fixed elements, as in `(1, 2, 3, 4)`.
+14. r[expr.interp.std.tuple.one] A tuple of one element writes a comma after it, as its source syntax does: `(1,)`. A rest tuple counts each of its rest's items as an element.
+15. r[expr.interp.user] Optional and user-defined values are displayable only when the corresponding type implements `Display`.
+16. r[expr.interp.prefixed] A prefixed string does not append its values: they become the values of a template, as [Prefixed Strings](#prefixed-strings) specifies.
+17. r[expr.interp.constant] A string with no interpolation segments is an ordinary constant value and performs no `Display` calls.
+18. r[expr.interp.reference] A reference interpolates as the value it refers to, since `std` implements `Display` for `&T` when `T` has it ([References](../std/format.md#references)).
 
-16. r[expr.interp.collection-debug-fix] For a simple name in braced interpolation, a missing `Display` diagnostic may offer exact `debug(name)` wrapping for `List` and `Map`.
-17. r[expr.interp.collection-debug-fix.proof] This fix requires proven `Debug` support and an unshadowed prelude `debug`.
+19. r[expr.interp.collection-debug-fix] For a simple name in braced interpolation, a missing `Display` diagnostic may offer exact `debug(name)` wrapping for `List` and `Map`.
+20. r[expr.interp.collection-debug-fix.proof] This fix requires proven `Debug` support and an unshadowed prelude `debug`.
 
 > **Note.** The empty tuple writes `()`. A `void` value is that tuple, so
 > `"${log()}"` writes `()` too.
+
+> **Note.** Under [`expr.interp.builder.push`](#r-expr.interp.builder.push),
+> a name or a field path can neither leave the call early nor reach the
+> receiver. Only `write` sees which builder it writes to, so an override
+> that only pushes to `out` behaves the same either way.
 
 ```text
 struct Secret:

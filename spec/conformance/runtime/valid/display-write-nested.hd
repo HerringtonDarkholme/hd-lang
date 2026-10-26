@@ -1,0 +1,46 @@
+# test: interpolation writes a nested Display value through write, so an inner type's override pushes into the one builder and the text is unchanged
+# Spec 05 String Interpolation: expr.interp.builder, expr.interp.write; Spec 09 Display Trait: trait.display.write.default (owner decision 2026-10-17, #436).
+use std.text.StringBuilder
+
+# How often the inner value's two methods ran.
+struct Calls:
+    writes: usize
+    texts: usize
+
+struct Inner:
+    name: string
+    calls: *mut Calls
+
+impl Display for Inner:
+    fn to_string(self) -> string:
+        self.calls.texts += 1
+        "<${self.name}>"
+
+    fn write(self, out: &mut StringBuilder) -> void:
+        self.calls.writes += 1
+        out.push("<")
+        out.push(self.name)
+        out.push(">")
+
+# Only `to_string`: its `write` is the default, which pushes this text.
+struct Outer:
+    inner: Inner
+    count: i32
+
+impl Display for Outer:
+    fn to_string(self) -> string:
+        "[${self.inner} ${self.count}]"
+
+tests:
+    use std.testing.assert_equal
+
+    it("an inner override of write runs, and the text is the same"):
+        calls := &mut Calls { writes: 0, texts: 0 }
+        outer := Outer { inner: Inner { name: "tea", calls: calls }, count: +3 }
+        assert_equal("x $outer y", "x [<tea> 3] y", reason="the nested text is unchanged")
+        assert_equal(calls.writes, 1, reason="the outer default write calls to_string, whose interpolation writes the inner value")
+        assert_equal(calls.texts, 0, reason="interpolation never calls the inner to_string")
+        assert_equal(outer.to_string(), "[<tea> 3]", reason="to_string gives the same text")
+        assert_equal(calls.writes, 2, reason="to_string interpolates the inner value through write too")
+        assert_equal(outer.inner.to_string(), "<tea>", reason="a direct to_string call runs to_string")
+        assert_equal(calls.texts, 1, reason="only the direct call ran it")

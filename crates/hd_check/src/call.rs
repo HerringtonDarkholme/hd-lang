@@ -6,7 +6,7 @@
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 
-use hd_base::{DefId, PathId, StageResult, Symbol};
+use hd_base::{DefId, StageResult, Symbol};
 use hd_diag::Code;
 use hd_intern::PathKind;
 use hd_resolve::{BindingKind, FnSig, HeadKind, ItemData, Src};
@@ -2370,88 +2370,11 @@ impl Ck<'_, '_> {
             let st = pool.intern_ty(&TyData::Mut(st));
             return (self.b.call(c, refs, Providers::None, st, n.index()), st);
         }
-        if !suspends
-            && !bang
-            && let Some(r) = self.push_interpolation(c, refs, ret, n)
-        {
-            return (r, ret);
-        }
         let r = self.b.call(c, refs, Providers::None, ret, n.index());
         if suspends && bang {
             self.b.body_mut().tags[r.0 as usize] = Tag::Await;
         }
         (r, ret)
-    }
-
-    /// Append an interpolation's already evaluated strings directly. All
-    /// expressions (and their Display calls) finish before any push, just
-    /// as with one concatenated argument; the receiver is evaluated once.
-    fn push_interpolation(
-        &mut self,
-        c: &Callee,
-        refs: &[Ref],
-        ret: Ty,
-        n: NodeRef<'_>,
-    ) -> Option<Ref> {
-        let Callee::Item { def, .. } = c else {
-            return None;
-        };
-        let [recv, text] = refs else { return None };
-        let item = self.cx.lookup.item(*def)?;
-        if self.cx.names.text(item.name) != "push" {
-            return None;
-        }
-        let paths = self.cx.names.paths;
-        let owner = paths.parent(PathId::from_raw(def.raw()));
-        if paths.parent(owner) != self.cx.names.module("std.text") {
-            return None;
-        }
-        let (inner, true) = self.ref_of(self.b.ty_of(*recv))? else {
-            return None;
-        };
-        if !matches!(self.pool().get(inner), TyData::Adt { def, .. }
-            if def == self.cx.names.item("std.text", "StringBuilder"))
-        {
-            return None;
-        }
-        let i = text.as_inst()?.0 as usize;
-        let body = self.b.body_mut();
-        if body.tags[i] != Tag::Interp {
-            return None;
-        }
-        let parts: Vec<Ref> = body
-            .record(body.data[i][1])
-            .iter()
-            .copied()
-            .map(Ref)
-            .collect();
-        if parts.is_empty() {
-            return None;
-        }
-        // Keep the instruction position as an empty constant-valued block;
-        // only concatenation goes away, never any part's evaluation.
-        let empty = self.b.const_str("");
-        let block = self.b.words_record(&[]);
-        let body = self.b.body_mut();
-        body.tags[i] = Tag::Block;
-        body.data[i] = [block, empty.0];
-        let mut result = None;
-        for part in parts {
-            if let Some((Ty::STRING, at)) = self.b.const_of(part)
-                && self.b.body_mut().strings[usize::try_from(at).expect("string constant index")]
-                    .is_empty()
-            {
-                continue;
-            }
-            result = Some(
-                self.b
-                    .call(c, &[*recv, part], Providers::None, ret, n.index()),
-            );
-        }
-        Some(result.unwrap_or_else(|| {
-            self.b
-                .call(c, &[*recv, empty], Providers::None, ret, n.index())
-        }))
     }
 
     /// `t` with each projection whose self type inference has not fixed
@@ -3966,6 +3889,9 @@ impl Ck<'_, '_> {
                         recv
                     }
                 };
+                if !bang && let Some(hit) = self.push_interpolation(method, recv, args, n)? {
+                    return Ok(hit);
+                }
                 let mut refs = vec![recv];
                 let mut all = impl_args.clone();
                 all.extend(&vars);

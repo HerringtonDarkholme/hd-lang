@@ -572,7 +572,6 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     | Tag::CallHost
                     | Tag::DefaultCall
                     | Tag::Await
-                    | Tag::Interp
                     | Tag::Match
                     | Tag::SwitchTag
                     | Tag::SwitchInt
