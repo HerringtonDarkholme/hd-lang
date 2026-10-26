@@ -1,0 +1,6 @@
+use pkg.helper.value
+use dep.dep.constant
+
+pub fn main() -> void:
+    let аbc = value() + constant()
+    _ := аbc

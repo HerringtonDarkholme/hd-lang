@@ -73,6 +73,9 @@ const SPEC_CONFLICTS: &[&str] = &[
     "cli/fix-parser-punctuation/src/lib.hd",
     "cli/fix-elif-continuations/src/lib.hd",
     "cli/fix-legacy-syntax/src/lib.hd",
+    // A lint case whose identifier is deliberately not NFC, to show that
+    // lint reports compiler errors first.
+    "cli/lint-mixed-script-prerequisites/src/main.hd",
 ];
 
 /// The cases `KNOWN_FAILURES.tsv` lists: a fixture path, or a CLI case

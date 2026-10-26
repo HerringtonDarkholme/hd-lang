@@ -1,0 +1,3 @@
+pub fn another() -> i32:
+    let aя = +2
+    aя

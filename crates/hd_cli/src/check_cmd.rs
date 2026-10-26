@@ -2,7 +2,7 @@
 //! `cli.file.check-test`, `cli.json.*`): the pipeline through checking and
 //! coherence, with no collection or emission.
 
-use hd_base::SliceSort as _;
+use hd_base::{FileId, SliceSort as _};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fmt::Write as _;
@@ -14,7 +14,7 @@ use hd_cache::{CacheStore, DeferredStore};
 use hd_diag::Code;
 use hd_driver::{Goal, Host, Output};
 
-use hd_project::{ModuleTable, Role, role_of};
+use hd_project::{ModuleTable, Role, SourceSet, role_of};
 
 use crate::report::{self, Diag, Summary};
 use crate::{HD_FAILURE, Wall, disk, executor, fail, package_of_cwd};
@@ -277,6 +277,23 @@ fn check_role(
     {
         let findings = hd_lint::analyze(&out.source_facts, &out.texts, policy);
         out.diags.append(&findings);
+        let roots: hd_base::HashSet<_> = sources.list().into_iter().map(|file| file.path).collect();
+        let reached = reached_files(&out, t, docs);
+        let selected = out
+            .files
+            .iter()
+            .enumerate()
+            .filter(|(i, path)| {
+                roots.contains(*path) && reached.as_ref().is_none_or(|files| files[*i])
+            })
+            .map(|(i, _)| {
+                (
+                    FileId::from_raw(u32::try_from(i).expect("files")),
+                    out.texts[i].as_ref(),
+                )
+            });
+        out.diags
+            .append(&hd_lint::analyze_sources(selected, policy));
     }
     let mut shown = shown(&out, t, docs);
     for x in &mut shown {
@@ -422,9 +439,24 @@ fn shown(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc]) -> Vec<Diag> {
     let as_written = t.program.as_written.as_deref();
     let mut all = report::from_output(out, as_written);
     all.extend(crate::caps::required(&t.program, out));
-    let Some(only) = &t.only else {
+    let Some(reached) = reached_files(out, t, docs) else {
         return all;
     };
+    all.into_iter()
+        .filter(|d| {
+            d.file.as_ref().is_none_or(|file| {
+                out.files
+                    .iter()
+                    .position(|f| f == file)
+                    .is_some_and(|i| reached[i])
+            })
+        })
+        .collect()
+}
+
+/// FILE checks include its used modules and checked doc-test roots.
+fn reached_files(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc]) -> Option<Vec<bool>> {
+    let only = t.only.as_ref()?;
     let mut reached = vec![false; out.files.len()];
     let mut stack: Vec<usize> = out
         .files
@@ -438,16 +470,7 @@ fn shown(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc]) -> Vec<Diag> {
             stack.extend(out.uses.get(f).into_iter().flatten().copied());
         }
     }
-    all.into_iter()
-        .filter(|d| {
-            d.file.as_ref().is_none_or(|file| {
-                out.files
-                    .iter()
-                    .position(|f| f == file)
-                    .is_some_and(|i| reached[i])
-            })
-        })
-        .collect()
+    Some(reached)
 }
 
 /// The text report of `cli.check.*`: each diagnostic, or with `--summary` one

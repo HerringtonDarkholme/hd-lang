@@ -297,3 +297,5 @@ lint-unused-bindings	cli.lint.stable-messages,cli.lint.default,cli.lint.ordinary
 lint-unused-suspension	cli.lint.errors-unsuppressible,cli.lint.ordinary-errors
 lint-binding-patterns	cli.lint.stable-messages,cli.lint.default,cli.lint.ordinary-errors
 lint-flow-advice	cli.lint.stable-messages,cli.lint.levels,cli.lint.prerequisites,cli.lint.ordinary-errors
+lint-mixed-script	cli.lint.stable-messages,cli.lint.default,cli.lint.levels,cli.lint.select,cli.lint.ordinary-errors
+lint-mixed-script-prerequisites	cli.lint.prerequisites,cli.lint.errors-unsuppressible
