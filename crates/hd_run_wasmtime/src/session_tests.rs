@@ -1347,7 +1347,7 @@ fn a_rebuilt_session_makes_no_network_call() {
 /// `nap!`, a 100 ms sleep.
 const HTTP_INPUTS: [&str; 3] = [
     "use std.http.{Http, HttpError, get}\nuse std.task.{all, race}\nuse std.time.{Clock, ms, sleep}\n",
-    "fn fetch!(url: string) -> string $ Http:\n    match get!(url):\n        .Ok(r) => \"status ${r.status}\"\n        .Err(e) => \"${e}\"\n",
+    "fn fetch!(url: string) -> string $ Http:\n    match get!(url):\n        .Ok(r) => \"status ${r.status.code()}\"\n        .Err(e) => \"${e}\"\n",
     "fn nap!() -> string $ Clock:\n    sleep!(ms(100))\n    \"timeout\"\n",
 ];
 
@@ -1439,10 +1439,10 @@ fn all_sends_two_requests_at_the_same_time() {
         for input in HTTP_INPUTS {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
-        let request = format!("Request {{ url: \"{url}\" }}");
+        let request = format!("Request::get(Url::parse(\"{url}\").expect(\"URL\"))");
         assert_eq!(
             repl.input(&format!(
-                "use std.http.Request\nfn timed!() -> string $ Http:\n    match {request}.send!():\n        .Ok(r) => \"status ${{r.status}}\"\n        .Err(e) => \"${{e}}\"\n"
+                "use std.http.{{Request, Url}}\nfn timed!() -> string $ Http:\n    match {request}.send!():\n        .Ok(r) => \"status ${{r.status.code()}}\"\n        .Err(e) => \"${{e}}\"\n"
             )),
             Outcome::Exit(0),
             "{}",

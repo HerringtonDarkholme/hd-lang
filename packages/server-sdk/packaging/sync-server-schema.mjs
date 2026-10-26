@@ -11,6 +11,7 @@ const declarations = [
   ["packages/server-sdk/src/server.hd", "HttpServer", "server.HttpServer"],
   ["lib/std/console.hd", "Console", "console.Console"],
   ["lib/std/http.hd", "Http", "http.Http"],
+  ["lib/std/http_wire.hd", "Http", "http.Http"],
   ["lib/std/time.hd", "Clock", "time.Clock"],
 ];
 export async function sourceInventory(repository) {
@@ -31,7 +32,10 @@ export async function sourceInventory(repository) {
       if (method) names.push(method[1]);
     }
     if (!names.length) throw Error(`empty maintenance trait ${key}`);
-    coverage[key] = names.sort();
+    names.sort();
+    if (coverage[key] && JSON.stringify(coverage[key]) !== JSON.stringify(names))
+      throw Error(`public/wire maintenance method coverage differs: ${key}`);
+    coverage[key] = names;
   }
   return { sourceHashes, coverage };
 }

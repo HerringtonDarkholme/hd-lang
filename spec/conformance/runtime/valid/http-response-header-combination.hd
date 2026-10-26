@@ -1,17 +1,18 @@
 # test: scripted responses permit combined fields and retain separate cookies
-use std.http.{Http, Request, Response, ScriptedHttp}
+use std.convert.From
+use std.http.{HeaderName, Headers, Http, Request, Response, ScriptedHttp, Url}
 use std.testing.assert_equal
 
 fn check!(headers: List[(string, string)]) -> void:
     http := ScriptedHttp::new()
-    http.reply("https://server.test/", .Ok(Response { status: 200, headers: headers }))
+    http.reply("https://server.test/", .Ok(Response { headers: Headers::from(headers) }))
     response := $.with(Http=http):
-        Request { url: "https://server.test/" }.send!().expect("scripted response")
+        Request::get(Url::parse("https://server.test/").expect("fixture URL")).send!().expect("scripted response")
     let mut values: List[string] = []
     let mut cookies: List[string] = []
-    for (name, value) in response.headers:
-        if name == "x-repeat": values.push(value)
-        if name == "set-cookie": cookies.push(value)
+    for (name, value) in response.headers.entries():
+        if name == HeaderName.Other("x-repeat"): values.push(value)
+        if name == .SetCookie: cookies.push(value)
     assert_equal(values.join(", "), "one, two", reason="separate and combined fields carry the same ordered values")
     assert_equal(cookies, ["a=1; Expires=Wed, 21 Oct 2030 07:28:00 GMT", "b=2"], reason="cookie dates are not split or combined")
 

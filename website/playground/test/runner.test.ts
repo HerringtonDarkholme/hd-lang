@@ -270,11 +270,11 @@ test("Http reaches the page's own origin through the browser, and no other", asy
   globals.XMLHttpRequest = FakeRequest;
   try {
     const source = [
-      "use std.http.{Http, HttpError, Method, Request, get}",
+      "use std.http.{Http, HttpError, Method, Request, Url, get}",
       "",
       "fn ping!(url: string) -> string $ Http:",
       "    match get!(url):",
-      '        .Ok(response) => "status ${response.status} ${response.text()} ${response.header("Content-Type").unwrap_or("-")}"',
+      '        .Ok(response) => "status ${response.status.code()} ${response.text().expect("body")} ${response.header(.ContentType).unwrap_or("-")}"',
       '        .Err(.NotGranted(host)) => "the playground grants no ${host}"',
       '        .Err(.Connect(_)) => "the browser refused the request"',
       '        .Err(error) => "${error}"',
@@ -285,8 +285,8 @@ test("Http reaches the page's own origin through the browser, and no other", asy
       '    println(ping!("http://127.0.0.1:8123/cors"))',
       '    println(ping!("https://example.com/"))',
       '    println(ping!("http://127.0.0.1:9999/"))',
-      '    match Request { method: Method.Post, url: "http://127.0.0.1:8123/echo", headers: [("X-Tag", "a")], body: "hi".to_utf8() }.send!():',
-      "        .Ok(response) => println(response.text())",
+      '    match Request::post(Url::parse("http://127.0.0.1:8123/echo").expect("URL")).set_header(.Other("X-Tag"), "a").set_bytes("hi".to_utf8()).send!():',
+      '        .Ok(response) => println(response.text().expect("body"))',
       '        .Err(error) => println("${error}")',
     ].join("\n");
     const result = await run(single(source), "run");
@@ -297,7 +297,7 @@ test("Http reaches the page's own origin through the browser, and no other", asy
       "the browser refused the request",
       "the playground grants no example.com",
       "the playground grants no 127.0.0.1",
-      "X-Tag=a|hi",
+      "x-tag=a|hi",
     ]);
     // Another origin never reaches the browser (std-http.playground.other-origin).
     assert.deepEqual(sent, [
@@ -336,10 +336,10 @@ test("Http rejects disabled redirects before constructing a browser request", as
   globals.XMLHttpRequest = UnexpectedRequest;
   try {
     const source = [
-      "use std.http.{Http, Request}",
+      "use std.http.{Http, Request, Url}",
       "",
       "pub fn main!() -> void $ Console + Http:",
-      '    match Request::get("http://127.0.0.1:8123/redirect").redirects(0).send!():',
+      '    match Request::get(Url::parse("http://127.0.0.1:8123/redirect").expect("URL")).send!(0):',
       "        .Err(.Other(message)) => println(message)",
       '        .Ok(_) => println("unexpected response")',
       '        .Err(error) => println("$error")',

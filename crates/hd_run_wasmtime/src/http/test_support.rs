@@ -60,7 +60,7 @@ pub(crate) fn request(
     redirects: usize,
 ) -> Enc {
     let mut e = Enc::default();
-    e.leb(7).str(method).str(url).leb(0);
+    e.leb(7).str(method).str(url);
     headers.enc(&mut e);
     e.bytes(body).leb(redirects as u64);
     e

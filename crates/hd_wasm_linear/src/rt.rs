@@ -913,7 +913,8 @@ fn poll(
     let mut providers = Vec::new();
     for k in input.env.row_keys(main, TyList::EMPTY) {
         let by_ref = input.host_refs.iter().find(|(t, _)| *t == k).map(|r| r.1);
-        providers.push((host_vtable(input, m, k)?, by_ref));
+        let wire = input.env.host_bridge(k).map_or(k, |bridge| bridge.wire);
+        providers.push((host_vtable(input, m, wire)?, by_ref));
     }
     let ret = input.env.ret(main).unwrap_or(Ty::VOID);
     let rvals = crate::layout::vals(input.pool, input.env, ret)?;

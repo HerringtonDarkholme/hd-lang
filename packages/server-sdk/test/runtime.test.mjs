@@ -128,7 +128,7 @@ const application = createApplication({ module, bindings, createCoreHost,
   sink: { out: (text) => output.push(text), err: (text) => errors.push(text) }, onStopped: stopped });
 for (const message of ["one", "two", "three"]) {
   const result = await application.dispatch({ method: { tag: "Post", fields: {} },
-    url: "https://installed.test/", query: [], headers: [], redirects: 10,
+    url: "https://installed.test/", headers: [], redirects: 10,
     body: new TextEncoder().encode(JSON.stringify({ message })) });
   assert.equal(result.response.status, 200);
   const reply = JSON.parse(new TextDecoder().decode(result.response.body));

@@ -95,25 +95,6 @@ export const HostError = variants({
   InvalidValue: { name: str, reason: str },
   Missing: { name: str },
 });
-export const Response = data({
-  status: unsigned,
-  headers: list(tuple(str, str)),
-  body: bytes,
-  url: str,
-});
-export const HttpError = variants({
-  NotGranted: { host: str },
-  InvalidUrl: { url: str },
-  Dns: { host: str },
-  Connect: { message: str },
-  Tls: { message: str },
-  Timeout: {},
-  TooManyRedirects: { url: str },
-  Other: { message: str },
-  Status: { response: Response },
-  InvalidHeader: { name: str },
-  Body: { error: BodyError },
-});
 export const Method = variants({
   Get: {},
   Head: {},
@@ -152,17 +133,35 @@ export const PropertyCase = data({
   size: signed,
   replay: list(signed64),
 });
-export const Request = data({
+export const TcpListener = handle;
+export const TcpStream = handle;
+export const UdpSocket = handle;
+export const WireResponse = data({
+  status: unsigned,
+  headers: list(tuple(str, str)),
+  body: bytes,
+  url: str,
+});
+export const WireHttpError = variants({
+  NotGranted: { host: str },
+  InvalidUrl: { url: str },
+  Dns: { host: str },
+  Connect: { message: str },
+  Tls: { message: str },
+  Timeout: {},
+  TooManyRedirects: { url: str },
+  Other: { message: str },
+  Status: { response: WireResponse },
+  InvalidHeader: { name: str },
+  Body: { error: BodyError },
+});
+export const WireRequest = data({
   method: Method,
   url: str,
-  query: list(tuple(str, str)),
   headers: list(tuple(str, str)),
   body: bytes,
   redirects: unsigned,
 });
-export const TcpListener = handle;
-export const TcpStream = handle;
-export const UdpSocket = handle;
 
 // Each host method by import module and name (crates/hd_run_wasmtime/DESIGN.md
 // §17.2): `wait` is "never" for one import or "may" for `.start` and
@@ -306,8 +305,8 @@ export const METHODS = {
     send: {
       wait: "may",
       resource: "host",
-      params: [Request],
-      result: result(Response, HttpError),
+      params: [WireRequest],
+      result: result(WireResponse, WireHttpError),
     },
   },
   "hd:Net": {

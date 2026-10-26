@@ -2,7 +2,7 @@
 # Spec std/serde Absent Optional Members: std-serde.skip-none.fact, std-serde.skip-none.constructor, std-serde.skip-none.omit, std-serde.skip-none.present, std-serde.skip-none.read.
 use std.serde.{Serialize, Deserialize, skip_none}
 use std.json.{decode, encode, from_json, parse, to_json}
-use std.http.Request
+use std.http.{Request, Url}
 use std.structure.Structure
 
 @derive(Serialize, Deserialize)
@@ -55,8 +55,8 @@ tests:
         assert_equal(encode(PerView { value: .Some("yes") }), "{\"value\":\"yes\"}", reason="per-view present")
 
     it("HTTP form serialization still includes a present optional"):
-        assert_equal(Request::post("https://example.test/").form(PerView { value: .Some("yes") }).body, "value=yes".to_utf8(), reason="shared serde walker feeds the form")
-        assert_equal(Request::post("https://example.test/").form(PerView { value: .None }).body, [], reason="shared walker omits the absent member")
+        assert_equal(Request::post(Url::parse("https://example.test/").expect("fixture URL")).set_form(PerView { value: .Some("yes") }).bytes().expect("form bytes"), "value=yes".to_utf8(), reason="shared serde walker feeds the form")
+        assert_equal(Request::post(Url::parse("https://example.test/").expect("fixture URL")).set_form(PerView { value: .None }).bytes().expect("form bytes"), [], reason="shared walker omits the absent member")
 
     it("an enum uses its unit form when every payload member is omitted"):
         assert_equal(encode(Choice.Payload(.None)), "\"Payload\"", reason="empty serialized payload")

@@ -4,6 +4,7 @@ use std.convert.From
 use std.fs.{FsError, FsRead, FsWrite, read_text, write_text}
 use std.json.{decode, encode}
 use std.path.Path
+use std.time.Clock
 use std.serde.{Deserialize, Serialize}
 use pkg.http.{Body, Client, Cookie, CookieJar, HeaderName, Headers, Http, HttpError, HttpStatus, Request, Response, Url, get, post}
 
@@ -217,23 +218,24 @@ fn load_jar!(path: Path) -> CookieJar $ FsRead:
         .Ok(text) => decode::[CookieJar](text).unwrap_or(CookieJar::new())
         .Err(_) => CookieJar::new()
 
-fn fetch_page!(client: &mut Client, api: Url) -> Result[string, HttpError] $ Http:
+fn fetch_page!(client: &mut Client, api: Url) -> Result[string, HttpError] $ Http + Clock:
     # The jar sends the saved session cookie and records any new one.
     response := client.send!(&Request::get(api.resolve("/dashboard")?))?
     .Ok(response.ok()?.text()?)
 
-fn dashboard!(api: Url, path: Path) -> Result[string, SessionError] $ Http + FsRead + FsWrite:
+fn dashboard!(api: Url, path: Path) -> Result[string, SessionError] $ Http + Clock + FsRead + FsWrite:
     let mut client = Client::with_jar(load_jar!(path))
     page := fetch_page!(&mut client, api)?
-    client.jar.clear_expired()
+    client.jar.clear_expired($.use(Clock).now())
     write_text!(path, encode(client.jar))?
     .Ok(page)
 
 # The same jar by hand, with a plain send!: fill, send, store.
-fn manual_jar!(jar: &mut CookieJar, url: Url) -> Result[HttpStatus, HttpError] $ Http:
+fn manual_jar!(jar: &mut CookieJar, url: Url) -> Result[HttpStatus, HttpError] $ Http + Clock:
+    now := $.use(Clock).now()
     let mut req = Request::get(url)
-    for (name, value) in jar.cookies_for(&req.url):
+    for (name, value) in jar.cookies_for(&req.url, now):
         req.headers.set_request_cookie(name, value)
     response := req.send!()?
-    jar.store(&req.url, &response)
+    jar.store(&req.url, &response, now)
     .Ok(response.status)

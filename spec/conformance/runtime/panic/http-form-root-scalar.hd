@@ -1,7 +1,0 @@
-# Spec std/http Request Builder: std-http.request.form-unsupported.
-use std.http.Request
-use std.serde.Serialize
-
-
-pub fn main() -> void:
-    _ := Request::post("/").form(+7)  # panic: explicit-panic

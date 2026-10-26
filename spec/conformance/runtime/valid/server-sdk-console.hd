@@ -2,7 +2,8 @@
 # fixture-package-role: root-application
 use dep.server_sdk.{HttpServer, Incoming, RequestId, ServerError, CancelReason, serve}
 use std.console.MemoryConsole
-use std.http.{Http, Request, Response, ScriptedHttp}
+use std.http.{Http, Request, Response, ScriptedHttp, Url}
+use std.http_wire.{WireRequest, WireResponse}
 use std.ops.Disposable
 use std.time.{Clock, s}
 use std.testing.assert_equal
@@ -21,9 +22,9 @@ fn cleanup!(label: string) -> void $ Console:
     _ := $.use(Console).write_error!("cleanup $label\n")
 
 fn handler!(request: Request, _state: &mut State) -> Response $ Console:
-    using closing = Closing { work: cleanup(request.url) }
+    using closing = Closing { work: cleanup(request.url.to_string()) }
     println("handler ${request.url}")
-    Response { status: 200 }
+    Response::status(.Other(200))
 
 struct Source:
     next: u64
@@ -39,9 +40,9 @@ impl HttpServer for Source:
         self.next += 1
         .Ok(.Some(Incoming {
             id: RequestId { generation: 31, sequence: sequence },
-            request: Request { url: "https://test/$sequence" },
+            request: WireRequest { method: .Get, url: "https://test/$sequence" },
         }))
-    fn respond!(&mut self, _id: RequestId, _response: Response) -> Result[void, ServerError]: .Ok(())
+    fn respond!(&mut self, _id: RequestId, _response: WireResponse) -> Result[void, ServerError]: .Ok(())
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason:
         self.clock.sleep!(s(60))
         .Stopping

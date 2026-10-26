@@ -1,4 +1,5 @@
-use std.http.{Http, Request, Response}
+use std.http.{Http, Request, Response, request_from_wire, response_to_wire}
+use std.http_wire.{WireRequest, WireResponse}
 use std.task.{apply, map_all, race, timeout, TimedOut, CleanupEnd}
 use std.ops.Disposable
 use std.time.{Clock, ms, s}
@@ -9,7 +10,7 @@ pub struct RequestId:
 
 pub struct Incoming:
     pub id: RequestId
-    pub request: Request
+    pub request: WireRequest
 
 @error
 pub enum ServerError:
@@ -28,7 +29,7 @@ pub enum CancelReason:
 @host
 pub trait HttpServer:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]
-    fn respond!(&mut self, id: RequestId, response: Response) -> Result[void, ServerError]
+    fn respond!(&mut self, id: RequestId, response: WireResponse) -> Result[void, ServerError]
     fn cancelled!(&mut self, id: RequestId) -> CancelReason
     fn client(&mut self, id: RequestId) -> *mut dyn Http
     fn clock(&mut self, id: RequestId) -> *mut dyn Clock
@@ -64,22 +65,29 @@ fn response!(job: mut Suspend[Result[Response, TimedOut]], state: &mut CleanupSt
         .Ok(value) => .Response(value)
         .Err(error) =>
             state.abandoned = error.cleanup == CleanupEnd.Abandoned
-            .Response(Response { status: 504, body: "request timed out".to_utf8() })
+            .Response(Response::status(.GatewayTimeout).set_text("request timed out"))
 
 fn request![S, $R](server: *mut dyn HttpServer, incoming: Incoming, state: *mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R:
+    message := match request_from_wire(incoming.request):
+        .Ok(message) => message
+        .Err(error) =>
+            server.finish(incoming.id, false)
+            return .Err(.Other("$error"))
     cleanup := &mut CleanupState { abandoned: false }
     client := server.client(incoming.id)
     clock := server.clock(incoming.id)
     console := server.console(incoming.id)
     let job: mut Suspend[Result[Response, TimedOut]] = $.with(Http=client, Clock=clock, Console=console):
-        apply(timeout(s(20), cleanup=ms(100)), work=fn!() -> Result[Response, TimedOut] $ R: .Ok(handler!(incoming.request, state)))
+        apply(timeout(s(20), cleanup=ms(100)), work=fn!() -> Result[Response, TimedOut] $ R: .Ok(handler!(message, state)))
     using lease = Lease { server: server, id: incoming.id, job: job, state: cleanup }
     end := race!(cancellation(server, incoming.id), response(job, cleanup))
     match end:
         .Cancelled => .Ok(())
-        .Response(value) => match server.respond!(incoming.id, value):
-            .Err(.Expired) => .Ok(())
-            result => result
+        .Response(value) =>
+            wire := response_to_wire(&value).map_err(fn(error): ServerError.Other("$error"))?
+            match server.respond!(incoming.id, wire):
+                .Err(.Expired) => .Ok(())
+                result => result
 
 fn worker![S, $R](state: *mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R + HttpServer:
     let server: *mut dyn HttpServer = $.use(HttpServer)

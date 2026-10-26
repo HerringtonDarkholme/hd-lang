@@ -48,7 +48,6 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 const incoming = (url) => ({
   method: { tag: "Post", fields: {} },
   url: "https://application.test/proxy",
-  query: [],
   headers: [],
   body: new TextEncoder().encode(url),
   redirects: 10,

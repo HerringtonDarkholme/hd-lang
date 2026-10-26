@@ -7,7 +7,7 @@ use std.encoding.{Base64, DecodeError}
 use std.error.{Error, ErrorReport}
 use std.fs.{Entry, EntryKind}
 use std.host.{HostError, ScriptedArgs}
-use std.http.{Method, Request, Response}
+use std.http.{Method, Request, Response, Url}
 use std.json.{Json, Number}
 use std.net.{Datagram, NetError}
 use std.ops.RangeFull
@@ -58,8 +58,8 @@ tests:
         assert(DecodeError.InvalidLength(2) != DecodeError.InvalidLength(3), reason="payload differs")
         assert(ExitCode(2) != ExitCode(3), reason="newtype base equality")
         assert(ProcessOutput { stdout: "x" } != ProcessOutput { stdout: "y" }, reason="struct field differs")
-        assert(Request { url: "a" } != Request { url: "b" }, reason="request field differs")
-        assert(Response { status: 200, headers: [], body: [] } != Response { status: 201, headers: [], body: [] }, reason="response field differs")
+        assert(Request::get(Url::parse("https://example.test/a").expect("fixture URL")) != Request::get(Url::parse("https://example.test/b").expect("fixture URL")), reason="request field differs")
+        assert(Response::status(.Ok) != Response::status(.Created), reason="response field differs")
         assert(Number::from_i64(-1) != Number::from_u64(1), reason="private number representation")
         assert(Json.Array([.Bool(true)]) == Json.Array([.Bool(true)]), reason="recursive equality")
 

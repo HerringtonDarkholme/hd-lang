@@ -1,3 +1,4 @@
 # test: a bare carriage return is not a line ending
 # Spec 01 Line Endings: lex.line.bare-cr.
-first := 1second := 2  # diagnostic: invalid-token
+first := 1
+second := 2  # diagnostic: invalid-token

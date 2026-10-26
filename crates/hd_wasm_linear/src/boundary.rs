@@ -674,6 +674,30 @@ fn handle_vtable(
         .and_then(|m| m.strip_prefix("hd:"))
         .unwrap_or_else(|| tp.rsplit(['.', '/']).next().unwrap_or(""))
         .to_owned();
+    // A returned public capability keeps its package handle identity,
+    // but only its wire methods/codecs cross the host boundary. The
+    // collected library factory wraps this value after handle decoding.
+    let key = input.pool.intern_ty(&TyData::TraitValue {
+        def: trait_,
+        args: TyList::EMPTY,
+        bindings: vec![],
+    });
+    let bridge = input.env.host_bridge(key);
+    // Constructing the ordinary adapter collects its vtable bodies even
+    // when no public method is called. Those bodies alone must not grant
+    // an unused returned handle any wire methods.
+    let enabled = bridge.is_none()
+        || input
+            .env
+            .trait_methods(trait_)
+            .into_iter()
+            .any(|method| input.collected.calls_dyn(method));
+    let trait_ = bridge
+        .and_then(|bridge| match input.pool.get(bridge.wire) {
+            TyData::TraitValue { def, .. } => Some(def),
+            _ => None,
+        })
+        .unwrap_or(trait_);
     if package {
         let mut methods = Vec::new();
         let key = tname.clone();
@@ -683,6 +707,7 @@ fn handle_vtable(
             trait_,
             trait_,
             &key,
+            enabled,
             at.expect("package boundary"),
             &mut methods,
             &mut Vec::new(),
@@ -717,10 +742,10 @@ fn handle_vtable(
                 "the host handle trait `{tp}`, whose supertrait has supertraits"
             ));
         }
-        let slots = handle_slots(input, m, def, trait_, &tname, host, at)?;
+        let slots = handle_slots(input, m, def, trait_, &tname, host, at, true)?;
         parents.push(crate::drive::vtable(input, m, def, slots, Vec::new())?);
     }
-    let slots = handle_slots(input, m, trait_, trait_, &tname, host, at)?;
+    let slots = handle_slots(input, m, trait_, trait_, &tname, host, at, true)?;
     crate::drive::vtable(input, m, trait_, slots, parents)
 }
 
@@ -730,6 +755,7 @@ fn package_handle_tree(
     owner: DefId,
     target: DefId,
     key: &str,
+    enabled: bool,
     at: AtProfile<'_>,
     methods: &mut Vec<hd_host_abi::schema::Method>,
     seen: &mut Vec<DefId>,
@@ -738,12 +764,12 @@ fn package_handle_tree(
         return unsupported("cyclic package host handle supertraits");
     }
     seen.push(owner);
-    let slots = handle_slots(input, m, owner, target, key, None, Some(at))?;
+    let slots = handle_slots(input, m, owner, target, key, None, Some(at), enabled)?;
     for method in input
         .env
         .trait_methods(owner)
         .into_iter()
-        .filter(|d| input.collected.calls_dyn(*d))
+        .filter(|d| enabled && input.collected.calls_dyn(*d))
     {
         add_package_method(
             methods,
@@ -770,6 +796,7 @@ fn package_handle_tree(
             def,
             target,
             key,
+            enabled,
             AtProfile {
                 arguments: Some(args),
                 ..at
@@ -806,12 +833,13 @@ fn handle_slots(
     tname: &str,
     host: Option<&hd_host_abi::HostTrait>,
     at: Option<AtProfile<'_>>,
+    enabled: bool,
 ) -> StageResult<Vec<Sym>> {
     use hd_host_abi::{Codec, Scalar, Wait};
     let (pool, env) = (input.pool, input.env);
     let mut slots = Vec::new();
     for method in env.trait_methods(trait_) {
-        if !input.collected.calls_dyn(method) {
+        if !enabled || !input.collected.calls_dyn(method) {
             slots.push(Sym::Helper(uncalled_slot_at(
                 input,
                 method,

@@ -10,9 +10,9 @@ These names are also re-exported from the package's root module.
 ## Request Values
 
 1. r[std-server-sdk.request-id] `RequestId` has public `generation: u64` and `sequence: u64` fields.
-2. r[std-server-sdk.incoming] `Incoming` has public `id: RequestId` and `request: std.http.Request` fields.
+2. r[std-server-sdk.incoming-wire] `Incoming` has public `id: RequestId` and `request: std.http_wire.WireRequest` fields.
 3. r[std-server-sdk.request-id-identity] Both fields identify a request lease within its source instance.
-4. r[std-server-sdk.response-value] Replies use the existing `std.http.Response` value.
+4. r[std-server-sdk.response-wire] Host replies use `std.http_wire.WireResponse`, while application handlers return `std.http.Response`.
 
 ## Errors And Cancellation
 
@@ -25,7 +25,7 @@ These names are also re-exported from the package's root module.
 1. r[std-server-sdk.host] The SDK declares the package-owned host capability trait `HttpServer`.
 2. r[std-server-sdk.accept-decl] Its `accept!(&mut self)` method returns `Result[Incoming?, ServerError]`.
 3. r[std-server-sdk.accept-end] A successful absent value ends that worker's admission loop.
-4. r[std-server-sdk.respond-decl] Its `respond!(&mut self, id: RequestId, response: Response)` method returns `Result[void, ServerError]`.
+4. r[std-server-sdk.respond-wire-decl] Its `respond!(&mut self, id: RequestId, response: WireResponse)` method returns `Result[void, ServerError]`.
 5. r[std-server-sdk.cancelled-decl] Its `cancelled!(&mut self, id: RequestId)` method returns `CancelReason`.
 6. r[std-server-sdk.cancelled-wait] `cancelled!` waits until that request's source reports a cancellation reason.
 7. r[std-server-sdk.clock-decl] Its `clock(&mut self, id: RequestId)` method returns a lease-owned `*mut dyn std.time.Clock`.
@@ -55,6 +55,14 @@ These names are also re-exported from the package's root module.
 > **Why.** Worker concurrency uses the existing task scheduler. State
 > mutations must leave the state valid before a suspending call; a mutable
 > reference does not provide exclusion across suspension.
+
+### Message Conversion
+
+1. r[std-server-sdk.serve.public-messages] The serving loop converts incoming wire values to public requests before calling the application handler.
+2. r[std-server-sdk.serve.outgoing-wire] Before `respond!`, the loop validates the public response and reads its body once into wire bytes.
+3. r[std-server-sdk.serve.body-error] An already-used body or body preparation failure returns `ServerError.Other` before any host response call.
+4. r[std-server-sdk.serve.header-error] Invalid outgoing headers return `ServerError.Other` before any host response call.
+5. r[std-server-sdk.serve.conversion-release] Conversion failure preserves the existing lease cleanup and finish acknowledgement protocol.
 
 ## Request Cleanup
 

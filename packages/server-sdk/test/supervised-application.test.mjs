@@ -565,7 +565,6 @@ test("a withheld actual HD cleanup triggers at exactly 200ms", { timeout: 10000 
   const plainRequest = (path, body = "") => ({
     method: { tag: "Post", fields: {} },
     url: "https://in.test" + path,
-    query: [],
     headers: [],
     redirects: 10,
     body: new TextEncoder().encode(body),

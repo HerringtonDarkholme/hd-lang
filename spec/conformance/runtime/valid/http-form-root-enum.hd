@@ -1,0 +1,12 @@
+# Spec std/http Request Builder: std-http.request.form-preparation-error.
+use std.http.{BodyError, FormError, Request, Url}
+use std.testing.assert_equal
+use std.serde.Serialize
+
+@derive(Serialize)
+enum Sort:
+    Asc
+
+pub fn main() -> void:
+    request := Request::post(Url::parse("https://example.test/").expect("fixture URL")).set_form(Sort.Asc)
+    assert_equal(request.bytes(), .Err(BodyError.Form(FormError.Unsupported("$"))), reason="unsupported form preparation is a typed error")

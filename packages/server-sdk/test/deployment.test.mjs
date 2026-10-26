@@ -133,7 +133,6 @@ test(
         const result = await application.dispatch({
           method: { tag: "Post", fields: {} },
           url: "https://installed.test/slow",
-          query: [],
           headers: [],
           redirects: 10,
           body: new TextEncoder().encode(JSON.stringify({ message })),

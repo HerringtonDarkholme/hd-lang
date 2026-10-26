@@ -113,6 +113,11 @@ pub trait ProgramEnv: LayoutEnv {
     /// `std.json`'s `encode`, `decode`, their two trait declarations, and
     /// `std.result`'s checked unwrap after a boundary `decode`.
     fn json_items(&self) -> Option<JsonItems>;
+    /// Public HD capability -> internal wire trait and ordinary generic
+    /// library adapter. Rich message state never crosses a host boundary.
+    fn host_bridge(&self, _key: Ty) -> Option<HostBridge> {
+        None
+    }
     /// A package-declared host trait selects the value-preserving JS bridge.
     fn is_package_host_trait(&self, _def: DefId) -> bool {
         false
@@ -405,6 +410,12 @@ pub fn trait_reference_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty,
         }
     }
     false
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct HostBridge {
+    pub wire: Ty,
+    pub adapter: DefId,
 }
 
 /// The `std.json` and `std.serde` items a host boundary codec calls: JSON
@@ -2163,6 +2174,10 @@ impl Cx<'_> {
             );
         }
         while let Some((key, package)) = keys.pop() {
+            if let Some(bridge) = self.env.host_bridge(key) {
+                keys.push((bridge.wire, package));
+                continue;
+            }
             let TyData::TraitValue {
                 def: trait_,
                 args: targs,
@@ -2234,8 +2249,14 @@ impl Cx<'_> {
                             TyData::Mut(inner) => inner,
                             _ => inner,
                         };
-                        let at = self.pool.list(&[inner]);
-                        let wrap = self.target(json.host_provider, at, InstId::NONE)?;
+                        let (provider, value) = self
+                            .env
+                            .host_bridge(inner)
+                            .map_or((json.host_provider, inner), |bridge| {
+                                (bridge.adapter, bridge.wire)
+                            });
+                        let at = self.pool.list(&[value]);
+                        let wrap = self.target(provider, at, InstId::NONE)?;
                         self.out.boundary.entry(ty).or_default().handle_ref = Some(wrap.key);
                     }
                     todo.extend(self.pool.list_items(args).iter().copied());

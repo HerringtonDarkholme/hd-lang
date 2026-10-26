@@ -1,0 +1,16 @@
+# Spec std/http Request Builder: std-http.request.form-preparation-error.
+use std.http.{BodyError, FormError, Request, Url}
+use std.testing.assert_equal
+use std.serde.Serialize
+
+@derive(Serialize)
+struct Child:
+    value: string
+
+@derive(Serialize)
+struct Input:
+    child: Child
+
+pub fn main() -> void:
+    request := Request::post(Url::parse("https://example.test/").expect("fixture URL")).set_form(Input { child: Child { value: "x" } })
+    assert_equal(request.text(), .Ok("child%5Bvalue%5D=x"), reason="one deepObject level is supported")

@@ -2,7 +2,8 @@
 # fixture-package-role: root-application
 use dep.server_sdk.{HttpServer, Incoming, RequestId, ServerError, CancelReason, serve}
 use std.console.MemoryConsole
-use std.http.{Http, Request, Response, ScriptedHttp}
+use std.http.{Http, Request, Response, ScriptedHttp, Url}
+use std.http_wire.{WireRequest, WireResponse}
 use std.time.{Clock, s}
 use std.testing.assert_equal
 
@@ -18,8 +19,8 @@ impl HttpServer for Source:
         id := RequestId { generation: 17, sequence: self.next }
         self.next += 1
         self.events.push("accept ${id.sequence}")
-        .Ok(.Some(Incoming { id: id, request: Request { url: "https://server.test" } }))
-    fn respond!(&mut self, id: RequestId, response: Response) -> Result[void, ServerError]:
+        .Ok(.Some(Incoming { id: id, request: WireRequest { method: .Get, url: "https://server.test" } }))
+    fn respond!(&mut self, id: RequestId, response: WireResponse) -> Result[void, ServerError]:
         assert_equal(response.body, "reply".to_utf8(), reason="the source receives the complete body before release")
         self.events.push("respond ${id.sequence}")
         .Ok(())
@@ -34,7 +35,7 @@ impl HttpServer for Source:
         self.events.push("finish ${id.sequence}")
 
 fn handle!(_request: Request, _state: &mut List[string]) -> Response:
-    Response { status: 200, body: "reply".to_utf8() }
+    Response::status(.Other(200)).set_bytes("reply".to_utf8())
 
 pub fn main!() -> void $ Clock:
     source := &mut Source { http: ScriptedHttp::new(), next: 1, clock: $.use(Clock), events: [] }

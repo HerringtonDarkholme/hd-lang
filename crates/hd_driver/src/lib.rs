@@ -2084,7 +2084,7 @@ pub fn build_packages(
     let mut profile = packages.profile.clone().unwrap_or_else(|| {
         hd_host_abi::TABLE
             .iter()
-            .map(|t| t.std_path.to_owned())
+            .map(|t| hd_host_abi::public_provider_path(t).to_owned())
             .collect()
     });
     let mut host_key = hd_base::StableHasher::new("package-host-inputs-v1");
@@ -6489,6 +6489,9 @@ impl Run<'_> {
             .profile
             .iter()
             .filter_map(|p| {
+                // Check the host representation, while requirement rows
+                // continue to name the public library capability.
+                let p = hd_host_abi::provider_bridge(p).map_or(p.as_str(), |b| b.wire_path);
                 let (module, name) = p.rsplit_once('.')?;
                 Some(cx.names.item(module, name))
             })
@@ -8509,7 +8512,11 @@ impl Run<'_> {
                 if host_refs.iter().any(|(k, _)| *k == key) {
                     continue;
                 }
-                let r = (host_provider, self.pool.list(&[key]));
+                let r = env
+                    .host_bridge(key)
+                    .map_or((host_provider, self.pool.list(&[key])), |bridge| {
+                        (bridge.adapter, self.pool.list(&[bridge.wire]))
+                    });
                 host_refs.push((key, r));
                 if !extra.contains(&r) {
                     extra.push(r);
@@ -8850,7 +8857,11 @@ impl Run<'_> {
                 .is_some_and(|(_, file)| hd_project::Root::of(file).0 == hd_project::Root::Test);
         let mut paths = vec!["std.testing.TestRunner"];
         if integration {
-            paths.extend(hd_host_abi::TABLE.iter().map(|t| t.std_path));
+            paths.extend(
+                hd_host_abi::TABLE
+                    .iter()
+                    .map(hd_host_abi::public_provider_path),
+            );
         }
         let names = self.names();
         let keys = paths
@@ -9320,7 +9331,8 @@ impl Run<'_> {
                 hd_host_abi::TABLE
                     .iter()
                     .find(|t| {
-                        t.std_path == format!("std.{}", identity.trait_path)
+                        hd_host_abi::public_provider_path(t)
+                            == format!("std.{}", identity.trait_path)
                             && hd_project::CAPABILITY_KEYS
                                 .iter()
                                 .any(|(key, _)| *key == t.key)
@@ -10807,6 +10819,31 @@ impl Env<'_> {
 }
 
 impl ProgramEnv for Env<'_> {
+    fn host_bridge(&self, key: Ty) -> Option<hd_mono::HostBridge> {
+        let TyData::TraitValue { def, args, .. } = self.run.pool.get(key) else {
+            return None;
+        };
+        if args != TyList::EMPTY {
+            return None;
+        }
+        let names = self.run.names();
+        let path = names.path(def).replace('/', ".");
+        let bridge = hd_host_abi::provider_bridge(&path)?;
+        let (module, name) = bridge.wire_path.rsplit_once('.')?;
+        let wire = names.item(module, name);
+        self.p.items.get(wire)?;
+        let (module, name) = bridge.adapter.rsplit_once('.')?;
+        let adapter = names.item(module, name);
+        self.p.items.get(adapter)?;
+        Some(hd_mono::HostBridge {
+            wire: self.run.pool.intern_ty(&TyData::TraitValue {
+                def: wire,
+                args: TyList::EMPTY,
+                bindings: vec![],
+            }),
+            adapter,
+        })
+    }
     fn shared_reference_layout(&self, ty: Ty) -> Option<bool> {
         Some(hd_wasm_linear::shared_reference_layout(
             &self.run.pool,

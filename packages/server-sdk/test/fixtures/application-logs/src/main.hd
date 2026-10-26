@@ -17,7 +17,7 @@ fn close!(label: string) -> void $ Console:
     _ := $.use(Console).write_error!("cleanup $label\n")
 
 fn handle!(request: Request, _state: &mut State) -> Response $ Console + Clock:
-    if request.url.ends_with("/denied"):
+    if request.url.path.ends_with("/denied"):
         out := $.use(Console).write!("private stdout")
         err := $.use(Console).write_error!("private stderr")
         a := match out:
@@ -26,15 +26,15 @@ fn handle!(request: Request, _state: &mut State) -> Response $ Console + Clock:
         b := match err:
             .Err(.NotGranted(subject)) => subject
             _ => "incorrect stderr permission"
-        return Response { status: 200, body: "$a/$b".to_utf8() }
-    label := request.url
+        return Response::status(.Ok).set_text("$a/$b")
+    label := request.url.to_string()
     using closing = Closing { work: close(label) }
     _ := $.use(Console).write!("start $label\n")
-    sleep!(ms(if request.url.ends_with("/slow"): 30 else: 1))
+    sleep!(ms(if request.url.path.ends_with("/slow"): 30 else: 1))
     _ := $.use(Console).write_error!("end $label\n")
-    if request.url.ends_with("/panic"):
+    if request.url.path.ends_with("/panic"):
         panic("private guest diagnostic")
-    Response { status: 200, body: label.to_utf8() }
+    Response::status(.Ok).set_text(label)
 
 pub fn main!() -> void $ HttpServer + Console + Clock:
     _ := $.use(Console).write!("startup\n")

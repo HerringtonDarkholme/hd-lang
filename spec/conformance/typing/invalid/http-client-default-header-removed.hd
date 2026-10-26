@@ -1,0 +1,5 @@
+# test: the old Client header builder is removed
+use std.http.Client
+
+pub fn main() -> void:
+    _ := Client::new().header("Accept", "text/plain")  # diagnostic: unknown-method

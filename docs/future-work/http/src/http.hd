@@ -8,7 +8,7 @@ use std.text.Parse
 use std.format.DebugWriter
 use std.json.JsonError
 use std.serde.{Deserialize, Serialize}
-use std.time.{Duration, Timestamp}
+use std.time.{Clock, Duration, Timestamp}
 
 # ---- Status and header names ----------------------------------------
 
@@ -277,18 +277,18 @@ struct StoredCookie:
     domain: string
     host_only: bool
     path: string
-    expires: Timestamp?
+    expires: i64?
     secure: bool
     http_only: bool
 
 impl CookieJar:
     pub fn new() -> CookieJar: panic("todo")
     ## The name/value pairs to send to `url`.
-    pub fn cookies_for(&self, url: &Url) -> List[(string, string)]: panic("todo")
+    pub fn cookies_for(&self, url: &Url, now: Timestamp) -> List[(string, string)]: panic("todo")
     ## Records a response's Set-Cookie lines; Max-Age=0 deletes.
-    pub fn store(&mut self, url: &Url, response: &Response) -> void: panic("todo")
+    pub fn store(&mut self, url: &Url, response: &Response, now: Timestamp) -> void: panic("todo")
     ## Drops expired cookies.
-    pub fn clear_expired(&mut self) -> void: panic("todo")
+    pub fn clear_expired(&mut self, now: Timestamp) -> void: panic("todo")
 
 ## Sends requests with one jar: fills the Cookie header before each send
 ## and stores every Set-Cookie line after, across redirects too.
@@ -298,7 +298,7 @@ pub struct Client:
 impl Client:
     pub fn new() -> Client: panic("todo")
     pub fn with_jar(jar: CookieJar) -> Client: panic("todo")
-    pub fn send!(&mut self, request: &Request, redirects: usize = 10) -> Result[Response, HttpError] $ Http: panic("todo")
+    pub fn send!(&mut self, request: &Request, redirects: usize = 10) -> Result[Response, HttpError] $ Http + Clock: panic("todo")
 
 # ---- Request ----------------------------------------------------------
 

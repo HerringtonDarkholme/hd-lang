@@ -70,6 +70,37 @@ pub struct HostTrait {
     pub methods: &'static [HostMethod],
 }
 
+/// A public HD capability whose default provider is ordinary library code
+/// over a separate host wire trait. The adapter is generic over the wire
+/// trait value so both root providers and returned handles use one factory.
+pub struct ProviderBridge {
+    pub public_path: &'static str,
+    pub wire_path: &'static str,
+    pub adapter: &'static str,
+}
+
+pub static PROVIDER_BRIDGES: &[ProviderBridge] = &[ProviderBridge {
+    public_path: "std.http.Http",
+    wire_path: "std.http_wire.Http",
+    adapter: "std.http.host_provider",
+}];
+
+#[must_use]
+pub fn provider_bridge(public_path: &str) -> Option<&'static ProviderBridge> {
+    PROVIDER_BRIDGES
+        .iter()
+        .find(|bridge| bridge.public_path == public_path)
+}
+
+/// Grants and default requirement rows name the public library capability.
+#[must_use]
+pub fn public_provider_path(host: &HostTrait) -> &'static str {
+    PROVIDER_BRIDGES
+        .iter()
+        .find(|bridge| bridge.wire_path == host.std_path)
+        .map_or(host.std_path, |bridge| bridge.public_path)
+}
+
 const fn m(
     name: &'static str,
     params: &'static [Codec],
@@ -238,11 +269,11 @@ pub static TABLE: &[HostTrait] = &[
     },
     HostTrait {
         key: "Http",
-        std_path: "std.http.Http",
+        std_path: "std.http_wire.Http",
         methods: &[m(
             "send",
-            &[B("Request")],
-            B("Result[Response, HttpError]"),
+            &[B("WireRequest")],
+            B("Result[WireResponse, WireHttpError]"),
             Wait::May,
             Some(ResourceArg::Host),
         )],

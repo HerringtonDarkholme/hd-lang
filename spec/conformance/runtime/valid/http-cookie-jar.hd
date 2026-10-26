@@ -1,0 +1,92 @@
+# test: CookieJar is serializable data with explicit time and RFC6265 domain, path, expiry and Secure matching
+use std.convert.From
+use std.http.{CookieJar, Headers, Response, Url}
+use std.json.{decode, encode}
+use std.time.Timestamp
+use std.testing.assert_equal
+
+fn url(text: string) -> Url: Url::parse(text).expect("fixture URL")
+fn now(millis: i64) -> Timestamp: Timestamp::from_unix_milliseconds(millis)
+fn response(lines: List[string]) -> Response:
+    Response { headers: Headers::from(lines.map(fn(line): ("Set-Cookie", line))) }
+
+tests:
+    it("host-only cookies use the request directory and ignore ports"):
+        let mut jar = CookieJar::new()
+        jar.store(&url("https://example.test/account/login"), &response(["session=one"]), now(0))
+        assert_equal(jar.cookies_for(&url("https://example.test:8443/account/profile"), now(0)), [("session", "one")], reason="same host and directory")
+        assert_equal(jar.cookies_for(&url("https://sub.example.test/account/profile"), now(0)), [], reason="host-only cookie excludes subdomains")
+        assert_equal(jar.cookies_for(&url("https://example.test/accounting"), now(0)), [], reason="path prefix requires a slash boundary")
+        assert_equal(jar.cookies_for(&url("https://example.test/account"), now(0)), [("session", "one")], reason="exact path matches")
+
+    it("Domain cookies accept subdomains but reject unrelated and IP suffixes"):
+        let mut jar = CookieJar::new()
+        jar.store(&url("https://www.example.test/"), &response(["shared=one; Domain=.EXAMPLE.TEST; Path=/", "bad=no; Domain=unrelated.test"]), now(0))
+        assert_equal(jar.cookies_for(&url("https://api.example.test/"), now(0)), [("shared", "one")], reason="domain cookie covers a subdomain")
+        assert_equal(jar.cookies_for(&url("https://notexample.test/"), now(0)), [], reason="suffix requires a label boundary")
+        jar.store(&url("http://127.0.0.1/"), &response(["bad=no; Domain=0.0.1", "exact=yes; Domain=127.0.0.1"]), now(0))
+        assert_equal(jar.cookies_for(&url("http://127.0.0.1/"), now(0)), [("exact", "yes")], reason="IP domains match only exactly")
+
+    it("Secure filters HTTP sends without hiding HttpOnly from HTTP clients"):
+        let mut jar = CookieJar::new()
+        jar.store(&url("https://example.test/"), &response(["secure=yes; Secure; HttpOnly", "plain=yes"]), now(0))
+        assert_equal(jar.cookies_for(&url("http://example.test/"), now(0)), [("plain", "yes")], reason="Secure excludes plaintext")
+        assert_equal(jar.cookies_for(&url("https://example.test/"), now(0)), [("secure", "yes"), ("plain", "yes")], reason="HttpOnly is eligible for HTTP requests")
+
+    it("path matching uses escaped URI paths rather than decoded slashes"):
+        let mut jar = CookieJar::new()
+        jar.store(&url("https://example.test/a%2Fb/login"), &response(["encoded=yes"]), now(0))
+        assert_equal(jar.cookies_for(&url("https://example.test/a%2Fb/page"), now(0)), [("encoded", "yes")], reason="same encoded directory")
+        assert_equal(jar.cookies_for(&url("https://example.test/a/b/page"), now(0)), [], reason="encoded slash does not create a path boundary")
+
+    it("longer paths precede shorter paths and replacement keeps creation order"):
+        let mut jar = CookieJar::new()
+        target := url("https://example.test/app/page")
+        jar.store(&target, &response(["id=root; Path=/", "first=one; Path=/app", "id=deep; Path=/app", "last=three; Path=/app"]), now(0))
+        jar.store(&target, &response(["first=new; Path=/app"]), now(1))
+        assert_equal(jar.cookies_for(&target, now(1)), [("first", "new"), ("id", "deep"), ("last", "three"), ("id", "root")], reason="stable path ordering preserves duplicate names")
+        jar.store(&target, &response(["id=gone; Path=/app; Max-Age=0"]), now(2))
+        assert_equal(jar.cookies_for(&target, now(2)), [("first", "new"), ("last", "three"), ("id", "root")], reason="deletion matches name, domain and path")
+
+    it("Max-Age takes precedence over Expires and expires exactly at its deadline"):
+        let mut jar = CookieJar::new()
+        target := url("https://example.test/")
+        jar.store(&target, &response(["short=yes; Max-Age=2; Expires=Thu, 01 Jan 1970 00:00:00 GMT", "session=yes", "old=no; Expires=Thu, 01 Jan 1970 00:00:00 GMT"]), now(1000))
+        assert_equal(jar.cookies_for(&target, now(2999)), [("short", "yes"), ("session", "yes")], reason="positive Max-Age wins over past Expires")
+        assert_equal(jar.cookies_for(&target, now(3000)), [("session", "yes")], reason="deadline is exclusive")
+        jar.clear_expired(now(3000))
+        expected := CookieJar::new()
+        let mut only_session = expected
+        only_session.store(&target, &response(["session=yes"]), now(3000))
+        assert_equal(jar, only_session, reason="clear_expired removes expired storage")
+
+    it("serde round-trips the jar with its scopes and absolute expiries"):
+        let mut jar = CookieJar::new()
+        target := url("https://example.test/app/login")
+        jar.store(&target, &response(["session=one; Domain=example.test; Path=/app; Max-Age=2; Secure; HttpOnly"]), now(1000))
+        restored := decode::[CookieJar](encode(jar)).expect("saved jar")
+        assert_equal(restored, jar, reason="plain-data round trip")
+        assert_equal(restored.cookies_for(&url("https://sub.example.test/app/page"), now(2999)), [("session", "one")], reason="scope and deadline preserved")
+        assert_equal(restored.cookies_for(&target, now(3000)), [], reason="saved jar still expires")
+
+    it("an invalid Path attribute falls back to the request directory"):
+        let mut jar = CookieJar::new()
+        target := url("https://example.test/app/login")
+        jar.store(&target, &response(["a=one; Path=relative", "b=two; Path=/private; Path="]), now(0))
+        assert_equal(jar.cookies_for(&url("https://example.test/app/page"), now(0)), [("a", "one"), ("b", "two")], reason="both contextual defaults use /app")
+        assert_equal(jar.cookies_for(&url("https://example.test/private"), now(0)), [], reason="invalid duplicate clears the earlier Path")
+
+    it("expiry serialization has no year9999 cap and preserves distant deadlines"):
+        let mut jar = CookieJar::new()
+        target := url("https://example.test/")
+        jar.store(&target, &response(["future=yes; Max-Age=253402300800", "beyond=yes; Max-Age=9223372036854775"]), now(10000))
+        restored := decode::[CookieJar](encode(jar)).expect("numeric expiries round-trip")
+        assert_equal(restored, jar, reason="large years do not use Timestamp text serde")
+        assert_equal(restored.cookies_for(&target, now(253402300800000)), [("future", "yes"), ("beyond", "yes")], reason="no calendar-year cap")
+        assert_equal(restored.cookies_for(&target, now(9223372036854775807)), [("beyond", "yes")], reason="mathematically later expiry is not capped to the largest timestamp")
+
+    it("an empty URI path is matched as the root path"):
+        let mut jar = CookieJar::new()
+        target := url("https://example.test")
+        jar.store(&target, &response(["root=yes; Path=/"]), now(0))
+        assert_equal(jar.cookies_for(&target, now(0)), [("root", "yes")], reason="HTTP's empty path means slash")

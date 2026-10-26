@@ -3,7 +3,7 @@
 use std.serde.{Serialize, Deserialize, RenameCase, rename, rename_all, member_name}
 use std.structure.{Member, Facts, Structure}
 use std.json.{decode, encode, encode_pretty, from_json, parse, to_json}
-use std.http.Request
+use std.http.{Request, Url}
 use std.regex.Regex
 
 fn member(name: string, facts: Facts) -> Member:
@@ -100,7 +100,7 @@ tests:
 
     it("form and regex roots keep their facts while processing a unit enum"):
         value := Form { before_name: "a", some_mode: .Read, after_name: "z" }
-        assert_equal(Request::post("https://example.test/").form(value).body, "beforeName=a&someMode=Read&afterName=z".to_utf8(), reason="unit enum does not replace root form facts")
+        assert_equal(Request::post(Url::parse("https://example.test/").expect("fixture URL")).set_form(value).bytes().expect("form bytes"), "beforeName=a&someMode=Read&afterName=z".to_utf8(), reason="unit enum does not replace root form facts")
         pattern := Regex::new("^(?P<someMode>.*) (?P<otherId>.*)$").expect("regex")
         capture := pattern.decode::[Capture]("Read 7").expect("capture")
         assert_equal(capture.some_mode, Mode.Read, reason="enum capture")

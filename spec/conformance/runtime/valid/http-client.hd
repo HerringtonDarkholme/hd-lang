@@ -1,75 +1,68 @@
-# test: Client shares a base URL and headers without requiring Clock
-# expect: test
-use std.http.{Client, Http, HttpError, Method, Request, Response, ScriptedHttp}
+# test: Client is a value with a serializable jar, explicit Clock authority, and borrowed read-once requests
+use std.convert.From
+use std.http.{BodyError, Client, CookieJar, Headers, Http, HttpError, Request, Response, ScriptedHttp, Url}
 use std.task.{timeout, apply}
 use std.testing.assert_equal
-use std.time.{Clock, ManualClock, Timestamp}
+use std.time.{Clock, Duration, Instant, ManualClock, Timestamp}
 
-pub fn send_only!(client: &mut Client, request: Request) -> Result[Response, HttpError] $ Http:
+pub fn send_only!(client: &mut Client, request: &Request) -> Result[Response, HttpError] $ Http + Clock:
     client.send!(request)
 
+fn url(text: string) -> Url: Url::parse(text).expect("fixture URL")
+
+# A value receiver cannot mutate `reads`; the retained counter records calls
+# without changing the Clock trait's receiver contract.
+struct ReadClock:
+    reads: *mut List[usize]
+
+impl Clock for ReadClock:
+    fn now(self) -> Timestamp:
+        self.reads.push(1)
+        Timestamp::from_unix_milliseconds(1000)
+    fn monotonic(self) -> Instant: Instant::from_milliseconds(0)
+    fn sleep!(&mut self, _duration: Duration) -> void: pass
+
 tests:
-    it("resolves a root URL, adds defaults and returns an unchecked response"):
+    it("sends an unchecked response and preserves explicit message headers"):
         http := ScriptedHttp::new()
-        http.reply("https://api.example/repos/x", .Ok(Response { status: 503, body: [1, 2] }))
-        client := Client::new()
-        alias := client.base_url("https://api.example").header("Authorization", "Bearer test").header("Accept", "application/json")
-        assert_equal(alias is client, true, reason="setters return the same client")
-        $.with(Http=http):
-            response := send_only!(client, Request { url: "/repos/x" }).expect("scripted response")
-            assert_equal(response.status, 503, reason="send does not check status")
-            assert_equal(response.body, [1, 2], reason="response body retained")
-        assert_equal(http.received()[0].url, "https://api.example/repos/x", reason="base URL used")
-        assert_equal(http.received()[0].headers, [("Authorization", "Bearer test"), ("Accept", "application/json")], reason="defaults sent")
+        http.reply("https://api.example/repos/x", .Ok(Response::status(.ServiceUnavailable).set_bytes([1, 2])))
+        let mut client = Client::new()
+        request := Request::get(url("https://api.example/repos/x")).set_header(.Authorization, "Bearer test").set_header(.Accept, "application/json")
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Http=http, Clock=clock):
+            response := send_only!(&mut client, &request).expect("scripted response")
+            assert_equal(response.status, .ServiceUnavailable, reason="client does not check status")
+            assert_equal(response.bytes(), .Ok([1, 2]), reason="body retained")
+        assert_equal(http.received()[0].headers, request.headers, reason="only request headers")
+        assert_equal(request.bytes(), .Err(BodyError.Used), reason="sending consumes the shared request body")
 
-    it("request names override all same-name defaults using ASCII case"):
+    it("reads its clock once across redirect hops"):
         http := ScriptedHttp::new()
-        http.reply("https://other.example/", .Ok(Response { status: 200 }))
-        client := Client::new().base_url("https://api.example").header("Accept", "default one").header("ACCEPT", "default two").header("X-Repeat", "one").header("x-repeat", "two")
-        request := Request { url: "https://other.example/", headers: [("aCcEpT", "request one"), ("accept", "request two")] }
-        $.with(Http=http):
-            assert_equal(send_only!(client, request).is_ok(), true, reason="absolute URL ignores base")
-        assert_equal(http.received()[0].headers, [("aCcEpT", "request one"), ("accept", "request two"), ("X-Repeat", "one"), ("x-repeat", "two")], reason="request overrides while unshadowed repeated defaults survive")
-        assert_equal(request.headers.len(), 2, reason="request unchanged")
+        http.reply("https://api.example/start", .Ok(Response::status(.Found).set_header(.Location, "/end")))
+        http.reply("https://api.example/end", .Ok(Response {}))
+        let mut reads: List[usize] = []
+        let mut clock = ReadClock { reads: &mut reads }
+        let mut client = Client::new()
+        $.with(Http=http, Clock=&mut clock):
+            _ := client.send!(&Request::get(url("https://api.example/start"))).expect("redirect")
+        assert_equal(reads.len(), 1, reason="one Clock.now per whole send")
+        assert_equal(http.received().len(), 2, reason="both hops")
 
-    it("sends defaults to every host and preserves query, body and redirect limit"):
-        http := ScriptedHttp::new()
-        http.reply("https://one.example/p?q=%2B#part", .Ok(Response { status: 201 }))
-        http.reply("https://two.example/p?q=%2B#part", .Ok(Response { status: 202 }))
-        client := Client::new().base_url("https://one.example/").header("Authorization", "shared")
-        request := Request { method: .Post, url: "/p#part", query: [("q", "+")], body: [4, 5], redirects: 0 }
-        $.with(Http=http):
-            assert_equal(send_only!(client, request).expect("scripted response").status, 201, reason="first host")
-            assert_equal(send_only!(client, request).expect("scripted response").status, 201, reason="repeat does not encode twice")
-            client.base_url("https://two.example/")
-            assert_equal(send_only!(client, request).expect("scripted response").status, 202, reason="replacement base")
-        received := http.received()
-        assert_equal(received.len(), 3, reason="three sends")
-        assert_equal(received[0], received[1], reason="same request on repeat")
-        assert_equal(received[2].headers, [("Authorization", "shared")], reason="defaults also reach another host")
-        assert_equal(received[2].body, [4, 5], reason="body retained")
-        assert_equal(received[2].method, Method.Post, reason="method retained")
-        assert_equal(received[2].redirects, 0, reason="redirect limit retained")
-        assert_equal(request.url, "/p#part", reason="source URL retained")
+    it("with_jar copies plain data and later client changes do not mutate the source"):
+        target := url("https://api.example/")
+        let mut jar = CookieJar::new()
+        jar.store(&target, &Response { headers: Headers::from([("Set-Cookie", "token=old")]) }, Timestamp::from_unix_milliseconds(0))
+        let mut client = Client::with_jar(jar)
+        client.jar.store(&target, &Response { headers: Headers::from([("Set-Cookie", "token=new")]) }, Timestamp::from_unix_milliseconds(0))
+        assert_equal(jar.cookies_for(&target, Timestamp::from_unix_milliseconds(0)), [("token", "old")], reason="source jar remains independent")
+        assert_equal(client.jar.cookies_for(&target, Timestamp::from_unix_milliseconds(0)), [("token", "new")], reason="client owns changed data")
 
-    it("an empty client passes errors through without an ambient Clock"):
+    it("a caller can compose a shorter timeout explicitly"):
         http := ScriptedHttp::new()
-        http.reply("https://api.example/", .Err(.Connect("offline")))
-        client := Client::new()
-        $.with(Http=http):
-            match send_only!(client, Request { url: "https://api.example/", headers: [("X-Request", "yes")] }):
-                .Err(.Connect(message)) => assert_equal(message, "offline", reason="provider error unchanged")
-                _ => panic("expected Connect")
-        assert_equal(http.received()[0].headers, [("X-Request", "yes")], reason="empty defaults")
-
-    it("a caller can add a timeout explicitly"):
-        http := ScriptedHttp::new()
-        http.reply("https://api.example/", .Ok(Response { status: 204 }))
-        client := Client::new().base_url("https://api.example")
+        http.reply("https://api.example/", .Ok(Response::status(.NoContent)))
+        let mut client = Client::new()
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Http=http, Clock=clock):
             result := apply!(timeout(1s)):
-                send_only!(client, Request { url: "/" })
-            match result:
-                .Ok(response) => assert_equal(response.status, 204, reason="ready send wins")
-                .Err(_) => panic("send should complete")
+                send_only!(&mut client, &Request::get(url("https://api.example/")))
+            assert_equal(result.expect("ready send").status, .NoContent, reason="ready send wins")

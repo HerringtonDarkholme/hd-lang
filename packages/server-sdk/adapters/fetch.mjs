@@ -275,7 +275,6 @@ export function createFetchHandler(
               url: request.url,
               headers: publicHeaders(pairs),
               body,
-              query: [],
               redirects: 10,
             },
             job.controller.signal,

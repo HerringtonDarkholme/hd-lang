@@ -393,103 +393,6 @@ impl Wire for HostError {
     }
 }
 
-/// `HttpError` of `lib/std/http.hd`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum HttpError {
-    NotGranted { host: String },
-    InvalidUrl { url: String },
-    Dns { host: String },
-    Connect { message: String },
-    Tls { message: String },
-    Timeout,
-    TooManyRedirects { url: String },
-    Other { message: String },
-    Status { response: Response },
-    InvalidHeader { name: String },
-    Body { error: BodyError },
-}
-
-impl Wire for HttpError {
-    fn enc(&self, e: &mut Enc) {
-        match self {
-            Self::NotGranted { host } => {
-                e.leb(0);
-                host.enc(e);
-            }
-            Self::InvalidUrl { url } => {
-                e.leb(1);
-                url.enc(e);
-            }
-            Self::Dns { host } => {
-                e.leb(2);
-                host.enc(e);
-            }
-            Self::Connect { message } => {
-                e.leb(3);
-                message.enc(e);
-            }
-            Self::Tls { message } => {
-                e.leb(4);
-                message.enc(e);
-            }
-            Self::Timeout => {
-                e.leb(5);
-            }
-            Self::TooManyRedirects { url } => {
-                e.leb(6);
-                url.enc(e);
-            }
-            Self::Other { message } => {
-                e.leb(7);
-                message.enc(e);
-            }
-            Self::Status { response } => {
-                e.leb(8);
-                response.enc(e);
-            }
-            Self::InvalidHeader { name } => {
-                e.leb(9);
-                name.enc(e);
-            }
-            Self::Body { error } => {
-                e.leb(10);
-                error.enc(e);
-            }
-        }
-    }
-    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(match d.tag(11)? {
-            0 => Self::NotGranted {
-                host: Wire::dec(d)?,
-            },
-            1 => Self::InvalidUrl { url: Wire::dec(d)? },
-            2 => Self::Dns {
-                host: Wire::dec(d)?,
-            },
-            3 => Self::Connect {
-                message: Wire::dec(d)?,
-            },
-            4 => Self::Tls {
-                message: Wire::dec(d)?,
-            },
-            5 => Self::Timeout,
-            6 => Self::TooManyRedirects { url: Wire::dec(d)? },
-            7 => Self::Other {
-                message: Wire::dec(d)?,
-            },
-            8 => Self::Status {
-                response: Wire::dec(d)?,
-            },
-            9 => Self::InvalidHeader {
-                name: Wire::dec(d)?,
-            },
-            _ => Self::Body {
-                error: Wire::dec(d)?,
-            },
-        })
-    }
-}
-
 /// `JsonError` of `lib/std/json.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JsonError {
@@ -833,64 +736,6 @@ impl Wire for PropertyCase {
     }
 }
 
-/// `Request` of `lib/std/http.hd`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Request {
-    pub method: Method,
-    pub url: String,
-    pub query: Vec<(String, String)>,
-    pub headers: Vec<(String, String)>,
-    pub body: Vec<u8>,
-    pub redirects: usize,
-}
-
-impl Wire for Request {
-    fn enc(&self, e: &mut Enc) {
-        self.method.enc(e);
-        self.url.enc(e);
-        self.query.enc(e);
-        self.headers.enc(e);
-        self.body.enc(e);
-        self.redirects.enc(e);
-    }
-    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(Self {
-            method: Wire::dec(d)?,
-            url: Wire::dec(d)?,
-            query: Wire::dec(d)?,
-            headers: Wire::dec(d)?,
-            body: Wire::dec(d)?,
-            redirects: Wire::dec(d)?,
-        })
-    }
-}
-
-/// `Response` of `lib/std/http.hd`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Response {
-    pub status: u16,
-    pub headers: Vec<(String, String)>,
-    pub body: Vec<u8>,
-    pub url: String,
-}
-
-impl Wire for Response {
-    fn enc(&self, e: &mut Enc) {
-        self.status.enc(e);
-        self.headers.enc(e);
-        self.body.enc(e);
-        self.url.enc(e);
-    }
-    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(Self {
-            status: Wire::dec(d)?,
-            headers: Wire::dec(d)?,
-            body: Wire::dec(d)?,
-            url: Wire::dec(d)?,
-        })
-    }
-}
-
 /// `TcpListener`, a host handle: its handle number.
 pub type TcpListener = Handle;
 
@@ -916,6 +761,158 @@ impl Wire for Timestamp {
 
 /// `UdpSocket`, a host handle: its handle number.
 pub type UdpSocket = Handle;
+
+/// `WireHttpError` of `lib/std/http_wire.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum WireHttpError {
+    NotGranted { host: String },
+    InvalidUrl { url: String },
+    Dns { host: String },
+    Connect { message: String },
+    Tls { message: String },
+    Timeout,
+    TooManyRedirects { url: String },
+    Other { message: String },
+    Status { response: WireResponse },
+    InvalidHeader { name: String },
+    Body { error: BodyError },
+}
+
+impl Wire for WireHttpError {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            Self::NotGranted { host } => {
+                e.leb(0);
+                host.enc(e);
+            }
+            Self::InvalidUrl { url } => {
+                e.leb(1);
+                url.enc(e);
+            }
+            Self::Dns { host } => {
+                e.leb(2);
+                host.enc(e);
+            }
+            Self::Connect { message } => {
+                e.leb(3);
+                message.enc(e);
+            }
+            Self::Tls { message } => {
+                e.leb(4);
+                message.enc(e);
+            }
+            Self::Timeout => {
+                e.leb(5);
+            }
+            Self::TooManyRedirects { url } => {
+                e.leb(6);
+                url.enc(e);
+            }
+            Self::Other { message } => {
+                e.leb(7);
+                message.enc(e);
+            }
+            Self::Status { response } => {
+                e.leb(8);
+                response.enc(e);
+            }
+            Self::InvalidHeader { name } => {
+                e.leb(9);
+                name.enc(e);
+            }
+            Self::Body { error } => {
+                e.leb(10);
+                error.enc(e);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(11)? {
+            0 => Self::NotGranted {
+                host: Wire::dec(d)?,
+            },
+            1 => Self::InvalidUrl { url: Wire::dec(d)? },
+            2 => Self::Dns {
+                host: Wire::dec(d)?,
+            },
+            3 => Self::Connect {
+                message: Wire::dec(d)?,
+            },
+            4 => Self::Tls {
+                message: Wire::dec(d)?,
+            },
+            5 => Self::Timeout,
+            6 => Self::TooManyRedirects { url: Wire::dec(d)? },
+            7 => Self::Other {
+                message: Wire::dec(d)?,
+            },
+            8 => Self::Status {
+                response: Wire::dec(d)?,
+            },
+            9 => Self::InvalidHeader {
+                name: Wire::dec(d)?,
+            },
+            _ => Self::Body {
+                error: Wire::dec(d)?,
+            },
+        })
+    }
+}
+
+/// `WireRequest` of `lib/std/http_wire.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WireRequest {
+    pub method: Method,
+    pub url: String,
+    pub headers: Vec<(String, String)>,
+    pub body: Vec<u8>,
+    pub redirects: usize,
+}
+
+impl Wire for WireRequest {
+    fn enc(&self, e: &mut Enc) {
+        self.method.enc(e);
+        self.url.enc(e);
+        self.headers.enc(e);
+        self.body.enc(e);
+        self.redirects.enc(e);
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(Self {
+            method: Wire::dec(d)?,
+            url: Wire::dec(d)?,
+            headers: Wire::dec(d)?,
+            body: Wire::dec(d)?,
+            redirects: Wire::dec(d)?,
+        })
+    }
+}
+
+/// `WireResponse` of `lib/std/http_wire.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WireResponse {
+    pub status: u16,
+    pub headers: Vec<(String, String)>,
+    pub body: Vec<u8>,
+    pub url: String,
+}
+
+impl Wire for WireResponse {
+    fn enc(&self, e: &mut Enc) {
+        self.status.enc(e);
+        self.headers.enc(e);
+        self.body.enc(e);
+        self.url.enc(e);
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(Self {
+            status: Wire::dec(d)?,
+            headers: Wire::dec(d)?,
+            body: Wire::dec(d)?,
+            url: Wire::dec(d)?,
+        })
+    }
+}
 
 /// A host method of the ABI model, by its trait key and name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1185,8 +1182,8 @@ pub static METHODS: &[HostMethod] = &[
         name: "send",
         wait: Wait::May,
         resource: Some(ResourceArg::Host),
-        params: &[Codec::Buffer("Request")],
-        result: Codec::Buffer("Result[Response, HttpError]"),
+        params: &[Codec::Buffer("WireRequest")],
+        result: Codec::Buffer("Result[WireResponse, WireHttpError]"),
     },
     HostMethod {
         id: Id::NetLookup,

@@ -908,7 +908,6 @@ for (const mode of ["expired deadline", "host close"]) {
     METHODS["hd:Http"].send.params[0].enc(encoded, {
       method: { tag: "Get" },
       url,
-      query: [],
       headers: [],
       body: new Uint8Array(),
       redirects: 5,

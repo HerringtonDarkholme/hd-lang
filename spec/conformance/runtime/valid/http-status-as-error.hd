@@ -1,51 +1,53 @@
-# test: builders keep raw statuses; free get and Response.ok retain 400–599 responses in errors
-# Rules: std-http.response.ok.retained-error, std-http.error.status-response-value, std-http.error.status.safe-response-text, std-http.error.transient-borrowed, std-http.error.transient-status-codes, std-http.response.omitted-lists, std-http.helper.get.checked-response.
-use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
+# test: send returns raw statuses, while get and ok retain 400–599 response bodies
+use std.http.{Headers, Http, HttpError, HttpStatus, Request, Response, ScriptedHttp, Url, get}
 use std.serde.Deserialize
 
 @derive(Deserialize)
 struct ApiFailure:
     message: string
 
+fn url(text: string) -> Url: Url::parse(text).expect("fixture URL")
+
 tests:
     use std.testing.{assert, assert_equal}
 
     it("free get preserves the complete API error response"):
-        url := "https://example.test/users?token=secret#private"
-        response := Response { status: 404, headers: [("X-Trace", "private-header")], body: "{\"message\":\"unknown user\"}".to_utf8() }
+        target := "https://example.test/users?token=secret#private"
+        response := Response::status(.NotFound).set_header(.Other("X-Trace"), "private-header").set_text("{\"message\":\"unknown user\"}")
         http := ScriptedHttp::new()
-        http.reply(url, .Ok(response))
+        http.reply(target, .Ok(response))
         $.with(Http=http):
-            match get!(url):
+            match get!(target):
                 .Err(.Status(found)) =>
-                    assert_equal(found.status, 404, reason="failure status retained")
-                    assert_equal(found.url, url, reason="full URL retained as data")
-                    assert_equal(found.header("x-trace"), .Some("private-header"), reason="headers retained")
-                    assert_equal(found.body, response.body, reason="body retained")
-                    assert_equal(found.json::[ApiFailure]().expect("API JSON").message, "unknown user", reason="decode the error response")
+                    assert_equal(found.status, .NotFound, reason="failure status retained")
+                    assert_equal(found.url, .Some(url(target)), reason="full URL retained as data")
+                    assert_equal(found.header(.Other("x-trace")), .Some("private-header"), reason="headers retained")
+                    assert_equal(found.body, response.body, reason="equal unread payload")
+                    assert_equal(found.json::[ApiFailure]().expect("API JSON").message, "unknown user", reason="decode the retained body")
                 _ => assert(false, reason="free get checks 404")
 
-    it("builder sending leaves 301 and 404 available as responses"):
+    it("sending leaves 301 and 404 available as responses"):
         http := ScriptedHttp::new()
-        http.reply("https://example.test/redirect", .Ok(Response { status: 301 }))
-        http.reply("https://example.test/missing", .Ok(Response { status: 404 }))
+        http.reply("https://example.test/redirect", .Ok(Response::status(.MovedPermanently)))
+        http.reply("https://example.test/missing", .Ok(Response::status(.NotFound)))
         $.with(Http=http):
-            assert_equal(Request::get("https://example.test/redirect").redirects(0).send!().expect("raw redirect").status, 301, reason="redirects disabled")
-            assert_equal(Request::get("https://example.test/missing").send!().expect("raw 404").status, 404, reason="builder is status-neutral")
+            assert_equal(Request::get(url("https://example.test/redirect")).send!(0).expect("raw redirect").status, .MovedPermanently, reason="redirects disabled")
+            assert_equal(Request::get(url("https://example.test/missing")).send!().expect("raw 404").status, .NotFound, reason="send is status-neutral")
 
     it("only 400 through 599 fail the explicit check"):
         let statuses: List[u16] = [0, 199, 200, 299, 300, 399, 400, 499, 500, 599, 600, 65535]
         for status in statuses:
-            response := Response { status: status, body: "body".to_utf8(), url: "https://example.test/" }
+            response := Response { status: HttpStatus::from_code(status), url: .Some(url("https://example.test/")) }.set_text("body")
             if status >= 400 && status <= 599:
                 assert_equal(response.ok(), .Err(HttpError.Status(response)), reason="failure carries the whole response")
             else:
                 assert_equal(response.ok(), .Ok(response), reason="outside the failure range")
+            assert_equal(response.text(), .Ok("body"), reason="checking status never consumes the body")
 
     it("retry classification is explicit for every status kind"):
         let cases: List[(u16, bool)] = [(200, false), (301, false), (400, false), (404, false), (408, true), (429, true), (499, false), (500, true), (501, false), (502, true), (503, true), (504, true), (505, false), (599, false), (600, false)]
         for (status, expected) in cases:
-            assert_equal(HttpError.Status(Response { status: status }).is_transient(), expected, reason="documented retryable status")
+            assert_equal(HttpError.Status(Response::status(HttpStatus::from_code(status))).is_transient(), expected, reason="documented retryable status")
         assert(HttpError.Timeout.is_transient(), reason="timeout may recover")
         assert(HttpError.Connect("closed").is_transient(), reason="connection may recover")
         let permanent: List[HttpError] = [HttpError.NotGranted("host"), HttpError.InvalidUrl("url"), HttpError.Dns("host"), HttpError.Tls("bad certificate"), HttpError.TooManyRedirects("url"), HttpError.Other("other")]
@@ -53,16 +55,16 @@ tests:
             assert(!error.is_transient(), reason="other error kinds are permanent")
 
     it("display omits query fragment headers and body"):
-        response := Response { status: 503, url: "https://example.test/path?token=secret#private", headers: [("Authorization", "header-secret")], body: "body-secret".to_utf8() }
+        response := Response { status: .ServiceUnavailable, url: .Some(url("https://example.test/path?token=secret#private")) }.set_header(.Authorization, "header-secret").set_text("body-secret")
         assert_equal(HttpError.Status(response).to_string(), "HTTP status 503 for https://example.test/path", reason="only status and safe URL")
-        assert_equal(HttpError.Status(Response { status: 500 }).to_string(), "HTTP status 500 for ", reason="empty URL is valid")
-        assert_equal(HttpError.Status(Response { status: 404, url: "https://example.test/x#private?secret" }).to_string(), "HTTP status 404 for https://example.test/x", reason="query marker inside a fragment")
+        assert_equal(HttpError.Status(Response::status(.InternalServerError)).to_string(), "HTTP status 500 for ", reason="absent URL")
+        assert_equal(HttpError.Status(Response { status: .NotFound, url: .Some(url("https://example.test/x#private?secret")) }).to_string(), "HTTP status 404 for https://example.test/x", reason="query marker inside fragment")
 
     it("successful free get uses empty response defaults"):
         http := ScriptedHttp::new()
-        http.reply("https://example.test/", .Ok(Response { status: 200 }))
+        http.reply("https://example.test/", .Ok(Response {}))
         $.with(Http=http):
             response := get!("https://example.test/").expect("successful response")
-            assert_equal(response.status, 200, reason="success")
-            assert_equal(response.headers, [], reason="empty default headers")
-            assert_equal(response.body, [], reason="empty default body")
+            assert_equal(response.status, .Ok, reason="default status")
+            assert_equal(response.headers, Headers::new(), reason="empty default headers")
+            assert_equal(response.bytes(), .Ok([]), reason="fresh empty body")

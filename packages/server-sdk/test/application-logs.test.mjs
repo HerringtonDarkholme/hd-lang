@@ -47,7 +47,6 @@ after(() => {
 const request = (path) => ({
   method: { tag: "Get", fields: {} },
   url: "https://logs.test/" + path,
-  query: [],
   headers: [["x-private", "not SDK metadata"]],
   body: new TextEncoder().encode("not SDK metadata"),
   redirects: 10,

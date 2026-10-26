@@ -1,6 +1,5 @@
 use dep.server_sdk.server.{HttpServer, serve}
 use std.http.{Request, Response}
-use std.json.{decode, encode}
 use std.serde.{Deserialize, Serialize}
 use std.time.{Clock, sleep, ms}
 
@@ -17,17 +16,14 @@ struct Reply:
     message: string
 
 fn handle!(request: Request, hits: &mut Hits) -> Response $ Clock:
-    text := match string::from_utf8(request.body):
-        .Ok(text) => text
-        .Err(_) => return Response { status: 400 }
-    input := match decode::[Input](text):
+    input := match request.json::[Input]():
         .Ok(input) => input
-        .Err(_) => return Response { status: 400 }
+        .Err(_) => return Response::status(.BadRequest)
     hits.count = hits.count + 1
     count := hits.count
-    if request.url.ends_with("/slow"):
+    if request.url.path.ends_with("/slow"):
         sleep!(ms(150))
-    Response { status: 200, headers: [("content-type", "application/json")], body: encode(Reply { count: count, message: input.message }).to_utf8() }
+    Response::status(.Ok).set_json(Reply { count: count, message: input.message })
 
 pub fn main!() -> void $ HttpServer + Clock + Console:
     hits := &mut Hits { count: 0 }

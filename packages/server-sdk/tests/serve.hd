@@ -1,5 +1,6 @@
 use pkg.{HttpServer, Incoming, RequestId, ServerError, CancelReason, serve}
-use std.http.{Http, Request, Response, ScriptedHttp}
+use std.http.{Http, Request, Response, ScriptedHttp, Url}
+use std.http_wire.{WireRequest, WireResponse}
 use std.console.MemoryConsole
 use std.time.{Clock, Duration, Timestamp, Instant, ms, s, sleep}
 use std.task.race
@@ -8,7 +9,7 @@ use std.testing.{assert, assert_equal}
 
 struct Scripted:
     next: u64
-    replies: List[(u64, Response)]
+    replies: List[(u64, WireResponse)]
     clock: *mut dyn Clock
     http: *mut dyn Http
 
@@ -20,10 +21,10 @@ impl HttpServer for Scripted:
         self.next = self.next + 1
         .Ok(.Some(Incoming {
             id: RequestId { generation: 7, sequence: sequence },
-            request: Request { url: "https://example.test/$sequence" },
+            request: WireRequest { method: .Get, url: "https://example.test/$sequence" },
         }))
 
-    fn respond!(&mut self, id: RequestId, response: Response) -> Result[void, ServerError]:
+    fn respond!(&mut self, id: RequestId, response: WireResponse) -> Result[void, ServerError]:
         assert_equal(id.generation, 7, reason="the complete request lease returns to its source")
         self.replies.push((id.sequence, response))
         .Ok(())
@@ -42,13 +43,13 @@ struct Hits:
 
 fn handle!(request: Request, hits: &mut Hits) -> Response:
     hits.count = hits.count + 1
-    Response { status: 200, body: "${hits.count} ${request.url}".to_utf8() }
+    Response::status(.Ok).set_text("${hits.count} ${request.url}")
 
 struct FailedSource: pass
 
 impl HttpServer for FailedSource:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]: .Err(.Closed)
-    fn respond!(&mut self, _id: RequestId, _response: Response) -> Result[void, ServerError]: .Err(.Closed)
+    fn respond!(&mut self, _id: RequestId, _response: WireResponse) -> Result[void, ServerError]: .Err(.Closed)
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason: .Stopping
     fn client(&mut self, _id: RequestId) -> *mut dyn Http: panic("no accepted lease")
     fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: panic("no accepted lease")
@@ -90,7 +91,7 @@ struct Leases:
     clock: *mut dyn Clock
     http: *mut dyn Http
     cancel_after: i64
-    replies: List[(u64, Response)]
+    replies: List[(u64, WireResponse)]
     expire_response: bool = false
     finished: List[(u64, bool)]
 
@@ -100,8 +101,8 @@ impl HttpServer for Leases:
             return .Ok(.None)
         id := RequestId { generation: 9, sequence: self.next }
         self.next += 1
-        .Ok(.Some(Incoming { id: id, request: Request { url: if id.sequence == 1: "slow" else: "fast" } }))
-    fn respond!(&mut self, id: RequestId, value: Response) -> Result[void, ServerError]:
+        .Ok(.Some(Incoming { id: id, request: WireRequest { method: .Get, url: if id.sequence == 1: "https://example.test/slow" else: "https://example.test/fast" } }))
+    fn respond!(&mut self, id: RequestId, value: WireResponse) -> Result[void, ServerError]:
         if self.expire_response && id.sequence == 2: return .Err(.Expired)
         self.replies.push((id.sequence, value))
         .Ok(())
@@ -130,11 +131,11 @@ struct Work:
     events: List[string]
 
 fn cancellable!(request: Request, state: &mut Work) -> Response $ Clock:
-    if request.url == "slow":
+    if request.url.path == "/slow":
         using resource = Closing { wait: sleep(ms(state.cleanup_ms)), events: &mut state.events }
         state.events.push("started")
         sleep!(s(60))
-    Response { status: 200 }
+    Response::status(.Ok)
 
 fn working!(server: *mut Leases, state: *mut Work) -> string $ Clock:
     $.with(HttpServer=server):
@@ -229,7 +230,7 @@ it("an expired response is released and the worker continues accepting"):
     assert_equal(server.finished.len(), 3, reason="expiration still acknowledges cleanup exactly once")
 
 fn clock_value!(_request: Request, _hits: &mut Hits) -> Response $ Clock:
-    Response { status: 200, body: "${$.use(Clock).monotonic().as_milliseconds()}".to_utf8() }
+    Response::status(.Ok).set_text("${$.use(Clock).monotonic().as_milliseconds()}")
 
 it("the handler uses its source clock instead of the caller clock"):
     clock := &mut DeadlineClock { base: $.use(Clock), tick: 1234 }
@@ -241,11 +242,11 @@ it("the handler uses its source clock instead of the caller clock"):
         assert_equal(value.body, "1234".to_utf8(), reason="ambient caller authority is replaced by the lease clock")
 
 fn client_value!(_request: Request, _hits: &mut Hits) -> Response $ Http:
-    Request::get("https://upstream.test").send!().expect("the source client")
+    Request::get(Url::parse("https://upstream.test").expect("fixture URL")).send!().expect("the source client")
 
 it("the handler uses its source client instead of the caller client"):
     http := ScriptedHttp::new()
-    http.reply("https://upstream.test", .Ok(Response { status: 209, body: "lease client".to_utf8() }))
+    http.reply("https://upstream.test", .Ok(Response::status(.Other(209)).set_text("lease client")))
     ambient := ScriptedHttp::new()
     server := &mut Leases { http: http, next: 1, clock: $.use(Clock), cancel_after: 60000, replies: [], finished: [] }
     hits := &mut Hits { count: 0 }
@@ -254,3 +255,28 @@ it("the handler uses its source client instead of the caller client"):
     for (_, value) in server.replies:
         assert_equal(value.status, 209, reason="the ambient client has no scripted response")
         assert_equal(value.body, "lease client".to_utf8(), reason="the source client handles the request")
+
+fn already_read!(_request: Request, _hits: &mut Hits) -> Response:
+    response := Response::status(.Ok).set_text("already read")
+    _ := response.text()
+    response
+
+fn invalid_form!(_request: Request, _hits: &mut Hits) -> Response:
+    pending := Request::get(Url::parse("https://example.test/").expect("fixture URL")).set_form([1])
+    Response { body: pending.body }
+
+fn encoding_error!(handler: fn!(Request, &mut Hits) -> Response) -> void $ Clock:
+    server := &mut Leases { http: ScriptedHttp::new(), next: 1, clock: $.use(Clock), cancel_after: 60000, replies: [], finished: [] }
+    hits := &mut Hits { count: 0 }
+    $.with(HttpServer=server):
+        match serve!(1, hits, handler):
+            .Err(.Other(message)) => assert(!message.is_empty(), reason="body encoding failure remains a source error")
+            _ => panic("body encoding must fail before respond")
+    assert_equal(server.replies.len(), 0, reason="the host respond call never receives an invalid body")
+    assert_equal(server.finished, [(1u64, false)], reason="the accepted lease is acknowledged exactly once")
+
+it("an already-read response body fails before respond and releases its lease"):
+    encoding_error!(already_read)
+
+it("a pending body encoding error fails before respond and releases its lease"):
+    encoding_error!(invalid_form)

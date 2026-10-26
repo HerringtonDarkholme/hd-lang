@@ -2,7 +2,7 @@
 # Spec std/serde Skipped Members: std-serde.skip.fact, std-serde.skip.constructor, std-serde.skip.write, std-serde.skip.read, std-serde.skip.unknown-fact.
 use std.json.{decode, encode, from_json, parse, to_json}
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer, skip, rename, skip_none}
-use std.http.Request
+use std.http.{Request, Url}
 use std.inspect.Inspectable
 use std.regex.Regex
 
@@ -77,7 +77,7 @@ tests:
         value := Value { kept: 3 }
         assert_equal(encode(value), "{\"kept\":3}", reason="text writer")
         assert_equal(to_json(value), parse("{\"kept\":3}").expect("JSON"), reason="tree writer")
-        assert_equal(Request::post("https://example.test/").form(value).body, "kept=3".to_utf8(), reason="form serializer also omits skipped fields")
+        assert_equal(Request::post(Url::parse("https://example.test/").expect("fixture URL")).set_form(value).bytes().expect("form bytes"), "kept=3".to_utf8(), reason="form serializer also omits skipped fields")
 
     it("readers use defaults even when skipped keys are present"):
         text := "{\"kept\":4,\"hidden\":false,\"number\":\"ignored\"}"

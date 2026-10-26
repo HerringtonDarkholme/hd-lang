@@ -44,7 +44,7 @@
 //   (journal.mjs), as `hd_run_wasmtime`'s session does.
 import { cycleReport } from "./checked-report.mjs";
 import { shortest, fixed, lower, upper, parse } from "./float.mjs";
-import { HttpError, METHODS } from "./gen/abi.mjs";
+import { WireHttpError as HttpError, METHODS } from "./gen/abi.mjs";
 import {
   Diverged,
   Recorder,

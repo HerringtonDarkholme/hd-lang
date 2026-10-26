@@ -1,0 +1,6 @@
+# test: Body consumption state is never a serde wire value
+use std.http.Body
+use std.json.encode
+
+pub fn main() -> void:
+    _ := encode(Body::from_bytes([1]))  # diagnostic: unsatisfied-trait-bound

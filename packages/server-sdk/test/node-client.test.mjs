@@ -10,7 +10,6 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 const request = (url) => ({
   method: { tag: "Get", fields: {} },
   url,
-  query: [],
   headers: [],
   body: new Uint8Array(),
   redirects: 10,
