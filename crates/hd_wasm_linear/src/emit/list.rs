@@ -118,8 +118,13 @@ impl Em<'_, '_, '_> {
                         matches!(p.root, PlaceRoot::Local(l) if locals[l.idx()])
                             && rest.iter().all(|s| matches!(s, Proj::Field(_)))
                     }),
+                    // An element is no alias of its list, read from a list
+                    // value (`[%xs [%i]]`) or from a place rooted at a local
+                    // (`[*$l [%i]]`, [`Em::rooted_elem`]).
                     Tag::Read
-                        if self.projection(i).is_none() && self.b.element_read(i).is_none() =>
+                        if self.projection(i).is_none()
+                            && self.b.element_read(i).is_none()
+                            && self.rooted_elem(i).is_none() =>
                     {
                         match self.read_through(i) {
                             Some((Through::Value(r), _)) => values.get(r as usize) == Some(&true),
@@ -263,15 +268,7 @@ impl Em<'_, '_, '_> {
     /// Exact usize induction from zero to an unchanged list length.
     /// This is a body-local proof; no callee summaries or unchecked TIR.
     fn range_indices(&self, loop_inst: u32, test: u32, body: &[u32]) -> Vec<u32> {
-        // Every store into a local or a field of it, with the value of a
-        // store into all of it (`NONE` for a field's).
-        let mut sets = vec![Vec::new(); self.b.local_ty.len()];
-        for i in 0..self.b.len() {
-            if let Some((local, whole)) = self.b.stored_local(i) {
-                let value = if whole { self.b.data[i][1] } else { NONE };
-                sets[local.idx()].push((u32::try_from(i).expect("insts"), value));
-            }
-        }
+        let sets = self.local_sets();
         let cond = self.b.data[test as usize][0];
         if Ref(cond).as_inst().is_none()
             || self.b.tags[cond as usize] != Tag::Prim
@@ -397,6 +394,225 @@ impl Em<'_, '_, '_> {
                     && self.dominates(cond, index)
                     && self.dominates(index, step.0)
                     && self.dominates(index, x)
+            })
+            .collect()
+    }
+
+    /// Every store into each local or a field of it, with the value of a
+    /// store into all of it (`NONE` for a field's).
+    fn local_sets(&self) -> Vec<Vec<(u32, u32)>> {
+        let mut sets = vec![Vec::new(); self.b.local_ty.len()];
+        for i in 0..self.b.len() {
+            if let Some((local, whole)) = self.b.stored_local(i) {
+                let value = if whole { self.b.data[i][1] } else { NONE };
+                sets[local.idx()].push((u32::try_from(i).expect("insts"), value));
+            }
+        }
+        sets
+    }
+
+    /// Whether `usize` local `l` changes only by its own stores: no cell,
+    /// no captured assignment and no reference to it.
+    fn plain_index_local(&self, l: usize) -> bool {
+        !self.is_cell(l)
+            && self.b.local_flags[l]
+                & (hd_tir::ir::local_flags::CAPTURED | hd_tir::ir::local_flags::CAPTURED_ASSIGNED)
+                == 0
+            && !(0..self.b.len()).any(|i| super::shape::ref_local(self.b, i) == Some(l))
+    }
+
+    /// The list and `usize` index of element access `x`: an element read
+    /// or store of a list value (`[%xs [%i]]`), or of a local's list or
+    /// the list its reference refers to ([`Em::rooted_elem`]).
+    fn elem_access(&self, x: usize) -> Option<(ListRoot, u32)> {
+        let (root, index) = if let Some((list, index)) = self.b.element_read(x) {
+            (self.list_root(list)?, index)
+        } else if let Some(list) = super::shape::elem_store_list(self.b, x) {
+            let p = self.b.decode_place(self.b.data[x][0])?;
+            let Some(&Proj::Elem(index)) = p.proj.first() else {
+                return None;
+            };
+            (self.list_root(list)?, index.0)
+        } else {
+            let (root, index) = self.rooted_elem(x)?;
+            let mut ty = self.sub(self.b.local_ty[root.local as usize]);
+            if root.indirect {
+                ty = self.ref_target(ty)?.0;
+            }
+            self.list_root_ty(ty)?;
+            (root, index)
+        };
+        (self.ty_of(index) == Ty::prim(hd_types::Prim::Usize)).then_some((root, index))
+    }
+
+    /// The instructions that may run after `d` and before `j`, which `d`
+    /// dominates: all of every statement of `d`'s block from `d`'s own
+    /// through the one that holds `j`. A path from `d` to `j` that left
+    /// those statements would reach `j` again only through the start of
+    /// the block, and so through `d`.
+    fn between(&self, d: u32, j: u32) -> Option<Vec<u32>> {
+        let blk = self.topo.blk[d as usize];
+        let from = self.topo.pos[d as usize] as usize;
+        let to = self
+            .block_path(j)?
+            .into_iter()
+            .find(|(k, _)| *k == blk)
+            .map(|(_, at)| at)?;
+        Some(
+            (0..self.b.len())
+                .map(|i| u32::try_from(i).expect("insts"))
+                .filter(|&x| {
+                    self.block_path(x).is_some_and(|p| {
+                        p.iter().any(|&(k, at)| k == blk && from <= at && at <= to)
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    /// Whether instruction `x` runs only once loop test `test`, an `If`
+    /// whose second arm leaves the loop ([`Em::list_loop_guard`]), went
+    /// on: in its first arm or after it.
+    fn after_test(&self, test: u32, x: u32) -> bool {
+        let go_on = self
+            .b
+            .record(self.b.data[test as usize][1])
+            .first()
+            .copied();
+        self.dominates(test, x)
+            || go_on.is_some_and(|arm| {
+                self.block_path(x)
+                    .is_some_and(|p| p.iter().any(|(k, _)| *k == arm))
+            })
+    }
+
+    /// Falling indices: in loop `loop_inst`, whose `test` goes on while
+    /// `v > 0` (or `v != 0`), a `usize` local `v` that the loop changes
+    /// only by one `v = v - 1` after the test, and that is set once
+    /// before the loop from a local `u` that a dominating access of list
+    /// `xs` used as its index, unchanged since, never grows past that
+    /// index. While `xs` keeps its length, from that access through the
+    /// loop, `xs[v]` anywhere in the loop and `xs[v - 1]` read after the
+    /// test and before the decrement are within bounds. This body's
+    /// proof, as [`Em::range_indices`]'s, never consults a callee.
+    fn falling_indices(&self, loop_inst: u32, test: u32, body: &[u32]) -> Vec<u32> {
+        let usize_ty = Ty::prim(hd_types::Prim::Usize);
+        let cond = self.b.data[test as usize][0];
+        if Ref(cond).as_inst().is_none()
+            || self.b.tags[cond as usize] != Tag::Prim
+            || ![PrimOp::Gt as u32, PrimOp::Ne as u32].contains(&self.b.data[cond as usize][0])
+        {
+            return Vec::new();
+        }
+        let [cur, zero] = self.b.record(self.b.data[cond as usize][1]) else {
+            return Vec::new();
+        };
+        let Some(v) = super::shape::read_local(self.b, *cur) else {
+            return Vec::new();
+        };
+        if self.ty_of(*cur) != usize_ty
+            || self.const_u32(*zero) != Some(0)
+            || !self.plain_index_local(v)
+        {
+            return Vec::new();
+        }
+        let sets = self.local_sets();
+        let [a, b] = sets[v].as_slice() else {
+            return Vec::new();
+        };
+        let (init, dec) = if self.in_loop(a.0, loop_inst) {
+            (*b, *a)
+        } else {
+            (*a, *b)
+        };
+        // The decrement runs once per iteration at most, after the test.
+        if self.in_loop(init.0, loop_inst)
+            || !self.dominates(init.0, loop_inst)
+            || self.topo.loop_of[dec.0 as usize] != loop_inst
+            || Ref(dec.1).as_inst().is_none()
+            || self.b.tags[dec.1 as usize] != Tag::Prim
+            || self.b.data[dec.1 as usize][0] != PrimOp::Sub as u32
+        {
+            return Vec::new();
+        }
+        let [before, one] = self.b.record(self.b.data[dec.1 as usize][1]) else {
+            return Vec::new();
+        };
+        if super::shape::read_local(self.b, *before) != Some(v)
+            || self.const_u32(*one) != Some(1)
+            || self.topo.loop_of[*before as usize] != loop_inst
+            || !self.after_test(test, *before)
+        {
+            return Vec::new();
+        }
+        // The value `v` enters with: local `u`, read where it is set.
+        let Some(u) = super::shape::read_local(self.b, init.1) else {
+            return Vec::new();
+        };
+        if self.ty_of(init.1) != usize_ty || !self.plain_index_local(u) {
+            return Vec::new();
+        }
+        // The lists an access checked that value against: its index reads
+        // `u`, which no store changes between that read and `v`'s.
+        let mut roots: Vec<ListRoot> = Vec::new();
+        for x in 0..self.b.len() {
+            let Some((root, index)) = self.elem_access(x) else {
+                continue;
+            };
+            let x = u32::try_from(x).expect("insts");
+            if roots.contains(&root)
+                || super::shape::read_local(self.b, index) != Some(u)
+                || !self.dominates(x, init.1)
+            {
+                continue;
+            }
+            let (Some(to_init), Some(mut to_loop)) =
+                (self.between(index, init.0), self.between(x, loop_inst))
+            else {
+                continue;
+            };
+            if to_init.iter().any(|&y| {
+                self.b
+                    .stored_local(y as usize)
+                    .is_some_and(|(l, _)| l.idx() == u)
+            }) {
+                continue;
+            }
+            to_loop.extend_from_slice(body);
+            let aliases = self.list_aliases(root);
+            if self.list_loop_safe(root, &to_loop, &aliases) {
+                roots.push(root);
+            }
+        }
+        body.iter()
+            .copied()
+            .filter(|&y| {
+                let Some((root, index)) = self.elem_access(y as usize) else {
+                    return false;
+                };
+                if !roots.contains(&root) {
+                    return false;
+                }
+                // A read of `v` in the loop, which never exceeds its entry
+                // value.
+                let index = self.range_source(index, &sets);
+                if super::shape::read_local(self.b, index) == Some(v) {
+                    return self.in_loop(index, loop_inst);
+                }
+                // `v - 1` where the test found `v` above 0.
+                if Ref(index).as_inst().is_none()
+                    || self.b.tags[index as usize] != Tag::Prim
+                    || self.b.data[index as usize][0] != PrimOp::Sub as u32
+                {
+                    return false;
+                }
+                let [r, one] = self.b.record(self.b.data[index as usize][1]) else {
+                    return false;
+                };
+                super::shape::read_local(self.b, *r) == Some(v)
+                    && self.const_u32(*one) == Some(1)
+                    && self.after_test(test, *r)
+                    && self.dominates(*r, dec.0)
             })
             .collect()
     }
@@ -683,6 +899,8 @@ impl Em<'_, '_, '_> {
             .collect();
         if let Some((test, false)) = self.list_loop_guard(loop_inst) {
             let proven = self.range_indices(loop_inst, test, &body);
+            self.proven_list_indices.extend(proven);
+            let proven = self.falling_indices(loop_inst, test, &body);
             self.proven_list_indices.extend(proven);
         }
         self.own_list_caches(loop_inst)

@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: v8 release
+# An element read in the body is no alias of the list, so `xs[i]` is
+# proven; `xs[xs[i]]` indexes by an element value and keeps its check.
+fn total(xs: &List[usize]) -> usize:
+    n := xs.len()
+    let sum: usize = 0
+    for i in 0..n:
+        sum += xs[xs[i]]
+    sum

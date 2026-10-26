@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# `i` changes after `items[i]` checked it, before `j` takes it: the loop's
+# accesses keep their checks.
+fn shift(items: &mut List[i32], start: usize) -> i32:
+    let i: usize = start
+    key := items[i]
+    i = i + 1
+    let j: usize = i
+    # subject
+    while j > 0:
+        items[j] = items[j - 1]
+        j = j - 1
+    key

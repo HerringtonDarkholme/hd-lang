@@ -1,0 +1,17 @@
+# @dump: wat
+# @build: v8 release
+# `j` starts at `i`, which `items[i]` checked, and only falls by one after
+# the `j > 0` test: `items[j - 1]` and `items[j]` need no check.
+fn sort(items: &mut List[i32]) -> void:
+    let i: usize = 1
+    while i < items.len():
+        key := items[i]
+        let j: usize = i
+        # subject
+        while j > 0:
+            if items[j - 1] <= key:
+                break
+            items[j] = items[j - 1]
+            j = j - 1
+        items[j] = key
+        i = i + 1

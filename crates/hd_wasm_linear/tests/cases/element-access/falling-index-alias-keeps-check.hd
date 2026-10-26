@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# `other` may be the same list as `items`; a pop through it may shrink
+# `items`, so the accesses keep their checks.
+fn total(items: &List[i32], other: &mut List[i32], start: usize) -> i32:
+    _ := items[start]
+    let sum = +0
+    let j: usize = start
+    # subject
+    while j > 0:
+        _ := other.pop()
+        sum += items[j] + items[j - 1]
+        j = j - 1
+    sum

@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: v8 release
+# A pop in the loop may shrink the list below `j`: the accesses keep their
+# checks.
+fn shift(items: &mut List[i32], start: usize) -> void:
+    _ := items[start]
+    let j: usize = start
+    # subject
+    while j > 0:
+        _ := items.pop()
+        items[j] = items[j - 1]
+        j = j - 1

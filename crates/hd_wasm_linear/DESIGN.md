@@ -2120,18 +2120,38 @@ between the length observation and loop entry. Thus a pop in that
 prelude invalidates the fact too. Unknown calls and possibly aliased
 mutations keep the normal check.
 
+An element read in the body is no alias of its list, whether it reads a
+list value (`[%xs [%i]]`) or a place rooted at a local (`[*$xs [%i]]`), so
+using an element's value does not void the proof.
+
+A falling index is the other proven shape. In a loop whose test goes on
+while `v > 0` (or `v != 0`), a `usize` local `v` that the loop changes
+only by one `v = v - 1` after the test, outside any loop nested in it,
+and that is set once before the loop from a read of a local `u`, never
+exceeds that entry value. When an access of list `xs` dominating that
+read used `u` as its index, with no store to `u` between the index read
+and `v`'s, the entry value is below the length, and stays so while the
+same within-body proof shows `xs` keeps its length from that access
+through the loop. Then `xs[v]` anywhere in the loop, and `xs[v - 1]`
+with `v` read after the test and before the decrement, are within
+bounds, as reads and as element stores. `v` and `u` must be plain locals:
+no cell, captured assignment or reference to them.
+
 Proven element read (`Read [%xs [%i]]`) instruction IDs live only in emitter state; TIR tags,
 operands and arities do not change. Their physical reads calculate the
 element address directly. Typed views use the ordinary checked path,
 selected by the same RefViewsAbsent guard as cached list projections;
 the linker folds it in programs without views. Other index expressions,
 wide indices, offset indices and unproved paths retain their checks.
-Only element reads (`walk_place`) use this fact; element writes keep
-their existing checks and lowering for the parallel TIR rewrite.
+The range proof covers element reads only; the falling proof covers
+element stores too (`walk_place` serves both).
 
 The focused WAT cases show the eliminated loop comparison and exact
 index check, and the retained checks for a pop in the body, a pop in the
-prelude, an aliased pop and an offset index. Checked runtime cases cover
+prelude, an aliased pop, an offset index and an element value as the
+index; for falling indices, the insertion sort's inner loop without
+checks, and the retained checks for an entry value no access checked,
+one changed after its check, a pop in the loop and an aliased pop. Checked runtime cases cover
 those panics, an addressable induction variable, typed views, empty and
 nested loops, continue and full-width inclusive endpoints.
 

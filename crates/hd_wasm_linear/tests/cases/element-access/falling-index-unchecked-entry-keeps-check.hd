@@ -1,0 +1,9 @@
+# @dump: wat
+# @build: v8 release
+# `j` starts at a parameter no access checked: every access keeps its check.
+fn shift(items: &mut List[i32], start: usize) -> void:
+    let j: usize = start
+    # subject
+    while j > 0:
+        items[j] = items[j - 1]
+        j = j - 1
