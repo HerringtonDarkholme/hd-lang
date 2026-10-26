@@ -9,11 +9,11 @@ rust-version.workspace = true
 hd_base = { path = "../hd_base" }
 hd_check = { path = "../hd_check" }
 hd_diag = { path = "../hd_diag" }
+hd_project = { path = "../hd_project" }
 hd_syntax = { path = "../hd_syntax" }
 hd_types = { path = "../hd_types" }
 
 [dev-dependencies]
-hd_project = { path = "../hd_project" }
 hd_sched = { path = "../hd_sched" }
 hd_cache = { path = "../hd_cache" }
 hd_driver = { path = "../hd_driver", features = ["threads"] }

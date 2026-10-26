@@ -287,6 +287,7 @@ impl Program {
     pub fn packages(&self) -> Packages<'_> {
         Packages {
             collect_source_facts: false,
+            collect_main_sites: false,
             host_packages: self.host_packages.clone(),
             entry_capabilities: true,
             instruction_origins: false,

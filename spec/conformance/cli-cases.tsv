@@ -300,3 +300,5 @@ lint-binding-patterns	cli.lint.stable-messages,cli.lint.default,cli.lint.ordinar
 lint-flow-advice	cli.lint.stable-messages,cli.lint.levels,cli.lint.prerequisites,cli.lint.ordinary-errors
 lint-mixed-script	cli.lint.stable-messages,cli.lint.default,cli.lint.levels,cli.lint.select,cli.lint.ordinary-errors
 lint-mixed-script-prerequisites	cli.lint.prerequisites,cli.lint.errors-unsuppressible
+lint-unselected-main	cli.exe.unselected-main.lint
+lint-unselected-main-prerequisites	cli.lint.prerequisites

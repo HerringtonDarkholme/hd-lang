@@ -600,6 +600,8 @@ pub struct EntryCapability {
 pub struct Output {
     /// Requested checked source facts, without messages or severity policy.
     pub source_facts: hd_check::comparison::SourceFacts,
+    /// Requested public-main sites in the selected root modules, without advice.
+    pub main_sites: Vec<hd_project::MainSite>,
     /// Checked entry rows, including capabilities unused by the linked code.
     pub entry_capabilities: Vec<EntryCapability>,
     pub wasm: Option<Vec<u8>>,
@@ -1393,7 +1395,9 @@ fn session_uses(table: &ModuleTable, repl: &ReplInputs, m: usize) -> Vec<String>
 
 struct Run<'a> {
     collect_source_facts: bool,
+    collect_main_sites: bool,
     source_facts: Mutex<hd_check::comparison::SourceFacts>,
+    main_sites: OnceLock<Vec<hd_project::MainSite>>,
     host: &'a Host<'a>,
     package: String,
     /// Whether the root package is a single-file program
@@ -1770,6 +1774,8 @@ pub struct Packages<'a> {
     /// Collect root-package source facts for tooling, rechecking selected bodies.
     /// Ordinary runs leave this false and retain their normal cache behavior.
     pub collect_source_facts: bool,
+    /// Collect selected root public-main/module facts, including warm checks.
+    pub collect_main_sites: bool,
     /// Source/manifest host declaration metadata, with no authority implied.
     pub host_packages: Vec<HostPackage>,
     /// Expose checked root entry rows for manifest validation. This
@@ -2143,7 +2149,9 @@ pub fn build_packages(
     }
     let run = Run {
         collect_source_facts: packages.collect_source_facts,
+        collect_main_sites: packages.collect_main_sites,
         source_facts: Mutex::default(),
+        main_sites: OnceLock::new(),
         host,
         package: package.to_owned(),
         single_file: packages.single_file,
@@ -2450,6 +2458,7 @@ pub fn build_packages(
     }
     let mut output = Output {
         source_facts: lock(&run.source_facts).clone(),
+        main_sites: run.main_sites.get().cloned().unwrap_or_default(),
         entry_capabilities,
         tests: cases,
         wasm,
@@ -3288,32 +3297,30 @@ impl Run<'_> {
                 && self.reached.as_ref().is_none_or(|r| r[m])
                 && checked.is_none_or(|(reach, _)| reach[m])
         };
-        // `cli.exe.unselected-main`: a public `main` under the source root
-        // of a module no executable names is an ordinary function.
-        for (m, module) in self.table.modules.iter().enumerate() {
-            let source = self.table.files[m].starts_with("src/");
-            if module.package != 0
-                || module.entry
-                || module.role != Role::Lib
-                || !source
-                || !builds_module(m)
-            {
-                continue;
-            }
-            if let Some((lo, hi)) = self.skim_of(m).file.public_main {
-                let span = Span {
-                    file: module.file,
-                    lo,
-                    hi,
-                };
-                lock(&self.diags).push(
-                    Code::UnselectedMain,
-                    Severity::Warning,
-                    span,
-                    "this public `main` is an ordinary function, since no executable names its module; name it in an `[[executable]]` table of `hd.toml` to run it",
-                    None,
-                );
-            }
+        // Ephemeral source-role facts are read from skims even on a fully warm
+        // check. Ordinary compiler clients neither collect nor report advice.
+        if self.collect_main_sites {
+            let sites = self
+                .table
+                .modules
+                .iter()
+                .enumerate()
+                .filter(|(m, module)| module.package == 0 && builds_module(*m))
+                .filter_map(|(m, module)| {
+                    let (lo, hi) = self.skim_of(m).file.public_main?;
+                    Some(hd_project::MainSite {
+                        span: Span {
+                            file: module.file,
+                            lo,
+                            hi,
+                        },
+                        role: module.role,
+                        entry: module.entry,
+                        source_root: self.table.files[m].starts_with("src/"),
+                    })
+                })
+                .collect();
+            let _ = self.main_sites.set(sites);
         }
         // `module.entry.private-main.warn`: a `main` or `main!` that is not
         // `pub` in an entry module is an ordinary function.
@@ -5387,9 +5394,9 @@ impl Run<'_> {
             role.push_str("+fuel=");
             role.push_str(&fuel.to_string());
         }
-        // This check-entry layout adds fixed-callee generic call summaries.
-        // Old entries must miss rather than silently contribute no edges.
-        let mut key = hd_base::StableHasher::new("check-generic-edges-v1");
+        // Keep fixed-callee generic summaries and invalidate checks from before
+        // the public-main advice migration; lint facts remain off-band.
+        let mut key = hd_base::StableHasher::new("check-module-main-facts-v1");
         key.hash(check_key(
             self.toolchain,
             package,

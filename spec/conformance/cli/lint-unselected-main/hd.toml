@@ -1,0 +1,16 @@
+[package]
+name = "shop"
+
+[capabilities]
+Console = true
+
+[[executable]]
+name = "main"
+module = "main"
+
+[[executable]]
+name = "tool"
+module = "tools.tool"
+
+[dependencies]
+util = { path = "util" }

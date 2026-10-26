@@ -1,8 +1,10 @@
 #![forbid(unsafe_code)]
 //! Read-only advice over checked source facts. Normal compiler clients do not depend on this crate.
 
+mod modules;
 mod syntax;
 
+pub use modules::analyze_modules;
 pub use syntax::analyze_sources;
 
 use std::sync::Arc;
@@ -16,6 +18,7 @@ use hd_syntax::TokenKind;
 use hd_types::Prim;
 
 pub const MIXED_SCRIPT: &str = "mixed-script-identifier";
+pub const UNSELECTED_MAIN: &str = "unselected-main";
 pub const UNREACHABLE: &str = "unreachable-code";
 pub const UNUSED_DEBUG: &str = "unused-debug-text";
 pub const REDUNDANT_MUT: &str = "redundant-let-mut";
@@ -40,12 +43,14 @@ pub struct Policy {
     redundant: Option<Level>,
     variant: Option<Level>,
     mixed_script: Option<Level>,
+    unselected_main: Option<Level>,
 }
 
 impl Policy {
     pub fn set(&mut self, name: &str, level: Level) -> Result<(), String> {
         let slot = match name {
             MIXED_SCRIPT => &mut self.mixed_script,
+            UNSELECTED_MAIN => &mut self.unselected_main,
             UNSIGNED_COMPARISON => &mut self.unsigned,
             UNREACHABLE => &mut self.unreachable,
             UNUSED_DEBUG => &mut self.debug,

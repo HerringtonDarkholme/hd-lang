@@ -266,6 +266,7 @@ fn check_role(
     // keeps.
     let mut packages = t.program.packages();
     packages.collect_source_facts = lint.is_some();
+    packages.collect_main_sites = lint.is_some();
     packages.check_roots = t.only.as_ref().map(|only| {
         std::iter::once(only.clone())
             .chain(docs.iter().map(|d| d.path.clone()))
@@ -277,6 +278,8 @@ fn check_role(
     {
         let findings = hd_lint::analyze(&out.source_facts, &out.texts, policy);
         out.diags.append(&findings);
+        out.diags
+            .append(&hd_lint::analyze_modules(&out.main_sites, policy));
         let roots: hd_base::HashSet<_> = sources.list().into_iter().map(|file| file.path).collect();
         let reached = reached_files(&out, t, docs);
         let selected = out

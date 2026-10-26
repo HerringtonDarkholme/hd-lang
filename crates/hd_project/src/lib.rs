@@ -14,7 +14,7 @@ use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use hd_base::{FileId, FolderId, ModuleId};
+use hd_base::{FileId, FolderId, ModuleId, Span};
 use hd_diag::Code;
 
 pub use doctest::{DocTest, doc_tests};
@@ -79,6 +79,16 @@ pub enum Role {
     Exe,
     Test,
     Task,
+}
+
+/// A written public `main` and its module's discovered source role.
+/// Tools decide whether it needs advice; no diagnostic or policy is stored here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MainSite {
+    pub span: Span,
+    pub role: Role,
+    pub entry: bool,
+    pub source_root: bool,
 }
 
 /// The root a file's module path and its relative uses start from (§4.7).
