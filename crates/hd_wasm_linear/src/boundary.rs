@@ -4,8 +4,8 @@
 //! from its linear layout, and the host method slots that call them.
 //!
 //! The boundary bytes follow the host ABI: an encoder reads a value from its Wasm values (and, for a list, from
-//! its buffer in the heap) and writes it to memory 0; a decoder reads
-//! memory 0 and builds the value's Wasm values, allocating its strings and
+//! its buffer in the heap) and writes it to the exchange buffer; a decoder
+//! reads the exchange buffer and builds the value's Wasm values, allocating its strings and
 //! lists in the heap with their counts. Strings and byte lists cross with
 //! one `memory.copy` between the two memories.
 //!

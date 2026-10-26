@@ -265,7 +265,7 @@ fn exit(
 /// Reserves a frame of `size` bytes on the local stack (§23.38) at the
 /// entry of `f`, whose address local `base` holds, and gives it back at
 /// every exit. A frame that does not fit in the stack's segment starts a
-/// new one: pages memory 1 grows, which the page table marks static, as
+/// new one: pages memory 0 grows, which the page table marks static, as
 /// it does every page the allocator did not grow. Each frame gives back
 /// its own top, so a frame in a new segment needs no link to the last.
 pub fn locals_frame(f: &mut Func, base: u32, size: u32) {

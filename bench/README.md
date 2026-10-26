@@ -155,7 +155,7 @@ separate range-adapter comparison. Long-case checksums are
 `66666653333334`; the short-chain aggregate is `653400000`.
 
 Allocation probes use a scratch Wasm wrapper around `hd.poll` to return
-`std.rt.alloc`'s existing block counter (heap memory 1, metadata offset
+`std.rt.alloc`'s existing block counter (heap memory 0, metadata offset
 244). They preserve the original poll and guest output, refuse totals
 that cannot fit the status channel, and run on both actual engines.
 No runtime or compiler source is modified. The helper checks exact output,

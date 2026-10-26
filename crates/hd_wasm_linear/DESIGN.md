@@ -166,8 +166,8 @@ runtime can change its representation without breaking a program.
 
 | Memory | Holds | Exported as |
 | --- | --- | --- |
-| 0 | the exchange buffer (crates/hd_run_wasmtime/DESIGN.md §17.3) | `hd.x` |
-| 1 | the heap: static data, the page table, every counted object | not exported: the host reads and writes only memory 0 (§23.23) |
+| 0 | the heap: static data, the page table, every counted object | not exported: the host reads and writes only `hd.x` (§23.23) |
+| 1 | the exchange buffer (crates/hd_run_wasmtime/DESIGN.md §17.3) | `hd.x` |
 | 2 | the shadow stack: the frames of wide calls, declared only when a signature is wide (§23.29) | not exported |
 
 - **Why two memories.** The exchange buffer grows from address 0 as the
@@ -176,7 +176,10 @@ runtime can change its representation without breaking a program.
   and wasmtime) keeps the host contract unchanged, so both hosts run the same
   compiled module: the module's own codecs move values between its
   layouts and the buffer's bytes (§23.23). A string crosses with one
-  `memory.copy` from memory 1 to memory 0.
+  `memory.copy` from memory 0 to memory 1. The heap is memory 0 because
+  every load and store names its memory, and memory 0's needs no index
+  byte: the Wasm is about 2% smaller, and V8's optimizing compiler takes
+  less time over it.
 - **Addresses** are `i32`, unsigned (`usize` on wasm32). Address 0 is
   null: `.None` of `Option[&T]`. The first 16 bytes are never used.
 - **Static data** starts at address 16 in page 0: string literals, the
@@ -185,7 +188,7 @@ runtime can change its representation without breaking a program.
   static in the page table, so a count update through an address in them
   does nothing.
 - **Pages** are Wasm's 64 KiB pages. The heap grows with `memory.grow`
-  on memory 1 and never shrinks: a program's footprint is its high-water
+  on memory 0 and never shrinks: a program's footprint is its high-water
   mark (REFCOUNT_RUNTIME.md §6).
 
 ### 23.3 Values
@@ -267,7 +270,7 @@ the page table:
 4. A static or free page: no count; static pages are immortal, and a live
    reference never points into a free page.
 
-The page table is one 4-byte entry per heap page, an array in memory 1
+The page table is one 4-byte entry per heap page, an array in memory 0
 whose base and length are allocator globals, after 256 bytes that hold
 each class's list of pages with room and the size/reciprocal tables.
 It starts at one page (16,320
@@ -371,9 +374,9 @@ of a pinned list copies it at once.
   value of the binding's layout, set by its group's init function (§15.4).
 - **Runtime state** (the panic flag, the woken flag, the
   forbidden-context counter) are `i32` globals; the wake table and the
-  candidate buffer are counted buffers in memory 1.
+  candidate buffer are counted buffers in memory 0.
 - **Exports and imports** are `hd.init`, `hd.poll`, `hd.wake`,
-  `hd.x` (memory 0), `hd.cancel` for a scenario, and the `hd:rt`,
+  `hd.x` (memory 1), `hd.cancel` for a scenario, and the `hd:rt`,
   `hd:prim` and capability imports of crates/hd_run_wasmtime/DESIGN.md
   §17.2.
 - **Panics** call a stub that writes the report through `hd:rt` and
@@ -405,7 +408,7 @@ issue-backed exceptions; there is no per-backend rollout pass list.
 - **`std.rt.memory`.** spec/lang/10-modules.md "Memory Intrinsics": plain
   hd declarations in `lib/std/rt/memory.hd` whose bodies are
   `@intrinsic`, with the `mem_` keys of `hd_host_abi::INTRINSICS`. The
-  linear backend lowers each to one instruction on memory 1: a
+  linear backend lowers each to one instruction on memory 0: a
   little-endian load or store at any address, `memory.size`,
   `memory.grow` with its `-1` read as `.None`, `memory.copy`, which
   allows overlap, and `memory.fill`. Only std can reach one.
@@ -1127,7 +1130,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
 
 Suspending code uses §14's state machine, waker, entry driver
 and cancellation (spec/lang/11-requirements-and-suspension.md, Cancellation) over
-counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
+counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
 
 - **The frame.** A frame is a counted object. Its payload starts with
   the task prefix: the poll slot (`F_POLL`, a table slot), the cancel
@@ -1275,12 +1278,12 @@ handles and runtime-profile traits, so programs that use `fs`, `process`,
 (`boundary.rs`).
 
 - **One wire format, generated in the module.** The host contract stays
-  crates/hd_run_wasmtime/DESIGN.md §17: the exchange buffer is memory 0,
+  crates/hd_run_wasmtime/DESIGN.md §17: the exchange buffer is the memory exported as
   `hd.x`, and every structured argument and result crosses in it in the
   §17.4 encoding. This backend generates the encoders and decoders over
   its own layouts, so `host/*.mjs` and the wasmtime host share one
   exchange-buffer contract, and the
-  ordinary boundary methods never read the heap (memory 1). Checked
+  ordinary boundary methods never read the heap (memory 0). Checked
   reports inspect its exported counters separately (§23.24). The alternative,
   host codecs that read the heap's layouts, would need the host to know each
   type's offsets and slot sharing (§23.3) and to allocate counted
@@ -2221,12 +2224,12 @@ frame on the **local stack** instead.
   `Ref` kept the local in a cell, so nbody's `bodies`, last read by
   `energy(&bodies)`, paid a retain and a release around each of 1.15M
   `advance(&mut bodies)` calls (#165).
-- **The local stack** grows down in memory 1, in pages the program grows
+- **The local stack** grows down in memory 0, in pages the program grows
   itself. The allocator marks those pages static, as it does every page
   it did not grow (§23.5), so a count update through a slot's address,
   as a callee's, does nothing. A function with slots reserves its frame
   at entry and gives it back at every exit (`wide::locals_frame`). A
-  frame that does not fit in the newest segment grows memory 1 by a new
+  frame that does not fit in the newest segment grows memory 0 by a new
   one. Each frame gives back its own top, so segments need no links. The
   stack is never shrunk: its size is the deepest chain of such frames.
   A module with no slot has none of it.

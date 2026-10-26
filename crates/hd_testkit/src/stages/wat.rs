@@ -489,10 +489,11 @@ fn tokens(line: &str, f: &FunctionOrigins, module: &Module) -> Vec<Tok> {
     out
 }
 
+/// The linear backend's memories by index (`crates/hd_wasm_linear/DESIGN.md` §23.2).
 fn memory_name(m: u32) -> &'static str {
     match m {
-        0 => "buf",
-        1 => "heap",
+        0 => "heap",
+        1 => "buf",
         2 => "stack",
         _ => "memory?",
     }

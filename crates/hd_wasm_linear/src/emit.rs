@@ -2802,7 +2802,7 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// `std.rt.memory`'s intrinsics on the heap, memory 1
+    /// `std.rt.memory`'s intrinsics on the heap, memory 0
     /// (`module.rt.memory.*`): each is one instruction. A load or a store
     /// is little-endian and takes any address; `grow` reads Wasm's `-1` as
     /// `.None`; `copy` is `memory.copy`, which allows overlap. A new

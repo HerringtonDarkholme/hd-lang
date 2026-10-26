@@ -23,10 +23,10 @@ use crate::rt::Helper;
 
 /// The exchange buffer `hd.x`, the host contract's memory
 /// (`crates/hd_run_wasmtime/DESIGN.md` §17.3).
-pub const BUF: u32 = 0;
+pub const BUF: u32 = 1;
 
 /// The heap memory (`crates/hd_wasm_linear/DESIGN.md` §23.2).
-pub const HEAP: u32 = 1;
+pub const HEAP: u32 = 0;
 
 /// The shadow stack's memory (`crates/hd_wasm_linear/DESIGN.md` §23.29),
 /// declared only when a signature or a wide body needs it.
@@ -1650,8 +1650,8 @@ impl Module {
                 );
             }
             for (name, maximum) in [
-                ("hd.x", None),
                 ("hd.session.heap", None),
+                ("hd.x", None),
                 ("hd.session.stack", Some(u64::from(STACK_PAGES))),
             ] {
                 import_sec.import(
@@ -1981,18 +1981,18 @@ impl Module {
             );
         }
         let mut memories = MemorySection::new();
-        // Memory 0: the exchange buffer, grown by the host's results.
+        // Memory 0: the heap, whose first pages hold static data.
+        let heap_pages = heap_base.div_ceil(1 << 16).max(1);
         memories.memory(MemoryType {
-            minimum: 1,
+            minimum: u64::from(heap_pages),
             maximum: None,
             memory64: false,
             shared: false,
             page_size_log2: None,
         });
-        // Memory 1: the heap, whose first pages hold static data.
-        let heap_pages = heap_base.div_ceil(1 << 16).max(1);
+        // Memory 1: the exchange buffer, grown by the host's results.
         memories.memory(MemoryType {
-            minimum: u64::from(heap_pages),
+            minimum: 1,
             maximum: None,
             memory64: false,
             shared: false,
