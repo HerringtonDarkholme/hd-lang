@@ -901,8 +901,9 @@ pub struct Body {
     /// The inliner's copies, each `[first, len, callee, call]`, sorted:
     /// an anchor `INLINED | a` with `first <= a < first + len` names
     /// instruction `a - first` of the callee's checker body, which the
-    /// copy's call at anchor `call` ran ([`Body::inlined_frame`]). Never
-    /// written to the wire.
+    /// copy's call at anchor `call` ran ([`Body::inlined_frame`]); `call`
+    /// is itself `INLINED | a` of an earlier row for a copy made inside a
+    /// copy (release, bottom-up). Never written to the wire.
     pub inlined: Vec<[u32; 4]>,
 }
 

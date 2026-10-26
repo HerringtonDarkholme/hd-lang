@@ -410,6 +410,34 @@ fn release_builds_name_functions_in_hd_names() {
     assert!(hd_run::frames::LineTable::parse(&release).is_ok());
 }
 
+/// A release build copies `inner` into `outer`, then `outer` into
+/// `main` (`docs/compiler/tir-v2.md`, "The inliner"), so `main` calls
+/// neither; the panic in the copy inside the copy still lists `inner`,
+/// `outer` and `main`, each at its own line.
+#[test]
+fn a_copy_inside_a_copy_reports_each_frame() {
+    let root = package(
+        "hd-frames-nested-copy",
+        "fn inner(x: i32) -> i32:\n    100 / x\n\nfn outer(x: i32) -> i32:\n    inner(x - 1) + 1\n\npub fn main() -> void $ Console:\n    let n = +1\n    println(outer(n))\n",
+    );
+    std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
+    let out = hd(&root, &["build", "--release"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    let wasm = std::fs::read(root.join("build/release/shop.wasm")).expect("release wasm");
+    let named = |f: &[u8]| wasm.windows(f.len()).any(|w| w == f);
+    assert!(named(b"/main#") && !named(b"/outer#") && !named(b"/inner#"));
+    let out = hd(&root, &["run", "--release"]);
+    assert_eq!(
+        text(&out.stderr),
+        "\
+panic: integer-division-by-zero: division by zero
+    src/main.hd:2 shop.main.inner
+    src/main.hd:5 shop.main.outer
+    src/main.hd:9 shop.main.main
+"
+    );
+}
+
 /// A derived instance's body is the template's, so its instructions map
 /// to no line of the deriving module: building a program that derives
 /// writes `hd.positions` without reading another source's syntax (#311).

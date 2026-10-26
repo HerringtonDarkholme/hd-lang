@@ -291,17 +291,33 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(), String> {
     // The copy's own instructions name the callee's as their anchors
     // ([`Body::inlined`]), so a panic in the copy reports the callee's
     // frame, then the call's; one without a position keeps none, as in
-    // the callee, and so reports its enclosing one.
+    // the callee, and so reports its enclosing one. A copy that holds
+    // copies of its own (a release build's, inlined bottom-up) brings their
+    // rows after its own, each called at its anchor in the copy.
     let anchor = out.anchors[c];
     let first = out.inlined.last().map_or(0, |e| e[0] + e[1]);
+    let nested = first + u32_of(m);
+    let moved = |a: u32| match a {
+        NONE => anchor,
+        a if a & INLINED != 0 => INLINED | (nested + (a & !INLINED)),
+        a => INLINED | (first + a),
+    };
     out.inlined.push([first, u32_of(m), k.item.raw(), anchor]);
+    for &[f, len, callee, call] in &k.inlined {
+        out.inlined.push([nested + f, len, callee, moved(call)]);
+    }
+    let anchors: Vec<u32> = if k.anchors.is_empty() {
+        (0..u32_of(m)).map(moved).collect()
+    } else {
+        k.anchors.iter().map(|&a| moved(a)).collect()
+    };
     // The arguments, renumbered with the caller.
     let args = out.record(out.data[c][1]).to_vec();
     let mut put = |tag: Tag, data: [u32; 2], ty: Ty, at: Option<usize>| {
         out.tags.push(tag);
         out.data.push(data);
         out.ty.push(ty);
-        let own = at.map(|j| (k.syn[j], INLINED | (first + u32_of(j))));
+        let own = at.map(|j| (k.syn[j], anchors[j]));
         out.syn.push(match own {
             Some((NodeIdx::NONE, _)) => NodeIdx::NONE,
             _ => syn,
@@ -522,6 +538,46 @@ mod tests {
              %11 Block [%8 %9 %10]\n%12 Scope\n%13 Drop [$0]\n%14 Call %12\n\
              %15 Block [%0 %1 %11 %12 %13 %14]\n"
         );
+    }
+
+    /// `fn m(x: string) -> string { 3(x) }`, as callee 5.
+    fn middle() -> Body {
+        let mut b = TirBuilder::new(DefId::from_raw(5), BodyKind::Fn);
+        let blk = b.open_block();
+        let x = b.local(Ty::STRING, Symbol::from_raw(0), local_flags::PARAM, N);
+        let v = b.get(x, Ty::STRING, N);
+        let r = b.call(&item(3), &[v], Providers::None, Ty::STRING, N);
+        let root = b.close_block(blk, Some(r), Ty::STRING, N);
+        b.finish(root, &[]).expect("middle verifies")
+    }
+
+    /// A copy that holds a copy (a release build inlines bottom-up) brings
+    /// its row after its own, called at an anchor inside it: a frame in the
+    /// inner copy names callee 3, then callee 5, then the caller's call.
+    #[test]
+    fn a_copy_inside_a_copy_is_called_from_its_outer_copy() {
+        let mut m = middle();
+        let call = (0..m.len()).find(|&i| m.tags[i] == Tag::Call);
+        inline_call(&mut m, call.expect("the call of 3"), callee()).expect("inlines 3");
+        assert!(leaf(&m));
+        let mut b = caller();
+        inline_call(&mut b, 1, m).expect("inlines 5");
+        let [outer, inner] = b.inlined[..] else {
+            panic!("two rows: {:?}", b.inlined);
+        };
+        assert_eq!((outer[2], outer[3]), (5, 1));
+        let i = crate::ir::INLINED;
+        assert_eq!(inner[2], 3);
+        assert!(inner[3] & i != 0 && (inner[3] & !i) < inner[0]);
+        let deepest = (0..b.len())
+            .map(|k| b.anchors[k])
+            .find(|&a| a & i != 0 && (a & !i) >= inner[0])
+            .expect("an instruction of the inner copy");
+        let (callee, _, at) = b.inlined_frame(deepest).expect("inner frame");
+        let (outer_callee, _, call) = b.inlined_frame(at).expect("outer frame");
+        assert_eq!((callee.raw(), outer_callee.raw(), call), (3, 5, 1));
+        run(&mut b, &Cx, &mut OwnScratch::default()).expect("passes");
+        assert_eq!(verify_owned(&b, &Cx), []);
     }
 
     /// `g() { r = 3(7("caller")); if true { 9(3(r)) } }`: two calls of

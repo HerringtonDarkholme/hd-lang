@@ -11001,7 +11001,15 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn generics_owner(&self, def: DefId) -> DefId {
-        if self.default_body(def).is_some() {
+        // The decoded body's kind, not the owned body: the inliner
+        // substitutes a callee's types while its caller's passes wait
+        // (`own.rs`), and owning a body there would start another walk.
+        let default = (self.run.lazy_body(self.p, def))
+            .and_then(|b| self.run.decode(b))
+            .is_some_and(|(b, _)| {
+                matches!(b.kind, hd_tir::BodyKind::Default | hd_tir::BodyKind::Fact)
+            });
+        if default {
             let p = self
                 .run
                 .names()

@@ -7,7 +7,7 @@
   (func $write (param $n i32) (result i32) (local $xs i32) (local $t1 i32) (local $t0 i32) (local $i i32) (local $t2 i32)
     block
       ;; ...
-    ;; 12 |     for i in 0..n:
+    ;; 14 |     for i in 0..n:
       local.get $t0
       local.get $n
       i32.lt_u
@@ -32,7 +32,7 @@
           i32.const 1
           i32.add
           local.set $t0
-    ;; 13 |         xs[i] = value(i)
+    ;; 15 |         xs[i] = value(i)
           call $value
           local.set $t2
           local.get $i
@@ -49,7 +49,7 @@
           i32.add
           local.get $t2
           i32.store $heap offset=16
-    ;; 12 |     for i in 0..n:
+    ;; 14 |     for i in 0..n:
           br 0
         end
       end

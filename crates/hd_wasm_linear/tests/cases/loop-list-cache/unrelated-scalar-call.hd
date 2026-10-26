@@ -1,10 +1,12 @@
 # @dump: wat
 # @build: v8 release
 # expected: an unescaped local list can keep its buffer and length across a scalar call.
-# `value` calls `ten`, so it is no leaf, and a release build leaves it a call.
-fn value(i: usize) -> usize: i + ten()
+# `value` calls `ten`, which is recursive and so stays a call, so `value`
+# is no leaf, and a release build leaves it a call.
+fn value(i: usize) -> usize: i + ten(0)
 
-fn ten() -> usize: 10
+fn ten(k: usize) -> usize:
+    if k > 0: ten(k - 1) else: 10
 
 fn write(n: usize) -> List[usize]:
     let mut xs: List[usize] = [0, 0, 0]

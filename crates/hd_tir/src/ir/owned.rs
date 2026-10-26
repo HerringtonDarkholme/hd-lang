@@ -121,7 +121,8 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
 
 /// What the inliner's copies promise (`crate::inline`). Each anchor with
 /// the `INLINED` bit falls in a `Body::inlined` row; the rows are sorted
-/// and disjoint, and each call's anchor is the caller's own. A place in a
+/// and disjoint, and each call's anchor is the caller's own or, for a copy
+/// inside a copy, an anchor in a row before it. A place in a
 /// copy is rooted at a local the body defines: a parameter or a local some
 /// whole `Store` writes.
 fn copies(b: &Body, errs: &mut Vec<VerifyError>) {
@@ -134,11 +135,12 @@ fn copies(b: &Body, errs: &mut Vec<VerifyError>) {
     }
     let mut end = 0;
     for &[first, len, _, call] in &b.inlined {
-        if first < end || call & INLINED != 0 {
+        // A copy inside a copy is called from one of the rows before it.
+        if first < end || call & INLINED != 0 && call & !INLINED >= first {
             err(
                 errs,
                 NONE,
-                format!("inlined row at {first} out of order, or called in a copy"),
+                format!("inlined row at {first} out of order, or called in a copy after it"),
             );
         }
         end = first + len;

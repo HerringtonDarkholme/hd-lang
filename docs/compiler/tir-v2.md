@@ -2907,6 +2907,21 @@ counted and makes a local it points at a counted cell; a call lends both,
 so such a leaf stays a call. Dev builds copy only std, like the other
 cross-function work, which is release-only.
 
+A release build inlines bottom-up (2026-10-26): before a call's callee
+is measured, its own calls are copied into it as far as their callees
+allow, at the call's types, and the limits apply to the result. A
+function that only wraps a call of a leaf is then a leaf too and is
+copied in turn; a generic function and an impl method count at the
+instance the call names, so `apply[Double]`, whose body is
+`s.step(x)`, becomes `Double.step`'s arithmetic, and a loop over
+`apply(double, x)` calls nothing (bench/runtime/progs/trait-dispatch).
+A function on the way down is never copied into itself or into a callee
+it reaches, so recursion stays a call. A std callee that outgrows its
+limit this way is copied as written, as before. Each instance is made
+once per run. A copy inside a copy keeps its frame: its `Body::inlined`
+row is called at an anchor in the outer copy's row, so a panic reports
+each inlined frame.
+
 A copy's parameter bound from a binding local borrows it the way any
 binding local does, and does not stop that local from borrowing in turn
 (2026-10-24, #667): in `for part in parts: n += part.len()`, the copied

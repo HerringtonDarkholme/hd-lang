@@ -47,7 +47,14 @@ pub(super) struct Summaries {
     /// ([`Env::summary_lends`]), which stays: a body and its emission read
     /// the same one, and a bit read as kept before the record stays kept.
     read: std::sync::Mutex<HashMap<(DefId, u32), bool>>,
+    /// Per callee and type arguments, the copy a call of it inlines, its
+    /// own calls copied first, and its hash, or `None` when a call of it
+    /// stays ([`Env::callee_copy`]).
+    inlined: std::sync::Mutex<HashMap<(DefId, TyList), Option<Inlined>>>,
 }
+
+/// A copy a call inlines, and its hash ([`Summaries`]).
+type Inlined = (Body, Hash128);
 
 /// The `own` view's line for `body`'s summary in `all`: its kept
 /// parameters, by local, the one every result is, and whether it is
@@ -402,11 +409,17 @@ impl Env<'_> {
     }
 
     /// Copies into `body` each call of a small function
-    /// [`Env::inline_callee`] allows (`docs/compiler/tir-v2.md`, "The
-    /// inliner"), before the
-    /// passes, each parameter bound by its pass mode, and returns the
-    /// body's hash with each copied callee's TIR hash.
+    /// [`Env::callee_copy`] allows (`docs/compiler/tir-v2.md`, "The
+    /// inliner"), before the passes, each parameter bound by its pass mode,
+    /// and returns the body's hash with each copied callee's TIR hash.
     fn inline_calls(&self, body: &mut Body, hash: Hash128) -> Hash128 {
+        self.inline_into(body, hash, &mut vec![body.item])
+    }
+
+    /// [`Env::inline_calls`] inside the copies on `stack`, the caller
+    /// first: a call of one of them stays a call, so recursion never
+    /// inlines.
+    fn inline_into(&self, body: &mut Body, hash: Hash128, stack: &mut Vec<DefId>) -> Hash128 {
         let pool = &self.run.pool;
         let mut k = StableHasher::new("inline");
         k.hash(hash);
@@ -420,44 +433,15 @@ impl Env<'_> {
             else {
                 continue;
             };
-            let Some((mut copy, callee_hash)) = self.inline_callee(def, body.item) else {
-                continue;
-            };
-            let ty = |t: Ty| hd_mono::subst(pool, self, def, targs, t);
-            let list = |l| {
-                pool.list(
-                    &pool
-                        .list_items(l)
-                        .iter()
-                        .map(|&t| ty(t))
-                        .collect::<Vec<_>>(),
-                )
-            };
-            hd_tir::ir::map_body_types(&mut copy, &ty, &list);
-            // A projection left open names a type the caller's bounds may
-            // fix, which the call's type already shows; such a copy waits.
-            if copy
-                .ty
-                .iter()
-                .chain(&copy.local_ty)
-                .any(|&t| pool.has_assoc(t))
-            {
+            if stack.contains(&def) {
                 continue;
             }
-            // An opaque result `subst` could not open (a trait method's at
-            // a receiver no impl is selected for) left poison: the copy
-            // would not know its own types, so the call stays.
-            if copy
-                .ty
-                .iter()
-                .chain(&copy.local_ty)
-                .chain(copy.consts.iter().map(|c| &c.0))
-                .any(|&t| t == Ty::POISON)
-                || !self.fits_call(body, c, &mut copy)
-            {
+            let Some((mut copy, callee_hash)) = self.callee_copy(def, targs, stack) else {
+                continue;
+            };
+            if !self.fits_call(body, c, &mut copy) {
                 continue;
             }
-            hd_tir::inline::rechoose(&mut copy, &|t, s, a| self.select_impl(t, s, a));
             sites.push(Site { call: c, copy });
             hashes.push(callee_hash);
         }
@@ -489,6 +473,158 @@ impl Env<'_> {
         } else {
             hash
         }
+    }
+
+    /// The copy a call of `def` at `targs` inlines, at the call's types,
+    /// and its hash ([`Env::inline_callee`]). A release build inlines
+    /// bottom-up: the instance's own calls are copied first, as far as
+    /// their callees allow, and the limits apply to the result, so a
+    /// function that only wraps a call of a leaf is a leaf itself once that
+    /// call is a copy. A copy that outgrows its limit that way is the
+    /// instance as written, when that fits. Each instance is made once per
+    /// run.
+    fn callee_copy(
+        &self,
+        def: DefId,
+        targs: TyList,
+        stack: &mut Vec<DefId>,
+    ) -> Option<(Body, Hash128)> {
+        let Some(all) = &self.run.summaries else {
+            return (self.instance(def, targs))
+                .and_then(|(copy, hash, fits)| fits.then_some((copy, hash)));
+        };
+        if let Some(made) = lock(&all.inlined).get(&(def, targs)) {
+            return made.clone();
+        }
+        let made = self.instance(def, targs).and_then(|(copy, hash, fits)| {
+            let nested = (!hd_tir::inline::leaf(&copy)).then(|| {
+                let mut nested = copy.clone();
+                stack.push(def);
+                let h = self.inline_into(&mut nested, hash, stack);
+                stack.pop();
+                (nested, h)
+            });
+            match nested {
+                Some((nested, h)) if self.fits(def, targs, &nested) => Some((nested, h)),
+                _ => fits.then_some((copy, hash)),
+            }
+        });
+        lock(&all.inlined).insert((def, targs), made.clone());
+        made
+    }
+
+    /// The callee's body at the call's types, with its hash, and whether
+    /// it inlines as written ([`Env::fits`]); `None` when no copy of it
+    /// can ([`Env::inline_callee`]), or its types do not settle.
+    fn instance(&self, def: DefId, targs: TyList) -> Option<(Body, Hash128, bool)> {
+        let pool = &self.run.pool;
+        let (mut copy, hash) = self.inline_callee(def)?;
+        let ty = |t: Ty| hd_mono::subst(pool, self, def, targs, t);
+        let list = |l| {
+            pool.list(
+                &pool
+                    .list_items(l)
+                    .iter()
+                    .map(|&t| ty(t))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        hd_tir::ir::map_body_types(&mut copy, &ty, &list);
+        // A projection left open names a type the caller's bounds may
+        // fix, which the call's type already shows; such a copy waits.
+        // An opaque result `subst` could not open (a trait method's at a
+        // receiver no impl is selected for) left poison: the copy would
+        // not know its own types, so the call stays.
+        if copy
+            .ty
+            .iter()
+            .chain(&copy.local_ty)
+            .any(|&t| pool.has_assoc(t))
+            || copy
+                .ty
+                .iter()
+                .chain(&copy.local_ty)
+                .chain(copy.consts.iter().map(|c| &c.0))
+                .any(|&t| t == Ty::POISON)
+        {
+            return None;
+        }
+        hd_tir::inline::rechoose(&mut copy, &|t, s, a| self.select_impl(t, s, a));
+        let fits = self.fits(def, targs, &copy);
+        Some((copy, hash, fits))
+    }
+
+    /// Whether `copy`, the body of `def` at `targs`, is small enough to
+    /// inline: [`hd_tir::inline::inlinable`] at [`INLINE_LIMIT`] in std,
+    /// and outside std, in a release build, at [`LEAF_INLINE_LIMIT`] when
+    /// it is a leaf ([`hd_tir::inline::leaf`]) that takes no reference.
+    fn fits(&self, def: DefId, targs: TyList, copy: &Body) -> bool {
+        let std = self.run.item_module_text(def).starts_with("std.");
+        let limit = if std { INLINE_LIMIT } else { LEAF_INLINE_LIMIT };
+        hd_tir::inline::inlinable(copy, limit)
+            && (std || hd_tir::inline::leaf(copy) && !self.takes_reference(def, targs))
+    }
+
+    /// A fresh decoding of the checker's body of `def`, for the caller to
+    /// change, and its hash, when a call of it may inline: a function
+    /// outside `std.rt`, with a body of its own, that does not suspend,
+    /// in std or in a release build, and that [`hd_tir::inline::inlinable`]
+    /// allows at its limit ([`Env::fits`]), which copying its calls only
+    /// grows.
+    fn inline_callee(&self, def: DefId) -> Option<(Body, Hash128)> {
+        let module = self.run.item_module_text(def);
+        let std = module.starts_with("std.");
+        let rt = module == "std.rt" || module.starts_with("std.rt.");
+        let release = self.run.summaries.is_some();
+        if INLINE_LIMIT == 0 || rt || !(std || release) || self.intrinsic(def).is_some() {
+            return None;
+        }
+        if self.sig(def)?.suspends {
+            return None;
+        }
+        let path = self.run.paths.hash(hd_base::PathId::from_raw(def.raw()));
+        let lazy = self.p.bodies.all.get(&path)?;
+        let (body, hash) = self.run.decode(lazy)?;
+        let limit = if std { INLINE_LIMIT } else { LEAF_INLINE_LIMIT };
+        if !hd_tir::inline::inlinable(body, limit) {
+            return None;
+        }
+        let (m, entry, at) = lazy.wire.as_ref()?;
+        let run = self.run;
+        let mut fresh =
+            hd_tir::wire::read_body(entry.get(at.clone())?, &run.pool, &run.paths, &run.syms)?;
+        // A fetched package's `dbg` prints nothing (`module.dbg.dependency`):
+        // the copy keeps the suppression `decode` gave its body.
+        if run.fetched[usize::from(run.table.modules[*m].package)] {
+            crate::dbg::suppress(&mut fresh, &run.names());
+        }
+        Some((fresh, *hash))
+    }
+
+    /// Whether a parameter of `def` at `targs` is, or may be in an
+    /// instance, a reference. A copy binds a parameter in a local, and a
+    /// reference held in a local is counted, and makes a local it points
+    /// at a counted cell, where a call lends both; so a leaf outside std
+    /// that takes one stays a call.
+    fn takes_reference(&self, def: DefId, targs: TyList) -> bool {
+        let Some(sig) = self.sig(def) else {
+            return true;
+        };
+        let pool = &self.run.pool;
+        sig.params.iter().any(|&(_, t)| {
+            let mut t = self.low(t);
+            if self.is_open(t) {
+                t = hd_mono::subst(pool, self, def, targs, t);
+            }
+            while let TyData::Mut(inner) = pool.get(t) {
+                t = inner;
+            }
+            t == Ty::POISON
+                || self.is_open(t)
+                || matches!(pool.get(t), TyData::Ref { .. })
+                || matches!(pool.get(t), TyData::Adt { def, .. } if def == self.run.known.ref_cell)
+                || self.layout_facts(t).1
+        })
     }
 
     /// Whether `copy`, a callee's body at the types of call `c` of
@@ -619,71 +755,6 @@ impl Env<'_> {
             }
             Selection::Builtin(_) => None,
         }
-    }
-
-    /// A fresh decoding of the checker's body of `def`, for the caller to
-    /// change, and its hash, when a call of it inlines: a function outside
-    /// `std.rt`, not the caller, with a body of its own, that does not
-    /// suspend, and that [`hd_tir::inline::inlinable`] allows at
-    /// [`INLINE_LIMIT`] when it is in std, or, in a release build, at
-    /// [`LEAF_INLINE_LIMIT`] when it is a leaf outside std.
-    fn inline_callee(&self, def: DefId, caller: DefId) -> Option<(Body, Hash128)> {
-        let module = self.run.item_module_text(def);
-        let std = module.starts_with("std.");
-        let rt = module == "std.rt" || module.starts_with("std.rt.");
-        let release = self.run.summaries.is_some();
-        if INLINE_LIMIT == 0
-            || def == caller
-            || rt
-            || !(std || release)
-            || self.intrinsic(def).is_some()
-        {
-            return None;
-        }
-        if self.sig(def)?.suspends {
-            return None;
-        }
-        let path = self.run.paths.hash(hd_base::PathId::from_raw(def.raw()));
-        let lazy = self.p.bodies.all.get(&path)?;
-        let (body, hash) = self.run.decode(lazy)?;
-        let limit = if std { INLINE_LIMIT } else { LEAF_INLINE_LIMIT };
-        if !hd_tir::inline::inlinable(body, limit)
-            || !(std || hd_tir::inline::leaf(body) && !self.takes_reference(def))
-        {
-            return None;
-        }
-        let (m, entry, at) = lazy.wire.as_ref()?;
-        let run = self.run;
-        let mut fresh =
-            hd_tir::wire::read_body(entry.get(at.clone())?, &run.pool, &run.paths, &run.syms)?;
-        // A fetched package's `dbg` prints nothing (`module.dbg.dependency`):
-        // the copy keeps the suppression `decode` gave its body.
-        if run.fetched[usize::from(run.table.modules[*m].package)] {
-            crate::dbg::suppress(&mut fresh, &run.names());
-        }
-        Some((fresh, *hash))
-    }
-
-    /// Whether a parameter of `def` is, or may be in an instance, a
-    /// reference. A copy binds a parameter in a local, and a reference held
-    /// in a local is counted, and makes a local it points at a counted cell,
-    /// where a call lends both; so a leaf outside std that takes one stays a
-    /// call.
-    fn takes_reference(&self, def: DefId) -> bool {
-        let Some(sig) = self.sig(def) else {
-            return true;
-        };
-        let pool = &self.run.pool;
-        sig.params.iter().any(|&(_, t)| {
-            let mut t = self.low(t);
-            while let TyData::Mut(inner) = pool.get(t) {
-                t = inner;
-            }
-            self.is_open(t)
-                || matches!(pool.get(t), TyData::Ref { .. })
-                || matches!(pool.get(t), TyData::Adt { def, .. } if def == self.run.known.ref_cell)
-                || self.layout_facts(t).1
-        })
     }
 
     /// A body collection generates (a supplied method's, a `dbg` body),

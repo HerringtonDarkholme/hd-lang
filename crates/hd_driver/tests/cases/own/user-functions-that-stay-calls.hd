@@ -1,7 +1,8 @@
 # @dump: own
 # @build: v8 release
 # Release inlining copies only small leaves outside std: `twice` calls
-# `half`, so it is no leaf; `long` has more than 16 instructions; `first`
+# `long`, which stays a call, so it is no leaf even once its own callees
+# are copied; `long` has more than 16 instructions; `first`
 # takes a reference, which a copy would count in a local; `run` calls a
 # function value; `make` creates a closure: each of those calls stays a
 # call. `need` declares a provider but reads none, so its call is copied.
@@ -9,7 +10,7 @@ fn half(x: i64) -> i64:
     x / 2
 
 fn twice(x: i64) -> i64:
-    half(x) * 4
+    long(x) * 4
 
 fn long(x: i64) -> i64:
     (x + 1) * (x + 2) * (x + 3) * (x + 4) * (x + 5) / (x + 6)
