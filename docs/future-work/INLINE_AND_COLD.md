@@ -15,6 +15,10 @@ Two compiler decorators in `std.annotation`, recognized by qualified name
 as `annotate` is. They change how calls are compiled, never what a program
 does. The inliner's default rule (#856) stays for every undecorated function.
 
+- `@inline`, short for `@inline(.Auto)`: a hint. The function may be copied
+  past the default rule: up to 64 instructions, with reference parameters.
+  Where a copy is impossible (recursion, a body the copier refuses), it stays
+  a call, with no error.
 - `@inline(.Always)`: every call whose callee is known is replaced by a
   copy of the body, past the size limit and the reference-parameter rule.
 - `@inline(.Never)`: hd's inliner never copies the function.
@@ -35,6 +39,12 @@ fn unexpected(at: usize, size: usize) -> string:
     if at >= size:
         return "unexpected end at byte $at"
     "unexpected byte at $at"
+
+# A small reader the default rule refuses (it takes a reference): copy it
+# where it can be copied, and keep the call where it can't.
+@inline
+fn first(input: &List[u8]) -> u8:
+    input.get(0).unwrap_or(0)
 
 # A long loop: keep it a function of its own, so the engine can optimize it.
 @inline(.Never)
@@ -63,7 +73,7 @@ the **Recommendation**.
 7. Is `panic` marked `@cold` in std? **No**: it is an intrinsic the emitter already lowers cold. std marks the #884 rare paths, each with a perf report.
 8. Values or compiler decorators? **Compiler decorators**, like `annotate` and `num_suffix`: they attach no value, so `facts_of` leaves them out.
 9. Where do the names live? **`std.annotation`, imported**, like `annotate` and `facts_of`; not in the prelude.
-10. A bare `@inline` hint, as Rust and MoonBit have? **No**; the default rule is the hint.
+10. How far does `.Auto` lift the default rule? **To 64 instructions, with reference parameters allowed**, measured on the 19 programs before it lands; a bound keeps a hint from bloating code the way `.Always` may.
 
 ## Problems It Solves
 
@@ -149,12 +159,13 @@ use std.annotation.annotate
 
 @derive(Eq)
 @annotate(.Fn, .Method)
-pub enum Inline:
+pub enum InlineHint:
+    Auto
     Always
     Never
 
-pub fn inline(mode: Inline) -> Inline:
-    mode
+pub fn inline(hint: InlineHint = .Auto) -> InlineHint:
+    hint
 
 @annotate(.Fn, .Method)
 pub struct Cold: pass
@@ -167,7 +178,8 @@ The rules, for [Prefix Decorators](../../spec/lang/14-annotations.md#prefix-deco
 
 1. The compiler recognizes `std.annotation.inline` and `std.annotation.cold` by qualified name, through an alias or a path. They attach no value, so `facts_of` leaves them out.
 2. They go on a module-level function or a method with a body. A trait requirement with no default body, or an `@intrinsic` declaration, is `invalid-inline-decorator`.
-3. The argument of `inline` is written `.Always` or `.Never`, and is read as written, as `annotate`'s kinds are. Anything else is `invalid-inline-decorator`.
+3. The argument of `inline` is written `.Auto`, `.Always` or `.Never`, or left out, and is read as written, as `annotate`'s kinds are. Anything else is `invalid-inline-decorator`. A bare `@inline` is `@inline(.Auto)`: a decorator that names a function whose parameters all have defaults calls it. The compiler does this today (probed: `facts_of` gives `.Auto`), but [`annot.decorator.bare-call`](../../spec/lang/14-annotations.md#r-annot.decorator.bare-call) says "no parameters", so its text widens to "no parameters without a default".
+3a. `.Auto`: in a build that copies the function, a call is a copy when the body has at most 64 instructions; reference parameters are allowed. A body that rule 6 makes uncopyable stays a call, with no diagnostic.
 4. `@cold` with an `@inline` line on one declaration is `invalid-inline-decorator`.
 5. `.Always`: in a build that copies the function, every call whose callee is known once generic arguments are filled in is a copy. Size and reference parameters do not matter.
 6. `.Always` is `inline-always-uncopyable` on a function that suspends, has a `defer`, makes a closure, has a requirement row or `with`, or is in `std.rt`. So is a cycle of calls whose every function is `.Always`.
@@ -178,6 +190,7 @@ The rules, for [Prefix Decorators](../../spec/lang/14-annotations.md#prefix-deco
 | Decorator | hd's inliner | Wasm call | Builds |
 | --- | --- | --- | --- |
 | none | the #856 rule: at most 16 instructions, no reference parameter, not recursive | `call` | std every build; others release |
+| `@inline` (`.Auto`) | copies up to 64 instructions, reference parameters too; otherwise a call, silently | `call` where not copied | std every build; others release |
 | `@inline(.Always)` | always copies, any size, reference parameters too | none: the body is copied | std every build; others release |
 | `@inline(.Never)` | never copies | `call` (V8 may still inline it) | every build |
 | `@cold` | never copies | `call_indirect` through the table | every build |
@@ -382,13 +395,14 @@ Probes on `origin/main` at 8fbfcd74a, `target/debug/hd`:
 | The rt block, inside `lib/std/rt` with a local `cold`, std rebuilt | builds; the five programs print the same results |
 | `@cold` + `@inline(.Always)`; `.Always` on recursion, on a bang function; `@cold` on a requirement | all `check result: ok`: the gaps rules 2, 4 and 6 fill |
 | Two `@inline` lines; `@inline` on a struct; on a local closure | `duplicate-fact`; `decorator-target-kind`; `decorator-not-top-level` |
-| `facts_of(square).find::[Inline]()` with the declarations pasted in | `.Some(.Always)`; under rule 1 it would be `.None` |
+| `facts_of(square).find::[InlineHint]()` with the declarations pasted in | `.Some(.Always)`; under rule 1 it would be `.None` |
+| Bare `@inline` on a function, with `fn inline(hint: InlineHint = .Auto)` declared locally | checks and runs; `facts_of` gives `.Some(.Auto)`: the bare call already uses the default |
 | `hd fmt --check` on every block | no change |
 
 ## Appendix E. Details
 
 - **Grammar and formatting.** None new: decorator lines. `hd fmt` keeps them.
-- **Typing.** `inline(mode: Inline)` and `cold()` are ordinary calls; the
+- **Typing.** `inline(hint: InlineHint = .Auto)` and `cold()` are ordinary calls; the
   argument is read as written.
 - **Patterns, derives.** No interaction; derived impls carry no decorator.
 - **Closures.** Not decorated (`decorator-not-top-level`). A closure passed
