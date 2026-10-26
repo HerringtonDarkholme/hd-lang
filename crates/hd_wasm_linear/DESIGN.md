@@ -2192,15 +2192,21 @@ frame on the **local stack** instead.
   `CallValue` or `CallDyn`, never a bang call's `Await`. Its `Drop`, if
   any, follows in the same block, and nothing between opens a block or
   ends, replaces or moves the whole local. The reference then ends
-  before the local does. Every other local keeps its cell: a parameter,
-  a closure's capture, a local of a closure's body or a suspending one,
-  an erased body's, one a counted `*T` refers to, one a `Ref` takes at
-  its last access (`TAKES`), and a reference bound to a local.
+  before the local does. A `Ref` that takes the local at its last access
+  (`TAKES`, whose pass deleted the local's `Drop`) needs that `Drop`.
+  Every other local keeps its cell: a parameter, a closure's capture, a
+  local of a closure's body or a suspending one, an erased body's, one a
+  counted `*T` refers to, and a reference bound to a local.
 - **The slot** is the cell's layout with a zero count word before it, as
   a static object has, so `retain_known` and `release_known` do
   nothing there. The value is stored at the declaration, after the last
   value in the slot is released. The local's release releases the value,
-  not the slot. A `Ref` of the whole local is a loan, with no count.
+  not the slot. A `Ref` of the whole local is a loan, with no count. A
+  taking one's `Drop` releases the value in the slot, as the local's
+  deleted `Drop` would have (`Em::slot_takes`). Before this, a taking
+  `Ref` kept the local in a cell, so nbody's `bodies`, last read by
+  `energy(&bodies)`, paid a retain and a release around each of 1.15M
+  `advance(&mut bodies)` calls (#165).
 - **The local stack** grows down in memory 1, in pages the program grows
   itself. The allocator marks those pages static, as it does every page
   it did not grow (§23.5), so a count update through a slot's address,

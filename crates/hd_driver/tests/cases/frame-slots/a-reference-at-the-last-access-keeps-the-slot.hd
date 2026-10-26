@@ -1,0 +1,24 @@
+# @dump: wat
+# @build: v8 release
+# `first(&bodies)` is the last access of `bodies`, so the move pass makes
+# that reference take the local (`Ref take`) and deletes the local's drop.
+# `bodies` still lives in a slot of the frame (§23.38): no `rt:new` cell,
+# no count of the reference around `advance` in the loop. The reference's
+# drop after `first` releases the value in the slot.
+struct Body:
+    x: f64
+    vx: f64
+
+fn advance(bodies: &mut List[Body], dt: f64) -> void:
+    for i in 0..bodies.len():
+        bodies[i].x = bodies[i].x + dt * bodies[i].vx
+
+fn first(bodies: &List[Body]) -> f64:
+    bodies[0].x
+
+# subject
+fn run(steps: i64) -> f64:
+    let mut bodies = [Body { x: 1.0, vx: 2.0 }, Body { x: 3.0, vx: 4.0 }]
+    for _ in 0..steps:
+        advance(&mut bodies, 0.01)
+    first(&bodies)

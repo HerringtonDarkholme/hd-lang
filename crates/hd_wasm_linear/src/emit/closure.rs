@@ -82,9 +82,12 @@ pub(super) fn cell_locals(b: &Body, roots: &[usize]) -> HashMap<usize, u32> {
 /// call's `Await`), and whose `Drop`, if any, follows in the same block,
 /// with nothing between that opens a block or ends, replaces or moves the
 /// whole local. Such a reference ends before the local does, so nothing
-/// needs the slot after the local's own release. A parameter, a local a
-/// closure captures, one in a closure's body and one a `Ref` takes
-/// (`ref_word::TAKES`) keep their cells.
+/// needs the slot after the local's own release. A reference that takes
+/// the local at its last access (`ref_word::TAKES`, the move pass's rule
+/// 4, which deletes the local's `Drop`) needs its `Drop` in that block:
+/// it releases the slot's value there ([`Em::slot_takes`]). A parameter,
+/// a local a closure captures and one in a closure's body keep their
+/// cells.
 pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet<usize> {
     let mut out: HashSet<usize> = roots
         .iter()
@@ -102,7 +105,7 @@ pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet
             continue;
         };
         let w = b.data[i][1];
-        if w & ref_word::LOCAL == 0 || w & ref_word::TAKES != 0 || topo.sub[i] != 0 {
+        if w & ref_word::LOCAL == 0 || topo.sub[i] != 0 {
             out.remove(&l);
         }
         refs.insert(u32::try_from(i).expect("instructions"), l);
@@ -155,10 +158,11 @@ pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet
             let ([j], d) = (calls.get(&r).map_or(&[][..], Vec::as_slice), drops.get(&r)) else {
                 return false;
             };
+            let takes = b.data[r as usize][1] & ref_word::TAKES != 0;
             let end = match d.map(Vec::as_slice) {
-                None | Some([]) => *j,
+                None | Some([]) if !takes => *j,
                 Some([d]) => *d,
-                Some(_) => return false,
+                _ => return false,
             };
             let blk = topo.blk[r as usize];
             if blk == NONE || topo.blk[*j as usize] != blk || topo.blk[end as usize] != blk {

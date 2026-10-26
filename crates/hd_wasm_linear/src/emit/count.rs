@@ -97,13 +97,20 @@ impl Em<'_, '_, '_> {
                     }
                 }
                 // A reference to all of a local in a slot (§23.38) takes
-                // no count: a count of a slot's address does nothing.
+                // no count: a count of a slot's address does nothing. One
+                // that takes the local at its last access releases the
+                // slot's value at its `Drop`.
                 Tag::Ref
                     if super::shape::ref_local(self.b, i)
                         .is_some_and(|l| self.slots.contains_key(&l))
                         && self.b.decode_place(a).is_some_and(|p| p.proj.is_empty()) =>
                 {
                     self.loans.insert(x);
+                    if w & hd_tir::ir::ref_word::TAKES != 0
+                        && let Some(l) = super::shape::ref_local(self.b, i)
+                    {
+                        self.slot_takes.insert(x, l);
+                    }
                 }
                 // A reference into what a lent parameter refers to
                 // (`ref_word::LENT`) takes no count where the referent is
@@ -421,6 +428,11 @@ impl Em<'_, '_, '_> {
     /// Releases value `x`'s count, when it holds a counted value, and
     /// zeroes its locals.
     pub(super) fn release_value(&mut self, x: u32) -> StageResult<()> {
+        // A loan of a slot that took its local (`Em::slot_takes`): the
+        // local's release, after the reference's last use.
+        if let Some(&l) = self.slot_takes.get(&x) {
+            return self.release_local(l);
+        }
         let Some(ls) = self.vals.get(&x).cloned() else {
             return Ok(());
         };

@@ -1025,6 +1025,11 @@ struct Em<'i, 'a, 'm> {
     /// local stack, not in a counted cell (§23.38), each with its slot's
     /// offset in the frame ([`closure::slot_locals`]).
     slots: HashMap<usize, u32>,
+    /// The references that take a slot local's value at its last access
+    /// (`ref_word::TAKES`), each with its local: a loan, whose `Drop`
+    /// releases the value in the slot, as the local's `Drop` the move
+    /// pass deleted would have.
+    slot_takes: HashMap<u32, usize>,
     /// With slots: the local holding the frame's address, and the
     /// frame's size.
     frame: Option<(u32, u32)>,
@@ -1138,6 +1143,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             cells: shared,
             entry_cells: hd_base::HashSet::default(),
             slots: HashMap::default(),
+            slot_takes: HashMap::default(),
             frame: None,
             ops: None,
             owned: false,
