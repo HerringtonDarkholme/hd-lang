@@ -2532,7 +2532,9 @@ fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
     if let Some(r) = cycles {
         f.call(Sym::Inst(r.cycle.due));
         f.op(Instruction::If(BlockType::Empty));
-        f.helper(Helper::Collect);
+        // A cold call (§23.17): through the table, V8 does not inline the
+        // collection into each allocation and spend its budget there.
+        f.cold_helper(Helper::Collect, vec![], vec![]);
         f.op(Instruction::End);
     }
     f.get(0);
@@ -2620,7 +2622,10 @@ fn release_ref(m: &Module, known: bool) -> Func {
         f.global_get(Global::Tracing);
         f.op(Instruction::If(BlockType::Empty));
         f.get(0);
-        f.call(Sym::Inst(r.cycle.visit));
+        // Through the table, as `collect` is: V8 would otherwise inline
+        // the collector's walk into every release.
+        f.table_slot(Sym::Inst(r.cycle.visit));
+        f.call_indirect(vec![Val::I32], vec![Val::I32]);
         f.op(Instruction::If(BlockType::Empty));
         f.op(Instruction::Return);
         f.op(Instruction::End);

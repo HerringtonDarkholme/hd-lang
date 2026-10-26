@@ -758,8 +758,10 @@ changes preserve collection value semantics (§23.7).
 - **Cold calls** (#165). The copy of a shared buffer (`rt:list_copy`,
   behind `rt:list_unique`'s check), a `push`'s `rt:list_grow`, the panics
   that format a string (`rt:panic_str`, `rt:panic_with`) and the
-  exchange buffer's growth failure in `rt:to_buf` are called through the
-  function table (`Func::cold_helper`), not with `call`. V8 inlines no
+  exchange buffer's growth failure in `rt:to_buf`, and the collector's
+  `collect` before an allocation and `visit` in a release (§23.28), are
+  called through the function table (`Func::cold_helper`), not with
+  `call`. V8 inlines no
   `call_indirect` by default, and without call feedback (`--no-liftoff`)
   it inlines small direct callees by size. Through a `call`,
   `rt:list_unique` brought the copy loop, the allocator and its panics
