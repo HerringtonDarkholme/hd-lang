@@ -1,0 +1,30 @@
+enum Pair:
+    Values(left: i32, right: i32)
+
+fn count() -> i32:
+    let mut counter = +0
+    counter += +1
+    counter
+
+fn borrowed() -> i32:
+    let mut counter = +0
+    r := &mut counter
+    *r += +1
+    counter
+
+fn work!() -> void:
+    pass
+
+fn annotated() -> void:
+    let mut pending: mut Suspend[void] = work()
+    _ := pending
+
+fn swapped(value: Pair) -> i32:
+    match value:
+        .Values(right, left) => left - right
+
+pub fn main() -> void:
+    _ := count()
+    _ := borrowed()
+    annotated()
+    _ := swapped(.Values(+1, +2))

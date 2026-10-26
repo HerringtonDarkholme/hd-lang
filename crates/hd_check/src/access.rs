@@ -473,9 +473,9 @@ impl Ck<'_, '_> {
 
     /// A plain `let mut name` binding of type `t`, local or top-level. A local of a primitive type is valid,
     /// since `&mut` of it needs `let mut`, and so is a local whose
-    /// `mut Suspend[T]` annotation already grants `mut`: the caller judges
-    /// either at the end of the body, by whether `&mut` of it is taken, and
-    /// this returns it (types.bind.let-mut-primitive-local). A
+    /// `mut Suspend[T]` annotation already grants `mut`. This returns the
+    /// checked category for optional binding facts; lint judges whether
+    /// mutable addressing makes the keyword useful. A
     /// top-level primitive one stays an error
     /// (types.bind.let-mut-primitive-top).
     pub(crate) fn let_mut_binding(

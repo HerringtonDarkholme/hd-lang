@@ -1,8 +1,8 @@
-# test: a positional binding named after a different payload field of the variant warns
+# test: a positional binding named after a different payload field of the variant is accepted without lint
 # Spec 06 Payload Patterns: flow.match.payload.name-mismatch.lint, flow.match.payload.name-mismatch.example.
 enum Branch:
     Pick(then_value: i32, else_value: i32)
 
 fn chosen(branch: Branch) -> i32:
     match branch:
-        .Pick(else_value, then_value) => else_value - then_value  # warning: variant-binding-name-mismatch
+        .Pick(else_value, then_value) => else_value - then_value

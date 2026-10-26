@@ -188,8 +188,7 @@ pub(crate) enum RowFrame {
     Profile { row: RowId, used: hd_types::RowData },
 }
 
-/// A local `let mut` whose `mut` matters only if `&mut` of the local is
-/// taken (`refs.rs`, `redundant-let-mut`).
+/// The checked primitive or writable-annotation category of a binding.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum LetMutKind {
     /// Its type is primitive (types.bind.let-mut-primitive-local).
@@ -253,11 +252,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// The `mut` parameters (and `mut self`) whose value is the callee's own
     /// copy.
     pub mut_params: Vec<LocalId>,
-    /// The locals some `&mut` refers to, and the `let mut` locals of a
-    /// primitive type with their patterns, for `redundant-let-mut`
-    /// (`types.bind.let-mut-primitive-unused`).
+    /// Source-only mutable-address and written binding facts requested by tooling.
     pub ref_taken: Vec<LocalId>,
-    pub prim_let_mut: Vec<(LocalId, hd_base::NodeIdx, LetMutKind)>,
+    pub mut_bindings: Vec<(LocalId, hd_base::NodeIdx, Option<LetMutKind>)>,
+    pub variant_patterns: Vec<crate::comparison::VariantPattern>,
     pub self_ty: Option<Ty>,
     /// The available keys: the body's row, then closures and `$.with`
     /// blocks, innermost last.
@@ -563,7 +561,8 @@ pub(crate) fn new_ck<'a, 'c>(
         changed_locals: Vec::new(),
         mut_params: Vec::new(),
         ref_taken: Vec::new(),
-        prim_let_mut: Vec::new(),
+        mut_bindings: Vec::new(),
+        variant_patterns: Vec::new(),
         self_ty: None,
         rows: vec![
             if kind == BodyKind::Init && !pool.row_data(row).params.is_empty() {
@@ -1241,6 +1240,8 @@ impl Ck<'_, '_> {
     /// Tooling may request neutral binding/read facts; advice lives outside checking.
     fn finish_bindings(&mut self) -> Vec<crate::comparison::Binding> {
         let mut bindings = Vec::new();
+        let mut mutability = std::mem::take(&mut self.mut_bindings);
+        mutability.sort_stable_by(|a, b| a.0.raw().cmp(&b.0.raw()));
         for l in std::mem::take(&mut self.user_locals) {
             let body = self.b.body_mut();
             let (item, flags, name, at) = (
@@ -1274,6 +1275,13 @@ impl Ck<'_, '_> {
                     name: self.cx.names.text(name).to_owned(),
                     span: self.cx.src.span(self.cx.src.parse.tree.node(at)),
                     read,
+                    mutability: mutability
+                        .binary_search_by_key(&l.raw(), |(local, ..)| local.raw())
+                        .ok()
+                        .map(|i| {
+                            let (_, pattern, kind) = mutability[i];
+                            self.binding_mutability(l, pattern, kind)
+                        }),
                 });
             }
         }
@@ -4508,7 +4516,6 @@ impl Ck<'_, '_> {
         fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
         let bindings = self.finish_bindings();
-        self.redundant_primitive_let_mut();
         self.report_conflicts();
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;
@@ -4767,6 +4774,7 @@ impl Ck<'_, '_> {
             let mut sink = sink.borrow_mut();
             sink.comparisons.extend(self.comparisons);
             sink.bindings.extend(bindings);
+            sink.patterns.extend(self.variant_patterns);
         }
         Ok((body, ret, facts))
     }

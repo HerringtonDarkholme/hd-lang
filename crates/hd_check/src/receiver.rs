@@ -244,7 +244,10 @@ impl Ck<'_, '_> {
                     self.read_place(&p, base);
                     return Ok(self.poisoned(base));
                 }
-                if mutable && let Root::Local(l, _) = p.root {
+                if mutable
+                    && self.cx.source_facts.is_some()
+                    && let Root::Local(l, _) = p.root
+                {
                     self.ref_taken.push(l);
                 }
                 p

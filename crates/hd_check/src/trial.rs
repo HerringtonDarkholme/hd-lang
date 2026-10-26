@@ -53,6 +53,9 @@ pub(crate) struct Checkpoint {
     diags: DiagMark,
     pending: usize,
     comparisons: usize,
+    mut_bindings: usize,
+    ref_taken: usize,
+    variant_patterns: usize,
     lit_nodes: usize,
     overflow_lits: usize,
     neg_nodes: usize,
@@ -220,6 +223,9 @@ impl Ck<'_, '_> {
             diags: self.diags.mark(),
             pending: self.pending.len(),
             comparisons: self.comparisons.len(),
+            mut_bindings: self.mut_bindings.len(),
+            ref_taken: self.ref_taken.len(),
+            variant_patterns: self.variant_patterns.len(),
             lit_nodes: self.lit_nodes.len(),
             overflow_lits: self.overflow_lits.len(),
             neg_nodes: self.neg_nodes.len(),
@@ -254,6 +260,9 @@ impl Ck<'_, '_> {
     pub(crate) fn rollback(&mut self, c: Checkpoint) {
         self.b.rollback(c.tir);
         self.comparisons.truncate(c.comparisons);
+        self.mut_bindings.truncate(c.mut_bindings);
+        self.ref_taken.truncate(c.ref_taken);
+        self.variant_patterns.truncate(c.variant_patterns);
         // A generic local function declared in the trial is gone with its
         // local, whose number a later local reuses.
         let locals = c.tir.locals as usize;

@@ -1013,7 +1013,7 @@ typing/valid/derived-generic-bound.hd	type	accept	lang/09-traits.md#comparison-t
 typing/valid/row-kinded-arguments.hd	type	accept	lang/02-grammar.md#types
 typing/invalid/row-kind-mismatch.hd	type	reject:generic-kind-mismatch	lang/02-grammar.md#types
 typing/valid/mutable-closure-capture.hd	type	accept	lang/07-functions.md#captures
-typing/warnings/variant-binding-name-mismatch.hd	type	warn:variant-binding-name-mismatch	lang/06-control-flow.md#match-expressions
+typing/warnings/variant-binding-name-mismatch.hd	type	accept	lang/06-control-flow.md#match-expressions
 typing/valid/named-variant-bindings.hd	type	accept	lang/06-control-flow.md#match-expressions
 typing/valid/blanket-impl-and-associated-function.hd	type	accept	lang/09-traits.md#trait-implementations
 typing/valid/numeric-widening-and-display-list.hd	type	accept	lang/04-type-system.md#numeric-conversions
@@ -1343,7 +1343,7 @@ runtime/panic/explicit-panic-skips-defer.hd	runtime	panic:explicit-panic	lang/06
 runtime/valid/enum-payload-match.hd	runtime	accept	lang/08-data-and-enums.md#matching-enums
 typing/invalid/bare-variant-pattern-in-match.hd	type	reject:bare-variant-pattern	lang/06-control-flow.md#match-expressions
 typing/invalid/enum-match-missing-variant.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#match-expressions
-typing/warnings/variant-binding-names-swapped.hd	type	warn:variant-binding-name-mismatch	lang/08-data-and-enums.md#matching-enums
+typing/warnings/variant-binding-names-swapped.hd	type	accept	lang/08-data-and-enums.md#matching-enums
 runtime/valid/contextual-variant-patterns.hd	runtime	accept	lang/08-data-and-enums.md#matching-enums
 typing/invalid/contextual-variant-binding-without-type.hd	type	reject:missing-contextual-enum-type	lang/08-data-and-enums.md#matching-enums
 runtime/valid/contextual-variant-expressions.hd	runtime	accept	lang/08-data-and-enums.md#matching-enums
@@ -2499,8 +2499,8 @@ parse/invalid/let-bare-list.hd	parse	reject:syntax-error	lang/02-grammar.md#r-gr
 parse/invalid/let-list-one-name.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.stmt.let-pattern.parenthesized
 typing/invalid/mut-on-primitive-annotation.hd	type	reject:mut-on-primitive	lang/04-type-system.md#r-types.prim.no-mut.error
 typing/invalid/mut-on-primitive-parameter.hd	type	reject:mut-on-primitive	lang/04-type-system.md#r-types.prim.no-mut.error
-typing/warnings/let-mut-primitive-unused.hd	type	warn:redundant-let-mut	lang/04-type-system.md#r-types.bind.let-mut-primitive-lint
-typing/warnings/let-mut-primitive-annotation-unused.hd	type	warn:redundant-let-mut	lang/04-type-system.md#r-types.bind.let-mut-primitive-lint
+typing/warnings/let-mut-primitive-unused.hd	type	accept	lang/04-type-system.md#r-types.bind.let-mut-primitive-lint
+typing/warnings/let-mut-primitive-annotation-unused.hd	type	accept	lang/04-type-system.md#r-types.bind.let-mut-primitive-lint
 typing/valid/let-mut-optional.hd	type	accept	lang/13-values-and-references.md#r-ref.write.field
 runtime/valid/compound-assign-map-run.hd	runtime	accept	lang/05-expressions.md#r-expr.index.map.read-value
 runtime/panic/compound-assign-map-missing-key.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.map.read-value
@@ -4303,7 +4303,7 @@ parse/invalid/match-optional-question-pattern.hd	parse	reject:syntax-error	lang/
 runtime/valid/match-payload-positional-then-named.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.payload.order
 typing/invalid/match-bare-variant-with-payload.hd	type	reject:pattern-arity	lang/06-control-flow.md#r-flow.match.payload.arity
 typing/invalid/match-payload-unknown-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.payload.unknown
-typing/warnings/match-payload-binding-name-swap.hd	type	warn:variant-binding-name-mismatch	lang/06-control-flow.md#r-flow.match.payload.name-mismatch.lint
+typing/warnings/match-payload-binding-name-swap.hd	type	accept	lang/06-control-flow.md#r-flow.match.payload.name-mismatch.lint
 runtime/valid/match-literal-pattern.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.literal
 runtime/valid/match-variant-shorthand.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.variant.shorthand
 runtime/valid/match-keeps-subject.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.no-ownership

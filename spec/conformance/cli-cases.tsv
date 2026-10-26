@@ -295,3 +295,4 @@ cap-dev-task-mod-scopes	cli.cap.dev.scopes,cli.cap.dev.entries
 host-context-identity	cli.host.package.context-interface-identity,cli.host.package.context-interface-identity-checked,cli.host.package.context-interface-identity-handle,cli.host.package.context-interface-identity-readonly,cli.host.package.context-interface-identity-binding
 lint-unused-bindings	cli.lint.stable-messages,cli.lint.default,cli.lint.ordinary-errors
 lint-unused-suspension	cli.lint.errors-unsuppressible,cli.lint.ordinary-errors
+lint-binding-patterns	cli.lint.stable-messages,cli.lint.default,cli.lint.ordinary-errors

@@ -10,7 +10,7 @@ use hd_base::HashMap;
 use hd_base::SliceSort as _;
 
 use hd_base::{LocalId, NodeIdx, StageResult};
-use hd_diag::{Code, Severity};
+use hd_diag::Code;
 use hd_resolve::{ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink};
@@ -424,43 +424,38 @@ impl Ck<'_, '_> {
                     );
                     return Ok(());
                 }
-                // `flow.match.payload.name-mismatch`: a positional bare
-                // binding that equals a different payload field's name
-                // warns; the binding itself is still legal.
-                {
-                    let fnames = self.variant_field_names(t, &name);
-                    for (i, s) in subs.iter().enumerate() {
-                        let (Some(s), Some(fname)) = (s, fnames.get(i)) else {
-                            continue;
-                        };
-                        if s.kind() != SyntaxKind::BindingPattern || s.children().next().is_some() {
-                            continue;
-                        }
-                        let Some(nt) = s.direct_tokens().find(|t| {
-                            matches!(
-                                self.cx.src.tkind(*t),
-                                Some(TokenKind::Ident | TokenKind::RawIdent)
-                            )
-                        }) else {
-                            continue;
-                        };
-                        let bound = self.cx.src.text(nt);
-                        if bound == *fname
-                            || !fnames.iter().enumerate().any(|(j, n)| j != i && n == bound)
-                        {
-                            continue;
-                        }
-                        let msg = format!(
-                            "`{bound}` is also a field of `{name}`; the field in this position is `{fname}`"
-                        );
-                        self.diags.push(
-                            Code::VariantBindingNameMismatch,
-                            Severity::Warning,
-                            self.cx.src.span(*s),
-                            &msg,
-                            None,
-                        );
-                    }
+                // Preserve resolved field positions and source binding forms for tooling.
+                if self.cx.source_facts.is_some() {
+                    let fields = self.variant_field_names(t, &name);
+                    let bindings = subs
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(position, sub)| {
+                            let sub = (*sub)?;
+                            if sub.kind() != SyntaxKind::BindingPattern {
+                                return None;
+                            }
+                            let token = sub.direct_tokens().find(|token| {
+                                matches!(
+                                    self.cx.src.tkind(*token),
+                                    Some(TokenKind::Ident | TokenKind::RawIdent)
+                                )
+                            })?;
+                            Some(crate::comparison::PayloadBinding {
+                                span: self.cx.src.span(sub),
+                                position,
+                                name: self.cx.src.text(token).to_owned(),
+                                bare: sub.children().next().is_none(),
+                            })
+                        })
+                        .collect();
+                    self.variant_patterns
+                        .push(crate::comparison::VariantPattern {
+                            span: self.cx.src.span(p),
+                            variant: name.clone(),
+                            fields,
+                            bindings,
+                        });
                 }
                 for (s, ft) in subs.iter().zip(fields) {
                     if let Some(s) = s {
@@ -955,8 +950,8 @@ impl Ck<'_, '_> {
             if let_mut {
                 self.mut_locals.push(l);
             }
-            if let Some(kind) = deferred {
-                self.prim_let_mut.push((l, pat.index(), kind));
+            if let_mut && self.cx.source_facts.is_some() {
+                self.mut_bindings.push((l, pat.index(), deferred));
             }
             self.note_ref_origin(l, at, rhs);
             self.set_local(l, r, at.index());
