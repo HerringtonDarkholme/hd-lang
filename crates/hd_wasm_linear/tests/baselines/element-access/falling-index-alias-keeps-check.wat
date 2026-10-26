@@ -21,8 +21,6 @@
           drop
     ;; 12 |         sum += items[j] + items[j - 1]
           local.get $items
-          drop
-          local.get $items
           i32.load $heap
           local.set $t0
           local.get $start
@@ -43,8 +41,6 @@
           local.get $start
           i32.const 1
           i32.sub
-          local.get $items
-          drop
           local.get $items
           i32.load $heap
           local.set $t1

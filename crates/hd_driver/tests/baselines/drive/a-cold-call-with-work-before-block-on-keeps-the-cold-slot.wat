@@ -38,8 +38,6 @@
         call_indirect $table0 (param i32) (result i32)
         local.set $s.1
         local.get $log
-        drop
-        local.get $log
         local.get $s.1
         i32.store $heap
       end

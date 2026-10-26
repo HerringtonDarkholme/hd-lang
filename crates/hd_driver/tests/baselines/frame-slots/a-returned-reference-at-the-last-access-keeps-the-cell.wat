@@ -3,7 +3,7 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "pass_on" (func $pass_on (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $returned (result i64) (local $r i32) (local $t0 i32)
+  (func $returned (result i64) (local $r i32)
     block
     ;; 15 |     let mut tally = Tally { n: 0 }
       i32.const 8
@@ -21,9 +21,6 @@
     ;; 16 |     r := pass_on(&mut tally)
       local.tee $r
     ;; 17 |     r.n
-      local.tee $t0
-      drop
-      local.get $t0
       i64.load $heap
       ;; ...
     end

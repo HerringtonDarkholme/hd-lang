@@ -6,8 +6,6 @@
     block
     ;; 6 |     n := xs.len()
       local.get $xs
-      drop
-      local.get $xs
       i32.load $heap
       i32.load $heap offset=4
     ;; 7 |     let sum: usize = 0

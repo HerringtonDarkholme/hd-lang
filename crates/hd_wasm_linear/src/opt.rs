@@ -49,7 +49,13 @@
 //!     or becomes a tee when `t` is read again;
 //! 15. once the rules are done ([`coalesce`]), locals of one type whose
 //!     values are never live at once share one local, and a copy between
-//!     two locals that share one goes.
+//!     two locals that share one goes;
+//! 16. a `drop` takes back the instruction that pushed its value when
+//!     that instruction has no other effect: a push without operands goes
+//!     with it, a load or another operation that cannot trap becomes the
+//!     drop of its operands, and `local.tee t; drop` is `local.set t`. A
+//!     load cannot trap here: emitted code loads only from a place it
+//!     holds or an index it checked.
 //!
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
@@ -197,6 +203,7 @@ pub fn locals(f: &mut Func, arity: &Arity) {
         changed |= forward(f, np);
         changed |= shapes(f, np);
         changed |= fold(f);
+        changed |= drops(f);
         changed |= schedule(f, np, arity);
         // The liveness rules run whenever the others settle.
         if !changed && !zero_releases(f) && !live_rules(f, arity) {
@@ -1147,6 +1154,180 @@ fn fold(f: &mut Func) -> bool {
     f.body = out;
     origins.finish(f);
     changed
+}
+
+/// Rule 16: each `drop` takes back what pushed its value while that has
+/// no other effect, so a discarded read leaves no code.
+fn drops(f: &mut Func) -> bool {
+    let mut origins = Remap::new(f.origins.as_deref());
+    let b = std::mem::take(&mut f.body);
+    let mut out: Vec<Ins> = Vec::with_capacity(b.len());
+    let mut changed = false;
+    for (k, ins) in b.iter().enumerate() {
+        if !matches!(ins, Ins::Op(I::Drop)) {
+            out.push(*ins);
+            origins.copy(k..k + 1);
+            continue;
+        }
+        // The values still to drop, the last one on top. An anchor writes
+        // no code, so the search looks past it and keeps it.
+        let mut n = 1usize;
+        let mut anchors = Vec::new();
+        while n > 0 {
+            while let Some(&a @ Ins::Anchor(_)) = out.last() {
+                out.pop();
+                anchors.push((a, origins.pop()));
+            }
+            let Some(last) = out.last() else { break };
+            let operands = match last {
+                Ins::Op(I::LocalTee(t)) => {
+                    let t = *t;
+                    out.pop();
+                    origins.pop();
+                    out.push(Ins::Op(I::LocalSet(t)));
+                    origins.copy(k..k + 1);
+                    n -= 1;
+                    changed = true;
+                    break;
+                }
+                Ins::Op(i) => match pure_operands(i) {
+                    Some(m) => m,
+                    None => break,
+                },
+                Ins::Static(_) | Ins::GlobalGet(_) | Ins::TableSlot(_) | Ins::VTable(_) => 0,
+                _ => break,
+            };
+            out.pop();
+            origins.pop();
+            n = n - 1 + operands;
+            changed = true;
+        }
+        for (a, origin) in anchors.into_iter().rev() {
+            out.push(a);
+            origins.repeat(origin, 1);
+        }
+        for _ in 0..n {
+            out.push(Ins::Op(I::Drop));
+            origins.copy(k..k + 1);
+        }
+    }
+    f.body = out;
+    origins.finish(f);
+    changed
+}
+
+/// How many operands `i` takes when it pushes one value and does nothing
+/// else (it cannot trap, a load aside, which rule 16 covers); `None` for
+/// any other instruction.
+fn pure_operands(i: &I) -> Option<usize> {
+    Some(match i {
+        I::LocalGet(_)
+        | I::I32Const(_)
+        | I::I64Const(_)
+        | I::F32Const(_)
+        | I::F64Const(_)
+        | I::MemorySize(_) => 0,
+        _ if is_load(i) => 1,
+        I::I32Eqz
+        | I::I64Eqz
+        | I::I32Clz
+        | I::I32Ctz
+        | I::I32Popcnt
+        | I::I64Clz
+        | I::I64Ctz
+        | I::I64Popcnt
+        | I::I32Extend8S
+        | I::I32Extend16S
+        | I::I32WrapI64
+        | I::I64ExtendI32S
+        | I::I64ExtendI32U
+        | I::I32ReinterpretF32
+        | I::I64ReinterpretF64
+        | I::F32ReinterpretI32
+        | I::F64ReinterpretI64
+        | I::I32TruncSatF32S
+        | I::I32TruncSatF32U
+        | I::I32TruncSatF64S
+        | I::I32TruncSatF64U
+        | I::I64TruncSatF32S
+        | I::I64TruncSatF32U
+        | I::I64TruncSatF64S
+        | I::I64TruncSatF64U
+        | I::F32ConvertI32S
+        | I::F32ConvertI32U
+        | I::F32ConvertI64S
+        | I::F32ConvertI64U
+        | I::F64ConvertI32S
+        | I::F64ConvertI32U
+        | I::F64ConvertI64S
+        | I::F64ConvertI64U
+        | I::F32DemoteF64
+        | I::F64PromoteF32
+        | I::F32Neg
+        | I::F64Neg
+        | I::F32Sqrt
+        | I::F64Sqrt => 1,
+        I::I32Add
+        | I::I32Sub
+        | I::I32Mul
+        | I::I32And
+        | I::I32Or
+        | I::I32Xor
+        | I::I32Shl
+        | I::I32ShrS
+        | I::I32ShrU
+        | I::I32Eq
+        | I::I32Ne
+        | I::I32LtS
+        | I::I32LtU
+        | I::I32GtS
+        | I::I32GtU
+        | I::I32LeS
+        | I::I32LeU
+        | I::I32GeS
+        | I::I32GeU
+        | I::I64Add
+        | I::I64Sub
+        | I::I64Mul
+        | I::I64And
+        | I::I64Or
+        | I::I64Xor
+        | I::I64Shl
+        | I::I64ShrS
+        | I::I64ShrU
+        | I::I64Eq
+        | I::I64Ne
+        | I::I64LtS
+        | I::I64LtU
+        | I::I64GtS
+        | I::I64GtU
+        | I::I64LeS
+        | I::I64LeU
+        | I::I64GeS
+        | I::I64GeU
+        | I::F32Add
+        | I::F32Sub
+        | I::F32Mul
+        | I::F32Div
+        | I::F32Eq
+        | I::F32Ne
+        | I::F32Lt
+        | I::F32Gt
+        | I::F32Le
+        | I::F32Ge
+        | I::F64Add
+        | I::F64Sub
+        | I::F64Mul
+        | I::F64Div
+        | I::F64Eq
+        | I::F64Ne
+        | I::F64Lt
+        | I::F64Gt
+        | I::F64Le
+        | I::F64Ge => 2,
+        I::Select => 3,
+        _ => return None,
+    })
 }
 
 /// Rules 8 and 9: lets values stay on the stack across a straight-line
@@ -3086,5 +3267,71 @@ mod origin_tests {
             })),
             0
         );
+    }
+
+    #[test]
+    fn a_drop_takes_back_what_pushed_its_value() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        // A discarded field read, past an anchor; a tee that is dropped;
+        // an addition of a read and a constant; a call's result stays.
+        let f = run(
+            tracked(
+                &symbols,
+                1,
+                1,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::I32Load(mem(HEAP, 8, 2))),
+                    Ins::Anchor(0),
+                    op(I::Drop),
+                    op(I::I32Const(3)),
+                    op(I::LocalTee(1)),
+                    op(I::Drop),
+                    op(I::LocalGet(0)),
+                    op(I::I32Load(mem(HEAP, 0, 2))),
+                    op(I::I32Const(4)),
+                    op(I::I32Add),
+                    op(I::Drop),
+                    call(&symbols, Sym::Helper(Helper::CollCopy)),
+                    op(I::Drop),
+                ],
+            ),
+            |f| {
+                drops(f);
+            },
+        );
+        assert_eq!(
+            format!("{:?}", f.body),
+            format!(
+                "{:?}",
+                [
+                    Ins::Anchor(0),
+                    op(I::I32Const(3)),
+                    op(I::LocalSet(1)),
+                    call(&symbols, Sym::Helper(Helper::CollCopy)),
+                    op(I::Drop),
+                ]
+            )
+        );
+        assert_eq!(spans(&f), [12, 14, 16, 22, 23]);
+        // A division can trap, so it stays and its result is dropped.
+        let f = run(
+            tracked(
+                &symbols,
+                1,
+                0,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::I32Const(2)),
+                    op(I::I32DivS),
+                    op(I::Drop),
+                ],
+            ),
+            |f| {
+                drops(f);
+            },
+        );
+        assert_eq!(f.body.len(), 4);
     }
 }

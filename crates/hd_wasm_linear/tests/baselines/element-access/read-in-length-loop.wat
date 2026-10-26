@@ -10,9 +10,7 @@
       local.set $t1
       local.get $xs
       i32.load $heap
-      local.tee $xs
-      i32.load $heap offset=4
-      drop
+      local.set $xs
       block
         loop
           local.get $t0

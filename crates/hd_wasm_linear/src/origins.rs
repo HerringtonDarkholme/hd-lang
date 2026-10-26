@@ -100,10 +100,9 @@ impl Remap {
         }
     }
 
-    pub fn pop(&mut self) {
-        if let Some(output) = &mut self.output {
-            output.pop();
-        }
+    /// Removes the last output entry and gives its origin.
+    pub fn pop(&mut self) -> Option<u32> {
+        self.output.as_mut()?.pop().flatten()
     }
 
     pub fn finish(self, f: &mut crate::module::Func) {

@@ -6,8 +6,6 @@
     ;; 5 |     *xs
     block
       local.get $xs
-      drop
-      local.get $xs
       i32.load $heap
       call $rt:coll_copy
       local.set $xs

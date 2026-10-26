@@ -6,8 +6,6 @@
     ;; 7 |     bodies[i].x
     block
       local.get $bodies
-      drop
-      local.get $bodies
       i32.load $heap
       local.set $bodies
       local.get $i

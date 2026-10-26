@@ -6,10 +6,6 @@
     ;; 15 |     state.pending = key
     block
       local.get $state
-      drop
-      local.get $state
-      drop
-      local.get $state
       i32.load $heap
       local.get $state
       i32.load $heap offset=4

@@ -12,8 +12,6 @@
       local.get $word.0
       local.set $t0
       local.get $counts
-      drop
-      local.get $counts
       i32.load $heap
       local.tee $t1
       local.get $word.0
@@ -59,17 +57,13 @@
       local.set $t1
       local.get $t0
       call $retain
+      local.get $counts
       ;; ...
       local.get $t1
       local.get $t0
       local.get $word.1
       local.get $t2
       call $rt:map_put
-      local.set $word.0
-      local.get $counts
-      drop
-      local.get $counts
-      local.get $word.0
       i32.store $heap
     end
   )

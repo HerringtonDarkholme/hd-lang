@@ -9,8 +9,6 @@
       local.set $sum
     ;; 6 |     for i in 0..xs.len():
       local.get $xs
-      drop
-      local.get $xs
       i32.load $heap
       i32.load $heap offset=4
       i32.const 0

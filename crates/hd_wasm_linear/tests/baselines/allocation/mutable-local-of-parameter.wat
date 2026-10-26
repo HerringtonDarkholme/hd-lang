@@ -5,11 +5,7 @@
     ;; 13 |         if self.at >= self.end:
     block
       local.get $self
-      drop
-      local.get $self
       i64.load $heap
-      local.get $self
-      drop
       local.get $self
       i64.load $heap offset=8
       i64.ge_s
@@ -24,21 +20,12 @@
       end
     ;; 15 |         value := self.at
       local.get $self
-      drop
-      local.get $self
       i64.load $heap
       local.tee $value
     ;; 16 |         self.at = value + 1
       i64.const 1
       i64.add
       local.set $t0
-      local.get $self
-      drop
-      local.get $self
-      drop
-      local.get $self
-      i64.load $heap
-      drop
       local.get $self
       local.get $t0
       i64.store $heap

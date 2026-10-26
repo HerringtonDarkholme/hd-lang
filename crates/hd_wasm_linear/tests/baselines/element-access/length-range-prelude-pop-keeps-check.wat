@@ -7,8 +7,6 @@
     block
     ;; 5 |     n := xs.len()
       local.get $xs
-      drop
-      local.get $xs
       i32.load $heap
       i32.load $heap offset=4
     ;; 6 |     _ := xs.pop()
@@ -36,8 +34,6 @@
           i32.add
           local.set $t0
     ;; 9 |         sum += xs[i]
-          local.get $xs
-          drop
           local.get $xs
           i32.load $heap
           local.set $t2

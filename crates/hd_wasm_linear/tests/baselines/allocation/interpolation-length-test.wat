@@ -18,14 +18,9 @@
       local.get $t2
       i32.const 3
       i32.add
-      local.tee $t2
       local.get $name.0
       local.get $name.1
       memory.copy $heap $heap
-      local.get $t2
-      local.get $name.1
-      i32.add
-      drop
       local.get $t1
       local.get $t0
       local.set $name.1

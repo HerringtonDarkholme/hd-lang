@@ -21,8 +21,6 @@
         call_indirect $table0 (param i32) (result i32)
         local.set $t1
         local.get $b
-        drop
-        local.get $b
         local.get $t1
         i32.store $heap
       end

@@ -27,19 +27,11 @@
           call $grow
     ;; 9 |     for i in 0..n:
           local.get $xs
-          drop
           local.get $xs
           i32.load $heap
           call $rt:list_unique
-          local.set $t1
-          local.get $xs
-          drop
-          local.get $xs
-          local.get $t1
           i32.store $heap
     ;; 11 |         xs[i] = i
-          local.get $xs
-          drop
           local.get $xs
           i32.load $heap
           local.tee $t1

@@ -25,8 +25,6 @@
           i32.const 1
           i32.sub
           local.get $items
-          drop
-          local.get $items
           i32.load $heap
           local.set $t0
           local.tee $t1
@@ -46,19 +44,11 @@
           local.set $t0
     ;; 9 |     while j > 0:
           local.get $items
-          drop
           local.get $items
           i32.load $heap
           call $rt:list_unique
-          local.set $t1
-          local.get $items
-          drop
-          local.get $items
-          local.get $t1
           i32.store $heap
     ;; 11 |         items[j] = items[j - 1]
-          local.get $items
-          drop
           local.get $items
           i32.load $heap
           local.set $t1

@@ -365,10 +365,9 @@ fn instruction_origins_do_not_change_bytes_and_offsets_match_operators() {
                             .collect::<Vec<_>>()
                     );
                     assert_eq!(source.before_opt.last(), Some(&Some(11)));
-                    assert_eq!(
-                        source.instructions.first().unwrap().origin,
-                        Some(if helper == Helper::RefIsView { 10 } else { 11 })
-                    );
+                    // `RefIsView` folds to a dropped argument and a
+                    // constant, and the dropped read goes with its drop.
+                    assert_eq!(source.instructions.first().unwrap().origin, Some(11));
                     assert_eq!(source.instructions.last().unwrap().origin, Some(99));
                     index += 1;
                 }

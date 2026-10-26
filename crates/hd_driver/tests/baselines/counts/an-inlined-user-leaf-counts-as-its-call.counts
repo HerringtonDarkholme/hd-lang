@@ -5,6 +5,8 @@
 # the leaves `tag` and `size`, and counts what `by_hand`, the same code
 # written out, counts: one retain of `name`, which the struct keeps while
 # `name` is read again after it.
+# expected: `both` counts nothing, as `by_hand` now does: the retain of
+# `name` and the release of the dead struct cancel.
 struct Tag:
     name: string
     n: i64
@@ -22,6 +24,4 @@ fn both(name: string) -> i64:
 
 fn by_hand(name: string) -> i64:
     t := Tag { name: name, n: 2 }
-> app/main/by_hand
->   retain string
     t.n + 1 + i64(name.len())

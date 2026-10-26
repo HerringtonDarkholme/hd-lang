@@ -8,8 +8,6 @@
       ;; ...
     ;; 8 |     set(&mut xs[0][0], 9)
       local.get $xs
-      drop
-      local.get $xs
       i32.load $heap
       local.set $xs
       i32.const 0
@@ -45,11 +43,6 @@
   (func $set (param $p i32) (param $v i32)
     ;; 5 |     *p = v
     block
-      local.get $p
-      drop
-      local.get $p
-      i32.load $heap
-      drop
       local.get $p
       local.get $v
       i32.store $heap

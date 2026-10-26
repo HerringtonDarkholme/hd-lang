@@ -6,8 +6,6 @@
     ;; 7 |     xs[0]
     block
       local.get $xs
-      drop
-      local.get $xs
       i32.load $heap
       local.set $xs
       i32.const 0

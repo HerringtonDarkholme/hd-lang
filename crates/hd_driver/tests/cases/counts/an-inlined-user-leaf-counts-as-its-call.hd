@@ -4,6 +4,8 @@
 # the leaves `tag` and `size`, and counts what `by_hand`, the same code
 # written out, counts: one retain of `name`, which the struct keeps while
 # `name` is read again after it.
+# expected: `both` counts nothing, as `by_hand` now does: the retain of
+# `name` and the release of the dead struct cancel.
 struct Tag:
     name: string
     n: i64

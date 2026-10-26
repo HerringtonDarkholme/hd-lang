@@ -41,8 +41,6 @@
           i32.add
           local.set $t0
           local.get $write
-          drop
-          local.get $write
           i32.load $heap
     ;; 8 |         write.push(i)
           local.tee $t2
@@ -60,8 +58,6 @@
             i32.const 1
             call_indirect $table0 (param i32) (result i32)
             local.set $t2
-            local.get $write
-            drop
             local.get $write
             local.get $t2
             i32.store $heap
@@ -82,8 +78,6 @@
           i32.const 3
           local.get $i
           i32.add
-          local.get $read
-          drop
           local.get $read
           i32.load $heap
           local.set $i

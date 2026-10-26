@@ -30,10 +30,6 @@
       local.get $t1
       f64.const 0x1p+2
       f64.store $heap offset=24
-      local.get $t1
-      i32.const 16
-      i32.add
-      drop
       local.get $bodies
       if
         local.get $bodies

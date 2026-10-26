@@ -5,19 +5,10 @@
     ;; 14 |         self.at = self.at + 1
     block
       local.get $self
-      drop
-      local.get $self
       i64.load $heap
       i64.const 1
       i64.add
       local.set $t0
-      local.get $self
-      drop
-      local.get $self
-      drop
-      local.get $self
-      i64.load $heap
-      drop
       local.get $self
       local.get $t0
       i64.store $heap
