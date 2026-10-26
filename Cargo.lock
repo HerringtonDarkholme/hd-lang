@@ -802,7 +802,6 @@ dependencies = [
  "hd_syntax",
  "toml",
  "unicode-ident",
- "unicode-normalization",
 ]
 
 [[package]]
@@ -960,6 +959,7 @@ dependencies = [
  "hd_driver",
  "hd_project",
  "hd_sched",
+ "hd_syntax",
  "wasmprinter 0.261.0",
 ]
 

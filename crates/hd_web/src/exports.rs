@@ -25,12 +25,43 @@ use std::cell::RefCell;
 use crate::Session;
 use crate::wire;
 
-#[derive(Default)]
 struct State {
     session: Session,
     input: Vec<u8>,
     json: Vec<u8>,
     wasm: Vec<u8>,
+}
+
+// The input is borrowed only for each import call; Rust owns the result
+// buffer and validates UTF-8 before making its String. No raw pointer is
+// dereferenced in Rust. JS obtains fresh memory views after allocation.
+#[link(wasm_import_module = "hd_web")]
+unsafe extern "C" {
+    safe fn nfc_utf8(input: *const u8, input_len: usize, output: *mut u8, capacity: usize)
+    -> usize;
+}
+
+fn normalize_nfc(text: &str) -> String {
+    let len = nfc_utf8(text.as_ptr(), text.len(), std::ptr::null_mut(), 0);
+    let mut output = vec![0; len];
+    let written = nfc_utf8(text.as_ptr(), text.len(), output.as_mut_ptr(), output.len());
+    assert_eq!(
+        written, len,
+        "the NFC host changed the required buffer length"
+    );
+    String::from_utf8(output).expect("the NFC host returned invalid UTF-8")
+}
+
+impl Default for State {
+    fn default() -> Self {
+        hd_syntax::set_nfc_normalizer(normalize_nfc);
+        Self {
+            session: Session::new(),
+            input: Vec::new(),
+            json: Vec::new(),
+            wasm: Vec::new(),
+        }
+    }
 }
 
 thread_local! {

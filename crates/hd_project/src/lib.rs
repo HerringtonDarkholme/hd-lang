@@ -549,11 +549,10 @@ fn invalid_module_component(file: &str) -> Option<String> {
 /// files), which no source spells, so they are exempt.
 fn is_module_ident(comp: &str) -> bool {
     use unicode_ident::{is_xid_continue, is_xid_start};
-    use unicode_normalization::UnicodeNormalization;
     if comp.contains('$') {
         return true;
     }
-    if comp.is_empty() || !comp.nfc().eq(comp.chars()) {
+    if comp.is_empty() || !hd_syntax::is_nfc(comp) {
         return false;
     }
     let mut chars = comp.chars();
@@ -951,14 +950,17 @@ fn fold_case(c: char, out: &mut String) {
 /// Full default Unicode case folding followed by NFC per component
 /// (`module.path.case-collision`). Turkic-only mappings are excluded.
 fn folded_path(path: &str) -> String {
-    use unicode_normalization::UnicodeNormalization;
     path.split('.')
         .map(|part| {
             let mut folded = String::new();
             for c in part.chars() {
                 fold_case(c, &mut folded);
             }
-            folded.nfc().collect::<String>()
+            if folded.is_ascii() {
+                folded
+            } else {
+                hd_syntax::normalize_nfc(&folded)
+            }
         })
         .collect::<Vec<_>>()
         .join(".")

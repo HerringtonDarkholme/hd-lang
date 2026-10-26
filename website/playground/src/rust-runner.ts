@@ -9,6 +9,8 @@
 // The WAT view's module is the program the compiler built for Run, printed
 // by the separately loaded hd_wat module.
 
+import { instantiateCompiler } from "./compiler-host.ts";
+
 import { judge, runCases, type CaseRecord, type Verdict } from "../../../host/cases.mjs";
 import { createWebHost, memoryFiles, unboundTraits } from "../../../host/web.mjs";
 import {
@@ -290,7 +292,7 @@ export function createRustRunner(
   const printer = createWatPrinter(loadWat);
   const compiler = Promise.resolve(bytes).then(
     async (source) =>
-      (await WebAssembly.instantiate(source, {})).instance.exports as unknown as CompilerExports,
+      (await instantiateCompiler(source)).instance.exports as unknown as CompilerExports,
   );
   const ready = compiler.then(
     () => undefined,

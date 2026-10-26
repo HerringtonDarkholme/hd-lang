@@ -9,6 +9,8 @@
 // gate: an LTO build that shrinks (a panicking call such as
 // `Instant::now()` deletes everything after it) fails the floor.
 
+import { compilerImports, instantiateCompiler } from "../website/playground/src/compiler-host.ts";
+
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -51,7 +53,7 @@ const watSize = sizes(WAT_WASM);
 console.log(`hd_wat.wasm: raw ${formatBytes(watSize.raw)}, gzip ${formatBytes(watSize.gzip)}`);
 console.log(`hd_web.wasm: raw ${formatBytes(raw)}, gzip ${formatBytes(gzip)}`);
 
-const { instance } = await WebAssembly.instantiate(readFileSync(COMPILER_WASM), {});
+const { instance } = await instantiateCompiler(readFileSync(COMPILER_WASM));
 const exports = instance.exports;
 const text = readFileSync(FIXTURE, "utf8");
 const request = encodeRequest({ "src/main.hd": text }, "src/main.hd", GOAL.run);
@@ -89,6 +91,44 @@ assert.equal(await printWat(cold.wasm), printed);
 assert.equal(printerLoads, 1, "repeated WAT requests share the printer");
 await assert.rejects(printWat(Uint8Array.of(1)));
 assert.equal(await printWat(cold.wasm), printed, "printing errors do not poison later requests");
+
+// The shared host must be unused by entirely ASCII source and paths.
+let nfcCalls = 0;
+let nfcMemory;
+const imports = compilerImports(() => {
+  nfcCalls += 1;
+  return nfcMemory;
+});
+const nfcInstance = (await WebAssembly.instantiate(readFileSync(COMPILER_WASM), imports)).instance;
+nfcMemory = nfcInstance.exports.memory;
+const checkFiles = (files) =>
+  compile(nfcInstance.exports, encodeRequest(files, "src/lib.hd", GOAL.check));
+assert.equal(checkFiles({ "src/lib.hd": "pub fn value() -> i32: +1\n" }).status, STATUS.ok);
+assert.equal(nfcCalls, 0, "ASCII checking never calls normalization");
+assert.equal(checkFiles({ "src/lib.hd": "pub fn café() -> i32: +1\n" }).status, STATUS.ok);
+assert.ok(nfcCalls > 0);
+for (const name of ["cafe\u0301", "`cafe\u0301`"]) {
+  const result = checkFiles({ "src/lib.hd": `pub fn ${name}() -> i32: +1\n` });
+  assert.equal(result.status, STATUS.errors);
+  assert.ok(result.json.diagnostics.some(({ code }) => code === "invalid-token"));
+}
+// In-memory sources keep the host filesystem from merging distinct names.
+for (const names of [
+  ["Cart", "cart"],
+  ["ŉ", "ʼn"],
+  ["café", "cafe\u0301"],
+]) {
+  const result = checkFiles({
+    "src/lib.hd": "",
+    [`src/${names[0]}.hd`]: "pub fn first() -> i32: +1\n",
+    [`src/${names[1]}.hd`]: "pub fn second() -> i32: +2\n",
+  });
+  assert.equal(result.status, STATUS.errors);
+  assert.ok(result.json.diagnostics.some(({ code }) => code === "duplicate-module-name"));
+  if (names[1] === "cafe\u0301")
+    assert.ok(result.json.diagnostics.some(({ code }) => code === "invalid-module-path"));
+}
+console.log("NFC: ASCII host calls 0; identifiers and case-fold collisions passed");
 
 const broken = compile(
   exports,

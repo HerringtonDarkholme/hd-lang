@@ -1,7 +1,7 @@
+use crate::is_nfc;
 use hd_base::{FileId, Span, Symbol, TokenIdx};
 use hd_diag::{Code, Diagnostic, Severity};
 use unicode_ident::{is_xid_continue, is_xid_start};
-use unicode_normalization::UnicodeNormalization;
 
 const NONE: u32 = u32::MAX;
 
@@ -1262,10 +1262,6 @@ fn is_ident_start_byte(byte: u8, source: &str, pos: usize) -> bool {
     byte == b'_'
         || byte.is_ascii_alphabetic()
         || (!byte.is_ascii() && source[pos..].chars().next().is_some_and(is_xid_start))
-}
-
-fn is_nfc(text: &str) -> bool {
-    text.nfc().eq(text.chars())
 }
 
 /// The confusable scripts an identifier's letters use, in fixed order:

@@ -242,3 +242,26 @@ In rough order, none built:
 The web build script builds both modules with the same web profile and
 relocation compression, and copies them beside the worker. The compiler
 has no normal dependency on `wasmprinter`; native tests use a dev dependency.
+
+## Web Unicode Normalization
+
+On wasm32, the lexer and module-path checks share `hd_syntax`'s installed
+NFC callback. The existing exports state installs it before compiling.
+Native builds keep `unicode-normalization`; web builds contain no Unicode
+normalization tables. Case-fold data remains in `hd_project`, and its NFC
+step uses the same callback as the identifier predicate.
+
+The single `hd_web.nfc_utf8(input, input_len, output, capacity)` import
+returns the required normalized UTF-8 length. A zero-capacity call queries
+it; the caller allocates an owned Rust buffer, then calls again to fill
+it. JS uses `String.prototype.normalize("NFC")`, writes only when the
+buffer fits, and takes fresh memory views on every call. Rust verifies
+the returned length and UTF-8 before taking the buffer as a String.
+No input reference or memory view is retained across calls.
+
+ASCII identifiers and case-folded paths return before the callback.
+`compiler-host.ts` supplies the same imports to workers, the synchronous
+website syntax checker, and the smoke/REPL tests. Guest program imports
+are unchanged. The web smoke checks ASCII host-call count, composed and
+decomposed identifiers, raw identifiers, and module collisions; native
+lexer/project tests retain the Rust-normalizer checks.

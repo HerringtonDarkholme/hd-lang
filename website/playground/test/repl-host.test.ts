@@ -4,6 +4,8 @@
 // compiler and session are gone; the page then hands a fresh host the
 // journal and the texts of the inputs it holds (`repl-rebuild`).
 
+import { instantiateCompiler } from "../src/compiler-host.ts";
+
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -44,7 +46,7 @@ class Worker {
   sources = new Map<number, string>();
   journal: Uint8Array | null = null;
   private readonly host = createReplHost(
-    WebAssembly.instantiate(new Uint8Array(wasm), {}).then(
+    instantiateCompiler(new Uint8Array(wasm)).then(
       ({ instance }) => instance.exports as unknown as CompilerExports,
     ),
     (message) => this.messages.push(message),

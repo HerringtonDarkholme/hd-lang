@@ -7,6 +7,8 @@
 // same journal format is hd_run_wasmtime's
 // `a_session_runs_and_replays_the_same_on_node`.
 
+import { instantiateCompiler } from "../src/compiler-host.ts";
+
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -36,7 +38,7 @@ before(async () => {
     const script = join(import.meta.dirname, "../../../scripts/build-web-compiler.js");
     execFileSync(process.execPath, [script], { stdio: "inherit" });
   }
-  const { instance } = await WebAssembly.instantiate(readFileSync(COMPILER_WASM), {});
+  const { instance } = await instantiateCompiler(readFileSync(COMPILER_WASM));
   compiler = instance.exports as unknown as CompilerExports;
 });
 

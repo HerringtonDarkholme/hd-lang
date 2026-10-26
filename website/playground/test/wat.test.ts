@@ -1,3 +1,5 @@
+import { instantiateCompiler } from "../src/compiler-host.ts";
+
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -149,7 +151,7 @@ test("tokens concatenate back to the text the compiler wasm prints", async () =>
     execFileSync(process.execPath, [resolve(root, "scripts/build-web-compiler.js")], {
       stdio: "inherit",
     });
-  const { instance } = await WebAssembly.instantiate(await readFile(wasm), {});
+  const { instance } = await instantiateCompiler(await readFile(wasm));
   const source = 'pub fn main() -> void $ Console:\n    println("hi")\n';
   const compiled = compileRequest(
     instance.exports as unknown as CompilerExports,

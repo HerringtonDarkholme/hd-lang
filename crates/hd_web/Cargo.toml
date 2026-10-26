@@ -11,6 +11,7 @@ rust-version.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+hd_syntax = { path = "../hd_syntax" }
 hd_base = { path = "../hd_base" }
 hd_cache = { path = "../hd_cache" }
 hd_diag = { path = "../hd_diag" }
