@@ -914,6 +914,10 @@ pub struct Module {
     pub inline_counts: bool,
     /// Some emitted object has a constant small allocation class.
     pub fixed_allocations: bool,
+    /// The release glue of the objects that take part in cycle collection,
+    /// at most [`DRAIN_GLUES`]: `rt:release_drain` calls these directly
+    /// when a block's descriptor names one (§23.28).
+    pub drain_glues: Vec<Sym>,
     /// Reachable all! nodes use generation-checked weak waker targets.
     pub wakers: bool,
     /// Reachable program operations or exported entry hooks can cancel.
@@ -940,6 +944,24 @@ pub struct Stored {
 /// Whether `f` allocates an object that takes part in cycle collection:
 /// a descriptor word with [`CYCLIC`], which `rt::push_desc` pushes as a
 /// constant right after its glue's table slot.
+/// How many release glues `rt:release_drain` calls directly.
+pub const DRAIN_GLUES: usize = 8;
+
+/// The release glue that `f` puts in a descriptor with [`CYCLIC`]: the
+/// recursive types, whose last release drains a structure of any size.
+fn cyclic_glues(f: &Func, out: &mut Vec<Sym>) {
+    for w in f.body.windows(2) {
+        if let [Ins::TableSlot(id), Ins::Op(Instruction::I32Const(c))] = w
+            && c.cast_unsigned() & CYCLIC != 0
+        {
+            let s = f.symbol(*id).clone();
+            if out.len() < DRAIN_GLUES && !out.contains(&s) {
+                out.push(s);
+            }
+        }
+    }
+}
+
 fn cyclic_desc(f: &Func) -> bool {
     #[cfg(feature = "checked-report")]
     if f.body.windows(2).any(|w| matches!(w, [Ins::Descriptor(_, _), Ins::Op(Instruction::I32Const(c))] if c.cast_unsigned() & CYCLIC != 0)) {
@@ -1310,7 +1332,16 @@ impl Module {
                     Sym::Helper(crate::rt::Helper::WakerNew)
                 )
             });
-        if self.fixed_allocations || self.wakers {
+        let mut glues = Vec::new();
+        for (k, f) in self.funcs.iter().enumerate() {
+            if let Some(f) = f
+                && seen.contains(SymId(u32::try_from(k).expect("symbols")))
+            {
+                cyclic_glues(f, &mut glues);
+            }
+        }
+        self.drain_glues = glues;
+        if self.fixed_allocations || self.wakers || !self.drain_glues.is_empty() {
             self.keep(|_, s| !matches!(s, Sym::Helper(_)));
         }
         if let Some(r) = self.runtime

@@ -156,7 +156,7 @@ what the spec names as intrinsic or what only it can build.
 | references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, the ownership passes' `Drop`s for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) |
 | host codecs | `boundary.rs`: each boundary type's encoder and decoder over the exchange buffer, and the host method slots that call them (§23.23) |
 | checked mode | `std.rt.checked`, the counts and the allocator with their checks, and `rt.rs`'s audit at an entry's end, with checked allocation/count auditing enabled (§23.24) |
-| iterative release | `rt.rs::release_ref`: nested releases enqueue through `ReleaseHead`; the outer release hands its block to `rt:release_drain`, which runs it and then the queue |
+| iterative release | `rt.rs::release_ref`: nested releases enqueue through `ReleaseHead`; the outer release hands its block to `rt:release_drain`, which runs it and then the queue. The drain calls the glue of up to eight recursive types (those allocated with `CYCLIC`; `Module::drain_glues`) directly when a block's descriptor names it, so V8 can inline it, and any other glue through the table |
 | the cycle collector | hd in `std.rt.cycle`, called by emitted code, which runs each object's release glue as its trace (§23.28) |
 
 `std.rt` modules are privileged: only std modules may import them, so the

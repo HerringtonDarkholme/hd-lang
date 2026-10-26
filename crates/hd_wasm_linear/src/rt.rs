@@ -2659,7 +2659,10 @@ fn release_ref(m: &Module, known: bool) -> Func {
     f
 }
 
-/// [`Helper::ReleaseDrain`].
+/// [`Helper::ReleaseDrain`]. A recursive type's glue
+/// ([`Module::drain_glues`]) is called directly when the descriptor names
+/// it, so that V8 can inline it here; any other glue goes through the
+/// table.
 fn release_drain(m: &Module) -> Func {
     let mut f = m.func("rt:release_drain", vec![Val::I32], vec![]);
     let (block, slot) = (0, f.local(Val::I32));
@@ -2671,13 +2674,17 @@ fn release_drain(m: &Module) -> Func {
     glue_of(&mut f);
     f.op(Instruction::LocalTee(slot));
     f.op(Instruction::If(BlockType::Empty));
-    f.get(block);
-    f.u32(HEADER);
-    f.op(Instruction::I32Add);
-    f.get(slot);
-    f.i32(1);
-    f.op(Instruction::I32Sub);
-    f.call_indirect(vec![Val::I32], vec![]);
+    if m.drain_glues.is_empty() {
+        f.get(block);
+        f.u32(HEADER);
+        f.op(Instruction::I32Add);
+        f.get(slot);
+        f.i32(1);
+        f.op(Instruction::I32Sub);
+        f.call_indirect(vec![Val::I32], vec![]);
+    } else {
+        dispatch_glue(&mut f, &m.drain_glues, block, slot);
+    }
     f.op(Instruction::End);
     free_object(&mut f, m, block);
     f.global_get(Global::ReleaseHead);
@@ -2692,6 +2699,34 @@ fn release_drain(m: &Module) -> Func {
     f.i32(0);
     f.global_set(Global::Releasing);
     f
+}
+
+/// Runs the glue at table slot `slot` plus one over the payload of
+/// `block`: one of `glues` by a direct call, any other through the table.
+fn dispatch_glue(f: &mut Func, glues: &[Sym], block: u32, slot: u32) {
+    f.get(slot);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.set(slot);
+    f.op(Instruction::Block(BlockType::Empty));
+    for glue in glues {
+        f.get(slot);
+        f.table_slot(glue.clone());
+        f.op(Instruction::I32Eq);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(block);
+        f.u32(HEADER);
+        f.op(Instruction::I32Add);
+        f.call(glue.clone());
+        f.op(Instruction::Br(1));
+        f.op(Instruction::End);
+    }
+    f.get(block);
+    f.u32(HEADER);
+    f.op(Instruction::I32Add);
+    f.get(slot);
+    f.call_indirect(vec![Val::I32], vec![]);
+    f.op(Instruction::End);
 }
 
 /// [`Helper::CollCopy`]: one more count on the buffer of a list or a map,
