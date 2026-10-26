@@ -1,0 +1,31 @@
+# test: a method called on a generic call's result takes its type argument from the expected return type
+# Spec 04 Generic Inference: types.generic.infer.
+trait HasLength:
+    fn size(&self) -> usize
+
+impl HasLength for string:
+    fn size(&self) -> usize: self.len()
+
+struct NonEmpty[F]:
+    min: usize
+
+struct Each[F]:
+    min: usize
+
+struct Optional[F]:
+    min: usize
+
+impl[F < HasLength] NonEmpty[F]:
+    fn each(self) -> Each[List[F]]: Each { min: self.min }
+    fn optional(self) -> Optional[F?]: Optional { min: self.min }
+
+fn non_empty[F < HasLength]() -> NonEmpty[F]: NonEmpty { min: 1 }
+
+fn tag_elements() -> Each[List[string]]:
+    non_empty().each()
+
+fn certificate_rule() -> Optional[string?]:
+    non_empty().optional()
+
+pub fn main() -> void $ Console:
+    println(tag_elements().min + certificate_rule().min)
