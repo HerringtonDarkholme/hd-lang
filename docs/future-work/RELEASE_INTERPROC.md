@@ -1,7 +1,9 @@
 # Release-Only Interprocedural Optimization
 
-Status: approved by the owner, 2026-10-25, release pipeline only (#681);
-domain: compiler internals; being built slice by slice per Phasing.
+Status: built 2026-10-25, release pipeline only; domain: compiler
+internals. Slices 2-5 are merged (summaries over SCCs, kept parameters,
+writes, lent parameters: binary_trees 133 -> 88 ms). Slices 6-9 measured
+no gain and were not merged; #681 is closed and the numbers are on #165.
 
 Under review: the owner's direction of 2026-10-24 on
 [#702](https://github.com/HerringtonDarkholme/hd-lang/issues/702), "plan
