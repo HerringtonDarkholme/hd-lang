@@ -649,15 +649,14 @@ impl StringBuilder:
     pub fn new() -> *mut StringBuilder:
         &mut StringBuilder { bytes: [] }
 
-    ## Appends `text` and returns the builder, so calls chain.
-    ## See [std-text.builder.push-ref](../../spec/std/text.md#r-std-text.builder.push-ref).
-    pub fn push(*mut self, text: string) -> *mut StringBuilder:
+    ## Appends `text` to the builder.
+    ## See [std-text.builder.push-local](../../spec/std/text.md#r-std-text.builder.push-local).
+    pub fn push(&mut self, text: string) -> void:
         bytes_append(&mut self.bytes, text)
-        self
 
-    ## Appends the character `c` and returns the builder, so calls chain.
-    ## See [std-text.builder.push-char-ref](../../spec/std/text.md#r-std-text.builder.push-char-ref).
-    pub fn push_char(*mut self, c: char) -> *mut StringBuilder:
+    ## Appends the character `c` to the builder.
+    ## See [std-text.builder.push-char-local](../../spec/std/text.md#r-std-text.builder.push-char-local).
+    pub fn push_char(&mut self, c: char) -> void:
         point := i32(char_scalar(c))
         if point < 128:
             self.bytes.push(u8(point))
@@ -673,21 +672,18 @@ impl StringBuilder:
             self.bytes.push(u8(128 + point / 4096 % 64))
             self.bytes.push(u8(128 + point / 64 % 64))
             self.bytes.push(u8(128 + point % 64))
-        self
 
-    ## Appends the ASCII byte `byte` and returns the builder, so calls chain. A byte of 128 or more panics.
-    ## See [std-text.builder.push-ascii](../../spec/std/text.md#r-std-text.builder.push-ascii).
-    pub fn push_ascii(*mut self, byte: u8) -> *mut StringBuilder:
+    ## Appends the ASCII byte `byte`. A byte of 128 or more panics.
+    ## See [std-text.builder.push-ascii-local](../../spec/std/text.md#r-std-text.builder.push-ascii-local).
+    pub fn push_ascii(&mut self, byte: u8) -> void:
         if byte >= 128:
             panic("push_ascii: the byte must be ASCII, below 128")
         self.bytes.push(byte)
-        self
 
-    ## Makes room for at least `count` more bytes, appends nothing, and returns the builder.
-    ## See [std-text.builder.reserve](../../spec/std/text.md#r-std-text.builder.reserve).
-    pub fn reserve(*mut self, count: usize) -> *mut StringBuilder:
+    ## Makes room for at least `count` more bytes and appends nothing.
+    ## See [std-text.builder.reserve-local](../../spec/std/text.md#r-std-text.builder.reserve-local).
+    pub fn reserve(&mut self, count: usize) -> void:
         list_reserve(&mut self.bytes, count)
-        self
 
     ## Returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder.
     ## See [std-text.builder.build-empties](../../spec/std/text.md#r-std-text.builder.build-empties).

@@ -333,7 +333,9 @@ fn csv(cells: List[string]) -> string:
 fn report(names: List[string]) -> string:
     out := StringBuilder::new()
     for name in names:
-        out.push("- ").push(name).push_char('\n')
+        out.push("- ")
+        out.push(name)
+        out.push_char('\n')
     out.build()
 ```
 
@@ -341,18 +343,18 @@ fn report(names: List[string]) -> string:
 2. r[std-text.join.list-result] `join` returns the parts in order with `separator` between each two, so one part gives that part and no part gives `""`.
 3. r[std-text.builder.decl-struct] `std.text` declares the struct `StringBuilder`, with private fields, which implements `Debug`. Code imports it, as in `use std.text.StringBuilder`.
 4. r[std-text.builder.new-ref] `StringBuilder::new() -> *mut StringBuilder` returns an empty builder, a new object. Every copy of the reference pushes to that one builder.
-5. r[std-text.builder.push-ref] `b.push(text: string) -> *mut StringBuilder` appends `text` and returns `b`, so calls chain; it takes `*mut self`. A statement may discard the result, since `StringBuilder` is not a must-use type ([Must-Use Values](../lang/06-control-flow.md#must-use-values)).
-6. r[std-text.builder.push-char-ref] `b.push_char(c: char) -> *mut StringBuilder` appends the UTF-8 encoding of `c`, one to four bytes, as `push` of the one-character string would, and returns `b`. It takes `*mut self`.
-7. r[std-text.builder.push-ascii] `b.push_ascii(byte: u8) -> *mut StringBuilder` appends the one byte `byte`, which encodes an ASCII character, as `push_char` of that character would, and returns `b`. It takes `*mut self`.
+5. r[std-text.builder.push-local] `StringBuilder.push(&mut self, text: string) -> void` appends `text`.
+6. r[std-text.builder.push-char-local] `StringBuilder.push_char(&mut self, c: char) -> void` appends the UTF-8 encoding of `c`, one to four bytes.
+7. r[std-text.builder.push-ascii-local] `StringBuilder.push_ascii(&mut self, byte: u8) -> void` appends the byte `byte` as an ASCII character.
 8. r[std-text.builder.push-ascii.range] A `byte` of 128 or more panics. Panic: `explicit-panic`.
-9. r[std-text.builder.reserve] `b.reserve(count: usize) -> *mut StringBuilder` makes room for at least `count` more bytes, appends nothing, and returns `b`. It takes `*mut self`.
+9. r[std-text.builder.reserve-local] `StringBuilder.reserve(&mut self, count: usize) -> void` makes room for at least `count` more bytes without appending text.
 10. r[std-text.builder.build-empties] `b.build() -> string` returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder. It takes `*mut self`.
 
 | Calls on a new builder `b` | `b.build()` gives | A second `b.build()` gives |
 | --- | --- | --- |
-| `b.push("ab").push_char('c')` | `"abc"` | `""` |
-| `b.push_ascii(104).push_ascii(105)` | `"hi"` | `""` |
-| `b.reserve(8).push_ascii(33)` | `"!"` | `""` |
+| `b.push("ab")`, then `b.push_char('c')` | `"abc"` | `""` |
+| `b.push_ascii(104)`, then `b.push_ascii(105)` | `"hi"` | `""` |
+| `b.reserve(8)`, then `b.push_ascii(33)` | `"!"` | `""` |
 | `b.push_ascii(200)` | panics `explicit-panic` | |
 
 > **Why.** The method is Rust's `[String].join(sep)`, and agents wrote it

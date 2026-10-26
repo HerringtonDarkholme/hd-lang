@@ -800,7 +800,7 @@ fn pick[T](x: T, m: Member) -> T:
 | a std callee summarized, a user impl of the same trait (slice 7) | uses std's facts for the user impl | the meet includes the user impl; one keeping impl makes all owned |
 | a host-implemented trait | assumes a hd body | no body, so no summary; host stubs already lend |
 | a builder result kept: `let r = sb.push("a")` | returns no count and frees early | the caller copies the borrowed result: one retain |
-| a builder on a temporary: `StringBuilder::new().push("a").build()` | drops the temporary before `build` | the root rule keeps the temporary until the result's last use |
+| a builder on a temporary: `StringBuilder::new().build()` | drops the temporary before `build` | the root rule keeps the temporary until the result's last use |
 | a returned receiver behind `?` or a `match` arm returning another value | claims `returns` | any other `Return` clears it |
 | a `&self` helper that writes a top-level binding | reports `writes` false | a store to a top-level root sets `writes` |
 | a recursive helper that writes nothing (`check` in binary_trees) | assumes its own call writes | the component's fixed point leaves `writes` clear |

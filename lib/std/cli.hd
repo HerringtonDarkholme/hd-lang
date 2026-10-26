@@ -167,7 +167,9 @@ impl ArgParser:
         self.parse($.use(Args).list())
 
     pub fn usage(&self) -> string:
-        text := StringBuilder::new().push("usage: ").push(self.program)
+        text := StringBuilder::new()
+        text.push("usage: ")
+        text.push(self.program)
         if self.options.len() > 0:
             text.push(" [options]")
         if self.commands.len() > 0:
@@ -176,18 +178,24 @@ impl ArgParser:
             arg := self.declarations[slot]
             text.push(" ")
             if !arg.required: text.push("[")
-            text.push("<").push(arg.name).push(">")
+            text.push("<")
+            text.push(arg.name)
+            text.push(">")
             if !arg.required: text.push("]")
         if self.about != "":
-            text.push("\n\n").push(self.about)
+            text.push("\n\n")
+            text.push(self.about)
         if self.commands.len() > 0:
             text.push("\n\ncommands:")
             let command_width: usize = 0
             for (name, _) in self.commands: command_width = max(command_width, name.chars().count())
             for (name, parser) in self.commands:
-                text.push("\n  ").push(name)
+                text.push("\n  ")
+                text.push(name)
                 if parser.about != "":
-                    text.push("".pad_end(command_width - name.chars().count(), ' ')).push("  ").push(parser.about)
+                    text.push("".pad_end(command_width - name.chars().count(), ' '))
+                    text.push("  ")
+                    text.push(parser.about)
         let mut terms: List[string] = []
         let width: usize = 0
         for arg in self.declarations:
@@ -219,13 +227,18 @@ fn argument_term(arg: Arg) -> string:
         .Some(short) => "-${short}, --${arg.name}${suffix}"
         .None => "    --${arg.name}${suffix}"
 
-fn write_entry(text: *mut StringBuilder, term: string, arg: Arg, width: usize) -> void:
-    text.push("\n  ").push(term)
+fn write_entry(text: &mut StringBuilder, term: string, arg: Arg, width: usize) -> void:
+    text.push("\n  ")
+    text.push(term)
     if arg.help != "" || !arg.choices.is_empty():
-        text.push("".pad_end(width - term.chars().count(), ' ')).push("  ").push(arg.help)
+        text.push("".pad_end(width - term.chars().count(), ' '))
+        text.push("  ")
+        text.push(arg.help)
         if !arg.choices.is_empty():
             if arg.help != "": text.push(" ")
-            text.push("[choices: ").push(arg.choices.join(", ")).push("]")
+            text.push("[choices: ")
+            text.push(arg.choices.join(", "))
+            text.push("]")
 
 # Repeated values append through a private shared buffer while parsing;
 # Parsed exposes copies, so no caller can mutate a parsed result through it.

@@ -1,0 +1,15 @@
+# test: StringBuilder mutators take local writable receivers and return void
+# Spec std/text Joining And Building: std-text.builder.push-local, std-text.builder.push-char-local, std-text.builder.push-ascii-local, std-text.builder.reserve-local.
+# expect-stdout: aλ!
+use std.text.StringBuilder
+
+fn append(out: &mut StringBuilder) -> void:
+    out.reserve(16)
+    out.push("a")
+    out.push_char('λ')
+    out.push_ascii(33)
+
+pub fn main() -> void $ Console:
+    out := StringBuilder::new()
+    append(out)
+    println(out.build())

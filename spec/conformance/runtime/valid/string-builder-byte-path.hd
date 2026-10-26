@@ -1,5 +1,5 @@
 # test: push_ascii appends one ASCII byte, reserve appends nothing, and build hands over everything pushed since the last build and empties the builder
-# Spec std/text Joining And Building: std-text.builder.push-ascii, std-text.builder.reserve, std-text.builder.build-empties.
+# Spec std/text Joining And Building: std-text.builder.push-ascii-local, std-text.builder.reserve-local, std-text.builder.build-empties.
 use std.text.StringBuilder
 
 # The decimal digits of `n`, pushed as bytes after room for them.
@@ -24,20 +24,32 @@ tests:
     it("pushes ASCII bytes"):
         assert_equal(digits(0), "0", reason="one digit")
         assert_equal(digits(4096), "4096", reason="digits in order")
-        assert_equal(StringBuilder::new().push_ascii(104).push_ascii(105).build(), "hi", reason="push_ascii chains")
-        assert_equal(StringBuilder::new().push_ascii(0).push_ascii(127).build().len(), 2, reason="ASCII bytes")
-        assert_equal(StringBuilder::new().push_ascii(97).push_char('a').build(), "aa", reason="as push_char of the same character")
+        text := StringBuilder::new()
+        text.push_ascii(104)
+        text.push_ascii(105)
+        assert_equal(text.build(), "hi", reason="ASCII bytes in order")
+        text.push_ascii(0)
+        text.push_ascii(127)
+        assert_equal(text.build().len(), 2, reason="ASCII bytes")
+        text.push_ascii(97)
+        text.push_char('a')
+        assert_equal(text.build(), "aa", reason="as push_char of the same character")
 
     it("reserves room and appends nothing"):
         out := StringBuilder::new()
-        out.push("ab").reserve(100)
+        out.push("ab")
+        out.reserve(100)
         assert_equal(out.build(), "ab", reason="reserve appends nothing")
-        out.push_ascii(33).reserve(0).push_ascii(63)
-        assert_equal(out.build(), "!?", reason="reserve chains, and 0 is allowed")
+        out.push_ascii(33)
+        out.reserve(0)
+        out.push_ascii(63)
+        assert_equal(out.build(), "!?", reason="reserve appends nothing, and 0 is allowed")
 
     it("build empties the builder"):
         out := StringBuilder::new()
-        out.push_ascii(120).push("y").push_char('z')
+        out.push_ascii(120)
+        out.push("y")
+        out.push_char('z')
         first := out.build()
         assert_equal(first, "xyz", reason="everything pushed")
         assert_equal(out.build(), "", reason="the builder is empty after build")
@@ -49,7 +61,8 @@ tests:
         out := StringBuilder::new()
         let i = +0
         while i < 1000:
-            out.push("ab").push_char('c')
+            out.push("ab")
+            out.push_char('c')
             i += 1
         text := out.build()
         assert_equal(text.len(), 3000, reason="every push kept")

@@ -1,5 +1,5 @@
 # test: the List[string] join method puts the separator between parts, and StringBuilder joins pushed text in order
-# Spec std/text Joining And Building: std-text.join.list-result, std-text.join.list-method, std-text.builder.new-ref, .push-ref, .push-char-ref, .build-empties.
+# Spec std/text Joining And Building: std-text.join.list-result, std-text.join.list-method, std-text.builder.new-ref, .push-local, .push-char-local, .build-empties.
 use std.text.StringBuilder
 fn csv(cells: List[string]) -> string:
     cells.join(",")
@@ -7,7 +7,9 @@ fn csv(cells: List[string]) -> string:
 fn report(names: List[string]) -> string:
     out := StringBuilder::new()
     for name in names:
-        out.push("- ").push(name).push_char('\n')
+        out.push("- ")
+        out.push(name)
+        out.push_char('\n')
     out.build()
 
 tests:
@@ -30,13 +32,24 @@ tests:
         assert_equal(empty.build(), "x", reason="what was pushed")
         assert_equal(empty.build(), "", reason="build empties it")
 
-    it("chains and pushes characters"):
-        assert_equal(StringBuilder::new().push("a").push_char('b').build(), "ab", reason="push chains into push_char")
+    it("pushes characters and text"):
+        initial := StringBuilder::new()
+        initial.push("a")
+        initial.push_char('b')
+        assert_equal(initial.build(), "ab", reason="text then a character")
         out := StringBuilder::new()
-        out.push_char('a').push_char('\u{e9}').push_char('\u{20ac}').push_char('\u{1f600}').push("!")
+        out.push_char('a')
+        out.push_char('\u{e9}')
+        out.push_char('\u{20ac}')
+        out.push_char('\u{1f600}')
+        out.push("!")
         text := out.build()
         assert_equal(text, "a\u{e9}\u{20ac}\u{1f600}!", reason="1-, 2-, 3- and 4-byte scalars")
         assert_equal(text.len(), 11, reason="ten bytes of scalars and one of text")
-        out.push_char('z').push("y").push_char('x')
+        out.push_char('z')
+        out.push("y")
+        out.push_char('x')
         assert_equal(out.build(), "zyx", reason="characters and texts keep push order")
-        assert_equal(StringBuilder::new().push_char('q').build(), "q", reason="characters alone")
+        single := StringBuilder::new()
+        single.push_char('q')
+        assert_equal(single.build(), "q", reason="characters alone")

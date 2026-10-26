@@ -3013,7 +3013,7 @@ runtime/valid/map-is-empty.hd	runtime	accept	std/collections.md#r-std-collection
 runtime/valid/choices-choose.hd	runtime	accept	std/testing.md#r-std-testing.choices.choose.empty
 runtime/valid/string-more-methods.hd	runtime	accept	std/text.md#more-string-methods
 runtime/valid/text-join-builder.hd	runtime	accept	std/text.md#joining-and-building
-runtime/valid/string-builder-byte-path.hd	runtime	accept	std/text.md#r-std-text.builder.push-ascii
+runtime/valid/string-builder-byte-path.hd	runtime	accept	std/text.md#r-std-text.builder.push-ascii-local
 runtime/panic/string-builder-push-ascii-non-ascii.hd	runtime	panic:explicit-panic	std/text.md#r-std-text.builder.push-ascii.range
 runtime/valid/text-prefix-helpers.hd	runtime	accept	std/text.md#prefix-helpers
 runtime/valid/string-builder-handle-shared.hd	runtime	accept	std/text.md#r-std-text.builder.new-ref
@@ -4776,7 +4776,8 @@ runtime/valid/parameter-list-unique-loops.hd	runtime	accept	lang/04-type-system.
 runtime/valid/temporary-method-receivers.hd	runtime	accept	lang/07-functions.md#r-fn.method.auto-address.temporary
 runtime/valid/collection-temporary-receivers.hd	runtime	accept	std/collections.md#r-std-collections.struct.receiver-mut
 typing/invalid/temporary-receiver-shared-reference.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.shared-reference
-runtime/valid/string-builder-interpolation-order.hd	runtime	accept	std/text.md#r-std-text.builder.push-ref
+runtime/valid/string-builder-interpolation-order.hd	runtime	accept	std/text.md#r-std-text.builder.push-local
+runtime/valid/string-builder-local-reference.hd	runtime	accept	std/text.md#r-std-text.builder.push-local
 runtime/valid/json-reused-object-frames.hd	runtime	accept	std/json.md#r-std-json.decode.direct
 runtime/valid/wide-value-field-reads.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.value
 runtime/valid/wide-value-suspension.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
