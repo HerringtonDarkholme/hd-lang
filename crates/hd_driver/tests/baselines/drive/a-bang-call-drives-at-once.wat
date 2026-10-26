@@ -14,8 +14,6 @@
       if
         ;; ...
     ;; 10 |     s.put!(text)
-        local.get $s.0
-        ;; ...
         local.set $t0
         local.tee $t1
         call $retain
@@ -47,10 +45,9 @@
           if
             local.get $frame
             i32.load $heap offset=16
-            local.set $t5
+            local.tee $t5
             i32.const 1
             local.set $t6
-            local.get $t5
             local.get $t5
             i32.load $heap
             call_indirect $table0 (param i32) (result i32 i32)
@@ -64,10 +61,9 @@
             i32.load $heap offset=4
             call_indirect $table0 (param i32 i32 i32) (result i32 i32)
             local.set $t7
-            local.set $t5
+            local.tee $t5
             i32.const 0
             local.set $t6
-            local.get $t5
             i32.eqz
             local.set $t8
           end

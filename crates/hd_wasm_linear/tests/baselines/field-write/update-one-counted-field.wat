@@ -10,10 +10,9 @@
       local.get $key.0
       local.get $key.1
       local.set $t0
-      local.set $key.1
+      local.tee $key.1
       local.get $state
       drop
-      local.get $key.1
       local.get $t0
       call $rt:retain
       local.get $state

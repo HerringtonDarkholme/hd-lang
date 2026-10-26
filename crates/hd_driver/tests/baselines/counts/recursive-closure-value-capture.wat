@@ -10,9 +10,9 @@
     i32.const 0
     local.set $ctx
     local.get $env
+    local.get $env
     i32.load $heap
     local.set $seed
-    local.get $env
     call $rt:retain_known
     block
     ;; 7 |         if n == 0: seed

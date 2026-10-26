@@ -53,7 +53,6 @@
           i32.add
           i32.load $heap offset=16
           local.set $t1
-          local.get $items
           local.get $start
           local.get $t0
           i32.ge_u
@@ -61,6 +60,7 @@
             call $rt:panic
             unreachable
           end
+          local.get $items
           local.get $start
           i32.const 4
           i32.mul

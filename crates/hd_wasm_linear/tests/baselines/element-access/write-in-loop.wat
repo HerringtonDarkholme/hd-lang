@@ -26,13 +26,12 @@
           i32.eqz
           br_if 1
           local.get $t0
-          local.set $i
+          local.tee $i
           local.get $t0
           i32.const 1
           i32.add
           local.set $t0
     ;; 13 |         xs[i] = i
-          local.get $i
           local.get $t1
           i32.ge_u
           if

@@ -41,11 +41,12 @@
 //! 13. a `local.set` or `local.tee` of a local that no path reads before
 //!     its next write goes, a set's value dropped: the zero a move leaves
 //!     in a local stays only where some release still reads it;
-//! 14. `local.set t; R; local.get t`, where that get is the set's only
-//!     reader by liveness and `R` is a straight-line run (panic guards
-//!     included), moves a pure push before the set to the get, or, when
-//!     `R` leaves the stack as it found it, is `R`; a `local.tee t` after
-//!     a pure push goes, the get pushing that push again;
+//! 14. in `local.set t; R; local.get t`, with that get the first access
+//!     of `t` after the set and `R` a straight-line run (panic guards
+//!     included), a pure push before the set moves to the get when `t`
+//!     is dead after it; else, when `R` leaves the stack as it found it,
+//!     the get goes, the value staying under `R`, and the set goes too,
+//!     or becomes a tee when `t` is read again;
 //! 15. once the rules are done ([`coalesce`]), locals of one type whose
 //!     values are never live at once share one local, and a copy between
 //!     two locals that share one goes.
@@ -196,6 +197,7 @@ pub fn locals(f: &mut Func, arity: &Arity) {
         changed |= shapes(f, np);
         changed |= fold(f);
         changed |= schedule(f, np, arity);
+        // The liveness rules run whenever the others settle.
         if !changed && !zero_releases(f) && !live_rules(f, arity) {
             break;
         }
@@ -722,19 +724,35 @@ pub fn coalesce(f: &mut Func) {
 /// some path still releases it (the one exit, a loop's next drop, a
 /// suspension's saved frame).
 ///
-/// Rule 14 keeps a value read once on the stack when rule 13 finds
-/// nothing: `local.set t; R; local.get t`, where that get is the first
-/// access of `t` after the set and `t` is dead after it, and `R` is a
-/// straight-line run (panic guards `if ... unreachable end` included),
-/// either moves a pure push before the set to the get (rule 4 by
-/// liveness rather than by counts), or, when `R` leaves the stack as it
-/// found it without reaching below, is `R` with the value left under it.
-/// A `local.tee t` after a pure push goes the same way, the get pushing
-/// that push again.
-/// Each local takes part in one rewrite per pass, and a rewrite's span
-/// either nests in or follows an earlier one's, so the facts each
-/// rewrite reads still hold.
+/// Rule 14 keeps a value on the stack. In `local.set t; R; local.get t`,
+/// where that get is the first access of `t` after the set and `R` is a
+/// straight-line run (panic guards `if ... unreachable end` included):
+///
+/// - when `t` is dead after the get, the pure push the set takes (the
+///   one just before it, or its partner in a multi-value copy) moves to
+///   the get, if `R` writes nothing it reads: rule 4 by liveness rather
+///   than by counts; a `local.tee t` after a pure push goes the same
+///   way, the get pushing that push again;
+/// - otherwise, when `R` leaves the stack as it found it without
+///   reaching below, the get goes and the value stays under `R`; the
+///   set goes too when `t` is dead after the get, and becomes a tee
+///   when it is not.
+///
+/// A rewrite's span is entered only at its write, its get is the write's
+/// only reader, and nothing in it writes a moved push's local, so no
+/// rewrite changes a liveness fact another one reads. A rewrite that
+/// leaves its value under its run nests in or follows another such
+/// rewrite, and holds both or neither end of a moved multi-value copy,
+/// so each run keeps the stack level its rewrite needs.
 fn live_rules(f: &mut Func, arity: &Arity) -> bool {
+    let mut any = false;
+    while live_once(f, arity) {
+        any = true;
+    }
+    any
+}
+
+fn live_once(f: &mut Func, arity: &Arity) -> bool {
     let Some(live) = Live::new(f) else {
         return false;
     };
@@ -747,101 +765,113 @@ fn live_rules(f: &mut Func, arity: &Arity) -> bool {
             dead[at] = !zero_local(after, *l);
         }
     });
-    let n = f.params.len() + f.locals.len();
     let mut origins = Remap::new(f.origins.as_deref());
     let mut out = Vec::with_capacity(body.len());
     let dead_write =
         |at: usize| matches!(body[at], Ins::Op(I::LocalSet(_) | I::LocalTee(_))) && dead[at];
-    if (0..body.len()).any(dead_write) {
-        for (at, ins) in body.iter().enumerate() {
-            match ins {
-                Ins::Op(I::LocalTee(_)) if dead[at] => {}
-                Ins::Op(I::LocalSet(_)) if dead[at] => {
-                    if at > 0
-                        && pure_push(&body[at - 1])
-                        && matches!(out.last(), Some(p) if pure_push(p))
-                    {
-                        out.pop();
-                        origins.pop();
-                    } else {
-                        out.push(Ins::Op(I::Drop));
-                        origins.copy(at..at + 1);
-                    }
-                }
-                other => {
-                    out.push(*other);
-                    origins.copy(at..at + 1);
-                }
-            }
+    let mut gone = vec![false; body.len()];
+    let mut moved = vec![None; body.len()];
+    // The spans of the pairs that leave their value under their run, and
+    // the pushes and sets between a moved push and its set in a
+    // multi-value copy: a pair that keeps the stack level must not hold
+    // only one end of such a copy.
+    let mut open: Vec<(usize, usize)> = Vec::new();
+    let mut in_copy = vec![false; body.len()];
+    let mut teed = vec![false; body.len()];
+    // `next[at]`: the next access of the local that `at` writes.
+    let mut next = vec![usize::MAX; body.len()];
+    let mut seen = vec![usize::MAX; f.params.len() + f.locals.len()];
+    for (at, ins) in body.iter().enumerate().rev() {
+        if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = ins {
+            next[at] = seen[*l as usize];
+            seen[*l as usize] = at;
         }
-    } else {
-        let mut gone = vec![false; body.len()];
-        let mut moved = vec![None; body.len()];
-        let mut touched = vec![false; n];
-        let mut open: Vec<usize> = Vec::new();
-        for k in 0..body.len() {
-            let (t, tee) = match body[k] {
-                Ins::Op(I::LocalSet(t)) => (t, false),
-                Ins::Op(I::LocalTee(t)) => (t, true),
-                _ => continue,
-            };
-            if touched[t as usize] {
+    }
+    for k in 0..body.len() {
+        let tee = match body[k] {
+            Ins::Op(I::LocalSet(_)) => false,
+            Ins::Op(I::LocalTee(_)) => true,
+            _ => continue,
+        };
+        if dead[k] {
+            continue;
+        }
+        while open.last().is_some_and(|&(_, e)| e < k) {
+            open.pop();
+        }
+        let j = next[k];
+        if j == usize::MAX || !matches!(body[j], Ins::Op(I::LocalGet(_))) {
+            continue;
+        }
+        let last = dead[j];
+        let Some(level) = single_use(body, k, j, arity, &f.symbols) else {
+            continue;
+        };
+        if let Some(p) = if tee {
+            k.checked_sub(1)
+        } else {
+            matching_push(body, k)
+        } && last
+            && pure_push(&body[p])
+            && !gone[p]
+            && moved[p].is_none()
+            && open.last().is_none_or(|&(s, _)| s <= p)
+            && !body[p + 1..j].iter().any(|i| clobbers(&body[p], i))
+        {
+            // A tee's push stays where it is, and the get reads it again.
+            gone[p] = !tee;
+            moved[j] = Some(p);
+            in_copy[p + 1..k].fill(true);
+        } else if level && !tee && !in_copy[k] && open.last().is_none_or(|&(_, e)| j <= e) {
+            // The value stays under the run; a set read again later
+            // becomes a tee, unless the get feeds a copy, which rule 14
+            // moves instead.
+            if !last && matches!(body.get(j + 1), Some(Ins::Op(I::LocalSet(_)))) {
                 continue;
             }
-            while open.last().is_some_and(|&e| e < k) {
-                open.pop();
-            }
-            let Some((j, level)) = single_use(body, k, t, &dead, arity, &f.symbols) else {
-                continue;
-            };
-            if open.last().is_some_and(|&e| j > e) {
+            gone[j] = true;
+            open.push((k, j));
+            if !last {
+                teed[k] = true;
                 continue;
             }
-            let push = k.checked_sub(1).map(|p| body[p]);
-            let source = match push {
-                Some(Ins::Op(I::LocalGet(s))) => Some(s as usize),
-                _ => None,
-            };
-            if let Some(push) = push
-                && pure_push(&push)
-                && !gone[k - 1]
-                && moved[k - 1].is_none()
-                && source.is_none_or(|s| !touched[s])
-                && !body[k + 1..j].iter().any(|i| clobbers(&push, i))
-            {
-                // A tee's push stays where it is, and the get reads it
-                // again.
-                gone[k - 1] = !tee;
-                moved[j] = Some(k - 1);
-                if let Some(s) = source {
-                    touched[s] = true;
-                }
-            } else if level && !tee {
-                gone[j] = true;
+        } else {
+            continue;
+        }
+        gone[k] = true;
+    }
+    if !gone.iter().any(|g| *g) && !(0..body.len()).any(dead_write) {
+        return false;
+    }
+    for (at, ins) in body.iter().enumerate() {
+        if gone[at] {
+            continue;
+        }
+        if let (true, Ins::Op(I::LocalSet(t))) = (teed[at], ins) {
+            out.push(Ins::Op(I::LocalTee(*t)));
+            origins.copy(at..at + 1);
+        } else if let Some(p) = moved[at] {
+            out.push(body[p]);
+            let origin = origins
+                .first(p..p + 1)
+                .or_else(|| origins.first(at..at + 1));
+            origins.repeat(origin, 1);
+        } else if dead_write(at) {
+            // A dead set drops its value, or takes back the pure push
+            // just before it when that push is still in place.
+            if matches!(ins, Ins::Op(I::LocalTee(_))) {
+                continue;
+            }
+            if at > 0 && pure_push(&body[at - 1]) && !gone[at - 1] && moved[at - 1].is_none() {
+                out.pop();
+                origins.pop();
             } else {
-                continue;
-            }
-            gone[k] = true;
-            open.push(j);
-            touched[t as usize] = true;
-        }
-        if !gone.iter().any(|g| *g) {
-            return false;
-        }
-        for (at, ins) in body.iter().enumerate() {
-            if gone[at] {
-                continue;
-            }
-            if let Some(p) = moved[at] {
-                out.push(body[p]);
-                let origin = origins
-                    .first(p..p + 2)
-                    .or_else(|| origins.first(at..at + 1));
-                origins.repeat(origin, 1);
-            } else {
-                out.push(*ins);
+                out.push(Ins::Op(I::Drop));
                 origins.copy(at..at + 1);
             }
+        } else {
+            out.push(*ins);
+            origins.copy(at..at + 1);
         }
     }
     f.body = out;
@@ -849,32 +879,35 @@ fn live_rules(f: &mut Func, arity: &Arity) -> bool {
     true
 }
 
-/// The read that rule 14 pairs with the write of `t` at `k`, and whether
+/// The pure push that the `local.set` at `k` takes its value from, when
+/// a row of pure pushes and then a row of sets ends at `k`: the sets
+/// take the pushes back in reverse, as a multi-value copy does.
+fn matching_push(b: &[Ins], k: usize) -> Option<usize> {
+    let mut i = k;
+    while i > 0 && matches!(b[i - 1], Ins::Op(I::LocalSet(_))) {
+        i -= 1;
+    }
+    let p = i.checked_sub(1 + (k - i))?;
+    b[p..i].iter().all(pure_push).then_some(p)
+}
+
+/// Whether the read at `j` is in the same straight-line run as the write
+/// at `k` (a panic guard counts as straight line), and if so, whether
 /// the run between leaves the stack as it found it without reaching
-/// below: the first access of `t` after the write within a straight-line
-/// run (a panic guard counts as straight line), when it is a get after
-/// which `t` is dead.
-fn single_use(
-    b: &[Ins],
-    k: usize,
-    t: u32,
-    dead: &[bool],
-    arity: &Arity,
-    symbols: &Symbols,
-) -> Option<(usize, bool)> {
+/// below.
+fn single_use(b: &[Ins], k: usize, j: usize, arity: &Arity, symbols: &Symbols) -> Option<bool> {
     // Bounds the scan, so the rule stays linear in the body.
     const REACH: usize = 128;
+    if j - k > REACH {
+        return None;
+    }
     let (mut depth, mut low) = (0usize, false);
-    let mut j = k + 1;
-    while j < b.len().min(k + REACH) {
-        let i = &b[j];
+    let mut at = k + 1;
+    while at < j {
+        let i = &b[at];
         let (pops, pushes) = match i {
-            Ins::Op(I::LocalGet(u)) if *u == t => {
-                return dead[j].then_some((j, depth == 0 && !low));
-            }
-            Ins::Op(I::LocalSet(u) | I::LocalTee(u)) if *u == t => return None,
             Ins::Op(I::If(wasm_encoder::BlockType::Empty)) => {
-                j = guard_end(b, j)?;
+                at = guard_end(b, at)?;
                 (1, 0)
             }
             _ if ends_run(i) => return None,
@@ -882,9 +915,9 @@ fn single_use(
         };
         low |= pops > depth;
         depth = depth.saturating_sub(pops) + pushes;
-        j += 1;
+        at += 1;
     }
-    None
+    (at == j).then_some(depth == 0 && !low)
 }
 
 /// The `end` of the `if` at `at` when its one arm calls with constant
@@ -2808,6 +2841,41 @@ mod origin_tests {
             "{shown:?}"
         );
         assert!(!shown.iter().any(|i| i.contains("(3)")), "{shown:?}");
+        // A loop test evaluated before the loop and again at its head:
+        // each value stays on the stack, written by a tee for the head.
+        let f = run(
+            tracked(
+                &symbols,
+                0,
+                2,
+                vec![
+                    op(I::I32Const(0)),
+                    op(I::LocalSet(0)),
+                    op(I::I32Const(3)),
+                    op(I::LocalSet(1)),
+                    op(I::LocalGet(0)),
+                    op(I::LocalGet(1)),
+                    op(I::I32LtU),
+                    op(I::Drop),
+                    op(I::Loop(BlockType::Empty)),
+                    op(I::LocalGet(0)),
+                    op(I::LocalGet(1)),
+                    op(I::I32LtU),
+                    op(I::BrIf(0)),
+                    op(I::End),
+                ],
+            ),
+            |f| {
+                while live_rules(f, &Arity::new()) {}
+            },
+        );
+        let shown: Vec<String> = f.body.iter().map(|i| format!("{i:?}")).collect();
+        assert_eq!(
+            shown.iter().filter(|i| i.contains("LocalTee")).count(),
+            2,
+            "{shown:?}"
+        );
+        assert!(!shown.iter().any(|i| i.contains("LocalSet")), "{shown:?}");
         // A run that consumes the value keeps its local.
         let f = run(
             tracked(

@@ -6,7 +6,6 @@
   (import "fixture" "table0" (table $table0 1 funcref))
   (func $recursive (result i32 i32)
     block
-      ;; ...
     ;; 6 |     sum := fn(n: i32) -> i32:
       i32.const 0
       ;; ...
