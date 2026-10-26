@@ -1,7 +1,8 @@
 # Agent Skills For hd
 
-This folder holds seven reusable skills: five for agents that work on
-hd's design, and two for agents that write hd code. Each is a standard
+This folder holds nine reusable skills: five for agents that work on
+hd's design, two for agents that write hd code, one for compiler tests,
+and one for the routine repository cleanup. Each is a standard
 [Agent Skills](https://agentskills.io/home) folder, `SKILL.md` with `name`
 and `description` frontmatter.
 
@@ -15,6 +16,8 @@ and `description` frontmatter.
 | [`write-issue`](skills/write-issue/SKILL.md) | write a GitHub issue a fresh agent can act on: one item, rule, today, where, done check, no history |
 | [`write-hd`](skills/write-hd/SKILL.md) | write hd code: syntax by example, the prelude and std imports, and the common mistakes with their fixes |
 | [`hd-cli`](skills/hd-cli/SKILL.md) | drive the `hd` command: the edit-check loop, JSON diagnostics and fix-its, tests, packages, exit statuses |
+| [`compiler-tests`](skills/compiler-tests/SKILL.md) | write focused stage fixtures, pick the view that shows one topic, bless baselines, and measure perf changes |
+| [`cleanup`](skills/cleanup/SKILL.md) | run the routine cleanup: builds, worktrees and branches, a text and folder sweep of the docs, measurements, KNOWN_FAILURES, an issue sweep, one commit |
 
 The five design skills follow [skills/shared-rules.md](skills/shared-rules.md):
 the owner decides design, agents only ask (only `spec-update` edits the
