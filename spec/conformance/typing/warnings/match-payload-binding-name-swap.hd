@@ -1,5 +1,5 @@
 # test: a positional binding named after a different payload field of the variant warns
-# Spec 06 Payload Patterns: flow.match.payload.name-mismatch, flow.match.payload.name-mismatch.example.
+# Spec 06 Payload Patterns: flow.match.payload.name-mismatch.lint, flow.match.payload.name-mismatch.example.
 enum Branch:
     Pick(then_value: i32, else_value: i32)
 

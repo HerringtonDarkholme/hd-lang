@@ -1,0 +1,5 @@
+[package]
+name = "lint_fixture"
+
+[lint]
+deny = ["unsigned-comparison-always"]

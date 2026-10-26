@@ -1,0 +1,7 @@
+run: hd build --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"missing-entry-point","severity":"error","message":null},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd test --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

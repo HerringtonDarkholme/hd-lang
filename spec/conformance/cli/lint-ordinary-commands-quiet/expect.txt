@@ -1,0 +1,6 @@
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd build --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd test --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

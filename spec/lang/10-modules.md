@@ -377,7 +377,7 @@ tests/common/mod.hd    # a shared test module, reached as self.common
 9. r[module.test.integration.beside-directory] A file directly under the test root beside a directory of the same name, such as `tests/common.hd` beside `tests/common/`, is an error. It has no fix-it, and its message names the file's target, `tests/common/mod.hd`. Error: `duplicate-module-name`.
 10. r[module.test.integration.program-use] A use of an integration test program from another module is an error. Error: `unknown-module`.
 11. r[module.test.integration.shared-copy] Each integration test program gets its own copy of the shared test modules it uses, so their top-level statements run once per program.
-12. r[module.test.integration.shared-unused] A warning that a declaration of a shared test module is unused is given only when no integration test program uses that declaration.
+12. r[module.test.integration.shared-unused.lint] Lint reports an unused shared-test declaration only when no integration test program uses that declaration.
 13. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
 14. r[module.test.integration.self-shared] An integration test program uses a shared test module through `self`, as in `use self.common` for `tests/common/mod.hd`.
 15. r[module.test.no-tests-root] There is no `tests` use root: test code reaches the test root only through `self` and `super`. A use path that starts with `tests` is an error. Error: `unknown-module`.
@@ -973,7 +973,7 @@ hd build --release   # error: dbg-in-release; the fix-it deletes the dbg stateme
 3. r[module.dbg.release.debug-build] A debug or test build accepts a reference to `dbg` with no warning.
 4. r[module.dbg.own-code] The user's own code is the root package, every member of its [workspace](#workspaces), and every package that a [path requirement](#path-requirements) reaches.
 5. r[module.dbg.dependency] In a package fetched for a version requirement, a `dbg` call prints nothing in every build. It still evaluates its arguments, as [`module.dbg.body.print`](#r-module.dbg.body.print) says.
-6. r[module.dbg.dependency.warning] A build that compiles such a call warns once per fetched package, naming the package. Warning: `dbg-in-dependency`.
+6. r[module.dbg.dependency.lint] A fetched package containing such a call produces one lint finding naming the package. Warning: `dbg-in-dependency`.
 7. r[module.dbg.dependency.function-value] A function value referring to `dbg` in a fetched package follows the same suppression and warning rules as a direct call.
 
 > **Why.** A `dbg` call is never meant to ship, so a release build stops
@@ -982,7 +982,7 @@ hd build --release   # error: dbg-in-release; the fix-it deletes the dbg stateme
 
 #### Debug Text Hint
 
-1. r[module.dbg.debug-hint] An expression statement that calls the prelude function `debug` discards the text that `debug` returns. It warns, and the message suggests `dbg`. Warning: `unused-debug-text`.
+1. r[module.dbg.debug-lint] An expression statement discarding prelude `debug` text produces a lint finding whose message suggests `dbg`. Warning: `unused-debug-text`.
 
 ```text
 fn trace(prices: List[i32]) -> void:
@@ -2093,7 +2093,7 @@ pub fn main() -> void:
 4. r[module.entry.row.host] Every key in that row must be a host capability trait of the selected runtime profile. Any other key is an error. Error: `nonhost-entry-requirement`.
 5. r[module.entry.private-main] A top-level `main` that is not public is an ordinary function and is not an entry point.
 6. r[module.entry.suspending] A suspending entry point is spelled `main!`.
-7. r[module.entry.private-main.warn] A top-level `main` or `main!` that is not public in an entry module gets a warning. Its message is "main is not pub, so it is not the entry point". Warning: `private-main`.
+7. r[module.entry.private-main.lint] A private top-level `main` or `main!` in an entry module produces the lint message "main is not pub, so it is not the entry point". Warning: `private-main`.
 8. r[module.entry.parameters] A public top-level `main` or `main!` in an entry module that declares parameters or generic parameters is an error. Error: `entry-point-parameters`.
 9. r[module.entry.private-main.fix] The `private-main` warning must offer a fix-it inserting `pub ` before the function keyword.
 10. r[module.entry.private-main.fix.conflict] When adding `pub` could clash with another public `main`, the fix-it must remain a suggestion.
@@ -2108,8 +2108,8 @@ pub fn main(args: List[string]) -> void:  # error: entry-point-parameters
     pass
 ```
 
-> **Why.** An agent that drops `pub` from `main` gets a program that does
-> nothing, with no error. The warning names the cause.
+> **Why.** Lint suggests adding `pub` before an execution request needs
+> an entry point. Checking still accepts private helper functions named `main`.
 
 See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
 

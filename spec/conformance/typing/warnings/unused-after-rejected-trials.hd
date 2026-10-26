@@ -1,5 +1,5 @@
 # test: a local unused by the winning candidate still warns
-# Spec 06 Control Flow: flow.unused.warning (an unread ordinary binding warns).
+# Spec 06 Control Flow: flow.unused.lint (an unread ordinary binding warns).
 trait Parse[T]:
     fn parse(raw: T) -> i32
 

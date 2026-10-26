@@ -1,5 +1,5 @@
 # test: a signed countdown may compare with zero, and an unsigned value may use > 0 and <= 0
-# Spec 05 Unsigned Comparisons With Zero: expr.ord.unsigned-zero (SAFETY NET 1, batch 83).
+# Spec 05 Unsigned Comparisons With Zero: expr.ord.unsigned-zero.lint (SAFETY NET 1, batch 83).
 
 fn countdown() -> i32:
     let t = +10

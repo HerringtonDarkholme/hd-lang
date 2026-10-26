@@ -126,7 +126,7 @@ impl Deserialize for Session by Structure:
 
 > **Note.** The two blocks above leave `cache` out of every format. Their
 > member lines agree, so they get no
-> [`derivation-line-drift`](../lang/14-annotations.md#r-annot.line.drift)
+> [`derivation-line-drift`](../lang/14-annotations.md#r-annot.line.drift.lint)
 > warning.
 
 ### Member Names

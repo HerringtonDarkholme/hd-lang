@@ -384,7 +384,7 @@ fn release(flag: bool) -> void:
 
 > **Note.** A binding is scoped to its block, so a name that a same-line
 > suite binds is never read after the suite ends. The
-> [`unused-local-binding`](06-control-flow.md#r-flow.unused.warning)
+> [`unused-local-binding`](06-control-flow.md#r-flow.unused.lint)
 > warning reports it:
 
 ```text

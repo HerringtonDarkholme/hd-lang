@@ -1,0 +1,13 @@
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"unsigned-comparison-always","severity":"warning","file":"src/main.hd","line":2,"message":null},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd lint --allow unsigned-comparison-always --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --deny unsigned-comparison-always --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unsigned-comparison-always","severity":"error","file":"src/main.hd","line":2,"message":null},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd lint --warn unsigned-comparison-always --format json
+stdout-json: [{"kind":"diagnostic","code":"unsigned-comparison-always","severity":"warning","file":"src/main.hd","line":2,"message":null},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd lint --allow unsigned-comparison-always --deny unsigned-comparison-always
+exit: 101
+run: hd lint --allow not-a-lint
+exit: 101

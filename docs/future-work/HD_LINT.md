@@ -1,11 +1,11 @@
 # hd lint
 
-Design proposal, 2026-10-24; domain: CLI/tooling and compiler analysis; not accepted. This revision addresses
-[#651's review](https://github.com/HerringtonDarkholme/hd-lang/issues/651#issuecomment-6372359499)
-and the [fix-command correction](https://github.com/HerringtonDarkholme/hd-lang/issues/651#issuecomment-6372223224).
-It incorporates the owner's [warning-only-under-lint direction](https://github.com/HerringtonDarkholme/hd-lang/issues/651#issuecomment-6379611164).
-Implementation details and the operational exceptions below remain proposals.
-This revision changes documentation only.
+Accepted command boundary and migration plan, owner 2026-10-26,
+[#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855).
+The earlier review is in [#651](https://github.com/HerringtonDarkholme/hd-lang/issues/651).
+Implementation proceeds in independently checked slices; this record does not
+claim that the lint command or every migration is already implemented.
+Later lints, custom exports, plugins and fixes retain their stated proposal status.
 
 ## Contents
 
@@ -72,9 +72,9 @@ The inventory below names actual current producers, including ones outside hd_ch
 | `dbg-in-dependency` | [hd_driver/lib.rs](../../crates/hd_driver/src/lib.rs), dbg_in_dependencies | Move. Read fetched-package identity and cached dbg-reference facts; deduplicate by package even on fully warm runs. Suppressing dependency debug output remains compiler/runtime policy. |
 | `derivation-line-drift` | [hd_resolve/decorators.rs](../../crates/hd_resolve/src/lower/decorators.rs) and driver cached derive facts | Move. Export configured member-line spans, selected derive targets and resolved impl identities. Join cold and cached paths before reporting once. |
 | `mixed-script-identifier` | [hd_syntax/lexer.rs](../../crates/hd_syntax/src/lexer.rs) | Move. Lint valid identifier tokens with the existing script classifier. Invalid tokens and non-NFC identifiers remain lexical errors; lint is not needed for validity. |
-| `private-main` | hd_driver entry selection | Move its advice. Export entry-module role, visibility, header span and competing public entry candidates. Recommend an ordinary missing-entry-point error when an execution request otherwise runs nothing; owner approval required. |
+| `private-main` | hd_driver entry selection | Move its advice to lint. Export entry-module role, visibility, header span and competing public entry candidates. Run/build without a public entry fail with missing-entry-point naming the private main; check, tests and library modules still accept it. |
 | `redundant-let-mut` | [hd_check/refs.rs](../../crates/hd_check/src/refs.rs) | Move. Final binding facts record the written mut token, normalized type, annotation and whether mutable addressing occurred. The checker still validates write permissions. |
-| `unknown-manifest-key` | [hd_project/manifest.rs](../../crates/hd_project/src/manifest.rs) | Move its warning. Preserve Manifest.unknown key paths and lines. Recommend promoting this same stable code to an error during loading instead; this exception needs approval before behavior changes. |
+| `unknown-manifest-key` | [hd_project/manifest.rs](../../crates/hd_project/src/manifest.rs) | Promote the same stable code to an error on load for every command. Preserve Manifest.unknown key paths and lines. Lint reports the loading error too; it does not turn this error into optional advice. |
 | `unreachable-code` | [hd_check/body.rs](../../crates/hd_check/src/body.rs) | Move. Expose source statement reachability from the completed flow analysis. Do not infer this from optimized-away instructions or execute dead branches. |
 | `unselected-main` | hd_driver executable selection | Move. Read source module role, public-main span and the requested executable graph. An actual request for a nonexistent executable remains an ordinary CLI error. |
 | `unsigned-comparison-always` | [hd_check/expr.rs](../../crates/hd_check/src/expr.rs) | Move first. Read checked operand types, source operator and literal spelling; preserve the current literal-zero predicate rather than broaden it to arbitrary constant evaluation. |
@@ -90,24 +90,26 @@ Once moved, its ordinary-check cache contains no warning to resurrect later.
 
 ### Operational exceptions needing approval
 
-Two stable warning codes can hide a failed user intention when their advice becomes opt-in.
-For `unknown-manifest-key`, recommend promoting its existing stable code to an error during loading, rather than a warning exception or disguised notice.
-A package typo then fails under every loading command; this changes acceptance and needs explicit approval.
-The alternative is lint-only advice while ordinary commands continue ignoring unknown keys.
+The owner resolved these operational exceptions in #855; the heading's
+existing anchor is retained for links.
 
-For `private-main`, recommend retaining lint advice on private functions, plus missing-entry-point when the selected run/build requires an exported entry.
-Check and library/test-module analysis may still accept an ordinary private main function.
-Running tests needs their test entries, not a public program main.
-Reject only when the selected execution path genuinely has no entry; do not reject harmless helper names or programs with script statements.
+`unknown-manifest-key` becomes an error on load, with the same stable code,
+for every command. An unknown key is never merely ignored or optional advice.
 
-Neither recommendation is an accepted exception yet.
-There is no general back door that sends warning-severity diagnostics through ordinary checking.
-For unselected-main, the normal executable-selection error already covers an actual unfulfillable run request; otherwise the advice can wait for lint.
-The remaining stable warning codes are advisory and move without an operational exception recommendation.
+`private-main` remains lint advice. When run/build find no public entry,
+they fail with `missing-entry-point` naming the private `main`.
+Check, tests and library modules continue accepting a private `main`.
 
-The source audit also found an uncoded warning when `hd doc --open` cannot launch the browser, in doc_cmd.rs.
-It is an execution outcome, which static linting cannot predict.
-Recommend an ordinary command failure while preserving the already-written documentation path; approval is required for that status change.
+`hd doc --open` failing to launch the browser is a command failure with a
+non-zero status, while still printing the documentation path.
+Static linting cannot predict this execution outcome.
+The owner waived its CLI fixture in [#855’s testing decision](https://github.com/HerringtonDarkholme/hd-lang/issues/855#issuecomment-6418355060).
+The behavior slice injects a mock opener in hd_cli and tests the failing status, printed path and written files in Rust.
+
+There is no general back door for warning-severity diagnostics through
+ordinary checking. `unselected-main` remains advice unless the requested
+executable itself cannot be selected, which is an ordinary command error.
+
 The CLI's separate cache-write warning is also operational, not a fifteenth stable program diagnostic.
 Recommend opt-in operational logging for an optional cache failure; do not rename program warnings as operational messages to bypass the lint boundary.
 
@@ -130,7 +132,7 @@ These UI integrations follow the command boundary; they are not prerequisites fo
 
 ### Spec placement and conformance
 
-Recommend rules under the existing CLI tier, `spec/cli/command-line.md`, with cli.lint rule IDs.
+Lint rules use the existing CLI tier, `spec/cli/command-line.md`, with cli.lint rule IDs.
 This avoids introducing a fourth specification tier merely for one tool.
 The global stable-code registry remains [spec/README.md Diagnostics](../../spec/README.md#diagnostics), as AGENTS.md requires.
 Language chapters retain acceptance, permissions and control-flow rules; CLI lint rules describe optional advice over accepted code.
@@ -330,6 +332,9 @@ receiver construction, argument evaluation, a method body, or cleanup.
 
 ## First lint
 
+The first migrated warning in #855 is `unsigned-comparison-always`.
+This section remains a proposal for a new lint.
+
 Proposed code: `lost-temporary-write`, category likely-bug, default warning.
 Keep the owner's tightened [header predicate](https://github.com/HerringtonDarkholme/hd-lang/issues/651#issuecomment-6369394128):
 
@@ -458,8 +463,9 @@ It misclassifies U3, so it cannot implement the first lint as requested.
 
 ## Architecture
 
-This section is an implementation draft for approval, not permission to
-edit protected compiler files during this docs-only job.
+The separate lint crate and staged migration of existing warnings are authorized by #855.
+Each implementation slice exposes its named facts and preserves existing errors.
+New lost-write and concatenation lints remain proposals outside that issue.
 
 ### Placement and existing facts
 
@@ -1271,7 +1277,9 @@ they did not demonstrate a complete semantic proof or an implemented lint.
 
 ## Implementation order and validation
 
-After approval, use hour-sized, independently green slices. A slice that
+Use hour-sized, independently green slices under #855. First ship the
+CLI lint rules, registry classification, decided operational rules and fixtures.
+Then follow the producer migrations below. A slice that
 cannot meet its stated test in about an hour stops with a concrete
 scope estimate, rather than silently widening compiler work.
 
@@ -1291,8 +1299,9 @@ The slices form a staged migration, not an immediate claim that all ordinary com
 A slice moves its named producer and its tests; the final errors-only check/build/test contract is verified after the inventory is exhausted.
 Do not hide unmigrated warnings with a global severity filter.
 
-Compiler scopes listed here describe future implementation work needing
-explicit authorization. This revision edits documentation only.
+The warning migrations in rows 1–6 are authorized by #855; each slice
+changes only its named producers, their facts, callers, spec and fixtures.
+Rows 7–9 propose new lints outside #855 and require separate approval.
 Custom export, plugin execution and every fix command are separate
 approval and implementation work, not prerequisites hidden in these slices.
 
@@ -1313,13 +1322,10 @@ The selected command boundary is errors-only checking and warnings only under ex
 No warning remains in hd_check merely because its current implementation has private state.
 The proposed facts must preserve that information without transporting already-decided warnings.
 
-The remaining approvals are short and independent:
-
-- Approve CLI-tier lint rules, stable-code preservation and the staged immutable fact boundary, starting with unsigned-comparison-always.
-- Decide operational handling: unknown keys as errors, entry-requiring execution without an entry, failed explicit browser opening and optional cache-write logging.
-- Approve the per-component budgets and hour-sized migrations; public facts export, plugins and any fix command remain later work.
-
-Nothing here permits protected-file edits during this documentation job.
+The command boundary, stable-code preservation, staged fact boundary and
+three operational outcomes above are accepted in #855. Begin producer
+migration with `unsigned-comparison-always`. Optional cache-write logging,
+public facts export, plugins and fix commands remain later work.
 
 ## Evidence and parse log
 

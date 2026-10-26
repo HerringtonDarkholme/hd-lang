@@ -2037,8 +2037,8 @@ typing/invalid/derive-member-not-derivable.hd	type	reject:member-not-derivable	l
 typing/invalid/generic-member-call.hd	type	reject:generic-member-call	lang/14-annotations.md#r-annot.walker.generic-member-call
 typing/invalid/newtype-derivation-self.hd	type	reject:newtype-derivation-self	lang/09-traits.md#r-trait.derive.newtype.self-error
 typing/invalid/newtype-derive-a-position-a-newtype-cannot-forward-is-an-error-at-the-derive-02.hd	type	reject:newtype-derivation-self	lang/09-traits.md#r-trait.derive.newtype.self-error
-typing/warnings/derivation-line-drift.hd	type	warn:derivation-line-drift	lang/14-annotations.md#r-annot.line.drift
-typing/warnings/derivation-line-drift-beside-derive.hd	type	warn:derivation-line-drift	lang/14-annotations.md#r-annot.line.drift.derive
+typing/warnings/derivation-line-drift.hd	type	warn:derivation-line-drift	lang/14-annotations.md#r-annot.line.drift.lint
+typing/warnings/derivation-line-drift-beside-derive.hd	type	warn:derivation-line-drift	lang/14-annotations.md#r-annot.line.drift.lint.derive
 typing/valid/type-level-fact-without-template.hd	type	accept	lang/14-annotations.md#r-annot.fact.type-level-decorator
 runtime/panic/structure-variant-mismatch.hd	runtime	panic:structure-variant-mismatch	lang/14-annotations.md#r-annot.handle.get.variant
 parse/valid/derivation-member-lines.hd	parse	accept	lang/02-grammar.md#r-grammar.impl.derivation-line
@@ -2421,7 +2421,7 @@ runtime/valid/operator-string-add.hd	runtime	accept	lang/05-expressions.md#r-exp
 runtime/valid/compound-assign-index.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.index-read-write
 typing/invalid/compound-assign-index-no-read.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.assign.compound.index-read-write
 typing/invalid/use-through-pub-use-loop.hd	type	reject:re-export-loop	lang/10-modules.md#r-module.pub-use.chain.loop-use
-typing/warnings/derivation-block-decorator.hd	type	warn:unused-derivation-fact	lang/14-annotations.md#r-annot.fact.unused-block-decorator
+typing/warnings/derivation-block-decorator.hd	type	warn:unused-derivation-fact	lang/14-annotations.md#r-annot.fact.unused-block-decorator.lint
 typing/invalid/only-apply-and-update-make-a-value-callable-store.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#callable-values
 typing/invalid/operator-function-left-exact.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.left-dispatch.exact-function
 typing/invalid/row-parameter-on-newtype.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.no-newtype
@@ -2499,8 +2499,8 @@ parse/invalid/let-bare-list.hd	parse	reject:syntax-error	lang/02-grammar.md#r-gr
 parse/invalid/let-list-one-name.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.stmt.let-pattern.parenthesized
 typing/invalid/mut-on-primitive-annotation.hd	type	reject:mut-on-primitive	lang/04-type-system.md#r-types.prim.no-mut.error
 typing/invalid/mut-on-primitive-parameter.hd	type	reject:mut-on-primitive	lang/04-type-system.md#r-types.prim.no-mut.error
-typing/warnings/let-mut-primitive-unused.hd	type	warn:redundant-let-mut	lang/04-type-system.md#r-types.bind.let-mut-primitive-unused
-typing/warnings/let-mut-primitive-annotation-unused.hd	type	warn:redundant-let-mut	lang/04-type-system.md#r-types.bind.let-mut-primitive-unused
+typing/warnings/let-mut-primitive-unused.hd	type	warn:redundant-let-mut	lang/04-type-system.md#r-types.bind.let-mut-primitive-lint
+typing/warnings/let-mut-primitive-annotation-unused.hd	type	warn:redundant-let-mut	lang/04-type-system.md#r-types.bind.let-mut-primitive-lint
 typing/valid/let-mut-optional.hd	type	accept	lang/13-values-and-references.md#r-ref.write.field
 runtime/valid/compound-assign-map-run.hd	runtime	accept	lang/05-expressions.md#r-expr.index.map.read-value
 runtime/panic/compound-assign-map-missing-key.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.map.read-value
@@ -2961,8 +2961,8 @@ runtime/valid/primitive-char-cmp-method-direct.hd	runtime	accept	lang/05-express
 runtime/valid/primitive-string-cmp-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.ord.std.string-bytes
 runtime/valid/primitive-bool-eq-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.eq.std
 runtime/valid/multiply-by-zero-64.hd	runtime	accept	lang/05-expressions.md#r-expr.arith.int.checked
-typing/warnings/private-main.hd	type	warn:private-main	lang/10-modules.md#r-module.entry.private-main.warn
-typing/warnings/private-main-suspending.hd	type	warn:private-main	lang/10-modules.md#r-module.entry.private-main.warn
+typing/warnings/private-main.hd	type	warn:private-main	lang/10-modules.md#r-module.entry.private-main.lint
+typing/warnings/private-main-suspending.hd	type	warn:private-main	lang/10-modules.md#r-module.entry.private-main.lint
 typing/invalid/option-invariant.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.option.invariant
 typing/invalid/result-invariant.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.option.invariant.result
 typing/invalid/covariant-optional-field.hd	type	reject:invalid-variance	lang/04-type-system.md#r-types.option.invariant
@@ -3408,7 +3408,7 @@ typing/invalid/literal-dependent-no-backward-annotation.hd	type	reject:implicit-
 typing/invalid/literal-erased-any-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.local.erased.reference-values
 runtime/valid/literal-erased-fallback.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.erased.reference-values
 typing/warnings/unsigned-comparison-countdown.hd	type	warn:unsigned-comparison-always	lang/05-expressions.md#r-expr.ord.unsigned-zero.binding-type
-typing/warnings/unsigned-comparison-explicit.hd	type	warn:unsigned-comparison-always	lang/05-expressions.md#r-expr.ord.unsigned-zero
+typing/warnings/unsigned-comparison-explicit.hd	type	warn:unsigned-comparison-always	lang/05-expressions.md#r-expr.ord.unsigned-zero.lint
 typing/valid/unsigned-comparison-signed-countdown.hd	type	accept	lang/05-expressions.md#unsigned-comparisons-with-zero
 runtime/panic/sign-fallback-balance-underflow.hd	runtime	panic:integer-overflow	lang/06-control-flow.md#r-flow.panic.report.fallback
 runtime/valid/module-qualified-function-call.hd	runtime	accept	lang/05-expressions.md#r-expr.name.qualified
@@ -3627,7 +3627,7 @@ typing/valid/variance-receiverless-function.hd	type	accept	lang/04-type-system.m
 typing/invalid/module-named-pkg.hd	type	reject:reserved-module-name	lang/10-modules.md#r-module.path.reserved-pkg
 typing/invalid/duplicate-variant.hd	type	reject:duplicate-variant	lang/08-data-and-enums.md#r-data.enum.unique
 typing/invalid/unknown-variant.hd	type	reject:unknown-variant	lang/08-data-and-enums.md#r-data.enum.unknown-variant
-typing/warnings/mixed-script-identifier.hd	parse	warn:mixed-script-identifier	lang/01-lexical-structure.md#r-lex.ident.mixed-script.warning
+typing/warnings/mixed-script-identifier.hd	parse	warn:mixed-script-identifier	lang/01-lexical-structure.md#r-lex.ident.mixed-script.lint
 parse/invalid/unclosed-delimiter.hd	parse	reject:unclosed-delimiter	lang/01-lexical-structure.md#r-lex.delim.unclosed
 parse/invalid/unmatched-delimiter.hd	parse	reject:unmatched-delimiter	lang/01-lexical-structure.md#r-lex.delim.unmatched
 typing/invalid/nonlocal-impl.hd	type	reject:nonlocal-impl	lang/09-traits.md#r-trait.own.module.error
@@ -3664,7 +3664,7 @@ runtime/valid/result-type-candidate.hd	runtime	accept	lang/09-traits.md#r-trait.
 runtime/valid/numeric-candidate-tie-break.hd	runtime	accept	lang/09-traits.md#r-trait.resolve.literal-arg
 typing/invalid/numeric-candidate-no-fit.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.literal-arg.no-apply
 typing/invalid/no-fit-candidate.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.no-apply
-typing/warnings/unused-after-rejected-trials.hd	type	warn:unused-local-binding	lang/06-control-flow.md#r-flow.unused.warning
+typing/warnings/unused-after-rejected-trials.hd	type	warn:unused-local-binding	lang/06-control-flow.md#r-flow.unused.lint
 runtime/valid/lazy-result-candidate.hd	runtime	accept	lang/09-traits.md#r-trait.resolve.applies.expected
 runtime/valid/ord-supertrait-dispatch.hd	runtime	accept	lang/09-traits.md#comparison-traits
 runtime/valid/generic-inherent-box.hd	runtime	accept	lang/09-traits.md#trait-implementations
@@ -3694,7 +3694,7 @@ typing/invalid/dbg-printer-private.hd	type	reject:private-import	lang/10-modules
 runtime/valid/dbg-prints-void.hd	runtime	accept	lang/10-modules.md#r-module.dbg.body.print
 runtime/valid/dbg-without-requirement.hd	runtime	accept	lang/10-modules.md#r-module.dbg.no-requirement
 typing/invalid/dbg-void-binding.hd	type	reject:type-mismatch	lang/10-modules.md#r-module.dbg.signature
-typing/warnings/unused-debug-text.hd	type	warn:unused-debug-text	lang/10-modules.md#r-module.dbg.debug-hint
+typing/warnings/unused-debug-text.hd	type	warn:unused-debug-text	lang/10-modules.md#r-module.dbg.debug-lint
 runtime/valid/debug-source-text.hd	runtime	accept	std/format.md#r-std-format.debug.source
 runtime/valid/num-parse-unsigned.hd	runtime	accept	std/num.md#r-std-num.parse.unsigned-type-grammar
 runtime/valid/num-radix-text.hd	runtime	accept	std/num.md#r-std-num.radix.round-trip
@@ -4303,7 +4303,7 @@ parse/invalid/match-optional-question-pattern.hd	parse	reject:syntax-error	lang/
 runtime/valid/match-payload-positional-then-named.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.payload.order
 typing/invalid/match-bare-variant-with-payload.hd	type	reject:pattern-arity	lang/06-control-flow.md#r-flow.match.payload.arity
 typing/invalid/match-payload-unknown-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.payload.unknown
-typing/warnings/match-payload-binding-name-swap.hd	type	warn:variant-binding-name-mismatch	lang/06-control-flow.md#r-flow.match.payload.name-mismatch
+typing/warnings/match-payload-binding-name-swap.hd	type	warn:variant-binding-name-mismatch	lang/06-control-flow.md#r-flow.match.payload.name-mismatch.lint
 runtime/valid/match-literal-pattern.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.literal
 runtime/valid/match-variant-shorthand.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.variant.shorthand
 runtime/valid/match-keeps-subject.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.no-ownership

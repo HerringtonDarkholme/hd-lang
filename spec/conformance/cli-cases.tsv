@@ -46,8 +46,8 @@ new-pages-existing	cli.new.lib,cli.new.existing,cli.new.pages,cli.exit.hd-failur
 doc-main-page	cli.doc.main,cli.doc.private,cli.doc.items
 json-test-order	cli.json.test.result,cli.json.test.order
 exe-missing-module	cli.exe.missing-module,cli.exit.hd-failure,cli.exe.table,cli.exe.other-module
-exe-unselected-main	cli.exe.unselected-main
-doc-broken-link	cli.doc.link.broken,cli.doc.link.form,cli.doc.link.scope
+exe-unselected-main	cli.exe.unselected-main.lint
+doc-broken-link	cli.doc.link.broken.lint,cli.doc.link.form,cli.doc.link.scope
 doc-index-module	cli.doc.index-module,cli.doc.files,cli.doc.llms.modules
 json-file-single	cli.json.diagnostic.file,cli.file.check-test
 release-wraps	cli.profile.release,cli.profile.test,cli.exit.test-failure,cli.profile.default,cli.profile.pipeline.release,cli.profile.pipeline.unobservable,cli.profile.pipeline.limits,cli.profile.pipeline.one
@@ -59,7 +59,13 @@ dep-invalid-manifest	cli.dep.invalid,cli.json.diagnostic.file
 dep-outside-package	cli.dep.package-only
 exe-main-unlisted	cli.exe.main-unlisted,cli.json.diagnostic.fields
 task-name-clash	cli.task.name-clash,cli.exe.default-name.clash,cli.name.task
-manifest-unknown-key	cli.manifest.unknown-key.with-host,cli.exit.success
+lint-default-and-policy	cli.lint.exact-names,cli.lint.levels,cli.lint.cli-conflict,cli.lint.unknown-name,cli.lint.status-warning,cli.lint.status-error
+lint-errors-unsuppressible	cli.lint.prerequisites,cli.lint.errors-unsuppressible
+lint-manifest-precedence	cli.lint.manifest,cli.lint.cli-override
+lint-ordinary-commands-quiet	cli.lint.ordinary-errors
+lint-private-entry	cli.exe.private-main.missing,cli.exe.private-main.analysis
+lint-site-allow	cli.lint.site-allow,cli.lint.site-precedence
+manifest-unknown-key	cli.manifest.unknown-key.error,cli.exit.hd-failure
 build-output	cli.build.directory,cli.build.output,cli.build.output.file,cli.profile.release
 dep-path-local	cli.dep.path,cli.dep.fetch,cli.dep.offline,cli.json.lines.build,cli.dep.reached,cli.dep.no-prompt
 dep-workspace-fetch	cli.dep.workspace-fetch,cli.dep.workspace-member-only,cli.exit.hd-failure,cli.mode.workspace,cli.mode.workspace-file,cli.mode.member,cli.workspace.members
@@ -98,7 +104,7 @@ entry-err-display	cli.file.run,cli.exit.program
 entry-err-chain	cli.file.run,cli.exit.program
 task-beside-dir	cli.task.beside-directory,cli.exit.hd-failure
 dep-path-no-package	cli.dep.invalid,cli.json.diagnostic.file
-exe-unselected-main-used	cli.exe.unselected-main
+exe-unselected-main-used	cli.exe.unselected-main.lint
 typeid-package-name	cli.run.default.one,cli.exit.program
 typeid-single-file	cli.file.run,cli.exit.program
 test-err-report	cli.exit.test-failure,cli.json.test.result,cli.json.test.result.fields
@@ -223,7 +229,7 @@ process-pending	cli.host.default-profile.granted,cli.test.process
 process-unread-stdin	cli.test.program
 exit-entry-cancelled	cli.cancel.flag,cli.limit.forms,cli.cancel.end,cli.cancel.status,cli.exit.cancelled,cli.test.cancelled,cli.exit.test-failure
 test-leak-after-abandon	cli.test.leak.abandoned,cli.test.leak,cli.test.env.integration
-dbg-fetched-dependency	cli.dbg.dependency
+dbg-fetched-dependency	cli.dbg.dependency.lint
 cap-resolved-refusal	cli.cap.partial.path.resolved,cli.cap.partial.path.written
 commands-shrink-replay	cli.test.runner,cli.test.seed.report,cli.exit.test-failure
 property-stateful-replay	cli.test.runner,cli.test.report.heading,cli.test.report.failure,cli.test.seed.report,cli.exit.test-failure

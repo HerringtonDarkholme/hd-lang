@@ -1,5 +1,10 @@
-# version and [profile] have no meaning in hd.toml, so each is a warning.
+# Unknown tables and keys are errors on every load, with stable codes.
 run: hd check --format json
-stdout-json: [{"kind":"diagnostic","code":"unknown-manifest-key","severity":"warning","message":null,"file":"hd.toml","line":3,"column":null},{"kind":"diagnostic","code":"unknown-manifest-key","severity":"warning","message":null,"file":"hd.toml","line":5,"column":null},{"kind":"summary","errors":0,"warnings":2,"status":0}]
-run: hd run
-stdout: shop
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-manifest-key","severity":"error","file":"hd.toml","line":3,"column":null,"message":null},{"kind":"diagnostic","code":"unknown-manifest-key","severity":"error","file":"hd.toml","line":5,"column":null,"message":null},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+run: hd build --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-manifest-key","severity":"error","file":"hd.toml","line":3,"column":null,"message":null},{"kind":"diagnostic","code":"unknown-manifest-key","severity":"error","file":"hd.toml","line":5,"column":null,"message":null},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+run: hd lint --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-manifest-key","severity":"error","file":"hd.toml","line":3,"column":null,"message":null},{"kind":"diagnostic","code":"unknown-manifest-key","severity":"error","file":"hd.toml","line":5,"column":null,"message":null},{"kind":"summary","errors":2,"warnings":0,"status":101}]

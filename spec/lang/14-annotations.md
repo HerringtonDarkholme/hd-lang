@@ -1083,8 +1083,8 @@ so omitting one, as `Audit = pass` above, is always this error.
 
 #### Line Drift
 
-1. r[annot.line.drift] Derivation blocks for traits of one package on one type whose member lines differ get a warning, reported on the later block. Warning: `derivation-line-drift`.
-2. r[annot.line.drift.derive] A block beside a `@derive` of another trait from the same package gets the same warning when the block has any member line. Warning: `derivation-line-drift`.
+1. r[annot.line.drift.lint] Derivation blocks for traits of one package on one type with differing member lines produce a lint finding on the later block. Warning: `derivation-line-drift`.
+2. r[annot.line.drift.lint.derive] A block beside another same-package trait’s `@derive` produces the same lint finding when it contains any member line. Warning: `derivation-line-drift`.
 3. r[annot.line.drift.legal] Different member lines stay legal: configuration may differ per direction, such as encoding and decoding.
 
 ```hd
@@ -1208,7 +1208,7 @@ fn key_for(style: Style, m: Member) -> string:
 11. r[annot.fact.eval.reentrant] A fact or metadata expression whose evaluation reads the same fact again is a runtime panic at that second read, before the second evaluation starts. Its report names the fact. Panic: `fact-evaluation-failed`.
 12. r[annot.fact.read] A template reads the type-level facts through `T::facts()`, and a member's or variant's facts through its handle's `info.facts`.
 13. r[annot.fact.default] A template falls back to its own default when a fact is absent. An absent or foreign fact is never an error.
-14. r[annot.fact.unused-block-decorator] A decorator before a derivation block, `impl ... by Structure:`, attaches a value that no derivation reads. It gets a warning, reported on the decorator. Warning: `unused-derivation-fact`.
+14. r[annot.fact.unused-block-decorator.lint] A decorator before `impl ... by Structure:` attaches an unread value and produces a lint finding on the decorator. Warning: `unused-derivation-fact`.
 15. r[annot.fact.unused-block-decorator.any-type] This warning applies whatever the value's type, so a primitive or standard value, such as `@"internal"`, gets it too.
 16. r[annot.fact.unused-block-decorator.fix] The warning offers a fix-it that moves the value into the block as a `Self += [...]` member line.
 17. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.

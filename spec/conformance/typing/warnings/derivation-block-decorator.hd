@@ -1,5 +1,5 @@
 # test: a decorator before a derivation block warns, since no derivation reads it
-# Spec 14 Facts: annot.fact.unused-block-decorator (stress test decision 5).
+# Spec 14 Facts: annot.fact.unused-block-decorator.lint (stress test decision 5).
 use std.structure.Structure
 
 struct Style:

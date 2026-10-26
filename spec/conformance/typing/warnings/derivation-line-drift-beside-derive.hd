@@ -1,5 +1,5 @@
 # test: a derivation block with a member line beside a @derive of another trait of the same package gets a warning
-# Spec 14 Line Drift: annot.line.drift.derive.
+# Spec 14 Line Drift: annot.line.drift.lint.derive.
 use std.structure.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
