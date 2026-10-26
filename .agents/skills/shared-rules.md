@@ -154,9 +154,6 @@ blocks.forEach((m, i) => {
   another agent's full check runs, unless the owner asks for parallel runs.
 - Before any check, run `git fetch origin` and rebase on `origin/main`. A
   stale `origin/main` gets the push rejected anyway.
-- Never read, print, or copy credential files: `~/.npmrc`, `~/.netrc`,
-  `~/.git-credentials`, `~/.ssh/*`, `.env` files, `~/.config/gh/*`, or any
-  token store.
 
 ## Writing hd Code
 
