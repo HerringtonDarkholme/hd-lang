@@ -941,9 +941,10 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
 /// The kept bits of `b`'s summary (`crate::own::Summary::kept`), from the
 /// tables of its last run: parameter k may outlive the call when the body
 /// owns some of it ([`lent_params`] left it owned) or a read of it keeps
-/// its value. A parameter whose type an instance decides is kept, and one
-/// with no counted leaf keeps nothing. `None` for a body that is no
-/// function's or that suspends.
+/// its value, whether its type is closed or one an instance decides: an
+/// instance that makes it a reference or gives it no counted leaf takes no
+/// count of a lent one anyway. One with no counted leaf keeps nothing.
+/// `None` for a body that is no function's or that suspends.
 pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<u64> {
     if (b.kind != BodyKind::Fn && b.kind != BodyKind::DeriveInstance) || cx.suspending(b.item) {
         return None;
@@ -953,8 +954,7 @@ pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<u64> {
         let l = l as usize;
         let keeps = match cx.counted(b.local_ty[l]) {
             Tri::No => false,
-            Tri::Maybe => true,
-            Tri::Yes => !t.unowned[l] || t.kept_read[l] > 0,
+            Tri::Maybe | Tri::Yes => !t.unowned[l] || t.kept_read[l] > 0,
         };
         if keeps && k < 64 {
             kept |= 1 << k;

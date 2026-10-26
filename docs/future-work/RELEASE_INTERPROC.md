@@ -253,8 +253,10 @@ unchanged: a returned parameter is the same address.
 (tir-v2.md, "Where and when the passes run"), so a summary is per
 generic body and holds for every instance. A parameter whose declared
 type names a type parameter, an associated type or an opaque type is
-always kept. An instance may make it a reference, a scalar or a boxed
-open value (§23.27), and the erased ABI owns open values. A call whose
+kept or lent by the same tables as a closed one (#887): the body owns
+none of a parameter it only reads, in every instance. An instance that
+makes it a reference or a scalar takes no count of it either way, and an
+erased body (§23.27) and its slot read the same lent bit. A call whose
 callee is chosen per instance (a bound) or at run time (a trait value)
 has no single body; [the design](#the-recommended-design) says what each
 reads.
@@ -398,8 +400,8 @@ parameter to a lending callee is no kept read.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct Summary {
     /// Bit k: the body may keep parameter k (receiver first) past the
-    /// call. Parameters past 63, open types, and every parameter of a
-    /// suspending body are always kept.
+    /// call. Parameters past 63 and every parameter of a suspending
+    /// body are always kept.
     pub kept: u64,
     /// The parameter every result of the body is, unchanged: a whole
     /// read of a parameter the body never stores.
@@ -795,8 +797,8 @@ fn pick[T](x: T, m: Member) -> T:
 | self recursion `walk(c, n - 1)` | assumes `c` lent before proving it | kept, conservatively; Lean's fixed point would lend it (next best) |
 | mutual recursion across two modules | depends on visit order | SCC rule: no member reads another's summary |
 | a bang function `save!(m: Member)` | lends into a frame that keeps it | no summary; its callers already lend |
-| a generic `fn f[T](x: T, m: Member)` | lends `x`, an instance's reference | `x` open: kept; `m` closed: may be lent |
-| an erased generic method through a trait value | boxes and lends an open value | open values keep the erased ABI |
+| a generic `fn f[T](x: T, m: Member)` | lends `x`, an instance's reference | lent only when the body owns none of `x`; a reference instance takes no count either way |
+| an erased generic method through a trait value | boxes and lends an open value | the caller releases its box after the call; the slot retains only what the body's lent bit leaves owned |
 | a std callee summarized, a user impl of the same trait (slice 7) | uses std's facts for the user impl | the meet includes the user impl; one keeping impl makes all owned |
 | a host-implemented trait | assumes a hd body | no body, so no summary; host stubs already lend |
 | a builder result kept: `let r = sb.push("a")` | returns no count and frees early | the caller copies the borrowed result: one retain |

@@ -446,8 +446,8 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Summary {
     /// Bit k: the body may keep parameter k (receiver first) past the
-    /// call. Parameters past 63 and open types are always kept; a
-    /// suspending body has no summary.
+    /// call. Parameters past 63 are always kept; a suspending body has no
+    /// summary.
     pub kept: u64,
     /// The parameter every result of the body is, unchanged: a whole read
     /// of a parameter the body never stores.
