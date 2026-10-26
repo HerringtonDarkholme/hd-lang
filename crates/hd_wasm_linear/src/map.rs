@@ -274,9 +274,12 @@ pub fn drop_entries(m: &Module, entry: &Entry) -> Func {
     each_live(&mut f, 0, cap, e, &|f| {
         entry_at(f, 0, cap, e, entry.size);
         let ls = load_entry(f, entry, 0, n);
-        walk_code(f, &walk, &|f, k| f.get(ls[k as usize]), &|f| {
-            f.helper(Helper::ReleaseRef);
-        });
+        walk_code(
+            f,
+            &walk,
+            &|f, k| f.get(ls[k as usize]),
+            &crate::rt::release_call,
+        );
     });
     f
 }
@@ -509,9 +512,12 @@ pub fn put(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     if let Some(w) = &entry.val_walk {
         f.get(at);
         let old = load_entry(&mut f, entry, nk, n);
-        walk_code(&mut f, w, &|f, k| f.get(old[k as usize]), &|f| {
-            f.helper(Helper::ReleaseRef);
-        });
+        walk_code(
+            &mut f,
+            w,
+            &|f, k| f.get(old[k as usize]),
+            &crate::rt::release_call,
+        );
     }
     for k in nk..n {
         f.get(at);
@@ -519,9 +525,12 @@ pub fn put(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
         f.op(store_op(entry.leaves[k], 0));
     }
     if let Some(w) = &entry.key_walk {
-        walk_code(&mut f, w, &|f, k| f.get(arg(k as usize)), &|f| {
-            f.helper(Helper::ReleaseRef);
-        });
+        walk_code(
+            &mut f,
+            w,
+            &|f, k| f.get(arg(k as usize)),
+            &crate::rt::release_call,
+        );
     }
     f.get(t);
     f.op(I::Return);

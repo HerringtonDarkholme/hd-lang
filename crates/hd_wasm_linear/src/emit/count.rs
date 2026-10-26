@@ -241,9 +241,9 @@ impl Em<'_, '_, '_> {
                 None => return Ok(()),
             }
         }
-        if let Walk::Ref(k) = w {
+        if let Some(k) = w.single() {
             self.f.get(ls[k as usize]);
-            if crate::layout::block_start(self.pool(), self.env(), t) {
+            if matches!(w, Walk::Known(_)) {
                 self.f.helper(if retain {
                     Helper::RetainKnown
                 } else {

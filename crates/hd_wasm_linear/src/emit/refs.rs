@@ -58,8 +58,7 @@ impl Em<'_, '_, '_> {
         let m = mem_of(self.pool(), self.env(), ty)?;
         let walk = self.counted(ty);
         let boxed = self.vals(ty)? != [Val::I32]
-            || crate::layout::walk(self.pool(), self.env(), ty)
-                != Some(crate::layout::Walk::Ref(0));
+            || crate::layout::walk(self.pool(), self.env(), ty).and_then(|w| w.single()) != Some(0);
         Ok(RefLayout {
             known: crate::layout::block_start(self.pool(), self.env(), ty),
             size: m.size,

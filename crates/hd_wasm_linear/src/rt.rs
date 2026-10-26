@@ -1037,9 +1037,9 @@ fn teardown(m: &Module) -> Func {
             }
             f.set(*l);
         }
-        if let Walk::Ref(k) = s.walk {
+        if let Some(k) = s.walk.single() {
             f.get(ls[k as usize]);
-            f.helper(Helper::ReleaseRef);
+            release_call(&mut f, matches!(s.walk, Walk::Known(_)));
         } else {
             for l in &ls {
                 f.get(*l);
@@ -1676,9 +1676,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::Release { vals, walk } => {
             let mut f = m.func("rt:release", vals.clone(), vec![]);
-            walk_code(&mut f, walk, &|f, k| f.get(k), &|f| {
-                f.helper(Helper::ReleaseRef);
-            });
+            walk_code(&mut f, walk, &|f, k| f.get(k), &release_call);
             f
         }
         Helper::ReleaseRef => release_ref(m, false),
@@ -1691,9 +1689,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             }
             f
         }
-        Helper::DropFields { leaves, walk } => fields_glue(m, "rt:drop", leaves, walk, &|f| {
-            f.helper(Helper::ReleaseRef);
-        }),
+        Helper::DropFields { leaves, walk } => {
+            fields_glue(m, "rt:drop", leaves, walk, &release_call)
+        }
         Helper::RetainFields { leaves, walk } => {
             fields_glue(m, "rt:retain_fields", leaves, walk, &retain_call(m))
         }
@@ -2183,28 +2181,45 @@ pub(crate) fn own_arg(f: &mut Func, vals: &[Val], walk: Option<&Walk>, get: &dyn
     }
 }
 
-/// What retains the address on the stack: std's `retain`, or nothing when
-/// the program counts nothing.
-pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func) {
+/// What retains the address on the stack, given whether it is a known
+/// payload start: std's `retain`, `retain_known` for a known start, or
+/// nothing when the program counts nothing.
+pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func, bool) {
     let retain = m.runtime.map(|r| r.retain);
-    move |f: &mut Func| match retain {
+    move |f: &mut Func, known: bool| match retain {
+        Some(_) if known => f.helper(Helper::RetainKnown),
         Some(k) => f.call(Sym::Inst(k)),
         None => f.op(Instruction::Drop),
     }
 }
 
+/// The release of one counted address on the stack, without finding its
+/// block when it is a `known` payload start.
+pub(crate) fn release_call(f: &mut Func, known: bool) {
+    f.helper(if known {
+        Helper::ReleaseKnown
+    } else {
+        Helper::ReleaseRef
+    });
+}
+
 /// Emits `walk` over the values that `get(k)` pushes, running `on` with
-/// each counted address on the stack: an enum's arms by its tag.
+/// each counted address on the stack, and whether it is a known payload
+/// start ([`Walk::Known`]): an enum's arms by its tag.
 pub(crate) fn walk_code(
     f: &mut Func,
     walk: &Walk,
     get: &dyn Fn(&mut Func, u32),
-    on: &dyn Fn(&mut Func),
+    on: &dyn Fn(&mut Func, bool),
 ) {
     match walk {
         Walk::Ref(k) => {
             get(f, *k);
-            on(f);
+            on(f, false);
+        }
+        Walk::Known(k) => {
+            get(f, *k);
+            on(f, true);
         }
         Walk::Seq(ws) => {
             for w in ws {
@@ -2234,7 +2249,7 @@ fn fields_glue(
     name: &str,
     leaves: &[Leaf],
     walk: &Walk,
-    on: &dyn Fn(&mut Func),
+    on: &dyn Fn(&mut Func, bool),
 ) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
     let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
@@ -2958,9 +2973,7 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
         let ls = load_elem_locals(&mut f, &elem.leaves);
         each_elem(&mut f, at, n, elem.size, &|f| {
             fill_elem(f, at, &elem.leaves, &ls);
-            walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &|f| {
-                f.helper(Helper::ReleaseRef);
-            });
+            walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
         });
     }
     f.get(b);
@@ -2987,9 +3000,7 @@ fn drop_elems(m: &Module, elem: &Elem) -> Func {
     let ls = load_elem_locals(&mut f, &elem.leaves);
     each_elem(&mut f, at, n, elem.size, &|f| {
         fill_elem(f, at, &elem.leaves, &ls);
-        walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &|f| {
-            f.helper(Helper::ReleaseRef);
-        });
+        walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
     });
     f
 }
@@ -3558,9 +3569,7 @@ fn ref_vals(value: &RefLayout) -> Vec<Val> {
 }
 
 fn ref_count(f: &mut Func, ls: &[u32], value: &RefLayout, retain: bool) {
-    if value.known
-        && let Some(Walk::Ref(k)) = &value.walk
-    {
+    if let Some(Walk::Known(k)) = &value.walk {
         f.get(ls[*k as usize]);
         f.helper(if retain {
             Helper::RetainKnown

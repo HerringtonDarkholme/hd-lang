@@ -531,7 +531,7 @@ impl Em<'_, '_, '_> {
         // boxed a value compares its boxes (`ref.identity.same-place`).
         let t = self.ty_of(a);
         if !matches!(self.kind(t), Kind::Data(_) | Kind::Boxed)
-            && walk(self.pool(), self.env(), t) != Some(Walk::Ref(0))
+            && walk(self.pool(), self.env(), t).and_then(|w| w.single()) != Some(0)
         {
             return unsupported("identity of a value that is not a data value");
         }

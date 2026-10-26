@@ -45,7 +45,7 @@ use hd_types::{Ty, TyList};
 
 use super::value::Src;
 use super::{Ctl, Em};
-use crate::layout::{Kind, Mem, Part, Walk, kind, mem as mem_of, walk};
+use crate::layout::{Kind, Mem, Part, kind, mem as mem_of, walk};
 use crate::module::{Func, HEAP, Module, Val, mem};
 use crate::rt::Helper;
 use crate::{Input, unsupported};
@@ -419,7 +419,8 @@ impl Em<'_, '_, '_> {
             return Ok(Cross::Same);
         }
         let one = |t: Ty| -> StageResult<bool> {
-            Ok(self.vals(t)? == [Val::I32] && walk(pool, env, t) == Some(Walk::Ref(0)))
+            Ok(self.vals(t)? == [Val::I32]
+                && walk(pool, env, t).and_then(|w| w.single()) == Some(0))
         };
         if let Kind::Ref { .. } = kind(pool, env, et) {
             return match kind(pool, env, ct) {

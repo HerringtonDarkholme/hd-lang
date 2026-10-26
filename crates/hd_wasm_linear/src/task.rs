@@ -1119,7 +1119,7 @@ fn leaf_drop(area: &Elem) -> Option<Sym> {
 /// Every value index a walk reads: its references and its tags.
 fn walk_indices(w: &Walk, out: &mut Vec<u32>) {
     match w {
-        Walk::Ref(k) => out.push(*k),
+        Walk::Ref(k) | Walk::Known(k) => out.push(*k),
         Walk::Seq(ws) => ws.iter().for_each(|w| walk_indices(w, out)),
         Walk::Switch(k, arms) => {
             out.push(*k);
@@ -1173,7 +1173,7 @@ fn host_cold(
         f.i32(1);
         f.helper(Helper::CopyElems { elem: area.clone() });
     } else if let Some(w) = &area.walk {
-        crate::rt::walk_code(&mut f, w, &|f, k| f.get(k + 1), &|f| {
+        crate::rt::walk_code(&mut f, w, &|f, k| f.get(k + 1), &|f, _| {
             f.call(Sym::Helper(Helper::RetainAny));
         });
     }
@@ -2484,9 +2484,12 @@ fn all_drop(m: &Module, elem: &Elem) -> Func {
                     value
                 })
                 .collect();
-            crate::rt::walk_code(f, walk, &|f, k| f.get(values[k as usize]), &|f| {
-                f.helper(Helper::ReleaseRef);
-            });
+            crate::rt::walk_code(
+                f,
+                walk,
+                &|f, k| f.get(values[k as usize]),
+                &crate::rt::release_call,
+            );
             f.op(Instruction::End);
         });
         f.op(Instruction::End);

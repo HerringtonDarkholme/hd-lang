@@ -507,8 +507,14 @@ fn mem_one(
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Walk {
     /// Value `k` is an address in a counted object, or in static data: a
-    /// data value, a boxed enum's cell, a string's bytes.
+    /// string's bytes, a reference, an open value; counting finds its
+    /// block through the page table (§23.5).
     Ref(u32),
+    /// Value `k` is null, a static object's, or the payload start of a
+    /// counted object, eight bytes after its header: a data value, a boxed
+    /// enum's cell, a collection's buffer, a closure's environment
+    /// ([`block_start`]); counting reads the header at `k - 8` (§23.30).
+    Known(u32),
     /// Each part in turn.
     Seq(Vec<Walk>),
     /// Value `k` is an enum's tag; arm `v`, when there is one, walks
@@ -522,6 +528,7 @@ impl Walk {
     pub fn remap(&self, to: &dyn Fn(u32) -> u32) -> Walk {
         match self {
             Walk::Ref(k) => Walk::Ref(to(*k)),
+            Walk::Known(k) => Walk::Known(to(*k)),
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
             Walk::Switch(k, arms) => Walk::Switch(
                 to(*k),
@@ -538,6 +545,7 @@ impl Walk {
     pub fn without(&self, skip: &[u32]) -> Option<Walk> {
         match self {
             Walk::Ref(k) => (!skip.contains(k)).then_some(Walk::Ref(*k)),
+            Walk::Known(k) => (!skip.contains(k)).then_some(Walk::Known(*k)),
             Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(|w| w.without(skip)).collect()),
             Walk::Switch(k, arms) => Some(Walk::Switch(
                 *k,
@@ -545,6 +553,16 @@ impl Walk {
                     .map(|a| a.as_ref().and_then(|w| w.without(skip)))
                     .collect(),
             )),
+        }
+    }
+
+    /// The value index when the walk is one counted address, of either
+    /// kind.
+    #[must_use]
+    pub fn single(&self) -> Option<u32> {
+        match self {
+            Walk::Ref(k) | Walk::Known(k) => Some(*k),
+            Walk::Seq(_) | Walk::Switch(..) => None,
         }
     }
 
@@ -579,14 +597,16 @@ fn walk_one(
     }
     match pool.get(t) {
         TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
-        TyData::Fn { .. } => Some(Walk::Ref(1)),
-        TyData::TraitValue { .. } | TyData::Context(_) => Some(Walk::Ref(0)),
+        TyData::Fn { .. } => Some(Walk::Known(1)),
+        TyData::TraitValue { .. } => Some(Walk::Ref(0)),
+        TyData::Context(_) => Some(Walk::Known(0)),
         TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
-        TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Ref(0)),
+        TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Known(0)),
         TyData::Option(inner) => switch_walk_by(pool, env, &[vec![], vec![inner]], part),
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
-                Kind::Data(_) | Kind::Boxed | Kind::Ref { .. } => Some(Walk::Ref(0)),
+                Kind::Data(_) | Kind::Boxed => Some(Walk::Known(0)),
+                Kind::Ref { .. } => Some(Walk::Ref(0)),
                 Kind::Value => {
                     if let Some(variants) = env.enum_variants(def, args) {
                         return switch_walk_by(pool, env, &variants, part);
@@ -700,7 +720,7 @@ pub fn env_mem(
         .filter_map(|((t, shared), p)| {
             let at = u32::try_from(p.first).expect("values");
             if *shared {
-                Some(Walk::Ref(at))
+                Some(Walk::Known(at))
             } else {
                 walk(pool, env, *t).map(|w| w.remap(&|k| at + k))
             }

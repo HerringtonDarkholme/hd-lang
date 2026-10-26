@@ -45,7 +45,7 @@ fn counted(
     fn walk(w: &Walk) -> std::collections::BTreeMap<u32, bool> {
         use std::collections::BTreeMap;
         match w {
-            Walk::Ref(k) => BTreeMap::from([(*k, false)]),
+            Walk::Ref(k) | Walk::Known(k) => BTreeMap::from([(*k, false)]),
             Walk::Seq(ws) => {
                 let mut out = BTreeMap::new();
                 for w in ws {

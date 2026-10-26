@@ -1862,8 +1862,16 @@ physical or erased references without a block-start proof.
   only `CYCLIC` objects; a `BUFFERED` block's free waits for the collector. Collection
   header copies inherit their original cycle eligibility. The emitter uses
   this path for cells, nominal heap objects, closure environments,
-  suspension and collection headers, and collection buffers. Untyped
-  aggregate walks conservatively keep general counts.
+  suspension and collection headers, and collection buffers.
+- **Known leaves in walks.** A value's walk (`layout::Walk`) marks each
+  counted leaf whose type proves a payload start (`layout::block_start`)
+  as `Walk::Known`, so aggregate glue counts those leaves through the
+  known path: the retain and release helpers of struct and enum values,
+  a data object's release glue, list element and map entry glue. A
+  string's bytes, a reference and an open value stay `Walk::Ref`, counted
+  through the page table. On json at 6,000 records this moved 846,000 of
+  3,450,000 page-table counts to the known path, with the count total
+  unchanged.
 - **Checked proofs.** Checked mode verifies that every claimed payload
   start agrees with `block_of`, then performs the existing audited count
   update. An incorrect proof fails even when the ordinary count would
