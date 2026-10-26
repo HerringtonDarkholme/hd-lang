@@ -1,5 +1,5 @@
 # test: a supertrait with a self member stays usable through the subtrait
-# Rules: trait.dyn.member.self, trait.dyn.member.unavailable.error, trait.dyn.member.other.
+# Rules: trait.dyn.member.self, trait.dyn.member.unavailable.error, trait.dyn.member.other-with-opaque.
 # expect-stdout: 5
 trait Base:
     fn id(self) -> i32

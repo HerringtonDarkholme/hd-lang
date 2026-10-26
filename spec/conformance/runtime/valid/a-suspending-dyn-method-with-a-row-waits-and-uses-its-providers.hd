@@ -1,5 +1,5 @@
 # test: a suspending dyn method with a row waits and uses its providers
-# Rules: std-time.clock.sleep; Spec 09 Dynamic Safety: trait.dyn.member.other.
+# Rules: std-time.clock.sleep; Spec 09 Dynamic Safety: trait.dyn.member.other-with-opaque.
 # expect-stdout: thermometer 1
 # expect-stdout: thermometer 2
 # expect-stdout: 23

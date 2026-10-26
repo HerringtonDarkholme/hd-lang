@@ -188,7 +188,7 @@ Private field types remain available to effective-impl analysis without becoming
 
 ### Traits, impls and generics
 
-[Trait defaults and exact implementation signatures](../../spec/lang/09-traits.md#r-trait.impl.override)
+[Trait defaults and exact implementation signatures](../../spec/lang/09-traits.md#r-trait.impl.override-opaque)
 make downstream implementers clients of the trait declaration.
 [Bound-only inference](../../spec/lang/04-type-system.md#r-types.generic.infer.bound)
 can depend on there being exactly one instantiation.

@@ -1,5 +1,5 @@
 # test: the checker reads a projection through a trait value as its bound type
-# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# Rules: trait.dyn.member.other-with-opaque, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
 trait Lookup:
     type Key
     type Value

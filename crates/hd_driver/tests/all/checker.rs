@@ -582,3 +582,33 @@ fn call[$S, P < Make[Out = fn() -> void $ S]](maker: P) -> void $ S:
         mismatched.render()
     );
 }
+
+#[test]
+fn opaque_trait_methods_report_dynamic_calls_with_generic_bound_advice() {
+    for name in ["items", "custom_result"] {
+        for (receiver, expression) in [
+            ("&dyn Source", format!("source.{name}()")),
+            ("&mut dyn Source", format!("source.{name}()")),
+            ("*dyn Source", format!("source::{name}")),
+        ] {
+            let source = format!(
+                "trait Source:\n    fn {name}(&self) -> impl Display\n\nfn read(source: {receiver}) -> void:\n    _result := {expression}\n"
+            );
+            let out = program(&source);
+            assert_eq!(
+                out.diags.code,
+                [Code::DynMemberUnavailable],
+                "{}",
+                out.render()
+            );
+            let message = out.diags.get_text(out.diags.message[0]);
+            assert!(
+                message.contains(&format!("`{name}` returns `impl Trait`")),
+                "{message}"
+            );
+            assert!(message.contains("use a generic bound instead"), "{message}");
+            let span = out.diags.primary[0];
+            assert_eq!(&source[span.lo as usize..span.hi as usize], expression);
+        }
+    }
+}

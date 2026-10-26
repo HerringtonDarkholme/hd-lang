@@ -1,5 +1,5 @@
 # test: erased bodies run at packed and reference type arguments
-# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# Rules: trait.dyn.member.other-with-opaque, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
 # expect-stdout: 2 2 1
 # expect-stdout: ada 1
 # expect-stdout: 300

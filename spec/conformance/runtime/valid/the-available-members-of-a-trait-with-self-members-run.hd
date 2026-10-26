@@ -1,5 +1,5 @@
 # test: the available members of a trait with self members run
-# Rules: trait.dyn.member.self, trait.dyn.member.unavailable.error, trait.dyn.member.other.
+# Rules: trait.dyn.member.self, trait.dyn.member.unavailable.error, trait.dyn.member.other-with-opaque.
 # expect-stdout: 9,5,2
 # expect-stdout: 5
 trait Shape:

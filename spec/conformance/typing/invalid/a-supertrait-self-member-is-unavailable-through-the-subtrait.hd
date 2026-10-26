@@ -1,5 +1,5 @@
 # test: a supertrait self member is unavailable through the subtrait
-# Rules: trait.dyn.member.self, trait.dyn.member.unavailable.error, trait.dyn.member.other.
+# Rules: trait.dyn.member.self, trait.dyn.member.unavailable.error, trait.dyn.member.other-with-opaque.
 trait Base:
     fn id(self) -> i32
     fn merge(self, other: Self) -> Self

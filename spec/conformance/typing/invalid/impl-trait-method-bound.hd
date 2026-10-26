@@ -1,0 +1,6 @@
+trait Source:
+    fn hidden(&self) -> impl Display
+struct Value: pass
+struct NotDisplay: pass
+impl Source for Value:
+    fn hidden(&self) -> NotDisplay: NotDisplay {} # diagnostic: unsatisfied-trait-bound

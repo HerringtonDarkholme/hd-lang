@@ -1,0 +1,6 @@
+trait Source:
+    fn hidden(&self) -> impl Display
+fn different[A < Source, B < Source](a: A, b: B) -> void:
+    let value = a.hidden()
+    value = b.hidden() # diagnostic: type-mismatch
+    _ := value.to_string()

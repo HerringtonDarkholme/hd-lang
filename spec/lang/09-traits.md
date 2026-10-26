@@ -658,7 +658,7 @@ impl Display for User:
 2. r[trait.impl.required] The implementation must write every required method not supplied by a default, and bind every associated type of the trait. Omitting one is an error. Error: `missing-trait-method`.
 3. r[trait.impl.fill] Only a method written in the implementation or a trait default fills a trait method.
 4. r[trait.impl.fill.never] An inherent method of the target and a method promoted from an embedded field never fill a trait method, required or defaulted, whatever its receiver. So neither makes a body optional.
-5. r[trait.impl.override] The implementation may override a default with the exact instantiated signature.
+5. r[trait.impl.override-opaque] The implementation may override a default with the instantiated signature, allowing the opaque-result refinement below.
 6. r[trait.impl.signature] A mismatched method is an error. Error: `trait-method-signature`.
 7. r[trait.impl.extra-methods] Additional methods do not become part of that trait implementation; place them in an inherent `impl` instead. A method or associated type that the trait does not declare is an error. Error: `extra-trait-member`.
 8. r[trait.impl.unique] At most one implementation of the same instantiated trait for the same target type may exist in a resolved program.
@@ -675,6 +675,20 @@ impl Named for Admin:
     fn name(self) -> string: "admin"
     fn shout(self) -> string: "ADMIN"  # error: extra-trait-member
 ```
+
+#### Opaque Method Results
+
+A trait method may hide its result behind an `impl Trait` bound.
+
+1. r[trait.opaque.impl-result] An implementation may return a concrete type or its own opaque result in place of the trait method's opaque occurrence.
+2. r[trait.opaque.impl-bound] The chosen result must satisfy that occurrence's instantiated bound and associated-type bindings. Error: `unsatisfied-trait-bound`.
+3. r[trait.opaque.impl-shape] The remaining result structure must match the trait declaration. Error: `trait-method-signature`.
+4. r[trait.opaque.impl-identity] Each trait-method opaque occurrence has a static identity determined by the method, implementation target, trait arguments, method arguments and occurrence position.
+5. r[trait.opaque.generic-bound] A caller through a generic bound sees only the opaque occurrence's declared bounds.
+6. r[trait.opaque.codegen-selected] Code generation resolves the occurrence to the selected implementation's result, using the trait's default body when no override exists.
+
+> **Why.** Different implementations can return different concrete types
+> while generic callers depend only on the written interface.
 
 #### Method Generic Parameters
 
@@ -1688,15 +1702,18 @@ Each kind of member is available or unavailable on a `dyn` value:
 | --- | --- | --- |
 | r[trait.dyn.member.assoc-function] Associated functions | an associated function, which has no `self` receiver | unavailable |
 | r[trait.dyn.member.self] `Self` | a method that names `Self` anywhere other than its receiver | unavailable |
+| r[trait.dyn.member.opaque-result] Opaque results | a method whose return annotation contains `impl Trait` | unavailable |
 | r[trait.dyn.safe.assoc-type.reference-values] Associated types | a method whose signature names an associated type | available; the `dyn` type binds every associated type, as `&dyn Supplier[Item = i32]` does |
 | r[trait.dyn.safe.method-type-param] Method type parameters | a method-level type parameter, whatever its bounds, as in `T < Display` or `T < Error` | available; a call through the trait value may pass any type argument, a value type included |
 | r[trait.dyn.safe.suspending] Suspending methods | a suspending method, as the prelude `Console`'s `write!` is | available |
 | r[trait.dyn.safe.row-parameter] Row parameters | a method-level row parameter | available |
 
-4. r[trait.dyn.member.other] Every other method is available.
+4. r[trait.dyn.member.other-with-opaque] Every method outside the unavailable categories above is available.
 5. r[trait.dyn.member.type-param-use] A method type parameter may be used in any way in the method's signature and body, including inside a container or a function type.
 6. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
 7. r[trait.dyn.generic-trait.self-default] A trait value type that omits a parameter whose default names `Self` is an error, since no `Self` is known there. Error: `partial-generic-arguments`.
+8. r[trait.dyn.opaque-result.no-slot] An opaque-result method has no dynamic dispatch table slot.
+9. r[trait.dyn.opaque-result.hint] A diagnostic for calling an opaque-result method through a trait value reference suggests using a generic bound.
 
 ```text
 trait Runner:
@@ -1731,6 +1748,12 @@ fn audit(record: &dyn Versioned) -> bool:
     if record.version() > 0:
         return true
     record.newer_than(record)  # error: dyn-member-unavailable
+
+trait Source:
+    fn items(&self) -> impl Iterator[i32]
+
+fn unavailable(source: &dyn Source) -> void:
+    source.items()  # error: dyn-member-unavailable
 ```
 
 > **Why.** A member is judged where it is called, as in Swift 5.7, so one

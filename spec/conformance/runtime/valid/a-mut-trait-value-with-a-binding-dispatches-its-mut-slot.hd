@@ -1,5 +1,5 @@
 # test: a mut trait value with a binding dispatches its mut slot
-# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# Rules: trait.dyn.member.other-with-opaque, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
 # expect-stdout: 16
 # expect-stdout: 3
 trait Feed:

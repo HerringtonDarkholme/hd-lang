@@ -1,5 +1,5 @@
 # test: a closure in an erased body runs at the callers types
-# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# Rules: trait.dyn.member.other-with-opaque, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
 # expect-stdout: 5
 # expect-stdout: 2
 trait Visitor:

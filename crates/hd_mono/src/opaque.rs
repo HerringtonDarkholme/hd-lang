@@ -21,9 +21,20 @@ pub fn reveal(
     ty: Ty,
     hidden: &dyn Fn(DefId, u32) -> Option<HiddenResult>,
 ) -> Result<Ty, Error> {
+    reveal_with(pool, ty, &|owner, site, _| hidden(owner, site), &|_, _| 0)
+}
+
+/// Reveal using an occurrence's instantiated arguments for trait selection.
+pub fn reveal_with(
+    pool: &InternPool,
+    ty: Ty,
+    hidden: &dyn Fn(DefId, u32, TyList) -> Option<HiddenResult>,
+    selection_prefix: &dyn Fn(DefId, u32) -> usize,
+) -> Result<Ty, Error> {
     Reveal {
         pool,
         hidden,
+        selection_prefix,
         stack: vec![],
         memo: HashMap::default(),
         depth: 0,
@@ -84,6 +95,14 @@ pub fn facts(pool: &InternPool, body: &Body, declared: Option<Ty>) -> Vec<Fact> 
         }
     }
     out
+}
+
+/// Match a selected implementation's result against a declared occurrence.
+#[must_use]
+pub fn result_at(pool: &InternPool, declared: Ty, result: Ty, site: u32) -> Option<Ty> {
+    let mut out = Vec::new();
+    result_facts(pool, declared, result, NodeIdx::NONE, &mut out);
+    out.into_iter().find(|f| f.site == site).map(|f| f.hidden)
 }
 
 fn result_facts(pool: &InternPool, declared: Ty, hidden: Ty, syn: NodeIdx, out: &mut Vec<Fact>) {
@@ -167,7 +186,8 @@ fn result_facts(pool: &InternPool, declared: Ty, hidden: Ty, syn: NodeIdx, out: 
 
 struct Reveal<'a> {
     pool: &'a InternPool,
-    hidden: &'a dyn Fn(DefId, u32) -> Option<HiddenResult>,
+    hidden: &'a dyn Fn(DefId, u32, TyList) -> Option<HiddenResult>,
+    selection_prefix: &'a dyn Fn(DefId, u32) -> usize,
     stack: Vec<Ty>,
     memo: HashMap<Ty, Ty>,
     depth: u32,
@@ -235,7 +255,20 @@ impl Reveal<'_> {
                         .collect();
                     return Err(Error::Recursive(cycle));
                 }
-                let Some((formal, result)) = (self.hidden)(owner, site) else {
+                self.stack.push(ty);
+                // Selecting a trait implementation needs its concrete Self and
+                // trait arguments. Other arguments stay lazy: an unused method
+                // parameter must not create a recursive hidden representation.
+                let prefix = (self.selection_prefix)(owner, site);
+                let args = pool.list(
+                    &pool
+                        .list_items(args)
+                        .iter()
+                        .enumerate()
+                        .map(|(i, &t)| if i < prefix { self.ty(t) } else { Ok(t) })
+                        .collect::<Result<Vec<_>, _>>()?,
+                );
+                let Some((formal, result)) = (self.hidden)(owner, site, args) else {
                     return Err(Error::Missing(owner));
                 };
                 let actual = pool.list_items(args);
@@ -261,7 +294,6 @@ impl Reveal<'_> {
                         matches.then_some(value)
                     })
                 });
-                self.stack.push(ty);
                 let result = self.ty(result);
                 self.stack.pop();
                 return result;

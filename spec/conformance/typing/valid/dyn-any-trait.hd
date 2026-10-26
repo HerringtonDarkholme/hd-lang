@@ -1,5 +1,5 @@
 # test: every trait can be a dyn type; members that work dynamically stay callable
-# Spec 09 Dynamic Safety: trait.dyn.any-trait, trait.dyn.member.other; Spec 04 Dynamic Safety: types.trait.dyn.any-trait.
+# Spec 09 Dynamic Safety: trait.dyn.any-trait, trait.dyn.member.other-with-opaque; Spec 04 Dynamic Safety: types.trait.dyn.any-trait.
 
 trait Shape:
     fn area(self) -> f64

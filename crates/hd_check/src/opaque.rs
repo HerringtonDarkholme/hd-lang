@@ -307,8 +307,19 @@ impl Ck<'_, '_> {
                     })
             })
             .collect();
+        let owner = self.b.body_mut().item;
+        let args = if let Some(hd_resolve::ItemData::Method { owner: parent, .. }) =
+            self.cx.lookup.item(owner).map(|item| &item.data)
+            && matches!(
+                self.cx.lookup.item(*parent).map(|item| &item.data),
+                Some(hd_resolve::ItemData::Trait(_))
+            ) {
+            self.self_ty.into_iter().chain(args).collect()
+        } else {
+            args
+        };
         Ok(pool.intern_ty(&TyData::Opaque {
-            owner: self.b.body_mut().item,
+            owner,
             site,
             args: pool.list(&args),
             bound,

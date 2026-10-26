@@ -10826,6 +10826,12 @@ impl ProgramEnv for Env<'_> {
         };
         Some((args, fact.hidden))
     }
+    fn opaque_trait(&self, method: DefId) -> Option<DefId> {
+        let ItemData::Method { owner, .. } = &self.p.items.get(method)?.data else {
+            return None;
+        };
+        matches!(self.p.items.get(*owner)?.data, ItemData::Trait(_)).then_some(*owner)
+    }
     fn bounded(&self, def: DefId) -> Option<Vec<bool>> {
         self.sig(def)
             .map(|s| s.generics.iter().map(|g| g.bound.is_some()).collect())
@@ -10985,7 +10991,10 @@ impl ProgramEnv for Env<'_> {
                 .map(|m| m.1)
                 .filter(|m| {
                     self.p.items.get(*m).is_none_or(|i| {
-                        i.intrinsic.is_none() && self.takes_self(i) && !self.names_self(i, trait_)
+                        i.intrinsic.is_none()
+                            && self.takes_self(i)
+                            && !self.names_self(i, trait_)
+                            && i.sig().is_none_or(|s| !self.run.pool.has_opaque(s.ret))
                     })
                 })
                 .collect(),

@@ -155,13 +155,17 @@ pub fn assoc_faults(lookup: &Lookup<'_>, imp: DefId) -> AssocFaults {
 impl Ck<'_, '_> {
     /// Compares the method `def` of a written trait implementation with
     /// the trait's method of its name; reports at `node`.
-    pub(crate) fn check_impl_method(&mut self, def: DefId, node: NodeRef<'_>) {
+    pub(crate) fn check_impl_method(
+        &mut self,
+        def: DefId,
+        node: NodeRef<'_>,
+    ) -> hd_base::StageResult<()> {
         let pool = self.pool();
         let Some(it) = self.cx.lookup.item(def) else {
-            return;
+            return Ok(());
         };
         let ItemData::Method { owner, sig, .. } = &it.data else {
-            return;
+            return Ok(());
         };
         let Some(ItemData::Impl {
             trait_,
@@ -171,20 +175,20 @@ impl Ck<'_, '_> {
             ..
         }) = self.cx.lookup.item(*owner).map(|o| &o.data)
         else {
-            return;
+            return Ok(());
         };
         if *trait_ == DefId::NONE || !matches!(kind, ImplKind::Written | ImplKind::Delegated) {
-            return;
+            return Ok(());
         }
         let Some(ItemData::Trait(td)) = self.cx.lookup.item(*trait_).map(|t| &t.data) else {
-            return;
+            return Ok(());
         };
         let Some(&(_, tm)) = td.methods.iter().find(|(n, _)| *n == it.name) else {
             // A method the trait does not declare (`trait.impl.extra-methods`),
             // unless a sealed supertrait declares it: that is reported as
             // `sealed-trait-implementation` already.
             if self.sealed_super_declares(*trait_, it.name) {
-                return;
+                return Ok(());
             }
             let msg = format!(
                 "`{}` is not a member of `{}`; write it in an inherent `impl`",
@@ -206,10 +210,10 @@ impl Ck<'_, '_> {
                     },
                 );
             self.diags.error(Code::ExtraTraitMember, name, &msg);
-            return;
+            return Ok(());
         };
         let Some(tsig) = self.cx.lookup.item(tm).and_then(|i| i.sig()) else {
-            return;
+            return Ok(());
         };
         let (trait_, self_ty) = (*trait_, *self_ty);
         let targs = pool.list_items(*trait_args);
@@ -288,7 +292,26 @@ impl Ck<'_, '_> {
                 );
             }
             self.err(Code::TraitMethodSignature, node, &msg);
+        } else if pool.has_opaque(tsig.ret) && !omitted {
+            let declared = inst(tsig.ret);
+            let before = self.opaque_rets.len();
+            let opened = self.open_opaque_return(declared);
+            let got = self.norm_ty(sig.ret);
+            let opened = self.norm_ty(opened);
+            let snapshot = self.infer.snapshot();
+            if self.infer.unify(pool, got, opened).is_err() {
+                self.infer.rollback(snapshot);
+                self.err(
+                    Code::TraitMethodSignature,
+                    node,
+                    "the result type differs from the trait's opaque result shape",
+                );
+            } else {
+                self.add_opaque_bounds(got);
+                self.check_opaque_occurrences(before..self.opaque_rets.len(), node)?;
+            }
         }
+        Ok(())
     }
 
     /// Whether a sealed transitive supertrait of `trait_` declares a method
@@ -349,7 +372,7 @@ impl Ck<'_, '_> {
                 });
             }
         }
-        if !same(want.ret, got.ret) {
+        if !pool.has_opaque(want.ret) && !same(want.ret, got.ret) {
             return Some("the result type");
         }
         if want.suspends != got.suspends {

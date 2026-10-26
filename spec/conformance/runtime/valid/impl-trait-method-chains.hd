@@ -1,0 +1,25 @@
+# expect-stdout: 6 20 6
+trait Source:
+    fn items(&self) -> impl Iterator[i32]
+
+struct Evens: pass
+struct Doubles: pass
+
+impl Source for Evens:
+    fn items(&self) -> impl Iterator[i32]:
+        [+1, +2, +3, +4].iter().filter(fn(x: i32) -> bool: x % 2 == 0)
+
+impl Source for Doubles:
+    fn items(&self) -> impl Iterator[i32]:
+        [+1, +2, +3, +4].iter().map(fn(x: i32) -> i32: x * 2)
+
+fn total[S < Source](source: S) -> i32:
+    let sum = +0
+    for x in source.items():
+        sum += x
+    sum
+
+fn make_source() -> impl Source: Evens {}
+
+pub fn main() -> void $ Console:
+    println("${total(Evens {})} ${total(Doubles {})} ${total(make_source())}")

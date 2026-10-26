@@ -966,6 +966,17 @@ impl Ck<'_, '_> {
         let Owner::Trait { def: trait_, .. } = m.owner else {
             return unsupported("a dynamic member reference outside a trait");
         };
+        if pool.has_opaque(m.sig.ret) {
+            let name = self
+                .cx
+                .lookup
+                .item(m.def)
+                .map_or("method", |item| self.cx.names.text(item.name));
+            self.err(Code::DynMemberUnavailable, n, &format!(
+                "`{name}` returns `impl Trait`, which is unavailable on a trait value; use a generic bound instead"
+            ));
+            return Ok(self.poison_value(n));
+        }
         let changes = m.sig.params.first().is_some_and(|(_, t)| {
             matches!(
                 pool.get(*t),

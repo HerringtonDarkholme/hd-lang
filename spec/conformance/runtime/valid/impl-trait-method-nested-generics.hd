@@ -1,0 +1,13 @@
+# expect-stdout: 3 other
+trait Source[T]:
+    fn hidden[U < Display](&self, extra: U) -> (impl Display, List[impl Display])
+struct Value[T < Display]:
+    item: T
+impl[T < Display] Source[T] for Value[T]:
+    fn hidden[U < Display](&self, extra: U) -> (T, List[U]):
+        (self.item, [extra])
+fn read[T, S < Source[T]](source: S) -> string:
+    pair := source.hidden("other")
+    "${pair._0} ${pair._1[0]}"
+pub fn main() -> void $ Console:
+    println(read::[i32, Value[i32]](Value { item: +3 }))

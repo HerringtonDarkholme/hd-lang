@@ -1,5 +1,5 @@
 # test: a dyn generic call inside an erased body reaches its own witness
-# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# Rules: trait.dyn.member.other-with-opaque, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
 # expect-stdout: 7
 # expect-stdout: 1099511627776
 # expect-stdout: 2.5

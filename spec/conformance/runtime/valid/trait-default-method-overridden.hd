@@ -1,5 +1,5 @@
 # test: traits / defaults / override
-# Spec 09 Traits: trait.impl.override.
+# Spec 09 Traits: trait.impl.override-opaque.
 
 trait Named:
     fn name(self) -> i32

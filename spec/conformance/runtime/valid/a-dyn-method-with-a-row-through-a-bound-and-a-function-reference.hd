@@ -1,5 +1,5 @@
 # test: a dyn method with a row through a bound and a function reference
-# Rules: std-time.clock.sleep; Spec 09 Dynamic Safety: trait.dyn.member.other.
+# Rules: std-time.clock.sleep; Spec 09 Dynamic Safety: trait.dyn.member.other-with-opaque.
 # expect-stdout: barometer 4
 # expect-stdout: 8
 # expect-stdout: barometer 6

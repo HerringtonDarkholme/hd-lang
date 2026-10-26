@@ -1,5 +1,5 @@
 # test: trait values that bind differently get their own vtables
-# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# Rules: trait.dyn.member.other-with-opaque, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
 # expect-stdout: 1
 # expect-stdout: 3
 # expect-stdout: 0

@@ -1,5 +1,5 @@
 # test: an i32 crosses an erased method whole
-# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# Rules: trait.dyn.member.other-with-opaque, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
 # expect-stdout: -500
 # expect-stdout: 2000000000
 # expect-stdout: -2000000000

@@ -483,7 +483,7 @@ lang/09-traits.md	60	accept	typing/valid/prelude-surface.hd
 lang/09-traits.md	61	mixed	typing/invalid/parameter-bare-trait.hd
 lang/09-traits.md	62	accept	typing/valid/dynamic-safety-row-parameter.hd
 lang/09-traits.md	63	accept	typing/valid/dynamic-safety-implied-anyref.hd
-lang/09-traits.md	64	mixed	typing/invalid/dyn-self-parameter-unavailable.hd
+lang/09-traits.md	64	mixed	typing/invalid/dyn-self-parameter-unavailable.hd|typing/invalid/impl-trait-method-dyn-call.hd
 lang/09-traits.md	65	accept	typing/valid/trait-value-bound-associated-type.hd
 lang/09-traits.md	66	mixed	typing/invalid/trait-value-unbound-associated-type.hd|typing/invalid/dyn-associated-function-bound.hd
 lang/09-traits.md	67	accept	runtime/valid/dynamic-trait-value-satisfies-own-bound.hd

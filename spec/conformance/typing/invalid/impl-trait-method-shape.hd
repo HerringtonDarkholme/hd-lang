@@ -1,0 +1,5 @@
+trait Source:
+    fn hidden(&self) -> List[impl Display]
+struct Value: pass
+impl Source for Value:
+    fn hidden(&self) -> i32: +1 # diagnostic: trait-method-signature

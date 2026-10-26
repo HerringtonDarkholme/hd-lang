@@ -1,0 +1,4 @@
+trait Source:
+    fn hidden(&self) -> impl Display
+fn read(source: *dyn Source) -> void:
+    _f := source::hidden # diagnostic: dyn-member-unavailable

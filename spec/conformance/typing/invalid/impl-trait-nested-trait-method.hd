@@ -1,2 +1,0 @@
-trait Source:
-    fn values(&self) -> (impl Display, i32) # diagnostic: type-mismatch

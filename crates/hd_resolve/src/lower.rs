@@ -2334,6 +2334,13 @@ impl Lower<'_, '_, '_> {
                             .map(|(_, t, _)| *t)
                     })
                     .collect();
+                // A trait method's opaque identity includes its implementation
+                // target, even when the written bound never mentions `Self`.
+                let args = if gn.self_trait.is_some() {
+                    gn.self_ty.into_iter().chain(args).collect()
+                } else {
+                    args
+                };
                 pool.intern_ty(&TyData::Opaque {
                     owner,
                     site,
@@ -3358,18 +3365,6 @@ impl Lower<'_, '_, '_> {
                     let name = self.sym_token(t);
                     let def = self.names.member(owner, PathKind::Member, &text);
                     self.result_required(f, result_required || self.src.is_pub(f));
-                    if result_required
-                        && Src::type_child(f).is_some_and(|n| {
-                            n.kind() == SyntaxKind::ImplType
-                                || n.descendants().any(|n| n.kind() == SyntaxKind::ImplType)
-                        })
-                    {
-                        self.diags.error(
-                            Code::TypeMismatch,
-                            self.src.span(f),
-                            "a trait method cannot return `impl Trait` yet",
-                        );
-                    }
                     let sig = self.sig(f, def, gn);
                     let mut it = Item::new(
                         def,

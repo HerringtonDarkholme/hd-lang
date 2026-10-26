@@ -866,7 +866,7 @@ impl Declarations for LookupDecls<'_> {
         };
         t.methods.iter().any(|(_, method)| {
             self.lookup.item(*method).and_then(Item::sig).is_some_and(|sig| {
-                sig.params.first().is_none_or(|&(name, ty)| {
+                self.pool.has_opaque(sig.ret) || sig.params.first().is_none_or(|&(name, ty)| {
                     self.syms.resolve(name) != "self"
                         || matches!(self.pool.get(ty), TyData::Ref { mutable: true, .. } if !mutable)
                 })

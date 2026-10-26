@@ -1,0 +1,13 @@
+# expect-stdout: 11 12
+trait Source:
+    fn hidden(&self) -> impl Display
+    fn number(&self) -> i32
+struct Value: pass
+impl Source for Value:
+    fn hidden(&self) -> i32: +1
+    fn number(&self) -> i32: +11
+fn read(source: &dyn Source) -> i32: source.number()
+fn read_mut(source: &mut dyn Source) -> i32: source.number() + 1
+pub fn main() -> void $ Console:
+    let mut value = Value {}
+    println("${read(&value)} ${read_mut(&mut value)}")

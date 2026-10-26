@@ -1,5 +1,5 @@
 # test: self in a function type is unavailable on a dyn value
-# Rules: trait.dyn.member.self, trait.dyn.member.unavailable.error, trait.dyn.member.other.
+# Rules: trait.dyn.member.self, trait.dyn.member.unavailable.error, trait.dyn.member.other-with-opaque.
 trait Shape:
     fn area(self) -> i32
     fn same_as(self, other: Self) -> bool

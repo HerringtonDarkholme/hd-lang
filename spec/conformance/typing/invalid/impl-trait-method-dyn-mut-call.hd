@@ -1,0 +1,4 @@
+trait Source:
+    fn hidden(&self) -> impl Display
+fn read(source: &mut dyn Source) -> void:
+    source.hidden() # diagnostic: dyn-member-unavailable

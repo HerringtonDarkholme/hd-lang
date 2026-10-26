@@ -53,6 +53,10 @@ pub trait ProgramEnv: LayoutEnv {
     ) -> Option<opaque::HiddenResult> {
         None
     }
+    /// The declaring trait when an opaque result belongs to a trait method.
+    fn opaque_trait(&self, _method: DefId) -> Option<DefId> {
+        None
+    }
     /// Per type parameter of the item itself: has a bound (A1, `crates/hd_mono/DESIGN.md`
     /// §13.2: exact).
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
@@ -532,24 +536,22 @@ impl DefIdOrd {
 /// base becomes concrete resolves to the impl's binding (`crates/hd_mono/DESIGN.md` §13).
 #[must_use]
 pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList, t: Ty) -> Ty {
-    let item = env.generics_owner(item);
-    let a = pool.list_items(args);
-    let parent = env.parent(item);
-    let n = parent.map_or(0, |p| p.1);
-    let s = pool.subst(t, &|p: ParamRef| {
-        if p.owner == item {
-            a.get(n + p.index as usize).copied()
-        } else if parent.is_some_and(|(o, _)| o == p.owner) {
-            a.get(p.index as usize).copied()
-        } else {
-            None
-        }
-    });
-    let s = opaque::reveal(pool, s, &|owner, site| env.opaque_result(pool, owner, site))
-        .unwrap_or(Ty::POISON);
+    let s = substitute(pool, env, item, args, t);
+    let s = opaque::reveal_with(
+        pool,
+        s,
+        &|owner, site, args| opaque_result(pool, env, owner, site, args),
+        &|owner, site| {
+            env.opaque_trait(owner)
+                .filter(|_| {
+                    env.ret(owner)
+                        .is_some_and(|ret| opaque::result_at(pool, ret, ret, site).is_some())
+                })
+                .map_or(0, |trait_| 1 + env.trait_arity(trait_))
+        },
+    )
+    .unwrap_or(Ty::POISON);
     if pool.has_assoc(s) {
-        // Impl heads and trait-value bindings use source reference types;
-        // restore their permission before projecting, then lower the result.
         let types = pool.types();
         let cell = env.ref_cell();
         let source = types.raise_refs(cell, s);
@@ -558,6 +560,113 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
     } else {
         s
     }
+}
+
+/// Substitute parameters without opening another hidden-result equation.
+fn substitute(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList, t: Ty) -> Ty {
+    let item = env.generics_owner(item);
+    let a = pool.list_items(args);
+    let parent = env.parent(item);
+    let n = parent.map_or(0, |p| p.1);
+    pool.subst(t, &|p: ParamRef| {
+        if p.owner == item {
+            a.get(n + p.index as usize).copied()
+        } else if parent.is_some_and(|(o, _)| o == p.owner) {
+            a.get(p.index as usize).copied()
+        } else {
+            None
+        }
+    })
+}
+
+/// Open the selected implementation's result while keeping checking head-only.
+fn opaque_result(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    method: DefId,
+    site: u32,
+    args: TyList,
+) -> Option<opaque::HiddenResult> {
+    let Some(trait_) = env.opaque_trait(method) else {
+        return env.opaque_result(pool, method, site);
+    };
+    let declared_result = env.ret(method)?;
+    if opaque::result_at(pool, declared_result, declared_result, site).is_none() {
+        // Nested named functions in a trait default keep their own occurrence
+        // sites; those are body facts, not the trait method's return contract.
+        return env.opaque_result(pool, method, site);
+    }
+    let actual = pool.list_items(args);
+    let (&self_ty, rest) = actual.split_first()?;
+    let n = env.trait_arity(trait_);
+    let trait_args = pool.list(rest.get(..n)?);
+    let types = pool.types();
+    let cell = env.ref_cell();
+    let (universe, global) = env.solving();
+    let penv = ParamEnv::default();
+    let mut memo = BodyMemo::default();
+    let mut cx = SolveCx {
+        pool: types,
+        env: &penv,
+        universe,
+        impls: env.impls(),
+        decls: env.decls(),
+        body_memo: &mut memo,
+        global,
+    };
+    let Selection::Impl { impl_row, .. } = hd_types::solver::TableSolver
+        .select(
+            &mut cx,
+            ConcreteTraitRef(TraitRef {
+                trait_,
+                self_ty: types.raise_refs(cell, self_ty),
+                args: types.list(
+                    &pool
+                        .list_items(trait_args)
+                        .iter()
+                        .map(|&t| types.raise_refs(cell, t))
+                        .collect::<Vec<_>>(),
+                ),
+            }),
+        )
+        .ok()?
+    else {
+        return None;
+    };
+    let table = env.impls().table(impl_row.module)?;
+    let row = impl_row.row as usize;
+    let imp = table.def[row];
+    let Some(selected) = env.impl_method(imp, method) else {
+        // The trait's default body shares its Self/trait/method arguments.
+        return env.opaque_result(pool, method, site);
+    };
+    let (head, formals, count) = env.impl_head(imp)?;
+    let mut values = vec![None; count];
+    unify(pool, imp, head, self_ty, &mut values);
+    for (&formal, &actual) in pool
+        .list_items(formals)
+        .iter()
+        .zip(pool.list_items(trait_args))
+    {
+        unify(pool, imp, formal, actual, &mut values);
+    }
+    if values.iter().any(Option::is_none) {
+        hd_types::solver::apply_binds(types, env.impls(), table, row, &mut values);
+    }
+    let mut selected_args: Vec<Ty> = values.into_iter().collect::<Option<_>>()?;
+    selected_args.extend_from_slice(&rest[n..]);
+    let selected_result = substitute(
+        pool,
+        env,
+        selected,
+        pool.list(&selected_args),
+        env.ret(selected)?,
+    );
+    let declared = substitute(pool, env, method, args, env.ret(method)?);
+    // The selected signature can use either a concrete return or its own opaque
+    // declaration. The latter stays lazy so reveal's cycle guard still applies.
+    let result = opaque::result_at(pool, declared, selected_result, site)?;
+    Some((args, result))
 }
 
 /// The instruction types of this instance's final body, substituted once

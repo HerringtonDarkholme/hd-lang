@@ -4080,6 +4080,15 @@ impl Ck<'_, '_> {
                 // A trait value read through `&dyn` or `&mut dyn`
                 // (`trait.dyn.ref.member`).
                 let via_dyn = dyn_recv.filter(|_| choice.0 == ChoiceKind::TraitValue);
+                if choice.0 == ChoiceKind::TraitValue && pool.has_opaque(self.sig_of(method)?.ret) {
+                    for e in &args.positional {
+                        self.expr(*e, Some(Ty::POISON))?;
+                    }
+                    self.err(Code::DynMemberUnavailable, n, &format!(
+                        "`{name}` returns `impl Trait`, which is unavailable on a trait value; use a generic bound instead"
+                    ));
+                    return Ok((Ref(NONE), Ty::NEVER));
+                }
                 if let Some(&(s, st)) = self.sig_of(method)?.params.first()
                     && self.cx.names.text(s) == "self"
                 {
@@ -4262,6 +4271,16 @@ impl Ck<'_, '_> {
             )
             .to_owned();
         refs.extend(self.check_args(&formals, skip, args, n, &method_name)?);
+        if pool.has_opaque(sig.ret) {
+            let self_ty = self.strip_mut(self.infer.resolve(pool, self_ty));
+            let inner = self.ref_of(self_ty).map_or(self_ty, |(t, _)| t);
+            if matches!(pool.get(inner), TyData::TraitValue { .. }) {
+                self.err(Code::DynMemberUnavailable, n, &format!(
+                    "`{method_name}` returns `impl Trait`, which is unavailable on a trait value; use a generic bound instead"
+                ));
+                return Ok((Ref(NONE), Ty::NEVER));
+            }
+        }
         self.fill_method_defaults(&sig, &vars, &inst, want)?;
         self.open_call_params(&vars, &refs, n);
         self.bounds_of(&sig, &vars, &inst, n)?;

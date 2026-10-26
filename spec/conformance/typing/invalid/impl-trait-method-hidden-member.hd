@@ -1,0 +1,4 @@
+trait Source:
+    fn hidden(&self) -> impl Display
+fn read[S < Source](source: S) -> void:
+    source.hidden().len() # diagnostic: unknown-method

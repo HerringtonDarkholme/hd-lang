@@ -1026,7 +1026,7 @@ fn fn_body_steps(
     // A local impl's method, or a local trait's default, sees what is in
     // scope where it is written (`trait.impl.local.lookup`).
     ck.move_to(cx.src.span(node).lo);
-    ck.check_impl_method(def, node);
+    ck.check_impl_method(def, node)?;
     ck.check_literal_marker(def, node);
     ck.check_row_patterns(&sig, node);
     ck.suspends = vec![sig.suspends];

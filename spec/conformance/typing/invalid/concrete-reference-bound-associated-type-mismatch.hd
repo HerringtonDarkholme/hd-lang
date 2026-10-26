@@ -1,5 +1,5 @@
 # test: a value converts only when its implementation binds the bound types
-# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# Rules: trait.dyn.member.other-with-opaque, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
 trait Lookup:
     type Key
     type Value
