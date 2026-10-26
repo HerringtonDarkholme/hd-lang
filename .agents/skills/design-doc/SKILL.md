@@ -68,37 +68,52 @@ and how to run the checks. Everything else is in the doc.
 ## The Design Doc
 
 File `docs/future-work/<TOPIC>.md`, linked from
-`docs/future-work/README.md`. Main body: about 150 lines at most. Order:
+`docs/future-work/README.md`. Owner, 2026-10-26: "it is not just short, it
+should move most important stuff at the top, study existing stuff down,
+stress test should not be skipped, also prior art should also have small
+code snippet to reflect their design and usage, in appendix".
+
+Most important first. The main body is about 150 lines at most:
 
 1. **Title and status line**: "proposal, YYYY-MM-DD; domain: …; not
    accepted".
-2. **Context**: what exists today and why it matters, five lines at most,
-   with spec links.
-3. **Illustrative problems**: two to four concrete programs or commands,
-   each with what happens today and why that is wrong. These stay fixed for
-   the rest of the doc.
-4. **Proposed solution**: shown on those same problems first (code before
-   prose), then how it works: the rules, the data structures and the
-   algorithm, briefly. Pseudo-code only where prose would be longer. For a
-   stdlib API: the solved problems in a few lines each, then a short table
-   of the public types and what each is for, pointing at the package for
-   the full signatures.
-5. **Cost**, bottom-up: a short table, one row per component (code
+2. **The proposal**: what changes, in three to five lines, then the one
+   code block a reader most needs to see (the new API in use, or the new
+   rule on an example). A reader who stops here knows the decision asked.
+3. **Open questions** for the owner, numbered, one line each, each with
+   the recommended answer.
+4. **Problems it solves**: two to four concrete programs or commands, each
+   with what goes wrong today and how the proposal changes it, side by
+   side.
+5. **How it works**: the rules, data structures and algorithm, briefly;
+   pseudo-code only where prose would be longer. For a stdlib API, a short
+   table of the public types and what each is for, pointing at the package
+   for the full signatures.
+6. **Cost**, bottom-up: a short table, one row per component (code
    removed, code added, compile time, runtime, Wasm size, web compiler gzip
-   against the 2 MB cap).
-6. **Open questions** for the owner, numbered, one line each.
+   against the 2 MB cap), plus any compiler gap the design hits, with its
+   diagnostic.
 
-Then, at the back, as appendices a reader may skip:
+Then the appendices, in this order. A reader may skip them; the writer may
+not:
 
-- **A. Alternatives considered**: each in a few lines, and why not.
-- **B. Prior art**: how the leading tools handle it, with sources.
-- **C. Stress test**: real code and adversarial cases run against the
-  design, and what broke.
-- **D. Details**: the domain checklist items below, one short paragraph
-  or one line each, and the implementation phases (each about one hour,
-  each with its test).
+- **A. Stress test (required, never skipped)**: real code from well-known
+  libraries or apps rewritten in the proposal, plus adversarial and edge
+  cases; each with what happened and what the design does about it. A
+  stress test that found nothing was not adversarial enough.
+- **B. Prior art, with code**: for each leading tool, a small snippet of
+  how it is written and used (five to fifteen lines), then one or two lines
+  on its design choice and what hd takes or rejects from it, with a source
+  link.
+- **C. Alternatives considered**: each in a few lines, and why not.
+- **D. Today in hd**: the study of what exists now (current std, spec rules
+  with links, probes on the current build). This is background and goes
+  here, not at the top.
+- **E. Details**: the domain checklist items below, one line each where
+  possible, and the implementation phases (each about one hour, each with
+  its test).
 
-### Domain checklists (appendix D, one line each where possible)
+### Domain checklists (appendix E, one line each where possible)
 
 - **Language feature:** grammar and formatting, typing and inference
   (use sites only), interaction with patterns, derives, closures, modules,
@@ -127,11 +142,15 @@ Then, at the back, as appendices a reader may skip:
 
 ## Review Before Handing In
 
-- Could the owner understand the proposal from the first screen?
+- Could the owner understand the proposal and the decision asked from the
+  first screen?
 - Stdlib: is every public item used by an example, and does the package
   check and format?
-- Is the main body of the doc within about 150 lines, with prior art and
-  the stress test at the back?
+- Does the doc open with the proposal, its key code and the open
+  questions, with today's state at the back?
+- Is the main body within about 150 lines?
+- Is there a real stress test, and does every prior-art entry have a code
+  snippet?
 - Does the pull request hold only the doc, the package (for stdlib) and
   the index line, with no experiment or prototype folders?
 - Does every illustrative problem work in the proposal?
