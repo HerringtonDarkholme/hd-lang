@@ -18,7 +18,10 @@
 
 use crate::op::Op as I;
 use hd_base::{DefId, Hash128, StageResult};
-use hd_mono::{BoundaryMap, ProgramEnv, subst};
+use hd_mono::{BoundaryMap, ProgramEnv, Target, subst};
+use hd_tir::ir::{
+    Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology, Word, local_flags, slot_words,
+};
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
@@ -49,6 +52,9 @@ pub enum LTy {
     F64,
     /// A string `(address, length)`: its length, then its bytes.
     Str,
+    /// A decoder-only string whose bytes no reachable consumer observes.
+    /// It checks the length and bounds as `Str`, returning the static empty view.
+    DiscardStr,
     /// `List[u8]`, a buffer's address: its length, then its bytes.
     Bytes,
     /// Any other list: its count, then its elements.
@@ -117,7 +123,7 @@ impl LTy {
             LTy::Int { bits, .. } => vec![if *bits > 32 { Val::I64 } else { Val::I32 }],
             LTy::F32 => vec![Val::F32],
             LTy::F64 => vec![Val::F64],
-            LTy::Str | LTy::Handle(_) => vec![Val::I32, Val::I32],
+            LTy::Str | LTy::DiscardStr | LTy::Handle(_) => vec![Val::I32, Val::I32],
             LTy::Bytes | LTy::List(_) => vec![Val::I32],
             LTy::Record(fields) => fields.iter().flat_map(LTy::vals).collect(),
             LTy::Enum(e) => e.vals.clone(),
@@ -581,12 +587,7 @@ pub fn host_slot(
         let result = match (row.result, rvals.as_slice()) {
             (Codec::Void, []) => CallRes::Void,
             (Codec::Scalar(_), [v @ (Val::I32 | Val::I64 | Val::F64)]) => CallRes::Scalar(*v),
-            (Codec::Buffer(_), _) => CallRes::Buf(of(
-                input,
-                mm,
-                ret,
-                at.map(|a| AtProfile { out: false, ..a }),
-            )?),
+            (Codec::Buffer(_), _) => CallRes::Buf(result_type(input, mm, m, ret, at)?),
             _ => return refused(),
         };
         return Ok(Helper::HostCall {
@@ -599,7 +600,7 @@ pub fn host_slot(
     let res = match (row.result, rvals.as_slice()) {
         (Codec::Void, []) => HostRes::Void,
         (Codec::Buffer(_), _) => {
-            let b = of(input, mm, ret, at.map(|a| AtProfile { out: false, ..a }))?;
+            let b = result_type(input, mm, m, ret, at)?;
             if b.is_tags() && rvals == [Val::I32, Val::I32] {
                 HostRes::Tags
             } else {
@@ -615,6 +616,222 @@ pub fn host_slot(
         area: args_area(input, &types)?,
         res,
     })
+}
+
+/// The codec belongs to the method's caller set, never merely its result type.
+fn result_type(
+    input: &Input<'_>,
+    module: &mut Module,
+    method: DefId,
+    ty: Ty,
+    at: Option<AtProfile<'_>>,
+) -> StageResult<LTy> {
+    let mut boundary = of(input, module, ty, at.map(|a| AtProfile { out: false, ..a }))?;
+    if !module.open_world && has_direct_strings(&boundary) && host_result_tags_only(input, method) {
+        discard_strings(&mut boundary);
+    }
+    Ok(boundary)
+}
+
+/// Whether a direct string field can use the non-owning decoder. JSON codecs,
+/// handles and collection construction retain their existing behavior and checks.
+fn has_direct_strings(ty: &LTy) -> bool {
+    match ty {
+        LTy::Str => true,
+        LTy::Record(fields) => fields.iter().any(has_direct_strings),
+        LTy::Enum(e) => e
+            .variants
+            .iter()
+            .flatten()
+            .any(|(_, t)| has_direct_strings(t)),
+        _ => false,
+    }
+}
+
+fn discard_strings(ty: &mut LTy) {
+    match ty {
+        LTy::Str => *ty = LTy::DiscardStr,
+        LTy::Record(fields) => fields.iter_mut().for_each(discard_strings),
+        LTy::Enum(e) => e
+            .variants
+            .iter_mut()
+            .flatten()
+            .for_each(|(_, t)| discard_strings(t)),
+        _ => {}
+    }
+}
+
+/// A closed-program proof for one dynamic method, not one boundary type.
+/// Any unknown, escaping, or observing use keeps its ordinary owned decoder.
+fn host_result_tags_only(input: &Input<'_>, method: DefId) -> bool {
+    let mut found = false;
+    for id in input.order {
+        let calls = &input.collected.calls[id.idx()];
+        let mut topology = None;
+        for (&call, target) in calls {
+            if !matches!(target, Target::Dyn) {
+                continue;
+            }
+            let Some(body) = (input.body)(*id) else {
+                return false;
+            };
+            if crate::drive::callee(body, body.data[call as usize][0]).map(|(_, m)| m)
+                != Some(method)
+            {
+                continue;
+            }
+            found = true;
+            let result = if body.tags[call as usize] == Tag::Await {
+                call
+            } else if input.env.suspends(method) {
+                let topo = topology.get_or_insert_with(|| Topology::new(body));
+                let Some(on) = crate::drive::block_on_of(body, topo, calls, call) else {
+                    return false;
+                };
+                // block_on_of checks the intrinsic target, so its value is the completed outcome.
+                on
+            } else if body.tags[call as usize] == Tag::Call {
+                call
+            } else {
+                return false;
+            };
+            if !tags_only(body, result) {
+                return false;
+            }
+        }
+    }
+    found
+}
+
+fn tracked(values: &[bool], value: u32) -> bool {
+    Ref(value)
+        .as_inst()
+        .is_some_and(|i| values.get(i.0 as usize) == Some(&true))
+}
+
+/// Follow the completed value through copies and enum projections. Stores to
+/// another object, references, captures, calls and non-tag observations refuse.
+/// The flow-insensitive union deliberately keeps a decoder when aliasing is unclear.
+fn tags_only(body: &Body, root: u32) -> bool {
+    if root as usize >= body.len() {
+        return false;
+    }
+    let mut values = vec![false; body.len()];
+    let mut locals = vec![false; body.local_ty.len()];
+    let topo = Topology::new(body);
+    values[root as usize] = true;
+    loop {
+        let mut changed = false;
+        for i in 0..body.len() {
+            let tag = body.tags[i];
+            let used = slot_words(body, i, |word| {
+                matches!(word, Word::Value(role) if role != Role::Dropped) || word == Word::Provider
+            })
+            .into_iter()
+            .any(|v| tracked(&values, v));
+            let place = matches!(
+                tag,
+                Tag::Read
+                    | Tag::Store
+                    | Tag::Ref
+                    | Tag::Drop
+                    | Tag::IsUnique
+                    | Tag::Pin
+                    | Tag::FlagSet
+                    | Tag::FlagClear
+            )
+            .then(|| body.decode_place(body.data[i][0]))
+            .flatten();
+            let placed = place.as_ref().is_some_and(|p| match p.root {
+                PlaceRoot::Local(l) => locals.get(l.idx()) == Some(&true),
+                PlaceRoot::Value(v) => tracked(&values, v.0),
+                _ => false,
+            });
+            if place.as_ref().is_some_and(|p| {
+                p.proj
+                    .iter()
+                    .any(|step| matches!(step, Proj::Elem(index) if tracked(&values, index.0)))
+            }) {
+                return false;
+            }
+            if tag == Tag::Store {
+                // A tainted place root or index is an observation, not a value copy.
+                if used && !tracked(&values, body.data[i][1]) {
+                    return false;
+                }
+                if tracked(&values, body.data[i][1]) {
+                    let Some(p) = &place else {
+                        return false;
+                    };
+                    let PlaceRoot::Local(local) = p.root else {
+                        return false;
+                    };
+                    if !p.proj.is_empty() {
+                        return false;
+                    }
+                    if !locals[local.idx()] {
+                        locals[local.idx()] = true;
+                        changed = true;
+                    }
+                } else if placed && place.as_ref().is_some_and(|p| !p.proj.is_empty()) {
+                    return false;
+                }
+            } else if tag == Tag::Read && placed {
+                if place.as_ref().is_some_and(|p| {
+                    p.proj
+                        .iter()
+                        .any(|s| !matches!(s, Proj::Field(_) | Proj::Variant(_)))
+                }) {
+                    return false;
+                }
+                if !values[i] {
+                    values[i] = true;
+                    changed = true;
+                }
+            } else if matches!(tag, Tag::Drop | Tag::FlagSet | Tag::FlagClear) {
+                if used {
+                    return false;
+                }
+                // Ending a value's lifetime does not observe its string bytes.
+            } else if used || placed {
+                match tag {
+                    Tag::SwitchTag | Tag::Match => {}
+                    Tag::Block => {
+                        if !values[i] {
+                            values[i] = true;
+                            changed = true;
+                        }
+                    }
+                    Tag::Coerce if body.same_value_coercion(i) => {
+                        if !values[i] {
+                            values[i] = true;
+                            changed = true;
+                        }
+                    }
+                    _ => return false,
+                }
+            }
+            // A block's value becomes the control expression's value, not its condition.
+            if tag == Tag::Block && values[i] {
+                let owner = topo.owner[i];
+                if owner != NONE && !values[owner as usize] {
+                    values[owner as usize] = true;
+                    changed = true;
+                }
+            }
+        }
+        if locals
+            .iter()
+            .enumerate()
+            .any(|(i, yes)| *yes && body.local_flags[i] & local_flags::CAPTURED != 0)
+            || body.sub_root.iter().any(|root| tracked(&values, *root))
+        {
+            return false;
+        }
+        if !changed {
+            return true;
+        }
+    }
 }
 
 /// A host leaf frame's arguments as one record of `types`, which the
@@ -1299,7 +1516,7 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
             f.op(I::I32Add);
             f.set(0);
         }
-        LTy::Str => {
+        LTy::Str | LTy::DiscardStr => {
             put(&mut f, 0, |f| {
                 f.get(2);
                 f.op(I::I64ExtendI32U);
@@ -1507,6 +1724,18 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.i32(n);
             f.op(I::I32Add);
             f.set(0);
+        }
+        LTy::DiscardStr => {
+            let n = f.local(Val::I32);
+            get_len(&mut f, 0);
+            f.set(n);
+            check_room(&mut f, 0, n);
+            f.get(0);
+            f.get(n);
+            f.op(I::I32Add);
+            f.set(0);
+            f.u32(EMPTY);
+            f.i32(0);
         }
         LTy::Str => {
             let (n, s) = (f.local(Val::I32), f.local(Val::I32));
@@ -1967,4 +2196,222 @@ fn package_value(input: &Input<'_>, t: Ty, depth: u32) -> StageResult<hd_host_ab
         }
         _ => return fail(),
     })
+}
+
+#[cfg(test)]
+mod discarded_tests {
+    use super::*;
+    use hd_base::{NodeIdx, Symbol};
+    use hd_tir::ir::{BodyKind, Place};
+
+    fn record(b: &mut Body, words: &[u32]) -> u32 {
+        let at = u32::try_from(b.extra.len()).expect("record");
+        b.extra.push(u32::try_from(words.len()).expect("length"));
+        b.extra.extend_from_slice(words);
+        at
+    }
+
+    fn inst(b: &mut Body, tag: Tag, a: u32, w: u32) -> u32 {
+        let i = u32::try_from(b.len()).expect("instruction");
+        b.tags.push(tag);
+        b.data.push([a, w]);
+        b.ty.push(Ty::VOID);
+        b.syn.push(NodeIdx::NONE);
+        i
+    }
+
+    fn place(b: &mut Body, text: &str) -> u32 {
+        let p: Place = text.parse().expect("place");
+        match (p.words(), p.root) {
+            (Some(words), _) => record(b, &words),
+            (None, PlaceRoot::Local(l)) => l.raw() | hd_tir::ir::place::BARE_LOCAL,
+            _ => unreachable!("place words"),
+        }
+    }
+
+    fn body() -> Body {
+        let mut b = Body::new(DefId::from_raw(0), BodyKind::Fn);
+        b.local_ty.push(Ty::VOID);
+        b.local_name.push(Symbol::from_raw(0));
+        b.local_syn.push(NodeIdx::NONE);
+        b.local_flags.push(local_flags::ASSIGNED);
+        inst(&mut b, Tag::Hole, NONE, NONE);
+        b
+    }
+
+    fn finish(b: &mut Body, tail: u32) {
+        let list = record(
+            b,
+            &(0..u32::try_from(b.len()).expect("body")).collect::<Vec<_>>(),
+        );
+        let root = inst(b, Tag::Block, list, tail);
+        b.sub_root.push(root);
+    }
+
+    #[test]
+    fn tag_tests_copies_and_drops_do_not_observe_payload_bytes() {
+        let mut b = body();
+        let destination = place(&mut b, "[$0]");
+        inst(&mut b, Tag::Store, destination, 0);
+        let source = place(&mut b, "[$0 as .0 .0]");
+        let read = inst(&mut b, Tag::Read, source, 0);
+        let branches = record(&mut b, &[0, NONE, NONE]);
+        inst(&mut b, Tag::SwitchTag, read, branches);
+        inst(&mut b, Tag::Drop, destination, NONE);
+        finish(&mut b, NONE);
+        assert!(tags_only(&b, 0));
+    }
+
+    #[test]
+    fn references_captures_returns_and_calls_keep_owned_decoding() {
+        for use_ in [Tag::Ref, Tag::Return, Tag::Call] {
+            let mut b = body();
+            let p = place(&mut b, "[%0]");
+            match use_ {
+                Tag::Ref => {
+                    inst(&mut b, Tag::Ref, p, 0);
+                }
+                Tag::Return => {
+                    inst(&mut b, Tag::Return, 0, NONE);
+                }
+                Tag::Call => {
+                    let args = record(&mut b, &[0, 0, 0, 0]);
+                    inst(&mut b, Tag::Call, NONE, args);
+                }
+                _ => unreachable!(),
+            }
+            finish(&mut b, NONE);
+            assert!(!tags_only(&b, 0), "{use_:?}");
+        }
+        let mut b = body();
+        let p = place(&mut b, "[$0]");
+        inst(&mut b, Tag::Store, p, 0);
+        b.local_flags[0] |= local_flags::CAPTURED;
+        finish(&mut b, NONE);
+        assert!(!tags_only(&b, 0));
+        let mut b = body();
+        finish(&mut b, 0);
+        assert!(!tags_only(&b, 0));
+    }
+
+    #[test]
+    fn a_payload_used_as_an_element_key_is_an_observation() {
+        let mut b = body();
+        let other = inst(&mut b, Tag::Hole, NONE, NONE);
+        let destination = place(&mut b, &format!("[%{other} [%0]]"));
+        inst(&mut b, Tag::Store, destination, other);
+        finish(&mut b, NONE);
+        assert!(!tags_only(&b, 0));
+    }
+
+    fn result_type() -> LTy {
+        let error = LTy::Enum(Box::new(LEnum {
+            vals: vec![Val::I32; 3],
+            variants: vec![vec![], vec![(vec![1, 2], LTy::Str)]],
+        }));
+        LTy::Enum(Box::new(LEnum {
+            vals: vec![Val::I32; 4],
+            variants: vec![vec![], vec![(vec![1, 2, 3], error)]],
+        }))
+    }
+
+    /// Walk the emitted helper graph separately from unrelated host frame edges.
+    #[test]
+    fn discarded_error_payload_decoder_has_no_owned_string_allocation_edge() {
+        fn reaches_allocation(ty: LTy) -> bool {
+            let mut module = Module::default();
+            let mut pending = vec![Helper::Dec(ty)];
+            let mut seen = std::collections::BTreeSet::new();
+            while let Some(helper) = pending.pop() {
+                if !seen.insert(helper.clone()) {
+                    continue;
+                }
+                if matches!(helper, Helper::Str | Helper::New | Helper::NewFixed { .. }) {
+                    return true;
+                }
+                let body = crate::rt::helper(&helper, &mut module);
+                for instruction in &body.body {
+                    if let Ins::Call(symbol) = instruction
+                        && let Sym::Helper(callee) = &*body.symbols.get(*symbol)
+                    {
+                        pending.push(callee.clone());
+                    }
+                }
+            }
+            false
+        }
+        let owned = result_type();
+        assert!(reaches_allocation(owned.clone()));
+        let mut discarded = owned;
+        discard_strings(&mut discarded);
+        assert!(!reaches_allocation(discarded));
+    }
+
+    #[test]
+    fn discarded_and_owned_decoder_keys_are_distinct_and_validate_the_same_wire() {
+        let owned = result_type();
+        let mut discarded = owned.clone();
+        discard_strings(&mut discarded);
+        assert_ne!(owned, discarded);
+        assert_eq!(owned.vals(), discarded.vals());
+        let mut m = Module::default();
+        m.export("owned", Sym::Helper(Helper::Dec(owned)));
+        m.export("discarded", Sym::Helper(Helper::Dec(discarded)));
+        let mut byte = m.func("byte", vec![Val::I32], vec![Val::I32]);
+        byte.get(0);
+        byte.op(I::I32Load8U(mem(HEAP, 0, 0)));
+        m.define(Sym::Inst(Hash128(77)), byte);
+        m.export("byte", Sym::Inst(Hash128(77)));
+        let wasm = m.finish().expect("decoder module");
+        let script = format!(
+            r"
+const bytes = new Uint8Array({wasm:?});
+const module = new WebAssembly.Module(bytes);
+let panics = 0;
+const imports = {{}};
+for (const i of WebAssembly.Module.imports(module)) {{
+  imports[i.module] ??= {{}};
+  imports[i.module][i.name] = () => {{ if (i.name === 'panic') panics++; return 0; }};
+}}
+const e = new WebAssembly.Instance(module, imports).exports;
+const buffer = new Uint8Array(e['hd.x'].buffer);
+const text = 'failure λ 🦀';
+const utf8 = new TextEncoder().encode(text);
+const reply = new Uint8Array([1, 1, utf8.length, ...utf8]);
+buffer.set(reply);
+const full = e.owned(0);
+if (full[0] !== 1 || full[1] !== 1 || full[3] !== utf8.length || full[4] !== reply.length) throw Error('owned result shape');
+buffer.fill(90);
+const kept = new Uint8Array(Array.from({{length:full[3]}}, (_, i) => e.byte(full[2] + i)));
+if (new TextDecoder().decode(kept) !== text) throw Error('owned error lost after another host buffer write');
+buffer.set(reply);
+const skipped = e.discarded(0);
+if (skipped[0] !== 1 || skipped[1] !== 1 || skipped[3] !== 0 || skipped[4] !== reply.length) throw Error('discarded result shape');
+// Invalid outer/inner tags and a string length exceeding the exchange memory.
+for (const bad of [[2], [1,2], [1,1,128,128,8]]) {{
+  for (const decode of [e.owned, e.discarded]) {{
+    buffer.fill(0); buffer.set(bad);
+    const before = panics;
+    let failed = false;
+    try {{ decode(0); }} catch {{ failed = true; }}
+    if (!failed || panics !== before + 1) throw Error('malformed reply was accepted');
+  }}
+}}
+console.log('owned and discarded boundary decoders passed');
+"
+        );
+        let output = std::process::Command::new("node")
+            .args(["--input-type=module", "-e", &script])
+            .output()
+            .expect("Node available");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim(),
+            "owned and discarded boundary decoders passed"
+        );
+    }
 }

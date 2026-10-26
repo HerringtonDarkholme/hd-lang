@@ -180,3 +180,140 @@ fn an_uncalled_host_method_is_not_imported() {
         ]
     );
 }
+
+/// Identical result schemas need different codecs when one method discards its
+/// strings and another retains them past a later exchange-buffer overwrite.
+#[test]
+fn discarded_host_error_payloads_do_not_change_an_observing_methods_decoder() {
+    let out = build(
+        r#"
+pub trait Vault:
+    fn ignored(self) -> Result[void, ConsoleError]
+    fn observed(self) -> Result[void, ConsoleError]
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).ignored()
+    let saved = $.use(Vault).observed()
+    _ := $.use(Vault).ignored()
+    match saved:
+        .Err(.Other(message)) =>
+            if message != "kept λ 🦀": panic("observed host error changed")
+        _ => panic("observed host error variant changed")
+"#,
+        &["Vault"],
+    );
+    assert!(!out.diags.has_errors(), "{}", out.render());
+    let wasm = out.wasm.as_deref().expect("the program links");
+    let mut imports = Vec::new();
+    let mut names = std::collections::BTreeMap::new();
+    let mut calls = Vec::new();
+    for payload in wasmparser::Parser::new(0).parse_all(wasm) {
+        match payload.expect("payload") {
+            wasmparser::Payload::ImportSection(section) => {
+                for import in section.into_imports() {
+                    let import = import.expect("import");
+                    if matches!(import.ty, wasmparser::TypeRef::Func(_)) {
+                        imports.push((import.module, import.name));
+                    }
+                }
+            }
+            wasmparser::Payload::CustomSection(section) if section.name() == "name" => {
+                let section = wasmparser::NameSectionReader::new(wasmparser::BinaryReader::new(
+                    section.data(),
+                    section.data_offset(),
+                ));
+                for subsection in section {
+                    if let wasmparser::Name::Function(map) = subsection.expect("name subsection") {
+                        for entry in map {
+                            let entry = entry.expect("function name");
+                            names.insert(entry.index, entry.name);
+                        }
+                    }
+                }
+            }
+            wasmparser::Payload::CodeSectionEntry(body) => {
+                calls.push(
+                    body.get_operators_reader()
+                        .expect("operators")
+                        .into_iter()
+                        .filter_map(|op| match op.expect("operator") {
+                            wasmparser::Operator::Call { function_index } => Some(function_index),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>(),
+                );
+            }
+            _ => {}
+        }
+    }
+    let decoder_allocates = |method: &str| {
+        let import = u32::try_from(
+            imports
+                .iter()
+                .position(|(module, name)| *module == "hd:Vault" && *name == method)
+                .expect("method import"),
+        )
+        .expect("function index");
+        let slot = calls
+            .iter()
+            .find(|body| body.contains(&import))
+            .expect("host slot");
+        let mut pending = slot.clone();
+        let mut seen = std::collections::BTreeSet::new();
+        while let Some(index) = pending.pop() {
+            if !seen.insert(index) {
+                continue;
+            }
+            if names
+                .get(&index)
+                .is_some_and(|name| name.starts_with("rt:str"))
+            {
+                return true;
+            }
+            if let Some(body) = index
+                .checked_sub(u32::try_from(imports.len()).expect("function imports"))
+                .and_then(|index| calls.get(index as usize))
+            {
+                pending.extend(body);
+            }
+        }
+        false
+    };
+    assert!(
+        !decoder_allocates("ignored"),
+        "discarded decoder reaches rt:str"
+    );
+    assert!(
+        decoder_allocates("observed"),
+        "observed decoder lost owned strings"
+    );
+
+    let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../host/core.mjs")
+        .canonicalize()
+        .expect("core host");
+    let script = format!(
+        r"
+import {{ pathToFileURL }} from 'node:url';
+const {{ createCoreHost }} = await import(pathToFileURL({core:?}).href);
+const host = createCoreHost({{out(){{}},err(text){{throw Error(text)}}}}, {{providers: ({{put,Enc}}) => ({{
+  'hd:Vault': {{
+    ignored: () => put(new Enc().leb(1).leb(2).str('discarded and overwritten').done()),
+    observed: () => put(new Enc().leb(1).leb(2).str('kept λ 🦀').done()),
+  }}
+}})}});
+const instance = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({wasm:?})),host.imports);
+const result = await host.run(instance,'hd.init','hd.poll');
+if (result.trapped || result.status !== 0) throw Error(JSON.stringify(result));
+"
+    );
+    let ran = std::process::Command::new("node")
+        .args(["--input-type=module", "-e", &script])
+        .output()
+        .expect("Node available");
+    assert!(
+        ran.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ran.stderr)
+    );
+}

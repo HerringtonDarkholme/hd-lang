@@ -1,0 +1,2 @@
+run: hd --repl session.in
+transcript: transcript.txt

@@ -862,6 +862,8 @@ impl Session {
 #[derive(Default)]
 pub struct Module {
     pub track_origins: bool,
+    /// Initialized session interfaces can receive callers from later modules.
+    pub open_world: bool,
     /// Reachable package capabilities and their generated adapter schemas.
     pub package_contract: hd_host_abi::schema::Contract,
     /// Defined functions by symbol. A helper is defined when

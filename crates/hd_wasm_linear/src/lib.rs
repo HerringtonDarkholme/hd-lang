@@ -565,6 +565,7 @@ fn link(
     let input = prepared.as_ref().unwrap_or(input);
     let mut m = module::Module::default();
     m.track_origins = track_origins;
+    m.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
     m.runtime = input.runtime;
     m.release = input.release;
     m.inline_counts = input.inline_counts;

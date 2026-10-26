@@ -3290,6 +3290,7 @@ typing/invalid/list-view-negative-literal.hd	type	reject:type-mismatch	std/colle
 typing/invalid/iterator-take-negative-literal.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.take.value
 typing/invalid/string-repeat-negative-literal.hd	type	reject:type-mismatch	std/text.md#r-std-text.string.repeat
 typing/invalid/string-pad-signed-width.hd	type	reject:type-mismatch	std/text.md#r-std-text.pad.start
+runtime/valid/discarded-host-error-payload.hd	runtime	accept	lang/10-modules.md#r-module.profile.host-result.checked
 runtime/valid/host-result-special-floats.hd	runtime	accept	lang/10-modules.md#r-module.profile.host-result.float
 runtime/valid/bound-inference-user-trait.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.bound.one
 runtime/valid/bound-inference-chain.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.bound.fixed-point
