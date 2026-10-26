@@ -1,0 +1,12 @@
+hd> fn trace() -> void:
+...     debug(+1)
+...
+hd> trace()
+hd> debug(+2)
+"2" : string
+hd> fn stopped() -> i32:
+...     return +1
+...     +2
+...
+hd> stopped()
+1 : i32

@@ -91,7 +91,7 @@ fn runtime_command(words: &[String]) -> Option<(usize, bool)> {
         "test" => Some((index, true)),
         "run" | "--repl" => Some((index, false)),
         "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt"
-        | "build" | "check" => None,
+        | "build" | "check" | "lint" => None,
         _ if before.iter().any(|w| {
             Path::new(w)
                 .extension()
@@ -1338,6 +1338,7 @@ fn engine_selection_covers_files_packages_tasks_and_preserves_argument_boundary(
 fn engine_selection_leaves_nonruntime_commands_and_default_mode_unchanged() {
     for words in [
         vec!["check", "main.hd"],
+        vec!["lint", "--format", "json", "main.hd"],
         vec!["build", "main.hd"],
         vec!["fmt", "src/main.hd"],
         vec!["help", "run"],

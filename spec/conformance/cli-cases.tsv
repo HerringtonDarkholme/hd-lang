@@ -296,3 +296,4 @@ host-context-identity	cli.host.package.context-interface-identity,cli.host.packa
 lint-unused-bindings	cli.lint.stable-messages,cli.lint.default,cli.lint.ordinary-errors
 lint-unused-suspension	cli.lint.errors-unsuppressible,cli.lint.ordinary-errors
 lint-binding-patterns	cli.lint.stable-messages,cli.lint.default,cli.lint.ordinary-errors
+lint-flow-advice	cli.lint.stable-messages,cli.lint.levels,cli.lint.prerequisites,cli.lint.ordinary-errors

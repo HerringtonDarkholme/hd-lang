@@ -3,4 +3,4 @@
 # flow.unreachable.policy.
 fn example() -> i32:
     return 1
-    2  # warning: unreachable-code
+    2

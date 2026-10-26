@@ -1,6 +1,6 @@
 //! Unreachable statements (spec 06 Unreachable Code): statements after an
 //! unconditional `return`, and after an infinite loop no `break` targets,
-//! warn `unreachable-code` but are still checked.
+//! remain accepted and checked; explicit lint owns the advice.
 
 use hd_cache::MemoryStore;
 use hd_diag::{Code, Severity};
@@ -44,19 +44,19 @@ fn errors(out: &Output) -> Vec<Code> {
 }
 
 #[test]
-fn statements_after_return_warn() {
+fn statements_after_return_are_accepted() {
     let out = analyze("fn example() -> i32:\n    return 1\n    2\n");
     assert!(errors(&out).is_empty(), "{}", out.render());
-    assert_eq!(warnings(&out), vec![Code::UnreachableCode]);
+    assert!(warnings(&out).is_empty(), "{}", out.render());
 }
 
 #[test]
-fn statements_after_an_infinite_loop_warn() {
+fn statements_after_an_infinite_loop_are_accepted() {
     let out = analyze(
         "fn accept(port: i32) -> void:\n    pass\n\nfn serve(port: i32) -> void:\n    while true:\n        accept(port)\n    pass\n",
     );
     assert!(errors(&out).is_empty(), "{}", out.render());
-    assert_eq!(warnings(&out), vec![Code::UnreachableCode]);
+    assert!(warnings(&out).is_empty(), "{}", out.render());
 }
 
 #[test]

@@ -5,7 +5,8 @@ Accepted command boundary and migration plan, owner 2026-10-26,
 The earlier review is in [#651](https://github.com/HerringtonDarkholme/hd-lang/issues/651).
 Implementation proceeds in independently checked slices. The initial `hd lint`
 command reports `unsigned-comparison-always`, `unused-local-binding`,
-`redundant-let-mut` and `variant-binding-name-mismatch` with exact-name CLI levels.
+`redundant-let-mut`, `variant-binding-name-mismatch`, `unreachable-code` and
+`unused-debug-text` with exact-name CLI levels.
 The remaining warnings, manifest policy and site suppressions still await
 their slices; ordinary commands retain those unmigrated warnings.
 Later lints, custom exports, plugins and fixes retain their stated proposal status.
@@ -54,8 +55,8 @@ Today `hd check` checks without running the program and reports
 Whether any fix command should remain is undecided in
 [#805](https://github.com/HerringtonDarkholme/hd-lang/issues/805).
 
-The command now reports the comparison, unused-binding, redundant-mut and
-variant-binding-name findings migrated below.
+The command now reports the comparison, unused-binding, redundant-mut,
+variant-binding-name, reachability and discarded-debug findings migrated below.
 Output for later new lints below remains a proposal, not an executed result.
 The baseline compiler still emits the warnings inventoried next; this proposal describes their migration.
 
@@ -79,10 +80,10 @@ The inventory below names actual current producers, including ones outside hd_ch
 | `private-main` | hd_driver entry selection | Move its advice to lint. Export entry-module role, visibility, header span and competing public entry candidates. Run/build without a public entry fail with missing-entry-point naming the private main; check, tests and library modules still accept it. |
 | `redundant-let-mut` | [hd_lint](../../crates/hd_lint/src/lib.rs) | Moved. Optional binding facts retain the checked primitive/writable-annotation category, written mut token and final mutable-address state. Lint owns selection, messages and exact keyword-removal fixes. The checker still validates write permissions. |
 | `unknown-manifest-key` | [hd_project/manifest.rs](../../crates/hd_project/src/manifest.rs) | Promote the same stable code to an error on load for every command. Preserve Manifest.unknown key paths and lines. Lint reports the loading error too; it does not turn this error into optional advice. |
-| `unreachable-code` | [hd_check/body.rs](../../crates/hd_check/src/body.rs) | Move. Expose source statement reachability from the completed flow analysis. Do not infer this from optimized-away instructions or execute dead branches. |
+| `unreachable-code` | [hd_lint](../../crates/hd_lint/src/lib.rs) | Moved. Optional checker facts preserve source statement reachability. Lint selects unreachable statements; the checker still checks every dead statement. Failed trials roll facts back. |
 | `unselected-main` | hd_driver executable selection | Move. Read source module role, public-main span and the requested executable graph. An actual request for a nonexistent executable remains an ordinary CLI error. |
 | `unsigned-comparison-always` | [hd_lint](../../crates/hd_lint/src/lib.rs) | Moved. hd_check exposes optional source comparison facts, including the checked primitive, operand spans and unsuffixed-zero classification. The lint owns the decision and message; normal builds collect no facts. |
-| `unused-debug-text` | hd_check format-expression checking in body.rs | Move. Retain the discarded expression-statement span and resolved prelude debug identity. A local function named debug must not match; lowered string-building calls lose that distinction. |
+| `unused-debug-text` | [hd_lint](../../crates/hd_lint/src/lib.rs) | Moved. Optional facts retain discarded expression spans, resolved prelude debug identity, call shapes and lexical name bindings. Lint owns the message and exact replacement decision. The checker keeps its void-tail acceptance exception; REPL displayed expressions are not discarded. |
 | `unused-derivation-fact` | hd_resolve/decorators.rs | Move. Read decorator occurrence, supported fact kind, target and consumed-fact identities. Invalid decorators remain resolver errors. |
 | `unused-local-binding` | [hd_lint](../../crates/hd_lint/src/lib.rs) | Moved. Optional checker facts retain body/local identity, actual source name/span and final read state, including capture reads. Lint selects unread non-underscore names and the first finding per body/line. Unread suspensions remain discarded-must-use-value errors in hd_check. |
 | `variant-binding-name-mismatch` | [hd_lint](../../crates/hd_lint/src/lib.rs) | Moved. Optional checked patterns retain the resolved variant layout, actual binding names, positions and bare-pattern forms. Lint owns the mismatch decision and message. Failed trials roll both binding and pattern facts back. |

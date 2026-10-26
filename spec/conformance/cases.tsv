@@ -954,7 +954,7 @@ typing/invalid/private-type-leak.hd	type	reject:private-type-leak	lang/10-module
 typing/invalid/private-type-embedded-in-public-data.hd	type	reject:private-type-leak	lang/08-data-and-enums.md#field-visibility
 typing/valid/private-data-embeds-private-type.hd	type	accept	lang/08-data-and-enums.md#field-visibility
 typing/invalid/variance-position.hd	type	reject:invalid-variance	lang/04-type-system.md#variance
-typing/warnings/unreachable-code.hd	type	warn:unreachable-code	lang/06-control-flow.md#unreachable-code
+typing/warnings/unreachable-code.hd	type	accept	lang/06-control-flow.md#unreachable-code
 typing/warnings/unused-local-binding.hd	type	accept	lang/06-control-flow.md#blocks-and-completion
 typing/invalid/duplicate-field.hd	type	reject:duplicate-field	lang/08-data-and-enums.md#construction-and-access
 typing/valid/requirements-and-suspension.hd	type	accept	lang/11-requirements-and-suspension.md
@@ -1291,7 +1291,7 @@ runtime/valid/list-push-with-room-keeps-values.hd	runtime	accept	lang/04-type-sy
 runtime/valid/loop-break-join-rows.hd	runtime	accept	lang/06-control-flow.md#r-flow.loop.else.type
 typing/invalid/infinite-loop-break-missing-return.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.while.infinite.exit
 typing/invalid/infinite-loop-variable-condition.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.while.infinite.literal
-typing/warnings/unreachable-after-infinite-loop.hd	type	warn:unreachable-code	lang/06-control-flow.md#r-flow.unreachable.infinite-loop
+typing/warnings/unreachable-after-infinite-loop.hd	type	accept	lang/06-control-flow.md#r-flow.unreachable.infinite-loop
 runtime/valid/definite-init-diverging-branch.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.definite.diverging
 runtime/valid/for-loops-lists-and-maps.hd	runtime	accept	lang/06-control-flow.md#for-loops
 runtime/valid/data-fields-named-in-any-order.hd	runtime	accept	lang/08-data-and-enums.md#data-literals
@@ -3694,7 +3694,7 @@ typing/invalid/dbg-printer-private.hd	type	reject:private-import	lang/10-modules
 runtime/valid/dbg-prints-void.hd	runtime	accept	lang/10-modules.md#r-module.dbg.body.print
 runtime/valid/dbg-without-requirement.hd	runtime	accept	lang/10-modules.md#r-module.dbg.no-requirement
 typing/invalid/dbg-void-binding.hd	type	reject:type-mismatch	lang/10-modules.md#r-module.dbg.signature
-typing/warnings/unused-debug-text.hd	type	warn:unused-debug-text	lang/10-modules.md#r-module.dbg.debug-lint
+typing/warnings/unused-debug-text.hd	type	accept	lang/10-modules.md#r-module.dbg.debug-lint
 runtime/valid/debug-source-text.hd	runtime	accept	std/format.md#r-std-format.debug.source
 runtime/valid/num-parse-unsigned.hd	runtime	accept	std/num.md#r-std-num.parse.unsigned-type-grammar
 runtime/valid/num-radix-text.hd	runtime	accept	std/num.md#r-std-num.radix.round-trip

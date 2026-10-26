@@ -217,6 +217,8 @@ pub(crate) struct Ck<'a, 'c> {
     pub cx: &'c BodyCx<'a>,
     /// Body-local append-only facts: failed trials truncate these before publication.
     pub comparisons: Vec<crate::comparison::Comparison>,
+    pub statements: Vec<crate::comparison::Statement>,
+    pub discarded: Vec<crate::comparison::DiscardedExpression>,
     /// The body's local pool: its types that hold inference variables.
     pub local: &'c hd_types::LocalPool,
     pub b: TirBuilder,
@@ -541,6 +543,8 @@ pub(crate) fn new_ck<'a, 'c>(
         cx,
         local,
         comparisons: Vec::new(),
+        statements: Vec::new(),
+        discarded: Vec::new(),
         b: TirBuilder::new(item, kind),
         infer: InferTable::default(),
         scopes: vec![HashMap::default()],
@@ -2837,20 +2841,17 @@ impl Ck<'_, '_> {
         // Whether a listed diverging statement already ran in this suite:
         // every later statement is unreachable
         // (`flow.unreachable.def`, `flow.unreachable.infinite-loop`). It
-        // is still checked (`flow.unreachable.checked`); only the warning
-        // (`flow.unreachable.warning`) is new.
+        // is still checked (`flow.unreachable.checked`). Tools may request
+        // these source reachability facts for `flow.unreachable.lint`.
         let mut dead = false;
         for (i, s) in stmts.iter().copied().enumerate() {
             let last = i + 1 == stmts.len();
             self.move_to(self.cx.src.span(s).lo);
-            if dead {
-                self.diags.push(
-                    Code::UnreachableCode,
-                    hd_diag::Severity::Warning,
-                    self.cx.src.span(s),
-                    "this statement is unreachable",
-                    None,
-                );
+            if self.cx.source_facts.is_some() {
+                self.statements.push(crate::comparison::Statement {
+                    span: self.cx.src.span(s),
+                    reachable: !dead,
+                });
             }
             if last && value && s.kind() == SyntaxKind::ExprStmt {
                 let Some(e) = s.children().next() else {
@@ -3398,8 +3399,8 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `module.dbg.debug-hint`: whether `e` is a call of the prelude
-    /// function `debug`, by declaration identity and not by spelling.
+    /// Declaration identity for the core void-tail exception to debug calls.
+    /// Qualified paths and explicit type arguments can name the same function.
     fn is_prelude_debug_call(&self, e: NodeRef<'_>) -> bool {
         let call = match e.kind() {
             SyntaxKind::CallExpr => e,
@@ -3456,45 +3457,78 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Rename only a plain call whose replacement still resolves to prelude `dbg`.
-    fn discarded_debug_fix(&mut self, call: NodeRef<'_>) -> Option<Span> {
-        if call.kind() != SyntaxKind::CallExpr {
-            return None;
-        }
-        let callee = call.children().next()?;
-        let span = self.cx.src.span(callee);
-        if callee.kind() != SyntaxKind::NameExpr
-            || self.cx.src.text.get(span.lo as usize..span.hi as usize) != Some("debug")
-        {
-            return None;
-        }
-        let args = self.args_of(Src::child(call, SyntaxKind::ArgumentList));
-        if args.positional.len() != 1
-            || args.spread.is_some()
-            || !args.named.is_empty()
-            || !args.after_spread.is_empty()
-        {
-            return None;
-        }
-        let at = span.lo;
-        for name in ["debug", "dbg"] {
-            let sym = self.cx.names.syms.intern(name);
-            let init = self.cx.init.borrow();
-            if self.find_local(sym).is_some()
-                || hd_resolve::local_at(self.cx.locals, sym, at).is_some()
-                || init.globals.contains_key(&sym)
-                || init.earlier.contains_key(&sym)
+    /// The source form and lexical name lookup of a discarded expression.
+    /// The consumer decides whether this is advice and whether an edit is safe.
+    fn discarded_expression(
+        &self,
+        expression: NodeRef<'_>,
+        prelude_debug: bool,
+    ) -> crate::comparison::DiscardedExpression {
+        use crate::comparison::{DiscardedCall, DiscardedExpression};
+        let call = (expression.kind() == SyntaxKind::CallExpr).then(|| {
+            let name = expression
+                .children()
+                .next()
+                .filter(|callee| callee.kind() == SyntaxKind::NameExpr)
+                .map(|callee| self.cx.src.span(callee));
+            let mut positional = 0;
+            let mut named = 0;
+            let mut spread = false;
+            let mut after_spread = 0;
+            for argument in Src::child(expression, SyntaxKind::ArgumentList)
+                .iter()
+                .flat_map(|list| list.children())
             {
-                return None;
+                match argument.kind() {
+                    SyntaxKind::NamedArgument => named += 1,
+                    SyntaxKind::Argument => {
+                        if spread {
+                            after_spread += 1;
+                        } else if argument
+                            .children()
+                            .next()
+                            .is_some_and(|e| e.kind() == SyntaxKind::SpreadExpr)
+                        {
+                            spread = true;
+                        } else {
+                            positional += 1;
+                        }
+                    }
+                    _ => {}
+                }
             }
-            let binding = self.cx.scope_at(at).lookup(sym)?;
-            if binding.kind != hd_resolve::BindingKind::Item
-                || DefId::from_raw(binding.value) != self.cx.names.item("std.format", name)
-            {
-                return None;
+            let at = self.cx.src.span(expression).lo;
+            DiscardedCall {
+                name,
+                positional,
+                named,
+                spread,
+                after_spread,
+                standard_debug: self.standard_format_name("debug", at),
+                standard_dbg: self.standard_format_name("dbg", at),
             }
+        });
+        DiscardedExpression {
+            span: self.cx.src.span(expression),
+            prelude_debug,
+            call,
         }
-        Some(span)
+    }
+
+    fn standard_format_name(&self, name: &str, at: u32) -> bool {
+        let sym = self.cx.names.syms.intern(name);
+        let init = self.cx.init.borrow();
+        if self.find_local(sym).is_some()
+            || hd_resolve::local_at(self.cx.locals, sym, at).is_some()
+            || init.globals.contains_key(&sym)
+            || init.earlier.contains_key(&sym)
+        {
+            return false;
+        }
+        self.cx.scope_at(at).lookup(sym).is_some_and(|binding| {
+            binding.kind == hd_resolve::BindingKind::Item
+                && DefId::from_raw(binding.value) == self.cx.names.item("std.format", name)
+        })
     }
 
     fn stmt_node(&mut self, s: NodeRef<'_>, void_tail: bool) -> StageResult<Ty> {
@@ -3512,22 +3546,24 @@ impl Ck<'_, '_> {
                     self.shown = Some((s.index(), Some((r, t))));
                     return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
                 }
-                let before_expr = self.diags.mark();
                 let (_, t) = self.expr(*e, Some(Ty::VOID))?;
                 let t = self.infer.shallow(self.pool(), t);
                 // `fn.body.void-final`: a `void` function rejects a
                 // non-`void` final expression. An omitted result is
                 // inferred, never `void` by declaration, and poison
                 // already reported. A must-use value and a `debug` call
-                // have their own discard diagnostics below.
-                if void_tail
+                // have their own discard rules.
+                let void_value = void_tail
                     && !self.result_omitted
                     && t != Ty::VOID
                     && t != Ty::NEVER
                     && !self.pool().has_poison(t)
-                    && !self.must_use(t)
-                    && !self.is_prelude_debug_call(*e)
-                {
+                    && !self.must_use(t);
+                // Ordinary checking needs declaration identity only for this
+                // core exception; other discarded expressions need it in lint.
+                let prelude_debug = (void_value || self.cx.source_facts.is_some())
+                    && self.is_prelude_debug_call(*e);
+                if void_value && !prelude_debug {
                     let open = matches!(self.pool().get(t), TyData::Infer(_))
                         && !matches!(
                             self.infer.kind_of(self.pool(), t),
@@ -3545,26 +3581,9 @@ impl Ck<'_, '_> {
                     );
                     self.err(Code::DiscardedMustUseValue, *e, &msg);
                 }
-                // `module.dbg.debug-hint`: an expression statement that
-                // calls the prelude function `debug` discards its text.
-                if self.is_prelude_debug_call(*e) {
-                    let span = self.cx.src.span(*e);
-                    self.diags.push(
-                        Code::UnusedDebugText,
-                        hd_diag::Severity::Warning,
-                        span,
-                        "a `debug(...)` statement discards its text; use `dbg(...)` to print it",
-                        None,
-                    );
-                    if self.diags.errors_since(before_expr) == 0
-                        && let Some(callee) = self.discarded_debug_fix(*e)
-                    {
-                        self.diags.add_fix(
-                            "replace discarded `debug` with `dbg`",
-                            hd_diag::FixSafety::Exact,
-                            &[(callee, "dbg")],
-                        );
-                    }
+                if self.cx.source_facts.is_some() {
+                    let fact = self.discarded_expression(*e, prelude_debug);
+                    self.discarded.push(fact);
                 }
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
             }
@@ -4775,6 +4794,8 @@ impl Ck<'_, '_> {
             sink.comparisons.extend(self.comparisons);
             sink.bindings.extend(bindings);
             sink.patterns.extend(self.variant_patterns);
+            sink.statements.extend(self.statements);
+            sink.discarded.extend(self.discarded);
         }
         Ok((body, ret, facts))
     }

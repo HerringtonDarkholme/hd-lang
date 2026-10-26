@@ -61,12 +61,43 @@ pub struct VariantPattern {
     pub bindings: Vec<PayloadBinding>,
 }
 
+/// A statement's source reachability, before dead code can be lowered away.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Statement {
+    pub span: Span,
+    pub reachable: bool,
+}
+
+/// An implicit expression statement; explicit `_ := ...` is not a discard here.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiscardedExpression {
+    pub span: Span,
+    /// Declaration identity, including qualified calls and type arguments.
+    pub prelude_debug: bool,
+    pub call: Option<DiscardedCall>,
+}
+
+/// Source shape and binding lookup for a direct call in statement position.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiscardedCall {
+    pub name: Option<Span>,
+    pub positional: usize,
+    pub named: usize,
+    pub spread: bool,
+    pub after_spread: usize,
+    /// Whether each bare name resolves to its std.format declaration here.
+    pub standard_debug: bool,
+    pub standard_dbg: bool,
+}
+
 /// Ephemeral observations requested by tooling, never cached with checked bodies.
 #[derive(Clone, Debug, Default)]
 pub struct SourceFacts {
     pub comparisons: Vec<Comparison>,
     pub bindings: Vec<Binding>,
     pub patterns: Vec<VariantPattern>,
+    pub statements: Vec<Statement>,
+    pub discarded: Vec<DiscardedExpression>,
 }
 
 impl SourceFacts {
@@ -74,5 +105,7 @@ impl SourceFacts {
         self.comparisons.extend(other.comparisons);
         self.bindings.extend(other.bindings);
         self.patterns.extend(other.patterns);
+        self.statements.extend(other.statements);
+        self.discarded.extend(other.discarded);
     }
 }

@@ -1,6 +1,7 @@
 # mistake: `debug(x)` as a statement, expecting it to print
 # log: 2026-10-05 usability probe 2
 # expect: unused-debug-text
+# tool: lint
 
 @derive(Debug)
 struct Config:

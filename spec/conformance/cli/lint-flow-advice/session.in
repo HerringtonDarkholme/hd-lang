@@ -1,0 +1,10 @@
+fn trace() -> void:
+    debug(+1)
+
+trace()
+debug(+2)
+fn stopped() -> i32:
+    return +1
+    +2
+
+stopped()

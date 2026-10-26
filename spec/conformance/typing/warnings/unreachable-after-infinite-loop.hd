@@ -5,4 +5,4 @@ fn accept(port: i32) -> void:
 fn serve(port: i32) -> void:
     while true:
         accept(port)
-    println("server stopped")  # warning: unreachable-code
+    println("server stopped")

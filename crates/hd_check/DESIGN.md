@@ -500,10 +500,13 @@ After inferring both operands, the checker:
 3. An expression statement whose value is discarded is checked for
    must-use types after its literal scope closes
    ([`flow.must-use.discard`](../../spec/lang/06-control-flow.md#r-flow.must-use.discard)).
-4. After a statement of type `never`, the next statement gets
-   `unreachable-code` once per run of unreachable statements, and is
-   still checked
+4. Every statement after an unconditional `return`, `break`, `continue`,
+   or a `while true` loop with no targeting `break` is still checked
    ([`flow.unreachable.checked`](../../spec/lang/06-control-flow.md#r-flow.unreachable.checked)).
+   Optional source facts retain each statement's reachability; `hd_lint`
+   owns the `unreachable-code` advice and policy. Discarded-expression
+   facts likewise retain resolved debug identity and source call shape;
+   the checker keeps must-use errors and the debug void-tail exception.
 
 ### 2.4 Calls And Use-Site Type Arguments
 

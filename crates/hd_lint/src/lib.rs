@@ -4,11 +4,15 @@
 use std::sync::Arc;
 
 use hd_base::SliceSort as _;
-use hd_check::comparison::{Binding, Comparison, SourceFacts, VariantPattern};
+use hd_check::comparison::{
+    Binding, Comparison, DiscardedExpression, SourceFacts, Statement, VariantPattern,
+};
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_syntax::TokenKind;
 use hd_types::Prim;
 
+pub const UNREACHABLE: &str = "unreachable-code";
+pub const UNUSED_DEBUG: &str = "unused-debug-text";
 pub const REDUNDANT_MUT: &str = "redundant-let-mut";
 pub const VARIANT_BINDING: &str = "variant-binding-name-mismatch";
 pub const UNUSED_BINDING: &str = "unused-local-binding";
@@ -25,6 +29,8 @@ pub enum Level {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Policy {
     unsigned: Option<Level>,
+    unreachable: Option<Level>,
+    debug: Option<Level>,
     unused: Option<Level>,
     redundant: Option<Level>,
     variant: Option<Level>,
@@ -34,6 +40,8 @@ impl Policy {
     pub fn set(&mut self, name: &str, level: Level) -> Result<(), String> {
         let slot = match name {
             UNSIGNED_COMPARISON => &mut self.unsigned,
+            UNREACHABLE => &mut self.unreachable,
+            UNUSED_DEBUG => &mut self.debug,
             UNUSED_BINDING => &mut self.unused,
             REDUNDANT_MUT => &mut self.redundant,
             VARIANT_BINDING => &mut self.variant,
@@ -59,6 +67,8 @@ pub fn analyze(facts: &SourceFacts, texts: &[Arc<str>], policy: Policy) -> DiagB
     bindings(&mut diags, &facts.bindings, texts, policy);
     mutability(&mut diags, &facts.bindings, policy);
     patterns(&mut diags, &facts.patterns, policy);
+    statements(&mut diags, &facts.statements, policy);
+    discarded(&mut diags, &facts.discarded, texts, policy);
     diags
 }
 
@@ -213,6 +223,69 @@ fn patterns(diags: &mut DiagBuf, facts: &[VariantPattern], policy: Policy) {
                     binding.name, pattern.variant
                 ),
                 None,
+            );
+        }
+    }
+}
+
+fn statements(diags: &mut DiagBuf, facts: &[Statement], policy: Policy) {
+    let Some(severity) = severity(policy.unreachable) else {
+        return;
+    };
+    for fact in facts {
+        if !fact.reachable {
+            diags.push(
+                Code::UnreachableCode,
+                severity,
+                fact.span,
+                "this statement is unreachable",
+                None,
+            );
+        }
+    }
+}
+
+fn discarded(
+    diags: &mut DiagBuf,
+    facts: &[DiscardedExpression],
+    texts: &[Arc<str>],
+    policy: Policy,
+) {
+    let Some(severity) = severity(policy.debug) else {
+        return;
+    };
+    for fact in facts {
+        if !fact.prelude_debug {
+            continue;
+        }
+        diags.push(
+            Code::UnusedDebugText,
+            severity,
+            fact.span,
+            "a `debug(...)` statement discards its text; use `dbg(...)` to print it",
+            None,
+        );
+        let Some(call) = &fact.call else {
+            continue;
+        };
+        let Some(span) = call.name else {
+            continue;
+        };
+        let name = texts
+            .get(span.file.idx())
+            .and_then(|text| text.get(span.lo as usize..span.hi as usize));
+        if name == Some("debug")
+            && call.positional == 1
+            && call.named == 0
+            && !call.spread
+            && call.after_spread == 0
+            && call.standard_debug
+            && call.standard_dbg
+        {
+            diags.add_fix(
+                "replace discarded `debug` with `dbg`",
+                FixSafety::Exact,
+                &[(span, "dbg")],
             );
         }
     }

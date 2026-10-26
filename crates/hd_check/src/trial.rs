@@ -53,6 +53,8 @@ pub(crate) struct Checkpoint {
     diags: DiagMark,
     pending: usize,
     comparisons: usize,
+    statements: usize,
+    discarded: usize,
     mut_bindings: usize,
     ref_taken: usize,
     variant_patterns: usize,
@@ -223,6 +225,8 @@ impl Ck<'_, '_> {
             diags: self.diags.mark(),
             pending: self.pending.len(),
             comparisons: self.comparisons.len(),
+            statements: self.statements.len(),
+            discarded: self.discarded.len(),
             mut_bindings: self.mut_bindings.len(),
             ref_taken: self.ref_taken.len(),
             variant_patterns: self.variant_patterns.len(),
@@ -260,6 +264,8 @@ impl Ck<'_, '_> {
     pub(crate) fn rollback(&mut self, c: Checkpoint) {
         self.b.rollback(c.tir);
         self.comparisons.truncate(c.comparisons);
+        self.statements.truncate(c.statements);
+        self.discarded.truncate(c.discarded);
         self.mut_bindings.truncate(c.mut_bindings);
         self.ref_taken.truncate(c.ref_taken);
         self.variant_patterns.truncate(c.variant_patterns);
