@@ -4,9 +4,9 @@
 //! Each such function gets one hidden body, `Facts { items: [...] }`, that
 //! evaluates its decorators in source order as ordinary code of the
 //! function's module (`annot.decorator.facts-of`, `annot.facts-of.result`).
-//! A decorator call is its call; a bare name of a function with no
-//! parameters calls it (`annot.decorator.bare-call`); a literal is its
-//! value. `facts_of(f)` is a `DefaultCall` of that body, so the argument is
+//! A decorator call is its call; a bare name of a function whose
+//! parameters all have defaults calls it
+//! (`annot.decorator.bare-call-defaults`); a literal is its value. `facts_of(f)` is a `DefaultCall` of that body, so the argument is
 //! never evaluated (`annot.facts-of.target`).
 //!
 //! A value of a typed fact type is checked where it attaches ("Member-Typed
@@ -77,10 +77,15 @@ pub(crate) fn literal_marker(cx: &BodyCx<'_>, d: NodeRef<'_>) -> Option<u8> {
     }
 }
 
-/// The decorator expressions that attach values, with literal markers
-/// filtered by the same resolved identity as the function's marker.
+/// The decorator expressions that attach values, with literal markers and
+/// std's `inline` and `cold` (`annot.inline.recognized`) filtered by the
+/// same resolved identity as the function's marker.
 pub(crate) fn fact_lines<'t>(cx: &BodyCx<'t>, node: NodeRef<'t>) -> Vec<NodeRef<'t>> {
-    resolved_fact_lines(&cx.src, node, |d| literal_marker(cx, d).is_some())
+    let known = &cx.names.known;
+    resolved_fact_lines(&cx.src, node, |d| {
+        let def = decorator_def(cx, d);
+        literal_marker(cx, d).is_some() || def == Some(known.inline) || def == Some(known.cold)
+    })
 }
 
 /// Checks the facts body of the module-level function `owner`, whose
@@ -115,7 +120,7 @@ pub fn check_facts(
 #[derive(Clone, Copy)]
 pub enum FactSource<'t> {
     /// A decorator line's expression: the one value it attaches
-    /// (`annot.decorator.bare-call` included).
+    /// (`annot.decorator.bare-call-defaults` included).
     Value(NodeRef<'t>),
     /// A member line's right side: a list of facts (`annot.line.right-typed`).
     List(NodeRef<'t>),
@@ -393,7 +398,7 @@ impl Ck<'_, '_> {
     /// The typed fact type of the value that the decorator line or
     /// member-line element `e` writes: the result type's constructor of the
     /// function it calls or names (`annot.typed-fact.declare`,
-    /// `annot.decorator.bare-call`).
+    /// `annot.decorator.bare-call-defaults`).
     pub(crate) fn typed_fact_type(&self, e: NodeRef<'_>) -> Option<DefId> {
         let callee = match e.kind() {
             SyntaxKind::CallExpr => e.children().next(),

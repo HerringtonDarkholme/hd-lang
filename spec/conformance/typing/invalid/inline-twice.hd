@@ -1,0 +1,8 @@
+# test: two @inline lines before one function
+# Spec 14 Inline And Cold: annot.inline.duplicate reports the later line.
+use std.annotation.inline
+
+@inline
+@inline(.Never)  # diagnostic: duplicate-fact
+fn thrice(x: i32) -> i32:
+    x * 3

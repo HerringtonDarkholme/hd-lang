@@ -2198,7 +2198,15 @@ runtime/panic/snapshot-file-missing.hd	runtime	panic:assertion-failed	std/testin
 typing/valid/derive-debug-shapes.hd	type	accept	std/format.md#r-std-format.debug.derive-builders.source
 typing/invalid/derive-before-trait.hd	type	reject:decorator-not-annotator	lang/14-annotations.md#r-annot.decorator.derive-targets
 typing/invalid/duplicate-function-fact.hd	type	reject:duplicate-fact	lang/14-annotations.md#r-annot.decorator.duplicate
-runtime/valid/bare-marker-decorator.hd	runtime	accept	lang/14-annotations.md#r-annot.decorator.bare-call
+runtime/valid/bare-marker-decorator.hd	runtime	accept	lang/14-annotations.md#r-annot.decorator.bare-call-defaults
+typing/valid/inline-and-cold.hd	type	accept	lang/14-annotations.md#r-annot.inline.argument
+typing/invalid/inline-on-requirement.hd	type	reject:invalid-inline-decorator	lang/14-annotations.md#r-annot.inline.targets
+typing/invalid/inline-unknown-argument.hd	type	reject:invalid-inline-decorator	lang/14-annotations.md#r-annot.inline.argument
+typing/invalid/cold-argument.hd	type	reject:invalid-inline-decorator	lang/14-annotations.md#r-annot.inline.argument
+typing/invalid/inline-with-cold.hd	type	reject:invalid-inline-decorator	lang/14-annotations.md#r-annot.inline.exclusive
+typing/invalid/inline-twice.hd	type	reject:duplicate-fact	lang/14-annotations.md#r-annot.inline.duplicate
+typing/invalid/inline-on-struct.hd	type	reject:decorator-target-kind	lang/14-annotations.md#r-annot.target.limit.kind-error
+runtime/valid/inline-attaches-no-value.hd	runtime	accept	lang/14-annotations.md#r-annot.inline.recognized
 runtime/valid/facts-of-read.hd	runtime	accept	lang/14-annotations.md#r-annot.decorator.facts-of
 typing/invalid/facts-of-closure.hd	type	reject:invalid-facts-of-target	lang/14-annotations.md#r-annot.facts-of.target.error
 typing/invalid/facts-of-local-binding.hd	type	reject:invalid-facts-of-target	lang/14-annotations.md#r-annot.facts-of.target.error

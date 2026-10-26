@@ -1,0 +1,24 @@
+# test: @inline, @inline(.Never) and @cold before functions
+# Spec 14 Inline And Cold: annot.inline.declared, annot.inline.targets,
+# annot.inline.argument and annot.inline.bare.
+use std.annotation.{cold, inline}
+
+# Runs only on bad input: never copy it, and keep the engine from copying it.
+@cold
+fn unexpected(at: usize, size: usize) -> string:
+    if at >= size:
+        return "unexpected end at byte $at"
+    "unexpected byte at $at"
+
+# A long loop: keep it a function of its own.
+@inline(.Never)
+fn checksum(input: &List[u8]) -> u64:
+    let hash: u64 = 14695981039346656037
+    for byte in input:
+        hash = (hash ^ u64(byte)).wrapping_mul(1099511628211)
+    hash
+
+# A small reader: prefer a copy of its body at each call.
+@inline
+fn first(input: &List[u8]) -> u8:
+    input.get(0).unwrap_or(0)

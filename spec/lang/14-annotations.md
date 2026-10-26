@@ -116,8 +116,8 @@ fn twice() -> void:
     pass
 ```
 
-A decorator that names a function with no parameters calls it, so a marker
-is written without parentheses:
+A decorator that names a function whose parameters all have defaults calls
+it, so a marker is written without parentheses:
 
 ```text
 use std.annotation.facts_of
@@ -134,7 +134,7 @@ fn internal_check() -> bool:
 marked := facts_of(internal_check).find::[Hidden]()
 ```
 
-11. r[annot.decorator.bare-call] In a decorator, a bare name that resolves to a function with no parameters is called, so `@hidden` means `@hidden()`.
+11. r[annot.decorator.bare-call-defaults] In a decorator, a bare name that resolves to a function with no parameters without a default is called, so `@hidden` means `@hidden()`.
 12. r[annot.decorator.bare-call.only] The rule applies only to decorators. Elsewhere, the same name stays a function value.
 
 > **Why.** A decorator is a plain value, as in Java, C#, Kotlin, and Dart,
@@ -183,6 +183,78 @@ Its arguments are trait names rather than metadata values. The compiler
 checks and generates each requested implementation.
 [Opting In](#opting-in) defines which traits it accepts.
 
+#### Inline And Cold
+
+`@inline` and `@cold` choose how the compiler compiles calls of a function.
+They never change what a program does:
+
+```text
+use std.annotation.{cold, inline}
+
+# Runs only on bad input: never copy it, and keep the engine from copying it.
+@cold
+fn unexpected(at: usize, size: usize) -> string:
+    if at >= size:
+        return "unexpected end at byte $at"
+    "unexpected byte at $at"
+
+# A long loop: keep it a function of its own.
+@inline(.Never)
+fn checksum(input: &List[u8]) -> u64:
+    let hash: u64 = 14695981039346656037
+    for byte in input:
+        hash = (hash ^ u64(byte)).wrapping_mul(1099511628211)
+    hash
+
+# A small reader: prefer a copy of its body at each call.
+@inline
+fn first(input: &List[u8]) -> u8:
+    input.get(0).unwrap_or(0)
+```
+
+1. r[annot.inline.declared] `std.annotation` declares the enum `InlineHint`, with the variants `Auto`, `Always`, and `Never`, the function `inline(hint: InlineHint = .Auto)`, the struct `Cold`, and the function `cold()`. They are not prelude names, so code imports them.
+2. r[annot.inline.recognized] The compiler recognizes `std.annotation.inline` and `std.annotation.cold` by their qualified names, through an alias or a module path. Their lines are compiler decorators and attach no value.
+3. r[annot.inline.targets] An `@inline` or `@cold` line must precede a module-level function or a method that has a body. Before a trait requirement without a default body, or before an `@intrinsic` declaration, it is an error. Error: `invalid-inline-decorator`.
+4. r[annot.inline.argument] The argument of `inline` must be `.Auto`, `.Always`, or `.Never`, or left out, and it is read as written. Any other argument of `inline`, and any argument of `cold`, is an error. Error: `invalid-inline-decorator`.
+5. r[annot.inline.bare] A bare `@inline` is `@inline(.Auto)`, by [`annot.decorator.bare-call-defaults`](#r-annot.decorator.bare-call-defaults).
+6. r[annot.inline.exclusive] An `@inline` line and an `@cold` line before one declaration are an error, reported on the later line. Error: `invalid-inline-decorator`.
+7. r[annot.inline.duplicate] Two `@inline` lines, or two `@cold` lines, before one declaration are an error, reported on the later line. Error: `duplicate-fact`.
+8. r[annot.inline.never] No build copies the body of a function marked `@inline(.Never)` or `@cold` into a caller.
+9. r[annot.inline.cold] In every build, each direct call of a `@cold` function is a call through the function table.
+10. r[annot.inline.instances] A choice holds for every instance of a generic function, and for a method wherever a call resolves to its body. A call through `&dyn` or a function value is a call as before.
+11. r[annot.inline.meaning] None of these lines changes a program's output, its panics, or its panic frames.
+
+```text
+use std.annotation.{cold, inline}
+
+trait Step:
+    @cold  # error: invalid-inline-decorator
+    fn step(self, x: i32) -> i32
+
+@inline(.Sometimes)  # error: invalid-inline-decorator
+fn twice(x: i32) -> i32:
+    x * 2
+
+@cold
+@inline(.Never)  # error: invalid-inline-decorator
+fn fail(code: i32) -> string:
+    "failed with $code"
+
+@inline
+@inline(.Never)  # error: duplicate-fact
+fn thrice(x: i32) -> i32:
+    x * 3
+```
+
+An `@inline` or `@cold` line before any other target, such as a struct, is a
+`decorator-target-kind` error, because `InlineHint` and `Cold` carry
+`@annotate(.Fn, .Method)`, by [`annot.target.limit.kind-error`](#r-annot.target.limit.kind-error).
+
+> **Why.** A table call is one V8 does not inline, so `@cold` keeps a rare
+> path out of a hot caller's code in both compilers. The decorators are
+> compiler decorators, not values, because an ordinary value changes
+> nothing by [`annot.decorator.attach`](#r-annot.decorator.attach).
+
 ### Function Facts
 
 `facts_of(f)` returns the values that decorators attach to the
@@ -210,7 +282,7 @@ fn users_path() -> string:
 
 1. r[annot.facts-of.declared] `std.annotation` declares the compiler intrinsic `facts_of`. It is not a prelude name, so code imports it, as in `use std.annotation.facts_of`. Its signature is `pub fn facts_of[F](f: F) -> Facts`.
 2. r[annot.facts-of.target] A use of `facts_of` must be a direct call whose one argument names a module-level function declaration. The name may go through a module qualifier or a `use` import. The argument is not evaluated.
-3. r[annot.facts-of.result] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules. Compiler decorators attach no value, so the result leaves out `@derive`, `@error`, `@from`, `@source`, `@intrinsic`, `@annotate`, `@num_suffix`, and `@str_prefix` lines.
+3. r[annot.facts-of.result] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules. Compiler decorators attach no value, so the result leaves out `@derive`, `@error`, `@from`, `@source`, `@intrinsic`, `@annotate`, `@num_suffix`, `@str_prefix`, `@inline`, and `@cold` lines.
 4. r[annot.facts-of.target.error] Any other argument is an error. That covers a closure, a local binding, a parameter, a method, a field access, a call, a type, and a non-function binding. So is `facts_of` used as a value. Error: `invalid-facts-of-target`.
 
 ```text

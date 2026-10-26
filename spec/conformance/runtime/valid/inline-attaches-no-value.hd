@@ -1,0 +1,34 @@
+# test: @inline and @cold attach no value, through an alias or a module path
+# Spec 14 Inline And Cold: annot.inline.recognized, annot.inline.meaning,
+# annot.facts-of.result.
+use std.annotation
+use std.annotation.{Cold, InlineHint, facts_of}
+use std.annotation.inline as hint
+
+@hint(.Always)
+fn double(x: i32) -> i32:
+    x * 2
+
+@annotation.cold
+fn describe(code: i32) -> string:
+    "code $code"
+
+struct Counter:
+    count: i32
+
+impl Counter:
+    @hint(.Never)
+    fn next(self) -> i32:
+        self.count + 1
+
+tests:
+    use std.testing.assert_equal
+
+    it("leaves the lines out of facts_of"):
+        assert_equal(facts_of(double).find::[InlineHint]().is_some(), false, reason="inline attaches no value")
+        assert_equal(facts_of(describe).find::[Cold]().is_some(), false, reason="cold attaches no value")
+
+    it("calls the functions as written"):
+        assert_equal(double(+21), +42, reason="an inline choice changes no result")
+        assert_equal(describe(+7), "code 7", reason="a cold call returns its result")
+        assert_equal(Counter { count: +1 }.next(), +2, reason="a method keeps its result")
