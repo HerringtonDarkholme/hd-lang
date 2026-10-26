@@ -448,6 +448,9 @@ impl Em<'_, '_, '_> {
             self.store_part(at, &m, part, src)?;
             return Ok(at);
         }
+        if let Some(key) = self.static_cells {
+            return self.static_cell(key, l, src);
+        }
         let (m, walk) = self.cell_mem(l)?;
         let cyclic = self.cyclic_holding(&[self.cell_ty(l)]);
         let at = self.object(&m, walk.as_ref(), cyclic);
@@ -457,6 +460,36 @@ impl Em<'_, '_, '_> {
         {
             crate::rt::checked_kind(&mut self.f, self.m, 2);
         }
+        let part = Part {
+            first: 0,
+            count: m.leaves.len(),
+            offset: 0,
+        };
+        self.store_part(at, &m, part, src)?;
+        Ok(at)
+    }
+
+    /// Local `l`'s cell in a handle body, whose once-cell has key `key`:
+    /// a static object, a zero count word and then the value, which lives
+    /// as long as the program, so no count changes it and every reference
+    /// to it is one address no count reaches (`annot.handle.constants`).
+    /// A checked run's teardown releases the value, as the once-cell's.
+    fn static_cell(&mut self, key: Hash128, l: usize, src: &Src) -> StageResult<u32> {
+        let (m, _) = self.cell_mem(l)?;
+        let header = crate::module::HEADER;
+        let base = self.m.static_slot(header + m.size, 8);
+        let addr = base + header;
+        let mut bytes = key.0.to_le_bytes().to_vec();
+        bytes.extend_from_slice(&u32::try_from(l).expect("locals").to_le_bytes());
+        let t = self.cell_ty(l);
+        self.note_stored(
+            hd_base::hash128(&bytes),
+            t,
+            Some((crate::module::Address::Static(addr), m.leaves.clone())),
+        )?;
+        let at = self.f.local(Val::I32);
+        self.f.static_addr(addr);
+        self.f.set(at);
         let part = Part {
             first: 0,
             count: m.leaves.len(),

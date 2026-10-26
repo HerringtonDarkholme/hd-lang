@@ -281,6 +281,9 @@ fn body_func<'a>(
         fact,
     });
     if let Some(cell) = &once {
+        if b.kind == BodyKind::Handle {
+            em.static_cells = Some(key);
+        }
         if em.m.track_origins {
             let name = format!("{}#once", (input.path)(item));
             em.m.storage_names.insert(key, name);
@@ -1025,6 +1028,9 @@ struct Em<'i, 'a, 'm> {
     /// local stack, not in a counted cell (§23.38), each with its slot's
     /// offset in the frame ([`closure::slot_locals`]).
     slots: HashMap<usize, u32>,
+    /// A handle body's once-cell key: its cells live in static data, as
+    /// the body runs once per instance ([`closure::Em::raw_cell`]).
+    static_cells: Option<Hash128>,
     /// The references that take a slot local's value at its last access
     /// (`ref_word::TAKES`), each with its local: a loan, whose `Drop`
     /// releases the value in the slot, as the local's `Drop` the move
@@ -1143,6 +1149,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             cells: shared,
             entry_cells: hd_base::HashSet::default(),
             slots: HashMap::default(),
+            static_cells: None,
             slot_takes: HashMap::default(),
             frame: None,
             ops: None,

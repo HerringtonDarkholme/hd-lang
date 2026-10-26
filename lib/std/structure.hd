@@ -101,11 +101,18 @@ pub enum SelfRef:
 # (r-std-format.debug.derive-builders.source): a `@derive` on a std
 # declaration has no effect in the prototype.
 
-# A member's handle. `hd_witness` names the member's type, so that `fact`
-# needs no `Inspectable` bound on `HdF` (annot.handle.fact.key).
-## A member's handle: its `Member` information plus the calls a template needs.
+# A member's handle: a shared, read-only reference to the member's
+# record, which the compiler builds once per instance in static data, so a
+# handle is one address that no count changes.
+## A member's handle: a reference to its `FieldRecord`, which holds its `Member` information plus the calls a template needs.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub struct Field[HdS, HdF]:
+pub type Field[HdS, HdF] = *FieldRecord[HdS, HdF]
+
+# `hd_witness` names the member's type, so that `fact` needs no
+# `Inspectable` bound on `HdF` (annot.handle.fact.key).
+## What a member's handle refers to: its `Member` information plus the calls a template needs.
+## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
+pub struct FieldRecord[HdS, HdF]:
     ## The member's information.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub info: Member
@@ -114,33 +121,26 @@ pub struct Field[HdS, HdF]:
     hd_default: fn() -> HdF?
     hd_witness: *dyn Inspectable
 
-impl[HdS, HdF] Field[HdS, HdF]:
+impl[HdS, HdF] FieldRecord[HdS, HdF]:
     ## Reads the member's value from `s`.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-    pub fn get(self, s: HdS) -> HdF:
+    pub fn get(&self, s: HdS) -> HdF:
         (self.hd_get)(s)
 
     ## Whether the member has a default value.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-    pub fn has_default(self) -> bool:
+    pub fn has_default(&self) -> bool:
         self.hd_has_default
 
     ## The member's default value, in `.Some`, or `.None`.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-    pub fn default(self) -> HdF?:
+    pub fn default(&self) -> HdF?:
         (self.hd_default)()
 
     ## The member's fact whose concrete type is `HdM`, or `.None`.
     ## See [annot.structure.find-exact](../../spec/lang/14-annotations.md#r-annot.structure.find-exact).
-    pub fn fact[HdM < Inspectable](self) -> HdM?:
+    pub fn fact[HdM < Inspectable](&self) -> HdM?:
         self.info.facts.find::[HdM]()
-
-# The handle of a member with no facts, doc comment, or default.
-fn hd__plain_field[HdS, HdF](name: string, position: usize, positional: bool, self_ref: SelfRef, get: fn(HdS) -> HdF, witness: *dyn Inspectable) -> Field[HdS, HdF]:
-    Field::[HdS, HdF] { info: Member { name: name, position: position, facts: Facts { items: [] }, doc: .None, embedded: false, positional: positional, self_ref: self_ref }, hd_get: get, hd_has_default: false, hd_default: hd__no_default::[HdF], hd_witness: witness }
-
-fn hd__no_default[HdF]() -> HdF?:
-    .None
 
 ## A variant's handle: its `VariantInfo` plus the check that a value holds it.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).

@@ -39,7 +39,9 @@
 //! The handles and information values are values of `std.structure`'s
 //! declarations (`lib/std/structure.hd`), built field by field; their
 //! hidden fields (`hd_get`, `hd_holds`, `hd_default`) are closures over the
-//! target. The witness field, which no std body reads, holds the member's
+//! target. A member's handle `Field[S, F]` is a reference to its
+//! `FieldRecord`, held in a local's cell that a handle body keeps in static
+//! data. The witness field, which no std body reads, holds the member's
 //! information as a `dyn Inspectable`. A variant's shared constructor
 //! data is read from the globals that hold it. Declaration documentation
 //! comes from the resolver's auxiliary item docs, outside semantic hashes.
@@ -394,7 +396,7 @@ fn helper_ret(cx: &Cx<'_, '_>, mode: Handles, h: Handle) -> Ty {
     let g = Gen::new(cx, param(names, h.def, 0), h.def, mode);
     match h.kind {
         HandleKind::Variant => g.adt(g.std("Variant"), &[g.target]),
-        HandleKind::Field(_) => g.adt(names.known.field, &[g.target, param(names, h.def, 1)]),
+        HandleKind::Field(_) => g.handle_ty(param(names, h.def, 1)),
         HandleKind::Members => g.adt(g.std("Members"), &[g.target]),
         HandleKind::Choices => {
             let variant = g.adt(g.std("Variant"), &[g.target]);
@@ -588,7 +590,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let owner = self.handles.owner(self.names);
         // A member's position is its place in the variant's members.
         let (var, mem) = (v.index as usize, m.position as usize);
-        let ty = self.adt(self.names.known.field, &[self.target, f]);
+        let ty = self.handle_ty(f);
         let declared = if f == strip_mut(self.names, m.ty) {
             ""
         } else {
@@ -633,8 +635,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let member_t = self.adt(self.std("Member"), &[]);
         for m in v.members.iter().filter(|m| !m.omitted) {
             let handle = self.field_handle(v, m, m.ty);
-            let field = self.names.known.field;
-            let info = self.std_field(handle, field, "info", member_t)?;
+            let info = self.handle_info(handle, member_t)?;
             infos.push(info);
         }
         let rec = self.b.refs_record(&infos);
@@ -685,6 +686,27 @@ impl<'a, 'n> Gen<'a, 'n> {
             def,
             args: pool.list(args),
         })
+    }
+
+    /// A member's handle type `Field[S, F]`: a shared reference to its
+    /// `FieldRecord[S, F]`.
+    fn handle_ty(&self, f: Ty) -> Ty {
+        let record = self.adt(self.names.known.field, &[self.target, f]);
+        self.names.pool.intern_ty(&TyData::Ref {
+            inner: record,
+            mutable: false,
+            counted: true,
+        })
+    }
+
+    /// The `info` of the record that `handle`, a `Field`, refers to.
+    fn handle_info(&mut self, handle: Ref, member_t: Ty) -> StageResult<Ref> {
+        let fs = self.std_fields(self.names.known.field)?;
+        let Some(k) = fs.iter().position(|f| self.names.text(f.name) == "info") else {
+            return self.cx.unsupported("the `std.structure` field `info`");
+        };
+        let k = u32::try_from(k).unwrap_or(0);
+        Ok(self.b.data_field(handle, k, member_t, SYN))
     }
 
     fn fresh(&self, t: Ty) -> Ty {
@@ -1123,7 +1145,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         });
         let witness = self.erase_value_reference(info, self.b.ty_of(info), inspectable);
         let field = self.names.known.field;
-        self.new_data(
+        let record = self.new_data(
             field,
             &[s, f],
             &[
@@ -1133,7 +1155,22 @@ impl<'a, 'n> Gen<'a, 'n> {
                 ("hd_default", default),
                 ("hd_witness", witness),
             ],
-        )
+        )?;
+        // The handle refers to the record in a local's cell, which a
+        // handle body places in static data (`hd_wasm_linear`).
+        let rt = self.b.ty_of(record);
+        let held = self.b.local(
+            rt,
+            self.names.syms.intern("$record"),
+            local_flags::READ
+                | local_flags::ASSIGNED
+                | local_flags::CAPTURED
+                | local_flags::CAPTURED_ASSIGNED,
+            SYN,
+        );
+        self.b.set(held, record, SYN);
+        let word = self.b.place(&hd_tir::ir::Place::local(held));
+        Ok(self.b.emit(Tag::Ref, word, 0, self.handle_ty(f), SYN))
     }
 
     /// A call of a walker, describer or source method through the body's

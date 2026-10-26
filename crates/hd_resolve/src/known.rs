@@ -27,6 +27,7 @@ pub struct KnownItems {
     pub tuple: DefId,
     // std.structure
     pub structure: DefId,
+    /// `FieldRecord`, which a `Field` handle refers to.
     pub field: DefId,
     pub walker: DefId,
     pub describer: DefId,
@@ -190,7 +191,7 @@ impl KnownItems {
             function_module: module("std.function"),
             tuple,
             structure,
-            field: item("std.structure", "Field"),
+            field: item("std.structure", "FieldRecord"),
             walker: item("std.structure", "Walker"),
             describer: item("std.structure", "Describer"),
             source: item("std.structure", "Source"),

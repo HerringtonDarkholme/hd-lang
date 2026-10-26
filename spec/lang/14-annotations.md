@@ -794,14 +794,16 @@ pub enum SelfRef:
     Optional
     Required
 
-pub struct Field[-S, F]:
+pub type Field[S, F] = *FieldRecord[S, F]
+
+pub struct FieldRecord[S, F]:
     pub info: Member
 
-impl[S, F] Field[S, F]:
-    pub fn get(self, s: S) -> F: pass
-    pub fn has_default(self) -> bool: pass
-    pub fn default(self) -> F?: pass
-    pub fn fact[M](self) -> M?: pass
+impl[S, F] FieldRecord[S, F]:
+    pub fn get(&self, s: S) -> F: pass
+    pub fn has_default(&self) -> bool: pass
+    pub fn default(&self) -> F?: pass
+    pub fn fact[M](&self) -> M?: pass
 
 pub struct Variant[S]:
     pub info: VariantInfo
@@ -838,7 +840,7 @@ pub trait Source[S]:
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, Self::Error]
 ```
 
-1. r[annot.structure.decl] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `Variant`, `Members`, `Key`, `Walker`, `Describer`, and `Source`. `Facts`, `Member`, `VariantInfo`, `Field`, `Variant`, `Members`, and `Key` are struct values: a copy is independent of the value it was copied from.
+1. r[annot.structure.decl] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `FieldRecord`, `Variant`, `Members`, `Key`, `Walker`, `Describer`, and `Source`. `Facts`, `Member`, `VariantInfo`, `FieldRecord`, `Variant`, `Members`, and `Key` are struct values: a copy is independent of the value it was copied from. `Field` is a read-only counted reference to a `FieldRecord`.
 2. r[annot.structure.bodies] The compiler supplies every body written `pass` in the declarations above, and the `Facts` type.
 3. r[annot.structure.reference-facts] `Facts` holds shared references to the facts attached to one type, member, variant, or module-level function, in source order.
 4. r[annot.structure.find-copy] `facts.find::[F]()` copies the first fact of concrete type `F` through `downcast_ref`, or returns `.None`.
@@ -1610,9 +1612,9 @@ struct Node:
 A **handle** is a compiler-generated constant that names one member or
 variant of a derivation's target.
 
-1. r[annot.handle.constants] Each member has one constant handle of type `Field[S, F]`, and each variant one of type `Variant[S]`.
+1. r[annot.handle.constants] Each member has one constant handle of type `Field[S, F]`, and each variant one of type `Variant[S]`. A member's handle refers to a `FieldRecord` that lives as long as the program.
 2. r[annot.handle.member-type] `walk`, `describe`, and `build` pass handles whose `F` is the member's declared type: for `hits: *mut Counter`, it is `*mut Counter`.
-3. r[annot.handle.field-variance] `Field` is contravariant in `S` and invariant in `F`, since `default` returns `F?` and an optional is invariant.
+3. r[annot.handle.field-variance] `Field` is invariant in `S` and `F`, as a counted reference is in its referent ([`ref.type.kind-distinct`](13-values-and-references.md#r-ref.type.kind-distinct)).
 4. r[annot.handle.get] `h.get(x)` accepts any `S`. Its type is the type that the field access `x.member` would have, for a member declared `F`.
 5. r[annot.handle.get.variant] `h.get(x)` on a payload member, when `x` holds another variant, is a checked runtime panic with category `structure-variant-mismatch`.
 6. r[annot.handle.holds] `v.holds(x)` is true exactly when `x` holds the variant `v`.
