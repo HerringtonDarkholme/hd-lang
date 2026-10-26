@@ -2899,27 +2899,56 @@ instructions). The ownership passes then run on the combined body, so a
 `ListIter.next` inlined into a loop borrows its list like a hand-written
 index loop.
 
-A release build also copies a call of a leaf outside std (2026-10-26,
-#165): a function that calls nothing, not even a function value, takes
-no reference, and has at most 16 instructions (`LEAF_INLINE_LIMIT`), so
-a one-line helper such as spectral_norm's `a(i, j)` (15) is no call in
-a hot loop, which V8 without call feedback (`--no-liftoff`) would leave
-a call. A reference parameter would be bound in a local, where it is
+One selection rule covers std and user callees (2026-10-26, #856): a
+callee of at most 16 instructions (`INLINE_LIMIT`) that takes no
+reference and is not recursive. A reference parameter would be bound in a local, where it is
 counted and makes a local it points at a counted cell; a call lends both,
-so such a leaf stays a call. Dev builds copy only std, like the other
-cross-function work, which is release-only.
+so such a callee stays a call. The build profile is the only difference:
+a dev build copies std callees only, so user code stays as written for
+stepping, stack traces and `dbg`; a release build copies both, like the
+other cross-function work, which is release-only. 16 lets a one-line
+helper such as spectral_norm's `a(i, j)` (15) be no call in a hot loop,
+which V8's baseline tier would run as a call.
+
+The rule was tuned on the 18 programs of bench/study and
+bench/runtime/progs against JavaScript, on three V8 tiers (default,
+`--no-liftoff`, `--liftoff-only`), with Wasm bytes and json's release
+compile time. Limits of 8, 12, 16 and 20, each with reference
+parameters refused or allowed and with leaves required or not:
+
+- **Reference parameters.** Allowing them in a callee that calls on
+  copies `StringBuilder.push` (`&mut self`, calls `bytes_append`) into
+  a loop: string_build 92 to 130 ms and map_count 121 to 138 ms on the
+  default tier, the same on the other two. Refusing them costs json
+  about 4 KB (+3.8%), as `&self` methods such as `Field.default` that
+  were copied are now functions; its run time moves within noise.
+- **Leaves.** Requiring a leaf as well changes no run time beyond noise
+  and adds bytes where a small wrapper of a call stays a call
+  (fannkuch_redux +31 B, nbody +33 B). Allowing reference parameters
+  in leaves only copies more of json's cold paths, such as
+  `Parser.unexpected` (+2.6 KB), for no run time.
+- **Limit.** At 12, spectral_norm's `a(i, j)` stays a call: 262 to
+  543 ms with `--liftoff-only`. 20 adds bytes (nbody +90 B) and no run
+  time. json's release compile time is the same at every limit
+  (0.33 to 0.34 s CPU, within noise).
+
+Against the earlier rules (std at 8 with references, user leaves at 16
+without), the geomean of hd over JS goes from 1.212 to 1.182 on the
+default tier, 1.128 to 1.105 with `--no-liftoff` and 1.616 to 1.566
+with `--liftoff-only`; hello's Wasm does not change.
 
 A release build inlines bottom-up (2026-10-26): before a call's callee
 is measured, its own calls are copied into it as far as their callees
-allow, at the call's types, and the limits apply to the result. A
+allow, at the call's types, and the limit applies to the result. A
 function that only wraps a call of a leaf is then a leaf too and is
 copied in turn; a generic function and an impl method count at the
 instance the call names, so `apply[Double]`, whose body is
 `s.step(x)`, becomes `Double.step`'s arithmetic, and a loop over
 `apply(double, x)` calls nothing (bench/runtime/progs/trait-dispatch).
 A function on the way down is never copied into itself or into a callee
-it reaches, so recursion stays a call. A std callee that outgrows its
-limit this way is copied as written, as before. Each instance is made
+it reaches, and a function that calls itself, or that the walk finds on
+a cycle of calls, is copied nowhere, so recursion stays a call. A callee that outgrows the
+limit this way is copied as written, when that fits. Each instance is made
 once per run. A copy inside a copy keeps its frame: its `Body::inlined`
 row is called at an anchor in the outer copy's row, so a panic reports
 each inlined frame.

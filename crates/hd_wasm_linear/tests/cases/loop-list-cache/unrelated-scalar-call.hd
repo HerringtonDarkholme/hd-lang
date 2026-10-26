@@ -1,8 +1,8 @@
 # @dump: wat
 # @build: v8 release
 # expected: an unescaped local list can keep its buffer and length across a scalar call.
-# `value` calls `ten`, which is recursive and so stays a call, so `value`
-# is no leaf, and a release build leaves it a call.
+# A release build copies `value` into the loop; its call of `ten`, which is
+# recursive and so stays a call, is the scalar call.
 fn value(i: usize) -> usize: i + ten(0)
 
 fn ten(k: usize) -> usize:

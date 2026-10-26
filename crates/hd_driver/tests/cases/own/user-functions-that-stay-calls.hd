@@ -1,11 +1,12 @@
 # @dump: own
 # @build: v8 release
-# Release inlining copies only small leaves outside std: `twice` calls
-# `long`, which stays a call, so it is no leaf even once its own callees
-# are copied; `long` has more than 16 instructions; `first`
-# takes a reference, which a copy would count in a local; `run` calls a
-# function value; `make` creates a closure: each of those calls stays a
-# call. `need` declares a provider but reads none, so its call is copied.
+# Release inlining copies a function outside std by std's rule: at most 16
+# instructions, no reference parameter, no call of itself. `twice` and
+# `run` are copied though each still makes a call (`long`, a function
+# value); `long` has more than 16 instructions; `first` takes a reference,
+# which a copy would count in a local; `make` creates a closure; `down`
+# calls itself: each of those calls stays a call. `need` declares a
+# provider but reads none, so its call is copied.
 fn half(x: i64) -> i64:
     x / 2
 
@@ -24,9 +25,12 @@ fn run(g: fn(i64) -> i64, x: i64) -> i64:
 fn make(k: i64) -> fn(i64) -> i64:
     fn(x: i64) -> i64: x + k
 
+fn down(k: i64) -> i64:
+    if k > 0: down(k - 1) else: 0
+
 fn need(x: i64) -> i64 $ Console:
     x
 
 fn calls(xs: List[i64]) -> i64 $ Console:
     # subject
-    twice(1) + long(2) + first(&xs) + run(half, 3) + make(4)(5) + need(6)
+    twice(1) + long(2) + first(&xs) + run(half, 3) + make(4)(5) + down(7) + need(6)

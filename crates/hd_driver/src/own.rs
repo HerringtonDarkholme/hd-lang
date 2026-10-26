@@ -51,6 +51,9 @@ pub(super) struct Summaries {
     /// own calls copied first, and its hash, or `None` when a call of it
     /// stays ([`Env::callee_copy`]).
     inlined: std::sync::Mutex<HashMap<(DefId, TyList), Option<Inlined>>>,
+    /// The functions the inliner found on a cycle of calls
+    /// ([`Env::inline_into`]): a call of one stays a call.
+    recursive: std::sync::Mutex<hd_base::HashSet<DefId>>,
 }
 
 /// A copy a call inlines, and its hash ([`Summaries`]).
@@ -100,19 +103,12 @@ thread_local! {
 }
 
 /// The most instructions a callee's body may have for a call of it to
-/// inline (`docs/compiler/tir-v2.md`, "The inliner", tuned at 8 in
-/// commit 4: the smallest code of 8, 12, 16 and 20); 0 turns the inliner
-/// off.
-const INLINE_LIMIT: usize = 8;
-
-/// The most instructions a callee outside std may have for a call of it
-/// to inline, in a release build only, as the other cross-function work
-/// (`docs/future-work/RELEASE_INTERPROC.md`); such a callee must also be a
-/// leaf ([`hd_tir::inline::leaf`]), so a copy adds no call to its caller.
-/// 16 takes in a one-line arithmetic helper such as `spectral_norm`'s
-/// `a(i, j)` (15 instructions), which V8 without call feedback
-/// (`--no-liftoff`) leaves a call.
-const LEAF_INLINE_LIMIT: usize = 16;
+/// inline, in std and outside it alike (`docs/compiler/tir-v2.md`, "The
+/// inliner", tuned at 16 over 8, 12, 16 and 20 in #856: 12 leaves
+/// `spectral_norm`'s `a(i, j)` (15 instructions) a call, which V8's
+/// baseline tier runs twice as slowly, and 20 only grows code); 0 turns
+/// the inliner off.
+const INLINE_LIMIT: usize = 16;
 
 /// The intrinsics that read only their arguments and write nothing
 /// (`OwnCx::may_write`): the scalar square root and the byte reads of a
@@ -433,12 +429,19 @@ impl Env<'_> {
             else {
                 continue;
             };
-            if stack.contains(&def) {
+            if let Some(at) = stack.iter().position(|&d| d == def) {
+                self.found_cycle(&stack[at..]);
                 continue;
             }
             let Some((mut copy, callee_hash)) = self.callee_copy(def, targs, stack) else {
                 continue;
             };
+            // A copy made for another caller may call one on the way down.
+            if let Some(at) = stack.iter().position(|&d| self.calls(&copy, d)) {
+                self.found_cycle(&stack[at..]);
+                self.found_cycle(&[def]);
+                continue;
+            }
             if !self.fits_call(body, c, &mut copy) {
                 continue;
             }
@@ -475,13 +478,35 @@ impl Env<'_> {
         }
     }
 
+    /// Records `members`, a run of calls that reaches its first member
+    /// again, as recursive, in a release build: none of them is copied.
+    fn found_cycle(&self, members: &[DefId]) {
+        if let Some(all) = &self.run.summaries {
+            lock(&all.recursive).extend(members);
+        }
+    }
+
+    /// Whether `body` calls `def`, by name or through a trait method's
+    /// impl.
+    fn calls(&self, body: &Body, def: DefId) -> bool {
+        (0..body.len()).any(|c| {
+            hd_tir::inline::plain_call(body, c)
+                .and_then(|callee| match callee {
+                    Callee::Item { def, .. } => Some(def),
+                    Callee::TraitMethod { .. } => self.impl_target(&callee).map(|(d, _)| d),
+                })
+                .is_some_and(|d| d == def)
+        })
+    }
+
     /// The copy a call of `def` at `targs` inlines, at the call's types,
     /// and its hash ([`Env::inline_callee`]). A release build inlines
     /// bottom-up: the instance's own calls are copied first, as far as
-    /// their callees allow, and the limits apply to the result, so a
+    /// their callees allow, and the limit applies to the result, so a
     /// function that only wraps a call of a leaf is a leaf itself once that
-    /// call is a copy. A copy that outgrows its limit that way is the
-    /// instance as written, when that fits. Each instance is made once per
+    /// call is a copy. A copy that outgrows the limit that way is the
+    /// instance as written, when that fits. A function on a cycle of
+    /// calls the walk finds stays a call. Each instance is made once per
     /// run.
     fn callee_copy(
         &self,
@@ -496,6 +521,9 @@ impl Env<'_> {
         if let Some(made) = lock(&all.inlined).get(&(def, targs)) {
             return made.clone();
         }
+        if lock(&all.recursive).contains(&def) {
+            return None;
+        }
         let made = self.instance(def, targs).and_then(|(copy, hash, fits)| {
             let nested = (!hd_tir::inline::leaf(&copy)).then(|| {
                 let mut nested = copy.clone();
@@ -504,6 +532,9 @@ impl Env<'_> {
                 stack.pop();
                 (nested, h)
             });
+            if lock(&all.recursive).contains(&def) {
+                return None;
+            }
             match nested {
                 Some((nested, h)) if self.fits(def, targs, &nested) => Some((nested, h)),
                 _ => fits.then_some((copy, hash)),
@@ -554,23 +585,22 @@ impl Env<'_> {
         Some((copy, hash, fits))
     }
 
-    /// Whether `copy`, the body of `def` at `targs`, is small enough to
-    /// inline: [`hd_tir::inline::inlinable`] at [`INLINE_LIMIT`] in std,
-    /// and outside std, in a release build, at [`LEAF_INLINE_LIMIT`] when
-    /// it is a leaf ([`hd_tir::inline::leaf`]) that takes no reference.
+    /// Whether `copy`, the body of `def` at `targs`, may inline:
+    /// [`hd_tir::inline::inlinable`] at [`INLINE_LIMIT`], taking no
+    /// reference ([`Env::takes_reference`]). The rule is one for std and
+    /// user callees; only which callees a build considers differs
+    /// ([`Env::inline_callee`]).
     fn fits(&self, def: DefId, targs: TyList, copy: &Body) -> bool {
-        let std = self.run.item_module_text(def).starts_with("std.");
-        let limit = if std { INLINE_LIMIT } else { LEAF_INLINE_LIMIT };
-        hd_tir::inline::inlinable(copy, limit)
-            && (std || hd_tir::inline::leaf(copy) && !self.takes_reference(def, targs))
+        hd_tir::inline::inlinable(copy, INLINE_LIMIT) && !self.takes_reference(def, targs)
     }
 
     /// A fresh decoding of the checker's body of `def`, for the caller to
     /// change, and its hash, when a call of it may inline: a function
-    /// outside `std.rt`, with a body of its own, that does not suspend,
-    /// in std or in a release build, and that [`hd_tir::inline::inlinable`]
-    /// allows at its limit ([`Env::fits`]), which copying its calls only
-    /// grows.
+    /// outside `std.rt`, with a body of its own, that does not suspend
+    /// or call itself, in std or in a release build (a dev build leaves user code as
+    /// written, for stepping, stack traces and `dbg`), and that
+    /// [`hd_tir::inline::inlinable`] allows at [`INLINE_LIMIT`]
+    /// ([`Env::fits`]), which copying its calls only grows.
     fn inline_callee(&self, def: DefId) -> Option<(Body, Hash128)> {
         let module = self.run.item_module_text(def);
         let std = module.starts_with("std.");
@@ -585,8 +615,7 @@ impl Env<'_> {
         let path = self.run.paths.hash(hd_base::PathId::from_raw(def.raw()));
         let lazy = self.p.bodies.all.get(&path)?;
         let (body, hash) = self.run.decode(lazy)?;
-        let limit = if std { INLINE_LIMIT } else { LEAF_INLINE_LIMIT };
-        if !hd_tir::inline::inlinable(body, limit) {
+        if !hd_tir::inline::inlinable(body, INLINE_LIMIT) || self.calls(body, def) {
             return None;
         }
         let (m, entry, at) = lazy.wire.as_ref()?;
@@ -604,8 +633,9 @@ impl Env<'_> {
     /// Whether a parameter of `def` at `targs` is, or may be in an
     /// instance, a reference. A copy binds a parameter in a local, and a
     /// reference held in a local is counted, and makes a local it points
-    /// at a counted cell, where a call lends both; so a leaf outside std
-    /// that takes one stays a call.
+    /// at a counted cell, where a call lends both; so a callee that takes
+    /// one stays a call (#856: copying `StringBuilder.push` into a loop
+    /// made `string_build` 40% slower).
     fn takes_reference(&self, def: DefId, targs: TyList) -> bool {
         let Some(sig) = self.sig(def) else {
             return true;
