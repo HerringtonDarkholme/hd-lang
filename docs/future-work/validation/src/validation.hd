@@ -1,0 +1,117 @@
+# Proposed validation and checked-reader signatures (#846), for review only.
+# Checked readers decode first, then validate the completed value. Not fused.
+use std.annotation.annotate
+use std.cli.{Cli, CliError}
+use std.host.{Args, Env, HostError}
+use std.json.JsonError
+use std.process.ExitCode
+use std.serde.Deserialize
+use std.structure.{Structure, Walker, Variant, Field}
+use std.text.Parse
+
+pub enum Mode:
+    First
+    All
+
+## Structural identity survives each reader's independent field naming.
+@derive(Eq)
+pub enum PathStep:
+    Field(variant: usize, position: usize, name: string)
+    Index(value: usize)
+
+## Standard checks keep no rejected values, including passwords.
+pub struct Problem:
+    pub code: string
+    pub message: string
+
+pub struct Violation:
+    pub path: List[PathStep]
+    pub problem: Problem
+
+@error
+pub enum ValidationError:
+    @error("validation failed: ${issues.len()} issues")
+    Invalid(issues: List[Violation], truncated: bool)
+    @error("invalid validation rule: $reason")
+    Definition(path: List[PathStep], reason: string)
+
+## Reader spelling, such as $.listenPort, --port or APP_PORT.
+## Opaque handwritten decoders fall back to declared semantic names.
+pub struct Location:
+    pub path: List[PathStep]
+    pub display: string
+
+@error
+pub enum CheckedReadError[E]:
+    @error("$cause")
+    Read(@source cause: E)
+    @error("$cause")
+    Validation(@source cause: ValidationError, locations: List[Location])
+
+pub struct ValidationContext:
+    placeholder: usize
+
+impl ValidationContext:
+    ## Reject at the current path; completed-record checks use the record root.
+    pub fn reject(&mut self, problem: Problem) -> void: panic("todo")
+    pub fn is_stopped(&self) -> bool: panic("todo")
+
+pub trait Validate:
+    fn collect(self, context: *mut ValidationContext) -> void
+    ## Completed-parent checks run after fields, unless First/the cap stopped.
+    fn record(self, context: *mut ValidationContext) -> void: panic("todo")
+
+## Uses only the facts in this Validate derivation; no reader protocol change.
+impl[T] Validate for T by Structure:
+    # Required template walk is unreachable: the stub panics before constructing it.
+    fn collect(self, context: *mut ValidationContext) -> void:
+        let mut walker: ValidationWalker[T] = panic("todo")
+        _ := Structure::walk(self, &mut walker)
+
+# The compiler requires a protocol call in a template. This private walker
+# is never constructed: collect panics before reaching the walk.
+struct ValidationWalker[S]: pass
+
+impl[S] Walker[S] for ValidationWalker[S]:
+    type Error = never
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, never]: panic("todo")
+    fn member[F](&mut self, field: Field[S, F], value: F) -> Result[void, never]: panic("todo")
+
+pub struct Rule[F]:
+    placeholder: usize
+
+@annotate::[F](.Field)
+pub struct Rules[F]:
+    placeholder: usize
+
+pub enum TextLengthUnit:
+    Bytes
+    Scalars
+
+## max_errors must be positive. All retains that many issues; truncated reports more.
+pub fn validate[T < Validate](value: T, mode: Mode = .All, max_errors: usize = 64) -> Result[void, ValidationError]: panic("todo")
+pub fn check[F](test: fn(F) -> Result[void, Problem]) -> Rule[F]: panic("todo")
+pub fn rules[F](items: List[Rule[F]]) -> Rules[F]: panic("todo")
+## Inclusive bounds. Invalid bounds are Definition errors, not input errors.
+pub fn range[F < PartialOrd](low: F, high: F) -> Rule[F]: panic("todo")
+pub fn text_length(min: usize, max: usize, unit: TextLengthUnit = .Scalars) -> Rule[string]: panic("todo")
+pub fn list_length[F](min: usize, max: usize) -> Rule[List[F]]: panic("todo")
+## Regex search semantics; anchor for whole text. Invalid sources fail when visited.
+pub fn pattern(source: string) -> Rule[string]: panic("todo")
+pub fn one_of[F < Eq](values: List[F]) -> Rule[F]: panic("todo")
+## None is accepted; use a completed-record check for conditional presence.
+pub fn optional[F](rule: Rule[F]) -> Rule[F?]: panic("todo")
+pub fn nested[F < Validate]() -> Rule[F]: panic("todo")
+pub fn each[F](rule: Rule[F]) -> Rule[List[F]]: panic("todo")
+
+# Proposed std.json addition; the reader trait, errors and defaults stay intact.
+pub fn decode_checked[T < Deserialize & Validate](text: string, mode: Mode = .All, max_errors: usize = 64) -> Result[T, CheckedReadError[JsonError]]: panic("todo")
+# Proposed std.cli additions.
+pub fn parse_checked[T < Cli & Validate](arguments: List[string], mode: Mode = .All, max_errors: usize = 64) -> Result[T, CheckedReadError[CliError]]: panic("todo")
+pub fn parse_args_checked[T < Cli & Validate](mode: Mode = .All, max_errors: usize = 64) -> Result[T, CheckedReadError[CliError]] $ Args: panic("todo")
+## Read(Help) keeps stdout/status0; usage/validation errors use stderr/status2.
+pub fn exit_checked(error: CheckedReadError[CliError]) -> ExitCode $ Console: panic("todo")
+# Proposed std.host additions.
+## An unset name remains Ok(None); a set value is parsed and validated once.
+pub fn env_as_checked[T < Parse[Error = E] & Validate, E < Display](name: string, mode: Mode = .All, max_errors: usize = 64) -> Result[T?, CheckedReadError[HostError]] $ Env: panic("todo")
+pub fn env_decode_checked[T < Deserialize & Validate](mode: Mode = .All, max_errors: usize = 64) -> Result[T, CheckedReadError[HostError]] $ Env: panic("todo")

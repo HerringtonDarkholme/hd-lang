@@ -1,0 +1,190 @@
+# Checked API examples only: the proposed library stubs must not be executed.
+use std.cli.{Cli, CliError}
+use std.error.Error
+use std.fs.{FsError, FsRead, read_text}
+use std.host.{Args, Env, HostError, env_name}
+use std.json.JsonError
+use std.path.Path
+use std.process.ExitCode
+use std.serde.{Deserialize, rename}
+use std.text.Parse
+use std.num.ParseNumberError
+use std.structure.Structure
+use pkg.validation.{CheckedReadError, Location, Mode, PathStep, Problem, Rule, Rules, TextLengthUnit, Validate, ValidationContext, ValidationError, Violation, check, decode_checked, each, env_as_checked, env_decode_checked, exit_checked, list_length, nested, one_of, optional, parse_args_checked, parse_checked, pattern, range, rules, text_length, validate}
+
+# HTTP signup body: typed fields, bounded nested records and ordinary checks.
+@derive(Deserialize, Eq)
+enum Role:
+    Reader
+    Writer
+    Admin
+
+struct Address:
+    street: string
+    city: string
+
+impl Deserialize for Address by Structure
+impl Validate for Address by Structure:
+    street = [rules([text_length(1, 120)])]
+    city = [rules([text_length(1, 80)])]
+
+struct Signup:
+    username: string
+    age: u8
+    role: Role
+    addresses: List[Address]
+    password: string
+    confirmation: string
+    invited: bool = false
+    invite: string? = .None
+
+# A typed user-written function; no registry, reflection or string callback name.
+fn available_name(name: string) -> Result[void, Problem]:
+    if name == "admin" || name == "support":
+        return .Err(Problem { code: "reserved-name", message: "choose another username" })
+    .Ok(())
+
+impl Deserialize for Signup by Structure
+impl Validate for Signup by Structure:
+    username = [rules([text_length(3, 40, TextLengthUnit.Scalars), pattern("^[a-z][a-z0-9_]*$"), check(available_name)])]
+    age = [rules([range::[u8](18, 130)])]
+    role = [rules([one_of([Role.Reader, Role.Writer])])]
+    addresses = [rules([list_length::[Address](1, 8), each(nested::[Address]())])]
+    password = [rules([text_length(12, 256, TextLengthUnit.Bytes)])]
+    invite = [rules([optional(pattern("^[A-Z0-9]{8}$"))])]
+    fn record(self, context: *mut ValidationContext) -> void:
+        if context.is_stopped(): return
+        if self.password != self.confirmation:
+            context.reject(Problem { code: "confirmation", message: "passwords must match" })
+        if self.invited && self.invite.is_none():
+            context.reject(Problem { code: "invite-required", message: "an invitation code is required" })
+
+fn signup_body(text: string) -> Result[Signup, CheckedReadError[JsonError]]:
+    decode_checked::[Signup](text, .All, max_errors=8)
+
+# Also validate an existing value independently of how it was constructed.
+fn review_signup(value: Signup, stop_early: bool) -> Result[void, ValidationError]:
+    let mode: Mode = if stop_early: .First else: .All
+    validate(value, mode, max_errors=8)
+
+# The same port rule and completed-record TLS check through three readers.
+struct ServerConfig:
+    port: u32 = 8080
+    tls: bool = false
+    certificate: string? = .None
+
+fn port_rule() -> Rule[u32]: range::[u32](1, 65535)
+fn port_rules() -> Rules[u32]: rules([port_rule()])
+
+impl Deserialize for ServerConfig by Structure:
+    port = [rename("listenPort"), env_name("APP_PORT")]
+    tls = [env_name("APP_TLS")]
+    certificate = [env_name("APP_CERTIFICATE")]
+
+impl Validate for ServerConfig by Structure:
+    port = [port_rules()]
+    certificate = [rules([optional(text_length(1, 4096))])]
+    fn record(self, context: *mut ValidationContext) -> void:
+        if self.tls && self.certificate.is_none():
+            context.reject(Problem { code: "tls-certificate", message: "TLS needs a certificate" })
+
+@error
+enum ConfigError:
+    @error("$cause")
+    File(@from @source cause: FsError)
+    @error("$cause")
+    Invalid(@from @source cause: CheckedReadError[JsonError])
+
+fn load_config!(file: Path) -> Result[ServerConfig, ConfigError] $ FsRead:
+    text := read_text!(file)?
+    .Ok(decode_checked::[ServerConfig](text)?)
+
+# CLI options have their own reader naming policy, separate from JSON/env.
+struct Options:
+    port: u32 = 8080
+    tls: bool = false
+    certificate: string? = .None
+
+impl Cli for Options by Structure
+impl Validate for Options by Structure:
+    port = [port_rules()]
+    certificate = [rules([optional(text_length(1, 4096))])]
+    fn record(self, context: *mut ValidationContext) -> void:
+        if self.tls && self.certificate.is_none():
+            context.reject(Problem { code: "tls-certificate", message: "TLS needs a certificate" })
+
+# Explicit argv for embedding/tests; process argv keeps CLI help/exit behavior.
+fn config_from_args(arguments: List[string]) -> Result[Options, CheckedReadError[CliError]]:
+    parse_checked::[Options](arguments)
+
+fn command_line() -> ExitCode $ Args + Console:
+    match parse_args_checked::[Options](.First):
+        .Ok(config) =>
+            println("listening on ${config.port}")
+            ExitCode(0)
+        .Err(error) => exit_checked(error)
+
+fn config_from_env() -> Result[ServerConfig, CheckedReadError[HostError]] $ Env:
+    env_decode_checked::[ServerConfig]()
+
+# Scalar env keeps Parse rather than acquiring a Deserialize/Inspectable bound.
+struct Port:
+    value: u32
+
+impl Parse for Port:
+    type Error = string
+    fn parse(text: string) -> Result[Port, string]:
+        let parsed: Result[u32, ParseNumberError] = Parse::parse(text)
+        match parsed:
+            .Ok(value) => .Ok(Port { value: value })
+            .Err(error) => .Err(error.to_string())
+
+impl Validate for Port by Structure:
+    value = [port_rules()]
+
+fn port_from_env() -> Result[Port?, CheckedReadError[HostError]] $ Env:
+    env_as_checked::[Port, string]("APP_PORT")
+
+# Reader-owned spellings accompany the structural identities used by a UI.
+fn validation_lines(error: ValidationError) -> List[string]:
+    match error:
+        .Invalid(issues, truncated) =>
+            let mut lines: List[string] = []
+            for issue in issues:
+                lines.push(issue_line(issue))
+            if truncated: lines.push("more validation errors were omitted")
+            lines
+        .Definition(path, reason) => ["validation configuration ${structural_path(path)}: $reason"]
+
+fn issue_line(issue: Violation) -> string:
+    "${structural_path(issue.path)}: ${issue.problem.code}: ${issue.problem.message}"
+
+fn structural_path(path: List[PathStep]) -> string:
+    let result = "\$"
+    for step in path:
+        match step:
+            .Field(_, _, name) => result = "$result.$name"
+            .Index(index) => result = "$result[$index]"
+    result
+
+fn location_line(location: Location) -> string:
+    "${location.display} (${structural_path(location.path)})"
+
+fn input_failure[E < Error](error: CheckedReadError[E]) -> List[string]:
+    match error:
+        .Read(cause) => ["$cause"]
+        .Validation(cause, locations) =>
+            match cause:
+                .Invalid(issues, truncated) =>
+                    let mut lines: List[string] = []
+                    for issue in issues:
+                        lines.push(mapped_issue(issue, locations))
+                    if truncated: lines.push("more validation errors were omitted")
+                    lines
+                .Definition(_, _) => validation_lines(cause)
+
+fn mapped_issue(issue: Violation, locations: List[Location]) -> string:
+    for location in locations:
+        if location.path == issue.path:
+            return "${location_line(location)}: ${issue.problem.code}: ${issue.problem.message}"
+    issue_line(issue)
