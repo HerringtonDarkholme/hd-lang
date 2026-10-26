@@ -2410,3 +2410,112 @@ body.repl-open .repl-toggle {
     transition: none !important;
   }
 }
+
+/* Daily Metrics page (website/src/metrics.ts): one trend card per target. */
+.metric-summary {
+  display: flex;
+  gap: 16px;
+  font-weight: 600;
+}
+.metric-summary .is-pass,
+.metric-card.is-pass .metric-status {
+  color: var(--ok);
+}
+.metric-summary .is-fail,
+.metric-card.is-fail .metric-status {
+  color: var(--repl-error);
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 12px 0 28px;
+}
+.metric-card {
+  margin: 0;
+  padding: 12px 14px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+  min-width: 0;
+}
+.metric-card figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.metric-name {
+  color: var(--heading);
+  font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1.3;
+}
+.metric-script,
+.metric-goal-text,
+.metric-axis,
+.metric-empty {
+  color: var(--text-soft);
+  font-size: 0.78rem;
+}
+.metric-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+.metric-value {
+  color: var(--heading);
+  font-size: 1.25rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.metric-status {
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.metric-chart {
+  display: block;
+  width: 100%;
+  height: 72px;
+  margin-top: 6px;
+  overflow: visible;
+}
+.metric-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.metric-goal {
+  stroke: var(--text-soft);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.metric-dot circle {
+  fill: var(--accent);
+  stroke: var(--bg-soft);
+  stroke-width: 2;
+}
+.metric-dot.is-pass circle {
+  fill: var(--ok);
+}
+.metric-dot.is-fail circle {
+  fill: var(--repl-error);
+}
+.metric-dot circle.metric-hit {
+  fill: transparent;
+  stroke: none;
+}
+.metric-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+.metric-empty {
+  padding: 24px 0;
+}
