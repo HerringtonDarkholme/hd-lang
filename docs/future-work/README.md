@@ -20,7 +20,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 ### Application and host
 
 - [HTTP messages](http/): checked hd signatures (`src/http.hd`) and usage examples (`src/examples.hd`) for the symmetric Request/Response API; owner review before implementation (#847).
-- [Validation](validation/): checked hd signatures and realistic JSON/CLI/environment examples; owner review before implementation (#846).
+- [Validation](VALIDATION.md): short design and [checked signatures and examples](validation/) for typed JSON/CLI/environment validation; owner review before implementation (#846).
 
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
 - [Host Embedding](HOST_EMBEDDING.md): parked proposal for embedding hd in an application; package host capabilities are designed in #51.
