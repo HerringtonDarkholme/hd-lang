@@ -6,7 +6,7 @@
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 5 funcref))
+  (import "fixture" "table0" (table $table0 10 funcref))
   (func $drive_put (param $s.0 i32) (param $s.1 i32) (param $text.0 i32) (param $text.1 i32) (param $log i32) (result i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 10 |     let call: mut Suspend[i32] = s.put(text)
@@ -34,7 +34,7 @@
       i32.or
       if
         local.get $s.1
-        i32.const 1
+        i32.const 5
         call_indirect $table0 (param i32) (result i32)
         local.set $s.1
         local.get $log

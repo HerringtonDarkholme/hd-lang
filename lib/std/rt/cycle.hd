@@ -43,6 +43,7 @@
 # them lost their last count to free them (then it only frees those),
 # and when the entry's poll answers, so at idle and before checked mode's
 # leak report.
+use std.annotation.cold
 use std.rt.alloc.{alloc, block_bytes, block_of, free_block}
 use std.rt.memory.{copy, load_u32, store_u32}
 
@@ -315,6 +316,7 @@ fn sweep(free: fn(usize) -> void) -> void:
     dead = 0
 
 # Moves the candidates left to the buffer's front.
+@cold
 fn compact() -> void:
     let j: usize = 0
     let i: usize = 0
@@ -354,21 +356,28 @@ fn paint(block: usize, c: usize) -> void:
 # may move it, so it gives the array's new address.
 fn push(array: usize, value: usize) -> usize:
     let at = array
-    if at == 0:
-        at = alloc(8 + 4 * 64)
-        store_u32(at, 0)
-        store_u32(at + 4, 64)
+    if at == 0 || load_u32(at) == load_u32(at + 4):
+        at = grow_array(at)
     n := usize(load_u32(at))
-    cap := usize(load_u32(at + 4))
-    if n == cap:
-        bigger := alloc(8 + 8 * cap)
-        copy(bigger, at, 8 + 4 * cap)
-        store_u32(bigger + 4, u32(2 * cap))
-        free_block(at)
-        at = bigger
     store_u32(at + 8 + 4 * n, u32(value))
     store_u32(at, u32(n + 1))
     at
+
+# `push`'s rare path: the first array, or one twice as large as the full
+# array at `at`, which it frees; gives the new array's address.
+@cold
+fn grow_array(at: usize) -> usize:
+    if at == 0:
+        first := alloc(8 + 4 * 64)
+        store_u32(first, 0)
+        store_u32(first + 4, 64)
+        return first
+    cap := usize(load_u32(at + 4))
+    bigger := alloc(8 + 8 * cap)
+    copy(bigger, at, 8 + 4 * cap)
+    store_u32(bigger + 4, u32(2 * cap))
+    free_block(at)
+    bigger
 
 fn pop(array: usize) -> usize:
     n := usize(load_u32(array)) - 1

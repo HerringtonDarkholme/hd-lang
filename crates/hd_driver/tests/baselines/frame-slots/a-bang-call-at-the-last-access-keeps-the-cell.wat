@@ -9,7 +9,7 @@
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 14 funcref))
+  (import "fixture" "table0" (table $table0 21 funcref))
   (func $waits (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t5 i32) (local $t8 i32) (local $t0 i64) (local $tally i32) (local $t1 i32) (local $t3 i64) (local $t2 i32) (local $t4 i32) (local $t6 i32) (local $t7 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32)
     ;; ...
     block

@@ -5,7 +5,7 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 8 funcref))
+  (import "fixture" "table0" (table $table0 15 funcref))
   (func $notify (param $send.0 i32) (param $send.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
     ;; 9 |     send("ada")
     block

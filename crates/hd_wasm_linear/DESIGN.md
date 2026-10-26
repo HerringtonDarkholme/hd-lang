@@ -772,7 +772,12 @@ changes preserve collection value semantics (§23.7).
   `rt:to_buf` was unrolled about 20 calls deep, so the caller's budget
   never reached its own small callees (spectral_norm's `a`). What the
   engine inlines now is the check: a few loads and a compare. A table
-  slot costs a few bytes per call site.
+  slot costs a few bytes per call site. hd code asks for the same with
+  `@cold` (`annot.inline.cold`): `Module::finish` rewrites each `call`
+  of a `@cold` function's instance into its slot and a `call_indirect`
+  at its own signature. std marks the allocator's page acquisition
+  (`start`, `take`, `extend`, `move_table`, `claim`) and the candidate
+  buffer's compaction and growth (`compact`, `grow_array`) (#884).
 - **Bulk appends.** std's `list_extend(items: &mut List[T], other)`
   (`List.extend`) reads the list through its reference, as
   `list_truncate` does, and stores the buffer back. `rt:list_extend`

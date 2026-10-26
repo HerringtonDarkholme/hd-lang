@@ -3,7 +3,7 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 4 funcref))
+  (import "fixture" "table0" (table $table0 9 funcref))
   (func $read_after_resize (param $read i32) (param $write i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t2 i32) (local $t3 i32)
     block
       ;; ...
@@ -55,7 +55,7 @@
           i32.or
           if
             local.get $t2
-            i32.const 1
+            i32.const 2
             call_indirect $table0 (param i32) (result i32)
             local.set $t2
             local.get $write

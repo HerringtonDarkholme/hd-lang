@@ -23,6 +23,7 @@
 # class's list (u32 each), its live count (u16) and its bump offset in
 # units of 16 bytes (u16). Its slots follow from offset 16. A freed slot
 # holds the next free slot's address in its first 4 bytes.
+use std.annotation.cold
 use std.rt.cycle.{keep, suspect}
 use std.rt.memory.{copy, fill, grow, load_u16, load_u32, store_u16, store_u32}
 
@@ -413,6 +414,7 @@ fn lower_hint(page_number: usize) -> void:
 
 # The first allocation's set-up: a page for the table, whose entries mark
 # every page the heap had before as static.
+@cold
 fn start() -> void:
     at := grown(1)
     table = at * PAGE
@@ -424,6 +426,7 @@ fn start() -> void:
 
 # The first of `count` free pages next to each other, first fit; the heap
 # grows when none fit. The caller sets their entries.
+@cold
 fn take(count: usize) -> usize:
     let first = hint
     let run: usize = 0
@@ -443,6 +446,7 @@ fn take(count: usize) -> usize:
 
 # Grows the heap by `count` free pages for the allocator and gives the
 # first.
+@cold
 fn extend(count: usize) -> usize:
     first := grown(count)
     if first + count > capacity:
@@ -452,6 +456,7 @@ fn extend(count: usize) -> usize:
 
 # Moves the table to new pages with room for twice `need` entries, and
 # frees its old page.
+@cold
 fn move_table(need: usize) -> void:
     count := (LISTS + 8 * need + PAGE - 1) / PAGE
     first := grown(count)
@@ -467,6 +472,7 @@ fn move_table(need: usize) -> void:
 # Sets the entries of the `count` pages from `first` to `entry`, and those
 # from the last known page up to `first`, which another part of the program
 # grew, to static.
+@cold
 fn claim(first: usize, count: usize, entry: u32) -> void:
     let page_number = known
     while page_number < first:

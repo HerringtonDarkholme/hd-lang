@@ -1,6 +1,11 @@
 # Inline And Cold Decorators
 
-Status: accepted by the owner, 2026-10-26; domain: language feature; not implemented.
+Status: accepted by the owner, 2026-10-26; domain: language feature.
+Phases 1 to 4 are applied ([Inline And Cold](../../spec/lang/14-annotations.md#inline-and-cold)):
+the declarations, `invalid-inline-decorator`, `.Never` and `@cold` in the
+inliner, `@cold` table calls, and std's rare paths. Phases 5 and 6
+(`.Auto` past the default rule, `.Always`, `inline-always-uncopyable`)
+are not implemented.
 Issues: [#873](https://github.com/HerringtonDarkholme/hd-lang/issues/873)
 (`@inline`), [#874](https://github.com/HerringtonDarkholme/hd-lang/issues/874)
 (`@cold`), payoff measured in
