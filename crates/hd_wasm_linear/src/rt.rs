@@ -3717,15 +3717,18 @@ fn ref_load_inner(f: &mut Func, at: u32, value: &RefLayout, owned: Option<u32>) 
     ls
 }
 
-/// Stores the value in locals `ls`, which keep their own counts, through
-/// the reference in local `at`: a view's setter takes a new box of it, an
-/// address its leaves, releasing the value it held. Emitted inline, as
-/// [`ref_load`] is.
-pub(crate) fn ref_store(f: &mut Func, at: u32, ls: &[u32], value: &RefLayout) {
+/// Stores the value in locals `ls` through the reference in local `at`: a
+/// view's setter takes a new box of it, an address its leaves, releasing
+/// the value it held. An `owned` value's counts move into the place, so
+/// its locals keep none; any other keeps its own, and the place takes a
+/// count of its own. Emitted inline, as [`ref_load`] is.
+pub(crate) fn ref_store(f: &mut Func, at: u32, ls: &[u32], value: &RefLayout, owned: bool) {
     if ls.is_empty() {
         return;
     }
-    ref_count(f, ls, value, true);
+    if !owned {
+        ref_count(f, ls, value, true);
+    }
     f.get(at);
     f.helper(Helper::RefIsView);
     f.op(Instruction::If(BlockType::Empty));
@@ -3905,8 +3908,7 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             let mut f = m.func("rt:ref_set", vec![Val::I32; 2], vec![]);
             let ls = ref_unbox(&mut f, 1, source);
             let src = view_source(&mut f);
-            ref_store(&mut f, src, &ls, source);
-            ref_count(&mut f, &ls, source, false);
+            ref_store(&mut f, src, &ls, source, true);
             f
         }
         _ => unreachable!("a reference helper"),
@@ -4024,8 +4026,7 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
                 f.get(source);
                 f.set(*target);
             }
-            ref_store(&mut f, src, &ls, parent);
-            ref_count(&mut f, &ls, parent, false);
+            ref_store(&mut f, src, &ls, parent, true);
             f
         }
         _ => unreachable!("a field reference helper"),

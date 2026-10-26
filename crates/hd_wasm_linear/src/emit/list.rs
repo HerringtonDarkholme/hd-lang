@@ -1267,9 +1267,7 @@ impl Em<'_, '_, '_> {
         rest(self)?;
         self.f.helper(helper.clone());
         self.f.set(list);
-        crate::rt::ref_store(&mut self.f, at, &[list], &value);
-        self.f.get(list);
-        self.f.helper(Helper::ReleaseRef);
+        crate::rt::ref_store(&mut self.f, at, &[list], &value, true);
         self.f.op(I::Else);
         self.f.get(at);
         self.f.get(at);

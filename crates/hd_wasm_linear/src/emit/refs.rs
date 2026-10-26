@@ -1082,8 +1082,10 @@ impl Em<'_, '_, '_> {
     fn deref_write_at(&mut self, at: u32, target: Ty, v: u32) -> StageResult<()> {
         let value = self.ref_layout(target)?;
         let ls: Vec<u32> = value.leaves.iter().map(|l| self.f.local(l.val)).collect();
+        // A value the store consumes moves its count into the place.
+        let moved = self.take(v);
         self.write_new(Dst::Locals(&ls), &Src::Ref(v))?;
-        rt::ref_store(&mut self.f, at, &ls, &value);
+        rt::ref_store(&mut self.f, at, &ls, &value, moved);
         Ok(())
     }
 
@@ -1102,6 +1104,8 @@ impl Em<'_, '_, '_> {
         let parent = self.ref_layout(target)?;
         let field = self.ref_layout(ft)?;
         let ls: Vec<u32> = field.leaves.iter().map(|l| self.f.local(l.val)).collect();
+        // A value the store consumes moves its count into the place.
+        let moved = self.take(v);
         self.write_new(Dst::Locals(&ls), &Src::Ref(v))?;
         let view = self.f.local(Val::I32);
         self.f.get(at);
@@ -1130,7 +1134,7 @@ impl Em<'_, '_, '_> {
         }
         self.f.op(I::End);
         self.f.set(dst);
-        rt::ref_store(&mut self.f, dst, &ls, &field);
+        rt::ref_store(&mut self.f, dst, &ls, &field, moved);
         if self.input.runtime.is_some() {
             self.f.get(view);
             self.f.op(I::If(wasm_encoder::BlockType::Empty));

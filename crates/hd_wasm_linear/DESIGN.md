@@ -1000,7 +1000,8 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
     plus the field's offset;
   - a list element is its address in the buffer (below).
   A read loads the target's values from the address and a write stores
-  them, counting the new value before it releases the old. A struct field
+  them, moving in a value the store consumes and counting any other,
+  before it releases the old. A struct field
   assignment through a reference is one `Store [*r .f]` of that field,
   without rebuilding its parent.
   The source reference evaluates once before the RHS. A compound assignment

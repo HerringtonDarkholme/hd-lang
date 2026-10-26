@@ -18,14 +18,12 @@ ROOT := &mut Node { left: .None, value: 0 }
 fn prune(parent: *mut Node) -> i64:
     parent.left = .None
 > app/main/prune
->   retain counted reference
 >   release counted reference
     0
 
 fn prune_global() -> i64:
     ROOT.left = .None
 > app/main/prune_global
->   retain counted reference
 >   release counted reference
     zero()
 
