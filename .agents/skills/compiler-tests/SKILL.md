@@ -134,13 +134,12 @@ dev profile for tests.
 
 Every perf change reports the same table, so results compare across jobs.
 
-- **All 19 programs against hand-written JS, base and head:**
-  - `node bench/study/run.mjs` in release mode with `--engines node` runs
-    the 11 study programs plus the 8 in `bench/runtime/progs` (19 since #863);
-  - `node bench/runtime/run.mjs --release` is the second runner.
-
-  Give hd/JS before and after for each program, the geometric mean, and
-  the machine load.
+- **All 19 programs, hd only, base and head:** the 11 study programs plus
+  the 8 in `bench/runtime/progs` (19 since #863). Use
+  `node bench/study/run.mjs --no-refs` in release mode with `--engines node`,
+  or interleaved runs of the two compilers' modules. Give each program's
+  ms before and after, the geometric mean of head/base, and the machine
+  load.
 - **Three V8 columns** for any program whose Wasm changed: default tier,
   `--no-liftoff` and `--liftoff-only`. Wasm has no on-stack replacement,
   so one long call stays in Liftoff (#724; the owner leaves tiering
@@ -155,9 +154,12 @@ Every perf change reports the same table, so results compare across jobs.
     2 MB is a hard cap).
 - **Compile time:** json release compile, cold cache, interleaved. The
   compiler must not get slower.
-- **MoonBit:** not part of a per-commit report. Measure hd only, before
-  and after. The orchestrator runs `node bench/study/moonbit/compare.mjs`
-  once after a round of merges (owner, 2026-10-26).
+- **Reference languages** (hand-written JS, MoonBit linear and wasm-gc,
+  Rust, Go, Python, any added later) are not part of a per-commit report.
+  The orchestrator runs them once after a round of merges (owner,
+  2026-10-26): `node bench/study/run.mjs` with references,
+  `node bench/runtime/run.mjs --release`, and
+  `node bench/study/moonbit/compare.mjs`.
 - **Goal:** beat hand-written JS on every program except
   `progs/string-build` (the deliberately naive `out + s` loop). After
   that, beat MoonBit's linear backend.
