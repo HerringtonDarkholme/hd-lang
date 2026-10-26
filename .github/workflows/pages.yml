@@ -3,6 +3,10 @@ name: Deploy website to GitHub Pages
 on:
   push:
     branches: [main]
+  # Redeploy after each metrics run, so the Daily Metrics page shows it.
+  workflow_run:
+    workflows: ["Daily goal metrics"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -60,10 +64,18 @@ jobs:
         id: pages
         uses: actions/configure-pages@v5
 
+      # The Daily Metrics page renders the README on the metrics-data branch.
+      - name: Fetch metrics
+        run: |
+          if git fetch --depth=1 origin metrics-data; then
+            git show FETCH_HEAD:README.md > "$RUNNER_TEMP/metrics-README.md"
+          fi
+
       # Builds the site and the playground it serves at playground/.
       - name: Build website
         run: pnpm run website:build
         env:
+          METRICS_README: ${{ runner.temp }}/metrics-README.md
           # `/hd-lang` for the project site, empty for a custom domain.
           SITE_BASE: ${{ steps.pages.outputs.base_path }}/
 

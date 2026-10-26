@@ -15,7 +15,7 @@ export interface PageSource {
    * Set for a page that no Markdown file holds: the build generates its
    * Markdown, and renders it as if it were `source`.
    */
-  readonly generated?: "glossary";
+  readonly generated?: "glossary" | "metrics";
 }
 
 interface NavSection {
@@ -121,6 +121,10 @@ export const PAGES: readonly PageSource[] = [
   ),
   page("spec/cli/README.md", "spec/cli/index.html", "Command Line", "Command Line"),
   page("spec/cli/command-line.md", "spec/cli.html", "Commands", "Command Line"),
+  {
+    ...page("bench/metrics/README.md", "metrics.html", "Daily Metrics", "Project"),
+    generated: "metrics",
+  },
 ];
 
 /** The playground wrapper page, generated rather than rendered from Markdown. */

@@ -137,6 +137,24 @@ function playgroundBody(base: string, available: boolean): string {
 <p>Until then, read <a href="${siteLink(base, "guide/learn-in-10-minutes.html")}">Learn hd-lang in 10 Minutes</a> or run examples locally with <code>pnpm run hd run examples/core.hd</code>.</p></div>`;
 }
 
+const METRICS_BRANCH = `${REPOSITORY_URL}/tree/metrics-data`;
+
+/**
+ * The daily metrics page: the README the metrics workflow writes on the
+ * metrics-data branch, read from the file `METRICS_README` names. Its run
+ * links point at that branch. A build without the file says where the data is.
+ */
+async function metricsMarkdown(): Promise<string> {
+  const file = process.env["METRICS_README"];
+  if (!file || !existsSync(file))
+    return `# Daily goal metrics\n\nThis build has no metrics data. The runs are on the [metrics-data branch](${METRICS_BRANCH}#readme).\n`;
+  const readme = await readFile(file, "utf8");
+  const note = `\nRuns at 00:00 and 12:00 UTC. Full data and history: the [metrics-data branch](${METRICS_BRANCH}#readme).\n`;
+  return readme
+    .replace(/\]\(daily\//g, `](${REPOSITORY_URL}/blob/metrics-data/daily/`)
+    .replace(/^(# .*\n)/, `$1${note}`);
+}
+
 interface SearchEntry {
   readonly title: string;
   readonly page: string;
@@ -207,7 +225,9 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
       markdown:
         entry.generated === "glossary"
           ? glossaryMarkdown(glossary(loadCorpus(join(REPO_DIR, "spec"))))
-          : await readFile(join(REPO_DIR, entry.source), "utf8"),
+          : entry.generated === "metrics"
+            ? await metricsMarkdown()
+            : await readFile(join(REPO_DIR, entry.source), "utf8"),
     })),
   );
   const grammar = buildGrammarIndex(
