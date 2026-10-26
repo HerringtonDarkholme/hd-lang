@@ -1,6 +1,6 @@
 # Inline And Cold Decorators
 
-Status: proposal, 2026-10-26; domain: language feature; not accepted.
+Status: accepted by the owner, 2026-10-26; domain: language feature; not implemented.
 Issues: [#873](https://github.com/HerringtonDarkholme/hd-lang/issues/873)
 (`@inline`), [#874](https://github.com/HerringtonDarkholme/hd-lang/issues/874)
 (`@cold`), payoff measured in
@@ -15,7 +15,8 @@ Two compiler decorators in `std.annotation`, recognized by qualified name
 as `annotate` is. They change how calls are compiled, never what a program
 does. The inliner's default rule (#856) stays for every undecorated function.
 
-- `@inline`, short for `@inline(.Auto)`: a hint. The function may be copied
+- `@inline`, short for `@inline(.Auto)`: tells the compiler to prefer
+  inlining, not a hard guarantee. The function may be copied
   past the default rule: up to 64 instructions, with reference parameters.
   Where a copy is impossible (recursion, a body the copier refuses), it stays
   a call, with no error.
@@ -59,10 +60,10 @@ Today this block fails only on the import: `unknown-import: module
 'std.annotation' declares no 'cold'` (and `'inline'`). With the
 declarations of [How It Works](#how-it-works) in place, it checks and runs.
 
-## Open Questions
+## Questions And Answers
 
-Each line is a question from #873 or #874, or one this design raises, with
-the **Recommendation**.
+Each line is a question from #873 or #874, or one this design raises. The
+answers were approved with the design on 2026-10-26.
 
 1. Does `.Always` override the size limit, the reference-parameter rule, or both? **Both**; the bars of rule 6 in How It Works stay.
 2. Does `.Always` hold in dev builds? **Yes, in every build and every package**: `.Always` means always. `.Auto` follows std's profile: it applies in every build too, so a decorated function is treated like std's. Only undecorated functions outside std are copied in release builds alone.
