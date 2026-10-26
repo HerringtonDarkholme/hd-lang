@@ -348,7 +348,7 @@ fn report(names: List[string]) -> string:
 7. r[std-text.builder.push-ascii-local] `StringBuilder.push_ascii(&mut self, byte: u8) -> void` appends the byte `byte` as an ASCII character.
 8. r[std-text.builder.push-ascii.range] A `byte` of 128 or more panics. Panic: `explicit-panic`.
 9. r[std-text.builder.reserve-local] `StringBuilder.reserve(&mut self, count: usize) -> void` makes room for at least `count` more bytes without appending text.
-10. r[std-text.builder.build-empties] `b.build() -> string` returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder. It takes `*mut self`.
+10. r[std-text.builder.build-local] `StringBuilder.build(&mut self) -> string` returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder.
 
 | Calls on a new builder `b` | `b.build()` gives | A second `b.build()` gives |
 | --- | --- | --- |

@@ -1,5 +1,5 @@
 # test: push_ascii appends one ASCII byte, reserve appends nothing, and build hands over everything pushed since the last build and empties the builder
-# Spec std/text Joining And Building: std-text.builder.push-ascii-local, std-text.builder.reserve-local, std-text.builder.build-empties.
+# Spec std/text Joining And Building: std-text.builder.push-ascii-local, std-text.builder.reserve-local, std-text.builder.build-local.
 use std.text.StringBuilder
 
 # The decimal digits of `n`, pushed as bytes after room for them.

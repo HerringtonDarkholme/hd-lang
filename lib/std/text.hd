@@ -686,8 +686,8 @@ impl StringBuilder:
         list_reserve(&mut self.bytes, count)
 
     ## Returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder.
-    ## See [std-text.builder.build-empties](../../spec/std/text.md#r-std-text.builder.build-empties).
-    pub fn build(*mut self) -> string:
+    ## See [std-text.builder.build-local](../../spec/std/text.md#r-std-text.builder.build-local).
+    pub fn build(&mut self) -> string:
         # The buffer moves out of the builder, so `string_from_bytes` takes
         # it over with no copy. Every push appends only UTF-8, so it checks nothing.
         bytes := self.bytes

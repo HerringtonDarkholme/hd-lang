@@ -1,5 +1,5 @@
 # test: builder interpolation evaluates every expression before appending its parts
-# Spec std/text Joining And Building: std-text.builder.push-local, std-text.builder.build-empties.
+# Spec std/text Joining And Building: std-text.builder.push-local, std-text.builder.build-local.
 use std.text.StringBuilder
 use std.testing.assert_equal
 
