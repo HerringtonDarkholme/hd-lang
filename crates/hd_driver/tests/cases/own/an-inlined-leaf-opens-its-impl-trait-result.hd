@@ -1,0 +1,20 @@
+# @dump: own
+# @build: v8 release
+# `square` returns `impl Shape`, so the call has the opaque result type,
+# while the copy of its body has the hidden one, `Square`. Once the copy
+# goes in, the caller opens its own opaque results too, and the copy's
+# `Break` carries the type the call's block has.
+trait Shape:
+    fn area(self) -> i32
+
+struct Square:
+    side: i32
+
+impl Shape for Square:
+    fn area(self) -> i32: self.side * self.side
+
+fn square(side: i32) -> impl Shape: Square { side }
+
+fn total() -> i32:
+    # subject
+    square(3).area()

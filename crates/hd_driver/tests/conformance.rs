@@ -42,7 +42,10 @@
 //! leak, a double free or a count change on a freed block panics
 //! `count-audit`, so the case fails.
 //! Every case builds through the ownership passes of TIR v2's stage 2,
-//! whose decisions the backend emits.
+//! whose decisions the backend emits, and their output is verified
+//! (`Packages::verify_own`) even when CI builds the suite in release, so
+//! a release-only pass that leaves a body broken, on either pipeline,
+//! fails its case as `unsupported:Collect` (#851).
 
 //! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
 
@@ -432,6 +435,7 @@ fn build_for(
         target,
         level: level(),
         checked: fixture.checked,
+        verify_own: true,
         ..Packages::default()
     };
     build_packages(&host, fixture.package, &packages, goal)

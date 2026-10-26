@@ -538,9 +538,29 @@ impl DefIdOrd {
 #[must_use]
 pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList, t: Ty) -> Ty {
     let s = substitute(pool, env, item, args, t);
-    let s = opaque::reveal_with(
+    let s = reveal(pool, env, s).unwrap_or(Ty::POISON);
+    if pool.has_assoc(s) {
+        let types = pool.types();
+        let cell = env.ref_cell();
+        let source = types.raise_refs(cell, s);
+        let normalized = hd_types::solver::normalize_concrete(types, env.impls(), source);
+        types.lower_refs(cell, normalized)
+    } else {
+        s
+    }
+}
+
+/// `t` with every opaque result in it replaced by its hidden type, as
+/// [`subst`] opens them; `None` when one cannot be opened (a trait
+/// method's result at a receiver that selects no impl, a cycle).
+#[must_use]
+pub fn reveal(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Ty> {
+    if !pool.has_opaque(t) {
+        return Some(t);
+    }
+    opaque::reveal_with(
         pool,
-        s,
+        t,
         &|owner, site, args| opaque_result(pool, env, owner, site, args),
         &|owner, site| {
             env.opaque_trait(owner)
@@ -551,16 +571,7 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
                 .map_or(0, |trait_| 1 + env.trait_arity(trait_))
         },
     )
-    .unwrap_or(Ty::POISON);
-    if pool.has_assoc(s) {
-        let types = pool.types();
-        let cell = env.ref_cell();
-        let source = types.raise_refs(cell, s);
-        let normalized = hd_types::solver::normalize_concrete(types, env.impls(), source);
-        types.lower_refs(cell, normalized)
-    } else {
-        s
-    }
+    .ok()
 }
 
 /// Substitute parameters without opening another hidden-result equation.

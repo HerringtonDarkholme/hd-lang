@@ -181,6 +181,9 @@ pub(crate) trait Backward {
     fn uses(&mut self, b: &Body, v: u32, s: &mut BitArena, live: usize);
     /// What else `x` reads, after its operands' uses.
     fn reads(&mut self, _: &Body, _x: u32, _s: &mut BitArena, _live: usize) {}
+    /// `x` over `live` once the walk has been through the blocks it runs,
+    /// before its operands' uses: what holds before it runs them.
+    fn ran(&mut self, _: &Body, _x: u32, _s: &mut BitArena, _live: usize) {}
 }
 
 /// Walks each sub-body of `b` backward, from nothing live at its end, with
@@ -269,6 +272,7 @@ impl<A: Backward> Walk<'_, A> {
             Tag::Return | Tag::Unreachable => self.s.arena.clear(live),
             _ => {}
         }
+        self.a.ran(b, x, &mut self.s.arena, live);
         // A `Drop` keeps nothing live, and a block's tail is used at its
         // end.
         let mut ops = std::mem::take(&mut self.s.ops);

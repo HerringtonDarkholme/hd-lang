@@ -2,7 +2,8 @@
 //! "Where and when the passes run", "What the passes read"): every body
 //! the program reaches goes through `hd_tir::own` once, after decoding
 //! (`Run::body_of`) or after collection generates it (a supplied or a
-//! `dbg` body), and checked and debug builds verify the result
+//! `dbg` body), and checked and debug builds, and any build that asks
+//! (`Packages::verify_own`), verify the result
 //! (`hd_tir::ir::verify_owned`). [`Env`] answers the passes' questions
 //! from signatures and layouts, never from another body, and remembers
 //! each answer for the run.
@@ -381,7 +382,7 @@ impl Env<'_> {
                 format!("the ownership passes refused `{}`: {what}", path()),
             ));
         }
-        if cfg!(debug_assertions) || self.run.checked {
+        if cfg!(debug_assertions) || self.run.checked || self.run.verify_own {
             let errs = hd_tir::ir::verify_owned(&body, self);
             if let Some(e) = errs.first() {
                 return Err(NotImplemented::bug(
@@ -443,6 +444,19 @@ impl Env<'_> {
             {
                 continue;
             }
+            // An opaque result `subst` could not open (a trait method's at
+            // a receiver no impl is selected for) left poison: the copy
+            // would not know its own types, so the call stays.
+            if copy
+                .ty
+                .iter()
+                .chain(&copy.local_ty)
+                .chain(copy.consts.iter().map(|c| &c.0))
+                .any(|&t| t == Ty::POISON)
+                || !self.fits_call(body, c, &mut copy)
+            {
+                continue;
+            }
             hd_tir::inline::rechoose(&mut copy, &|t, s, a| self.select_impl(t, s, a));
             sites.push(Site { call: c, copy });
             hashes.push(callee_hash);
@@ -453,10 +467,76 @@ impl Env<'_> {
             k.hash(h);
         }
         if copied.contains(&true) {
+            // A copy's types are its callee's with every opaque result
+            // opened, as an instance has them; the caller's still name the
+            // calls' opaque results. The caller opens its own too, so a
+            // value crossing between the two (an argument a parameter's
+            // `Store` binds, a result the root's `Break` carries, a value
+            // the caller stores) has one type on both sides. One that does
+            // not open stays as it is: no copy names it ([`Env::fits_call`]).
+            let ty = |t: Ty| hd_mono::reveal(pool, self, t).unwrap_or(t);
+            let list = |l| {
+                pool.list(
+                    &pool
+                        .list_items(l)
+                        .iter()
+                        .map(|&t| ty(t))
+                        .collect::<Vec<_>>(),
+                )
+            };
+            hd_tir::ir::map_body_types(body, &ty, &list);
             k.finish()
         } else {
             hash
         }
+    }
+
+    /// Whether `copy`, a callee's body at the types of call `c` of
+    /// `caller`, takes the call's arguments and gives its result at the
+    /// types they have once the caller's opaque results are opened
+    /// ([`Env::inline_calls`]): each parameter's `Store` and the root's
+    /// `Break` are then well typed. A `mut self` parameter of a type with
+    /// no changeable copy of its own (a primitive, an enum, a collection)
+    /// has type `mut T` while the call passes a `T`, a marker with `T`'s
+    /// layout; its local takes the argument's type, as the call binds it.
+    /// Any other difference keeps the call.
+    fn fits_call(&self, caller: &Body, c: usize, copy: &mut Body) -> bool {
+        let pool = &self.run.pool;
+        let open = |t: Ty| hd_mono::reveal(pool, self, t);
+        let fits = |got: Option<Ty>, want: Ty| {
+            got.is_some_and(|got| got == want || got == Ty::NEVER || want == Ty::NEVER)
+        };
+        let r = caller.record(caller.data[c][1]);
+        let args = &r[..r.len().saturating_sub(3)];
+        let params = (0..copy.local_ty.len())
+            .filter(|&l| copy.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0);
+        let mut n = 0;
+        for (l, &a) in params.zip(args) {
+            n += 1;
+            // A `()` argument has no value; its `Store` stores none.
+            if a == hd_tir::ir::NONE {
+                continue;
+            }
+            let arg = if a & hd_tir::ir::Ref::CONST_BIT != 0 {
+                caller
+                    .consts
+                    .get((a & !hd_tir::ir::Ref::CONST_BIT) as usize)
+                    .map(|k| k.0)
+            } else {
+                caller.ty.get(a as usize).copied()
+            };
+            let Some(arg) = arg.and_then(open) else {
+                return false;
+            };
+            let want = copy.local_ty[l];
+            if matches!(pool.get(want), TyData::Mut(inner) if inner == arg) {
+                copy.local_ty[l] = arg;
+            } else if !fits(Some(arg), want) {
+                return false;
+            }
+        }
+        let root = copy.sub_root.first().map(|&r| copy.ty[r as usize]);
+        n == args.len() && root.is_some_and(|root| fits(open(caller.ty[c]), root))
     }
 
     /// The item and type arguments a trait call chosen as an impl runs:

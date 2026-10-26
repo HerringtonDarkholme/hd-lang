@@ -926,7 +926,12 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
 /// `borrow` read rooted at a borrow, and a read of a binding local, whose
 /// store holds a borrow, live on that borrow. A control instruction reads
 /// its operands before it runs its blocks, so a match's scrutinee is not
-/// live in its arms unless they use it.
+/// live in its arms unless they use it. Before an instruction runs its
+/// blocks, no borrow they make has been made: a path that skips the block
+/// (an `Or`'s right operand, an `If` without an `else`) reaches a read of
+/// the binding local that holds it only where that local was never stored,
+/// which definite initialization rules out, so the walk keeps such a borrow
+/// live from no point before the instruction.
 fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
     let b = cx.b;
     let n = b.len();
@@ -955,11 +960,25 @@ fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
             holds[l.idx()] = b.data[i][1];
         }
     }
+    // Each borrow, by bit, at every instruction that runs a block it is in.
+    let mut inside = vec![Vec::new(); n];
+    for (k, &r) in at.iter().enumerate() {
+        let mut blk = cx.topo.blk[r as usize];
+        while blk != NONE {
+            let owner = cx.topo.owner[blk as usize];
+            if owner == NONE {
+                break;
+            }
+            inside[owner as usize].push(u32_of(k));
+            blk = cx.topo.blk[owner as usize];
+        }
+    }
     let mut walk = Live {
         cx,
         bit,
         at,
         holds,
+        inside,
         reported: vec![false; n],
         errs: Vec::new(),
     };
@@ -976,6 +995,8 @@ struct Live<'a> {
     bit: Vec<u32>,
     at: Vec<u32>,
     holds: Vec<u32>,
+    /// Per instruction, the bits of the borrows inside the blocks it runs.
+    inside: Vec<Vec<u32>>,
     reported: Vec<bool>,
     errs: Vec<VerifyError>,
 }
@@ -1026,6 +1047,13 @@ impl Backward for Live<'_> {
             self.check(x, s, live, |r, p| {
                 q.root != PlaceRoot::Value(Ref(r)) && self.cx.overlap(p, q)
             });
+        }
+    }
+
+    /// Before `x` runs its blocks, none of the borrows in them is made.
+    fn ran(&mut self, _: &Body, x: u32, s: &mut BitArena, live: usize) {
+        for &k in &self.inside[x as usize] {
+            s.set(live, k, false);
         }
     }
 

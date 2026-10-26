@@ -1430,6 +1430,9 @@ struct Run<'a> {
     build_profile: BuildProfile,
     /// Whether allocation/count auditing is enabled.
     checked: bool,
+    /// Whether the ownership passes' output is verified without debug
+    /// assertions or `checked` ([`Packages::verify_own`]).
+    verify_own: bool,
     /// The layout facts the ownership passes ask of a type, computed once
     /// per run (`own.rs`): whether it holds a counted leaf, and whether it
     /// is a reference.
@@ -1836,6 +1839,11 @@ pub struct Packages<'a> {
     pub body_fuel: Option<u64>,
     /// Enable allocation/count auditing for compiler conformance checks.
     pub checked: bool,
+    /// Verify the ownership passes' output (`hd_tir::ir::verify_owned`)
+    /// in a compiler built without debug assertions too, as debug and
+    /// checked builds always do, so a release-built conformance run
+    /// rejects a body a pass leaves broken.
+    pub verify_own: bool,
 }
 
 /// What the modules a session built so far hold, for the build of its next
@@ -2143,6 +2151,7 @@ pub fn build_packages(
         },
         body_fuel: packages.body_fuel,
         checked: packages.checked,
+        verify_own: packages.verify_own,
         own_types: Mutex::new(HashMap::default()),
         own_params: Mutex::new(HashMap::default()),
         summaries: hd_opt::passes::pipeline(packages.target, packages.level)

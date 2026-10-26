@@ -2907,6 +2907,18 @@ binding local does, and does not stop that local from borrowing in turn
 count per element. It is the borrow pass's local rule for a binding local
 read into another; the copy is not treated differently.
 
+The copy's `Store`s and its root's `Break`s join the caller's values to
+the callee's, so both sides must agree on types where a call lets them
+differ (2026-10-26, #851). A call of a function returning `impl Trait`
+has the opaque result type, while the copy, substituted by the call's
+type arguments, has the hidden one; so once a copy goes in, the caller
+opens its own opaque results too (`hd_mono::reveal`), as an instance
+would. A `mut self` parameter of a type with no changeable copy of its
+own (a primitive, an enum, a collection) is `mut T` in the callee, where
+the call passes a `T`; the copy's local takes the argument's type. A
+copy whose parameters or result still differ from the call's, or whose
+types do not open, stays a call.
+
 **What it costs.**
 
 - **Code.** About 1,300 lines of Rust code and 400 of tests, counted

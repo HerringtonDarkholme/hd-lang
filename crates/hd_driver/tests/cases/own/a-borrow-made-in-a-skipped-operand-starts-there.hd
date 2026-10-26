@@ -1,0 +1,11 @@
+# @dump: own
+# `name` borrows `args[1]` in the right operand of `||`, which may not
+# run. The path that skips it never reads `name`, so the borrow is not live
+# at the `Store` into `args` before the `if`.
+fn greeting(input: string) -> string:
+    args := input.split(",")
+    msg := if args.len() < 2 || (name := args[1]) == "":
+        "usage"
+    else:
+        "hello $name"
+    "$msg ${args.len()}"

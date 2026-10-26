@@ -290,6 +290,7 @@ impl Program {
             entry_capabilities: true,
             instruction_origins: false,
             checked: false,
+            verify_own: false,
             requires: self.requires.clone(),
             deps: self
                 .deps
