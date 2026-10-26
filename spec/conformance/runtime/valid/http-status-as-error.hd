@@ -1,5 +1,5 @@
 # test: builders keep raw statuses; free get and Response.ok retain 400–599 responses in errors
-# Rules: std-http.response.ok.retained-error, std-http.error.status-response-value, std-http.error.status.safe-response-text, std-http.error.transient-kinds, std-http.error.transient-status-codes, std-http.response.omitted-lists, std-http.helper.get.checked-response.
+# Rules: std-http.response.ok.retained-error, std-http.error.status-response-value, std-http.error.status.safe-response-text, std-http.error.transient-borrowed, std-http.error.transient-status-codes, std-http.response.omitted-lists, std-http.helper.get.checked-response.
 use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
 use std.serde.Deserialize
 

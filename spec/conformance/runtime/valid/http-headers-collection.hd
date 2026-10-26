@@ -1,0 +1,71 @@
+# test: HTTP Headers preserve repeated fields and distinguish request cookies.
+# Spec: std-http.header-collection.get, std-http.header-collection.set-cookie-first.
+use std.http.{Headers, HeaderName}
+use std.convert.From
+
+tests:
+    it("ordered pairs canonicalize known names without combining stored values"):
+        headers := Headers::from([("Content-Type", "application/json"), ("X-Trace", "a"), ("x-trace", "b"), ("Empty", "")])
+        assert_equal(headers.entries(), [(HeaderName.ContentType, "application/json"), (HeaderName.Other("x-trace"), "a"), (HeaderName.Other("x-trace"), "b"), (HeaderName.Other("empty"), "")], reason="individual values keep input order")
+        assert_equal(headers.get(.Other("X-TRACE")), .Some("a, b"), reason="lookup combines every value in order")
+        assert_equal(headers.get(.Other("empty")), .Some(""), reason="empty differs from missing")
+        assert_equal(headers.get(.Accept), .None, reason="absent field")
+        assert_equal(Headers::new().entries(), [], reason="empty constructor")
+
+    it("set and remove address every case alias and preserve unrelated fields"):
+        let mut headers = Headers::from([("X-Trace", "a"), ("Accept", "text/plain"), ("x-TRACE", "b")])
+        headers.set(.Other("X-TRACE"), "c")
+        assert_equal(headers.get(.Other("x-trace")), .Some("c"), reason="all old aliases were replaced")
+        assert_equal(headers.get(.Accept), .Some("text/plain"), reason="unrelated field retained")
+        assert_equal(headers.entries().len(), 2, reason="one replacement field")
+        headers.remove(.Other("X-trace"))
+        headers.remove(.ContentType)
+        assert_equal(headers.entries(), [(HeaderName.Accept, "text/plain")], reason="all aliases removed and absent removal harmless")
+
+    it("header values copy independently through the public collection operations"):
+        original := Headers::from([("Accept", "a")])
+        let mut copy = original
+        copy.set(.Accept, "b")
+        let mut entries = original.entries()
+        entries.push((HeaderName.Accept, "c"))
+        assert_equal(original.get(.Accept), .Some("a"), reason="copy and entries cannot mutate original")
+        assert_equal(copy.get(.Accept), .Some("b"), reason="copy owns its changes")
+        let input: Map[string, string] = {"Content-Type": "text/plain", "X-Tag": "one"}
+        converted := Headers::from(input)
+        assert_equal(converted.get(.ContentType), .Some("text/plain"), reason="map constructor parses names")
+        assert_equal(converted.get(.Other("x-tag")), .Some("one"), reason="map extension header")
+
+    it("Set-Cookie lookup returns the first raw line and retains all lines"):
+        first := "one=1; Expires=Wed, 09 Jun 2027 10:18:14 GMT"
+        second := "two=2; Secure"
+        headers := Headers::from([("Set-Cookie", first), ("set-cookie", second)])
+        assert_equal(headers.get(.SetCookie), .Some(first), reason="never comma-join a cookie date")
+        assert_equal(headers.entries(), [(HeaderName.SetCookie, first), (HeaderName.SetCookie, second)], reason="every response cookie remains individually stored")
+
+    it("request cookie readers retain duplicates and first lookup wins"):
+        headers := Headers::from([("Cookie", "session=first; theme=light"), ("X-Other", "ignored"), ("cookie", "session=second; token=a=b")])
+        assert_equal(headers.request_cookies(), [("session", "first"), ("theme", "light"), ("session", "second"), ("token", "a=b")], reason="all pairs in received order and equals in value")
+        assert_equal(headers.request_cookie("session"), .Some("first"), reason="first duplicate wins")
+        assert_equal(headers.request_cookie("Session"), .None, reason="cookie names are case sensitive")
+
+    it("setting a request cookie merges into one field and replaces that name"):
+        let mut headers = Headers::from([("Cookie", "session=first; theme=light"), ("Accept", "text/plain"), ("Cookie", "session=second")])
+        headers.set_request_cookie("session", "new")
+        assert_equal(headers.request_cookie("session"), .Some("new"), reason="both old duplicates replaced")
+        assert_equal(headers.request_cookie("theme"), .Some("light"), reason="other cookie retained")
+        assert_equal(headers.get(.Accept), .Some("text/plain"), reason="other header retained")
+        let cookie_fields = 0
+        for (name, _) in headers.entries():
+            if name == HeaderName.Cookie:
+                cookie_fields += 1
+        assert_equal(cookie_fields, 1, reason="one Cookie field")
+        headers.set_request_cookie("extra", "")
+        assert_equal(headers.request_cookie("extra"), .Some(""), reason="empty value is a cookie")
+
+    it("typed request cookie setters retain original components until wire checking"):
+        let mut headers = Headers::new()
+        for value in ["a=b", "semi;colon", "white space", "comma,value", "bad\r\nvalue"]:
+            headers.set_request_cookie("token", value)
+            assert_equal(headers.request_cookie("token"), .Some(value), reason="builder does not reinterpret a supplied cookie value")
+        headers.remove(.Cookie)
+        assert_equal(headers.request_cookies(), [], reason="remove also drops prepared cookie components")

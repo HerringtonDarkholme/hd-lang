@@ -39,6 +39,12 @@ runtime/valid/cli-enum-values.hd	runtime	accept	std/cli.md#enum-value-sets
 runtime/valid/cli-positional-fact.hd	runtime	accept	std/cli.md#positional-field-facts
 runtime/valid/cli-short-fact.hd	runtime	accept	std/cli.md#short-field-facts
 runtime/valid/host-driver-turns.hd	runtime	accept	std/time.md#clock
+runtime/valid/http-core-errors.hd	runtime	accept	std/http.md#message-conversion-errors
+runtime/valid/http-header-names.hd	runtime	accept	std/http.md#r-std-http.header-name.parse-known
+runtime/valid/http-headers-collection.hd	runtime	accept	std/http.md#header-collections
+runtime/valid/http-response-cookies.hd	runtime	accept	std/http.md#response-cookies
+runtime/valid/http-status-codes.hd	runtime	accept	std/http.md#r-std-http.status.numeric-equality
+runtime/valid/http-url-parts.hd	runtime	accept	std/http.md#parsed-urls
 runtime/valid/impl-trait-associated-and-nested.hd	runtime	accept	lang/04-type-system.md#opaque-result-types
 runtime/valid/impl-trait-functions.hd	runtime	accept	lang/07-functions.md#opaque-results
 runtime/valid/impl-trait-iterator-filter.hd	runtime	accept	std/iter.md#iterator-adapters

@@ -5,10 +5,941 @@
 # (src/commands/http-host.ts).
 use std.convert.From
 use std.task.TimedOut
-use std.text.StringBuilder
+use std.time.{Duration, Timestamp}
+use std.text.{StringBuilder, Parse}
+use std.hash.Hasher
 use std.json.{JsonError, decode, encode}
 use std.serde.{Deserialize, Serialize, Serializer, member_name}
 use std.structure.{Facts, VariantInfo, Member}
+
+# The message API's shared core; current request/response migration follows.
+## A standard HTTP status or another numeric code.
+@derive(Debug)
+pub enum HttpStatus:
+    Ok
+    Created
+    Accepted
+    NoContent
+    PartialContent
+    MovedPermanently
+    Found
+    SeeOther
+    NotModified
+    TemporaryRedirect
+    PermanentRedirect
+    BadRequest
+    Unauthorized
+    Forbidden
+    NotFound
+    MethodNotAllowed
+    RequestTimeout
+    Conflict
+    Gone
+    PreconditionFailed
+    ContentTooLarge
+    UnsupportedMediaType
+    UnprocessableContent
+    TooManyRequests
+    InternalServerError
+    NotImplemented
+    BadGateway
+    ServiceUnavailable
+    GatewayTimeout
+    Other(code: u16)
+
+impl HttpStatus:
+    pub fn code(&self) -> u16:
+        match self:
+            .Ok => 200
+            .Created => 201
+            .Accepted => 202
+            .NoContent => 204
+            .PartialContent => 206
+            .MovedPermanently => 301
+            .Found => 302
+            .SeeOther => 303
+            .NotModified => 304
+            .TemporaryRedirect => 307
+            .PermanentRedirect => 308
+            .BadRequest => 400
+            .Unauthorized => 401
+            .Forbidden => 403
+            .NotFound => 404
+            .MethodNotAllowed => 405
+            .RequestTimeout => 408
+            .Conflict => 409
+            .Gone => 410
+            .PreconditionFailed => 412
+            .ContentTooLarge => 413
+            .UnsupportedMediaType => 415
+            .UnprocessableContent => 422
+            .TooManyRequests => 429
+            .InternalServerError => 500
+            .NotImplemented => 501
+            .BadGateway => 502
+            .ServiceUnavailable => 503
+            .GatewayTimeout => 504
+            .Other(code) => code
+
+    pub fn from_code(code: u16) -> HttpStatus:
+        match code:
+            200 => .Ok
+            201 => .Created
+            202 => .Accepted
+            204 => .NoContent
+            206 => .PartialContent
+            301 => .MovedPermanently
+            302 => .Found
+            303 => .SeeOther
+            304 => .NotModified
+            307 => .TemporaryRedirect
+            308 => .PermanentRedirect
+            400 => .BadRequest
+            401 => .Unauthorized
+            403 => .Forbidden
+            404 => .NotFound
+            405 => .MethodNotAllowed
+            408 => .RequestTimeout
+            409 => .Conflict
+            410 => .Gone
+            412 => .PreconditionFailed
+            413 => .ContentTooLarge
+            415 => .UnsupportedMediaType
+            422 => .UnprocessableContent
+            429 => .TooManyRequests
+            500 => .InternalServerError
+            501 => .NotImplemented
+            502 => .BadGateway
+            503 => .ServiceUnavailable
+            504 => .GatewayTimeout
+            _ => .Other(code)
+
+    pub fn is_success(&self) -> bool:
+        code := self.code()
+        code >= 200 && code <= 299
+
+impl Eq for HttpStatus:
+    fn eq(self, other: HttpStatus) -> bool: self.code() == other.code()
+
+impl Hash for HttpStatus:
+    fn hash(self, state: &mut dyn Hasher) -> void: self.code().hash(state)
+
+## A header name; equality and hashing use its lowercase wire name.
+@derive(Debug)
+pub enum HeaderName:
+    Accept
+    AcceptEncoding
+    AcceptLanguage
+    ContentDisposition
+    ContentEncoding
+    ContentLength
+    ContentRange
+    ContentType
+    Range
+    CacheControl
+    ETag
+    Expires
+    IfMatch
+    IfModifiedSince
+    IfNoneMatch
+    LastModified
+    Vary
+    Authorization
+    Cookie
+    RetryAfter
+    SetCookie
+    WwwAuthenticate
+    AccessControlAllowCredentials
+    AccessControlAllowHeaders
+    AccessControlAllowMethods
+    AccessControlAllowOrigin
+    AccessControlMaxAge
+    AccessControlRequestHeaders
+    AccessControlRequestMethod
+    Origin
+    ContentSecurityPolicy
+    StrictTransportSecurity
+    XContentTypeOptions
+    XFrameOptions
+    Allow
+    Forwarded
+    Host
+    Location
+    Referer
+    XForwardedFor
+    XForwardedHost
+    XForwardedProto
+    Date
+    Server
+    UserAgent
+    XRequestId
+    Other(name: string)
+
+impl HeaderName:
+    pub fn wire_name(&self) -> string:
+        match self:
+            .Accept => "accept"
+            .AcceptEncoding => "accept-encoding"
+            .AcceptLanguage => "accept-language"
+            .ContentDisposition => "content-disposition"
+            .ContentEncoding => "content-encoding"
+            .ContentLength => "content-length"
+            .ContentRange => "content-range"
+            .ContentType => "content-type"
+            .Range => "range"
+            .CacheControl => "cache-control"
+            .ETag => "etag"
+            .Expires => "expires"
+            .IfMatch => "if-match"
+            .IfModifiedSince => "if-modified-since"
+            .IfNoneMatch => "if-none-match"
+            .LastModified => "last-modified"
+            .Vary => "vary"
+            .Authorization => "authorization"
+            .Cookie => "cookie"
+            .RetryAfter => "retry-after"
+            .SetCookie => "set-cookie"
+            .WwwAuthenticate => "www-authenticate"
+            .AccessControlAllowCredentials => "access-control-allow-credentials"
+            .AccessControlAllowHeaders => "access-control-allow-headers"
+            .AccessControlAllowMethods => "access-control-allow-methods"
+            .AccessControlAllowOrigin => "access-control-allow-origin"
+            .AccessControlMaxAge => "access-control-max-age"
+            .AccessControlRequestHeaders => "access-control-request-headers"
+            .AccessControlRequestMethod => "access-control-request-method"
+            .Origin => "origin"
+            .ContentSecurityPolicy => "content-security-policy"
+            .StrictTransportSecurity => "strict-transport-security"
+            .XContentTypeOptions => "x-content-type-options"
+            .XFrameOptions => "x-frame-options"
+            .Allow => "allow"
+            .Forwarded => "forwarded"
+            .Host => "host"
+            .Location => "location"
+            .Referer => "referer"
+            .XForwardedFor => "x-forwarded-for"
+            .XForwardedHost => "x-forwarded-host"
+            .XForwardedProto => "x-forwarded-proto"
+            .Date => "date"
+            .Server => "server"
+            .UserAgent => "user-agent"
+            .XRequestId => "x-request-id"
+            .Other(name) => header_ascii_lower(&name)
+
+impl Parse for HeaderName:
+    type Error = HeaderError
+    fn parse(text: string) -> Result[HeaderName, HeaderError]:
+        if text.is_empty(): return .Err(.InvalidName(text))
+        for byte in text.to_utf8():
+            if !header_token_byte(byte): return .Err(.InvalidName(text))
+        name := header_ascii_lower(&text)
+        .Ok(match name:
+            "accept" => .Accept
+            "accept-encoding" => .AcceptEncoding
+            "accept-language" => .AcceptLanguage
+            "content-disposition" => .ContentDisposition
+            "content-encoding" => .ContentEncoding
+            "content-length" => .ContentLength
+            "content-range" => .ContentRange
+            "content-type" => .ContentType
+            "range" => .Range
+            "cache-control" => .CacheControl
+            "etag" => .ETag
+            "expires" => .Expires
+            "if-match" => .IfMatch
+            "if-modified-since" => .IfModifiedSince
+            "if-none-match" => .IfNoneMatch
+            "last-modified" => .LastModified
+            "vary" => .Vary
+            "authorization" => .Authorization
+            "cookie" => .Cookie
+            "retry-after" => .RetryAfter
+            "set-cookie" => .SetCookie
+            "www-authenticate" => .WwwAuthenticate
+            "access-control-allow-credentials" => .AccessControlAllowCredentials
+            "access-control-allow-headers" => .AccessControlAllowHeaders
+            "access-control-allow-methods" => .AccessControlAllowMethods
+            "access-control-allow-origin" => .AccessControlAllowOrigin
+            "access-control-max-age" => .AccessControlMaxAge
+            "access-control-request-headers" => .AccessControlRequestHeaders
+            "access-control-request-method" => .AccessControlRequestMethod
+            "origin" => .Origin
+            "content-security-policy" => .ContentSecurityPolicy
+            "strict-transport-security" => .StrictTransportSecurity
+            "x-content-type-options" => .XContentTypeOptions
+            "x-frame-options" => .XFrameOptions
+            "allow" => .Allow
+            "forwarded" => .Forwarded
+            "host" => .Host
+            "location" => .Location
+            "referer" => .Referer
+            "x-forwarded-for" => .XForwardedFor
+            "x-forwarded-host" => .XForwardedHost
+            "x-forwarded-proto" => .XForwardedProto
+            "date" => .Date
+            "server" => .Server
+            "user-agent" => .UserAgent
+            "x-request-id" => .XRequestId
+            _ => .Other(name)
+        )
+
+impl Eq for HeaderName:
+    fn eq(self, other: HeaderName) -> bool: self.wire_name() == other.wire_name()
+
+impl Hash for HeaderName:
+    fn hash(self, state: &mut dyn Hasher) -> void: self.wire_name().hash(state)
+
+@error
+@derive(Debug, Eq)
+pub enum HeaderError:
+    @error("invalid header name ${name}")
+    InvalidName(name: string)
+    @error("invalid value for header ${name}")
+    InvalidValue(name: string)
+
+## A typed message-body read failure.
+@error
+@derive(Debug, Eq)
+pub enum BodyError:
+    @error("the body was already read")
+    Used
+    @error("invalid JSON body: $error")
+    Json(error: JsonError)
+    @error("invalid form body: $error")
+    Form(error: FormError)
+
+## A typed query or form conversion failure.
+@error
+@derive(Debug, Eq)
+pub enum FormError:
+    @error("field ${field} has no form encoding")
+    Unsupported(field: string)
+    @error("missing field ${field}")
+    Missing(field: string)
+    @error("field ${field}: cannot read ${text}")
+    Invalid(field: string, text: string)
+
+@error
+@derive(Debug, Eq)
+pub enum UrlError:
+    @error("${url_invalid_message(&text)}")
+    Invalid(text: string)
+    @error("relative URL without a base: ${text}")
+    RelativeWithoutBase(text: string)
+
+fn url_invalid_message(text: &string) -> string:
+    parts := client_url_parts(*text)
+    if parts.authority.unwrap_or("").contains("@"):
+        "invalid URL: credentials are not supported; use the Authorization header"
+    else:
+        "invalid URL: $text"
+
+impl From[UrlError] for HttpError:
+    fn from(error: UrlError) -> HttpError:
+        match error:
+            .Invalid(text) => .InvalidUrl(text)
+            .RelativeWithoutBase(text) => .InvalidUrl(text)
+
+fn header_ascii_lower(text: &string) -> string:
+    let mut bytes: List[u8] = []
+    for byte in text.to_utf8():
+        bytes.push(ascii_lower(byte))
+    match string::from_utf8(bytes):
+        .Ok(value) => value
+        .Err(_) => panic("ASCII lowercasing preserves UTF-8")
+
+fn header_token_byte(byte: u8) -> bool:
+    (byte >= 48 && byte <= 57) || (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || "!#$%&'*+-.^_`|~".to_utf8().contains(byte)
+
+# Keep typed cookie components until the wire adapter checks them. Flattening
+# them early would hide a semicolon supplied as part of a cookie value.
+@derive(Debug, Eq)
+enum HeaderValue:
+    Raw(text: string)
+    RequestCookies(pairs: List[(string, string)])
+    ResponseCookie(cookie: Cookie)
+
+impl HeaderValue:
+    fn text(&self) -> string:
+        match self:
+            .Raw(text) => text
+            .RequestCookies(pairs) => [for (name, value) in pairs => "$name=$value"].join("; ")
+            .ResponseCookie(cookie) => response_cookie_text(&cookie)
+
+    fn response_cookie_name(&self) -> string?:
+        match self:
+            .ResponseCookie(cookie) => .Some(cookie.name)
+            _ => parse_response_cookie(&self.text()).map(fn(cookie): cookie.name)
+
+## Ordered header pairs. Repeated names retain their individual values.
+@derive(Debug, Eq)
+pub struct Headers:
+    pairs: List[(HeaderName, HeaderValue)]
+
+impl Headers:
+    pub fn new() -> Headers:
+        Headers { pairs: [] }
+
+    ## Joins repeated values, except Set-Cookie, whose first line is returned.
+    pub fn get(&self, name: HeaderName) -> string?:
+        let mut values: List[string] = []
+        for (key, value) in self.pairs:
+            if key == name:
+                if name == HeaderName.SetCookie:
+                    return .Some(value.text())
+                values.push(value.text())
+        if values.is_empty(): .None else: .Some(values.join(", "))
+
+    ## Replaces all values for this name. Wire validation happens at send.
+    pub fn set(&mut self, name: HeaderName, value: string) -> void:
+        self.remove(name)
+        self.pairs.push((name, .Raw(value)))
+
+    pub fn remove(&mut self, name: HeaderName) -> void:
+        self.pairs = self.pairs.filter(fn(pair): pair._0 != name)
+
+    pub fn entries(&self) -> List[(HeaderName, string)]:
+        [for (name, value) in self.pairs => (name, value.text())]
+
+    ## The first value for this request cookie name.
+    pub fn request_cookie(&self, name: string) -> string?:
+        for (key, value) in self.request_cookies():
+            if key == name:
+                return .Some(value)
+        .None
+
+    ## Cookie header pairs in received order, including repeated names.
+    pub fn request_cookies(&self) -> List[(string, string)]:
+        let mut cookies: List[(string, string)] = []
+        for (header, value) in self.pairs:
+            if header != HeaderName.Cookie: continue
+            match value:
+                .RequestCookies(pairs) =>
+                    for pair in pairs: cookies.push(pair)
+                _ =>
+                    for pair in parse_request_cookies(&value.text()): cookies.push(pair)
+        cookies
+
+    ## Merges request cookies into one Cookie field, replacing this name.
+    pub fn set_request_cookie(&mut self, name: string, value: string) -> void:
+        let mut cookies = self.request_cookies().filter(fn(pair): pair._0 != name)
+        cookies.push((name, value))
+        self.remove(.Cookie)
+        self.pairs.push((.Cookie, .RequestCookies(cookies)))
+
+    ## Parses all Set-Cookie lines without combining them.
+    pub fn response_cookies(&self) -> List[Cookie]:
+        let mut cookies: List[Cookie] = []
+        for (name, value) in self.pairs:
+            if name == HeaderName.SetCookie:
+                match parse_response_cookie(&value.text()):
+                    .Some(cookie) => cookies.push(cookie)
+                    .None => pass
+        cookies
+
+    ## Replaces earlier Set-Cookie lines for exactly this cookie name.
+    pub fn set_response_cookie(&mut self, cookie: Cookie) -> void:
+        self.pairs = self.pairs.filter(fn(pair): pair._0 != HeaderName.SetCookie || pair._1.response_cookie_name() != .Some(cookie.name))
+        self.pairs.push((.SetCookie, .ResponseCookie(cookie)))
+
+impl From[List[(string, string)]] for Headers:
+    fn from(pairs: List[(string, string)]) -> Headers:
+        let mut result = Headers::new()
+        for (name, value) in pairs:
+            parsed := match name.parse::[HeaderName]():
+                .Ok(known) => known
+                .Err(_) => HeaderName.Other(name)
+            result.pairs.push((parsed, .Raw(value)))
+        result
+
+impl From[Map[string, string]] for Headers:
+    fn from(map: Map[string, string]) -> Headers:
+        let mut pairs: List[(string, string)] = []
+        for (name, value) in map:
+            pairs.push((name, value))
+        Headers::from(pairs)
+
+fn parse_request_cookies(text: &string) -> List[(string, string)]:
+    let mut cookies: List[(string, string)] = []
+    if text.contains("\r") || text.contains("\n"): return cookies
+    for part in text.split(";"):
+        match part.trim().split_once("="):
+            .Some((name, value)) =>
+                if !name.trim().is_empty(): cookies.push((name.trim(), value.trim()))
+            .None => pass
+    cookies
+
+## The SameSite policy of a response cookie.
+@derive(Debug, Eq)
+pub enum SameSite:
+    Strict
+    Lax
+    None
+
+## A response cookie. Outgoing defaults are secure; parsed defaults reflect the wire.
+@derive(Debug, Eq)
+pub struct Cookie:
+    pub name: string
+    pub value: string
+    pub path: string? = .Some("/")
+    pub domain: string? = .None
+    pub max_age: Duration? = .None
+    pub expires: Timestamp? = .None
+    pub secure: bool = true
+    pub http_only: bool = true
+    pub same_site: SameSite = .Lax
+
+impl Cookie:
+    pub fn expired(name: string) -> Cookie:
+        Cookie { name: name, value: "", max_age: .Some(Duration::seconds(0)) }
+
+fn response_cookie_text(cookie: &Cookie) -> string:
+    let mut parts: List[string] = ["${cookie.name}=${cookie.value}"]
+    match cookie.path:
+        .Some(path) => parts.push("Path=$path")
+        .None => pass
+    match cookie.domain:
+        .Some(domain) => parts.push("Domain=$domain")
+        .None => pass
+    match cookie.max_age:
+        .Some(age) =>
+            millis := age.as_milliseconds()
+            let seconds = millis / 1000
+            if millis % 1000 != 0: seconds += 1
+            parts.push("Max-Age=$seconds")
+        .None => pass
+    match cookie.expires:
+        .Some(date) => parts.push("Expires=${cookie_date_text(&date)}")
+        .None => pass
+    if cookie.secure: parts.push("Secure")
+    if cookie.http_only: parts.push("HttpOnly")
+    same_site := match cookie.same_site:
+        .Strict => "Strict"
+        .Lax => "Lax"
+        .None => "None"
+    parts.push("SameSite=$same_site")
+    parts.join("; ")
+
+fn cookie_date_text(timestamp: &Timestamp) -> string:
+    millis := timestamp.unix_milliseconds()
+    let days = millis / 86400000
+    if millis % 86400000 < 0: days -= 1
+    let weekday = (days + 4) % 7
+    if weekday < 0: weekday += 7
+    weekdays := ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    months := ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    month := months[usize(timestamp.date().month - 1)]
+    "${weekdays[usize(weekday)]}, ${timestamp.format("%d")} $month ${timestamp.format("%Y %H:%M:%S")} GMT"
+
+# RFC 6265 section 5.2: unknown attributes are ignored, and the last
+# successfully parsed occurrence of an attribute wins.
+fn parse_response_cookie(text: &string) -> Cookie?:
+    if text.contains("\r") || text.contains("\n"):
+        return .None
+    parts := text.split(";")
+    let (name, value) = parts[0].split_once("=")?
+    if name.trim().is_empty():
+        return .None
+    let mut cookie = Cookie { name: name.trim(), value: value.trim(), path: .None, secure: false, http_only: false }
+    for part in parts.iter().skip(1):
+        let (key, value) = part.trim().split_once("=").unwrap_or((part.trim(), ""))
+        setting := value.trim()
+        match header_ascii_lower(&key):
+            "path" => cookie.path = if setting.starts_with("/"): .Some(setting) else: .None
+            "domain" =>
+                if !setting.is_empty():
+                    domain := if setting.starts_with("."): setting.slice(1, setting.len()) else: setting
+                    cookie.domain = .Some(header_ascii_lower(&domain))
+            "max-age" =>
+                match cookie_max_age(&setting):
+                    .Some(age) => cookie.max_age = .Some(age)
+                    .None => pass
+            "expires" =>
+                match parse_cookie_date(&setting):
+                    .Some(date) => cookie.expires = .Some(date)
+                    .None => pass
+            "secure" => cookie.secure = true
+            "httponly" => cookie.http_only = true
+            "samesite" =>
+                cookie.same_site = match header_ascii_lower(&setting):
+                    "strict" => .Strict
+                    "none" => .None
+                    _ => .Lax
+            _ => pass
+    .Some(cookie)
+
+# A Duration cannot be negative. A nonpositive Max-Age is deletion;
+# large positive values saturate at the largest representable duration.
+fn cookie_max_age(text: &string) -> Duration?:
+    if text.is_empty(): return .None
+    negative := text.starts_with("-")
+    digits := if negative: text.slice(1, text.len()) else: *text
+    if digits.is_empty(): return .None
+    let seconds = 0i64
+    let saturated = false
+    for byte in digits.to_utf8():
+        if byte < 48 || byte > 57: return .None
+        digit := i64(byte - 48)
+        if !saturated:
+            if seconds > (9223372036854775i64 - digit) / 10:
+                saturated = true
+            else:
+                seconds = seconds * 10 + digit
+    if negative: return .Some(Duration::seconds(0))
+    .Some(if saturated: Duration::milliseconds(9223372036854775807i64) else: Duration::seconds(seconds))
+
+fn cookie_date_delimiter(byte: u8) -> bool:
+    byte == 9 || (byte >= 32 && byte <= 47) || (byte >= 59 && byte <= 64) || (byte >= 91 && byte <= 96) || (byte >= 123 && byte <= 126)
+
+# Reads a leading digit run of the stated width, with any non-digit tail.
+fn cookie_date_number(text: &string, minimum: usize, maximum: usize) -> usize?:
+    let digits = 0
+    let value = 0
+    for byte in text.to_utf8():
+        if byte < 48 || byte > 57: break
+        digits += 1
+        if digits > maximum: return .None
+        value = value * 10 + usize(byte - 48)
+    if digits < minimum: .None else: .Some(value)
+
+fn cookie_date_clock(text: &string) -> (usize, usize, usize)?:
+    let (hour_text, rest) = text.split_once(":")?
+    let (minute_text, second_text) = rest.split_once(":")?
+    if hour_text.is_empty() || hour_text.len() > 2 || minute_text.is_empty() || minute_text.len() > 2:
+        return .None
+    for byte in (hour_text + minute_text).to_utf8():
+        if byte < 48 || byte > 57: return .None
+    hour := cookie_date_number(&hour_text, 1, 2)?
+    minute := cookie_date_number(&minute_text, 1, 2)?
+    second := cookie_date_number(&second_text, 1, 2)?
+    .Some((hour, minute, second))
+
+fn cookie_date_month(text: &string) -> usize?:
+    if text.len() < 3: return .None
+    # Only ASCII month prefixes can match; avoid slicing arbitrary UTF-8.
+    bytes := text.to_utf8()
+    if bytes[0] > 127 || bytes[1] > 127 || bytes[2] > 127: return .None
+    prefix := header_ascii_lower(&text.slice(0, 3))
+    months := ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+    for index in 0..months.len():
+        if prefix == months[index]: return .Some(index + 1)
+    .None
+
+fn cookie_date_pad(value: usize, width: usize) -> string:
+    let text = "$value"
+    while text.len() < width:
+        text = "0" + text
+    text
+
+# RFC 6265 section 5.1.1 accepts legacy delimiters and two-digit years.
+fn parse_cookie_date(text: &string) -> Timestamp?:
+    bytes := text.to_utf8()
+    let mut tokens: List[string] = []
+    let start = 0
+    for index in 0..bytes.len():
+        if cookie_date_delimiter(bytes[index]):
+            if start < index: tokens.push(text.slice(start, index))
+            start = index + 1
+    if start < bytes.len(): tokens.push(text.slice(start, bytes.len()))
+    let clock: (usize, usize, usize)? = .None
+    let day: usize? = .None
+    let month: usize? = .None
+    let year: usize? = .None
+    for token in tokens:
+        if clock.is_none():
+            match cookie_date_clock(&token):
+                .Some(value) =>
+                    clock = .Some(value)
+                    continue
+                .None => pass
+        if day.is_none():
+            match cookie_date_number(&token, 1, 2):
+                .Some(value) =>
+                    day = .Some(value)
+                    continue
+                .None => pass
+        if month.is_none():
+            match cookie_date_month(&token):
+                .Some(value) =>
+                    month = .Some(value)
+                    continue
+                .None => pass
+        if year.is_none():
+            year = cookie_date_number(&token, 2, 4)
+    let (hour, minute, second) = clock?
+    day_value := day?
+    month_value := month?
+    let year_value = year?
+    if year_value >= 70 && year_value <= 99: year_value += 1900
+    else if year_value <= 69: year_value += 2000
+    if year_value < 1601 || day_value < 1 || day_value > 31 || hour > 23 || minute > 59 || second > 59: return .None
+    iso := "${cookie_date_pad(year_value, 4)}-${cookie_date_pad(month_value, 2)}-${cookie_date_pad(day_value, 2)}T${cookie_date_pad(hour, 2)}:${cookie_date_pad(minute, 2)}:${cookie_date_pad(second, 2)}Z"
+    match iso.parse::[Timestamp]():
+        .Ok(timestamp) => .Some(timestamp)
+        .Err(_) => .None
+
+## Parsed absolute HTTP URL. Public components are values, not references.
+@derive(Debug, Eq)
+pub struct Url:
+    pub scheme: string
+    pub host: string
+    pub port: u16?
+    pub path: string
+    pub query: List[(string, string)] = []
+    pub fragment: string? = .None
+    raw_path: string
+    force_query: bool
+
+impl Url:
+    pub fn parse(text: string) -> Result[Url, UrlError]:
+        for byte in text.to_utf8():
+            if byte <= 32 || byte == 127: return .Err(.Invalid(text))
+        parts := client_url_parts(text)
+        scheme := match parts.scheme:
+            .Some(scheme) => header_ascii_lower(&scheme)
+            .None => return .Err(.RelativeWithoutBase(text))
+        if scheme != "http" && scheme != "https": return .Err(.Invalid(text))
+        authority := match parts.authority:
+            .Some(authority) => authority
+            .None => return .Err(.Invalid(text))
+        if authority.contains("@"): return .Err(.Invalid(text))
+        let host = ""
+        let port_text: string? = .None
+        if authority.starts_with("["):
+            close := match authority.find("]"):
+                .Some(close) => close
+                .None => return .Err(.Invalid(text))
+            host = authority.slice(0, close + 1)
+            tail := authority.slice(close + 1, authority.len())
+            if !tail.is_empty():
+                if !tail.starts_with(":"): return .Err(.Invalid(text))
+                port_text = .Some(tail.slice(1, tail.len()))
+        else:
+            let (name, tail) = authority.split_once(":").unwrap_or((authority, ""))
+            host = name
+            if authority.contains(":"): port_text = .Some(tail)
+        if !url_host_valid(&host): return .Err(.Invalid(text))
+        let port: u16? = .None
+        match port_text:
+            .Some(digits) =>
+                if !digits.is_empty():
+                    for byte in digits.to_utf8():
+                        if byte < 48 || byte > 57: return .Err(.Invalid(text))
+                    match digits.parse::[u16]():
+                        .Ok(value) => port = .Some(value)
+                        .Err(_) => return .Err(.Invalid(text))
+            .None => pass
+        raw_path := match url_prepare_path(&parts.path):
+            .Some(path) => path
+            .None => return .Err(.Invalid(text))
+        path := match url_decode_component(&raw_path, false):
+            .Some(path) => path
+            .None => return .Err(.Invalid(text))
+        let mut query: List[(string, string)] = []
+        match parts.query:
+            .Some(raw_query) =>
+                for pair in raw_query.split("&"):
+                    if pair.is_empty(): continue
+                    let (name, value) = pair.split_once("=").unwrap_or((pair, ""))
+                    key := match url_decode_component(&name, true):
+                        .Some(name) => name
+                        .None => return .Err(.Invalid(text))
+                    decoded_value := match url_decode_component(&value, true):
+                        .Some(value) => value
+                        .None => return .Err(.Invalid(text))
+                    query.push((key, decoded_value))
+            .None => pass
+        let fragment: string? = .None
+        match parts.fragment:
+            .Some(raw) =>
+                match url_decode_component(&raw, false):
+                    .Some(value) => fragment = .Some(value)
+                    .None => return .Err(.Invalid(text))
+            .None => pass
+        .Ok(Url { scheme: scheme, host: header_ascii_lower(&host), port: port, path: path, query: query, fragment: fragment, raw_path: raw_path, force_query: parts.query.is_some() && query.is_empty() })
+
+    pub fn resolve(&self, reference: string) -> Result[Url, UrlError]:
+        Url::parse(redirect_url(self.to_string(), reference))
+
+    pub fn param(&self, name: string) -> string?:
+        for (key, value) in self.query:
+            if key == name: return .Some(value)
+        .None
+
+    pub fn add_param[T < Display](&mut self, name: string, value: T) -> void:
+        self.force_query = false
+        self.query.push((name, "$value"))
+
+    fn escaped_path(&self) -> string:
+        if url_decode_component(&self.raw_path, false) == .Some(self.path):
+            self.raw_path
+        else:
+            url_encode_component(&self.path, .Path)
+
+impl Display for Url:
+    fn to_string(self) -> string:
+        let text = "${self.scheme}://${self.host}"
+        match self.port:
+            .Some(port) => text += ":$port"
+            .None => pass
+        text += self.escaped_path()
+        if !self.query.is_empty():
+            let mut pairs: List[string] = []
+            for (name, value) in self.query:
+                pairs.push("${url_encode_component(&name, .Query)}=${url_encode_component(&value, .Query)}")
+            text += "?" + pairs.join("&")
+        else if self.force_query:
+            text += "?"
+        match self.fragment:
+            .Some(fragment) => text += "#" + url_encode_component(&fragment, .Fragment)
+            .None => pass
+        text
+
+enum UrlComponent:
+    Path
+    Query
+    Fragment
+
+fn url_unreserved(byte: u8) -> bool:
+    (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || "-._~".to_utf8().contains(byte)
+
+fn url_subdelimiter(byte: u8) -> bool:
+    "!$&'()*+,;=".to_utf8().contains(byte)
+
+fn url_component_byte(byte: u8, component: UrlComponent) -> bool:
+    if url_unreserved(byte): return true
+    match component:
+        .Path => url_subdelimiter(byte) || byte == 47 || byte == 58 || byte == 64
+        .Query => false
+        .Fragment => url_subdelimiter(byte) || byte == 47 || byte == 58 || byte == 64 || byte == 63
+
+fn url_hex(byte: u8) -> u8?:
+    if byte >= 48 && byte <= 57: return .Some(byte - 48)
+    if byte >= 65 && byte <= 70: return .Some(byte - 55)
+    if byte >= 97 && byte <= 102: return .Some(byte - 87)
+    .None
+
+fn url_encoded_byte(out: &mut List[u8], byte: u8) -> void:
+    hex := "0123456789ABCDEF".to_utf8()
+    out.push(37)
+    out.push(hex[usize(byte / 16)])
+    out.push(hex[usize(byte % 16)])
+
+fn url_ascii_text(bytes: List[u8]) -> string:
+    match string::from_utf8(bytes):
+        .Ok(text) => text
+        .Err(_) => panic("URI encoding contains only ASCII")
+
+fn url_encode_component(text: &string, component: UrlComponent) -> string:
+    let mut out: List[u8] = []
+    for byte in text.to_utf8():
+        if url_component_byte(byte, component): out.push(byte)
+        else: url_encoded_byte(&mut out, byte)
+    url_ascii_text(out)
+
+# Keep valid escapes, including escaped separators; encode literal UTF-8.
+fn url_prepare_path(text: &string) -> string?:
+    bytes := text.to_utf8()
+    let mut out: List[u8] = []
+    let at = 0
+    while at < bytes.len():
+        byte := bytes[at]
+        if byte == 37:
+            if at + 2 >= bytes.len() || url_hex(bytes[at + 1]).is_none() || url_hex(bytes[at + 2]).is_none(): return .None
+            out.push(byte)
+            out.push(bytes[at + 1])
+            out.push(bytes[at + 2])
+            at += 3
+        else:
+            if url_component_byte(byte, .Path): out.push(byte)
+            else: url_encoded_byte(&mut out, byte)
+            at += 1
+    .Some(url_ascii_text(out))
+
+fn url_decode_component(text: &string, plus: bool) -> string?:
+    bytes := text.to_utf8()
+    let mut out: List[u8] = []
+    let at = 0
+    while at < bytes.len():
+        byte := bytes[at]
+        if byte == 37:
+            if at + 2 >= bytes.len(): return .None
+            high := url_hex(bytes[at + 1])?
+            low := url_hex(bytes[at + 2])?
+            out.push(high * 16 + low)
+            at += 3
+        else:
+            out.push(if plus && byte == 43: 32 else: byte)
+            at += 1
+    match string::from_utf8(out):
+        .Ok(value) => .Some(value)
+        .Err(_) => .None
+
+fn url_host_valid(host: &string) -> bool:
+    if host.is_empty(): return false
+    bytes := host.to_utf8()
+    for byte in bytes:
+        if byte >= 128: return false
+    if host.starts_with("["):
+        if !host.ends_with("]"): return false
+        address := host.slice(1, host.len() - 1)
+        if address.starts_with("v") || address.starts_with("V"):
+            let (version, rest) = address.slice(1, address.len()).split_once(".").unwrap_or(("", ""))
+            if version.is_empty() || rest.is_empty(): return false
+            for byte in version.to_utf8():
+                if url_hex(byte).is_none(): return false
+            for byte in rest.to_utf8():
+                if !url_unreserved(byte) && !url_subdelimiter(byte) && byte != 58: return false
+            return true
+        match address.split_once("::"):
+            .Some((left, right)) =>
+                if right.contains("::"): return false
+                before := match url_ipv6_groups(&left, false):
+                    .Some(count) => count
+                    .None => return false
+                after := match url_ipv6_groups(&right, true):
+                    .Some(count) => count
+                    .None => return false
+                return before + after < 8
+            .None => return url_ipv6_groups(&address, true) == .Some(8)
+    let at = 0
+    while at < bytes.len():
+        byte := bytes[at]
+        if byte == 37:
+            if at + 2 >= bytes.len() || url_hex(bytes[at + 1]).is_none() || url_hex(bytes[at + 2]).is_none(): return false
+            at += 3
+        else:
+            if !url_unreserved(byte) && !url_subdelimiter(byte): return false
+            at += 1
+    true
+
+fn url_ipv6_groups(text: &string, ipv4: bool) -> usize?:
+    if text.is_empty(): return .Some(0)
+    parts := text.split(":")
+    let count = 0
+    for at in 0..parts.len():
+        part := parts[at]
+        if ipv4 && at + 1 == parts.len() && part.contains("."):
+            if !url_ipv4(&part): return .None
+            count += 2
+        else:
+            if part.is_empty() || part.len() > 4: return .None
+            for byte in part.to_utf8():
+                if url_hex(byte).is_none(): return .None
+            count += 1
+    .Some(count)
+
+fn url_ipv4(text: &string) -> bool:
+    parts := text.split(".")
+    if parts.len() != 4: return false
+    for part in parts:
+        if part.is_empty() || part.len() > 3 || (part.len() > 1 && part.starts_with("0")): return false
+        let value = 0
+        for byte in part.to_utf8():
+            if byte < 48 || byte > 57: return false
+            value = value * 10 + usize(byte - 48)
+        if value > 255: return false
+    true
 
 ## An HTTP method: a standard one, or `Other(name)`.
 ## See [std-http.types.builder-response-defaults](../../spec/std/http.md#r-std-http.types.builder-response-defaults).
@@ -582,13 +1513,13 @@ impl Response:
         decode::[T](self.text())
 
 ## Why a request failed: invalid URL, DNS, connect, TLS, timeout, too many redirects, not granted, or another reason.
-## See [std-http.error.decl-retained-response](../../spec/std/http.md#r-std-http.error.decl-retained-response).
+## See [std-http.error.decl-message-errors](../../spec/std/http.md#r-std-http.error.decl-message-errors).
 @error
 @derive(Debug, Eq)
 pub enum HttpError:
     @error("http access to ${host} is not granted")
     NotGranted(host: string)
-    @error("invalid URL: ${url}")
+    @error("${url_invalid_message(&url)}")
     InvalidUrl(url: string)
     @error("cannot resolve host ${host}")
     Dns(host: string)
@@ -604,6 +1535,13 @@ pub enum HttpError:
     Other(message: string)
     @error("HTTP status ${response.status} for ${status_url(response.url)}")
     Status(response: Response)
+    @error("invalid header ${name}")
+    InvalidHeader(name: string)
+    @error("$error")
+    Body(error: BodyError)
+
+impl From[BodyError] for HttpError:
+    fn from(error: BodyError) -> HttpError: .Body(error)
 
 # A composed deadline has the same error as the operation it bounds.
 impl From[TimedOut] for HttpError:
@@ -612,8 +1550,8 @@ impl From[TimedOut] for HttpError:
 
 impl HttpError:
     ## Whether a timeout, connection failure or retryable status may succeed on retry.
-    ## See [std-http.error.transient-kinds](../../spec/std/http.md#r-std-http.error.transient-kinds).
-    pub fn is_transient(self) -> bool:
+    ## See [std-http.error.transient-borrowed](../../spec/std/http.md#r-std-http.error.transient-borrowed).
+    pub fn is_transient(&self) -> bool:
         match self:
             .Timeout => true
             .Connect(_) => true

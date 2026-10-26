@@ -1,0 +1,29 @@
+# test: HTTP statuses retain numeric identity, canonical named variants and hashes.
+# Spec: std-http.status.from-code, std-http.status.numeric-equality.
+use std.http.HttpStatus
+use std.hash.hash_of
+
+tests:
+    it("known codes choose named variants"):
+        for code in [200u16,201u16,202u16,204u16,206u16,301u16,302u16,303u16,304u16,307u16,308u16,400u16,401u16,403u16,404u16,405u16,408u16,409u16,410u16,412u16,413u16,415u16,422u16,429u16,500u16,501u16,502u16,503u16,504u16]:
+            status := HttpStatus::from_code(code)
+            assert_equal(status.code(), code, reason="numeric code survives")
+            match status:
+                .Other(_) => panic("listed codes must choose named variants")
+                _ => pass
+
+    it("unknown codes survive and success is numeric"):
+        assert_equal(HttpStatus::from_code(299), .Other(299), reason="unknown success status")
+        assert(HttpStatus.Other(299).is_success(), reason="the entire 2xx range is successful")
+        assert(!HttpStatus.Other(199).is_success(), reason="not below 200")
+        assert(!HttpStatus.Other(300).is_success(), reason="not above 299")
+        assert_equal(HttpStatus::from_code(65535).code(), 65535u16, reason="unknown code retained")
+
+    it("numeric aliases compare and hash alike"):
+        assert_equal(HttpStatus.Other(404), .NotFound, reason="named and other are the same code")
+        assert_equal(hash_of(HttpStatus.Other(404)), hash_of(HttpStatus.NotFound), reason="equal values hash equally")
+        let mut responses: Map[HttpStatus, string] = {}
+        responses[HttpStatus.NotFound] = "first"
+        responses[HttpStatus.Other(404)] = "replacement"
+        assert_equal(responses.len(), 1, reason="numeric aliases address one key")
+        assert_equal(responses.get(.NotFound), .Some("replacement"), reason="both forms read the same key")

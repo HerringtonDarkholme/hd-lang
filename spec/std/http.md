@@ -17,6 +17,217 @@ over the language tier:
 Which provider a command binds, and which hosts its grant covers, is CLI
 tier ([Host Capabilities](../cli/command-line.md#host-capabilities)).
 
+## Named Status Codes
+
+1. r[std-http.status.declaration] `std.http` declares `HttpStatus` with the variants and numeric codes below, and `Other(code: u16)`.
+
+| Variant | Code |
+| --- | --- |
+| `Ok` | 200 |
+| `Created` | 201 |
+| `Accepted` | 202 |
+| `NoContent` | 204 |
+| `PartialContent` | 206 |
+| `MovedPermanently` | 301 |
+| `Found` | 302 |
+| `SeeOther` | 303 |
+| `NotModified` | 304 |
+| `TemporaryRedirect` | 307 |
+| `PermanentRedirect` | 308 |
+| `BadRequest` | 400 |
+| `Unauthorized` | 401 |
+| `Forbidden` | 403 |
+| `NotFound` | 404 |
+| `MethodNotAllowed` | 405 |
+| `RequestTimeout` | 408 |
+| `Conflict` | 409 |
+| `Gone` | 410 |
+| `PreconditionFailed` | 412 |
+| `ContentTooLarge` | 413 |
+| `UnsupportedMediaType` | 415 |
+| `UnprocessableContent` | 422 |
+| `TooManyRequests` | 429 |
+| `InternalServerError` | 500 |
+| `NotImplemented` | 501 |
+| `BadGateway` | 502 |
+| `ServiceUnavailable` | 503 |
+| `GatewayTimeout` | 504 |
+
+2. r[std-http.status.code] `HttpStatus.code(&self) -> u16` returns the variant's numeric code.
+3. r[std-http.status.from-code] `HttpStatus::from_code(code: u16) -> HttpStatus` returns the named variant for a listed code, and `Other(code)` otherwise.
+4. r[std-http.status.is-success] `HttpStatus.is_success(&self) -> bool` is true exactly for codes from 200 through 299.
+5. r[std-http.status.numeric-equality] Two `HttpStatus` values are equal exactly when their numeric codes are equal, including named variants and `Other`.
+6. r[std-http.status.numeric-hash] `HttpStatus` implements `Hash` by hashing its `u16` code.
+7. r[std-http.status.debug] `HttpStatus` implements structural `Debug`.
+
+## Header Names
+
+1. r[std-http.header-name.declaration] `std.http` declares `HeaderName` with the variants and wire names below, and `Other(name: string)`.
+
+| Variant | Wire name |
+| --- | --- |
+| `Accept` | `accept` |
+| `AcceptEncoding` | `accept-encoding` |
+| `AcceptLanguage` | `accept-language` |
+| `ContentDisposition` | `content-disposition` |
+| `ContentEncoding` | `content-encoding` |
+| `ContentLength` | `content-length` |
+| `ContentRange` | `content-range` |
+| `ContentType` | `content-type` |
+| `Range` | `range` |
+| `CacheControl` | `cache-control` |
+| `ETag` | `etag` |
+| `Expires` | `expires` |
+| `IfMatch` | `if-match` |
+| `IfModifiedSince` | `if-modified-since` |
+| `IfNoneMatch` | `if-none-match` |
+| `LastModified` | `last-modified` |
+| `Vary` | `vary` |
+| `Authorization` | `authorization` |
+| `Cookie` | `cookie` |
+| `RetryAfter` | `retry-after` |
+| `SetCookie` | `set-cookie` |
+| `WwwAuthenticate` | `www-authenticate` |
+| `AccessControlAllowCredentials` | `access-control-allow-credentials` |
+| `AccessControlAllowHeaders` | `access-control-allow-headers` |
+| `AccessControlAllowMethods` | `access-control-allow-methods` |
+| `AccessControlAllowOrigin` | `access-control-allow-origin` |
+| `AccessControlMaxAge` | `access-control-max-age` |
+| `AccessControlRequestHeaders` | `access-control-request-headers` |
+| `AccessControlRequestMethod` | `access-control-request-method` |
+| `Origin` | `origin` |
+| `ContentSecurityPolicy` | `content-security-policy` |
+| `StrictTransportSecurity` | `strict-transport-security` |
+| `XContentTypeOptions` | `x-content-type-options` |
+| `XFrameOptions` | `x-frame-options` |
+| `Allow` | `allow` |
+| `Forwarded` | `forwarded` |
+| `Host` | `host` |
+| `Location` | `location` |
+| `Referer` | `referer` |
+| `XForwardedFor` | `x-forwarded-for` |
+| `XForwardedHost` | `x-forwarded-host` |
+| `XForwardedProto` | `x-forwarded-proto` |
+| `Date` | `date` |
+| `Server` | `server` |
+| `UserAgent` | `user-agent` |
+| `XRequestId` | `x-request-id` |
+
+2. r[std-http.header-name.wire] `HeaderName.wire_name(&self) -> string` returns the listed wire name, or the `Other` name with ASCII uppercase letters lowercased.
+3. r[std-http.header-name.parse] `HeaderName` implements `Parse[Error = HeaderError]`.
+4. r[std-http.header-name.parse-known] Parsing a listed wire name, ignoring ASCII case, returns its named variant.
+5. r[std-http.header-name.parse-other] Parsing another valid field name returns `Other` with its ASCII letters lowercased.
+6. r[std-http.header-name.parse-token] A valid field name is a nonempty sequence of ASCII letters, digits, or a punctuation character from `` !#$%&'*+-.^_`|~ ``, as [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2) defines.
+7. r[std-http.header-name.parse-invalid] Parsing any other text returns `HeaderError.InvalidName` holding the original text.
+8. r[std-http.header-name.wire-equality] Two `HeaderName` values are equal exactly when their wire names are equal.
+9. r[std-http.header-name.wire-hash] `HeaderName` implements `Hash` by hashing its wire name as a string.
+10. r[std-http.header-name.debug] `HeaderName` implements structural `Debug`.
+11. r[std-http.header-error.declaration] `HeaderError` is an error enum with `InvalidName(name: string)` and `InvalidValue(name: string)`.
+12. r[std-http.header-error.display] Those variants display `invalid header name NAME` and `invalid value for header NAME`, respectively.
+13. r[std-http.header-error.traits] `HeaderError` implements `Eq` and `Debug`.
+
+## Header Collections
+
+1. r[std-http.header-collection.declaration] `Headers` is an ordered collection of `(HeaderName, string)` pairs with private storage.
+2. r[std-http.header-collection.new] `Headers::new() -> Headers` returns an empty collection.
+3. r[std-http.header-collection.from-pairs] `From[List[(string, string)]]` retains every pair in input order, parsing valid names as `HeaderName` and retaining invalid names as `Other` for wire validation.
+4. r[std-http.header-collection.from-map] `From[Map[string, string]]` converts each map entry to one header pair.
+5. r[std-http.header-collection.get] `get(&self, name: HeaderName) -> string?` returns matching values joined by `", "` in their stored order, or `None` when absent, except for `SetCookie`.
+6. r[std-http.header-collection.set-cookie-first] `get(SetCookie)` returns the first raw `Set-Cookie` value without joining lines; `response_cookies()` reads every line.
+7. r[std-http.header-collection.set] `set(&mut self, name: HeaderName, value: string) -> void` replaces every matching pair with one pair holding `value`.
+8. r[std-http.header-collection.remove] `remove(&mut self, name: HeaderName) -> void` removes every matching pair.
+9. r[std-http.header-collection.entries] `entries(&self) -> List[(HeaderName, string)]` returns all stored pairs in order.
+10. r[std-http.header-collection.traits] `Headers` implements structural `Eq` and `Debug`.
+11. r[std-http.request-cookies.read] `request_cookies(&self) -> List[(string, string)]` returns name/value pairs from `Cookie` fields in received order, retaining duplicate names.
+12. r[std-http.request-cookies.first] `request_cookie(&self, name: string) -> string?` returns the first value for that case-sensitive cookie name, or `None` when absent.
+13. r[std-http.request-cookies.set] `set_request_cookie(&mut self, name: string, value: string) -> void` replaces that name's cookies while retaining other cookies in one `Cookie` header.
+
+## Response Cookies
+
+1. r[std-http.cookie.same-site] `SameSite` has the variants `Strict`, `Lax` and `None`, and implements `Eq` and `Debug`.
+2. r[std-http.cookie.declaration] `Cookie` has public fields `name: string`, `value: string`, `path: string?`, `domain: string?`, `max_age: Duration?`, `expires: Timestamp?`, `secure: bool`, `http_only: bool` and `same_site: SameSite`.
+3. r[std-http.cookie.defaults] A constructed cookie defaults to `path = Some("/")`, absent domain, max-age and expires, `secure = true`, `http_only = true` and `same_site = Lax`.
+4. r[std-http.cookie.traits] `Cookie` implements structural `Eq` and `Debug`.
+5. r[std-http.cookie.expired] `Cookie::expired(name: string) -> Cookie` returns that name with an empty value, `max_age = Some(Duration::seconds(0))` and the other outgoing defaults.
+6. r[std-http.response-cookies.read] `Headers.response_cookies(&self) -> List[Cookie]` parses every separate `Set-Cookie` line in stored order.
+7. r[std-http.response-cookies.incoming-defaults] Absent Path, Domain, Max-Age and Expires parse as `None`, absent Secure and HttpOnly as `false`, and absent or unknown SameSite as `Lax`.
+8. r[std-http.response-cookies.crlf] A `Set-Cookie` line containing CR or LF contributes no parsed cookie.
+9. r[std-http.response-cookies.unknown-attributes] Parsing ignores unrecognized cookie attributes.
+10. r[std-http.response-cookies.attributes] Recognized cookie attributes are parsed according to [RFC 6265 §5.2](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2), ignoring ASCII case in attribute names.
+11. r[std-http.response-cookies.expires] Expires uses the cookie-date algorithm in [RFC 6265 §5.1.1](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.1), with invalid dates ignored.
+12. r[std-http.response-cookies.same-site] SameSite parses `Strict`, `Lax` and `None` ignoring ASCII case.
+13. r[std-http.response-cookies.contextual-path] An empty or non-slash Path parses as `None`, clearing any earlier Path; CookieJar later applies the request's default path.
+
+## Writing Response Cookies
+
+1. r[std-http.response-cookies.set] `Headers.set_response_cookie(&mut self, cookie: Cookie) -> void` writes one `Set-Cookie` line, replacing earlier cookies with that case-sensitive name.
+2. r[std-http.response-cookies.set-unrelated] Setting a response cookie retains unrelated headers and cookies in their order.
+3. r[std-http.response-cookies.wire-pair] A written cookie begins with its name and value joined by `=`, without encoding them.
+4. r[std-http.response-cookies.wire-optional] Present Path, Domain, Max-Age and Expires fields become corresponding attributes; absent ones are omitted.
+5. r[std-http.response-cookies.max-age-ceiling] Max-Age is the duration's whole seconds rounded up; a positive fraction yields at least `1`, and only zero yields `0`.
+6. r[std-http.response-cookies.expires-text] Expires uses an RFC 6265 HTTP date in UTC, with English weekday and month names and whole-second precision.
+7. r[std-http.response-cookies.wire-flags] Secure and HttpOnly attributes are included exactly when their corresponding flags are true.
+8. r[std-http.response-cookies.wire-same-site] Every written cookie includes SameSite with its `Strict`, `Lax` or `None` spelling.
+9. r[std-http.request-cookies.set-components] Request cookie setters retain the supplied name and value without interpreting delimiters inside either component.
+
+## Message Conversion Errors
+
+1. r[std-http.body-error.declaration] `BodyError` is an error enum with `Used`, `Json(error: JsonError)` and `Form(error: FormError)`.
+2. r[std-http.body-error.display-used] `BodyError.Used` displays `the body was already read`.
+3. r[std-http.body-error.display-json] `BodyError.Json(error)` displays `invalid JSON body: ERROR`, with the JSON error's Display text.
+4. r[std-http.body-error.display-form] `BodyError.Form(error)` displays `invalid form body: ERROR`, with the form error's Display text.
+5. r[std-http.body-error.traits] `BodyError` implements structural `Eq` and `Debug`.
+6. r[std-http.form-error.declaration] `FormError` is an error enum with `Unsupported(field: string)`, `Missing(field: string)` and `Invalid(field: string, text: string)`.
+7. r[std-http.form-error.display-unsupported] `FormError.Unsupported(field)` displays `field FIELD has no form encoding`.
+8. r[std-http.form-error.display-missing] `FormError.Missing(field)` displays `missing field FIELD`.
+9. r[std-http.form-error.display-invalid] `FormError.Invalid(field, text)` displays `field FIELD: cannot read TEXT`.
+10. r[std-http.form-error.traits] `FormError` implements structural `Eq` and `Debug`.
+11. r[std-http.url-error.declaration] `UrlError` is an error enum with `Invalid(text: string)` and `RelativeWithoutBase(text: string)`.
+12. r[std-http.url-error.display-invalid-text] `UrlError.Invalid(text)` normally displays `invalid URL: TEXT`.
+13. r[std-http.url-error.display-relative] `UrlError.RelativeWithoutBase(text)` displays `relative URL without a base: TEXT`.
+14. r[std-http.url-error.traits] `UrlError` implements structural `Eq` and `Debug`.
+15. r[std-http.url-error.into-http] `From[UrlError] for HttpError` maps either variant to `HttpError.InvalidUrl`, retaining its input text.
+16. r[std-http.url-error.display-user-info] For user-info input, the Invalid error omits credentials from Display and recommends using the Authorization header.
+
+## Parsed URLs
+
+1. r[std-http.parsed-url.declaration] `std.http.Url` is a value with these public fields and private encoding metadata.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `scheme` | `string` | HTTP or HTTPS scheme |
+| `host` | `string` | ASCII authority host, including IP-literal brackets |
+| `port` | `u16?` | Explicit port when present |
+| `path` | `string` | Percent-decoded path |
+| `query` | `List[(string, string)]` | Decoded query pairs in order |
+| `fragment` | `string?` | Decoded fragment when present |
+
+2. r[std-http.parsed-url.parse] `Url::parse(text: string) -> Result[Url, UrlError]` parses an absolute HTTP or HTTPS URL satisfying the ASCII-host rule in [URLs](#urls).
+3. r[std-http.parsed-url.relative] Input without a scheme returns `UrlError.RelativeWithoutBase` with the original text.
+4. r[std-http.parsed-url.invalid] Malformed absolute input, unsupported schemes, non-ASCII hosts or invalid ports return `UrlError.Invalid` with the original text.
+5. r[std-http.parsed-url.user-info] An authority containing user-info is rejected as `UrlError.Invalid`.
+6. r[std-http.parsed-url.controls] A literal ASCII control character, space or DEL in the input makes the URL invalid.
+7. r[std-http.parsed-url.scheme-host-case] Parsing lowercases ASCII letters in the scheme and host.
+8. r[std-http.parsed-url.port] A nonempty explicit port must be decimal text within the `u16` range; an absent or empty port becomes `None`.
+9. r[std-http.parsed-url.path] Parsing percent-decodes the path as UTF-8 without interpreting encoded `/` or `?` as component separators.
+10. r[std-http.parsed-url.query] Parsing splits nonempty query parts at `&` and their first `=`, retaining pair order and repeated names.
+11. r[std-http.parsed-url.query-empty-value] A query part without `=` has an empty value.
+12. r[std-http.parsed-url.query-decode] Query names and values percent-decode UTF-8 and interpret `+` as space.
+13. r[std-http.parsed-url.fragment] Parsing percent-decodes the fragment as UTF-8, retaining an explicit empty fragment as `Some("")`.
+14. r[std-http.parsed-url.invalid-escape] Invalid percent escapes or invalid decoded UTF-8 in the path, query or fragment make the input invalid.
+15. r[std-http.parsed-url.raw-path] Display retains the private escaped path while decoding it gives the current public path.
+16. r[std-http.parsed-url.changed-path] Otherwise Display percent-encodes the public path as UTF-8, preserving RFC 3986 path characters and escaping literal `%` and `?`.
+17. r[std-http.parsed-url.raw-path-unicode] Literal non-ASCII path bytes are percent-encoded without changing existing valid escapes.
+18. r[std-http.parsed-url.display-query] Display writes nonempty query pairs as encoded `name=value` parts joined by `&`, encoding each component's UTF-8 bytes separately.
+19. r[std-http.parsed-url.display-fragment] Display writes a present fragment after `#`, percent-encoding its UTF-8 bytes while retaining permitted fragment characters.
+20. r[std-http.parsed-url.empty-query] Parsing an explicit empty query retains a private presence bit, so an empty public list can still display a trailing `?`.
+21. r[std-http.parsed-url.nonempty-query] A nonempty public query list overrides that presence bit in Display.
+22. r[std-http.parsed-url.param] `param(&self, name: string) -> string?` returns the first value whose name equals `name`, or `None` when absent.
+23. r[std-http.parsed-url.add-param] `add_param[T < Display](&mut self, name: string, value: T) -> void` appends the name and the value's Display text as decoded data.
+24. r[std-http.parsed-url.add-param-empty-query] `add_param` clears the earlier empty-query presence bit.
+25. r[std-http.parsed-url.resolve] `resolve(&self, reference: string) -> Result[Url, UrlError]` resolves a reference by RFC 3986 section 5, preserving encoded path separators and query presence.
+26. r[std-http.parsed-url.traits] `Url` implements `Display`, structural `Eq` and `Debug`.
+
 ## Requests And Responses
 
 A request and a response are plain struct values:
@@ -189,15 +400,17 @@ pub enum HttpError:
     TooManyRedirects(url: string)
     Other(message: string)
     Status(response: Response)
+    InvalidHeader(name: string)
+    Body(error: BodyError)
 ```
 
-1. r[std-http.error.decl-retained-response] `std.http` declares `HttpError` as above. Code imports it, as in `use std.http.HttpError`.
+1. r[std-http.error.decl-message-errors] `std.http` declares `HttpError` as above. Code imports it, as in `use std.http.HttpError`.
 2. r[std-http.error.traits] `HttpError` implements `Eq`, `Debug`, `Display`, and `std.error.Error`.
 
 | Rule | Variant | Means |
 | --- | --- | --- |
 | r[std-http.error.not-granted] Not granted | `NotGranted(host)` | the program's capability grant does not cover the request's host, by [Partial Deny](../cli/command-line.md#partial-deny) |
-| r[std-http.error.invalid-url] Invalid URL | `InvalidUrl(url)` | `url` is not an absolute `http` or `https` URL |
+| r[std-http.error.invalid-url-target] Invalid URL | `InvalidUrl(url)` | Invalid HTTP target, including a URL rejected by `Url::parse` |
 | r[std-http.error.dns] DNS | `Dns(host)` | the host name did not resolve |
 | r[std-http.error.connect] Connect | `Connect(message)` | no connection was made, or it failed before the whole response arrived |
 | r[std-http.error.tls] TLS | `Tls(message)` | the TLS handshake or a certificate check failed |
@@ -209,9 +422,14 @@ pub enum HttpError:
 3. r[std-http.error.not-granted.plain] The `Display` text of `NotGranted(host)` is `http access to HOST is not granted`, with the host for `HOST`.
 4. r[std-http.error.status.safe-response-text] `Status(response)` displays `HTTP status STATUS for URL`, with the response status and its URL before any query or fragment.
 5. r[std-http.error.status.no-response-secrets] The status error's `Display` text contains no response body or header values.
-6. r[std-http.error.transient-kinds] `HttpError.is_transient(self) -> bool` returns true for `Timeout` and `Connect` errors.
+6. r[std-http.error.transient-borrowed] `HttpError.is_transient(&self) -> bool` returns true for `Timeout` and `Connect` errors.
 7. r[std-http.error.transient-status-codes] A `Status` error is transient for 408, 429, 500, 502, 503, and 504.
 8. r[std-http.error.permanent-kinds] `is_transient` returns false for every other error.
+9. r[std-http.error.invalid-url-display] `InvalidUrl(url)` displays `invalid URL: URL` unless the input contains user-info.
+10. r[std-http.error.invalid-url-user-info] User-info errors instead omit credentials from Display and recommend the Authorization header, including errors converted from `UrlError`.
+11. r[std-http.error.invalid-header-display] `InvalidHeader(name)` displays `invalid header NAME`, using its header name.
+12. r[std-http.error.body-display] `Body(error)` displays the body error's Display text.
+13. r[std-http.error.from-body] `From[BodyError] for HttpError` wraps its input in `HttpError.Body`.
 
 ## Sending
 
