@@ -1,5 +1,5 @@
 # test: a bare decorator name of a function with no parameters is called
-# Spec 14 Prefix Decorators: annot.decorator.bare-call and
+# Spec 14 Prefix Decorators: annot.decorator.bare-call-defaults and
 # annot.decorator.bare-call.only. `@hidden` calls the function, while a bare
 # `hidden` expression outside a decorator remains a function value.
 use std.annotation.facts_of

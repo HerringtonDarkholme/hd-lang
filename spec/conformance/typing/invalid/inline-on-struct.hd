@@ -1,0 +1,8 @@
+# test: @inline before a struct
+# Spec 14 Inline And Cold: InlineHint carries @annotate(.Fn, .Method), so
+# annot.target.limit.kind-error applies.
+use std.annotation.inline
+
+@inline  # diagnostic: decorator-target-kind
+struct Point:
+    x: i32

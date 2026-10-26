@@ -565,7 +565,106 @@ impl Lower<'_, '_, '_> {
         items.get(&d).copied()
     }
 
+    /// The `Item::inline` value of one decorator line that names std's
+    /// `inline` or `cold` (`annot.inline.recognized`), and whether its
+    /// argument is one the compiler reads (`annot.inline.argument`);
+    /// `None` for any other line.
+    fn inline_value(&self, d: NodeRef<'_>) -> Option<(u8, bool)> {
+        use crate::iface::{COLD, INLINE_ALWAYS, INLINE_AUTO, INLINE_NEVER};
+        let def = self.decorator_def(d)?;
+        let cold = def == self.names.known.cold;
+        if !cold && def != self.names.known.inline {
+            return None;
+        }
+        let e = d.children().next()?;
+        let (callee, args) = match e.kind() {
+            SyntaxKind::CallExpr => (
+                e.children().next()?,
+                Src::child(e, SyntaxKind::ArgumentList),
+            ),
+            _ => (e, None),
+        };
+        let typed = callee.kind() == SyntaxKind::TypeArgsExpr;
+        let args: Vec<NodeRef<'_>> = args.into_iter().flat_map(NodeRef::children).collect();
+        if cold {
+            return Some((COLD, !typed && args.is_empty()));
+        }
+        let hint = match args.as_slice() {
+            [] => Some(INLINE_AUTO),
+            [a] => {
+                let named = a.kind() == SyntaxKind::NamedArgument;
+                let value = a.children().next().filter(|v| {
+                    v.kind() == SyntaxKind::VariantExpr
+                        && (a.kind() == SyntaxKind::Argument
+                            || named && self.src.text(self.src.first(*a)) == "hint")
+                });
+                let last = value.and_then(|v| {
+                    self.src
+                        .tokens(v)
+                        .filter(|t| self.src.tkind(*t) == Some(TokenKind::Ident))
+                        .last()
+                });
+                last.and_then(|t| match self.src.text(t) {
+                    "Auto" => Some(INLINE_AUTO),
+                    "Always" => Some(INLINE_ALWAYS),
+                    "Never" => Some(INLINE_NEVER),
+                    _ => None,
+                })
+            }
+            _ => None,
+        };
+        Some((hint.unwrap_or(INLINE_AUTO), !typed && hint.is_some()))
+    }
+
+    /// A function's or method's `@inline` or `@cold` choice, as
+    /// `Item::inline` holds it, or 0 (`annot.inline.recognized`).
+    pub(super) fn inline_hint(&self, n: NodeRef<'_>) -> u8 {
+        n.children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+            .find_map(|d| self.inline_value(d))
+            .map_or(0, |(v, _)| v)
+    }
+
+    /// Checks the `@inline` and `@cold` lines of a function or method
+    /// (`annot.inline.*`): a valid argument, a body of its own, and one
+    /// choice.
+    fn check_inline(&mut self, f: NodeRef<'_>) {
+        use crate::iface::COLD;
+        let bodyless = Src::child(f, SyntaxKind::Block).is_none();
+        let intrinsic = self.intrinsic(f).is_some();
+        let mut first: Option<u8> = None;
+        for d in f.children().filter(|c| c.kind() == SyntaxKind::Decorator) {
+            let Some((v, ok)) = self.inline_value(d) else {
+                continue;
+            };
+            let span = self.src.span(d);
+            let code = Code::InvalidInlineDecorator;
+            if !ok {
+                let msg = if v == COLD {
+                    "`@cold` takes no argument"
+                } else {
+                    "`@inline` takes `.Auto`, `.Always` or `.Never`"
+                };
+                self.diags.error(code, span, msg);
+            } else if bodyless || intrinsic {
+                let msg = "only a function or method with a body of its own takes this decorator";
+                self.diags.error(code, span, msg);
+            } else if let Some(p) = first {
+                if (p == COLD) == (v == COLD) {
+                    let msg = "a second inlining choice for this function";
+                    self.diags.error(Code::DuplicateFact, span, msg);
+                } else {
+                    let msg = "`@cold` already keeps this function from being inlined; write one of the two";
+                    self.diags.error(code, span, msg);
+                }
+            } else {
+                first = Some(v);
+            }
+        }
+    }
+
     fn check_fn(&mut self, f: NodeRef<'_>, k: u16, items: &HashMap<DefId, &Item>) {
+        self.check_inline(f);
         self.check_decorators(
             f,
             Place {

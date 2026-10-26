@@ -3378,6 +3378,7 @@ impl Lower<'_, '_, '_> {
                         },
                     );
                     it.intrinsic = self.intrinsic(f);
+                    it.inline = self.inline_hint(f);
                     out.push(it);
                     methods.push((name, def));
                 }
@@ -3450,6 +3451,19 @@ impl Lower<'_, '_, '_> {
         } else {
             None
         }
+    }
+
+    /// Whether a decorator names std's `inline` or `cold`, which attach
+    /// no value (`annot.inline.recognized`).
+    fn inline_marker(&self, d: NodeRef<'_>) -> bool {
+        let def = crate::facts::decorator_def(
+            &self.src,
+            &self.names,
+            self.scope,
+            &|module, name| self.r.export(module, name).ok().map(|x| x.0),
+            d,
+        );
+        def.is_some_and(|def| def == self.names.known.inline || def == self.names.known.cold)
     }
 
     /// `@num_suffix` or `@str_prefix` before a function.
@@ -4264,9 +4278,11 @@ impl Lower<'_, '_, '_> {
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Fn(sig));
                 it.intrinsic = self.intrinsic(n);
                 it.literal_fn = self.literal_fn(n);
-                it.has_facts =
-                    !crate::facts::fact_lines(&self.src, n, |d| self.literal_marker(d).is_some())
-                        .is_empty();
+                it.inline = self.inline_hint(n);
+                it.has_facts = !crate::facts::fact_lines(&self.src, n, |d| {
+                    self.literal_marker(d).is_some() || self.inline_marker(d)
+                })
+                .is_empty();
                 out.push(it);
             }
             HeadKind::Data => {

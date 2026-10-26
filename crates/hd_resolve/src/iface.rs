@@ -454,6 +454,10 @@ pub struct Item {
     /// A function marked `@num_suffix` (`LITERAL_SUFFIX`) or `@str_prefix`
     /// (`LITERAL_PREFIX`), or 0 (`expr.literal-fn.marker`).
     pub literal_fn: u8,
+    /// A function's or method's `@inline` or `@cold` line, as one of
+    /// `INLINE_AUTO`, `INLINE_ALWAYS`, `INLINE_NEVER` and `COLD`, or 0
+    /// (`annot.inline.recognized`).
+    pub inline: u8,
     /// A function whose decorators attach values: `facts_of` of it reads
     /// its facts body (`annot.facts-of.result`).
     pub has_facts: bool,
@@ -485,6 +489,15 @@ pub const LITERAL_SUFFIX: u8 = 1;
 /// `Item::literal_fn` of a prefix function.
 pub const LITERAL_PREFIX: u8 = 2;
 
+/// `Item::inline` of `@inline` and `@inline(.Auto)`.
+pub const INLINE_AUTO: u8 = 1;
+/// `Item::inline` of `@inline(.Always)`.
+pub const INLINE_ALWAYS: u8 = 2;
+/// `Item::inline` of `@inline(.Never)`.
+pub const INLINE_NEVER: u8 = 3;
+/// `Item::inline` of `@cold`.
+pub const COLD: u8 = 4;
+
 impl Item {
     #[must_use]
     pub fn new(def: DefId, name: Symbol, public: bool, data: ItemData) -> Self {
@@ -496,6 +509,7 @@ impl Item {
             intrinsic: None,
             targets: None,
             literal_fn: 0,
+            inline: 0,
             has_facts: false,
             fact_pattern: None,
             fills_defaults: false,
@@ -1170,6 +1184,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u32(it.intrinsic.map_or(u32::MAX, |s| t.sym(s)));
     w.u32(it.targets.map_or(u32::MAX, u32::from));
     w.u8(it.literal_fn);
+    w.u8(it.inline);
     w.u8(u8::from(it.has_facts));
     w.u32(opt_ty(t, it.fact_pattern)?);
     w.u8(u8::from(it.fills_defaults));
@@ -1270,6 +1285,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         m => Some(u16::try_from(m).ok()?),
     };
     let literal_fn = r.u8();
+    let inline = r.u8();
     let has_facts = r.u8() != 0;
     let fact_pattern = get_opt_ty(r, t).ok()?;
     let fills_defaults = r.u8() != 0;
@@ -1355,6 +1371,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         intrinsic,
         targets,
         literal_fn,
+        inline,
         has_facts,
         fact_pattern,
         fills_defaults,
