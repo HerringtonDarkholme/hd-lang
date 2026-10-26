@@ -1,0 +1,15 @@
+fn comparisons(value: u32) -> void:
+    _ := value >= 0
+    _ := 0 <= value
+    _ := value < 0
+    _ := 0 > value
+    _ := value >= 0x0
+    _ := value >= 0u32
+    _ := value <= 0
+
+fn inferred():
+    let remaining = 10
+    remaining >= 0
+
+fn signed(value: i32) -> bool:
+    value >= 0

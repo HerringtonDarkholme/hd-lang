@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 
 use hd_base::DefId;
 use hd_base::StageResult;
-use hd_diag::{Code, FixSafety, Severity};
+use hd_diag::{Code, FixSafety};
 use hd_intern::PathKind;
 use hd_resolve::{ItemData, Src, show_ty_rows_in};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -748,7 +748,7 @@ impl Ck<'_, '_> {
             op,
             TokenKind::Lt | TokenKind::LtEq | TokenKind::Gt | TokenKind::GtEq
         ) {
-            self.warn_unsigned_zero(op, *l, at, *r, ct, n);
+            self.record_comparison(op, *l, at, *r, ct, n);
         }
         // `ref.identity.no-equality`: `==` between two references is
         // ambiguous, so it is an error with a fix-it for each meaning.
@@ -849,20 +849,8 @@ impl Ck<'_, '_> {
         crate::literals::decimal_digits(&digits) && digits.parse::<u64>().ok() == Some(0)
     }
 
-    /// Whether a type is an unsigned integer type at the comparison
-    /// (`expr.ord.unsigned-zero.binding-type`).
-    fn unsigned_now(&self, t: Ty) -> Option<Prim> {
-        let pool = self.pool();
-        match pool.get(self.strip_mut(t)) {
-            TyData::Prim(p) if p.is_unsigned() => Some(p),
-            _ => None,
-        }
-    }
-
-    /// `expr.ord.unsigned-zero`: `t >= 0`, `0 <= t`, `t < 0` and `0 > t`
-    /// with an unsigned `t` warn `unsigned-comparison-always`; the
-    /// program still compiles.
-    fn warn_unsigned_zero(
+    /// Records source and checked operand types only when a tool requested facts.
+    fn record_comparison(
         &mut self,
         op: TokenKind,
         l: NodeRef<'_>,
@@ -871,52 +859,27 @@ impl Ck<'_, '_> {
         ct: Ty,
         n: NodeRef<'_>,
     ) {
-        // Whether `t` is the left operand, and whether the form is
-        // always true.
-        let (t_left, t_node, t_ty, always) = match op {
-            TokenKind::GtEq if self.zero_literal(r) => (true, l, at, true),
-            TokenKind::LtEq if self.zero_literal(l) => (false, r, ct, true),
-            TokenKind::Lt if self.zero_literal(r) => (true, l, at, false),
-            TokenKind::Gt if self.zero_literal(l) => (false, r, ct, false),
-            _ => return,
-        };
-        let Some(p) = self.unsigned_now(t_ty) else {
+        if self.cx.comparisons.is_none() {
             return;
-        };
-        let span = self.cx.src.span(t_node);
-        let name = self
-            .cx
-            .src
-            .text
-            .get(span.lo as usize..span.hi as usize)
-            .unwrap_or("the value");
-        let op_text = match op {
-            TokenKind::GtEq => ">=",
-            TokenKind::LtEq => "<=",
-            TokenKind::Lt => "<",
-            _ => ">",
-        };
-        let ordering = if always {
-            "always true"
-        } else {
-            "always false"
-        };
-        let form = if t_left {
-            format!("{name} {op_text} 0")
-        } else {
-            format!("0 {op_text} {name}")
-        };
-        let mut msg = format!("`{name}` is unsigned, so `{form}` is {ordering}");
-        if p == Prim::Usize {
-            msg.push_str("; consider a signed literal such as `+10` or another condition");
         }
-        self.diags.push(
-            Code::UnsignedComparisonAlways,
-            Severity::Warning,
-            self.cx.src.span(n),
-            &msg,
-            None,
-        );
+        let operand = |node, ty| {
+            let primitive = match self.pool().get(self.strip_mut(ty)) {
+                TyData::Prim(p) => Some(p),
+                _ => None,
+            };
+            crate::comparison::Operand {
+                span: self.cx.src.span(node),
+                primitive,
+                unsuffixed_zero: self.zero_literal(node),
+            }
+        };
+        let fact = crate::comparison::Comparison {
+            span: self.cx.src.span(n),
+            operator: op,
+            left: operand(l, at),
+            right: operand(r, ct),
+        };
+        self.comparisons.push(fact);
     }
 
     /// Applies a binary operator to two checked operands.

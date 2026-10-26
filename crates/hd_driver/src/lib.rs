@@ -598,6 +598,8 @@ pub struct EntryCapability {
 
 /// The result of a run.
 pub struct Output {
+    /// Requested checked source comparisons, without messages or severity policy.
+    pub comparisons: Vec<hd_check::comparison::Comparison>,
     /// Checked entry rows, including capabilities unused by the linked code.
     pub entry_capabilities: Vec<EntryCapability>,
     pub wasm: Option<Vec<u8>>,
@@ -1390,6 +1392,8 @@ fn session_uses(table: &ModuleTable, repl: &ReplInputs, m: usize) -> Vec<String>
 }
 
 struct Run<'a> {
+    collect_comparisons: bool,
+    comparisons: Mutex<Vec<hd_check::comparison::Comparison>>,
     host: &'a Host<'a>,
     package: String,
     /// Whether the root package is a single-file program
@@ -1761,6 +1765,9 @@ pub struct Dependency<'a> {
 /// The packages around a build's root package.
 #[derive(Default)]
 pub struct Packages<'a> {
+    /// Collect root-package source comparisons for tooling, rechecking selected bodies.
+    /// Ordinary runs leave this false and retain their normal cache behavior.
+    pub collect_comparisons: bool,
     /// Source/manifest host declaration metadata, with no authority implied.
     pub host_packages: Vec<HostPackage>,
     /// Expose checked root entry rows for manifest validation. This
@@ -2133,6 +2140,8 @@ pub fn build_packages(
         package_key = key.finish();
     }
     let run = Run {
+        collect_comparisons: packages.collect_comparisons,
+        comparisons: Mutex::new(Vec::new()),
         host,
         package: package.to_owned(),
         single_file: packages.single_file,
@@ -2437,6 +2446,7 @@ pub fn build_packages(
         }
     }
     let mut output = Output {
+        comparisons: lock(&run.comparisons).clone(),
         entry_capabilities,
         tests: cases,
         wasm,
@@ -5510,7 +5520,14 @@ impl Run<'_> {
         lock(&self.counters)
             .check_keys
             .insert(self.table.modules[mi].path.clone(), key);
-        if let Some(sections) = self.lookup(EntryKind::Check, key) {
+        // Source facts are deliberately off-band, not persisted in check entries.
+        // Recheck selected root bodies, while dependencies keep ordinary cache hits.
+        let cached = if self.collect_comparisons && self.table.modules[mi].package == 0 {
+            None
+        } else {
+            self.lookup(EntryKind::Check, key)
+        };
+        if let Some(sections) = cached {
             // The key ignores comments and blank lines, which can still
             // break the parse (a detached documentation comment).
             if !self.parses(mi) {
@@ -5784,6 +5801,8 @@ impl Run<'_> {
             )),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
+            comparisons: (self.collect_comparisons && module.package == 0)
+                .then(std::cell::RefCell::default),
             locals: &locals,
             tests: lowered.tests.as_ref().map(|scope| hd_check::TestsView {
                 blocks: &blocks,
@@ -6327,6 +6346,9 @@ impl Run<'_> {
         let same_folder = |d: DefId| self.item_folder(d) == Some(folder);
         let summary = hd_check::init::summary(&cx, init_facts, &same_folder);
         let dbg = cx.dbg_refs.take();
+        if let Some(facts) = &cx.comparisons {
+            lock(&self.comparisons).extend(facts.take());
+        }
         // A REPL input's interface carries its bindings for later inputs.
         let bindings = if input {
             hd_check::init::input_bindings(&cx)
@@ -7202,6 +7224,7 @@ impl Run<'_> {
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
+            comparisons: None,
             locals: &tlocals,
             tests: None,
             file_name: &self.table.files[tm],
@@ -7277,6 +7300,7 @@ impl Run<'_> {
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
+            comparisons: None,
             locals: &tlocals,
             tests: None,
             file_name: &self.table.files[tm],

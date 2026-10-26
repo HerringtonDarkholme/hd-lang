@@ -32,9 +32,10 @@ struct Options {
     all: bool,
     /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
     packages: Vec<String>,
+    lint: Option<hd_lint::Policy>,
 }
 
-fn options(args: &[OsString]) -> Result<Options, String> {
+fn options(args: &[OsString], command: &str) -> Result<Options, String> {
     let mut o = Options::default();
     let mut i = 0;
     while i < args.len() {
@@ -86,9 +87,9 @@ fn options(args: &[OsString]) -> Result<Options, String> {
                 }
             }
         } else if text.starts_with('-') {
-            return Err(format!("`hd check` has no option `{text}`"));
+            return Err(format!("`hd {command}` has no option `{text}`"));
         } else if o.file.replace(a.clone()).is_some() {
-            return Err("`hd check` takes at most one FILE".to_owned());
+            return Err(format!("`hd {command}` takes at most one FILE"));
         }
     }
     Ok(o)
@@ -107,7 +108,11 @@ struct Target {
 /// What `hd check` checks: FILE's package or FILE alone, the package of the
 /// working directory, or in workspace mode every member
 /// (`cli.workspace.members`).
-fn targets(file: Option<&OsString>, packages: &[String]) -> Result<Vec<Target>, String> {
+fn targets(
+    file: Option<&OsString>,
+    packages: &[String],
+    command: &str,
+) -> Result<Vec<Target>, String> {
     let Some(file) = file else {
         let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
         if !packages.is_empty() {
@@ -139,7 +144,7 @@ fn targets(file: Option<&OsString>, packages: &[String]) -> Result<Vec<Target>, 
                 })
                 .collect();
         }
-        let root = package_of_cwd("check")
+        let root = package_of_cwd(command)
             .map_err(|e| format!("{e}; or pass a FILE to check it as a single-file program"))?;
         return Ok(vec![Target {
             program: disk::load_package(&root, "main")?,
@@ -150,7 +155,7 @@ fn targets(file: Option<&OsString>, packages: &[String]) -> Result<Vec<Target>, 
     let path = Path::new(file);
     if path.extension().is_none_or(|x| x != "hd") {
         return Err(format!(
-            "`{}` is not an .hd file; `hd check` takes a FILE.hd",
+            "`{}` is not an .hd file; `hd {command}` takes a FILE.hd",
             path.display()
         ));
     }
@@ -209,12 +214,19 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     } else {
         &t.program.sources
     };
-    let (mut shown, mut checked) = check_role(&t, store, lib_sources, &Goal::Analyze, &[]);
+    let (mut shown, mut checked) = check_role(&t, store, lib_sources, &Goal::Analyze, &[], o.lint);
     if tests {
         for d in &docs {
             t.program.sources.add_synthetic(&d.path, &d.test.program);
         }
-        let (more, names) = check_role(&t, store, &t.program.sources, &Goal::CheckTests, &docs);
+        let (more, names) = check_role(
+            &t,
+            store,
+            &t.program.sources,
+            &Goal::CheckTests,
+            &docs,
+            o.lint,
+        );
         for x in more {
             if !shown.contains(&x) {
                 shown.push(x);
@@ -239,6 +251,7 @@ fn check_role(
     sources: &disk::DiskSources,
     goal: &Goal,
     docs: &[crate::test_cmd::Doc],
+    lint: Option<hd_lint::Policy>,
 ) -> (Vec<Diag>, Vec<String>) {
     let clock = Wall(Instant::now());
     let host = Host {
@@ -252,12 +265,19 @@ fn check_role(
     // they use, deeply (crates/hd_cli/DESIGN.md §7.2), the modules `shown`
     // keeps.
     let mut packages = t.program.packages();
+    packages.collect_comparisons = lint.is_some();
     packages.check_roots = t.only.as_ref().map(|only| {
         std::iter::once(only.clone())
             .chain(docs.iter().map(|d| d.path.clone()))
             .collect()
     });
-    let out = hd_driver::build_packages(&host, &t.program.package, &packages, goal);
+    let mut out = hd_driver::build_packages(&host, &t.program.package, &packages, goal);
+    if let Some(policy) = lint
+        && !shown(&out, t, docs).iter().any(Diag::is_error)
+    {
+        let findings = hd_lint::analyze(&out.comparisons, &out.texts, policy);
+        out.diags.append(&findings);
+    }
     let mut shown = shown(&out, t, docs);
     for x in &mut shown {
         if let Some(d) = docs.iter().find(|d| x.file.as_ref() == Some(&d.path)) {
@@ -288,18 +308,30 @@ pub(crate) fn check_package(program: disk::Program) -> Vec<Diag> {
 }
 
 pub(crate) fn command(args: &[OsString]) -> ExitCode {
-    let o = match options(args) {
+    command_with(args, None)
+}
+
+pub(crate) fn lint_command(args: &[OsString], policy: hd_lint::Policy) -> ExitCode {
+    command_with(args, Some(policy))
+}
+
+fn command_with(args: &[OsString], lint: Option<hd_lint::Policy>) -> ExitCode {
+    let command = if lint.is_some() { "lint" } else { "check" };
+    let mut o = match options(args, command) {
         Ok(o) => o,
         Err(e) => return fail(&e),
     };
+    o.lint = lint;
     let (mut diags, mut modules_checked) = (Vec::new(), 0);
     // Print, then publish (`crates/hd_cache/DESIGN.md` §5.4): the entries
     // reach the disk when the store drops, after the report.
     let store = DeferredStore::new(crate::disk_store());
     if o.file.is_some() && !o.packages.is_empty() {
-        return fail("`hd check` takes a FILE or `-p NAME`, not both");
+        return fail(&format!(
+            "`hd {command}` takes a FILE or `-p NAME`, not both"
+        ));
     }
-    match targets(o.file.as_ref(), &o.packages) {
+    match targets(o.file.as_ref(), &o.packages, command) {
         Ok(ts) => {
             for t in ts {
                 let member = t.member.clone();
@@ -319,6 +351,16 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
             }
         }
         Err(e) => diags.push(Diag::error(None, &e)),
+    }
+    if lint.is_some() {
+        diags.sort_stable_by(|a, b| {
+            (&a.file, a.line, a.column, a.code.map(Code::as_str)).cmp(&(
+                &b.file,
+                b.line,
+                b.column,
+                b.code.map(Code::as_str),
+            ))
+        });
     }
     let failed = diags.iter().any(Diag::is_error);
     let status = if failed { HD_FAILURE } else { 0 };

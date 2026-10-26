@@ -3,8 +3,10 @@
 Accepted command boundary and migration plan, owner 2026-10-26,
 [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855).
 The earlier review is in [#651](https://github.com/HerringtonDarkholme/hd-lang/issues/651).
-Implementation proceeds in independently checked slices; this record does not
-claim that the lint command or every migration is already implemented.
+Implementation proceeds in independently checked slices. The initial `hd lint`
+command reports `unsigned-comparison-always` with exact-name CLI levels.
+The remaining warnings, manifest policy and site suppressions still await
+their slices; ordinary commands retain those unmigrated warnings.
 Later lints, custom exports, plugins and fixes retain their stated proposal status.
 
 ## Contents
@@ -51,8 +53,8 @@ Today `hd check` checks without running the program and reports
 Whether any fix command should remain is undecided in
 [#805](https://github.com/HerringtonDarkholme/hd-lang/issues/805).
 
-The current command inventory still has no lint implementation.
-All proposed lint output below is a design judgment, not a claim that the command already ran.
+The command now reports the first migrated warning, `unsigned-comparison-always`.
+Output for later new lints below remains a proposal, not an executed result.
 The baseline compiler still emits the warnings inventoried next; this proposal describes their migration.
 
 ## Warning migration inventory
@@ -77,7 +79,7 @@ The inventory below names actual current producers, including ones outside hd_ch
 | `unknown-manifest-key` | [hd_project/manifest.rs](../../crates/hd_project/src/manifest.rs) | Promote the same stable code to an error on load for every command. Preserve Manifest.unknown key paths and lines. Lint reports the loading error too; it does not turn this error into optional advice. |
 | `unreachable-code` | [hd_check/body.rs](../../crates/hd_check/src/body.rs) | Move. Expose source statement reachability from the completed flow analysis. Do not infer this from optimized-away instructions or execute dead branches. |
 | `unselected-main` | hd_driver executable selection | Move. Read source module role, public-main span and the requested executable graph. An actual request for a nonexistent executable remains an ordinary CLI error. |
-| `unsigned-comparison-always` | [hd_check/expr.rs](../../crates/hd_check/src/expr.rs) | Move first. Read checked operand types, source operator and literal spelling; preserve the current literal-zero predicate rather than broaden it to arbitrary constant evaluation. |
+| `unsigned-comparison-always` | [hd_lint](../../crates/hd_lint/src/lib.rs) | Moved. hd_check exposes optional source comparison facts, including the checked primitive, operand spans and unsuffixed-zero classification. The lint owns the decision and message; normal builds collect no facts. |
 | `unused-debug-text` | hd_check format-expression checking in body.rs | Move. Retain the discarded expression-statement span and resolved prelude debug identity. A local function named debug must not match; lowered string-building calls lose that distinction. |
 | `unused-derivation-fact` | hd_resolve/decorators.rs | Move. Read decorator occurrence, supported fact kind, target and consumed-fact identities. Invalid decorators remain resolver errors. |
 | `unused-local-binding` | hd_check body finalization | Move only advisory unused-binding selection. Export binding identity, scope, final type, use/capture state and source line. Unread must-use values remain discarded-must-use-value errors in hd_check. |

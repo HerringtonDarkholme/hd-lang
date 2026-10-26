@@ -50,6 +50,8 @@ pub struct BodyCx<'a> {
     /// Every reference to `dbg` the module's bodies make, which a release
     /// build rejects in the user's own code (`module.dbg.release`).
     pub dbg_refs: std::cell::RefCell<Vec<crate::dbg::DbgRef>>,
+    /// Optional source facts requested by tooling; absent on ordinary builds.
+    pub comparisons: Option<std::cell::RefCell<Vec<crate::comparison::Comparison>>>,
     /// The module's block-local declarations, lifted to hidden items
     /// (`crates/hd_tir/DESIGN.md` "Local items lift to hidden module items").
     pub locals: &'a [hd_resolve::LocalItem],
@@ -214,6 +216,8 @@ pub(crate) enum ExpectPosition {
 
 pub(crate) struct Ck<'a, 'c> {
     pub cx: &'c BodyCx<'a>,
+    /// Body-local append-only facts: failed trials truncate these before publication.
+    pub comparisons: Vec<crate::comparison::Comparison>,
     /// The body's local pool: its types that hold inference variables.
     pub local: &'c hd_types::LocalPool,
     pub b: TirBuilder,
@@ -538,6 +542,7 @@ pub(crate) fn new_ck<'a, 'c>(
     let mut ck = Ck {
         cx,
         local,
+        comparisons: Vec::new(),
         b: TirBuilder::new(item, kind),
         infer: InferTable::default(),
         scopes: vec![HashMap::default()],
@@ -4767,6 +4772,11 @@ impl Ck<'_, '_> {
             .b
             .finish_in(root, &modes, tolerated, &known)
             .map_err(|e| VerifyError::bug(Stage::Body, "TIR verifier", &e))?;
+        if !self.diags.has_errors()
+            && let Some(sink) = &self.cx.comparisons
+        {
+            sink.borrow_mut().extend(self.comparisons);
+        }
         Ok((body, ret, facts))
     }
 }

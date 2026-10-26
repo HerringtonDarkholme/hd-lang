@@ -16,6 +16,7 @@ mod fix_cmd;
 mod fmt_cmd;
 mod help;
 mod install_cmd;
+mod lint_cmd;
 mod new_cmd;
 mod node;
 #[cfg(test)]
@@ -46,6 +47,7 @@ const USAGE: &str = "usage:
   hd --repl [--engine NAME] FILE
   hd build [--release] [--format json] [FILE.hd]
   hd check [FILE.hd] [--tests | --all] [--format json]
+  hd lint [FILE.hd] [--allow CODE | --warn CODE | --deny CODE] [--format json]
   hd doc [--private] [--out DIR] [--open] [--format json]
   hd new [--app | --lib] [--pages] [--vcs none] [PATH]
   hd clean [--cache]
@@ -141,6 +143,7 @@ fn main() -> ExitCode {
         ("run", rest) => run_command(rest),
         ("build", rest) => build_command(rest),
         ("check", rest) => check_cmd::command(rest),
+        ("lint", rest) => lint_cmd::command(rest),
         ("doc", rest) => doc_cmd::command(rest),
         _ if arguments
             .iter()
@@ -218,7 +221,7 @@ fn repl_script_command(args: &[OsString]) -> ExitCode {
 /// Follow command dispatch: a source argument to `fmt` is not a program run.
 fn compiles(command: &str, arguments: &[OsString]) -> bool {
     match command {
-        "run" | "build" | "check" | "test" | "doc" | "fix" => true,
+        "run" | "build" | "check" | "lint" | "test" | "doc" | "fix" => true,
         "install" => !arguments.iter().any(|a| a == "--list"),
         "uninstall" | "--installed" => false,
         "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt"
@@ -246,6 +249,7 @@ fn format_after_command(mut args: Vec<OsString>) -> Vec<OsString> {
                 | "run"
                 | "test"
                 | "check"
+                | "lint"
                 | "doc"
                 | "new"
                 | "add"
@@ -1381,7 +1385,7 @@ mod limit_tests {
 
     #[test]
     fn compiling_follows_dispatch_not_incidental_source_arguments() {
-        for command in ["run", "build", "check", "test", "fix"] {
+        for command in ["run", "build", "check", "lint", "test", "fix"] {
             assert!(compiles(command, &args(&[command])));
         }
         for command in [
@@ -1403,6 +1407,10 @@ mod limit_tests {
         assert_eq!(
             format_after_command(args(&["--format=json", "test"])),
             args(&["test", "--format=json"])
+        );
+        assert_eq!(
+            format_after_command(args(&["--format", "json", "lint", "main.hd"])),
+            args(&["lint", "--format", "json", "main.hd"])
         );
         let file = args(&["--format", "json", "main.hd"]);
         assert_eq!(format_after_command(file.clone()), file);

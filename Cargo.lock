@@ -676,6 +676,7 @@ dependencies = [
  "hd_driver",
  "hd_fmt",
  "hd_host_abi",
+ "hd_lint",
  "hd_project",
  "hd_resolve",
  "hd_run",
@@ -773,6 +774,22 @@ name = "hd_intern"
 version = "0.0.0"
 dependencies = [
  "hd_base",
+]
+
+[[package]]
+name = "hd_lint"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_cache",
+ "hd_check",
+ "hd_diag",
+ "hd_driver",
+ "hd_project",
+ "hd_sched",
+ "hd_syntax",
+ "hd_testkit",
+ "hd_types",
 ]
 
 [[package]]

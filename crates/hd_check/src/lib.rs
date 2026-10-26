@@ -11,6 +11,7 @@ mod call;
 mod callable;
 mod coll;
 mod collide;
+pub mod comparison;
 pub mod conflicts;
 mod conform;
 mod dbg;

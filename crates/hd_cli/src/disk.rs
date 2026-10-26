@@ -286,6 +286,7 @@ impl Program {
     /// The packages around the root, as the driver takes them.
     pub fn packages(&self) -> Packages<'_> {
         Packages {
+            collect_comparisons: false,
             host_packages: self.host_packages.clone(),
             entry_capabilities: true,
             instruction_origins: false,

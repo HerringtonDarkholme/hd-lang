@@ -176,6 +176,30 @@ const COMMANDS: &[Command] = &[
         ],
     },
     Command {
+        name: "lint",
+        summary: "report optional advice without running or rewriting code",
+        usage: "hd lint [-p NAME] [--tests | --all] [--allow CODE] [--warn CODE] [--deny CODE] [FILE]",
+        about: &[
+            "Check prerequisites, then report selected lint findings. unsigned-comparison-always",
+            "reports unsigned comparisons with a literal zero; it defaults to warning.",
+        ],
+        flags: &[
+            PACKAGE,
+            ("--tests", "also inspect test code"),
+            ("--all", "also inspect test code and tasks"),
+            ("--allow CODE", "suppress the named lint"),
+            ("--warn CODE", "report the named lint as a warning"),
+            ("--deny CODE", "report the named lint as an error"),
+            (
+                "--max-errors N",
+                "stop printing diagnostics after the Nth error",
+            ),
+            ("--summary", "print counts per file and diagnostic code"),
+            FORMAT,
+            JOBS,
+        ],
+    },
+    Command {
         name: "doc",
         summary: "write the package's documentation, or print one item's",
         usage: "hd doc [--private] [--out DIR] [--open] [NAME]",

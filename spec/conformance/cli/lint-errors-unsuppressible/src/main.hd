@@ -1,2 +1,3 @@
-pub fn main() -> i32:
-    "not an integer"
+pub fn main() -> void:
+    let value: i32 = "not a number"
+    _ := value

@@ -3407,8 +3407,8 @@ typing/invalid/literal-dependent-no-backward.hd	type	reject:implicit-narrowing	l
 typing/invalid/literal-dependent-no-backward-annotation.hd	type	reject:implicit-narrowing	lang/04-type-system.md#r-types.literal.local.statement
 typing/invalid/literal-erased-any-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.local.erased.reference-values
 runtime/valid/literal-erased-fallback.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.erased.reference-values
-typing/warnings/unsigned-comparison-countdown.hd	type	warn:unsigned-comparison-always	lang/05-expressions.md#r-expr.ord.unsigned-zero.binding-type
-typing/warnings/unsigned-comparison-explicit.hd	type	warn:unsigned-comparison-always	lang/05-expressions.md#r-expr.ord.unsigned-zero.lint
+typing/warnings/unsigned-comparison-countdown.hd	type	accept	lang/05-expressions.md#r-expr.ord.unsigned-zero.binding-type
+typing/warnings/unsigned-comparison-explicit.hd	type	accept	lang/05-expressions.md#r-expr.ord.unsigned-zero.lint
 typing/valid/unsigned-comparison-signed-countdown.hd	type	accept	lang/05-expressions.md#unsigned-comparisons-with-zero
 runtime/panic/sign-fallback-balance-underflow.hd	runtime	panic:integer-overflow	lang/06-control-flow.md#r-flow.panic.report.fallback
 runtime/valid/module-qualified-function-call.hd	runtime	accept	lang/05-expressions.md#r-expr.name.qualified
@@ -5082,3 +5082,4 @@ runtime/panic/never-binary-operand.hd	runtime	panic:explicit-panic	lang/04-type-
 runtime/panic/never-list-element.hd	runtime	panic:explicit-panic	lang/04-type-system.md#r-types.never.assignable
 runtime/panic/never-interpolation-part.hd	runtime	panic:explicit-panic	lang/04-type-system.md#r-types.never.assignable
 runtime/panic/never-if-call-argument.hd	runtime	panic:explicit-panic	lang/04-type-system.md#r-types.never.assignable
+runtime/valid/unsigned-comparison-evaluates-operand.hd	runtime	accept	lang/05-expressions.md#r-expr.order.left-to-right
