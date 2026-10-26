@@ -1,75 +1,71 @@
-# Proposed validation and checked-reader signatures (#846), for review only.
-# Checked readers decode first, then validate the completed value. Not fused.
+# Proposed signatures (#846); bodies are unexecuted stubs.
+# Each fact kind has a distinct type, per review 6408275959.
 use std.annotation.annotate
-use std.cli.{Cli, CliError}
-use std.host.{Args, Env, HostError}
-use std.json.JsonError
-use std.process.ExitCode
-use std.serde.Deserialize
+use std.hash.Hash
 use std.structure.{Structure, Walker, Variant, Field}
-use std.text.Parse
 
 pub enum Mode:
     First
     All
 
-## Structural identity survives each reader's independent field naming.
 @derive(Eq)
 pub enum PathStep:
-    Field(variant: usize, position: usize, name: string)
+    Field(name: string)
     Index(value: usize)
+    Key(name: string)
 
-## Standard checks keep no rejected values, including passwords.
 pub struct Problem:
     pub code: string
     pub message: string
 
 pub struct Violation:
     pub path: List[PathStep]
+    pub display: string
     pub problem: Problem
+    # Owned metadata; never a retained local reference to input.
+    names: ReaderNames
+
+struct ReaderNames:
+    json: string
+    cli: string
+    env: string
 
 @error
 pub enum ValidationError:
-    @error("validation failed: ${issues.len()} issues")
+    @error("${format_issues(&issues, truncated)}")
     Invalid(issues: List[Violation], truncated: bool)
     @error("invalid validation rule: $reason")
     Definition(path: List[PathStep], reason: string)
 
-## Reader spelling, such as $.listenPort, --port or APP_PORT.
-## Opaque handwritten decoders fall back to declared semantic names.
-pub struct Location:
-    pub path: List[PathStep]
-    pub display: string
+impl ValidationError:
+    pub fn for_json(&self) -> ValidationError: panic("todo")
+    pub fn for_cli(&self) -> ValidationError: panic("todo")
+    ## An explicit root names scalar input; records use their own facts.
+    pub fn for_env(&self, root: string = "") -> ValidationError: panic("todo")
+    pub fn issues(&self) -> List[Violation]: panic("todo")
 
-@error
-pub enum CheckedReadError[E]:
-    @error("$cause")
-    Read(@source cause: E)
-    @error("$cause")
-    Validation(@source cause: ValidationError, locations: List[Location])
+# Display emits one line per issue and an optional truncation line.
+fn format_issues(issues: &List[Violation], truncated: bool) -> string: panic("todo")
 
 pub struct ValidationContext:
     placeholder: usize
 
 impl ValidationContext:
-    ## Reject at the current path; completed-record checks use the record root.
-    pub fn reject(&mut self, problem: Problem) -> void: panic("todo")
-    pub fn is_stopped(&self) -> bool: panic("todo")
+    pub fn reject(&mut self, code: string, message: string) -> void: panic("todo")
 
 pub trait Validate:
-    fn collect(self, context: *mut ValidationContext) -> void
-    ## Completed-parent checks run after fields, unless First/the cap stopped.
-    fn record(self, context: *mut ValidationContext) -> void: panic("todo")
+    fn collect(&self, context: &mut ValidationContext) -> void
+    ## Skipped when First/the cap stopped validation before record checks.
+    fn record(&self, context: &mut ValidationContext) -> void: panic("todo")
+    ## Returns the same value without conversion or normalization.
+    fn validated(self, mode: Mode = .All, max_errors: usize = 64) -> Result[Self, ValidationError]: panic("todo")
 
-## Uses only the facts in this Validate derivation; no reader protocol change.
 impl[T] Validate for T by Structure:
     # Required template walk is unreachable: the stub panics before constructing it.
-    fn collect(self, context: *mut ValidationContext) -> void:
+    fn collect(&self, context: &mut ValidationContext) -> void:
         let mut walker: ValidationWalker[T] = panic("todo")
-        _ := Structure::walk(self, &mut walker)
+        _ := Structure::walk(*self, &mut walker)
 
-# The compiler requires a protocol call in a template. This private walker
-# is never constructed: collect panics before reaching the walk.
 struct ValidationWalker[S]: pass
 
 impl[S] Walker[S] for ValidationWalker[S]:
@@ -77,41 +73,197 @@ impl[S] Walker[S] for ValidationWalker[S]:
     fn variant(&mut self, variant: Variant[S]) -> Result[void, never]: panic("todo")
     fn member[F](&mut self, field: Field[S, F], value: F) -> Result[void, never]: panic("todo")
 
-pub struct Rule[F]:
-    placeholder: usize
+# Containers recurse automatically; plain leaves have no-op validation.
+impl[T < Validate] Validate for List[T]:
+    fn collect(&self, context: &mut ValidationContext) -> void: panic("todo")
+impl[T < Validate] Validate for T?:
+    fn collect(&self, context: &mut ValidationContext) -> void: panic("todo")
+impl[K < Eq & Hash & Validate, V < Validate] Validate for Map[K, V]:
+    fn collect(&self, context: &mut ValidationContext) -> void: panic("todo")
+impl Validate for string:
+    fn collect(&self, context: &mut ValidationContext) -> void: panic("todo")
+impl Validate for u8:
+    fn collect(&self, context: &mut ValidationContext) -> void: panic("todo")
+impl Validate for u32:
+    fn collect(&self, context: &mut ValidationContext) -> void: panic("todo")
+impl Validate for bool:
+    fn collect(&self, context: &mut ValidationContext) -> void: panic("todo")
+
+## A private callback in each concrete fact owns its rule data.
+## This protocol composes wrappers; facts remain distinct concrete types.
+pub trait Rule[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void
+    fn message(self, text: string) -> Self
+    fn optional(self) -> Optional[F?]: panic("todo")
+    fn each(self) -> Each[List[F]]: panic("todo")
+
+## Strings count Unicode scalars; collections count elements or entries.
+pub trait HasLength:
+    fn length(&self) -> usize
+impl HasLength for string:
+    fn length(&self) -> usize: panic("todo")
+impl[T] HasLength for List[T]:
+    fn length(&self) -> usize: panic("todo")
+impl[K < Eq & Hash, V] HasLength for Map[K, V]:
+    fn length(&self) -> usize: panic("todo")
 
 @annotate::[F](.Field)
-pub struct Rules[F]:
-    placeholder: usize
+pub struct Range[F]:
+    run: fn(&F, &mut ValidationContext) -> void
+    message: string?
+impl[F] Rule[F] for Range[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> Range[F]: panic("todo")
 
-pub enum TextLengthUnit:
-    Bytes
-    Scalars
+@annotate::[F](.Field)
+pub struct AtLeast[F]:
+    run: fn(&F, &mut ValidationContext) -> void
+    message: string?
+impl[F] Rule[F] for AtLeast[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> AtLeast[F]: panic("todo")
 
-## max_errors must be positive. All retains that many issues; truncated reports more.
-pub fn validate[T < Validate](value: T, mode: Mode = .All, max_errors: usize = 64) -> Result[void, ValidationError]: panic("todo")
-pub fn check[F](test: fn(F) -> Result[void, Problem]) -> Rule[F]: panic("todo")
-pub fn rules[F](items: List[Rule[F]]) -> Rules[F]: panic("todo")
-## Inclusive bounds. Invalid bounds are Definition errors, not input errors.
-pub fn range[F < PartialOrd](low: F, high: F) -> Rule[F]: panic("todo")
-pub fn text_length(min: usize, max: usize, unit: TextLengthUnit = .Scalars) -> Rule[string]: panic("todo")
-pub fn list_length[F](min: usize, max: usize) -> Rule[List[F]]: panic("todo")
-## Regex search semantics; anchor for whole text. Invalid sources fail when visited.
-pub fn pattern(source: string) -> Rule[string]: panic("todo")
-pub fn one_of[F < Eq](values: List[F]) -> Rule[F]: panic("todo")
-## None is accepted; use a completed-record check for conditional presence.
-pub fn optional[F](rule: Rule[F]) -> Rule[F?]: panic("todo")
-pub fn nested[F < Validate]() -> Rule[F]: panic("todo")
-pub fn each[F](rule: Rule[F]) -> Rule[List[F]]: panic("todo")
+@annotate::[F](.Field)
+pub struct AtMost[F]:
+    run: fn(&F, &mut ValidationContext) -> void
+    message: string?
+impl[F] Rule[F] for AtMost[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> AtMost[F]: panic("todo")
 
-# Proposed std.json addition; the reader trait, errors and defaults stay intact.
-pub fn decode_checked[T < Deserialize & Validate](text: string, mode: Mode = .All, max_errors: usize = 64) -> Result[T, CheckedReadError[JsonError]]: panic("todo")
-# Proposed std.cli additions.
-pub fn parse_checked[T < Cli & Validate](arguments: List[string], mode: Mode = .All, max_errors: usize = 64) -> Result[T, CheckedReadError[CliError]]: panic("todo")
-pub fn parse_args_checked[T < Cli & Validate](mode: Mode = .All, max_errors: usize = 64) -> Result[T, CheckedReadError[CliError]] $ Args: panic("todo")
-## Read(Help) keeps stdout/status0; usage/validation errors use stderr/status2.
-pub fn exit_checked(error: CheckedReadError[CliError]) -> ExitCode $ Console: panic("todo")
-# Proposed std.host additions.
-## An unset name remains Ok(None); a set value is parsed and validated once.
-pub fn env_as_checked[T < Parse[Error = E] & Validate, E < Display](name: string, mode: Mode = .All, max_errors: usize = 64) -> Result[T?, CheckedReadError[HostError]] $ Env: panic("todo")
-pub fn env_decode_checked[T < Deserialize & Validate](mode: Mode = .All, max_errors: usize = 64) -> Result[T, CheckedReadError[HostError]] $ Env: panic("todo")
+@annotate::[string](.Field)
+pub struct Length:
+    run: fn(&string, &mut ValidationContext) -> void
+    message: string?
+impl Rule[string] for Length:
+    fn apply(&self, value: &string, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> Length: panic("todo")
+
+@annotate::[List[F]](.Field)
+pub struct ListLength[F]:
+    run: fn(&List[F], &mut ValidationContext) -> void
+    message: string?
+impl[F] Rule[List[F]] for ListLength[F]:
+    fn apply(&self, value: &List[F], context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> ListLength[F]: panic("todo")
+
+@annotate::[F](.Field)
+pub struct NonEmpty[F]:
+    run: fn(&F, &mut ValidationContext) -> void
+    message: string?
+impl[F] Rule[F] for NonEmpty[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> NonEmpty[F]: panic("todo")
+
+@annotate::[string](.Field)
+pub struct ByteLength:
+    run: fn(&string, &mut ValidationContext) -> void
+    message: string?
+impl Rule[string] for ByteLength:
+    fn apply(&self, value: &string, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> ByteLength: panic("todo")
+
+@annotate::[string](.Field)
+pub struct Pattern:
+    run: fn(&string, &mut ValidationContext) -> void
+    message: string?
+impl Rule[string] for Pattern:
+    fn apply(&self, value: &string, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> Pattern: panic("todo")
+
+@annotate::[string](.Field)
+pub struct Email:
+    run: fn(&string, &mut ValidationContext) -> void
+    message: string?
+impl Rule[string] for Email:
+    fn apply(&self, value: &string, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> Email: panic("todo")
+
+@annotate::[string](.Field)
+pub struct Url:
+    run: fn(&string, &mut ValidationContext) -> void
+    message: string?
+impl Rule[string] for Url:
+    fn apply(&self, value: &string, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> Url: panic("todo")
+
+@annotate::[string](.Field)
+pub struct Uuid:
+    run: fn(&string, &mut ValidationContext) -> void
+    message: string?
+impl Rule[string] for Uuid:
+    fn apply(&self, value: &string, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> Uuid: panic("todo")
+
+@annotate::[F](.Field)
+pub struct OneOf[F]:
+    run: fn(&F, &mut ValidationContext) -> void
+    message: string?
+impl[F] Rule[F] for OneOf[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> OneOf[F]: panic("todo")
+
+@annotate::[F](.Field)
+pub struct Check[F]:
+    run: fn(&F, &mut ValidationContext) -> void
+    message: string?
+impl[F] Rule[F] for Check[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> Check[F]: panic("todo")
+
+@annotate::[F](.Field)
+pub struct Optional[F]:
+    run: fn(&F, &mut ValidationContext) -> void
+    message: string?
+impl[F] Rule[F] for Optional[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> Optional[F]: panic("todo")
+
+@annotate::[F](.Field)
+pub struct Each[F]:
+    run: fn(&F, &mut ValidationContext) -> void
+    message: string?
+impl[F] Rule[F] for Each[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> Each[F]: panic("todo")
+
+@annotate::[F](.Field)
+pub struct Unique[F]:
+    run: fn(&F, &mut ValidationContext) -> void
+    message: string?
+impl[F] Rule[F] for Unique[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> Unique[F]: panic("todo")
+
+@annotate::[F](.Field)
+pub struct Keys[F]:
+    run: fn(&F, &mut ValidationContext) -> void
+    message: string?
+impl[F] Rule[F] for Keys[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> Keys[F]: panic("todo")
+
+@annotate::[F](.Field)
+pub struct Values[F]:
+    run: fn(&F, &mut ValidationContext) -> void
+    message: string?
+impl[F] Rule[F] for Values[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void: panic("todo")
+    fn message(self, text: string) -> Values[F]: panic("todo")
+
+pub fn check[F](test: fn(&F) -> Result[void, Problem]) -> Check[F]: panic("todo")
+pub fn range[F < PartialOrd](low: F, high: F) -> Range[F]: panic("todo")
+pub fn at_least[F < PartialOrd](low: F) -> AtLeast[F]: panic("todo")
+pub fn at_most[F < PartialOrd](high: F) -> AtMost[F]: panic("todo")
+pub fn length(min: usize, max: usize) -> Length: panic("todo")
+pub fn list_length[F](min: usize, max: usize) -> ListLength[F]: panic("todo")
+pub fn non_empty[F < HasLength]() -> NonEmpty[F]: panic("todo")
+pub fn byte_length(min: usize, max: usize) -> ByteLength: panic("todo")
+pub fn pattern(source: string) -> Pattern: panic("todo")
+pub fn email() -> Email: panic("todo")
+pub fn url() -> Url: panic("todo")
+pub fn uuid() -> Uuid: panic("todo")
+pub fn one_of[F < Eq](values: List[F]) -> OneOf[F]: panic("todo")
+pub fn unique[F < Eq & Hash]() -> Unique[List[F]]: panic("todo")
+pub fn keys[K < Eq & Hash, V, R < Rule[K]](rule: R) -> Keys[Map[K, V]]: panic("todo")
+pub fn values[K < Eq & Hash, V, R < Rule[V]](rule: R) -> Values[Map[K, V]]: panic("todo")
