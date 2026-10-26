@@ -1,7 +1,7 @@
 # test: text operations agree with naive byte and scalar models on UTF-8 inputs
 # Spec std/text: std-text.string.split, std-text.string.replace, std-text.more.find,
 # std-text.string.trim, std-text.more.trim-ends, std-text.utf8.round-trip,
-# std-text.utf8.well-formed, std-text.builder.build-empties; module.string.chars.
+# std-text.utf8.well-formed, std-text.builder.build-local; module.string.chars.
 use std.text.{StringBuilder, Utf8Error}
 use std.testing.{Choices, assert_equal, it_each, it_prop_with}
 
