@@ -5,6 +5,7 @@
 //! Types that hold inference variables live in the checked body's
 //! `LocalPool` instead; [`Types`] reads and builds through both.
 
+use hd_base::SliceSort as _;
 use std::cell::RefCell;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -882,9 +883,9 @@ impl<'a> Types<'a> {
                 keys.push(*k);
             }
         }
-        keys.sort_by_key(|t| t.0);
+        keys.sort_stable_by_key(|t| t.0);
         keys.dedup();
-        params.sort_by_key(|p| (p.owner.raw(), p.index));
+        params.sort_stable_by_key(|p| (p.owner.raw(), p.index));
         params.dedup();
         let mut meta = keys.iter().fold(0, |m, t| m | self.meta_of(*t));
         if !params.is_empty() {
@@ -1063,7 +1064,7 @@ impl<'a> Types<'a> {
                 bindings,
             } => {
                 let mut b = bindings.clone();
-                b.sort_by_key(|(d, _)| d.raw());
+                b.sort_stable_by_key(|(d, _)| d.raw());
                 let mut w = vec![def.raw(), args.0, u32::try_from(b.len()).expect("bindings")];
                 for (d, t) in b {
                     w.push(d.raw());

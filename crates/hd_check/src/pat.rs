@@ -7,6 +7,7 @@
 //! is Maranget's usefulness test over the arm patterns.
 
 use hd_base::HashMap;
+use hd_base::SliceSort as _;
 
 use hd_base::{LocalId, NodeIdx, StageResult};
 use hd_diag::{Code, Severity};
@@ -2014,7 +2015,7 @@ impl Ck<'_, '_> {
                 starts.extend([l, h + 1].into_iter().filter(|c| *c > lo && *c <= hi));
             }
         }
-        starts.sort_unstable();
+        starts.sort_stable();
         starts.dedup();
         starts.iter().enumerate().any(|(i, &s)| {
             let e = starts.get(i + 1).map_or(hi, |n| n - 1);

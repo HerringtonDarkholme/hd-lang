@@ -3,6 +3,7 @@
 //! answers from the solver. Programs build through the driver and run on
 //! V8 (`host/run.mjs`), as the conformance runner does.
 
+use hd_base::SliceSort as _;
 use std::path::Path;
 use std::process::Command;
 
@@ -175,7 +176,7 @@ pub fn kept(b: Box[*User]) -> i32: 0
     };
     let out = build(&host, "app", &Goal::Analyze);
     let mut msgs = messages(&out);
-    msgs.sort();
+    msgs.sort_stable();
     assert_eq!(
         msgs,
         [

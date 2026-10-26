@@ -2,6 +2,7 @@
 //! the package or of each workspace member, or the cache directory's
 //! fetched versions and compiled entries. Never source or a manifest.
 
+use hd_base::SliceSort as _;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -111,7 +112,7 @@ fn clean_cache() -> Result<Vec<String>, String> {
     }
     let mut versions = Vec::new();
     versions_in(&real.join("pkg"), &real.join("pkg"), &mut versions);
-    versions.sort();
+    versions.sort_stable();
     for name in &present {
         remove(&real.join(name))?;
     }

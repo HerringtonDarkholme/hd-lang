@@ -1,6 +1,7 @@
 //! The disk `SourceSet` and program discovery: the package root, its
 //! name from `hd.toml`, and the entry module.
 
+use hd_base::SliceSort as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -41,7 +42,7 @@ impl DiskSources {
             path: path.to_owned(),
             size: text.len() as u64,
         });
-        self.files.sort_by(|a, b| a.path.cmp(&b.path));
+        self.files.sort_stable_by(|a, b| a.path.cmp(&b.path));
         self.synthetic
             .push((path.to_owned(), Arc::from(text.as_bytes())));
     }
@@ -186,7 +187,7 @@ fn walk_below(
     let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let mut paths: Vec<(PathBuf, Kind)> =
         entries.flatten().map(|e| (e.path(), kind_of(&e))).collect();
-    paths.sort_by(|a, b| a.0.cmp(&b.0));
+    paths.sort_stable_by(|a, b| a.0.cmp(&b.0));
     for (p, kind) in paths {
         let name = p
             .file_name()
@@ -1135,7 +1136,7 @@ fn manifest_problems(
         ));
     }
     out.extend(executable_problems(root, &m));
-    out.sort_by_key(|(line, _)| *line);
+    out.sort_stable_by_key(|(line, _)| *line);
     if let Some(d) = unlisted_member(root)? {
         out.insert(0, (None, d));
     }
@@ -1306,7 +1307,7 @@ pub fn tasks(root: &Path) -> Vec<Runnable> {
             })
         })
         .collect();
-    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out.sort_stable_by(|a, b| a.name.cmp(&b.name));
     out
 }
 

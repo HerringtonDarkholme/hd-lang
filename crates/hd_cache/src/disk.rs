@@ -618,6 +618,7 @@ impl Ledger {
 /// Immutable data packs. The index is the only publication point; a pack's
 /// exclusive file lock leases it until publication, or until its writer dies.
 mod packed {
+    use hd_base::SliceSort as _;
     use std::collections::{BTreeMap, BTreeSet};
     use std::fs::{File, OpenOptions, TryLockError};
     use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -1208,7 +1209,7 @@ mod packed {
                     .iter()
                     .map(|(&key, loc)| (loc.used, key))
                     .collect::<Vec<_>>();
-                order.sort_unstable();
+                order.sort_stable();
                 for (_, key) in order {
                     let overhead = if entries.is_empty() {
                         0

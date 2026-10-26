@@ -11,6 +11,7 @@
 //! `T?`, `List[T]`, tuples and the primitives are the language's, and a
 //! host handle (`HANDLES`) crosses as its handle number.
 
+use hd_base::SliceSort as _;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -89,7 +90,7 @@ fn std_decls() -> BTreeMap<String, Vec<(String, Decl)>> {
             }
         }
     }
-    files.sort();
+    files.sort_stable();
     for f in files {
         let src = std::fs::read_to_string(&f).expect("std file");
         let p = hd_syntax::parse(src.as_bytes());

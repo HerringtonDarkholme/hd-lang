@@ -8,6 +8,7 @@
 //! outcome, so it errs on the side of including an input: a stale skip
 //! hides a failure, while an extra run only costs time.
 
+use hd_base::SliceSort as _;
 use std::path::{Path, PathBuf};
 
 use hd_base::{Hash128, StableHasher};
@@ -131,7 +132,7 @@ pub(crate) fn common(s: &Settings<'_>) -> Hash128 {
 /// imports `std.host.Env` may read. Only their hash is kept.
 pub(crate) fn environment() -> Hash128 {
     let mut vars: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
-    vars.sort();
+    vars.sort_stable();
     let mut h = StableHasher::new("hd-test-environment");
     for (name, value) in vars {
         h.str(&name.to_string_lossy());
@@ -227,7 +228,7 @@ fn walk(h: &mut StableHasher, root: &Path, dir: &Path, skip: &dyn Fn(&str) -> bo
         return;
     };
     let mut entries: Vec<_> = entries.flatten().collect();
-    entries.sort_by_key(std::fs::DirEntry::file_name);
+    entries.sort_stable_by_key(std::fs::DirEntry::file_name);
     for e in entries {
         let name = e.file_name();
         let name = name.to_string_lossy();

@@ -10,6 +10,7 @@
 //! member.
 
 use hd_base::HashMap;
+use hd_base::SliceSort as _;
 
 use hd_base::{DefId, Symbol};
 use hd_resolve::{ImplKind, Item, ItemData, Lookup, Names};
@@ -145,7 +146,7 @@ pub fn promotion_conflicts(
     }
     let mut keys: Vec<_> = table.keys().copied().collect();
     // Content order (`crates/hd_sched/DESIGN.md` §6.5): by name text, not symbol id.
-    keys.sort_by_cached_key(|(ns, n)| (*ns as u8, names.text(*n).to_owned()));
+    keys.sort_stable_by_cached_key(|(ns, n)| (*ns as u8, names.text(*n).to_owned()));
     for key in keys {
         let members = &table[&key];
         let name = names.text(key.1);

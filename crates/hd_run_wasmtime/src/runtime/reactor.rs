@@ -8,6 +8,7 @@
 //! host call. The driver and `hd:rt` `block` wait here for the next
 //! completion: a timer's deadline or a delivery, whichever comes first.
 
+use hd_base::SliceSort as _;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::future::Future;
 use std::io::BufRead;
@@ -522,7 +523,7 @@ impl Reactor {
             self.timers.pop_first();
             due.push((at, h));
         }
-        due.sort_unstable();
+        due.sort_stable();
         for (_, h) in &due {
             if let Some(op) = self.ops.get_mut(h)
                 && !op.completed

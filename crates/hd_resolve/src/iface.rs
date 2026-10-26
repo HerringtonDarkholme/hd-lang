@@ -4,6 +4,7 @@
 //! blob carries them through entry-local tables.
 
 use hd_base::HashMap;
+use hd_base::SliceSort as _;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -619,7 +620,7 @@ pub fn std_import_hint<'a>(
     }
     let mut paths: Vec<String> = items.into_values().map(|(_, path)| path).collect();
     paths.extend(modules);
-    paths.sort();
+    paths.sort_stable();
     paths.dedup();
     match paths.as_slice() {
         [] => String::new(),
@@ -1408,7 +1409,7 @@ pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> St
     w.bytes.extend_from_slice(&index.bytes);
     w.blob(&body.bytes);
     let mut ex: Vec<&Export> = exports.iter().collect();
-    ex.sort_by(|a, b| {
+    ex.sort_stable_by(|a, b| {
         (a.module.as_str(), names.text(a.name)).cmp(&(b.module.as_str(), names.text(b.name)))
     });
     w.len_of(&ex);
@@ -1703,7 +1704,7 @@ impl<'a> IntoIterator for &'a Items {
 #[must_use]
 pub fn deep_hash(api_hash: Hash128, mentions: &[(String, Hash128)]) -> Hash128 {
     let mut m: Vec<&(String, Hash128)> = mentions.iter().collect();
-    m.sort();
+    m.sort_stable();
     let mut h = StableHasher::new("deep");
     h.hash(api_hash);
     h.u32(u32::try_from(m.len()).expect("mentions"));
@@ -1973,7 +1974,7 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             _ => None,
         })
         .collect();
-    rows.sort_by_key(|r| (names.path_hash(r.0), r.6));
+    rows.sort_stable_by_key(|r| (names.path_hash(r.0), r.6));
     let mut t = ImplTable::default();
     for (n, (trait_, def, self_ty, args, kind, n_params, rank)) in rows.into_iter().enumerate() {
         let n = u32::try_from(n).expect("impls");
@@ -2226,13 +2227,13 @@ fn show_row_in(
         .iter()
         .map(|k| show_ty_opts(names, pool, *k, false, qualified))
         .collect();
-    parts.sort();
+    parts.sort_stable();
     let mut ps: Vec<String> = d
         .params
         .iter()
         .map(|p| names.param_name(p.owner, p.index))
         .collect();
-    ps.sort();
+    ps.sort_stable();
     parts.extend(ps);
     format!("$ {}", parts.join(" + "))
 }

@@ -7,6 +7,7 @@
 //! from signatures and layouts, never from another body, and remembers
 //! each answer for the run.
 
+use hd_base::SliceSort as _;
 use std::cell::RefCell;
 use std::fmt::Write as _;
 
@@ -852,7 +853,7 @@ impl Run<'_> {
                 out
             };
             let mut own = |members: &mut Vec<DefId>, recursive: bool| {
-                members.sort_by_cached_key(|&m| self.names().path(m));
+                members.sort_stable_by_cached_key(|&m| self.names().path(m));
                 // Writes, before the passes read them: the least fixed
                 // point over the component, from every member writing
                 // nothing (a member with no inlined body writes).
@@ -895,6 +896,7 @@ impl Run<'_> {
 
 #[cfg(test)]
 mod tests {
+    use hd_base::SliceSort as _;
     use std::cell::RefCell;
     use std::collections::BTreeMap;
 
@@ -911,7 +913,7 @@ mod tests {
         for &root in roots {
             let done = |n: u32| out.borrow().contains_key(&n);
             let mut scc = |members: &mut Vec<u32>, recursive: bool| {
-                members.sort_unstable();
+                members.sort_stable();
                 let mut out = out.borrow_mut();
                 for &m in members.iter() {
                     let mut s = u64::from(m) + 1;

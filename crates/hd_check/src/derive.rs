@@ -24,6 +24,7 @@
 //! the instance check is dropped: the template's module reports the
 //! template's own mistakes.
 
+use hd_base::SliceSort as _;
 use std::cell::{Cell, RefCell};
 
 use hd_base::{DefId, StageResult};
@@ -381,7 +382,7 @@ pub fn check_opt_in(
         bodies.clear();
     }
     let mut failed = opt.failed.take();
-    failed.sort_by_key(|f| f.0);
+    failed.sort_stable_by_key(|f| f.0);
     failed.dedup_by_key(|f| f.0);
     let names = &cx.names;
     let target = hd_resolve::show_ty(names, opt.target);
@@ -400,7 +401,7 @@ pub fn check_opt_in(
         })
         .collect();
     let mut skipped = opt.skipped.borrow().clone();
-    skipped.sort_unstable();
+    skipped.sort_stable();
     let no_default: Vec<(usize, String)> = skipped
         .into_iter()
         .filter(|&i| opt.builds.get() && !opt.members[i].has_default)

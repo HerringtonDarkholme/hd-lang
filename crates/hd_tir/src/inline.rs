@@ -8,6 +8,7 @@
 //! ([`crate::ir::map_body_types`]); choosing what to inline is the
 //! driver's.
 
+use hd_base::SliceSort as _;
 use hd_base::{DefId, NodeIdx};
 use hd_types::{Ty, TyList};
 
@@ -210,7 +211,7 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
     }
     permute_columns(b, &order);
     if b.fallback.len() > rows {
-        b.fallback.sort_by_key(|r| r[0]);
+        b.fallback.sort_stable_by_key(|r| r[0]);
     }
     Ok(copied)
 }
@@ -369,7 +370,7 @@ fn relocate(k: &mut Body, xbase: u32, lbase: u32, lab: u32, label: u32) {
             k.data[i] = [label, k.data[i][0]];
         }
     }
-    places.sort_unstable();
+    places.sort_stable();
     places.dedup();
     for at in places {
         if k.extra[at + 1] == place::ROOT_LOCAL {

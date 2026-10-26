@@ -6,6 +6,7 @@
 //! Constants: `Ref::konst(i)` names row `i` of the body's own constant
 //! column (`consts`), so a body and its TIR hash need no run-wide table.
 
+use hd_base::SliceSort as _;
 use std::fmt::Write as _;
 
 use hd_base::{
@@ -1800,7 +1801,7 @@ pub fn verify_in(b: &Body, cx: &dyn VerifyCx) -> Vec<VerifyError> {
                 let (cases, default) = r.split_at(r.len().saturating_sub(1));
                 if default.first().is_some_and(|d| *d == NONE) {
                     let mut seen: Vec<u32> = cases.iter().step_by(2).copied().collect();
-                    seen.sort_unstable();
+                    seen.sort_stable();
                     seen.dedup();
                     let have = u32::try_from(seen.len()).expect("cases");
                     if let Some(n) = ty_of(a).and_then(|t| cx.variant_count(t))
@@ -1942,7 +1943,7 @@ pub fn global_place_types(b: &Body) -> Vec<usize> {
         })
         .map(|(word, _)| word as usize + 3)
         .collect();
-    out.sort_unstable();
+    out.sort_stable();
     out.dedup();
     out
 }
@@ -1982,7 +1983,7 @@ pub fn defer_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
             tag => is_suspension(tag),
         })
         .collect();
-    out.sort_unstable();
+    out.sort_stable();
     out
 }
 
@@ -2379,7 +2380,7 @@ fn constant_rows(b: &Body, errs: &mut Vec<VerifyError>) {
         let mut rows = slot_words(b, i, |s| matches!(s, Word::Value(_) | Word::Provider));
         rows.retain(|&v| v != NONE && v & Ref::CONST_BIT != 0);
         // A constant can fill two slots.
-        rows.sort_unstable();
+        rows.sort_stable();
         rows.dedup();
         for k in rows.into_iter().map(|v| v & !Ref::CONST_BIT) {
             if k as usize >= b.consts.len() {

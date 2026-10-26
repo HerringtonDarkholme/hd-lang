@@ -4,6 +4,7 @@
 //! (spec/lang/04-type-system.md types.num.no-implicit.wider,
 //! types.num.no-implicit.fix). Narrowing and mixed families offer none.
 
+use hd_base::SliceSort as _;
 use hd_diag::{Code, DiagBuf};
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
@@ -55,7 +56,7 @@ fn apply_fixes(main: &str, diags: &DiagBuf) -> String {
             ));
         }
     }
-    edits.sort_by_key(|e| std::cmp::Reverse((e.0, e.1)));
+    edits.sort_stable_by_key(|e| std::cmp::Reverse((e.0, e.1)));
     let mut out = main.to_owned();
     for (lo, hi, text) in edits {
         out.replace_range(lo..hi, &text);

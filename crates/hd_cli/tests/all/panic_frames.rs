@@ -12,6 +12,7 @@
 //! (trait.typeid.name.package, trait.typeid.name.single-file). Repeated
 //! frames print once, then how many more times they repeat.
 
+use hd_base::SliceSort as _;
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -503,7 +504,7 @@ fn runtime_helper_names_are_short_and_readable() {
         );
     }
     let mut sorted = rt.clone();
-    sorted.sort();
+    sorted.sort_stable();
     sorted.dedup();
     assert_eq!(sorted.len(), rt.len(), "a helper name repeats: {rt:?}");
 }

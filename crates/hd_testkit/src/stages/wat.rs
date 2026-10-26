@@ -26,6 +26,7 @@
 //!   lines and omitted code are comments; control delimiters remain so
 //!   a filtered body parses without pretending it validates.
 
+use hd_base::SliceSort as _;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
@@ -237,7 +238,7 @@ pub fn wat_for(p: &Program, at: Build) -> String {
                 .map(|(k, _)| *k)
                 .filter(|k| (*k as usize) >= ty.params().len())
                 .collect();
-            declared.sort_unstable();
+            declared.sort_stable();
             for l in declared {
                 let _ = write!(
                     out,

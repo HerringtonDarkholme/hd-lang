@@ -10,6 +10,7 @@
 //! around a loop. Integer arithmetic follows §13.15 of
 //! `crates/hd_mono/DESIGN.md`, including its panic checks.
 
+use hd_base::SliceSort as _;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::op::Op as Instruction;
@@ -329,7 +330,7 @@ fn body_func<'a>(
     // every return must publish the cached value and end fact evaluation.
     em.counting = em.counts_anything() || once.is_some();
     let mut held: Vec<(usize, Vec<u32>)> = em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-    held.sort_unstable();
+    held.sort_stable();
     if em.counting {
         em.ret = results.iter().map(|v| em.f.local(*v)).collect();
     }
@@ -455,7 +456,7 @@ fn body_func<'a>(
     if em.f.local_names.is_some() {
         let mut named: Vec<(usize, Vec<u32>)> =
             em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        named.sort_unstable();
+        named.sort_stable();
         for (l, ls) in named {
             if let [w] = ls[..] {
                 em.f.name_local(w, format!("${l}"));

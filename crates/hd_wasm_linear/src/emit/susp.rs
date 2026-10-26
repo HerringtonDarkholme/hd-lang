@@ -9,6 +9,7 @@
 //! whatever its condition was.
 
 use crate::op::Op as I;
+use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap, StageResult};
 use hd_mono::{Target, TargetKind};
 use hd_tir::ir::{Body, NONE, Tag};
@@ -1245,7 +1246,7 @@ pub(super) fn finish(
         em.f.op(I::If(BlockType::Empty));
         let mut places: Vec<(Option<u32>, Option<usize>, Vec<u32>)> = Vec::new();
         let mut vals: Vec<(u32, Vec<u32>)> = em.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        vals.sort_unstable();
+        vals.sort_stable();
         for (i, ls) in vals {
             if !em.loans.contains(&i) {
                 places.push((Some(i), None, ls));
@@ -1253,7 +1254,7 @@ pub(super) fn finish(
         }
         let mut locals: Vec<(usize, Vec<u32>)> =
             em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        locals.sort_unstable();
+        locals.sort_stable();
         for (l, ls) in locals {
             if !em.loan_locals.contains_key(&l) {
                 places.push((None, Some(l), ls));
@@ -1294,7 +1295,7 @@ pub(super) fn finish(
             .as_ref()
             .map(|s| s.alls.iter().map(|(k, v)| (*k, v.clone())).collect())
             .unwrap_or_default();
-        alls.sort_unstable_by_key(|x| x.0);
+        alls.sort_stable_by_key(|x| x.0);
         for (_, all) in alls {
             let Some((dat, dv)) = at_of(all.done) else {
                 continue;

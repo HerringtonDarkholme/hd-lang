@@ -2,6 +2,7 @@
 //! (`cli.dep.implicit-fetch`, `cli.dep.fetch`). A version the cache holds
 //! needs no git and no network (`cli.dep.offline`).
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -295,7 +296,7 @@ impl<'a> Remote<'a> {
                     .filter_map(|t| tag_version(host, t))
                     .filter(|v| compatibility_line(v) == compatibility_line(version))
                     .collect();
-                near.sort();
+                near.sort_stable();
                 let line = compatibility_line(version);
                 let listed = if near.is_empty() {
                     format!("it has no tag on line {line}")

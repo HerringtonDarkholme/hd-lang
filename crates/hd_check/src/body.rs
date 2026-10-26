@@ -8,6 +8,7 @@
 //! Expressions are in `expr`, calls and member lookup in `call`, patterns
 //! and `match` in `pat`, annotations in `ty`.
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::fmt::Write as _;
 
@@ -3102,7 +3103,7 @@ impl Ck<'_, '_> {
                 choices.push(format!("`{qualifier}::{member}({args})`"));
             }
         }
-        choices.sort();
+        choices.sort_stable();
         choices.dedup();
         if choices.is_empty() {
             format!(

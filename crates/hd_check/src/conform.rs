@@ -4,6 +4,7 @@
 //! arguments). Error: `trait-method-signature`.
 
 use hd_base::DefId;
+use hd_base::SliceSort as _;
 use hd_diag::Code;
 use hd_resolve::{FnSig, ImplKind, ItemData, Lookup, Names};
 use hd_syntax::NodeRef;
@@ -389,8 +390,8 @@ impl Ck<'_, '_> {
         for (w, g) in want.generics.iter().zip(&got.generics) {
             let mut wb: Vec<Ty> = w.bounds.iter().map(|b| inst(*b)).collect();
             let mut gb = g.bounds.clone();
-            wb.sort_by_key(|t| t.0);
-            gb.sort_by_key(|t| t.0);
+            wb.sort_stable_by_key(|t| t.0);
+            gb.sort_stable_by_key(|t| t.0);
             if wb != gb && !free_bounds {
                 return Some("a type parameter's bounds");
             }

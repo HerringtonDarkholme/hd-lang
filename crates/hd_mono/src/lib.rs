@@ -13,6 +13,7 @@ pub mod layout;
 pub mod opaque;
 pub mod plan;
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -273,7 +274,7 @@ pub fn key_order(
         .filter(|k| matches!(pool.get(*k), TyData::TraitValue { .. }))
         .map(|k| (canon(pool, path_hash, &mut memo, k), k))
         .collect();
-    keyed.sort_by_key(|p| p.0);
+    keyed.sort_stable_by_key(|p| p.0);
     keyed.dedup_by_key(|p| p.0);
     keyed.into_iter().map(|p| p.1).collect()
 }
@@ -1130,7 +1131,7 @@ fn layout_hash(
         .into_iter()
         .map(|d| declarations_hash(pool, env, d, canons, memo))
         .collect();
-    hashes.sort_unstable();
+    hashes.sort_stable();
     hashes.dedup();
     h.u32(u32::try_from(hashes.len()).expect("items"));
     for x in hashes {
@@ -1181,7 +1182,7 @@ fn declarations_hash(
             h.hash(canon(pool, &ph, canons, t));
             items_in(pool, t, &mut names, &mut seen);
         }
-        names.sort_unstable_by_key(|n| n.raw());
+        names.sort_stable_by_key(|n| n.raw());
         names.dedup();
         (h.finish(), names)
     };
@@ -1235,8 +1236,8 @@ fn declarations_hash(
                 }
             }
         }
-        owns.sort_unstable();
-        outside.sort_unstable();
+        owns.sort_stable();
+        outside.sort_stable();
         outside.dedup();
         let mut h = StableHasher::new("declarations");
         h.u32(u32::try_from(owns.len()).expect("items"));

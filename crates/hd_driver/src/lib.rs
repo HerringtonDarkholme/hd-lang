@@ -15,6 +15,7 @@
 //! becomes an internal `unsupported` diagnostic, which is an error.
 //! `analyze_package` runs the same code and only reports the counts.
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -1233,7 +1234,7 @@ impl ReplInputs {
             .enumerate()
             .filter_map(|(k, n)| Some(((*n)?, k)))
             .collect();
-        sorted.sort_unstable();
+        sorted.sort_stable();
         let visible: Vec<(u32, usize)> = sorted
             .iter()
             .filter(|(n, _)| !failed.contains(n))
@@ -2600,7 +2601,7 @@ fn folder_display(table: &ModuleTable, f: usize) -> String {
         .iter()
         .map(|m| table.files[m.idx()].as_str())
         .collect();
-    files.sort_unstable();
+    files.sort_stable();
     if let Some(dir) = files.iter().find_map(|p| p.strip_suffix("/mod.hd")) {
         return dir.to_owned();
     }
@@ -4799,7 +4800,7 @@ impl Run<'_> {
             .map(hd_base::ModuleId::idx)
             .filter(|x| *x != m)
             .collect();
-        v.sort_unstable();
+        v.sort_stable();
         v.dedup();
         v
     }
@@ -4834,7 +4835,7 @@ impl Run<'_> {
             .into_iter()
             .filter(|g| g.len() > 1 && g.iter().filter(|m| initializes(**m)).count() > 1)
             .map(|mut g| {
-                g.sort_by(|a, b| {
+                g.sort_stable_by(|a, b| {
                     self.table.modules[*a]
                         .path
                         .cmp(&self.table.modules[*b].path)
@@ -5440,7 +5441,9 @@ impl Run<'_> {
                         Some((p, trait_))
                     })
                     .collect();
-                ts.sort_by(|a, b| (&a.0, a.1.map(DefId::raw)).cmp(&(&b.0, b.1.map(DefId::raw))));
+                ts.sort_stable_by(|a, b| {
+                    (&a.0, a.1.map(DefId::raw)).cmp(&(&b.0, b.1.map(DefId::raw)))
+                });
                 ts.dedup();
                 ts
             });
@@ -6769,7 +6772,7 @@ impl Run<'_> {
                 diags.error(f.code, self.item_span(f.item, f.slot), &f.message);
             }
         }
-        found.sort_by_key(|f| (f.item, f.slot));
+        found.sort_stable_by_key(|f| (f.item, f.slot));
         // A field that misses several derived comparison traits is one
         // error at the field, for the first trait (spec 09
         // `trait.derive.field-missing-trait`).
@@ -7827,7 +7830,7 @@ impl Run<'_> {
         };
         let mut reported = hd_base::HashSet::default();
         let mut ordered: Vec<_> = facts.iter().collect();
-        ordered.sort_by_key(|(_, (_, span))| (span.file.raw(), span.lo));
+        ordered.sort_stable_by_key(|(_, (_, span))| (span.file.raw(), span.lo));
         for (_, (fact, fallback)) in ordered {
             let result = hd_mono::opaque::reveal(&self.pool, fact.opaque, &hidden);
             if matches!(result, Err(hd_mono::opaque::Error::TooComplex(_))) {
@@ -8681,7 +8684,7 @@ impl Run<'_> {
                 });
             }
         }
-        layouts.sort_by(|a, b| a.item.cmp(&b.item));
+        layouts.sort_stable_by(|a, b| a.item.cmp(&b.item));
         let _ = self.fixture_layouts.set(layouts);
         let mut definitions: Vec<DefId> = p
             .items
@@ -8695,7 +8698,7 @@ impl Run<'_> {
                 .then_some(item.def)
             })
             .collect();
-        definitions.sort_by_key(|d| names.path(*d));
+        definitions.sort_stable_by_key(|d| names.path(*d));
         let generic = |d: DefId| {
             p.items
                 .get(d)
@@ -8787,7 +8790,7 @@ impl Run<'_> {
                 }
             }
         }
-        notes.sort();
+        notes.sort_stable();
         let _ = self.fixture_notes.set(notes);
         let keep = collected
             .table
@@ -9131,7 +9134,7 @@ impl Run<'_> {
                 .iter()
                 .map(|m| self.table.modules[*m].path.as_str())
                 .collect();
-            paths.sort_unstable();
+            paths.sort_stable();
             if paths.iter().filter(|p| has_init(p)).count() < 2 {
                 out.extend(
                     paths
@@ -9263,7 +9266,7 @@ impl Run<'_> {
                 }
             }
         }
-        out.sort_by(|a, b| {
+        out.sort_stable_by(|a, b| {
             (a.span.file.raw(), a.span.lo, &a.selectors).cmp(&(
                 b.span.file.raw(),
                 b.span.lo,
@@ -9762,7 +9765,7 @@ fn encode_summary(
     let mut body = Writer::default();
     let set = |t: &mut hd_types::wire::TableWriter<'_>, w: &mut Writer, s: &HashSet<DefId>| {
         let mut v: Vec<DefId> = s.iter().copied().collect();
-        v.sort_by_cached_key(|d| names.path(*d));
+        v.sort_stable_by_cached_key(|d| names.path(*d));
         w.len_of(&v);
         for d in v {
             w.u32(t.def(d));
@@ -10598,7 +10601,7 @@ impl LayoutEnv for Env<'_> {
                     .filter(|i| matches!(i.data, ItemData::Enum { .. }))
                     .map(|i| i.def)
                     .collect();
-                enums.sort_unstable_by_key(|d| d.raw());
+                enums.sort_stable_by_key(|d| d.raw());
                 hd_mono::layout::recursive_enums(&self.run.pool, self, &enums)
             })
             .contains(&def)

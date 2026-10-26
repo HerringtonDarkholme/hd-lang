@@ -37,6 +37,7 @@
 //!   bounded eviction under the cache's cap. An engine made while no store
 //!   is installed never uses one.
 
+use hd_base::SliceSort as _;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::hash::{Hash as _, Hasher};
@@ -339,7 +340,7 @@ fn encode(key: Hash128, salt: Hash128, functions: &HashMap<Box<[u8]>, Function>)
             (idle <= MAX_IDLE).then_some((k, f, idle))
         })
         .collect();
-    kept.sort_unstable_by(|a, b| a.0.cmp(b.0));
+    kept.sort_stable_by(|a, b| a.0.cmp(b.0));
     let mut body = Vec::new();
     for (k, f, idle) in &kept {
         body.push(*idle);

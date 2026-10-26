@@ -6,6 +6,7 @@
 //! of its own called methods returns does not cross. A method no code
 //! calls is imported by no one.
 
+use hd_base::SliceSort as _;
 use hd_cache::{CacheStore, MemoryStore};
 use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
 use hd_project::MemorySources;
@@ -80,7 +81,7 @@ fn profile_imports(wasm: &[u8]) -> Vec<String> {
             }
         }
     }
-    out.sort();
+    out.sort_stable();
     out
 }
 

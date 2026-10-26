@@ -15,6 +15,7 @@ mod lookup;
 mod stdref;
 
 use hd_base::HashMap;
+use hd_base::SliceSort as _;
 use std::fmt::Write as _;
 use std::sync::Arc;
 
@@ -378,7 +379,7 @@ pub fn render(p: &Package<'_>) -> Rendered {
     let links = (!p.scopes.is_empty()).then_some(&links);
     let mut modules: Vec<&Module<'_>> = p.modules.iter().collect();
     // `cli.doc.llms-full`: the root module first, the others in path order.
-    modules.sort_by(|a, b| (!a.path.is_empty(), a.path).cmp(&(!b.path.is_empty(), b.path)));
+    modules.sort_stable_by(|a, b| (!a.path.is_empty(), a.path).cmp(&(!b.path.is_empty(), b.path)));
     let mut files = Vec::new();
     let mut index = Page::default();
     let mut entries = Vec::new();

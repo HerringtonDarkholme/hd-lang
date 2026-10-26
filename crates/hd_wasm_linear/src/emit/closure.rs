@@ -9,6 +9,7 @@
 
 use crate::op::Op as I;
 use hd_base::HashSet;
+use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap, NodeIdx, StageResult};
 use hd_mono::Target;
 use hd_tir::ir::{
@@ -358,7 +359,7 @@ impl Em<'_, '_, '_> {
         if ls.is_empty() {
             return Ok(());
         }
-        ls.sort_unstable();
+        ls.sort_stable();
         let mut size = 0;
         for l in ls {
             let (m, _) = self.cell_mem(l)?;

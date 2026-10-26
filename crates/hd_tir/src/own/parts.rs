@@ -3,6 +3,7 @@
 //! and the verifier's `Balance` share this type arithmetic; each tracks
 //! on its own which slots a path took.
 
+use hd_base::SliceSort as _;
 use std::ops::Range;
 
 use hd_types::Ty;
@@ -59,7 +60,7 @@ impl Slots {
             &b.extra[p.from as usize..p.to as usize]
         };
         self.takes
-            .sort_unstable_by(|p, q| p.0.cmp(&q.0).then_with(|| proj(p.2).cmp(proj(q.2))));
+            .sort_stable_by(|p, q| p.0.cmp(&q.0).then_with(|| proj(p.2).cmp(proj(q.2))));
         fill(&mut self.of, items, NONE);
         fill(&mut self.start, keys + 1, 0);
         self.word.clear();

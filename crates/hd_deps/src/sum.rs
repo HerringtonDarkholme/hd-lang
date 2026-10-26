@@ -3,6 +3,7 @@
 //! h1:HASH` per version whose manifest selection reads; and the tree hash
 //! and manifest hash those lines hold.
 
+use hd_base::SliceSort as _;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -123,7 +124,7 @@ impl Sum {
     #[must_use]
     pub fn text(&self) -> String {
         let mut keys: Vec<&String> = self.entries.keys().collect();
-        keys.sort_by(|a, b| key_order(a, b));
+        keys.sort_stable_by(|a, b| key_order(a, b));
         let mut out = String::new();
         for k in keys {
             let _ = writeln!(out, "{k} {}", self.entries[k]);
@@ -171,7 +172,7 @@ fn base64(bytes: &[u8]) -> String {
 #[must_use]
 pub fn summary_hash(files: &[(String, Vec<u8>)]) -> String {
     let mut sorted: Vec<&(String, Vec<u8>)> = files.iter().collect();
-    sorted.sort_by(|a, b| a.0.cmp(&b.0));
+    sorted.sort_stable_by(|a, b| a.0.cmp(&b.0));
     let mut summary = Sha256::new();
     for (path, content) in sorted {
         let mut line = String::with_capacity(path.len() + 67);
@@ -212,7 +213,7 @@ pub fn tree_files(dir: &Path) -> std::io::Result<Vec<String>> {
     }
     let mut out = Vec::new();
     walk(dir, "", &mut out)?;
-    out.sort();
+    out.sort_stable();
     Ok(out)
 }
 

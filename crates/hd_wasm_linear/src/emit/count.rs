@@ -25,6 +25,7 @@
 //! its own (`Em::owned` is false there): its operands and captures arrive
 //! with counts, its reads copy, and its exit releases every place it holds.
 
+use hd_base::SliceSort as _;
 use hd_base::StageResult;
 use hd_tir::ir::{NONE, Ref, Tag};
 use hd_types::Ty;
@@ -537,7 +538,7 @@ impl Em<'_, '_, '_> {
         }
         let mut vals: Vec<(u32, Vec<u32>)> =
             self.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        vals.sort_unstable();
+        vals.sort_stable();
         for (i, ls) in vals {
             self.f.origin_at = if self.anchored(i) { Some(i) } else { root };
             if self.view_loans.contains_key(&i) {
@@ -548,7 +549,7 @@ impl Em<'_, '_, '_> {
         }
         let mut locals: Vec<(usize, Vec<u32>)> =
             self.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        locals.sort_unstable();
+        locals.sort_stable();
         let bound = self.exit_origins();
         for (l, ls) in locals {
             self.f.origin_at = bound.get(&l).copied().or(root);
@@ -908,7 +909,7 @@ impl Em<'_, '_, '_> {
                 vals.extend(rows[at..].iter().take_while(|r| r.0 == p).map(|r| r.1));
             }
         }
-        vals.sort_unstable();
+        vals.sort_stable();
         vals.dedup();
         for v in vals {
             self.release_value(v)?;

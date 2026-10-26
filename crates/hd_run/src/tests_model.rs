@@ -3,6 +3,7 @@
 //! row expansion, filters, and the release cursor that streams results in
 //! content order.
 
+use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 
 /// Case kinds (§19.2).
@@ -88,7 +89,7 @@ impl TestPlan {
                 c.name.contains(f) || f.split_once('[').is_some_and(|(n, _)| c.name == n)
             });
         }
-        cases.sort_by(|a, b| a.key.cmp(&b.key));
+        cases.sort_stable_by(|a, b| a.key.cmp(&b.key));
         Self { cases }
     }
 
@@ -103,7 +104,7 @@ impl TestPlan {
             c.name = format!("{}[{row}]", base.name);
             self.cases.push(c);
         }
-        self.cases.sort_by(|a, b| a.key.cmp(&b.key));
+        self.cases.sort_stable_by(|a, b| a.key.cmp(&b.key));
     }
 }
 

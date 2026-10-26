@@ -8,6 +8,7 @@
 //! interface is frozen, `ModulePrep` and `Body` resolve them through its
 //! export index instead.
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -948,7 +949,7 @@ impl Resolver<'_, '_> {
         while chain.len() <= self.pub_uses.len() {
             if let Some(&start) = seen.get(&at) {
                 let mut cycle = chain[start..].to_vec();
-                cycle.sort_by(|a, b| {
+                cycle.sort_stable_by(|a, b| {
                     (self.module_text(a.0), self.cx.names.text(a.1))
                         .cmp(&(self.module_text(b.0), self.cx.names.text(b.1)))
                 });
@@ -4549,7 +4550,7 @@ impl Lower<'_, '_, '_> {
                 out.push(i);
             }
         }
-        out.sort_unstable();
+        out.sort_stable();
         out.dedup();
         out
     }
@@ -4883,7 +4884,7 @@ fn components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
                     break;
                 }
             }
-            comp.sort_unstable();
+            comp.sort_stable();
             st.out.push(comp);
         }
     }
@@ -5256,7 +5257,7 @@ fn related_derives(
                         .filter(|t| !traits.contains(t))
                         .map(|t| names.display_name(t))
                         .collect();
-                    missing.sort_unstable();
+                    missing.sort_stable();
                     missing.dedup();
                     let detail = if missing.is_empty() {
                         String::new()
@@ -5994,7 +5995,7 @@ pub fn build_folder(
                 }
             }
         }
-        out.exports.sort_by(|a, b| {
+        out.exports.sort_stable_by(|a, b| {
             (a.module.as_str(), names.text(a.name)).cmp(&(b.module.as_str(), names.text(b.name)))
         });
         for (m, o) in mods.iter().zip(&out.modules) {
@@ -6025,17 +6026,19 @@ pub fn build_folder(
                 }
             }
         }
-        out.module_uses.sort();
+        out.module_uses.sort_stable();
         out.private_names = r
             .own
             .iter()
             .filter(|(_, (_, _, public))| !public)
             .map(|(&(module, name), _)| (r.module_text(module).to_owned(), name))
             .collect();
-        out.private_names
-            .sort_by(|a, b| (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1))));
-        out.loop_names
-            .sort_by(|a, b| (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1))));
+        out.private_names.sort_stable_by(|a, b| {
+            (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1)))
+        });
+        out.loop_names.sort_stable_by(|a, b| {
+            (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1)))
+        });
         // A use read quietly while it bound (`bind_uses`); what the
         // lowering made of a name it binds depends on those reads, so
         // they count for each name a lookup consulted.
@@ -6407,6 +6410,7 @@ pub fn body_nodes<'t>(
 #[cfg(test)]
 mod prelude_tests {
     use super::{PRELUDE, Src, TEST_PRELUDE, use_decls};
+    use hd_base::SliceSort as _;
 
     fn assert_exports(text: &str, table: &[(&str, &[&str])]) {
         let parsed = hd_syntax::parse(text.as_bytes());
@@ -6443,8 +6447,8 @@ mod prelude_tests {
                     .map(|name| ((*module).to_owned(), (*name).to_owned()))
             })
             .collect();
-        exports.sort();
-        expected.sort();
+        exports.sort_stable();
+        expected.sort_stable();
         assert_eq!(exports, expected);
     }
 

@@ -19,6 +19,7 @@
 //! replays repeat its changes (`cli.repl.panic.mutations`); one that did
 //! not run or was stopped is dropped.
 
+use hd_base::SliceSort as _;
 use hd_cache::MemoryStore;
 use hd_driver::diagnostics::{Diag, from_output};
 use hd_driver::{
@@ -261,7 +262,7 @@ impl Session {
         }
         result
             .tests
-            .sort_by(|(_, a), (_, b)| (&a.file, a.line).cmp(&(&b.file, b.line)));
+            .sort_stable_by(|(_, a), (_, b)| (&a.file, a.line).cmp(&(&b.file, b.line)));
         result
     }
 }

@@ -278,6 +278,7 @@ impl<T> core::ops::Index<u32> for AppendVec<T> {
 #[cfg(test)]
 mod tests {
     use super::{AppendVec, locate};
+    use crate::SliceSort as _;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -364,7 +365,7 @@ mod tests {
             }
         });
         let mut all: Vec<u64> = v.iter().map(|c| c.0).collect();
-        all.sort_unstable();
+        all.sort_stable();
         assert_eq!(all, (0..4 * PER).collect::<Vec<_>>());
         drop(v);
         assert_eq!(

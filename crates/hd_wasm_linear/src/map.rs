@@ -7,6 +7,7 @@
 
 use crate::op::Op as I;
 use hd_base::Hash128;
+use hd_base::SliceSort as _;
 use wasm_encoder::BlockType;
 
 use crate::layout::{Leaf, Walk};
@@ -835,7 +836,7 @@ pub fn step(m: &Module, entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func 
         }
     }
     if let Some(w) = entry.walk() {
-        vals.sort_unstable();
+        vals.sort_stable();
         for (_, l) in &vals {
             f.get(*l);
         }

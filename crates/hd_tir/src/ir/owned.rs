@@ -67,6 +67,7 @@ use crate::own::flow::{
 };
 use crate::own::parts::Slots;
 use crate::own::{OwnCx, Role, consumes, operands, tracked};
+use hd_base::SliceSort as _;
 
 /// Verifies a body after the ownership passes: the structural invariants
 /// and invariant 23 ([the module](self)), with the facts `cx` gives the
@@ -711,7 +712,7 @@ impl<'a> Empties<'a> {
                 _ => None,
             })
             .collect();
-        by_value.sort_unstable();
+        by_value.sort_stable();
         Empties {
             cx,
             id,

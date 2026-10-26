@@ -3,6 +3,7 @@
 //! §5.4, §5.7, §5.8; `docs/compiler/data-structures.md` §3.20). The disk store is in
 //! `disk.rs`.
 
+use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap};
 use std::sync::{Arc, Mutex};
 
@@ -388,7 +389,7 @@ pub fn plan_eviction(entries: &[EntryStat], budget: u64) -> Vec<EntryStat> {
     }
     let target = budget / 10 * 9;
     let mut sorted = entries.to_vec();
-    sorted.sort_by_key(|e| (e.mtime_s, e.kind, e.key));
+    sorted.sort_stable_by_key(|e| (e.mtime_s, e.kind, e.key));
     let mut left = total;
     let mut out = Vec::new();
     for e in sorted {

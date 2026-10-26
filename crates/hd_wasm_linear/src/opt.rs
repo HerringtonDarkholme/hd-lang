@@ -54,6 +54,7 @@
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
 
+use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 
 use crate::op::{LabelListId, Op as I};
@@ -120,7 +121,7 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols) {
         drops[id.idx()].push(k);
     }
     for (id, ks) in drops.iter_mut().enumerate() {
-        ks.sort_unstable();
+        ks.sort_stable();
         if let Some(f) = &mut funcs[id] {
             for &k in ks.iter().rev() {
                 f.drain(k - 1..k + 1);

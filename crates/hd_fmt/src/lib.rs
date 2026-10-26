@@ -8,6 +8,7 @@
 //! (`cli.fmt.idempotent`). `round_trip` is the lossless base every rule
 //! builds on.
 
+use hd_base::SliceSort as _;
 use hd_diag::Diagnostic;
 
 /// The green tree reproduces its source byte for byte (syntax slice 1).
@@ -36,7 +37,7 @@ pub fn format(source: &str) -> Result<String, Vec<Diagnostic>> {
         .map(|(&s, &e)| (s as usize, e as usize))
         .filter(|(s, e)| e > s)
         .collect();
-    kept.sort_unstable();
+    kept.sort_stable();
     let inside = |at: usize| {
         let i = kept.partition_point(|&(s, _)| s <= at);
         i > 0 && at < kept[i - 1].1

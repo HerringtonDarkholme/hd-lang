@@ -4,6 +4,7 @@
 //! the rebuild scope of body and signature edits on a fan-out package
 //! (#49). Eyeballed, not gated. The example supplies the clock.
 
+use hd_base::SliceSort as _;
 use std::fmt::Write as _;
 use std::sync::Arc;
 
@@ -27,7 +28,7 @@ fn report(out: &mut String, label: &str, c: &Counters, total_ns: u64) {
         c.modules_checked, c.ifaces_built, c.tir_decoded, c.bodies_decoded, c.emitted
     );
     let mut times: Vec<_> = c.stage_ns.iter().collect();
-    times.sort_by_key(|(_, d)| std::cmp::Reverse(**d));
+    times.sort_stable_by_key(|(_, d)| std::cmp::Reverse(**d));
     let _ = writeln!(out, "   stage ns {times:?}");
 }
 

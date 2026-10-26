@@ -4,6 +4,7 @@
 //! checker's own errors (rows, exhaustiveness, mismatches) are reported in
 //! user programs.
 
+use hd_base::SliceSort as _;
 use std::path::{Path, PathBuf};
 
 use hd_base::Stage;
@@ -21,7 +22,7 @@ fn walk(root: &Path, dir: &Path, out: &mut MemorySources) {
         .flatten()
         .map(|e| e.path())
         .collect();
-    paths.sort();
+    paths.sort_stable();
     for p in paths {
         if p.is_dir() {
             walk(root, &p, out);
@@ -503,7 +504,7 @@ fn println_in_non_entry_module_init_reports_both_errors() {
         ),
     ]);
     let mut found = codes(&out);
-    found.sort_by_key(|c| c.as_str());
+    found.sort_stable_by_key(|c| c.as_str());
     assert_eq!(
         found,
         [Code::MissingRequirement, Code::SuspensionForbiddenContext],

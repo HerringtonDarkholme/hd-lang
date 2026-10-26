@@ -2,6 +2,7 @@
 //! `cargo run -p hd_driver --example tir -- DIR ENTRY ITEM...`, with items
 //! as `std/console/println` or `app/main/main`.
 
+use hd_base::SliceSort as _;
 use std::path::{Path, PathBuf};
 
 use hd_driver::{Executor, Goal, Host, NoClock, build};
@@ -12,7 +13,7 @@ fn walk(root: &Path, dir: &Path, out: &mut MemorySources) {
         return;
     };
     let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
-    paths.sort();
+    paths.sort_stable();
     for p in paths {
         if p.is_dir() {
             walk(root, &p, out);

@@ -5,6 +5,7 @@
 //! program that reads it: a changed result fails the case, a changed
 //! signature is reported at each call, never a stale pass.
 
+use hd_base::SliceSort as _;
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -105,7 +106,7 @@ fn argument_counts(root: &Path, cache: &Path) -> Vec<String> {
         .filter(|l| l.contains(": argument-count: "))
         .map(str::to_owned)
         .collect();
-    lines.sort();
+    lines.sort_stable();
     lines
 }
 

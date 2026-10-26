@@ -1,6 +1,7 @@
 //! Diagnostic records as columns (`docs/compiler/data-structures.md` §3.8) and the compact
 //! and JSON renderers (`crates/hd_tir/DESIGN.md` §4.14).
 
+use hd_base::SliceSort as _;
 use std::fmt::Write as _;
 
 use hd_base::{DefId, Range32, Span};
@@ -255,7 +256,7 @@ impl DiagBuf {
     #[must_use]
     pub fn content_order(&self) -> Vec<usize> {
         let mut order: Vec<usize> = (0..self.len()).collect();
-        order.sort_by_key(|&i| {
+        order.sort_stable_by_key(|&i| {
             (
                 self.primary[i].file.raw(),
                 self.primary[i].lo,

@@ -2,6 +2,7 @@
 //! the driver carries std as source text and builds its interfaces like any
 //! dependency's (`docs/compiler/design-overview.md` §2.2 rule 2, `hd_stdpack`).
 
+use hd_base::SliceSort as _;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -31,7 +32,7 @@ fn main() {
     println!("cargo::rerun-if-changed={}", root.display());
     let mut files = Vec::new();
     walk(&root, &root, &mut files);
-    files.sort();
+    files.sort_stable();
     let out = std::env::var("OUT_DIR").unwrap_or_default();
     // The embedded text carries no plain `#` comments: neither the compiler
     // nor `hd doc` reads them, and they are a third of the browser build's
@@ -100,7 +101,7 @@ fn build_id(manifest: &str) {
     println!("cargo::rerun-if-changed={}", crates.display());
     let mut files = Vec::new();
     sources(&crates, &mut files);
-    files.sort();
+    files.sort_stable();
     // FNV-1a over (path, contents): stable across toolchains and runs.
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for path in &files {

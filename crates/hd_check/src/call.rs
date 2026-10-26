@@ -3,6 +3,7 @@
 //! trait methods, static members, conversions, function values, bang calls
 //! and the row check of a callee's requirements.
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 
 use hd_base::{DefId, PathId, StageResult, Symbol};
@@ -3393,7 +3394,7 @@ impl Ck<'_, '_> {
             .map(|s| self.cx.names.text(s).to_owned())
             .chain(["len", "push", "get", "remove"].map(str::to_owned))
             .collect();
-        names.sort();
+        names.sort_stable();
         names.dedup();
         let mut ranked: Vec<_> = names
             .into_iter()
@@ -3402,7 +3403,7 @@ impl Ck<'_, '_> {
                 candidate != name && *distance <= name.chars().count().div_ceil(2).max(3)
             })
             .collect();
-        ranked.sort();
+        ranked.sort_stable();
         for (_, candidate) in ranked {
             let checkpoint = self.checkpoint();
             let memo = std::mem::take(&mut self.memo);

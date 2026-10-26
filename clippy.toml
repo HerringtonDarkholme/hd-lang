@@ -6,3 +6,15 @@ disallowed-types = [
   { path = "std::collections::HashSet", reason = "use hd_base::HashSet, which has a fixed seed" },
   { path = "std::hash::RandomState", reason = "in-run tables use hd_base::FixedState" },
 ]
+# std's slice sorts carry a copy of driftsort or ipnsort per instantiation,
+# about 1.6 KB of the browser compiler's gzip download each; hd_base's
+# SliceSort is the small stable sort the workspace uses instead.
+disallowed-methods = [
+  { path = "slice::sort", reason = "use hd_base::SliceSort::sort_stable" },
+  { path = "slice::sort_by", reason = "use hd_base::SliceSort::sort_stable_by" },
+  { path = "slice::sort_by_key", reason = "use hd_base::SliceSort::sort_stable_by_key" },
+  { path = "slice::sort_by_cached_key", reason = "use hd_base::SliceSort::sort_stable_by_cached_key" },
+  { path = "slice::sort_unstable", reason = "use hd_base::SliceSort::sort_stable" },
+  { path = "slice::sort_unstable_by", reason = "use hd_base::SliceSort::sort_stable_by" },
+  { path = "slice::sort_unstable_by_key", reason = "use hd_base::SliceSort::sort_stable_by_key" },
+]

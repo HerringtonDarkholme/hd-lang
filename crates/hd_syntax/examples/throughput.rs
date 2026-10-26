@@ -1,3 +1,4 @@
+use hd_base::SliceSort as _;
 use std::fs;
 use std::hint::black_box;
 use std::path::{Path, PathBuf};
@@ -39,7 +40,7 @@ fn main() {
         .join("lib/std");
     let mut paths = Vec::new();
     files(&root, &mut paths);
-    paths.sort();
+    paths.sort_stable();
     let sources: Vec<Vec<u8>> = paths
         .iter()
         .map(|path| fs::read(path).expect("read std source"))

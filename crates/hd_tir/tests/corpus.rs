@@ -1,4 +1,5 @@
 use hd_base::HashSet;
+use hd_base::SliceSort as _;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -96,7 +97,7 @@ fn text_corpus_round_trips_and_verifies() {
         .map(|entry| entry.expect("corpus entry").path())
         .filter(|path| path.extension().is_some_and(|extension| extension == "tir"))
         .collect();
-    paths.sort();
+    paths.sort_stable();
     assert!(!paths.is_empty(), "empty TIR corpus");
 
     let mut valid_tags = HashSet::default();

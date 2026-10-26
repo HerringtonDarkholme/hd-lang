@@ -10,6 +10,7 @@ mod doctest;
 pub mod edit;
 mod manifest;
 
+use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -1043,7 +1044,7 @@ impl ModuleTable {
         for (pi, p) in packages.iter().enumerate() {
             let pi = u16::try_from(pi).expect("packages");
             let mut entries = p.sources.list();
-            entries.sort_by(|a, b| a.path.cmp(&b.path));
+            entries.sort_stable_by(|a, b| a.path.cmp(&b.path));
             if p.scope == Scope::Library {
                 entries.retain(|e| {
                     matches!(Root::of(&e.path), (Root::Source, rest) if rest != "main.hd")
@@ -1393,7 +1394,7 @@ impl ModuleTable {
                 .extend(old[i].modules.iter().copied());
         }
         for f in &mut self.folders {
-            f.modules.sort_by_key(|m| m.raw());
+            f.modules.sort_stable_by_key(|m| m.raw());
             for &m in &f.modules {
                 self.modules[m.idx()].folder = f.id;
             }
@@ -1595,7 +1596,7 @@ impl FolderGraph {
                 }
             }
             if scc.len() > 1 {
-                scc.sort_by_key(|g| g.raw());
+                scc.sort_stable_by_key(|g| g.raw());
                 self.cycles.push(scc);
             }
         }

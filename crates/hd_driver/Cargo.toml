@@ -37,6 +37,7 @@ hd_types = { path = "../hd_types" }
 hd_wasm_linear = { path = "../hd_wasm_linear" }
 
 [build-dependencies]
+hd_base = { path = "../hd_base" }
 hd_syntax = { path = "../hd_syntax" }
 
 [lints]

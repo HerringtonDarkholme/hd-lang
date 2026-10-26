@@ -2,6 +2,7 @@
 //! `cli.file.check-test`, `cli.json.*`): the pipeline through checking and
 //! coherence, with no collection or emission.
 
+use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fmt::Write as _;
@@ -220,7 +221,7 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
             }
         }
         checked.extend(names);
-        checked.sort();
+        checked.sort_stable();
         checked.dedup();
     }
     report::relocate(&mut shown, |f| t.program.sources.display(f));

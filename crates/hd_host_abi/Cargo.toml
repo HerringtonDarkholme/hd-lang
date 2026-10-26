@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dev-dependencies]
+hd_base = { path = "../hd_base" }
 # Reads std's declarations for the ABI model (`tests/abi_model.rs`).
 hd_syntax = { path = "../hd_syntax" }
 

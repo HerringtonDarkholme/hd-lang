@@ -6,6 +6,7 @@
 
 use crate::op::Op as Instruction;
 use hd_base::Hash128;
+use hd_base::SliceSort as _;
 use wasm_encoder::BlockType;
 
 use crate::boundary::LTy;
@@ -1097,7 +1098,7 @@ fn leaf_drop(area: &Elem) -> Option<Sym> {
     // Only the leaves the walk reads, so the glue loads nothing else.
     let mut used = Vec::new();
     walk_indices(walk, &mut used);
-    used.sort_unstable();
+    used.sort_stable();
     used.dedup();
     let leaves = used
         .iter()

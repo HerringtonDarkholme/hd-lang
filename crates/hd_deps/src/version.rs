@@ -91,6 +91,7 @@ pub fn pseudo_base(version: &Version) -> Option<Version> {
 #[cfg(test)]
 mod tests {
     use super::{pseudo_base, pseudo_commit, tag_name, tag_version};
+    use hd_base::SliceSort as _;
     use hd_project::{Version, compatibility_line, host_path};
 
     fn v(s: &str) -> Version {
@@ -140,7 +141,7 @@ mod tests {
             v("0.0.0-20260101000000-aaaaaaaaaaaa"),
             v("1.2.0-rc.1.0.20260101000000-aaaaaaaaaaaa"),
         ];
-        list.sort();
+        list.sort_stable();
         let shown: Vec<String> = list.iter().map(ToString::to_string).collect();
         assert_eq!(
             shown,

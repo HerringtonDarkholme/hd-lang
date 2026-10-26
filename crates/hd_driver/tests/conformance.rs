@@ -46,6 +46,7 @@
 
 //! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
 
+use hd_base::SliceSort as _;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -155,7 +156,7 @@ fn load_tree(root: &Path, dir: &Path, sources: &mut MemorySources) {
         .flatten()
         .map(|entry| entry.path())
         .collect();
-    paths.sort();
+    paths.sort_stable();
     for path in paths {
         if path.is_dir() {
             load_tree(root, &path, sources);
@@ -182,7 +183,7 @@ fn role_packages() -> Vec<(String, MemorySources)> {
         .map(|e| e.path())
         .filter(|p| p.is_dir())
         .collect();
-    names.sort();
+    names.sort_stable();
     names
         .into_iter()
         .map(|path| {
@@ -2178,7 +2179,7 @@ fn print_filtered(cases: &[Case], results: &[Verdict], store: &MemoryStore) {
         );
     }
     let mut sorted: Vec<_> = buckets.into_iter().collect();
-    sorted.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    sorted.sort_stable_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     for (bucket, count) in sorted {
         println!("{count:>5} {bucket}");
     }
@@ -2374,7 +2375,7 @@ fn no_typing_invalid_fixture_reaches_an_internal_error() {
         }
     });
     let mut found = found.into_inner().expect("found lock");
-    found.sort();
+    found.sort_stable();
     assert!(
         found.is_empty(),
         "typing/invalid fixtures reach an internal error:\n{}",

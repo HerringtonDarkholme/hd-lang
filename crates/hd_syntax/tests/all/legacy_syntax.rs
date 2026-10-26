@@ -1,3 +1,4 @@
+use hd_base::SliceSort as _;
 use hd_syntax::parse;
 
 #[test]
@@ -33,7 +34,7 @@ fn legacy_syntax_fixes_preserve_the_actual_names() {
             );
         }
         let mut edits = fixes[0].edits.clone();
-        edits.sort_by_key(|(span, _)| std::cmp::Reverse(span.lo));
+        edits.sort_stable_by_key(|(span, _)| std::cmp::Reverse(span.lo));
         let mut edited = source.to_owned();
         for (span, replacement) in edits {
             edited.replace_range(span.lo as usize..span.hi as usize, &replacement);

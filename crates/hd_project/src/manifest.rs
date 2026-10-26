@@ -3,6 +3,7 @@
 //! [Versions], [Toolchain Version] of `spec/lang/10-modules.md`,
 //! `cli.dep.invalid`, Package Tooling's `cli.manifest.*`).
 
+use hd_base::SliceSort as _;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -456,7 +457,7 @@ pub fn parse_manifest(text: &str) -> Result<Manifest, ManifestError> {
             (other, _) => unknowns.push((other.to_owned(), at(other))),
         }
     }
-    unknowns.sort_by_key(|(_, line)| *line);
+    unknowns.sort_stable_by_key(|(_, line)| *line);
     m.unknown = unknowns;
     Ok(m)
 }
@@ -889,7 +890,7 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
             message: format!("`{path}` has no meaning in `hd.toml`, so it is ignored"),
         });
     }
-    out.sort_by_key(|p| p.line);
+    out.sort_stable_by_key(|p| p.line);
     out
 }
 

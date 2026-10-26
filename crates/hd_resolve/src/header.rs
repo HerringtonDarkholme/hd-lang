@@ -3,6 +3,7 @@
 //! are `hd_check::header`'s, asked through the solver.
 
 use hd_base::HashMap;
+use hd_base::SliceSort as _;
 
 use hd_base::{DefId, Hash128, StableHasher, StageResult};
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
@@ -82,7 +83,7 @@ impl<'a> Universe<'a> {
     #[must_use]
     pub fn traits(&self) -> Vec<DefId> {
         let mut traits: Vec<DefId> = self.impls.keys().copied().collect();
-        traits.sort_by_key(|d| self.names.path_hash(*d));
+        traits.sort_stable_by_key(|d| self.names.path_hash(*d));
         traits
     }
 
@@ -110,7 +111,7 @@ impl<'a> Universe<'a> {
                 imp.generics.get(usize::from(p.index))?.bound
             })
             .collect();
-        out.sort_by_key(|d| self.names.path_hash(*d));
+        out.sort_stable_by_key(|d| self.names.path_hash(*d));
         out.dedup();
         out
     }
@@ -152,7 +153,7 @@ impl<'a> Universe<'a> {
         for t in std::iter::once(tr).chain(self.family_traits(tr)) {
             k.hash(self.names.path_hash(t));
             let mut hs = part(t)?;
-            hs.sort_unstable();
+            hs.sort_stable();
             k.u32(u32::try_from(hs.len()).unwrap_or(u32::MAX));
             for h in hs {
                 k.hash(h);
@@ -180,7 +181,7 @@ impl<'a> Universe<'a> {
         if let Some(impls) = self.impls.get(&tr) {
             let mut heads: Vec<(DefId, Ty, TyList)> = Vec::new();
             let mut list: Vec<&&Item> = impls.iter().collect();
-            list.sort_by_cached_key(|i| order(i.def));
+            list.sort_stable_by_cached_key(|i| order(i.def));
             let mut reported = hd_base::HashSet::default();
             // A tuple template implements the trait for every tuple type,
             // so an implementation written for a tuple overlaps it
@@ -259,7 +260,7 @@ impl<'a> Universe<'a> {
                         .collect(),
                     (None, None) => (0..j).collect(),
                 };
-                cands.sort_unstable();
+                cands.sort_stable();
                 cands.dedup();
                 match ks {
                     Some(k) => by_self.entry(k).or_default().push(j),

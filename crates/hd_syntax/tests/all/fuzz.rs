@@ -1,3 +1,4 @@
+use hd_base::SliceSort as _;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 
@@ -90,7 +91,7 @@ fn mutated_std_sources_parse_without_panic_and_round_trip() {
         .filter(|path| path.extension().is_some_and(|extension| extension == "hd"))
         .filter_map(|path| std::fs::read_to_string(path).ok())
         .collect();
-    sources.sort();
+    sources.sort_stable();
     let mut rng = Rng(0x6d75_7461_7465_2121);
     for case in 0..600 {
         let base = &sources[rng.below(sources.len())];

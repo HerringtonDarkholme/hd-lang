@@ -4,6 +4,7 @@
 //! both runs print the same standard output and error and end with the
 //! same status.
 
+use hd_base::SliceSort as _;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
@@ -695,7 +696,7 @@ fn code_packs(cache: &Path) -> Vec<(PathBuf, u64, std::time::SystemTime)> {
             packs.push((entry.path(), meta.ino(), meta.modified().expect("mtime")));
         }
     }
-    packs.sort();
+    packs.sort_stable();
     packs
 }
 

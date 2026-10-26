@@ -21,6 +21,7 @@
 
 //! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
 
+use hd_base::SliceSort as _;
 use std::collections::BTreeSet;
 use std::io::{Read, Write as _};
 use std::path::{Path, PathBuf};
@@ -653,7 +654,7 @@ fn copy_tree(from: &Path, to: &Path, top: bool) -> std::io::Result<()> {
 /// Every `.fi` file under `dir`, as its path below `dir` without `.fi`.
 fn streams(dir: &Path, below: &str, out: &mut Vec<(String, PathBuf)>) -> std::io::Result<()> {
     let mut entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
-    entries.sort_by_key(std::fs::DirEntry::file_name);
+    entries.sort_stable_by_key(std::fs::DirEntry::file_name);
     for entry in entries {
         let name = entry.file_name().to_string_lossy().into_owned();
         let path = if below.is_empty() {

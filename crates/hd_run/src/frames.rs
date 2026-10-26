@@ -14,6 +14,7 @@
 //! FILE.wasm` prints a panic's frames without the compiler's cache.
 
 use hd_base::HashMap;
+use hd_base::SliceSort as _;
 
 use crate::imports::{Bytes, all_sections, import_kinds};
 
@@ -178,7 +179,7 @@ impl LineTable {
     #[must_use]
     pub fn functions(&self) -> Vec<(u32, String, Vec<Vec<Anchored>>)> {
         let mut fs: Vec<&u32> = self.rows.keys().collect();
-        fs.sort_unstable();
+        fs.sort_stable();
         fs.into_iter()
             .filter_map(|f| {
                 let name = self.names.get(f)?;

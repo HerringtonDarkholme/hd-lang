@@ -12,6 +12,7 @@ mod stmts;
 mod types;
 
 use hd_base::HashMap;
+use hd_base::SliceSort as _;
 
 use hd_base::{FileId, ItemIdx, NodeIdx, Span, Symbol, TokenIdx};
 use hd_diag::{Code, Diagnostic, DiagnosticFix, FixSafety};
@@ -82,7 +83,7 @@ pub fn parse(source: &[u8]) -> Parse {
     diagnostics.extend(parser.finish_diagnostics());
     let tree = build(&mut parser.events, &parser.layouts, &[]);
     let (items, symbols) = build_item_index(&tree, &lexed.tokens, text);
-    diagnostics.sort_by_key(|diagnostic| (diagnostic.primary.lo, diagnostic.code as u16));
+    diagnostics.sort_stable_by_key(|diagnostic| (diagnostic.primary.lo, diagnostic.code as u16));
     diagnostics.dedup_by_key(|diagnostic| (diagnostic.primary.lo, diagnostic.code as u16));
     Parse {
         tokens: lexed.tokens,
@@ -199,7 +200,7 @@ impl<'t> Parser<'t> {
                 .filter(|diagnostic| diagnostic.code == Code::TabWhitespace)
                 .filter_map(|diagnostic| tabbed_indentation(src, diagnostic.primary.lo)),
         );
-        spans.sort_unstable();
+        spans.sort_stable();
         Self {
             src,
             toks,

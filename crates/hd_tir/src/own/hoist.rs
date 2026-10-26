@@ -63,6 +63,7 @@
 //! range, a loop's instructions being the range from its first to itself;
 //! the edits join the other passes' for the one rebuild.
 
+use hd_base::SliceSort as _;
 use hd_types::Ty;
 
 use super::splice;
@@ -398,14 +399,14 @@ pub(crate) fn run(
     }
     // Outermost first: an outer loop starts no later and ends later.
     t.loops
-        .sort_unstable_by_key(|&(f, l)| (f, std::cmp::Reverse(l)));
+        .sort_stable_by_key(|&(f, l)| (f, std::cmp::Reverse(l)));
     facts(b, t);
     fill(&mut t.gone, n, false);
     for k in 0..t.loops.len() {
         let l = t.loops[k].1;
         hoist_loop(b, topo, cx, t, edits, l);
     }
-    b.stable_lists.sort_unstable();
+    b.stable_lists.sort_stable();
     b.stable_lists.dedup();
 }
 

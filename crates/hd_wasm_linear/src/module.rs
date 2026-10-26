@@ -6,6 +6,7 @@
 //! and encodes the module.
 
 use crate::op::{LabelListId, Op as Instruction};
+use hd_base::SliceSort as _;
 use std::cell::{Ref, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
@@ -863,7 +864,8 @@ impl Module {
                 self.retained.push(id);
             }
         }
-        self.retained.sort_by(|a, b| self.symbols.cmp(*a, *b));
+        self.retained
+            .sort_stable_by(|a, b| self.symbols.cmp(*a, *b));
         self.retained.dedup();
     }
     fn keep(&mut self, mut wanted: impl FnMut(SymId, &Sym) -> bool) {
@@ -1250,7 +1252,7 @@ impl Module {
                 (f.is_some() && matches!(&*self.symbols.get(id), Sym::Helper(_))).then_some(id)
             })
             .collect();
-        helpers.sort_by(|a, b| self.symbols.cmp(*a, *b));
+        helpers.sort_stable_by(|a, b| self.symbols.cmp(*a, *b));
         defined.extend(helpers);
         for s in &defined {
             index.insert(*s, next);
@@ -1668,7 +1670,7 @@ impl Module {
         if !self.package_contract.interfaces.is_empty() {
             self.package_contract
                 .interfaces
-                .sort_by(|a, b| (&a.identity, a.handle).cmp(&(&b.identity, b.handle)));
+                .sort_stable_by(|a, b| (&a.identity, a.handle).cmp(&(&b.identity, b.handle)));
             self.package_contract
                 .validate()
                 .map_err(|why| NotImplemented::bug(Stage::Link, why))?;
@@ -1714,7 +1716,7 @@ impl Module {
         if self.runtime.is_some_and(|r| r.checked.is_some()) {
             let mut data = vec![1];
             let mut descriptors: Vec<_> = descriptors.iter().collect();
-            descriptors.sort_by(|((a, ka), _), ((b, kb), _)| {
+            descriptors.sort_stable_by(|((a, ka), _), ((b, kb), _)| {
                 self.symbols.cmp(*a, *b).then_with(|| ka.cmp(kb))
             });
             for ((_, kind), slot) in descriptors {
@@ -1766,7 +1768,7 @@ fn global_name(g: &Global, storage: &BTreeMap<Hash128, String>) -> String {
 fn line_table(functions: &[(u32, Vec<(u32, u32)>)]) -> wasm_encoder::CustomSection<'static> {
     use wasm_encoder::Encode;
     let mut sorted: Vec<&(u32, Vec<(u32, u32)>)> = functions.iter().collect();
-    sorted.sort_unstable_by_key(|(f, _)| *f);
+    sorted.sort_stable_by_key(|(f, _)| *f);
     let mut data = Vec::new();
     u32::try_from(sorted.len()).expect("rows").encode(&mut data);
     for (f, rows) in sorted {
@@ -1803,7 +1805,7 @@ fn inlined_frames(
         .expect("frames")
         .encode(&mut data);
     let mut sorted: Vec<_> = frames.iter().collect();
-    sorted.sort_unstable_by_key(|(f, _)| *f);
+    sorted.sort_stable_by_key(|(f, _)| *f);
     for (f, entries) in sorted {
         f.encode(&mut data);
         u32::try_from(entries.len())

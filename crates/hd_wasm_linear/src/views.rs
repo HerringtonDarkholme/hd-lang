@@ -1,5 +1,6 @@
 //! Opt-in development views use the same layout and cycle analysis as emission.
 
+use hd_base::SliceSort as _;
 use hd_base::StageResult;
 use hd_mono::{ProgramEnv, printed_type_name, subst};
 use hd_types::{InternPool, Ty, TyData};
@@ -83,7 +84,7 @@ fn counted(
             conditional,
         })
         .collect();
-    out.sort();
+    out.sort_stable();
     out.dedup();
     Ok(out)
 }

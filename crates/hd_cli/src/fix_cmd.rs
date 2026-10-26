@@ -15,6 +15,7 @@
 //! top of those already kept, so each added diagnostic is charged to the
 //! fix-it that brought it.
 
+use hd_base::SliceSort as _;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fmt::Write as _;
@@ -355,7 +356,7 @@ fn overlap(a: &Edit, b: &Edit) -> bool {
 fn apply(texts: &Texts, changes: &[Change]) -> Texts {
     let mut out = texts.clone();
     let mut edits: Vec<&Edit> = changes.iter().flat_map(|c| &c.edits).collect();
-    edits.sort_by(|a, b| (&b.file, b.start, b.end).cmp(&(&a.file, a.start, a.end)));
+    edits.sort_stable_by(|a, b| (&b.file, b.start, b.end).cmp(&(&a.file, a.start, a.end)));
     for e in edits {
         if let Some(text) = out.get_mut(&e.file) {
             text.replace_range(e.start as usize..e.end as usize, &e.text);
