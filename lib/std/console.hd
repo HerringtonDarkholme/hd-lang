@@ -107,21 +107,26 @@ impl Console for MemoryConsole:
 # `println` (spec/lang/10-modules.md#console) is ordinary std code: it drives the
 # covering provider's `write!` with `block_on`, so it inherits all of
 # `block_on`'s rules. Under an active driver, such as `main!` or a test
-# body, it drives only its own write, and it is rejected in a `defer` suite
+# body, it drives only its own writes, and it is rejected in a `defer` suite
 # or a default expression. An `.Err` is an ordinary panic. It holds the only
-# reference to its write, so only a provider that cancels its own work can
-# end the drive `.Cancelled` or `.Abandoned`; that line is lost
-# (r-module.console.println-write-cancelled).
+# reference to each write, so only a provider that cancels its own work can
+# end its drive `.Cancelled` or `.Abandoned`; no further write starts.
+# A completed text write remains delivered if the newline is cancelled
+# (r-module.console.println-write-cancelled.remaining).
 ## Writes `value`'s `Display` text and a line ending to the `Console` provider that covers the call; it panics when the write fails.
-## See [module.console.println-one-write](../../spec/lang/10-modules.md#r-module.console.println-one-write).
+## See [module.console.println-two-writes](../../spec/lang/10-modules.md#r-module.console.println-two-writes).
 pub fn println[T < Display](value: T) -> void $ Console:
-    let mut console = $.use(Console)
-    let call: mut Suspend[Result[void, ConsoleError]] = console.write("$value\n")
+    let console: &mut dyn Console = $.use(Console)
+    if println_write(console, value.to_string()):
+        _ := println_write(console, "\n")
+
+fn println_write(console: &mut dyn Console, text: string) -> bool:
+    let call: mut Suspend[Result[void, ConsoleError]] = console.write(text)
     match block_on(call):
-        .Completed(.Ok(())) => pass
+        .Completed(.Ok(())) => true
         .Completed(.Err(_)) => panic("println: write! returned .Err(ConsoleError)")
-        .Cancelled => pass
-        .Abandoned => pass
+        .Cancelled => false
+        .Abandoned => false
 
 ## Writes Display text without a newline and drives the covering Console write to completion.
 ## See [std-console.print.decl](../../spec/std/console.md#r-std-console.print.decl).

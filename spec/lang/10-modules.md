@@ -1017,27 +1017,28 @@ pub enum ConsoleError:
 5. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
 6. r[module.console.error.variants] `ConsoleError` is a public enum with `Closed`, `NotGranted(subject: string)`, and `Other(message: string)`.
 7. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
-8. r[module.console.println-one-write] `println(value)` calls the covering provider's `write!` once with `value.to_string()` followed by `"\n"`.
-9. r[module.console.println-drive.raw-write] `println` drives that `write!` call with [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on.signature), exactly as `block_on` drives a stored suspension, and returns after the call completes.
-10. r[module.console.println-drive.pending-write] When a poll of that call returns `Pending` on a host write, `println` keeps driving the call until it finishes, as `block_on` does.
+8. r[module.console.println-two-writes] `println(value)` calls the covering provider's `write!` once with `value.to_string()`, then once with `"\n"` after the first drive returns `.Completed(.Ok(()))`.
+9. r[module.console.println-drive.each-write] `println` drives each write with [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on.signature), completing the text write before starting the newline write.
+10. r[module.console.println-drive.pending-each-write] When a poll of either call returns `Pending` on a host write, `println` keeps driving that call until it finishes.
 11. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
-12. r[module.console.println-write-error] If that `write!` call returns `.Err(ConsoleError)`, `println` panics.
-13. r[module.console.println-write-cancelled] If that `write!` call turns out cancelled, so that `block_on` returns `.Cancelled` or `.Abandoned`, `println` returns without a panic, and the line is lost. Only the provider can cancel the call, since `println` holds the only reference to it.
-14. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
-15. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
-16. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
-17. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on.signature): its forbidden contexts, the error and the panic there, and its behavior under an active driver.
-18. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
-19. r[module.console.println-block-on.forbidden-direct] A `println` call written directly in a `defer` suite, a default expression, a fact expression, or non-entry module initialization is an error. Error: `suspension-forbidden-context`. In non-entry module initialization the call is also `missing-requirement` by [`module.init.requirement-free.non-script`](#r-module.init.requirement-free.non-script), and the compiler reports both.
-20. r[module.console.println-block-on.indirect] A `println` call reached through another call while one of those contexts runs panics. Panic: `suspension-forbidden-context`.
-21. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
+12. r[module.console.println-write-error.either] If either write returns `.Err(ConsoleError)`, `println` panics.
+13. r[module.console.println-write-cancelled.remaining] If either drive returns `.Cancelled` or `.Abandoned`, `println` returns without starting another write, preserving text already delivered.
+14. r[module.console.println-write.cancel-source] `println` holds the only reference to each write's suspension, so only the provider can cancel it.
+15. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
+16. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
+17. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
+18. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on.signature): its forbidden contexts, the error and the panic there, and its behavior under an active driver.
+19. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
+20. r[module.console.println-block-on.forbidden-direct] A `println` call written directly in a `defer` suite, a default expression, a fact expression, or non-entry module initialization is an error. Error: `suspension-forbidden-context`. In non-entry module initialization the call is also `missing-requirement` by [`module.init.requirement-free.non-script`](#r-module.init.requirement-free.non-script), and the compiler reports both.
+21. r[module.console.println-block-on.indirect] A `println` call reached through another call while one of those contexts runs panics. Panic: `suspension-forbidden-context`.
+22. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
 
-22. r[module.console.write.raw] `write!` writes its text unchanged, without adding a line ending.
-23. r[module.console.write.signature] `Console` declares `fn write!(&mut self, text: string) -> Result[void, ConsoleError]`.
-24. r[module.console.write-error.signature] `Console` declares `fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]`.
-25. r[module.console.error.closed-meaning] `Closed` reports a closed console stream.
-26. r[module.console.error.not-granted] `NotGranted(subject)` reports console access that was not granted.
-27. r[module.console.error.other] `Other(message)` reports another console failure with its message.
+23. r[module.console.write.raw] `write!` writes its text unchanged, without adding a line ending.
+24. r[module.console.write.signature] `Console` declares `fn write!(&mut self, text: string) -> Result[void, ConsoleError]`.
+25. r[module.console.write-error.signature] `Console` declares `fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]`.
+26. r[module.console.error.closed-meaning] `Closed` reports a closed console stream.
+27. r[module.console.error.not-granted] `NotGranted(subject)` reports console access that was not granted.
+28. r[module.console.error.other] `Other(message)` reports another console failure with its message.
 
 ```text
 pub fn main() -> void:
@@ -1049,7 +1050,7 @@ fn report() -> void $ Console:
     pass
 ```
 
-A recording provider receives each line that `println` writes:
+A recording provider receives the text and newline as separate writes:
 
 ```text
 struct MemoryConsole:
@@ -1070,7 +1071,7 @@ pub fn main() -> void $ Console:
     let mut console = MemoryConsole { lines: [] }
     $.with(Console=&mut console):
         greet("Ada")
-    println("recorded: ${console.lines[0]}")  # recorded: hello, Ada
+    println("recorded: ${console.lines[0]}${console.lines[1]}")  # recorded: hello, Ada
 ```
 
 Suspending code, such as `main!` or a test body, may also call
@@ -1085,8 +1086,9 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
 > **Why.** Rust's `println!` and Go's `fmt.Println` are synchronous, so
 > every caller keeps its signature. Rust's `println!` also panics when the
 > write to standard output fails. `println` is ordinary `std` code that
-> drives its write as `block_on` does, so it has `block_on`'s rules and
-> no language rule of its own.
+> drives each write as `block_on` does, so it inherits `block_on`'s rules.
+> Separate writes avoid a concatenated string; a cancelled newline cannot
+> retract text already delivered.
 
 > **Note.** Code that must handle a console error calls `write!`
 > directly.

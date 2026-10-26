@@ -333,7 +333,7 @@ hd run        # the default profile binds Console: prints hello
 ```
 
 > **Why.** A closed pipe makes `println` panic, by
-> [`module.console.println-write-error`](../lang/10-modules.md#r-module.console.println-write-error),
+> [`module.console.println-write-error.either`](../lang/10-modules.md#r-module.console.println-write-error.either),
 > as Rust's `println!` does; `hd FILE | head -1` stops the program
 > instead of writing into nothing.
 

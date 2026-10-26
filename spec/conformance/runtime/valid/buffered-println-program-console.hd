@@ -19,4 +19,4 @@ pub fn main() -> void $ Console:
     $.with(Console=&mut buffer):
         println("one")
         println(2)
-    println("${buffer.lines[0]} ${buffer.lines[1]}")
+    println("${buffer.lines[0]}${buffer.lines[1]} ${buffer.lines[2]}${buffer.lines[3]}")

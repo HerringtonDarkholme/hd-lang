@@ -12,12 +12,15 @@ struct NumberedConsole:
 
 impl NumberedConsole:
     fn next_number!(self) -> usize:
-        self.lines.len() + 1
+        self.lines.len() / 2 + 1
 
 impl Console for NumberedConsole:
     fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
         number := self.next_number!()
-        self.lines.push("[${number}] ${text}")
+        if text == "\n":
+            self.lines.push(text)
+        else:
+            self.lines.push("[${number}] ${text}")
         .Ok(())
 
     fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
@@ -31,5 +34,5 @@ pub fn main() -> void $ Console:
     let mut numbered = NumberedConsole { lines: [] }
     $.with(Console=&mut numbered):
         report(["a", "b", "c"])
-    println("recorded ${numbered.lines.len()}")
-    println(numbered.lines[0])
+    println("recorded ${numbered.lines.len() / 2}")
+    println("${numbered.lines[0]}${numbered.lines[1]}")

@@ -24,4 +24,4 @@ pub fn main() -> void $ Console:
     let mut console = MemoryConsole { lines: [] }
     $.with(Console=&mut console):
         greet("Ada")
-    println("recorded: ${console.lines[0]}")
+    println("recorded: ${console.lines[0]}${console.lines[1]}")

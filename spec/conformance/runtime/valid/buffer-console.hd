@@ -11,7 +11,7 @@ tests:
         let mut console = MemoryConsole::new()
         $.with(Console=console):
             greet("Ada")
-        assert_equal(console.output(), ["hello, Ada\n"], reason="one line")
+        assert_equal(console.output(), ["hello, Ada", "\n"], reason="one line")
 
     it("keeps call order"):
         let mut console = MemoryConsole::new()
@@ -19,4 +19,4 @@ tests:
         $.with(Console=console):
             println("one")
             println(2)
-        assert_equal(console.output(), ["one\n", "2\n"], reason="in order")
+        assert_equal(console.output(), ["one", "\n", "2", "\n"], reason="in order")

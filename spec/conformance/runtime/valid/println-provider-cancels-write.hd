@@ -1,7 +1,7 @@
 # expect-stdout: before
 # expect-stdout: after, 1 recorded
-# test: println ignores a write that its provider's write! cancels: the line is lost, nothing panics, and the next println writes as usual
-# Spec lang/10 Console: module.console.println-write-cancelled.
+# test: println ignores a write that its provider's write! cancels: no newline starts after cancellation, nothing panics, and the next println writes both chunks
+# Spec lang/10 Console: module.console.println-write-cancelled.remaining.
 use std.time.{Clock, s, sleep}
 
 struct FlakyConsole:
@@ -10,7 +10,7 @@ struct FlakyConsole:
 
 impl Console for FlakyConsole:
     fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
-        if text == "lost\n":
+        if text == "lost":
             let mut gate = self.gate
             gate!()              # the gate was abandoned: this write is cancelled
         self.lines.push(text)
@@ -27,4 +27,4 @@ pub fn main() -> void $ Console + Clock:
         println("lost")
         println("kept")
     println("before")
-    println("after, ${flaky.lines.len()} recorded")
+    println("after, ${flaky.lines.len() / 2} recorded")

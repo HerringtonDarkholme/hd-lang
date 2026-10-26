@@ -1,4 +1,4 @@
-# test: raw console writes preserve text; synchronous helpers make one exact chunk
+# test: raw console writes preserve text; println separates text and newline while print and eprintln keep one chunk
 # Spec std/console: std-console.print.one-write, std-console.eprintln.one-write, std-console.buffer.output-text.
 use std.console.{MemoryConsole, eprintln, print}
 
@@ -20,7 +20,7 @@ tests:
         assert_equal(console.output(), ["a", "b\r\nc\n", ""], reason="exact chunks")
         assert_equal(console.error_output(), ["error"], reason="raw stderr")
 
-    it("helpers append exactly one LF in exactly one write"):
+    it("println appends exactly one LF in its own write"):
         console := MemoryConsole::new()
         $.with(Console=console):
             print("a")
@@ -29,5 +29,5 @@ tests:
             println("y\n")
             println("")
             eprintln("warning")
-        assert_equal(console.output(), ["a", "12", "x\n", "y\n\n", "\n"], reason="one chunk per helper")
+        assert_equal(console.output(), ["a", "12", "x", "\n", "y\n", "\n", "", "\n"], reason="two chunks per println, one per print")
         assert_equal(console.error_output(), ["warning\n"], reason="one stderr chunk")

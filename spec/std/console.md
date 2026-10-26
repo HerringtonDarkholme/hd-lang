@@ -166,7 +166,7 @@ tests:
         console := MemoryConsole::new()
         $.with(Console=console):
             greet("Ada")
-        assert_equal(console.output(), ["hello, Ada\n"], reason="one line")
+        assert_equal(console.output(), ["hello, Ada", "\n"], reason="text and newline writes")
 ```
 
 1. r[std-console.buffer.decl] `std.console` declares `MemoryConsole`, which implements `Console` and `Debug`, with private fields. Code imports it, as in `use std.console.MemoryConsole`.

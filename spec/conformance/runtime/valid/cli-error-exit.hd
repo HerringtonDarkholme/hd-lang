@@ -28,7 +28,7 @@ tests:
         let mut console = MemoryConsole::new()
         $.with(Args=ScriptedArgs::new("tool", ["--level", "3"]), Console=console):
             assert_equal(u8(main()), 0, reason="main's own code")
-        assert_equal(console.output(), ["3\n"], reason="the value")
+        assert_equal(console.output(), ["3", "\n"], reason="the value")
 
     it("every variant's exit code is 2"):
         errors := [

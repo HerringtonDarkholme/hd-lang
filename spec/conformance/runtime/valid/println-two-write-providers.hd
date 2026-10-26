@@ -1,0 +1,80 @@
+# test: println converts Display once, delivers separate raw chunks, and stops after either write is cancelled.
+# Spec 10 Console: module.console.println-two-writes, module.console.println-drive.each-write, module.console.println-write-cancelled.remaining, module.console.println-write.cancel-source.
+use std.task.block_on
+
+let conversions: usize = 0
+
+struct Label:
+    text: string
+
+impl Display for Label:
+    fn to_string(self) -> string:
+        conversions = conversions + 1
+        self.text
+
+struct RecordingConsole:
+    chunks: List[string]
+
+impl Console for RecordingConsole:
+    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.chunks.push(text)
+        .Ok(())
+
+fn ready!() -> void:
+    pass
+
+fn stopped(abandoned: bool) -> mut Suspend[void]:
+    let gate: mut Suspend[void] = ready()
+    if abandoned:
+        gate.abandon()
+    else:
+        _ := block_on(gate.cancel())
+    gate
+
+struct CancellingConsole:
+    attempts: List[string]
+    delivered: List[string]
+    cancel_at: usize
+    gate: mut Suspend[void]
+
+impl Console for CancellingConsole:
+    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.attempts.push(text)
+        if self.attempts.len() == self.cancel_at:
+            let mut gate = self.gate
+            gate!()
+        self.delivered.push(text)
+        .Ok(())
+
+tests:
+    use std.testing.assert_equal
+
+    it("Display runs once before the two raw writes"):
+        conversions = 0
+        let mut console = RecordingConsole { chunks: [] }
+        $.with(Console=&mut console):
+            println(Label { text: "hello" })
+        assert_equal(conversions, 1, reason="the value is converted once")
+        assert_equal(console.chunks, ["hello", "\n"], reason="the newline is a second raw write")
+
+    it("empty values and existing newlines keep both writes"):
+        let mut console = RecordingConsole { chunks: [] }
+        $.with(Console=&mut console):
+            println("")
+            println("line\n")
+        assert_equal(console.chunks, ["", "\n", "line\n", "\n"], reason="raw text is unchanged")
+
+    it("cancellation at either write stops the remaining sequence"):
+        for abandoned in [false, true]:
+            for at in [1, 2]:
+                conversions = 0
+                let mut console = CancellingConsole { attempts: [], delivered: [], cancel_at: at, gate: stopped(abandoned) }
+                $.with(Console=&mut console):
+                    println(Label { text: "hello" })
+                assert_equal(conversions, 1, reason="cancellation does not repeat Display")
+                if at == 1:
+                    assert_equal(console.attempts, ["hello"], reason="no newline is attempted after a cancelled text write")
+                    assert_equal(console.delivered, [], reason="the text write was cancelled")
+                else:
+                    assert_equal(console.attempts, ["hello", "\n"], reason="the newline is attempted once")
+                    assert_equal(console.delivered, ["hello"], reason="cancelling the newline cannot retract text")
