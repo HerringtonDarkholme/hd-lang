@@ -252,6 +252,11 @@ pub enum Helper {
     /// its last count, the references in its payload are released through
     /// its descriptor and its block is freed.
     ReleaseRef,
+    /// `(block)`: a block whose last count [`Helper::ReleaseRef`] took
+    /// while no release runs: releases its payload's references through its
+    /// descriptor, frees it, then does the same for each block the releases
+    /// queued.
+    ReleaseDrain,
     /// Count a statically known payload start without a block lookup.
     RetainKnown,
     ReleaseKnown,
@@ -1682,6 +1687,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::ReleaseRef => release_ref(m, false),
         Helper::ReleaseKnown => release_ref(m, true),
+        Helper::ReleaseDrain => release_drain(m),
         Helper::RetainKnown => {
             let mut f = m.func("rt:retain_known", vec![Val::I32], vec![]);
             if let Some(r) = m.runtime {
@@ -2605,15 +2611,17 @@ fn collect(m: &Module) -> Func {
 /// enters this allocation-free worklist. Its count word then links pending
 /// blocks; its payload and descriptor stay intact until its turn. A nested
 /// descriptor release enqueues and returns, so recursive types use a bounded
-/// native stack. While the collector traces an object (`Tracing`), the
-/// reference goes to its `visit` instead, checked here so that `visit` is
-/// called only during a collection (§23.28).
+/// native stack; the outermost one goes to [`Helper::ReleaseDrain`] at
+/// once, which keeps this small enough for V8 to inline. While the
+/// collector traces an object (`Tracing`), the reference goes to its
+/// `visit` instead, checked here so that `visit` is called only during a
+/// collection (§23.28).
 fn release_ref(m: &Module, known: bool) -> Func {
     let mut f = m.func("rt:release_ref", vec![Val::I32], vec![]);
     let Some(r) = m.runtime else {
         return f;
     };
-    let (block, desc) = (f.local(Val::I32), f.local(Val::I32));
+    let block = f.local(Val::I32);
     if !m.acyclic {
         f.global_get(Global::Tracing);
         f.op(Instruction::If(BlockType::Empty));
@@ -2637,44 +2645,48 @@ fn release_ref(m: &Module, known: bool) -> Func {
     f.op(Instruction::End);
 
     // The final release already removed the block from cycle candidates.
+    f.global_get(Global::Releasing);
+    f.op(Instruction::If(BlockType::Empty));
     f.get(block);
     f.global_get(Global::ReleaseHead);
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
     f.get(block);
     f.global_set(Global::ReleaseHead);
-    f.global_get(Global::Releasing);
-    f.op(Instruction::If(BlockType::Empty));
     f.op(Instruction::Return);
     f.op(Instruction::End);
+    f.get(block);
+    f.helper(Helper::ReleaseDrain);
+    f
+}
+
+/// [`Helper::ReleaseDrain`].
+fn release_drain(m: &Module) -> Func {
+    let mut f = m.func("rt:release_drain", vec![Val::I32], vec![]);
+    let (block, slot) = (0, f.local(Val::I32));
     f.i32(1);
     f.global_set(Global::Releasing);
-
-    f.op(Instruction::Block(BlockType::Empty));
     f.op(Instruction::Loop(BlockType::Empty));
-    f.global_get(Global::ReleaseHead);
-    f.set(block);
-    f.get(block);
-    f.op(Instruction::I32Eqz);
-    f.op(Instruction::BrIf(1));
-    f.get(block);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.global_set(Global::ReleaseHead);
     f.get(block);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
     glue_of(&mut f);
-    f.set(desc);
-    f.get(desc);
+    f.op(Instruction::LocalTee(slot));
     f.op(Instruction::If(BlockType::Empty));
     f.get(block);
     f.u32(HEADER);
     f.op(Instruction::I32Add);
-    f.get(desc);
+    f.get(slot);
     f.i32(1);
     f.op(Instruction::I32Sub);
     f.call_indirect(vec![Val::I32], vec![]);
     f.op(Instruction::End);
     free_object(&mut f, m, block);
-    f.op(Instruction::Br(0));
+    f.global_get(Global::ReleaseHead);
+    f.op(Instruction::LocalTee(block));
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(block);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.global_set(Global::ReleaseHead);
+    f.op(Instruction::Br(1));
     f.op(Instruction::End);
     f.op(Instruction::End);
     f.i32(0);
