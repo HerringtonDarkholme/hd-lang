@@ -5,6 +5,7 @@ use std.convert.From
 use std.hash.{Hash, Hasher}
 use std.task.TimedOut
 use std.text.Parse
+use std.format.DebugWriter
 use std.json.JsonError
 use std.serde.{Deserialize, Serialize}
 use std.time.{Duration, Timestamp}
@@ -204,23 +205,36 @@ impl Display for Url:
 
 # ---- Body -------------------------------------------------------------
 
-## A body read once: a second read is `BodyError.Used`. Equal and printed by its bytes.
-@derive(Debug, Eq)
+## A message body: a handle to bytes that can be read once, like a stream.
+## Copying a message copies the handle, so the copies share one body and a
+## second read anywhere is `BodyError.Used`. The shared state is private:
+## no `*mut` reaches the public API, and a reader works through `&Request`.
 pub struct Body:
+    state: *mut BodyState
+
+struct BodyState:
     bytes: List[u8]
     used: bool
 
 impl Body:
-    fn empty() -> *mut Body: panic("todo")
-    pub fn from_bytes(bytes: List[u8]) -> *mut Body: panic("todo")
+    fn empty() -> Body: panic("todo")
+    pub fn from_bytes(bytes: List[u8]) -> Body: panic("todo")
 
-    # Each read consumes the body; a second read is `BodyError.Used`.
-    pub fn bytes(&mut self) -> Result[List[u8], BodyError]: panic("todo")
+    # Each read consumes the shared body; a second read is `BodyError.Used`.
+    pub fn bytes(&self) -> Result[List[u8], BodyError]: panic("todo")
     ## Invalid UTF-8 is replaced with U+FFFD.
-    pub fn text(&mut self) -> Result[string, BodyError]: panic("todo")
-    pub fn json[T < Deserialize](&mut self) -> Result[T, BodyError]: panic("todo")
+    pub fn text(&self) -> Result[string, BodyError]: panic("todo")
+    pub fn json[T < Deserialize](&self) -> Result[T, BodyError]: panic("todo")
     ## OpenAPI form style, the same rules as Url.query_as.
-    pub fn form[T < Deserialize](&mut self) -> Result[T, BodyError]: panic("todo")
+    pub fn form[T < Deserialize](&self) -> Result[T, BodyError]: panic("todo")
+
+## Equal when the bytes and the read state are equal.
+impl Eq for Body:
+    fn eq(self, other: Body) -> bool: panic("todo")
+
+## Prints the length and whether it was read, never the bytes.
+impl Debug for Body:
+    fn debug(self, out: *mut DebugWriter) -> void: panic("todo")
 
 # ---- Cookies ----------------------------------------------------------
 
@@ -294,7 +308,7 @@ pub struct Request:
     pub method: Method = .Get
     pub url: Url
     pub headers: Headers = Headers::new()
-    pub body: *mut Body = Body::empty()
+    pub body: Body = Body::empty()
 
 impl Request:
     pub fn new(method: Method, url: Url) -> Request: panic("todo")
@@ -333,7 +347,7 @@ impl Request:
 pub struct Response:
     pub status: HttpStatus = .Ok
     pub headers: Headers = Headers::new()
-    pub body: *mut Body = Body::empty()
+    pub body: Body = Body::empty()
     ## The URL that answered, after redirects; set by send!.
     pub url: Url? = .None
 
