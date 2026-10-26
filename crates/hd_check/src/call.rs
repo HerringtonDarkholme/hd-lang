@@ -4270,6 +4270,13 @@ impl Ck<'_, '_> {
                     .map_or(Symbol::from_raw(0), |i| i.name),
             )
             .to_owned();
+        // An omitted argument takes the trait declaration's default
+        // (`trait.impl.param-default`), whose body shares the trait
+        // method's arguments: `Self`, the trait's, then the method's.
+        let mut owner_args = vec![self_ty];
+        owner_args.extend(&targs);
+        owner_args.extend(&vars);
+        self.default_owner = Some((method, pool.list(&owner_args), refs.clone()));
         refs.extend(self.check_args(&formals, skip, args, n, &method_name)?);
         if pool.has_opaque(sig.ret) {
             let self_ty = self.strip_mut(self.infer.resolve(pool, self_ty));

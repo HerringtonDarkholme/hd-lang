@@ -398,6 +398,11 @@ impl Ck<'_, '_> {
                 return Some("a type parameter's default");
             }
         }
+        // The trait declaration gives the parameter defaults
+        // (`trait.impl.param-default.no-restate`).
+        if got.defaults.iter().any(|&d| d) {
+            return Some("a parameter default, which only the trait declares");
+        }
         None
     }
 }

@@ -5054,3 +5054,5 @@ runtime/valid/impl-trait-nested-local-hidden-type.hd	runtime	accept	lang/04-type
 typing/invalid/impl-trait-no-final-join.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.opaque.occurrence-no-join
 runtime/valid/impl-trait-nested-concrete-constructor-conversions.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.occurrence-no-join
 runtime/valid/std-list-extend-counted.hd	runtime	accept	std/collections.md#r-std-collections.access.extend
+runtime/valid/trait-method-default-parameters.hd	runtime	accept	lang/09-traits.md#r-trait.impl.param-default.calls
+typing/invalid/trait-impl-restates-parameter-default.hd	type	reject:trait-method-signature	lang/09-traits.md#r-trait.impl.param-default.no-restate

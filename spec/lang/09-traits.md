@@ -713,6 +713,32 @@ impl Describe for Describer:
     fn describe[T < Show](self, value: T) -> string: value.show()  # error: trait-method-signature
 ```
 
+#### Method Parameter Defaults
+
+1. r[trait.impl.param-default] A trait method's parameter defaults come from the trait declaration.
+2. r[trait.impl.param-default.calls] A call that omits such an argument evaluates the trait's default, whichever body the call selects: the trait's default body or an implementation's override. This holds for a concrete receiver, a generic bound, and a trait value.
+3. r[trait.impl.param-default.no-restate] An implementation method declares no parameter defaults. A default written there is an error. Error: `trait-method-signature`.
+
+```text
+trait Check:
+    fn limit(self, max: usize = 64) -> usize: max
+
+struct Item: pass
+impl Check for Item
+
+struct Strict: pass
+impl Check for Strict:
+    fn limit(self, max: usize) -> usize: max / 2    # Strict {}.limit() is 32
+
+struct Loose: pass
+impl Check for Loose:
+    fn limit(self, max: usize = 128) -> usize: max  # error: trait-method-signature
+```
+
+> **Why.** As in Rust, the signature belongs to the trait. A caller through
+> a bound or a trait value sees only the trait's declaration, so a default
+> restated in an implementation could never apply consistently.
+
 #### Local Implementations
 
 1. r[trait.impl.local] An `impl` inside an executable block suite is a compile-time declaration.
