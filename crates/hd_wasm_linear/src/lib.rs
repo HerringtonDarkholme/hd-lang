@@ -571,8 +571,12 @@ fn link(
     for id in input.order {
         let key = input.collected.table.key[id.idx()];
         m.inst_of.insert(key, *id);
-        if (input.path)(input.collected.table.item[id.idx()]).starts_with("std/rt.cycle/") {
+        let item = input.collected.table.item[id.idx()];
+        if (input.path)(item).starts_with("std/rt.cycle/") {
             m.cycle_insts.insert(key);
+        }
+        if input.env.cold(item) {
+            m.cold_insts.insert(key);
         }
     }
     address_globals(input, &mut m, session.is_some(), previous)?;

@@ -69,6 +69,11 @@ pub trait ProgramEnv: LayoutEnv {
     fn params(&self, def: DefId) -> Option<Vec<Ty>>;
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
+    /// Whether the function is marked `@cold`: each direct call of it goes
+    /// through the function table (`annot.inline.cold`).
+    fn cold(&self, _def: DefId) -> bool {
+        false
+    }
     /// The requirement keys of an instance's row, each the whole trait
     /// value type with its substituted arguments and bindings (`crates/hd_mono/DESIGN.md`
     /// §13.18), in key order (`key_order`, §12.4): the declared keys, and

@@ -1,0 +1,14 @@
+# @dump: wat
+# `@cold`: each direct call is a `call_indirect` through the function
+# table, which V8 does not inline, so the rare path stays out of `check`.
+use std.annotation.cold
+
+@cold
+fn report(at: usize) -> string:
+    "unexpected byte at $at"
+
+fn check(at: usize, size: usize) -> string:
+    if at < size:
+        return ""
+    report(at)
+    #^^^^^^^^^
