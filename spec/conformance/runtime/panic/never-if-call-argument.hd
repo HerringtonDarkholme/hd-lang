@@ -1,0 +1,8 @@
+# test: an if whose branches both panic, used as a call argument, panics before the call
+# Spec 04 The never Type: types.never.assignable; Spec 05: expr.order.left-to-right (issue #850).
+
+fn pick(x: i32?, loud: bool) -> i32:
+    x.unwrap_or(if loud: panic("loud") else: panic("quiet"))  # panic: explicit-panic
+
+pub fn main() -> void $ Console:
+    println("${pick(.Some(+2), true)}")

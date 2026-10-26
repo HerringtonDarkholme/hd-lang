@@ -421,7 +421,7 @@ fn body_func<'a>(
     em.prepare_own_loans();
     let root = b.sub_root[sub as usize];
     em.block_into(root, None)?;
-    let tail = b.data[root as usize][1];
+    let tail = em.live_tail(root);
     if !results.is_empty() {
         if tail == NONE || em.diverges(tail) {
             em.f.op(Instruction::Unreachable);
@@ -1248,6 +1248,44 @@ impl Em<'_, '_, '_> {
         self.inst_ty[i as usize]
     }
 
+    /// The position of the first of `items`, a block's, that has type
+    /// `never` and is followed by code that reads values, such as a
+    /// `panic(..)` used as a call argument. Nothing after it runs, and the
+    /// values that code would read, such as the call's other arguments,
+    /// were never computed: the block ends there, with that item as its
+    /// tail. A `break`, `continue` or `return` ends its path itself, and
+    /// drops after an item read no value of it, so both stay as they are.
+    fn dead_from(&self, items: &[u32], tail: u32) -> Option<usize> {
+        let k = items.iter().position(|&i| {
+            !matches!(
+                self.b.tags[i as usize],
+                Tag::Block | Tag::Break | Tag::Continue | Tag::Return | Tag::Unreachable
+            ) && self.diverges(i)
+        })?;
+        let reads = (tail != NONE && tail != items[k])
+            || items[k + 1..]
+                .iter()
+                .any(|&i| self.b.tags[i as usize] != Tag::Drop);
+        reads.then_some(k)
+    }
+
+    /// The value block `blk` ends with: its tail, or the item
+    /// [`Em::dead_from`] ends it at.
+    fn live_tail(&self, blk: u32) -> u32 {
+        let [list, tail] = self.b.data[blk as usize];
+        let items = self.items(list);
+        self.dead_from(&items, tail).map_or(tail, |k| items[k])
+    }
+
+    /// The instructions of block list `list`, without the blocks it holds,
+    /// which run where the instruction that owns them runs.
+    fn items(&self, list: u32) -> Vec<u32> {
+        self.rec(list)
+            .into_iter()
+            .filter(|i| self.b.tags[*i as usize] != Tag::Block)
+            .collect()
+    }
+
     /// Whether value `r` never produces a value: its type is `never`.
     fn diverges(&self, r: u32) -> bool {
         self.pool().get(self.ty_of(r)) == TyData::Never
@@ -1423,16 +1461,16 @@ impl Em<'_, '_, '_> {
         if self.b.tags[blk as usize] != Tag::Block {
             return unsupported("a block operand that is not a block");
         }
-        let [list, tail] = self.b.data[blk as usize];
+        let [list, mut tail] = self.b.data[blk as usize];
         let labelled = self.topo.label_of[blk as usize] != NONE;
         if labelled {
             self.open(Ctl::Brk(blk));
         }
-        let items: Vec<u32> = self
-            .rec(list)
-            .into_iter()
-            .filter(|i| self.b.tags[*i as usize] != Tag::Block)
-            .collect();
+        let mut items = self.items(list);
+        if let Some(k) = self.dead_from(&items, tail) {
+            tail = items[k];
+            items.truncate(k + 1);
+        }
         if self.range(blk).is_some() {
             self.resume_list(&items)?;
         } else {

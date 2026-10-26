@@ -5073,3 +5073,10 @@ runtime/valid/impl-trait-nested-concrete-constructor-conversions.hd	runtime	acce
 runtime/valid/std-list-extend-counted.hd	runtime	accept	std/collections.md#r-std-collections.access.extend
 runtime/valid/trait-method-default-parameters.hd	runtime	accept	lang/09-traits.md#r-trait.impl.param-default.calls
 typing/invalid/trait-impl-restates-parameter-default.hd	type	reject:trait-method-signature	lang/09-traits.md#r-trait.impl.param-default.no-restate
+runtime/panic/never-call-argument.hd	runtime	panic:explicit-panic	lang/04-type-system.md#r-types.never.assignable
+runtime/panic/never-owned-call-argument.hd	runtime	panic:explicit-panic	lang/04-type-system.md#r-types.never.assignable
+runtime/panic/never-struct-field.hd	runtime	panic:explicit-panic	lang/04-type-system.md#r-types.never.assignable
+runtime/panic/never-binary-operand.hd	runtime	panic:explicit-panic	lang/04-type-system.md#r-types.never.assignable
+runtime/panic/never-list-element.hd	runtime	panic:explicit-panic	lang/04-type-system.md#r-types.never.assignable
+runtime/panic/never-interpolation-part.hd	runtime	panic:explicit-panic	lang/04-type-system.md#r-types.never.assignable
+runtime/panic/never-if-call-argument.hd	runtime	panic:explicit-panic	lang/04-type-system.md#r-types.never.assignable

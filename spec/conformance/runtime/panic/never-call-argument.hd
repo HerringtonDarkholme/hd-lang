@@ -1,0 +1,6 @@
+# test: a panic used as a call argument panics before the call
+# Spec 04 The never Type: types.never.assignable; Spec 05: expr.order.left-to-right (issue #850).
+
+pub fn main() -> void $ Console:
+    let x: i32? = .Some(+1)
+    println("${x.unwrap_or(panic("never"))}")  # panic: explicit-panic
