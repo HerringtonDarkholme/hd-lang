@@ -911,6 +911,10 @@ pub struct Module {
     /// The instances of `std.rt.cycle`, whose module init an acyclic
     /// program does not run.
     pub cycle_insts: BTreeSet<Hash128>,
+    /// The instances of `@cold` functions: [`Module::finish`] lowers each
+    /// direct call of one as [`Func::cold_helper`] lowers a helper's
+    /// (`annot.inline.cold`).
+    pub cold_insts: BTreeSet<Hash128>,
     /// Whether [`Module::finish`] inlines the count fast paths
     /// ([`crate::Input::inline_counts`]).
     pub inline_counts: bool,
@@ -1372,6 +1376,27 @@ impl Module {
             }
         }
         self.reach();
+        // A direct call of a `@cold` function goes through the function
+        // table, at the callee's own signature (`annot.inline.cold`), for
+        // the reason [`Func::cold_helper`] gives.
+        let cold: BTreeMap<SymId, SigId> = self
+            .funcs
+            .iter()
+            .enumerate()
+            .filter_map(|(k, f)| {
+                let f = f.as_ref()?;
+                let id = SymId(u32::try_from(k).expect("symbols"));
+                let Sym::Inst(key) = *self.symbols.get(id) else {
+                    return None;
+                };
+                self.cold_insts.contains(&key).then(|| {
+                    let sig = self
+                        .symbols
+                        .intern_signature(f.params.clone(), f.results.clone());
+                    (id, sig)
+                })
+            })
+            .collect();
         let physical = !session
             && !self.funcs.iter().enumerate().any(|(k, f)| {
                 f.is_some()
@@ -1386,6 +1411,13 @@ impl Module {
             let outer = f.origin_at;
             for (position, ins) in body.into_iter().enumerate() {
                 f.origin_at = origins.as_ref().and_then(|o| o[position]);
+                if let Ins::Call(id) = ins
+                    && let Some(sig) = cold.get(&id)
+                {
+                    f.push(Ins::TableSlot(id));
+                    f.push(Ins::CallIndirect(*sig));
+                    continue;
+                }
                 let helper = match ins {
                     Ins::Call(id) => match &*self.symbols.get(id) {
                         Sym::Helper(crate::rt::Helper::RefIsView) => 1,

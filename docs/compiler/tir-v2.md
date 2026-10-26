@@ -2909,7 +2909,12 @@ a dev build copies std callees only, so user code stays as written for
 stepping, stack traces and `dbg`; a release build copies both, like the
 other cross-function work, which is release-only. 16 lets a one-line
 helper such as spectral_norm's `a(i, j)` (15) be no call in a hot loop,
-which V8's baseline tier would run as a call.
+which V8's baseline tier would run as a call. A function marked
+`@inline(.Never)` or `@cold` is copied nowhere
+([`annot.inline.never`](../../spec/lang/14-annotations.md#r-annot.inline.never)),
+and each direct call of a `@cold` function goes through the function
+table, so V8 does not copy it either
+([`annot.inline.cold`](../../spec/lang/14-annotations.md#r-annot.inline.cold)).
 
 The rule was tuned on the 18 programs of bench/study and
 bench/runtime/progs against JavaScript, on three V8 tiers (default,

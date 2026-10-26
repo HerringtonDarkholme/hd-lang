@@ -11129,6 +11129,12 @@ impl ProgramEnv for Env<'_> {
             _ => Vec::new(),
         }
     }
+    fn cold(&self, def: DefId) -> bool {
+        self.p
+            .items
+            .get(def)
+            .is_some_and(|i| i.inline == hd_resolve::iface::COLD)
+    }
     fn intrinsic(&self, def: DefId) -> Option<String> {
         let k = self.p.items.get(def)?.intrinsic?;
         Some(self.run.syms.resolve(k).to_owned())
