@@ -26,49 +26,47 @@
     ;; 22 |     while true:
       block
         loop
-          block
     ;; 23 |         match cursor.next():
-            local.get $cursor
-            call $"impl Iterator [ i64 ] for Upto.next"
-            local.set $t2
-            local.set $t3
+          local.get $cursor
+          call $"impl Iterator [ i64 ] for Upto.next"
+          local.set $t2
+          local.set $t3
+          block
             block
               block
-                block
     ;; 24 |             .Some(item) => sum = sum + item
+                local.get $t3
+                i32.const 1
+                i32.eq
+                if
+                  local.get $t2
+                  local.set $item
+                  br 1
+                else
+    ;; 25 |             .None => break
                   local.get $t3
-                  i32.const 1
-                  i32.eq
-                  if
-                    local.get $t2
-                    local.set $item
-                    br 1
-                  else
-    ;; 25 |             .None => break
-                    local.get $t3
-                    i32.eqz
-                    br_if 2
-                    unreachable
-    ;; 24 |             .Some(item) => sum = sum + item
-                  end
-    ;; 23 |         match cursor.next():
+                  i32.eqz
+                  br_if 2
                   unreachable
-                end
     ;; 24 |             .Some(item) => sum = sum + item
-                local.get $sum
-                local.get $item
-                i64.add
-                local.set $sum
+                end
     ;; 23 |         match cursor.next():
-                br 1
+                unreachable
               end
-    ;; 25 |             .None => break
-              br 3
+    ;; 24 |             .Some(item) => sum = sum + item
+              local.get $sum
+              local.get $item
+              i64.add
+              local.set $sum
     ;; 23 |         match cursor.next():
-              br 0
+              br 1
             end
-    ;; 22 |     while true:
+    ;; 25 |             .None => break
+            br 2
+    ;; 23 |         match cursor.next():
+            br 0
           end
+    ;; 22 |     while true:
           br 0
         end
       end

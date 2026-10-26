@@ -1405,11 +1405,14 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
 }
 
 /// Folds code that a constant decides (#655): an `if` whose condition is
-/// an `i32` constant becomes a `block` of the arm that runs (or goes,
-/// with no `else` and no result), and an `i32` local whose every write
-/// stores 0 is read as 0, so the flag of a branch folded away goes with
-/// it. A `block` keeps the label depth of the `if` it replaces, so no
-/// branch inside the arm changes. Gives whether anything changed.
+/// an `i32` constant becomes the arm that runs (or goes, with no `else`
+/// and no result), and an `i32` local whose every write stores 0 is read
+/// as 0, so the flag of a branch folded away goes with it. An arm that
+/// branches to the `if` itself stays in a `block`, which keeps the
+/// label depth of the `if`; any other arm takes the `if`'s place, each
+/// branch past it naming one label fewer, so the straight-line runs the
+/// local rules work on continue through it. Gives whether anything
+/// changed.
 pub fn fold_constant_branches(f: &mut Func) -> bool {
     use crate::module::Val;
     use wasm_encoder::BlockType;
@@ -1449,7 +1452,10 @@ pub fn fold_constant_branches(f: &mut Func) -> bool {
             let mut origins = Remap::new(f.origins.as_deref());
             origins.copy(0..i);
             let mut out: Vec<Ins> = Vec::new();
-            if !(arm.is_empty() && matches!(bt, BlockType::Empty)) {
+            if !targets_self(&arm, &f.labels) {
+                out = lowered(&arm, &mut f.labels);
+                origins.copy(selected);
+            } else if !(arm.is_empty() && matches!(bt, BlockType::Empty)) {
                 out.push(Ins::Op(I::Block(bt)));
                 out.extend(arm);
                 out.push(Ins::Op(I::End));
@@ -1860,7 +1866,36 @@ mod origin_tests {
                 assert!(fold_constant_branches(f));
             },
         );
-        assert_eq!(spans(&f), [10, 15, 16, 17]);
+        assert_eq!(spans(&f), [15, 16]);
+        // An arm takes its `if`'s place, one label fewer past it, unless
+        // it branches to the `if` itself.
+        for (target, kept) in [(1, false), (0, true)] {
+            let mut f = tracked(
+                &symbols,
+                0,
+                0,
+                vec![
+                    op(I::Block(BlockType::Empty)),
+                    op(I::I32Const(1)),
+                    op(I::If(BlockType::Empty)),
+                    op(I::Br(target)),
+                    op(I::End),
+                    op(I::End),
+                ],
+            );
+            assert!(fold_constant_branches(&mut f));
+            let body: Vec<String> = f.body.iter().map(|i| format!("{i:?}")).collect();
+            let want = if kept {
+                ["Block", "Block", "Br(0)", "End", "End"].as_slice()
+            } else {
+                ["Block", "Br(0)", "End"].as_slice()
+            };
+            assert_eq!(body.len(), want.len(), "{body:?}");
+            assert!(
+                body.iter().zip(want).all(|(b, w)| b.contains(w)),
+                "{body:?}"
+            );
+        }
         let f = run(
             tracked(
                 &symbols,

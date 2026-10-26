@@ -23,32 +23,28 @@
       local.set $t4
       local.get $t2
       drop
-      block (result i32)
-        local.get $t2
-      end
+      local.get $t2
       local.set $t5
       local.get $t4
       local.get $t3
       call $rt:retain
       local.get $t5
       drop
-      block
-        local.get $t5
-        i32.load $heap
-        local.set $t6
-        local.get $t5
-        i32.load $heap offset=4
-        local.set $t7
-        local.get $t5
-        local.get $t4
-        i32.store $heap
-        local.get $t5
-        local.get $t3
-        i32.store $heap offset=4
-        local.get $t6
-        local.get $t7
-        call $rt:release
-      end
+      local.get $t5
+      i32.load $heap
+      local.set $t6
+      local.get $t5
+      i32.load $heap offset=4
+      local.set $t7
+      local.get $t5
+      local.get $t4
+      i32.store $heap
+      local.get $t5
+      local.get $t3
+      i32.store $heap offset=4
+      local.get $t6
+      local.get $t7
+      call $rt:release
       local.get $t1
       call $rt:release_ref
       i32.const 0

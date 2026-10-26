@@ -10,30 +10,26 @@
       i32.const 0
       i32.gt_u
       if
-        block
-          local.get $items
-          i32.load $heap
-          local.tee $t0
-          call $rt:list_unique
-          local.tee $t1
-          local.get $t0
-          i32.ne
-          if
-            local.get $items
-            local.get $t1
-            i32.store $heap
-          end
-          local.get $t1
-          local.set $t0
-        end
-      end
-      block
         local.get $items
         i32.load $heap
-        local.tee $t2
-        i32.load $heap offset=4
-        local.set $t3
+        local.tee $t0
+        call $rt:list_unique
+        local.tee $t1
+        local.get $t0
+        i32.ne
+        if
+          local.get $items
+          local.get $t1
+          i32.store $heap
+        end
+        local.get $t1
+        local.set $t0
       end
+      local.get $items
+      i32.load $heap
+      local.tee $t2
+      i32.load $heap offset=4
+      local.set $t3
       block
         loop
           local.get $j
@@ -48,15 +44,11 @@
           i32.const 1
           i32.sub
           local.set $t5
-          block (result i32)
-            local.get $t2
-          end
+          local.get $t2
           local.set $t6
           local.get $t5
           local.tee $t7
-          block (result i32)
-            local.get $t3
-          end
+          local.get $t3
           i32.ge_u
           if
             call $rt:panic
@@ -69,15 +61,11 @@
           i32.add
           i32.load $heap offset=16
           local.set $t8
-          block (result i32)
-            local.get $t2
-          end
+          local.get $t2
           local.set $t9
           local.get $t4
           local.tee $t10
-          block (result i32)
-            local.get $t3
-          end
+          local.get $t3
           i32.ge_u
           if
             call $rt:panic

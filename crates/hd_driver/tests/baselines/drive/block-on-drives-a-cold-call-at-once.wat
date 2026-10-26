@@ -65,12 +65,10 @@
       global.get $rewake
       i32.or
       global.set $rewake
-      block
-        i32.const 0
-        local.get $t2
-        local.set $t8
-        local.set $t9
-      end
+      i32.const 0
+      local.get $t2
+      local.set $t8
+      local.set $t9
       ;; ...
       block
         block

@@ -7,17 +7,15 @@
       local.get $state
       local.tee $t0
       drop
-      block
-        local.get $t0
-        i32.load $heap
-        drop
-        local.get $t0
-        i32.load $heap offset=4
-        drop
-        local.get $t0
-        i32.load $heap offset=8
-        drop
-      end
+      local.get $t0
+      i32.load $heap
+      drop
+      local.get $t0
+      i32.load $heap offset=4
+      drop
+      local.get $t0
+      i32.load $heap offset=8
+      drop
     end
   )
 )

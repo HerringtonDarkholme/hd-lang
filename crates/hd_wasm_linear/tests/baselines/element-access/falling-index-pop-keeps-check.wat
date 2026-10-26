@@ -29,11 +29,9 @@
           local.set $t1
           local.get $items
           drop
-          block
-            local.get $items
-            i32.load $heap
-            local.set $t2
-          end
+          local.get $items
+          i32.load $heap
+          local.set $t2
           local.get $t1
           local.tee $t3
           local.get $t2
@@ -53,12 +51,9 @@
     ;; 9 |     while j > 0:
           local.get $items
           drop
-          block
-            local.get $items
-            i32.load $heap
-            local.set $t5
-          end
-          local.get $t5
+          local.get $items
+          i32.load $heap
+          local.tee $t5
           call $rt:list_unique
           local.set $t5
           local.get $items
@@ -69,11 +64,9 @@
     ;; 11 |         items[j] = items[j - 1]
           local.get $items
           drop
-          block
-            local.get $items
-            i32.load $heap
-            local.set $t6
-          end
+          local.get $items
+          i32.load $heap
+          local.set $t6
           local.get $t0
           local.tee $t7
           local.get $t6

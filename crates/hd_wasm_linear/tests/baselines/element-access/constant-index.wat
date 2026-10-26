@@ -7,11 +7,9 @@
     block
       local.get $xs
       drop
-      block
-        local.get $xs
-        i32.load $heap
-        local.set $t0
-      end
+      local.get $xs
+      i32.load $heap
+      local.set $t0
       i32.const 0
       local.get $t0
       i32.load $heap offset=4

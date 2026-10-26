@@ -9,11 +9,9 @@
     ;; 8 |     set(&mut xs[0][0], 9)
       local.get $xs
       drop
-      block
-        local.get $xs
-        i32.load $heap
-        local.set $t0
-      end
+      local.get $xs
+      i32.load $heap
+      local.set $t0
       i32.const 0
       local.get $t0
       i32.load $heap offset=4
@@ -44,23 +42,18 @@
       ;; ...
     end
   )
-  (func $set (param $p i32) (param $v i32) (local $t0 i32) (local $t1 i32)
+  (func $set (param $p i32) (param $v i32) (local $t0 i32)
     ;; 5 |     *p = v
     block
       local.get $p
-      local.set $t0
-      local.get $v
-      local.set $t1
-      local.get $t0
+      local.tee $t0
       drop
-      block
-        local.get $t0
-        i32.load $heap
-        drop
-        local.get $t0
-        local.get $t1
-        i32.store $heap
-      end
+      local.get $t0
+      i32.load $heap
+      drop
+      local.get $t0
+      local.get $v
+      i32.store $heap
     end
   )
 )
