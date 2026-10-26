@@ -4,6 +4,7 @@
 //! both runs print the same standard output and error and end with the
 //! same status.
 
+#[cfg(unix)]
 use hd_base::SliceSort as _;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
