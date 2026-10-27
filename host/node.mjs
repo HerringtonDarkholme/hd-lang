@@ -1011,9 +1011,23 @@ const resolveTarget = (path, cwd = process.cwd()) => resolvePath(path, cwd);
 // The grant with Node's path resolution.
 export const createGrant = (limits = {}) => createCoreGrant(limits, resolveTarget, sep);
 
+// `count` bytes of the operating system's random source. Reading the
+// device needs no `crypto`, whose module costs about 3 ms to load.
+function urandom(count) {
+  const out = new Uint8Array(count);
+  const fd = openSync("/dev/urandom", "r");
+  try {
+    for (let at = 0; at < count;) at += readSync(fd, out, at, count - at, null);
+  } finally {
+    closeSync(fd);
+  }
+  return out;
+}
+
 // The Node layer for `createCoreHost`: the providers that touch the
 // machine, and what releases them.
 const nodeLayer = {
+  randomBytes: process.platform === "win32" ? undefined : urandom,
   resolveTarget,
   sep,
   files: nodeFiles,

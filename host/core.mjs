@@ -303,7 +303,7 @@ function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, un
     // The run's map hash key: 64 random bits. The instance asks once and
     // keeps it in a runtime global; a session's journal records the call,
     // so a rebuild hashes with the same key.
-    hash_seed: () => new DataView(randomBytes(8).buffer).getBigInt64(0, true),
+    hash_seed: () => new DataView(st.random(8).buffer).getBigInt64(0, true),
   };
 }
 
@@ -460,6 +460,8 @@ function clockProvider() {
 }
 
 // `count` random bytes (`getRandomValues` takes at most 65536 at a time).
+// A platform layer may supply its own (`layer.randomBytes`): on Node the
+// first use of `crypto` loads its module, about 3 ms of a run.
 function randomBytes(count) {
   const out = new Uint8Array(count);
   for (let at = 0; at < count; at += 65536) crypto.getRandomValues(out.subarray(at, at + 65536));
@@ -469,10 +471,10 @@ function randomBytes(count) {
 // The operating system's random source (cli.host.default-profile).
 // `Random` has no scope entries: a grant of `false` refuses the whole
 // program at startup (cli.cap.total.refuse).
-function randomProvider() {
+function randomProvider(random) {
   return {
-    next_u64: () => new DataView(randomBytes(8).buffer).getBigInt64(0, true),
-    fill: (count) => randomBytes(count >>> 0),
+    next_u64: () => new DataView(random(8).buffer).getBigInt64(0, true),
+    fill: (count) => random(count >>> 0),
   };
 }
 
@@ -569,9 +571,11 @@ export function httpProvider(send) {
   };
 }
 
-function initialState(env) {
+function initialState(env, layer) {
   return {
     memory: null,
+    // The operating system's random bytes: the platform's, or webcrypto.
+    random: layer?.randomBytes ?? randomBytes,
     // The labels of the facts bodies running, innermost last (`hd:rt`
     // `fact`): a panic report names the innermost.
     facts: [],
@@ -665,7 +669,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // The instance's mutable state, shared with the provider functions
   // below: the exchange memory, trap reporting, the test timeout, case
   // files, pending operations, output, and noticed names.
-  const st = initialState(env);
+  const st = initialState(env, layer);
   const view = (len) => new Uint8Array(st.memory.buffer, 0, len);
   const text = (len) => decodeUtf8(view(len));
   // Writes an encoded result (or its bytes) at offset 0, growing the
@@ -762,7 +766,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   const providers = {
     "hd:Console": consoleProvider({ st, sink, flush, grant }),
     "hd:Clock": clockProvider(),
-    "hd:Random": randomProvider(),
+    "hd:Random": randomProvider(st.random),
     "hd:Args": argsProvider({ program, args }),
     "hd:TestRunner": testRunnerProvider({ env, st, files: env.files ?? layer?.files }),
     "hd:PropertyRunner": propertyRunnerProvider({ env }),
