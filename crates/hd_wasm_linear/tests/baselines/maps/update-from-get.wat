@@ -9,31 +9,29 @@
   (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
     block
     ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
-      local.get $word.0
-      local.set $t0
       local.get $counts
       i32.load $heap
-      local.tee $t1
+      local.tee $t0
       local.get $word.0
       local.get $word.1
       call $rt:map_hash
       local.get $word.0
       local.get $word.1
       call $rt:map_find
-      local.tee $word.0
+      local.tee $t1
       i32.const 0
       i32.ge_s
       if (result i32)
         i32.const 1
-        local.get $t1
-        local.get $t1
+        local.get $t0
+        local.get $t0
         i32.load $heap offset=12
         i32.const 12
         i32.mul
         i32.add
         i32.const 24
         i32.add
-        local.get $word.0
+        local.get $t1
         i32.const 16
         i32.mul
         i32.add
@@ -51,16 +49,16 @@
       i64.add
       local.set $t2
       ;; ...
-      local.get $t0
+      local.get $word.0
       local.get $word.1
       call $rt:map_hash
       local.set $t1
-      local.get $t0
+      local.get $word.0
       call $retain
       local.get $counts
       ;; ...
       local.get $t1
-      local.get $t0
+      local.get $word.0
       local.get $word.1
       local.get $t2
       call $rt:map_put

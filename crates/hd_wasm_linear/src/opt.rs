@@ -609,11 +609,13 @@ impl Live {
 /// Rule 15: locals of one type whose values are never live at once share
 /// one local, as a register allocator colors its interference graph. A
 /// write conflicts with each local live just after it, except with the
-/// source of a copy, which holds the same value; parameters are written
-/// at entry, where every local live there holds its parameter or its
-/// initial zero. Each local in turn joins the first class of its type
-/// (parameters first) it conflicts with no member of; a copy between two
-/// locals of one class then goes.
+/// source of a copy ([`copy_source`]), which holds the same value;
+/// parameters are written at entry, where every local live there holds
+/// its parameter or its initial zero. Each local in turn joins a class of
+/// its type (parameters first) it conflicts with no member of: one that
+/// holds a local it copies or is copied from when there is one, else the
+/// first. A copy between two locals of one class then goes, a pair of a
+/// multi-value copy too ([`same_local_copies`]).
 pub fn coalesce(f: &mut Func) {
     if f.raw.is_some()
         || f.body
@@ -633,18 +635,24 @@ pub fn coalesce(f: &mut Func) {
     let mut rows = vec![0u64; n * w];
     let mut used = vec![false; n];
     let mut write = vec![0u64; w];
+    // Each copy's two locals, the copied one second.
+    let mut copies: Vec<(u32, u32)> = Vec::new();
     live.walk_back(body, |at, after| {
         let Ins::Op(I::LocalSet(x) | I::LocalTee(x) | I::LocalGet(x)) = &body[at] else {
             return;
         };
-        let x = *x as usize;
-        used[x] = true;
+        let x = *x;
+        used[x as usize] = true;
         if matches!(body[at], Ins::Op(I::LocalGet(_))) {
             return;
         }
+        let x = x as usize;
         write.copy_from_slice(after);
-        if let Some(Ins::Op(I::LocalGet(y))) = at.checked_sub(1).map(|p| &body[p]) {
-            set_zero(&mut write, *y, false);
+        if let Some(y) = copy_source(body, at) {
+            set_zero(&mut write, y, false);
+            if y as usize != x {
+                copies.push((u32::try_from(x).expect("locals"), y));
+            }
         }
         for (r, a) in rows[x * w..(x + 1) * w].iter_mut().zip(&write) {
             *r |= *a;
@@ -666,18 +674,42 @@ pub fn coalesce(f: &mut Func) {
     // their rows.
     let mut classes: Vec<(u32, crate::module::Val, Vec<u64>, Vec<u64>)> = Vec::new();
     let mut to: Vec<u32> = (0..u32::try_from(n).expect("locals")).collect();
+    // Each local's class, once it has one.
+    let mut class_of: Vec<Option<usize>> = vec![None; n];
+    copies.sort_stable();
+    copies.dedup();
     for x in 0..n {
         if x >= np && !used[x] {
             continue;
         }
         let xl = u32::try_from(x).expect("locals");
         let row = &rows[x * w..(x + 1) * w];
-        let fits = |(_, t, members, union): &&mut (u32, crate::module::Val, Vec<u64>, Vec<u64>)| {
+        let fits = |(_, t, members, union): &(u32, crate::module::Val, Vec<u64>, Vec<u64>)| {
             *t == ty(x)
                 && !zero_local(union, xl)
                 && row.iter().zip(members.iter()).all(|(a, b)| a & b == 0)
         };
-        if let Some((rep, _, members, union)) = classes.iter_mut().find(|c| x >= np && fits(c)) {
+        let partner = copies
+            .iter()
+            .filter_map(|&(a, b)| {
+                if a == xl {
+                    Some(b)
+                } else if b == xl {
+                    Some(a)
+                } else {
+                    None
+                }
+            })
+            .filter_map(|y| class_of[y as usize])
+            .find(|&c| fits(&classes[c]));
+        let found = if x < np {
+            None
+        } else {
+            partner.or_else(|| classes.iter().position(fits))
+        };
+        if let Some(c) = found {
+            let (rep, _, members, union) = &mut classes[c];
+            class_of[x] = Some(c);
             to[x] = *rep;
             set_zero(members, xl, true);
             for (u, r) in union.iter_mut().zip(row) {
@@ -686,32 +718,36 @@ pub fn coalesce(f: &mut Func) {
         } else {
             let mut members = vec![0u64; w];
             set_zero(&mut members, xl, true);
+            class_of[x] = Some(classes.len());
             classes.push((xl, ty(x), members, row.to_vec()));
         }
     }
     if to.iter().enumerate().all(|(x, t)| *t as usize == x) {
         return;
     }
-    let mut origins = Remap::new(f.origins.as_deref());
-    let mut out: Vec<Ins> = Vec::with_capacity(body.len());
-    for (at, ins) in body.iter().enumerate() {
-        let ins = match *ins {
+    let renamed: Vec<Ins> = body
+        .iter()
+        .map(|ins| match *ins {
             Ins::Op(I::LocalGet(l)) => Ins::Op(I::LocalGet(to[l as usize])),
             Ins::Op(I::LocalSet(l)) => Ins::Op(I::LocalSet(to[l as usize])),
             Ins::Op(I::LocalTee(l)) => Ins::Op(I::LocalTee(to[l as usize])),
             other => other,
-        };
-        match (out.last(), ins) {
-            (Some(Ins::Op(I::LocalGet(a))), Ins::Op(I::LocalSet(b))) if *a == b => {
-                out.pop();
-                origins.pop();
-            }
-            (Some(Ins::Op(I::LocalGet(a))), Ins::Op(I::LocalTee(b))) if *a == b => {}
-            _ => {
-                out.push(ins);
-                origins.copy(at..at + 1);
-            }
+        })
+        .collect();
+    let gone = same_local_copies(&renamed);
+    let mut origins = Remap::new(f.origins.as_deref());
+    let mut out: Vec<Ins> = Vec::with_capacity(body.len());
+    for (at, ins) in renamed.into_iter().enumerate() {
+        if gone[at] {
+            continue;
         }
+        if let (Some(Ins::Op(I::LocalGet(a))), Ins::Op(I::LocalTee(b))) = (out.last(), ins)
+            && *a == b
+        {
+            continue;
+        }
+        out.push(ins);
+        origins.copy(at..at + 1);
     }
     f.body = out;
     origins.finish(f);
@@ -723,6 +759,66 @@ pub fn coalesce(f: &mut Func) {
         *names = merged;
     }
     renumber(f);
+}
+
+/// The local whose value the `local.set` or `local.tee` at `at` writes,
+/// when a `local.get` pushed it: the get just before it, or, for the
+/// `j`th set of a run of sets, the `j`th get back from the end of the
+/// run of gets before them, a multi-value copy, so long as no set of
+/// the run before `at` writes that local.
+fn copy_source(body: &[Ins], at: usize) -> Option<u32> {
+    let mut start = at;
+    while start > 0 && matches!(body[start - 1], Ins::Op(I::LocalSet(_))) {
+        start -= 1;
+    }
+    let first = start.checked_sub(1 + at - start)?;
+    let Ins::Op(I::LocalGet(y)) = body[first] else {
+        return None;
+    };
+    let gets = &body[first..start];
+    let all_gets = gets.iter().all(|i| matches!(i, Ins::Op(I::LocalGet(_))));
+    let overwritten = body[start..at]
+        .iter()
+        .any(|i| matches!(i, Ins::Op(I::LocalSet(z)) if *z == y));
+    (all_gets && !overwritten).then_some(y)
+}
+
+/// The pairs of multi-value copies `local.get a ...; ... local.set a`
+/// whose two ends name one local and that no set of the run before writes
+/// over: each such pair is a no-op, and taking both ends out leaves every
+/// other pair matched.
+fn same_local_copies(body: &[Ins]) -> Vec<bool> {
+    let mut gone = vec![false; body.len()];
+    let mut at = 0;
+    while at < body.len() {
+        if !matches!(body[at], Ins::Op(I::LocalSet(_))) {
+            at += 1;
+            continue;
+        }
+        let start = at;
+        while at < body.len() && matches!(body[at], Ins::Op(I::LocalSet(_))) {
+            at += 1;
+        }
+        let mut gets = start;
+        while gets > 0 && matches!(body[gets - 1], Ins::Op(I::LocalGet(_))) {
+            gets -= 1;
+        }
+        for j in 0..(at - start).min(start - gets) {
+            let (Ins::Op(I::LocalSet(x)), Ins::Op(I::LocalGet(y))) =
+                (body[start + j], body[start - 1 - j])
+            else {
+                continue;
+            };
+            let overwritten = body[start..start + j]
+                .iter()
+                .any(|i| matches!(i, Ins::Op(I::LocalSet(z)) if *z == x));
+            if x == y && !overwritten {
+                gone[start + j] = true;
+                gone[start - 1 - j] = true;
+            }
+        }
+    }
+    gone
 }
 
 /// Rules 13 and 14, from one backward liveness pass over the basic blocks
@@ -3332,6 +3428,34 @@ mod origin_tests {
         );
         assert_eq!(f.body.len(), 4);
         assert!(f.locals.is_empty());
+        // A two-value copy shares each source's local and goes, though
+        // first fit would put its first destination in the parameter's
+        // class.
+        f = run(
+            tracked(
+                &symbols,
+                1,
+                4,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::I32Eqz),
+                    op(I::LocalSet(1)),
+                    op(I::LocalGet(0)),
+                    op(I::I32Eqz),
+                    op(I::LocalSet(2)),
+                    op(I::LocalGet(1)),
+                    op(I::LocalGet(2)),
+                    op(I::LocalSet(4)),
+                    op(I::LocalSet(3)),
+                    op(I::LocalGet(3)),
+                    release,
+                    op(I::LocalGet(4)),
+                    release,
+                ],
+            ),
+            coalesce,
+        );
+        assert_eq!(f.body.len(), 10, "{:?}", f.body);
     }
 
     #[test]

@@ -19,8 +19,6 @@
       local.get $n
       i32.eqz
       if
-        local.get $seed
-        local.set $n
       else
     ;; 8 |         else: n + sum(n - 1)
         local.get $env
@@ -41,12 +39,12 @@
         local.get $ctx
         i32.add
     ;; 7 |         if n == 0: seed
-        local.set $n
+        local.set $seed
       end
     ;; 6 |     sum := fn(n: i32) -> i32:
       local.get $env
       call $rt:release_ref
-      local.get $n
+      local.get $seed
       local.set $env
     end
     local.get $env

@@ -9,9 +9,7 @@
       local.get $r
       call $rt:retain_known
       local.get $r
-      local.get $r
       local.set $t0
-      local.set $r
     end
     local.get $r
     local.get $t0
