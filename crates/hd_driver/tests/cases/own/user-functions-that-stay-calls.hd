@@ -5,8 +5,8 @@
 # `run` are copied though each still makes a call (`long`, a function
 # value); `long` has more than 16 instructions; `first` takes a reference,
 # which a copy would count in a local; `make` creates a closure; `down`
-# calls itself: each of those calls stays a call. `need` declares a
-# provider but reads none, so its call is copied.
+# calls itself: each of those calls stays a call. `need` has a requirement
+# row, so its call stays a call too.
 fn half(x: i64) -> i64:
     x / 2
 
