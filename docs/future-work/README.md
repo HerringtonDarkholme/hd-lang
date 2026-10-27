@@ -33,6 +33,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Tooling
 
+- [hd fmt](HD_FMT.md): the approved formatter architecture: one fixed style, comment attachment and a bounded document printer (#906); implementation in #899.
 - [hd lint](HD_LINT.md): the `hd lint` command and warning migration (#855, in part); its architecture is being redesigned (#908).
 - [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes; every version is compared with the last stable release (#28).
 - [Live Execution](live-execution.md): the built REPL, journal, replay and session rebuilds (#17).
