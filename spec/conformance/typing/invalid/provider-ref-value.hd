@@ -1,4 +1,4 @@
-# Spec 11 Keys Of Reference Receiver Traits: req.ref.install-value. A struct value installed for a trait with a `&mut self` method is an error; the provider is boxed up front.
+# Spec 11 Providers Behind References: req.ref.install-ref. A struct value installed for a trait with a `&mut self` method; the provider is a trait value reference, so `&mut tally` is written.
 trait Counter:
     fn bump(&mut self) -> void
 

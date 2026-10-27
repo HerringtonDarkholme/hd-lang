@@ -12,7 +12,7 @@ impl Disposable for Lock:
 
 fn acquire(name: string, held: *mut List[string]) -> *mut Lock:
     held.push("acquired ${name}")
-    box(Lock { name: name, held: held })
+    &mut Lock { name: name, held: held }
 
 fn transfer!(held: *mut List[string]) -> void:
     using first = acquire("a", held)

@@ -30,7 +30,7 @@ tests:
 
     it("a two-level source chain"):
         failure := SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 }))
-        let error: *dyn Error = box(failure)
+        let error: *dyn Error = &failure
         errors := error.chain()
         assert_equal(errors.len(), 3, reason="the error and its two sources")
         assert_equal(
@@ -40,5 +40,5 @@ tests:
         )
 
     it("an error without a source"):
-        let error: *dyn Error = box(DiskError { free: 0 })
+        let error: *dyn Error = &DiskError { free: 0 }
         assert_equal(messages(error.chain()), ["disk full"], reason="only the error itself")

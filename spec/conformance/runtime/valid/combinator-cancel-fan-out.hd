@@ -43,6 +43,6 @@ fn shutdown!() -> string $ Clock:
     "shutdown"
 
 pub fn main!() -> void $ Console + Clock:
-    let server: *mut Server = box(Server { accepting: true, log: box([]) })
+    let server: *mut Server = &mut Server { accepting: true, log: &mut [] }
     println(race!(serve(server), shutdown()))
     println(server.log.join(", "))

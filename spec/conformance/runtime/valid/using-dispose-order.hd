@@ -17,7 +17,7 @@ impl Disposable for Res:
 
 fn open(name: string, log: *mut List[string]) -> *mut Res:
     log.push("open ${name}")
-    box(Res { name: name, log: log })
+    &mut Res { name: name, log: log }
 
 fn early!(log: *mut List[string], stop: bool) -> i32:
     using a = open("a", log)
@@ -46,17 +46,17 @@ fn fails!(log: *mut List[string]) -> Result[i32, string]:
     .Ok(value)
 
 pub fn main!() -> void $ Console:
-    let log: *mut List[string] = box([])
-    n := early!(log, false)
+    let mut log: List[string] = []
+    n := early!(&mut log, false)
     println(log.join(", "))
     log.clear()
-    m := early!(log, true)
+    m := early!(&mut log, true)
     println(log.join(", "))
     log.clear()
-    steps!(log)
+    steps!(&mut log)
     println(log.join(", "))
     log.clear()
-    failure := match fails!(log):
+    failure := match fails!(&mut log):
         .Ok(_) => "ok"
         .Err(e) => e
     println(log.join(", "))

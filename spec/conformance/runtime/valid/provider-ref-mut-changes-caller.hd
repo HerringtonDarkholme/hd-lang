@@ -1,5 +1,5 @@
-# test: a `*mut Tally` box provider of a trait with a `&mut self` method changes `tally`, and the caller reads the new state after the scope
-# Spec 11 Providers Behind References: req.ref.key.reference-values, req.ref.use.reference-values, req.ref.install-counted; Spec 11 Mutable Providers: req.mut.trait-changing, req.mut.use-writable.reference-values.
+# test: a `&mut Tally` provider of a trait with a `&mut self` method changes `tally`, and the caller reads the new state after the scope
+# Spec 11 Providers Behind References: req.ref.key.reference-values, req.ref.use.reference-values, req.ref.install-ref; Spec 11 Mutable Providers: req.mut.trait-changing, req.mut.use-writable.reference-values.
 # expect-stdout: 1 2
 # expect-stdout: 2
 # expect-stdout: 2
@@ -28,24 +28,25 @@ fn bump_by(k: i32) -> void $ Counter:
         $.use(Counter).bump()
 
 fn demo() -> i32:
-    tally := box(Tally { n: 0 })
-    $.with(Counter=tally):
+    let mut tally = Tally { n: 0 }
+    $.with(Counter=&mut tally):
         _ := tick()
         _ := tick()
     tally.n
 
 pub fn main() -> void $ Console:
-    tally := box(Tally { n: 0 })
-    $.with(Counter=tally):
+    let mut tally = Tally { n: 0 }
+    $.with(Counter=&mut tally):
         first := tick()
         println("$first ${tick()}")
     println("${tally.n}")
     println("${demo()}")
     tally.n = 10
-    $.with(Counter=tally):
+    $.with(Counter=&mut tally):
         bump_by(3)
     println("${tally.n}")
-    other := box(Tally { n: 0 })
-    $.with(Counter=other):
+    let mut other = Tally { n: 0 }
+    r := &mut other
+    $.with(Counter=r):
         bump_by(3)
     println("${other.n}")

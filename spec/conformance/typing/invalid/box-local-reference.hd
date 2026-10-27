@@ -1,7 +1,0 @@
-# test: `box` rejects a value whose type holds a local reference
-# Spec 13 Boxes: ref.box.no-local.
-struct Point:
-    x: i32
-
-fn wrap(p: &Point) -> void:
-    b := box(p) # diagnostic: local-reference-escapes

@@ -1,8 +1,9 @@
 # test: requirements / mutable providers / install a readonly value for a mutable trait
-# Spec 11 Installing: req.mut.install-writable-counted; a binding for a mutable requirement trait needs a writable counted reference.
+# Spec 11 Installing: a binding for a mutable requirement trait needs a writable reference.
 
-fn demo(counter: *MemoryCounter) -> void:
-    $.with(Counter=counter): # diagnostic: mutable-upgrade
+pub fn main() -> void:
+    counter := MemoryCounter { value: 0 }
+    $.with(Counter=&counter): # diagnostic: mutable-upgrade
         _ := $.use(Counter).count()
 
 trait Counter:

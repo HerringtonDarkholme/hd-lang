@@ -1,5 +1,5 @@
 # test: discarded reference reads preserve physical places and release temporary values produced by erased views
-# Spec 13 Reference Lifetime: ref.box.lifetime; Reference Reads: ref.read.shallow.
+# Spec 13 Reference Lifetime: ref.place.lifetime; Reference Reads: ref.read.shallow.
 # expect: test
 
 struct State:

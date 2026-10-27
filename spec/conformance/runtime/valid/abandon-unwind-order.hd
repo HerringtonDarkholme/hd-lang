@@ -33,10 +33,10 @@ fn stop!(job: mut Suspend[string]) -> string:
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
-    let log: *mut List[string] = box([])
+    let mut log: List[string] = []
     let job: mut Suspend[string] = ordered(
-        &mut Release { log: log, closing: sleep(ms(5)) },
-        log,
+        &mut Release { log: &mut log, closing: sleep(ms(5)) },
+        &mut log,
     )
     println(race!(job, stop(job)))
     println(log.join(", "))

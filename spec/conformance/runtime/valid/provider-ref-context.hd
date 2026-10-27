@@ -1,5 +1,5 @@
 # test: a context value made from `&mut log` installs the reference, and a suspending call and a stored suspension both change `log`
-# Spec 11 Providers Behind References: req.ref.install-counted; Spec 11 Reusable Contexts: req.context.create, req.context.spread.
+# Spec 11 Providers Behind References: req.ref.install-ref; Spec 11 Reusable Contexts: req.context.create, req.context.spread.
 # expect-stdout: a b 2
 # expect-stdout: 3
 trait Log:

@@ -17,10 +17,10 @@ fn run() -> i32:
     x ^= 2
     x
 
-fn bump(items: &mut List[i32], boxed: &mut Box) -> i32:
+fn bump(items: &mut List[i32], box: &mut Box) -> i32:
     items[1] += 10
-    boxed.value *= 3
-    items[1] + boxed.value
+    box.value *= 3
+    items[1] + box.value
 
 tests:
     use std.testing.assert_equal

@@ -11,12 +11,12 @@ struct Pair[A, B]:
     first: A
     second: B
 
-fn keep[T](boxed: Box[T]) -> Box[T]:
-    boxed
+fn keep[T](box: Box[T]) -> Box[T]:
+    box
 
 fn main() -> Pair[Box[i32], string]:
-    boxed := Box { value: +40 }
-    Pair { first: keep(boxed), second: "hd" }
+    box := Box { value: +40 }
+    Pair { first: keep(box), second: "hd" }
 
 tests:
     use std.testing.assert_equal

@@ -1,5 +1,5 @@
 # test: borrowed parameter and receiver reads survive alias mutation and calls
-# Spec 13 Reference Lifetime: ref.box.lifetime; Spec 04 Value Types: types.value.copy.
+# Spec 13 Reference Lifetime: ref.place.lifetime; Spec 04 Value Types: types.value.copy.
 use std.testing.assert_equal
 
 struct Holder:

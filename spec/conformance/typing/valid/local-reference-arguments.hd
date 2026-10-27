@@ -1,5 +1,5 @@
 # test: local references are passed to `&` and `&mut` parameters, bound to annotated locals, and passed on
-# Spec 13 Local References: ref.local.uses, ref.local.argument; Places And New Objects: ref.expr.kind.always-local.
+# Spec 13 Local References: ref.local.uses, ref.local.argument; Places And New Objects: ref.expr.kind.local, ref.expr.kind.local.where.
 struct Point:
     x: i32
     y: i32

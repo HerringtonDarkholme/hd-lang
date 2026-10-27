@@ -944,8 +944,8 @@ fn tick() -> i32 $ Counter:
     $.use(Counter).count()
 
 fn demo() -> i32:
-    counter := box(MemoryCounter { value: 0 })
-    $.with(Counter=counter):
+    let mut counter = MemoryCounter { value: 0 }
+    $.with(Counter=&mut counter):
         _ := tick()
         tick()   # 2
 ```
@@ -968,7 +968,7 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 
 > **Note.** Adding a `mut self` or `&mut self` method, even one with a
 > default, to a published requirement trait that had none is a breaking
-> change. `$.use` then yields a writable provider, and installing a `*T`
+> change. `$.use` then yields a writable provider, and installing a `&T`
 > reference becomes `mutable-upgrade`. Adding a first `&self` or
 > `&mut self` method changes the type of `$.use` too
 > ([`req.ref.use.reference-values`](#r-req.ref.use.reference-values)).
@@ -981,21 +981,19 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 
 ### Installing
 
-1. r[req.mut.install-writable-counted] For a mutable requirement trait `K`, a reference in a binding `K=expression` in `$.with` or `$.context` must be `*mut T` for a type `T` implementing `K`. A `*T` reference is an error. Error: `mutable-upgrade`.
-2. r[req.mut.install-readonly-counted] For any other trait, the reference may be `*T` or `*mut T`, and the provider is installed without write access.
-3. r[req.mut.install-no-local] A binding `K=expression` in `$.with` or `$.context` takes no local reference, for any trait `K`. A `&T` or `&mut T` there, such as `&mut counter`, is an error. Error: `local-reference-escapes`.
+1. r[req.mut.install-writable-ref] For a mutable requirement trait `K`, a reference in a binding `K=expression` in `$.with` or `$.context` must be `&mut T` for a type `T` implementing `K`. A `&T` reference is an error. Error: `mutable-upgrade`.
+2. r[req.mut.install-readonly-trait] For any other trait, the reference may be `&T` or `&mut T`, and the provider is installed without write access.
 
 ```text
-fn demo(counter: *MemoryCounter) -> void:
-    $.with(Counter=counter):  # error: mutable-upgrade
+pub fn main() -> void:
+    counter := MemoryCounter { value: 0 }
+    $.with(Counter=&counter):  # error: mutable-upgrade
         _ := $.use(Counter).count()
 ```
 
-> **Note.** A new object is installed as a box, as in
-> `$.with(Counter=box(MemoryCounter { value: 0 }))`, by
-> [`req.ref.install-counted`](#r-req.ref.install-counted). Code that reads
-> the provider's state after the scope boxes the value up front and keeps
-> the box.
+> **Note.** A new object is installed as a reference to it, as in
+> `$.with(Counter=&mut MemoryCounter { value: 0 })`, by
+> [`req.ref.install-ref`](#r-req.ref.install-ref).
 
 ### Retrieving
 
@@ -1082,22 +1080,20 @@ fn tick() -> i32 $ Counter:
     counter.total()
 
 fn demo() -> i32:
-    tally := box(Tally { n: 0 })
-    $.with(Counter=tally):
+    let mut tally = Tally { n: 0 }
+    $.with(Counter=&mut tally):
         _ := tick()
         _ := tick()
-    tally.n  # 2: the provider changed the object `tally` refers to
+    tally.n  # 2: the provider changed `tally`
 ```
 
 ### Keys Of Reference Receiver Traits
 
 1. r[req.ref.key.reference-values] Every requirement provider is a [trait value reference](09-traits.md#trait-value-references).
 2. r[req.ref.use.reference-values] `$.use(K)` yields `&mut dyn K` for a mutable requirement trait, and `&dyn K` otherwise.
-3. r[req.ref.install-counted] The expression of a binding `K=expression` for such a key converts to that type as any value does, by [Trait Value References](09-traits.md#trait-value-references). So `*S` and `*mut S` share the object they refer to.
-4. r[req.ref.install-value] A value of `S` in such a binding is an error. Error: `type-mismatch`.
-5. r[req.ref.install-value.fix] The fix-it writes `box(...)` around the value at its declaration: around the initializer of the local binding the expression names, or else around the expression itself.
-6. r[req.ref.same-place] Every `$.use(K)` that reaches one provider refers to the place that provider refers to. So `is` between two of them is true, and so is `is` with a reference converted from the one installed.
-7. r[req.ref.host.reference-values] A host provider is a trait value reference to a new object holding the host implementation; every `$.use(K)` below that entry refers to the same place.
+3. r[req.ref.install-ref] The expression of a binding `K=expression` for such a key converts to that type as any value does, by [Trait Value References](09-traits.md#trait-value-references). So `&S` and `&mut S` share the place they refer to, and a value of `S` is an error whose fix-it writes `&` or `&mut`. Error: `type-mismatch`.
+4. r[req.ref.same-place] Every `$.use(K)` that reaches one provider refers to the place that provider refers to. So `is` between two of them is true, and so is `is` with a reference converted from the one installed.
+5. r[req.ref.host.reference-values] A host provider is a trait value reference to a new object holding the host implementation; every `$.use(K)` below that entry refers to the same place.
 
 ```text
 trait Counter:
@@ -1115,12 +1111,12 @@ fn shared(tally: *Tally) -> void:
         pass
 ```
 
-> **Why.** Every provider is a counted reference. Reference-receiver traits
-> require a box, so their writes reach an object the caller still holds.
+> **Why.** Every provider is a reference. Reference-receiver traits require
+> a written reference so their writes reach the chosen place.
 
 ### References To Other Providers
 
-1. r[req.ref.share.counted-values] A provider for a trait without reference receivers accepts `*S` or `*mut S`, sharing its object, or a value of `S`, copied into a new object.
+1. r[req.ref.share.reference-values] A provider for a trait without reference receivers accepts `&S` or `&mut S`, sharing its place, or a value of `S`, copied into a new object.
 2. r[req.ref.share.impl] A reference to a type that does not implement `K` explicitly is an error. Error: `type-mismatch`.
 3. r[req.ref.share.write-through] A method that changes its receiver, called on that provider through `$.use(K)`, changes that place.
 
@@ -1136,15 +1132,15 @@ impl Inventory for Shelf:
         self.apples
 
 fn count() -> i32 $ Inventory:
-    $.use(Inventory).stock("apple")  # a `&dyn Inventory` to the object `shelf` refers to
+    $.use(Inventory).stock("apple")  # a `&dyn Inventory` that refers to `shelf`
 
 fn demo() -> i32:
-    shelf := box(Shelf { apples: 10 })
-    $.with(Inventory=shelf):
+    let shelf = Shelf { apples: 10 }
+    $.with(Inventory=&shelf):
         count()  # 10
 ```
 
-> **Why.** A counted reference shares its object; a value provider is copied
+> **Why.** Existing references share their place; a value provider is copied
 > into a new object. Both yield the same reference type from `$.use`.
 
 See also: [Mutable Providers](#mutable-providers).
@@ -1588,9 +1584,9 @@ fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string:
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
-    let log: *mut List[string] = box([])
-    let job: mut Suspend[string] = session(log)
-    let (winner, stopped) = all!(race(job, ready()), stopper(job, log))
+    let mut log: List[string] = []
+    let job: mut Suspend[string] = session(&mut log)
+    let (winner, stopped) = all!(race(job, ready()), stopper(job, &mut log))
     println("${winner} ${stopped}")   # won stopped
     println(log.join(", "))           # closing, closed, stopper finished
 ```
@@ -1672,8 +1668,8 @@ fn stop!(job: mut Suspend[string]) -> string:
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
-    let log: *mut List[string] = box([])
-    let job: mut Suspend[string] = ordered(&mut Release { log: log, closing: sleep(ms(5)) }, log)
+    let mut log: List[string] = []
+    let job: mut Suspend[string] = ordered(&mut Release { log: &mut log, closing: sleep(ms(5)) }, &mut log)
     println(race!(job, stop(job)))   # stopped
     println(log.join(", "))          # tail, dispose start, dispose defer, outer
 ```
@@ -1779,7 +1775,7 @@ fn shutdown!() -> string $ Clock:
     "shutdown"
 
 pub fn main!() -> void $ Console + Clock:
-    let server: *mut Server = box(Server { accepting: true, log: box([]) })
+    let server: *mut Server = &mut Server { accepting: true, log: &mut [] }
     println(race!(serve(server), shutdown()))
     println(server.log.join(", "))
 ```

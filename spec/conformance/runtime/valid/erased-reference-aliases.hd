@@ -1,5 +1,5 @@
 # test: erased reference views preserve live aliases, projected fields and identity
-# Spec 13 References: ref.deref.write, ref.box.lifetime, ref.identity.same-place.
+# Spec 13 References: ref.deref.write, ref.place.lifetime, ref.identity.same-place.
 # expect: test
 @derive(Eq, Debug)
 struct Pair:

@@ -21,16 +21,16 @@ fn pending!() -> i32:
     1
 
 fn main() -> i32:
-    boxed := &Box { value: 1 }
-    alias := boxed
+    box := &Box { value: 1 }
+    alias := box
     other := &Box { value: 1 }
-    first_trait := as_value(boxed)
-    second_trait := as_value(boxed)
+    first_trait := as_value(box)
+    second_trait := as_value(box)
     suspension := pending()
     suspension_alias := suspension
     if (
-        same(boxed, alias)
-        && !(boxed is other)
+        same(box, alias)
+        && !(box is other)
         && first_trait is second_trait
         && suspension is suspension_alias
     ):

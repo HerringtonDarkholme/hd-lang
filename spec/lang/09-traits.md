@@ -1927,7 +1927,7 @@ impl Greet for User:
     fn greet(self) -> string: "hi"
 
 fn demo(user: User) -> *dyn Greet:
-    box(user)   # the box converts through the explicit implementation
+    &user   # the reference converts through the explicit implementation
 ```
 
 See also: [Runtime Type Identity](#runtime-type-identity).
@@ -1979,7 +1979,6 @@ fn demo() -> i32:
 15. r[trait.dyn.ref.counted] `*dyn Tr` and `*mut dyn Tr` are counted trait value references. Each rule of this section holds for them with `*` in place of `&` on both sides of a conversion, so `*mut S` converts to `*mut dyn Tr`.
 16. r[trait.dyn.ref.counted.lend] A counted trait value reference lends itself as a local one, as [`ref.convert.lend`](13-values-and-references.md#r-ref.convert.lend) states: `*dyn Tr` converts to `&dyn Tr`.
 17. r[trait.dyn.ref.counted.member] Through `*dyn Tr`, the methods declared `*self` are available too, and through `*mut dyn Tr` also those declared `*mut self`.
-18. r[trait.dyn.ref.counted.new] Where `*dyn Tr` or `*mut dyn Tr` is expected, a new object is written `box(e)`, as in `box(S { ... })`. A value that is no reference is an error there, as for `&dyn Tr`. Error: `type-mismatch`.
 
 ```text
 trait Counter:
@@ -2391,7 +2390,7 @@ struct Box[T]:
     value: T
 
 fn erase[T < Inspectable](value: T) -> *dyn Inspectable:
-    box(Box { value: value })
+    &Box { value: value }
 
 fn is_int_box(value: &dyn Inspectable) -> bool:
     value.runtime_type() == TypeId::of::[Box[i32]]()

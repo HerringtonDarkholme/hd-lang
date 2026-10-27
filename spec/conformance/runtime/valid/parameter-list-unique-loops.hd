@@ -1,5 +1,5 @@
 # test: lazy loop uniqueness preserves zero iterations, COW snapshots and callbacks
-# Spec 04 Value Types: types.value.copy; Spec 13 Reference Lifetime: ref.box.lifetime.
+# Spec 04 Value Types: types.value.copy; Spec 13 Reference Lifetime: ref.place.lifetime.
 use std.testing.assert_equal
 
 fn add(values: &mut List[i32], rounds: usize) -> void:

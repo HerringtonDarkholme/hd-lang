@@ -1,8 +1,0 @@
-# test: `&p` is a local reference, so returning it as a `*Point` is an error
-# Spec 13 Places And New Objects: ref.expr.kind.always-local, ref.expr.kind.no-counted.
-struct Point:
-    x: i32
-
-fn invalid() -> *Point:
-    let mut p = Point { x: 0 }
-    &p # diagnostic: local-reference-escapes

@@ -1099,20 +1099,18 @@ fn demo() -> f64:
 4. r[fn.method.ref-self.local.fix] The diagnostic's fix-it writes `*self` for `&self`, and `*mut self` for `&mut self`.
 5. r[fn.method.counted-self] In a `*self` method `self` is a counted reference `*Self`, and in a `*mut self` method `*mut Self`. The method may store, return, and capture it.
 6. r[fn.method.counted-self.kinds] A method of any type may take `*self` or `*mut self`, as for `&self`.
-7. r[fn.method.counted-self.reference] A `*self` or `*mut self` call on a counted reference passes that reference on, so the method refers to the same object.
-8. r[fn.method.counted-self.place] A `*self` or `*mut self` call on a place, such as a local, a parameter, a field, or an element, is an error. Box the value first, as in `xs := box([1, 2, 3])`. Error: `local-reference-escapes`.
-9. r[fn.method.counted-self.temporary] On a non-place temporary, a `*self` or `*mut self` call refers to a new object holding its value, as a `&self` call does.
-10. r[fn.method.counted-self.local-receiver] A `*self` or `*mut self` call through a local reference is an error, since a local reference never converts to a counted one. Error: `local-reference-escapes`.
-11. r[fn.method.auto-address] Calling a `&self` or `&mut self` method on a place takes the place's address. `p.shift(d)` means `(&mut p).shift(d)`, and no mark appears at the call.
-12. r[fn.method.auto-address.place] A place is what `&` refers to ([Places And New Objects](13-values-and-references.md#places-and-new-objects)): a binding, a struct field of a place, or a value reached through a reference.
-13. r[fn.method.auto-address.reference] A receiver that is itself a reference is passed on, so through `r: &mut Vec2`, `r.shift(d)` changes what `r` refers to.
-14. r[fn.method.auto-address.temporary] On a non-place temporary, a `&self` or `&mut self` call refers to a new object holding its value.
-15. r[fn.method.auto-address.temporary.call] The receiver temporary is kept alive until the call returns.
-16. r[fn.method.auto-address.place-writable] When a `&mut self` call addresses a place, that place must be [writable](04-type-system.md#writable-places). Error: `not-writable`.
-17. r[fn.method.auto-address.fix] The fix-it writes `let mut` for a `let` or `:=` binding, `mut` before a parameter name, and `&mut self` for a `self` receiver.
-18. r[fn.method.auto-address.shared-reference] A `&mut self` call through a `&T` reference is an error. Error: `not-writable`.
-19. r[fn.method.auto-address.collection-element] A list element or a map value is a place for the call, as in `bodies[i].shift(d)` and `teams[name].rename(n)`, also through a reference to the collection, as in `r[i].shift(d)`. The call takes an element reference ([Element References](13-values-and-references.md#element-references)) whose access lasts from before the arguments are evaluated until the call returns. A `&mut self` call needs the collection in a writable place, as `&mut xs[i]` does.
-20. r[fn.method.self-struct-write] Writing a field of `self` in a struct's `self` method is an error, with a fix-it that takes `&mut self`. Error: `non-reassignable-parameter-binding`.
+7. r[fn.method.counted-self.address] A `*self` or `*mut self` call takes its receiver's address by the rules below for `&self` and `&mut self` calls, and the reference it takes is counted.
+8. r[fn.method.counted-self.local-receiver] A `*self` or `*mut self` call through a local reference is an error, since a local reference never converts to a counted one. Error: `local-reference-escapes`.
+9. r[fn.method.auto-address] Calling a `&self` or `&mut self` method on a place takes the place's address. `p.shift(d)` means `(&mut p).shift(d)`, and no mark appears at the call.
+10. r[fn.method.auto-address.place] A place is what `&` refers to ([Places And New Objects](13-values-and-references.md#places-and-new-objects)): a binding, a struct field of a place, or a value reached through a reference.
+11. r[fn.method.auto-address.reference] A receiver that is itself a reference is passed on, so through `r: &mut Vec2`, `r.shift(d)` changes what `r` refers to.
+12. r[fn.method.auto-address.temporary] On a non-place temporary, a `&self` or `&mut self` call refers to a new object holding its value.
+13. r[fn.method.auto-address.temporary.call] The receiver temporary is kept alive until the call returns.
+14. r[fn.method.auto-address.place-writable] When a `&mut self` call addresses a place, that place must be [writable](04-type-system.md#writable-places). Error: `not-writable`.
+15. r[fn.method.auto-address.fix] The fix-it writes `let mut` for a `let` or `:=` binding, `mut` before a parameter name, and `&mut self` for a `self` receiver.
+16. r[fn.method.auto-address.shared-reference] A `&mut self` call through a `&T` reference is an error. Error: `not-writable`.
+17. r[fn.method.auto-address.collection-element] A list element or a map value is a place for the call, as in `bodies[i].shift(d)` and `teams[name].rename(n)`, also through a reference to the collection, as in `r[i].shift(d)`. The call takes an element reference ([Element References](13-values-and-references.md#element-references)) whose access lasts from before the arguments are evaluated until the call returns. A `&mut self` call needs the collection in a writable place, as `&mut xs[i]` does.
+18. r[fn.method.self-struct-write] Writing a field of `self` in a struct's `self` method is an error, with a fix-it that takes `&mut self`. Error: `non-reassignable-parameter-binding`.
 
 ```text
 struct Point:
@@ -1137,27 +1135,11 @@ fn demo() -> void:
     make().shift(1)  # a writable temporary, discarded after this call
 ```
 
-```text
-struct Counter:
-    hits: i32
-
-impl Counter:
-    fn handle(*mut self) -> *mut Counter:
-        self
-
-fn invalid(shared: *mut Counter) -> void:
-    let mut local = Counter { hits: 0 }
-    h := local.handle()  # error: local-reference-escapes
-    k := shared.handle()  # valid: passes the counted reference on
-```
-
 > **Why.** A method says whether it changes its receiver, and the `let mut`
 > binding says that the value may change, so the call needs no mark, as in
 > Go. A temporary is a fresh writable value, so a chain needs no intermediate
 > binding. A `self` method that writes a field would change a copy nobody sees,
-> Go's lost write through a value receiver, so it does not compile. A
-> `*self` method may keep `self`, so its receiver must already be a box:
-> every counted reference then starts at an object.
+> Go's lost write through a value receiver, so it does not compile.
 
 See also: [Member Resolution](03-names-and-scopes.md#member-resolution), which
 defines member lookup, including promotion;

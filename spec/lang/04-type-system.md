@@ -1421,7 +1421,7 @@ fn widest(small: i32, large: i64) -> i64:
     max(i64(small), large)
 
 fn same(user: User, label: *dyn Display) -> bool:
-    cmp::[*dyn Display](box(user), label)
+    cmp::[*dyn Display](&user, label)
 ```
 
 > **Why.** A call's arguments are not a list literal. A reader expects `T`
@@ -1839,8 +1839,8 @@ struct User:
 struct Box[+T]:
     value: T
 
-fn demo(boxed: *Box[*mut User]) -> *Box[*User]:
-    boxed   # a readonly outer type converts covariantly
+fn demo(box: *Box[*mut User]) -> *Box[*User]:
+    box   # a readonly outer type converts covariantly
 ```
 
 ### Representation-Preserving Variance
@@ -1875,7 +1875,7 @@ struct User:
     name: string
 
 fn demo(user: User) -> *dyn Any:
-    box(user)   # every value satisfies Any
+    &user   # every value satisfies Any
 ```
 
 ### Trait Value Types

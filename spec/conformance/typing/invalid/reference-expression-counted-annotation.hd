@@ -1,8 +1,0 @@
-# test: a binding annotated `*Point` does not make `&p` counted
-# Spec 13 Places And New Objects: ref.expr.kind.always-local, ref.expr.kind.no-counted.
-struct Point:
-    x: i32
-
-fn invalid() -> void:
-    p := Point { x: 0 }
-    let r: *Point = &p # diagnostic: local-reference-escapes

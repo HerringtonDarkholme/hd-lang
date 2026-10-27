@@ -1,5 +1,5 @@
-# test: counted references made by `box` are stored in fields and lists, returned, captured, used as type arguments, and lent to `&` parameters
-# Spec 13 Reference Types: ref.type.counted-forms, ref.type.position; Boxes: ref.box.new, ref.box.weaken; Conversions: ref.convert.lend.
+# test: counted references are stored in fields and lists, returned, captured, used as type arguments, and lent to `&` parameters
+# Spec 13 Reference Types: ref.type.counted-forms, ref.type.position; Places And New Objects: ref.expr.kind.counted; Conversions: ref.convert.lend.
 struct Point:
     x: i32
 
@@ -16,14 +16,15 @@ impl Holder:
         self
 
 fn make() -> *mut Point:
-    box(Point { x: 0 })
+    &mut Point { x: 0 }
 
 fn address() -> Holder:
-    Holder { point: box(Point { x: 1 }), seen: [] }
+    let mut origin = Point { x: 1 }
+    Holder { point: &mut origin, seen: [] }
 
 fn unannotated() -> *Point:
     origin := Point { x: 2 }
-    kept := box(origin)
+    kept := &origin
     kept
 
 fn generic[T](value: T) -> T:
@@ -32,8 +33,8 @@ fn generic[T](value: T) -> T:
 fn inferred() -> List[*Point]:
     a := Point { x: 3 }
     b := Point { x: 4 }
-    one := generic(box(a))
-    [one, box(b)]
+    one := generic(&a)
+    [one, &b]
 
 fn store(points: &mut List[*Point], p: *Point) -> void:
     points.push(p)

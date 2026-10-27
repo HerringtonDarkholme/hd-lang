@@ -1,6 +1,6 @@
 # test: a `&mut self` method changes the caller's struct in place: on a `let mut` binding, through a field path, through a `&mut` reference, from another `&mut self` method, and on a data value
 # Spec 07 Reference Receivers: fn.method.ref-self, fn.method.auto-address, fn.method.auto-address.place, fn.method.auto-address.reference, fn.method.ref-self.kinds.
-# Spec 07 Methods And Receivers: fn.method.receiver.ref-mut-self. Spec 13 Places And New Objects: ref.place.receiver.local.
+# Spec 07 Methods And Receivers: fn.method.receiver.ref-mut-self. Spec 13 Places And New Objects: ref.place.receiver.
 # expect-stdout: 2.0 3.0
 # expect-stdout: 5.0 5.0
 # expect-stdout: 6.0 5.0
