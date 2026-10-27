@@ -7,8 +7,10 @@
 //! A case that needs a host service the sandbox lacks is unsupported.
 //! Every case must pass, except a case listed as `cli/NAME` in the root
 //! `KNOWN_FAILURES.tsv` (`hd_testkit::known_failures`) for the engine; a
-//! listed case that passes fails the test too, and unsupported counts as
-//! not passing. A full run prints the counts and failure buckets.
+//! listed case that passes fails the test too. Unsupported host surface counts
+//! as not passing; an explicit optional engine omitted from this build is
+//! reported as unsupported and left out of known-failure judging. A full run
+//! prints the counts and failure buckets.
 //! `HD_CONFORMANCE_ONLY=a,b` runs the cases whose name contains one of the
 //! parts and prints each verdict.
 //! `HD_CONFORMANCE_ENGINE=wasmtime-only` selects Wasmtime for program commands
@@ -119,6 +121,14 @@ fn explicit_engine(words: &[String]) -> Option<&str> {
         .next_back()
 }
 
+fn unavailable_wasmtime(steps: &[Step], wasmtime_available: bool) -> bool {
+    !wasmtime_available
+        && steps.iter().any(|step| {
+            runtime_command(&step.words).is_some()
+                && explicit_engine(&step.words) == Some("wasmtime")
+        })
+}
+
 fn select_engine(
     words: &[String],
     mode: EngineMode,
@@ -216,10 +226,7 @@ impl RuntimeStats {
 
     fn print(&self, mode: EngineMode, results: &[Verdict], elapsed: Duration) {
         let passes = results.iter().filter(|v| **v == Verdict::Pass).count();
-        let unsupported = results
-            .iter()
-            .filter(|v| matches!(v, Verdict::Unsupported(_)))
-            .count();
+        let unsupported = results.iter().filter(|v| v.is_unsupported()).count();
         println!(
             "CLI tier {mode:?}: {} cases, {passes} pass, {} fail, {unsupported} unsupported; wall {elapsed:.3?}",
             results.len(),
@@ -266,6 +273,16 @@ enum Verdict {
     Pass,
     Fail(String),
     Unsupported(String),
+    UnsupportedOptionalEngine(String),
+}
+
+impl Verdict {
+    fn is_unsupported(&self) -> bool {
+        matches!(
+            self,
+            Self::Unsupported(_) | Self::UnsupportedOptionalEngine(_)
+        )
+    }
 }
 
 // ---------------------------------------------------------------- JSON
@@ -1003,6 +1020,11 @@ fn run_case(
         Ok(steps) => steps,
         Err(e) => return Verdict::Fail(e),
     };
+    if unavailable_wasmtime(&steps, cfg!(feature = "wasmtime")) {
+        return Verdict::UnsupportedOptionalEngine(
+            "explicit --engine wasmtime needs an hd built with --features wasmtime".to_owned(),
+        );
+    }
     let needs_git = steps.iter().flat_map(|s| s.files.iter()).any(|(_, path)| {
         matches!(
             Path::new(path).file_name().and_then(|n| n.to_str()),
@@ -1204,15 +1226,24 @@ fn cli_conformance_passes_except_known_failures() {
             .unwrap_or_else(|| "node".to_owned()),
     };
     let paths: Vec<String> = names.iter().map(|name| format!("cli/{name}")).collect();
+    let unsupported_optional_engines: BTreeSet<&str> = paths
+        .iter()
+        .zip(&results)
+        .filter_map(|(path, verdict)| {
+            matches!(verdict, Verdict::UnsupportedOptionalEngine(_)).then_some(path.as_str())
+        })
+        .collect();
     let outcomes: Vec<Outcome<'_>> = paths
         .iter()
         .zip(&results)
+        .filter(|(_, verdict)| !matches!(verdict, Verdict::UnsupportedOptionalEngine(_)))
         .map(|(path, verdict)| Outcome {
             path,
             bucket: match verdict {
                 Verdict::Pass => None,
                 Verdict::Fail(why) => Some(format!("fail: {why}")),
                 Verdict::Unsupported(why) => Some(format!("unsupported: {why}")),
+                Verdict::UnsupportedOptionalEngine(_) => unreachable!("filtered above"),
             },
         })
         .collect();
@@ -1226,7 +1257,7 @@ fn cli_conformance_passes_except_known_failures() {
             &engine,
             None,
             &known,
-            |path| path.starts_with("cli/"),
+            |path| path.starts_with("cli/") && !unsupported_optional_engines.contains(path),
             &outcomes,
         )
     };
@@ -1265,6 +1296,18 @@ fn engine_mode_parser_rejects_unknown_modes() {
             .unwrap_err()
             .contains("wasmtime-only")
     );
+}
+
+#[test]
+fn explicit_wasmtime_step_is_unsupported_only_without_the_feature() {
+    let steps = parse_expect(
+        "run: hd main.hd --engine wasmtime\n\
+         run: hd other.hd -- --engine wasmtime\n",
+    )
+    .unwrap();
+    assert!(unavailable_wasmtime(&steps[..1], false));
+    assert!(!unavailable_wasmtime(&steps[..1], true));
+    assert!(!unavailable_wasmtime(&steps[1..], false));
 }
 
 #[test]
