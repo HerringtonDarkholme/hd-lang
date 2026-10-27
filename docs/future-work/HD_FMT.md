@@ -23,11 +23,9 @@ that layout. Types are irrelevant: an unresolved `combine` still formats.
 A style flag multiplies output variants and tests; a fixed style keeps editor,
 CLI and future browser output identical. This adopts Go's tooling approach,
 not its tabs or its particular line-breaking rules.
-
-## Open questions
-
-1. Approve the fixed style and parse/build/print architecture below? Recommendation: yes.
-2. Keep formatting outside the web compiler until a Format feature is approved? Recommendation: yes; zero added download now.
+The fixed style and parse/build/print architecture are the chosen design.
+Keep `hd_fmt` outside the web compiler until a separate Format feature is approved,
+so this change adds nothing to the browser download.
 
 ## Problems it solves
 
@@ -76,9 +74,12 @@ grammar permits; a complete flat body stays flat.
 
 An `if` expression in any value position may group flat. Value positions are a
 binding or assignment value, return including a function tail, argument,
-operand, match-arm body, or parentheses. Join **all** branches when the whole
-expression fits; otherwise put every branch on its own line. A statement-position
-`if` that yields nothing keeps one branch per line. Comments or multiline bodies
+operand, match-arm body, or parentheses. A tail `if` with `else` is a value
+unless its function declares `-> void`; an omitted result type counts as a value.
+An `if` without `else` is always a statement. These rules need no type facts.
+Join **all** branches when the whole expression fits. Otherwise use indented
+branch bodies, the same vertical shape as a statement `if`. In argument position,
+the suite-final value dedents before its comma. Comments or multiline bodies
 force either group to break.
 
 Attach comments once, recording leading/trailing/dangling roles and boundary
@@ -171,8 +172,10 @@ impl Base64:
             .UrlNoPad => false
 ```
 
-Parenthesized conditional, from `encoding.hd:176`. Statement branches retain
-indented bodies; short parenthesized inner conditionals remain compact.
+Value-position function tail, from `encoding.hd:176`. The complete conditional
+does not fit inline, so its branch bodies stay indented. Short parenthesized inner
+conditionals remain compact. In argument position, the existing dedented-comma
+rule would apply after the final branch value.
 
 Before:
 
