@@ -1,0 +1,12 @@
+# test: `&mut p` with no expected type is a local reference, so the binding cannot later go where `*mut Point` is expected
+# Spec 13 Places And New Objects: ref.expr.kind.always-local; Local References: ref.local.escape.counted.
+struct Point:
+    x: i32
+
+fn keep(p: *mut Point) -> void: pass
+
+fn invalid() -> void:
+    let mut p = Point { x: 0 }
+    r := &mut p
+    r.x = 1
+    keep(r) # diagnostic: local-reference-escapes

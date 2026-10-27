@@ -275,8 +275,8 @@ tests:
     use std.testing.assert_equal
 
     it("finds no address without a network"):
-        let mut net = NoNetwork {}
-        $.with(Net=&mut net):
+        net := box(NoNetwork {})
+        $.with(Net=net):
             assert_equal(addresses!("example.com").len(), 0, reason="no lookup answers")
 ```
 

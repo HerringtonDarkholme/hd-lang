@@ -6,7 +6,7 @@ This chapter defines reference types and reference expressions: their syntax, th
 
 `*T` and `&T` read the `T` they refer to, and `*mut T` and `&mut T` also write it. A **counted reference** may be stored, returned, and captured. A **local reference** is lent to a call and never kept past it.
 
-A reference to a variable or a field shares that place. A reference to any other value refers to a new object that holds a copy of it.
+`&e` and `&mut e` make local references. A counted reference refers to an object that `box` makes, which holds a copy of a value.
 
 ```hd
 struct Body:
@@ -17,7 +17,7 @@ fn drift(body: &mut Body, step: &Point) -> void:
     body.pos = *step
 
 fn spawn(pos: Point) -> *mut Body:
-    &mut Body { pos: pos, vel: Point { x: 0, y: 0 } }
+    box(Body { pos: pos, vel: Point { x: 0, y: 0 } })
 ```
 
 ## Reference Types
@@ -133,7 +133,59 @@ See also: [Unary And Binary Operators](05-expressions.md#unary-and-binary-operat
 
 ## Places And New Objects
 
-`&e` and `&mut e` refer to `e` when `e` is a place, and to a new object holding a copy of `e` otherwise.
+`&e` and `&mut e` make a local reference: to `e` when `e` is a place, and to a new object holding a copy of `e` otherwise.
+
+```hd
+struct Point:
+    x: i32
+    y: i32
+
+fn make() -> Point:
+    Point { x: 1, y: 2 }
+
+fn demo() -> i32:
+    let mut p = Point { x: 0, y: 0 }
+    r := &mut p        # refers to p, as a local &mut Point
+    r.x = 5            # p.x is now 5
+    q := &mut p.y      # refers to the field y of p
+    *q = 7             # p.y is now 7
+    n := &make()       # a new object holding the result
+    m := &mut Point { x: 3, y: 4 }  # a new object
+    p.x + n.y + m.x
+```
+
+1. r[ref.place.forms] Locals and parameters of any binding form, and top-level bindings, are places for `&` and `&mut`. A struct field of a place and a value reached through a reference are places too.
+2. r[ref.place.through] `*r` with a reference `r` is a place, and so is a field read through `r`, such as `r.x`. The reference `r` is evaluated once, when the reference to the place is taken.
+3. r[ref.place.element] A list element and a map value are places too. A reference to one is an [element reference](#element-references), which lives for one call.
+4. r[ref.expr.place] `&e` and `&mut e` on a place refer to that place. A later write to the place, through any path, is seen through the reference.
+5. r[ref.expr.allocate] `&e` and `&mut e` on any other expression evaluate `e` and refer to a new object that holds the value. Each evaluation makes a new object.
+6. r[ref.expr.allocate.writable] A new object is writable, so `&mut T { ... }` and `&mut make()` are valid.
+7. r[ref.expr.kind.always-local] `&e` is always a local reference `&T`, and `&mut e` a `&mut T`, where `T` is the type of `e`. The expected type never makes it counted.
+8. r[ref.expr.kind.no-counted] `&e` or `&mut e` where a counted reference type is expected is an error, as [`ref.local.escape.counted`](#r-ref.local.escape.counted) states. Error: `local-reference-escapes`.
+9. r[ref.place.alias] Two references to one place, or two copies of one reference, see each other's writes.
+10. r[ref.place.receiver.local] A call of a `&self` or `&mut self` method on a place takes a local reference to it, as `&` and `&mut` would.
+11. r[ref.place.receiver.counted] A call of a `*self` or `*mut self` method on a place is an error, as [`fn.method.counted-self.place`](07-functions.md#r-fn.method.counted-self.place) states. [Reference Receivers](07-functions.md#reference-receivers) states the rules of both calls.
+
+```text
+struct Point:
+    x: i32
+
+fn keep(p: *mut Point) -> void: pass
+
+fn invalid() -> *Point:
+    let mut p = Point { x: 0 }
+    keep(&mut p)  # error: local-reference-escapes
+    &p  # error: local-reference-escapes
+```
+
+> **Why.** A reference to a value that is not a place still needs storage
+> to refer to, so it gets a new object, as Go's `&T{...}` does. Sharing
+> beyond one call starts with [`box`](#boxes), so `&` never decides between
+> a local and a counted reference.
+
+## Boxes
+
+`box(e)` makes a new object that holds a copy of the value of `e`, and returns a counted reference to it.
 
 ```hd
 struct Point:
@@ -143,35 +195,50 @@ struct Point:
 struct Holder:
     point: *mut Point
 
-fn make() -> Point:
-    Point { x: 1, y: 2 }
-
-fn demo() -> Holder:
-    let mut p = Point { x: 0, y: 0 }
-    r := &mut p        # refers to p, as a counted *mut Point
-    r.x = 5            # p.x is now 5
-    q := &mut p.y      # refers to the field y of p
-    *q = 7             # p.y is now 7
-    n := &make()       # a new object holding the result
-    m := &mut Point { x: 3, y: 4 }  # a new object
-    Holder { point: &mut p }  # a counted *mut Point too
+fn demo() -> i32:
+    shared := box(Point { x: 0, y: 0 })  # a new object, as a *mut Point
+    holder := Holder { point: shared }    # the holder shares the object
+    shared.x = 5                          # holder.point.x is now 5
+    let view: *Point = shared             # the same object, read-only
+    let mut p = Point { x: 1, y: 1 }
+    copy := box(p)                        # a new object holding a copy of p
+    p.x = 9                               # copy.x is still 1
+    holder.point.x + view.x + copy.x      # 11
 ```
 
-1. r[ref.place.forms] Locals and parameters of any binding form, and top-level bindings, are places for `&` and `&mut`. A struct field of a place and a value reached through a reference are places too.
-2. r[ref.place.through] `*r` with a reference `r` is a place, and so is a field read through `r`, such as `r.x`. The reference `r` is evaluated once, when the reference to the place is taken.
-3. r[ref.place.element] A list element and a map value are places too. A reference to one is an [element reference](#element-references), which lives for one call.
-4. r[ref.expr.place] `&e` and `&mut e` on a place refer to that place. A later write to the place, through any path, is seen through the reference.
-5. r[ref.expr.allocate] `&e` and `&mut e` on any other expression evaluate `e` and refer to a new object that holds the value. Each evaluation makes a new object.
-6. r[ref.expr.allocate.writable] A new object is writable, so `&mut T { ... }` and `&mut make()` are valid.
-7. r[ref.expr.kind.local] Where a local reference type is expected, `&e` is a local reference `&T`, and `&mut e` a `&mut T`. `T` is the type of `e`.
-8. r[ref.expr.kind.local.where] A local reference type is expected for a `&T` or `&mut T` parameter, for a `&self` or `&mut self` receiver, and for a binding annotated `&T` or `&mut T`.
-9. r[ref.expr.kind.counted] Everywhere else `&e` is a counted reference `*T`, and `&mut e` a `*mut T`. That includes an expected counted type, an expected type variable, and no expected type at all.
-10. r[ref.place.alias] Two references to one place, or two copies of one reference, see each other's writes.
-11. r[ref.place.lifetime] A counted reference keeps the place it refers to alive. A counted reference to a local may outlive the block that declares the local, and may be returned.
-12. r[ref.place.receiver] A call of a `&self`, `&mut self`, `*self`, or `*mut self` method takes a reference to its receiver as `&` and `&mut` would, with the place rules of this section. [Reference Receivers](07-functions.md#reference-receivers) states the call's rules.
+1. r[ref.box.signature] `std.core` declares `box` as `@intrinsic pub fn box[T](value: T) -> *mut T`, and the prelude supplies it. The declaration is ordinary hd, and the compiler supplies only its body.
+2. r[ref.box.check] A `box` call is checked by the plain call rules, so `T` is inferred from the argument and the expected type as for any generic call.
+3. r[ref.box.new] `box(e)` evaluates `e` once and returns a `*mut T` to a new object that holds the value. Each call makes a new object.
+4. r[ref.box.copy] The new object holds a copy of the value. When `e` is a place, a later write to that place is not seen through the result, and a write through the result does not change the place.
+5. r[ref.box.weaken] The result converts by the rules of [Conversions](#conversions) and [Trait Value References](09-traits.md#trait-value-references), so it may be used where `*T` or `*mut dyn Tr` is expected.
+6. r[ref.box.no-local] `box(e)` is an error when the type of `e` holds a local reference, by [`ref.local.holds`](#r-ref.local.holds). Error: `local-reference-escapes`.
+7. r[ref.box.object] Every counted reference refers to a whole object: one that `box` made, or one that another rule names as a new object. No expression makes a counted reference to a local, a parameter, a top-level binding, a field, or an element.
+8. r[ref.box.lifetime] A counted reference keeps the object it refers to alive. It may outlive the block that made it, and may be returned.
 
-> **Why.** A reference to a value that is not a place still needs storage
-> to refer to, so it gets a new object, as Go's `&T{...}` does.
+```text
+struct Point:
+    x: i32
+
+fn wrap(p: &Point) -> void:
+    b := box(p)  # error: local-reference-escapes
+
+fn shadow() -> void:
+    box := Point { x: 1 }  # error: prelude-name-shadow
+```
+
+> **Note.** No counted reference refers to a field, so no function hands
+> out a writable reference into a field of its parameter: `&mut pair.left`
+> is local and cannot be returned. A field that several holders share is
+> declared `*mut T` and holds a box, as a Swift class field holds a
+> reference. `&mut pair.left` still lends the field for one call.
+
+> **Why.** Every counted reference starts at an object, so the runtime
+> counts and frees whole objects and never follows a reference into the
+> middle of one. A box copies, as Go's `new` and OCaml's `ref` do, so
+> sharing starts where the value is boxed, not where it is used.
+
+See also: [Prelude Functions](10-modules.md#prelude-functions),
+[Captured References](#captured-references).
 
 ## Writable Places Of References
 
@@ -584,8 +651,7 @@ fn demo() -> void:
 11. r[ref.elem.pinned.map] While a map is pinned, a store of a key it does not hold and a `remove` of a key it holds are checked runtime panics. Panic: `collection-pinned`.
 12. r[ref.elem.pinned.allowed] Replacing an element keeps the length, so it is allowed while the list is pinned: an element store, a write through an element reference, and a sort or a swap written with element stores.
 13. r[ref.elem.pinned.end] A collection that several accesses pin stays pinned until each has ended.
-14. r[ref.elem.callee-copy] A callee may keep a copy of a counted reference parameter after it returns, as any counted reference may outlive its block ([`ref.place.lifetime`](#r-ref.place.lifetime)). A kept copy of an element reference pins its collection while the copy lives.
-15. r[ref.elem.callee-copy.declared] A reference parameter is one whose declared type is a reference, `*T`, `*mut T`, `&T`, or `&mut T`. A parameter declared as a type parameter `T` is not one, even when `T` is a reference type: an element reference passed for it is a value the callee may store, so passing it is keeping it ([`ref.elem.kept`](#r-ref.elem.kept)). Error: `element-reference-outlives-call`.
+14. r[ref.elem.callee-copy.declared] A reference parameter is one whose declared type is a reference, `*T`, `*mut T`, `&T`, or `&mut T`. A parameter declared as a type parameter `T` is not one, even when `T` is a reference type: an element reference passed for it is a value the callee may store, so passing it is keeping it ([`ref.elem.kept`](#r-ref.elem.kept)). Error: `element-reference-outlives-call`.
 
 An argument may change the collection's length when it does one of the
 following to the collection, or to a place that holds it:
@@ -622,8 +688,8 @@ fn bump(p: *mut Point) -> fn() -> void:
     fn() -> void: p.x = p.x + 1
 
 fn demo() -> i32:
-    let mut origin = Point { x: 0, y: 0 }
-    step := bump(&mut origin)
+    origin := box(Point { x: 0, y: 0 })
+    step := bump(origin)
     step()
     step()
     origin.x

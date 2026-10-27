@@ -1,0 +1,43 @@
+# test: a box installed as a provider is shared: writes through `$.use` reach the object the caller still holds, and a value provider is a copy
+# Spec 11 Keys Of Reference Receiver Traits: req.ref.install-counted, req.ref.same-place; References To Other Providers: req.ref.share.counted-values; Installing: req.mut.install-writable-counted, req.mut.install-readonly-counted.
+# expect-stdout: 2
+# expect-stdout: 10 10
+trait Counter:
+    fn bump(&mut self) -> void
+
+trait Inventory:
+    fn stock(self) -> i32
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.n += 1
+
+struct Shelf:
+    apples: i32
+
+impl Inventory for Shelf:
+    fn stock(self) -> i32:
+        self.apples
+
+fn tick() -> void $ Counter:
+    $.use(Counter).bump()
+
+fn count() -> i32 $ Inventory:
+    $.use(Inventory).stock()
+
+pub fn main() -> void $ Console:
+    tally := box(Tally { n: 0 })
+    $.with(Counter=tally):
+        tick()
+        tick()
+    println(tally.n)
+    shared := box(Shelf { apples: 10 })
+    let readonly: *Shelf = shared
+    let copied = Shelf { apples: 10 }
+    $.with(Inventory=readonly):
+        a := count()
+        $.with(Inventory=copied):
+            println("${a} ${count()}")

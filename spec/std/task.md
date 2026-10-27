@@ -561,7 +561,7 @@ impl From[CircuitOpen] for Failure:
     fn from(error: CircuitOpen) -> Failure: .Open
 
 pub fn guard_counts!() -> (usize, usize):
-    state := &mut Breaker { failures: 0, limit: 2, calls: 0 }
+    state := box(Breaker { failures: 0, limit: 2, calls: 0 })
     guard := guarded(state)
     for _i in 0..4:
         _ := apply!(guard):

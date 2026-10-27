@@ -1,0 +1,7 @@
+# test: no expression makes a counted reference to a parameter
+# Spec 13 Boxes: ref.box.object; Places And New Objects: ref.expr.kind.no-counted.
+struct Point:
+    x: i32
+
+fn invalid(p: Point) -> *Point:
+    &p # diagnostic: local-reference-escapes

@@ -16,7 +16,7 @@ impl From[CircuitOpen] for Failure:
         .Open
 
 pub fn guard_counts!() -> (usize, usize):
-    state := &mut Breaker { failures: 0, limit: 2, calls: 0 }
+    state := box(Breaker { failures: 0, limit: 2, calls: 0 })
     guard := guarded(state)
     for _i in 0..4:
         _ := apply!(guard):
@@ -45,12 +45,12 @@ fn cancel!(job: mut Suspend[Result[string, Failure]]) -> Result[string, Failure]
     .Ok("canceled")
 
 fn retained() -> Guard:
-    guarded(&mut Breaker { failures: 0, limit: 2, calls: 0 })
+    guarded(box(Breaker { failures: 0, limit: 2, calls: 0 }))
 
 pub fn main!() -> void $ Clock:
     assert_equal(guard_counts!(), (2, 2), reason="U2 two calls run and two are refused")
-    endpoint := &mut Activity { starts: 0, closed: 0 }
-    endpoint_state := &mut Breaker { failures: 0, limit: 2, calls: 0 }
+    endpoint := box(Activity { starts: 0, closed: 0 })
+    endpoint_state := box(Breaker { failures: 0, limit: 2, calls: 0 })
     endpoint_guard := guarded(endpoint_state)
     for i in 0..4:
         outcome := apply!(endpoint_guard):
@@ -74,7 +74,7 @@ pub fn main!() -> void $ Clock:
         (2, 2),
         reason="breaker counters agree with independent endpoint counters",
     )
-    state := &mut Breaker { failures: 0, limit: 2, calls: 0 }
+    state := box(Breaker { failures: 0, limit: 2, calls: 0 })
     guard := guarded(state)
     alias := guard
     failed := apply!(guard):
@@ -126,8 +126,8 @@ pub fn main!() -> void $ Clock:
         value
     assert_equal(final, .Err(.Open), reason="retained guard remembers earlier failures")
 
-    cancel_state := &mut Breaker { failures: 1, limit: 3, calls: 0 }
-    activity := &mut Activity { starts: 0, closed: 0 }
+    cancel_state := box(Breaker { failures: 1, limit: 3, calls: 0 })
+    activity := box(Activity { starts: 0, closed: 0 })
     let wait: mut Suspend[void] = sleep(60s)
     let job: mut Suspend[Result[string, Failure]] = apply(
         guarded(cancel_state),

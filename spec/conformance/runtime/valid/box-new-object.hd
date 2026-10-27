@@ -1,0 +1,24 @@
+# test: `box(e)` returns a `*mut T` to a new object per call, the object outlives the function that made it, and holders of one box share it
+# Spec 13 Boxes: ref.box.new, ref.box.lifetime, ref.box.object; Places And New Objects: ref.place.alias.
+# expect-stdout: 5 5
+# expect-stdout: false
+# expect-stdout: 1 7
+struct Point:
+    x: i32
+    y: i32
+
+struct Holder:
+    point: *mut Point
+
+fn spawn(x: i32) -> *mut Point:
+    box(Point { x: x, y: 0 })
+
+pub fn main() -> void $ Console:
+    shared := spawn(1)
+    holder := Holder { point: shared }
+    shared.x = 5
+    println("${holder.point.x} ${shared.x}")
+    other := spawn(1)
+    println(other is shared)
+    other.y = 7
+    println("${other.x} ${other.y}")

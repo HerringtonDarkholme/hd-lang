@@ -1,5 +1,5 @@
 # test: loans through erased views keep getter temporaries owned across loop exits
-# Spec 13 Reference Lifetime: ref.place.lifetime; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
+# Spec 13 Reference Lifetime: ref.box.lifetime; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
 use std.testing.assert_equal
 
 struct Holder[T]:

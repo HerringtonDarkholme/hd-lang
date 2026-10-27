@@ -1,5 +1,5 @@
 # test: a borrowed method receiver releases a fresh value read through an erased view
-# Spec 13 Reference Lifetime: ref.place.lifetime; Spec std/collections: std-collections.access.is-empty.
+# Spec 13 Reference Lifetime: ref.box.lifetime; Spec std/collections: std-collections.access.is-empty.
 # expect: test
 
 struct Holder:

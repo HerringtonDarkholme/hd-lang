@@ -1,0 +1,7 @@
+# test: an element reference is local, so passing one for a `*mut i32` parameter is an error
+# Spec 13 Boxes: ref.box.object; Places And New Objects: ref.expr.kind.no-counted.
+fn keep(score: *mut i32) -> void: pass
+
+fn invalid() -> void:
+    let mut scores = [+1, 2]
+    keep(&mut scores[0]) # diagnostic: local-reference-escapes

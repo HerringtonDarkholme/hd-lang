@@ -8,5 +8,5 @@ struct Box[T]:
 fn one() -> i32:
     1
 
-fn erase(box: Box[Fn[(), i32, $ ()]]) -> *dyn Inspectable:
-    box # diagnostic: type-mismatch
+fn erase(boxed: Box[Fn[(), i32, $ ()]]) -> *dyn Inspectable:
+    boxed # diagnostic: type-mismatch

@@ -1,0 +1,10 @@
+# test: `&mut p` is a local reference, so passing it for a `*mut Point` parameter is an error
+# Spec 13 Places And New Objects: ref.expr.kind.always-local, ref.expr.kind.no-counted.
+struct Point:
+    x: i32
+
+fn keep(p: *mut Point) -> void: pass
+
+fn invalid() -> void:
+    let mut p = Point { x: 0 }
+    keep(&mut p) # diagnostic: local-reference-escapes

@@ -1,0 +1,13 @@
+# test: a `*mut self` call on a local is an error; box the receiver first
+# Spec 07 Reference Receivers: fn.method.counted-self.place; Spec 13 Places And New Objects: ref.place.receiver.counted.
+struct Counter:
+    hits: i32
+
+impl Counter:
+    fn handle(*mut self) -> *mut Counter:
+        self
+
+fn invalid(shared: *mut Counter) -> void:
+    let mut local = Counter { hits: 0 }
+    h := local.handle() # diagnostic: local-reference-escapes
+    k := shared.handle()

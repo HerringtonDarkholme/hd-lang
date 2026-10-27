@@ -1,0 +1,11 @@
+# test: `&p` for a type parameter is a local reference, so the inferred type argument holds a local reference
+# Spec 13 Places And New Objects: ref.expr.kind.always-local; Local References: ref.local.escape.type-argument.
+struct Point:
+    x: i32
+
+fn same[T](value: T) -> T:
+    value
+
+fn invalid() -> void:
+    p := Point { x: 0 }
+    q := same(&p) # diagnostic: local-reference-escapes

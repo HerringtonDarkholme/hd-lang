@@ -92,7 +92,7 @@ pub trait FsWrite:
 4. r[std-fs.write.create-dir-all] `create_dir_all!` creates the directory at `path` and every missing directory above it.
 5. r[std-fs.write.remove] `remove!` removes the file or the empty directory at `path`.
 6. r[std-fs.write.rename] `rename!` moves the entry at `from` to `to`.
-7. r[std-fs.write.mut-ref.reference-values] Each `FsWrite` method takes `&mut self`, so `FsWrite` is a mutable requirement trait and `$.use(FsWrite)` is a `&mut dyn FsWrite`, by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values). Each `FsRead` method takes `self`, so `FsRead` is a readonly one, and a reference installed as its provider reads the place it refers to, by [`req.ref.share.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.share.reference-values).
+7. r[std-fs.write.mut-ref.reference-values] Each `FsWrite` method takes `&mut self`, so `FsWrite` is a mutable requirement trait and `$.use(FsWrite)` is a `&mut dyn FsWrite`, by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values). Each `FsRead` method takes `self`, so `FsRead` is a readonly one, and a reference installed as its provider reads the place it refers to, by [`req.ref.share.counted-values`](../lang/11-requirements-and-suspension.md#r-req.ref.share.counted-values).
 8. r[std-fs.cancel.write] Cancelling the suspension of `write_bytes!`, `write_text!`, or `append_text!` may leave a partial file at `path`.
 
 ## Copying Files
