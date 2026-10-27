@@ -3,7 +3,9 @@
 Architecture approved 2026-10-27; [#908](https://github.com/HerringtonDarkholme/hd-lang/issues/908).
 The accepted command/policy rules remain in [the CLI spec](../../spec/cli/command-line.md#linting).
 This replaces the earlier implementation plan, not those decisions.
-Implementation proceeds in reviewed slices under [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855); slices 0 and 1 (checked callee identity, then the registry and indexed policy) are done.
+Implementation proceeds in reviewed slices under [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855).
+Slices 0–2 are done: checked callee identity, the registry/indexed policy, and
+the feature-gated source/declaration/module analysis walk.
 
 ## Approved design
 

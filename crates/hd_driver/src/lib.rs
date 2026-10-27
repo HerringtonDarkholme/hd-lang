@@ -54,6 +54,8 @@ pub use hd_wasm_linear::views::{
 };
 pub use hd_wasm_linear::{FunctionOrigins, InstructionOrigin, StaticData};
 
+#[cfg(feature = "analysis")]
+pub mod analysis;
 pub mod bench;
 mod dbg;
 pub mod diagnostics;
@@ -598,6 +600,9 @@ pub struct EntryCapability {
 
 /// The result of a run.
 pub struct Output {
+    /// Policy-free findings from the optional post-verification walk.
+    #[cfg(feature = "analysis")]
+    pub analysis_diags: DiagBuf,
     /// Requested checked source facts, without messages or severity policy.
     pub source_facts: hd_check::comparison::SourceFacts,
     /// Requested public-main sites in the selected root modules, without advice.
@@ -1396,6 +1401,10 @@ fn session_uses(table: &ModuleTable, repl: &ReplInputs, m: usize) -> Vec<String>
 }
 
 struct Run<'a> {
+    #[cfg(feature = "analysis")]
+    analysis: Option<(&'a dyn analysis::AnalysisSink, analysis::Events)>,
+    #[cfg(feature = "analysis")]
+    analysis_diags: Vec<OnceLock<DiagBuf>>,
     collect_source_facts: bool,
     collect_main_sites: bool,
     source_facts: Mutex<hd_check::comparison::SourceFacts>,
@@ -1991,6 +2000,36 @@ pub fn build_packages(
     packages: &Packages<'_>,
     goal: &Goal,
 ) -> Output {
+    build_packages_inner(
+        host,
+        package,
+        packages,
+        goal,
+        #[cfg(feature = "analysis")]
+        None,
+    )
+}
+
+/// `build_packages`, with one optional post-verification analysis consumer.
+#[cfg(feature = "analysis")]
+#[must_use]
+pub fn build_packages_with_analysis(
+    host: &Host<'_>,
+    package: &str,
+    packages: &Packages<'_>,
+    goal: &Goal,
+    analysis: Option<&dyn analysis::AnalysisSink>,
+) -> Output {
+    build_packages_inner(host, package, packages, goal, analysis)
+}
+
+fn build_packages_inner(
+    host: &Host<'_>,
+    package: &str,
+    packages: &Packages<'_>,
+    goal: &Goal,
+    #[cfg(feature = "analysis")] analysis: Option<&dyn analysis::AnalysisSink>,
+) -> Output {
     // The embedded std, or the root package's own when it is std.
     let embedded = (package != "std").then(embedded_std);
     let root_std;
@@ -2151,6 +2190,12 @@ pub fn build_packages(
         package_key = key.finish();
     }
     let run = Run {
+        #[cfg(feature = "analysis")]
+        analysis: analysis
+            .map(|sink| (sink, sink.interests()))
+            .filter(|(_, interests)| *interests != analysis::Events::default()),
+        #[cfg(feature = "analysis")]
+        analysis_diags: (0..n).map(|_| OnceLock::new()).collect(),
         collect_source_facts: packages.collect_source_facts,
         collect_main_sites: packages.collect_main_sites,
         source_facts: Mutex::default(),
@@ -2461,6 +2506,18 @@ pub fn build_packages(
         }
     }
     let mut output = Output {
+        #[cfg(feature = "analysis")]
+        analysis_diags: if diags.has_errors() {
+            DiagBuf::default()
+        } else {
+            let mut findings = DiagBuf::default();
+            for module in &run.analysis_diags {
+                if let Some(module) = module.get() {
+                    findings.append(module);
+                }
+            }
+            findings
+        },
         source_facts: lock(&run.source_facts).clone(),
         main_sites: run.main_sites.get().cloned().unwrap_or_default(),
         derivation_facts: lock(&run.derivation_facts).clone(),
@@ -5548,11 +5605,16 @@ impl Run<'_> {
             .insert(self.table.modules[mi].path.clone(), key);
         // Source facts are deliberately off-band, not persisted in check entries.
         // Recheck selected root bodies, while dependencies keep ordinary cache hits.
-        let cached = if self.collect_source_facts && self.table.modules[mi].package == 0 {
-            None
-        } else {
-            self.lookup(EntryKind::Check, key)
-        };
+        #[cfg(feature = "analysis")]
+        let analyze = self.analysis.is_some() && self.table.modules[mi].package == 0;
+        #[cfg(not(feature = "analysis"))]
+        let analyze = false;
+        let cached =
+            if (self.collect_source_facts && self.table.modules[mi].package == 0) || analyze {
+                None
+            } else {
+                self.lookup(EntryKind::Check, key)
+            };
         if let Some(sections) = cached {
             // The key ignores comments and blank lines, which can still
             // break the parse (a detached documentation comment).
@@ -6366,6 +6428,15 @@ impl Run<'_> {
             self.stage::<()>(Stage::Body, Err(e));
             let _ = self.body[m].set(None);
             return;
+        }
+        #[cfg(feature = "analysis")]
+        if !diags.has_errors()
+            && module.package == 0
+            && let Some((sink, interests)) = self.analysis
+        {
+            let mut findings = DiagBuf::default();
+            analysis::walk(sink, interests, cx.src, &module.path, &mut findings);
+            let _ = self.analysis_diags[m].set(findings);
         }
         lock(&self.report).body_ok += derived.bodies.len();
         for b in &derived.bodies {

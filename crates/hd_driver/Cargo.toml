@@ -12,6 +12,9 @@ description = "The one driver: the task graph of one compile run over the caller
 threads = ["hd_sched/threads"]
 default = ["threads"]
 checked-report = ["hd_wasm_linear/checked-report"]
+# Supplies one optional post-verification analysis walk. The web compiler keeps
+# this feature off, so callback, event, and checked-view code is absent there.
+analysis = ["hd_check/analysis"]
 # Runs the tests that compare against the wasmtime engine. A dev-dependency
 # cannot be optional, so the test-only `hd_run_wasmtime` is an optional
 # dependency; the library itself never uses it.

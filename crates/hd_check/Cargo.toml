@@ -5,6 +5,11 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
+[features]
+# Borrowed, post-verification compiler views for optional tooling. Normal
+# compiler and web builds leave the feature off.
+analysis = []
+
 [dependencies]
 hd_base = { path = "../hd_base" }
 hd_diag = { path = "../hd_diag" }
