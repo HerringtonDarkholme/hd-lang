@@ -157,16 +157,16 @@ pub type Arity = Vec<Option<(usize, usize)>>;
 
 /// Closed-world parameters proved to receive only constants at every direct
 /// call, and results proved constant under those parameter facts. A function
-/// exported, put in the table or called nowhere has no parameter facts: an
+/// with an open-world entry, or called nowhere, has no parameter facts: an
 /// unknown caller may supply any value. The least fixed point deliberately
 /// leaves recursive-only evidence unproved.
 pub fn static_values(
     funcs: &[Option<Func>],
-    exported: impl IntoIterator<Item = SymId>,
+    open: impl IntoIterator<Item = SymId>,
     arity: &Arity,
 ) -> Vec<Vec<bool>> {
     let mut unknown = vec![false; funcs.len()];
-    for id in exported {
+    for id in open {
         unknown[id.idx()] = true;
     }
     for f in funcs.iter().flatten() {

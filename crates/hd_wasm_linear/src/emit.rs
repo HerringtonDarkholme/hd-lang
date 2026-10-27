@@ -2323,12 +2323,7 @@ impl Em<'_, '_, '_> {
             self.f.set(*l);
         }
         self.driven.insert(on, (res, buffer));
-        self.store_owned(i)?;
-        // A blocking drive's nonzero frame is caller-local shadow storage,
-        // borrowed until the matching block_on returns. It has no heap
-        // count for the suspension value to release.
-        self.loans.insert(i);
-        Ok(())
+        self.store_owned(i)
     }
 
     /// Reserve a leaf in the running Wasm invocation's shadow frame. A synchronous
@@ -3004,10 +2999,6 @@ impl Em<'_, '_, '_> {
         let fused = self.driven.remove(&i);
         if fused.is_none() {
             self.f.helper(Helper::ForbidCheck);
-        } else {
-            // The fused suspension is only a view of caller-local shadow
-            // storage. The matching dynamic call keeps that storage live.
-            self.loans.insert(s);
         }
         let (frame, ready, flags, seen) = (
             self.f.local(Val::I32),

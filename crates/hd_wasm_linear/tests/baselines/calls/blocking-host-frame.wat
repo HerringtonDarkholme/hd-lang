@@ -7,7 +7,7 @@
   (import "fixture" "rewake" (global $rewake (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $synchronous (param $text.0 i32) (param $text.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $synchronous (param $text.0 i32) (param $text.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
     ;; ...
     block
     ;; 7 |     let console: &mut dyn Console = $.use(Console)
@@ -35,11 +35,12 @@
       ;; ...
     ;; 9 |     match block_on(call):
       local.tee $provider0
+      local.tee $t4
       i32.eqz
-      local.set $t4
+      local.set $t5
       block
         loop
-          local.get $t4
+          local.get $t5
           br_if 1
           global.get $rewake
           if
@@ -50,20 +51,20 @@
             call $rt:wake_mark
           end
           i32.const 1
-          local.set $t5
-          local.get $provider0
-          local.get $provider0
+          local.set $t6
+          local.get $t4
+          local.get $t4
           i32.load $heap
           call_indirect $table0 (param i32) (result i32 i32 i32 i32 i32)
           local.set $t2
           local.set $t3
           local.set $provider0.vtable
           local.set $text.1
-          local.set $t4
+          local.set $t5
           br 0
         end
       end
-      local.get $t5
+      local.get $t6
       global.get $rewake
       i32.or
       global.set $rewake
@@ -72,29 +73,30 @@
       local.get $provider0.vtable
       local.get $t3
       local.get $t2
-      local.set $t4
+      local.set $t5
       local.set $t2
       local.set $t3
       local.set $provider0.vtable
       local.set $text.1
-      local.get $provider0
+      local.get $t4
       local.get $t1
       i32.eq
       if
-        local.get $provider0
+        local.get $t4
         i32.load $heap offset=20
         local.tee $t1
         i32.const 0
         i32.ge_s
         if
-          local.get $provider0
+          local.get $t4
           i32.const -1
           i32.store $heap offset=20
-          local.get $provider0
+          local.get $t4
           local.get $t1
           call_indirect $table0 (param i32)
         end
       end
+      ;; ...
       block
         block
           block
@@ -112,7 +114,7 @@
             unreachable
           end
           i32.const 1
-          local.set $t6
+          local.set $t7
           br 1
         end
         br 0

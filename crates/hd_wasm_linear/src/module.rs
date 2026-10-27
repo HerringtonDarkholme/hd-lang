@@ -1467,14 +1467,26 @@ impl Module {
         for f in self.funcs.iter_mut().flatten() {
             crate::opt::locals(f, &arity);
         }
+        // Retained fixture roots are entered by the harness, and a suspending
+        // body can resume with frame-loaded arguments that no direct call site
+        // supplies. Neither is closed-world input to the static-value proof.
         let static_params = crate::opt::static_values(
             &self.funcs,
-            self.exports.iter().map(|(_, id)| *id).chain(
-                self.vtables
-                    .iter()
-                    .flat_map(|(slots, _, drives)| slots.iter().chain(drives))
-                    .copied(),
-            ),
+            self.exports
+                .iter()
+                .map(|(_, id)| *id)
+                .chain(self.retained.iter().copied())
+                .chain(self.funcs.iter().enumerate().filter_map(|(id, function)| {
+                    function.as_ref()?;
+                    let id = SymId(u32::try_from(id).expect("symbols"));
+                    matches!(&*self.symbols.get(id), Sym::Part(_, Part::Body)).then_some(id)
+                }))
+                .chain(
+                    self.vtables
+                        .iter()
+                        .flat_map(|(slots, _, drives)| slots.iter().chain(drives))
+                        .copied(),
+                ),
             &arity,
         );
         for (id, f) in self
