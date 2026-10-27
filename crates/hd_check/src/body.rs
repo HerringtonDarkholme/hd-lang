@@ -3400,8 +3400,10 @@ impl Ck<'_, '_> {
     }
 
     /// Declaration identity for the core void-tail exception to debug calls.
-    /// Qualified paths and explicit type arguments can name the same function.
-    fn is_prelude_debug_call(&self, e: NodeRef<'_>) -> bool {
+    /// Read the selected callee recorded in TIR, never reconstruct it from the
+    /// source spelling: a temporary receiver's `.debug` is a method call even
+    /// though its last path segment has the prelude function's name.
+    fn is_prelude_debug_call(&self, e: NodeRef<'_>, result: Ref) -> bool {
         let call = match e.kind() {
             SyntaxKind::CallExpr => e,
             SyntaxKind::TrailingCallExpr => {
@@ -3412,49 +3414,24 @@ impl Ck<'_, '_> {
             }
             _ => return false,
         };
-        let Some(mut callee) = call.children().next() else {
+        let Some(inst) = result.as_inst() else {
             return false;
         };
-        if callee.kind() == SyntaxKind::TypeArgsExpr {
-            let Some(inner) = callee.children().next() else {
-                return false;
-            };
-            callee = inner;
+        let i = inst.0 as usize;
+        let body = self.b.body();
+        if body.syn.get(i) != Some(&call.index())
+            || !matches!(body.tags.get(i), Some(Tag::Call | Tag::Await))
+        {
+            return false;
         }
-        if callee.kind() == SyntaxKind::SuspendExpr {
-            let Some(inner) = callee.children().next() else {
-                return false;
-            };
-            callee = inner;
-        }
+        let Some(data) = body.data.get(i) else {
+            return false;
+        };
+        let Some(callee) = Callee::from_words(body.record(data[0])) else {
+            return false;
+        };
         let debug_def = self.cx.names.item("std.format", "debug");
-        let at = self.cx.src.span(callee).lo;
-        match callee.kind() {
-            SyntaxKind::NameExpr => {
-                let sym = self.sym_of(callee);
-                if self.find_local(sym).is_some() {
-                    return false;
-                }
-                if hd_resolve::local_at(self.cx.locals, sym, at).is_some() {
-                    return false;
-                }
-                let scope = self.cx.scope_at(at);
-                match scope.lookup(sym) {
-                    Some(b) if b.kind == hd_resolve::BindingKind::Item => {
-                        DefId::from_raw(b.value) == debug_def
-                    }
-                    _ => false,
-                }
-            }
-            SyntaxKind::FieldExpr | SyntaxKind::PathExpr => {
-                let segs = self.segments_expr(callee);
-                match self.resolve_path(&segs) {
-                    Some(def) => def == debug_def,
-                    None => false,
-                }
-            }
-            _ => false,
-        }
+        matches!(callee, Callee::Item { def, .. } if def == debug_def)
     }
 
     /// The source form and lexical name lookup of a discarded expression.
@@ -3546,7 +3523,7 @@ impl Ck<'_, '_> {
                     self.shown = Some((s.index(), Some((r, t))));
                     return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
                 }
-                let (_, t) = self.expr(*e, Some(Ty::VOID))?;
+                let (result, t) = self.expr(*e, Some(Ty::VOID))?;
                 let t = self.infer.shallow(self.pool(), t);
                 // `fn.body.void-final`: a `void` function rejects a
                 // non-`void` final expression. An omitted result is
@@ -3562,7 +3539,7 @@ impl Ck<'_, '_> {
                 // Ordinary checking needs declaration identity only for this
                 // core exception; other discarded expressions need it in lint.
                 let prelude_debug = (void_value || self.cx.source_facts.is_some())
-                    && self.is_prelude_debug_call(*e);
+                    && self.is_prelude_debug_call(*e, result);
                 if void_value && !prelude_debug {
                     let open = matches!(self.pool().get(t), TyData::Infer(_))
                         && !matches!(

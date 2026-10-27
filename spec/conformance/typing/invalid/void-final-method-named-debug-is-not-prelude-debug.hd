@@ -1,0 +1,12 @@
+# test: only the prelude debug function has the void-tail exception
+struct Logger: pass
+
+impl Logger:
+    fn debug(&self, value: i32) -> i32:
+        value
+
+fn user_call() -> void:
+    Logger {}.debug(+1)  # diagnostic: type-mismatch
+
+pub fn main() -> void:
+    pass

@@ -414,6 +414,7 @@ typing/invalid/variance-representation-unrelated-trait-values-stay-a-type-mismat
 typing/invalid/variant-value-constructors-that-are-not-function-values-are-errors-01.hd	type	reject:unsaturated-enum-constructor	lang/08-data-and-enums.md#variant-constructors-as-function-values
 typing/invalid/variant-value-constructors-that-are-not-function-values-are-errors-02.hd	type	reject:cannot-infer-type	lang/08-data-and-enums.md#variant-constructors-as-function-values
 typing/invalid/variant-value-the-contextual-shorthand-is-never-a-function-value.hd	type	reject:missing-contextual-enum-type	lang/08-data-and-enums.md#variant-constructors-as-function-values
+typing/invalid/void-final-method-named-debug-is-not-prelude-debug.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.body.void-final
 typing/invalid/void-final-non-void-tail-is-one-error-36.hd	type	reject:type-mismatch	lang/06-control-flow.md#blocks-and-completion
 typing/invalid/void-final-non-void-tail-is-one-error-37.hd	type	reject:type-mismatch	lang/06-control-flow.md#blocks-and-completion
 typing/invalid/void-unit-the-unit-value-is-no-other-type.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.void
