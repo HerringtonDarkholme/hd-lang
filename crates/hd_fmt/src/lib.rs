@@ -1,12 +1,11 @@
 #![forbid(unsafe_code)]
-//! `hd_fmt`: the formatter on the green tree (`docs/compiler/design-overview.md` §2.1,
-//! `crates/hd_cli/DESIGN.md` §7.6). The Wadler-style layout rules are not written yet;
-//! today's layout is the part every layout shares: no trailing whitespace
-//! at a line's end and exactly one newline at the file's end, outside
-//! every token and comment, so meaning and comments stay as they are
-//! (`cli.fmt.meaning`) and a formatted file is a fixed point
-//! (`cli.fmt.idempotent`). `round_trip` is the lossless base every rule
-//! builds on.
+//! `hd_fmt`: source layout over the green tree. Width groups use the existing
+//! bracket-continuation rules; parsed structure, tokens, strings and comments
+//! are preserved (`cli.fmt.meaning`), and formatting is a fixed point
+//! (`cli.fmt.idempotent`). `round_trip` is its lossless base.
+
+mod width;
+pub use width::MAX_COLUMNS;
 
 use hd_base::SliceSort as _;
 use hd_diag::Diagnostic;
@@ -58,15 +57,18 @@ pub fn format(source: &str) -> Result<String, Vec<Diagnostic>> {
         out.push('\n');
         line_start = i + 1;
     }
-    out.push_str(&source[line_start..]);
-    // Exactly one newline at the end: no token or comment ends in blank
-    // lines, so trailing ones are layout.
-    let body_end = out.trim_end_matches(['\n', ' ', '\r']).len();
+    let mut end = source.len();
+    while end > line_start && matches!(bytes[end - 1], b' ' | b'\t' | b'\r') && !inside(end - 1) {
+        end -= 1;
+    }
+    out.push_str(&source[line_start..end]);
+    // Blank physical lines are layout; spaces within a final comment are not.
+    let body_end = out.trim_end_matches('\n').len();
     if body_end > 0 {
         out.truncate(body_end);
         out.push('\n');
     }
-    Ok(out)
+    Ok(width::layout(out))
 }
 
 #[cfg(test)]

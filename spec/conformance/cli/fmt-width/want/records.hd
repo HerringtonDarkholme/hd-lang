@@ -1,0 +1,6 @@
+fn f():
+    Record {
+        first: the_first_descriptive_parameter_name,
+        second: the_second_descriptive_parameter_name,
+        third: the_third_descriptive_parameter_name
+    }

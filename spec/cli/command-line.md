@@ -1379,6 +1379,14 @@ hd fmt --check          # writes nothing; lists each file that would change
 5. r[cli.fmt.check] `hd fmt --check` writes no file. It prints the path of each file that formatting would change.
 6. r[cli.fmt.syntax-error] A file with a syntax error is left untouched, and `hd fmt` reports its syntax diagnostics. It still formats the other files.
 7. r[cli.fmt.no-check] `hd fmt` reads no other module and checks no type, so a file with a type error is still formatted.
+8. r[cli.fmt.width.wrap] A code line longer than 100 columns is wrapped at its syntactic grouping boundaries.
+9. r[cli.fmt.width.elements] An overlong struct literal, call, parameter list, or list literal places one element per line.
+10. r[cli.fmt.width.comma-groups] Other comma-delimited groups use the same layout, including tuples, maps, use groups, generic parameters, and type arguments.
+11. r[cli.fmt.width.indent] A broken group's elements are indented four spaces beyond the line holding its opening delimiter.
+12. r[cli.fmt.width.close] A broken group's closing delimiter starts a separate line at the opening line's indentation.
+13. r[cli.fmt.width.binary-grouping] A broken binary chain uses parentheses for implicit line continuation.
+14. r[cli.fmt.width.binary-operands] A broken binary chain places one operand per line, with the operator before each later operand.
+15. r[cli.fmt.width.protected] Comment and string literal text remains as written, even when it exceeds the width.
 
 > **Why.** Formatting around a syntax error could rewrite code that the
 > parser misread, so the file waits until it parses.
