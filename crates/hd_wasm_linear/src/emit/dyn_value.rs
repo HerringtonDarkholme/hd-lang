@@ -289,7 +289,7 @@ impl Em<'_, '_, '_> {
     /// The `TypeId` struct `id` (`runtime_type`'s result) of `t`: its key
     /// and its printable name (trait.typeid.name), static strings.
     fn type_id_parts(&self, t: Ty, id: Ty) -> StageResult<TypeIdParts> {
-        if self.vals(id)? != [Val::I32; 4] {
+        if self.vals(id)? != [Val::I32; 6] {
             return unsupported("a `TypeId` that is not its key and name strings");
         }
         let (pool, env) = (self.pool(), self.env());
@@ -326,7 +326,7 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
         }
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.call_indirect(vec![Val::I32], vec![Val::I32; 4]);
+        self.f.call_indirect(vec![Val::I32], vec![Val::I32; 6]);
         self.store(i)
     }
 
@@ -435,9 +435,10 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
         }
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.call_indirect(vec![Val::I32], vec![Val::I32; 4]);
-        self.f.op(I::Drop);
-        self.f.op(I::Drop);
+        self.f.call_indirect(vec![Val::I32], vec![Val::I32; 6]);
+        for _ in 0..4 {
+            self.f.op(I::Drop);
+        }
         let at = self.m.static_bytes(want.as_bytes(), 1);
         self.f.static_addr(at);
         self.f.u32(u32::try_from(want.len()).expect("type name"));

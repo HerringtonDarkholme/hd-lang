@@ -123,7 +123,8 @@ impl LTy {
             LTy::Int { bits, .. } => vec![if *bits > 32 { Val::I64 } else { Val::I32 }],
             LTy::F32 => vec![Val::F32],
             LTy::F64 => vec![Val::F64],
-            LTy::Str | LTy::DiscardStr | LTy::Handle(_) => vec![Val::I32, Val::I32],
+            LTy::Str | LTy::DiscardStr => vec![Val::I32; 3],
+            LTy::Handle(_) => vec![Val::I32, Val::I32],
             LTy::Bytes | LTy::List(_) => vec![Val::I32],
             LTy::Record(fields) => fields.iter().flat_map(LTy::vals).collect(),
             LTy::Enum(e) => e.vals.clone(),
@@ -1644,7 +1645,7 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
                 f.op(I::Unreachable);
                 return f;
             };
-            let text = [f.local(Val::I32), f.local(Val::I32)];
+            let text = [f.local(Val::I32), f.local(Val::I32), f.local(Val::I32)];
             // The encoder borrows the value; `encode` owns its copy.
             let n = u32::try_from(j.vals.len()).expect("values");
             let get = |f: &mut Func| {
@@ -1657,19 +1658,15 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
             }
             get(&mut f);
             f.call(Sym::Inst(encode));
+            f.set(text[2]);
             f.set(text[1]);
             f.set(text[0]);
             enc_call(&mut f, 0, &LTy::Str, |f| {
-                f.get(text[0]);
-                f.get(text[1]);
+                for l in text {
+                    f.get(l);
+                }
             });
-            release(
-                &mut f,
-                m,
-                &text,
-                vec![Val::I32, Val::I32],
-                Some(Walk::Ref(0)),
-            );
+            release(&mut f, m, &text, vec![Val::I32; 3], Some(Walk::Known(2)));
         }
         LTy::Handle(_) => {
             f.op(I::Unreachable);
@@ -1763,6 +1760,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.set(0);
             f.u32(EMPTY);
             f.i32(0);
+            f.i32(0);
         }
         LTy::Str => {
             let (n, s) = (f.local(Val::I32), f.local(Val::I32));
@@ -1781,6 +1779,11 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.op(I::End);
             f.get(s);
             f.get(n);
+            // A new buffer is its own base; the empty value has none.
+            f.get(s);
+            f.i32(0);
+            f.get(n);
+            f.op(I::Select);
         }
         LTy::Bytes => {
             let (n, buf) = (f.local(Val::I32), f.local(Val::I32));
@@ -1937,9 +1940,10 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             // (`layout::Pass`): each takes a count of its own.
             let counts = m.runtime.is_some();
             if counts {
-                own_arg(&mut f, &[Val::I32, Val::I32], Some(&Walk::Ref(0)), &|f| {
-                    f.get(text[0]);
-                    f.get(text[1]);
+                own_arg(&mut f, &[Val::I32; 3], Some(&Walk::Known(2)), &|f| {
+                    for l in &text {
+                        f.get(*l);
+                    }
                 });
             }
             for l in &text {
@@ -1950,13 +1954,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             for l in res.iter().rev() {
                 f.set(*l);
             }
-            release(
-                &mut f,
-                m,
-                &text,
-                vec![Val::I32, Val::I32],
-                Some(Walk::Ref(0)),
-            );
+            release(&mut f, m, &text, vec![Val::I32; 3], Some(Walk::Known(2)));
             let get_res = |f: &mut Func| {
                 for l in &res {
                     f.get(*l);
@@ -1985,6 +1983,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             get_res(&mut f);
             f.static_addr(lit);
             f.u32(u32::try_from(checked.len()).expect("literal"));
+            f.i32(0);
             f.call(Sym::Inst(expect));
             for l in value.iter().rev() {
                 f.set(*l);

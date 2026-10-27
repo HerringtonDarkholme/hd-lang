@@ -95,7 +95,7 @@ impl Em<'_, '_, '_> {
                 Ok(match (key, self.key_params(hash, 0)?.as_slice()) {
                     ([Val::I32], [Val::I64]) if !string => KeyOps::I32(hash.key),
                     ([Val::I64], [Val::I64]) => KeyOps::I64(hash.key),
-                    ([Val::I32, Val::I32], [Val::I32, Val::I32]) if string => {
+                    ([Val::I32, Val::I32, Val::I32], [Val::I32, Val::I32, Val::I32]) if string => {
                         KeyOps::Str(hash.key, self.key_own(hash, 0)?)
                     }
                     _ => return unsupported("an inline map key of another layout"),

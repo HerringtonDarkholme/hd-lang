@@ -508,7 +508,7 @@ fn mem_one(
             Prim::I64 | Prim::U64 => Mem::one(Val::I64, 8, false),
             Prim::F32 => Mem::one(Val::F32, 4, false),
             Prim::F64 => Mem::one(Val::F64, 8, false),
-            Prim::String => record(&[Mem::address(), Mem::address()]).0,
+            Prim::String => record(&[Mem::address(), Mem::address(), Mem::address()]).0,
         },
         TyData::Never => Mem::EMPTY,
         TyData::Tuple { .. } => payload_mem_by(&tuple_members(pool, t), part)?.0,
@@ -634,7 +634,7 @@ fn walk_one(
         return Some(Walk::Ref(0));
     }
     match pool.get(t) {
-        TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
+        TyData::Prim(Prim::String) => Some(Walk::Known(2)),
         TyData::Fn { .. } => Some(Walk::Known(1)),
         TyData::TraitValue { .. } => Some(Walk::Ref(0)),
         TyData::Context(_) => Some(Walk::Known(0)),

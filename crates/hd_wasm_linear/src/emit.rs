@@ -1386,9 +1386,11 @@ impl Em<'_, '_, '_> {
             };
             self.f.mark_static(at);
             let len = u32::try_from(text.len()).expect("string constant");
+            // A literal has no counted base.
             return Ok(vec![
                 vec![Ins::Static(at)],
                 vec![Ins::Op(I::I32Const(len.cast_signed()))],
+                vec![Ins::Op(I::I32Const(0))],
             ]);
         }
         let low = u32::try_from(bits & 0xffff_ffff).expect("low bits");
@@ -1935,8 +1937,8 @@ impl Em<'_, '_, '_> {
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
                     Some(hd_tir::ir::IntrinsicOp::StrIndex) => self.str_at(i, args[0], args[1])?,
                     Some(hd_tir::ir::IntrinsicOp::StrEq) => {
-                        self.push(args[0])?;
-                        self.push(args[1])?;
+                        self.push_view(args[0])?;
+                        self.push_view(args[1])?;
                         self.f.helper(Helper::StrEq);
                         self.store(i)?;
                     }
@@ -2542,14 +2544,14 @@ impl Em<'_, '_, '_> {
         match key {
             // `panic(message)`: the `explicit-panic` report.
             "panic_message" => {
-                self.push(args[0])?;
+                self.push_view(args[0])?;
                 self.f.helper(Helper::PanicStr);
                 Ok(())
             }
             // std's `panic_with(category, message)`.
             "panic" => {
-                self.push(args[0])?;
-                self.push(args[1])?;
+                self.push_view(args[0])?;
+                self.push_view(args[1])?;
                 self.f.helper(Helper::PanicWith);
                 Ok(())
             }
@@ -2735,7 +2737,7 @@ impl Em<'_, '_, '_> {
                     &[Val::I32],
                     &[],
                 ));
-                self.push(args[0])?;
+                self.push_view(args[0])?;
                 self.f.helper(Helper::ToBuf);
                 self.f.call(out.clone());
                 let nl = self.m.static_bytes(b"\n", 1);
@@ -2877,6 +2879,11 @@ impl Em<'_, '_, '_> {
                 self.f.op(I::End);
                 self.f.get(s);
                 self.push(args[0])?;
+                // A new buffer is its own base; the empty value has none.
+                self.f.get(s);
+                self.f.i32(0);
+                self.push(args[0])?;
+                self.f.op(I::Select);
                 return self.store_owned(i);
             }
             "mem_pages" => I::MemorySize(HEAP),
@@ -3215,8 +3222,8 @@ impl Em<'_, '_, '_> {
                 self.str_ordering(i, args, name == "partial_cmp")
             }
             "eq" if t == Ty::STRING => {
-                self.push(args[0])?;
-                self.push(args[1])?;
+                self.push_view(args[0])?;
+                self.push_view(args[1])?;
                 self.f.helper(Helper::StrEq);
                 self.store(i)
             }

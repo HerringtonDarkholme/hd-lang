@@ -69,7 +69,7 @@ impl HostArg {
     #[must_use]
     pub fn vals(&self) -> Vec<Val> {
         match self {
-            HostArg::Str => vec![Val::I32, Val::I32],
+            HostArg::Str => vec![Val::I32; 3],
             HostArg::Scalar(v) => vec![*v],
             HostArg::Buf(b) => b.vals(),
         }

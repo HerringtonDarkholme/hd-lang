@@ -21,6 +21,13 @@ impl Em<'_, '_, '_> {
         crate::layout::strip(self.pool(), self.env(), t) == Ty::STRING
     }
 
+    /// Pushes string `text`'s view: its address and length, without the
+    /// base its count reads (§23.7).
+    pub(super) fn push_view(&mut self, text: u32) -> StageResult<()> {
+        self.comp(text, 0)?;
+        self.comp(text, 1)
+    }
+
     /// An interpolation or a concatenation of string parts: one part is
     /// itself; more are copied into one new buffer, or are the empty value
     /// when they have no bytes.
@@ -33,6 +40,7 @@ impl Em<'_, '_, '_> {
         match parts {
             [] => {
                 self.f.u32(EMPTY);
+                self.f.i32(0);
                 self.f.i32(0);
                 return self.store(i);
             }
@@ -79,7 +87,16 @@ impl Em<'_, '_, '_> {
         }
         self.f.get(at);
         self.f.get(len);
-        // A new buffer arrives with its count.
+        // A new buffer arrives with its count, and is its own base; the
+        // empty value has none.
+        if self.fixed_len(parts) > 0 {
+            self.f.get(at);
+        } else {
+            self.f.get(at);
+            self.f.i32(0);
+            self.f.get(len);
+            self.f.op(I::Select);
+        }
         self.store_owned(i)
     }
 
@@ -169,6 +186,13 @@ impl Em<'_, '_, '_> {
         self.f.get(hi);
         self.f.get(lo);
         self.f.op(I::I32Sub);
+        // The base: the source's, none for the empty value.
+        self.comp(text, 2)?;
+        self.f.i32(0);
+        self.f.get(lo);
+        self.f.get(hi);
+        self.f.op(I::I32Ne);
+        self.f.op(I::Select);
         self.store(i)
     }
 
@@ -210,8 +234,8 @@ impl Em<'_, '_, '_> {
         if partial {
             self.f.i32(1);
         }
-        self.push(args[0])?;
-        self.push(args[1])?;
+        self.push_view(args[0])?;
+        self.push_view(args[1])?;
         self.f.helper(Helper::StrCmp);
         self.f.i32(1);
         self.f.op(I::I32Add);
@@ -260,8 +284,12 @@ impl Em<'_, '_, '_> {
         if kinds.iter().filter(|k| **k == PrimArg::Str).count() > 1 {
             return unsupported("a host primitive of two string arguments");
         }
-        for a in args {
-            self.push(*a)?;
+        for (a, k) in args.iter().zip(&kinds) {
+            if *k == PrimArg::Str {
+                self.push_view(*a)?;
+            } else {
+                self.push(*a)?;
+            }
         }
         self.f.helper(Helper::HostPrim {
             name: name.to_owned(),

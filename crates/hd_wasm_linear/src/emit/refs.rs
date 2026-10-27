@@ -1148,7 +1148,7 @@ impl Em<'_, '_, '_> {
     /// object, the address as the serial and no key, so two references
     /// share an identity exactly when they share an address.
     pub(super) fn ref_identity(&mut self, i: u32, r: u32) -> StageResult<()> {
-        if self.vals(self.ty(i))? != [Val::I32, Val::I32, Val::I64, Val::I32, Val::I32] {
+        if self.vals(self.ty(i))? != [Val::I32, Val::I32, Val::I64, Val::I32, Val::I32, Val::I32] {
             return unsupported("a reference identity of an unexpected layout");
         }
         self.f.i32(0);
@@ -1156,6 +1156,7 @@ impl Em<'_, '_, '_> {
         self.comp(r, 0)?;
         self.f.helper(Helper::RefAddress);
         self.f.u32(EMPTY);
+        self.f.i32(0);
         self.f.i32(0);
         self.store(i)
     }

@@ -1921,7 +1921,7 @@ fn fmt_int(m: &Module, signed: bool) -> Func {
     let mut f = m.func(
         if signed { "rt:fmt_i64" } else { "rt:fmt_u64" },
         vec![Val::I64],
-        vec![Val::I32, Val::I32],
+        vec![Val::I32; 3],
     );
     let (buf, at, neg, v) = (
         f.local(Val::I32),
@@ -1993,6 +1993,7 @@ fn fmt_int(m: &Module, signed: bool) -> Func {
     f.op(Instruction::I32Add);
     f.get(at);
     f.op(Instruction::I32Sub);
+    f.get(buf);
     f
 }
 
@@ -2083,7 +2084,7 @@ fn host_prim(m: &Module, name: &str, args: &[PrimArg], result: Option<Val>) -> F
     }
     let results = match result {
         Some(v) => vec![v],
-        None => vec![Val::I32, Val::I32],
+        None => vec![Val::I32; 3],
     };
     let mut f = m.func(format!("rt:prim/{name}"), params, results);
     let mut p = 0;
@@ -2129,6 +2130,7 @@ fn host_prim(m: &Module, name: &str, args: &[PrimArg], result: Option<Val>) -> F
     f.op(Instruction::If(BlockType::Empty));
     f.u32(EMPTY);
     f.i32(0);
+    f.i32(0);
     f.op(Instruction::Return);
     f.op(Instruction::End);
     f.get(len);
@@ -2143,6 +2145,7 @@ fn host_prim(m: &Module, name: &str, args: &[PrimArg], result: Option<Val>) -> F
     });
     f.get(out);
     f.get(len);
+    f.get(out);
     f
 }
 
@@ -2990,10 +2993,11 @@ fn each_elem(f: &mut Func, at: u32, n: u32, size: u32, body: &dyn Fn(&mut Func))
 /// A function of `params`, which it ignores, that returns a `TypeId`: its
 /// key and its name, two views of static data.
 fn type_id(parts: &TypeIdParts, params: Vec<Val>, m: &mut Module) -> Func {
-    let mut f = m.func("rt:type_id", params, vec![Val::I32; 4]);
+    let mut f = m.func("rt:type_id", params, vec![Val::I32; 6]);
     for text in [&parts.name, &parts.shown] {
         f.static_addr(m.static_bytes(text.as_bytes(), 1));
         f.u32(u32::try_from(text.len()).expect("type name"));
+        f.i32(0);
     }
     f
 }
@@ -3487,7 +3491,7 @@ fn bytes_append(elem: &Elem, m: &Module) -> Func {
 /// is its bytes in place. A shared or pinned one is copied into a string
 /// buffer and loses the count. No bytes is the static empty string.
 fn str_from_bytes(m: &Module) -> Func {
-    let mut f = m.func("rt:str_from_bytes", vec![Val::I32], vec![Val::I32; 2]);
+    let mut f = m.func("rt:str_from_bytes", vec![Val::I32], vec![Val::I32; 3]);
     let (b, n, s) = (0, f.local(Val::I32), f.local(Val::I32));
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
@@ -3511,6 +3515,8 @@ fn str_from_bytes(m: &Module) -> Func {
         f.u32(LIST_ELEMS);
         f.op(Instruction::I32Add);
         f.get(n);
+        // The list's buffer is the string's base.
+        f.get(b);
         f.op(Instruction::Return);
         f.op(Instruction::End);
     }
@@ -3534,6 +3540,11 @@ fn str_from_bytes(m: &Module) -> Func {
     f.helper(Helper::ReleaseKnown);
     f.get(s);
     f.get(n);
+    // A copy is its own base; the empty value has none.
+    f.get(s);
+    f.i32(0);
+    f.get(n);
+    f.op(Instruction::Select);
     f
 }
 
@@ -3564,7 +3575,7 @@ fn str_to_bytes(m: &Module, elem: &Elem) -> Func {
 /// [`Helper::ConcatAll`]: one pass sums the lengths, a second copies;
 /// no bytes is the static empty string.
 fn concat_all(m: &Module) -> Func {
-    let mut f = m.func("rt:concat_all", vec![Val::I32], vec![Val::I32; 2]);
+    let mut f = m.func("rt:concat_all", vec![Val::I32], vec![Val::I32; 3]);
     let (at, n, total, s, to) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -3584,7 +3595,7 @@ fn concat_all(m: &Module) -> Func {
         f.set(at);
     };
     start(&mut f);
-    each_elem(&mut f, at, n, 8, &|f| {
+    each_elem(&mut f, at, n, 12, &|f| {
         f.get(total);
         f.get(at);
         f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
@@ -3601,7 +3612,7 @@ fn concat_all(m: &Module) -> Func {
     f.get(s);
     f.set(to);
     start(&mut f);
-    each_elem(&mut f, at, n, 8, &|f| {
+    each_elem(&mut f, at, n, 12, &|f| {
         f.get(to);
         f.get(at);
         f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
@@ -3620,6 +3631,11 @@ fn concat_all(m: &Module) -> Func {
     f.op(Instruction::End);
     f.get(s);
     f.get(total);
+    // A new buffer is its own base; the empty value has none.
+    f.get(s);
+    f.i32(0);
+    f.get(total);
+    f.op(Instruction::Select);
     f
 }
 
