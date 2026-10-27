@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { HostContract } from "./run-support.mjs";
 import { createStartupHost } from "./startup.mjs";
+import { Dec } from "./wire.mjs";
 
 const module = new WebAssembly.Module(
   Uint8Array.from([
@@ -30,4 +32,8 @@ test("panic-only modules skip the provider host", async () => {
   });
   assert.deepEqual(text, []);
   host.close();
+});
+
+test("malformed wire arguments keep the shared host-contract error", () => {
+  assert.throws(() => new Dec(new Uint8Array()).leb(), HostContract);
 });
