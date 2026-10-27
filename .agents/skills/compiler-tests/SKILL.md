@@ -1,6 +1,6 @@
 ---
 name: compiler-tests
-description: Test the hd compiler with stage fixtures and benchmarks - write a focused .hd case, pick the view that shows one topic (tokens, tree, tir, own, wat, counts, layout), bless and review generated baselines, record bad emitted code with an expected note, and measure performance, run the gates for a compiler change (conformance in three modes, stage tests), and report perf and size in the standard table (every bench program against JS, the three V8 tier columns, sizes, compile time). Use when adding or changing a compiler test, checking what a stage emits for some code, gating a compiler change, or measuring a perf change.
+description: Test the hd compiler with stage fixtures and benchmarks - write a focused .hd case, pick the view that shows one topic (tokens, tree, tir, own, wat, counts, layout), bless and review generated baselines, record bad emitted code with an expected note, and measure performance (perf jobs: attribute, then a ceiling experiment, then build), run the gates for a compiler change (conformance in three modes, stage tests), and report perf and size in the standard table (every bench program against JS, the three V8 tier columns, sizes, compile time). Use when adding or changing a compiler test, checking what a stage emits for some code, gating a compiler change, or measuring a perf change.
 ---
 
 # Test The hd Compiler
@@ -130,6 +130,34 @@ dev profile for tests.
 - Bless a baseline only for an intended change, and list each blessed
   file in the report.
 
+## Perf Work: Attribute, Ceiling, Build
+
+Every perf job runs these three steps in order. A step that shows the
+job can't pay ends it: close the issue with the numbers, as a measured
+miss. Don't build first and measure after.
+
+1. **Attribute.** Count where the cost actually is before changing
+   anything: a call counter keyed by call site or type, a profile, or
+   TurboFan node counts per function. Check the ticket's guess against it,
+   because tickets are often wrong. #909 guessed trait values, and the
+   cost was one `List[string]` field. #920 guessed the inlined callees, and
+   the cause was caller size. Post the breakdown in the report.
+2. **Ceiling.** Build the cheapest hack that removes the attributed cost
+   entirely. It may be unsafe, behind an environment variable, or only
+   valid for the bench. Measure it at all three V8 tiers, interleaved.
+   That is the most the real change can win. If it's under about 3% on the
+   target program, or it only helps one tier while hurting another, stop.
+   Examples: #704's count-only hack showed −14% on binary_trees before it
+   was built; #901's add-or-remove-every-lookup run bounded it at 4–9%;
+   #876's shadow-stack run showed returns into a slot only grew code.
+3. **Build.** Only now write the real change, with fixtures and the
+   gates, one cause per commit. Then report it with the table below.
+
+Known measured misses not to retry without new evidence: inlining count
+fast paths on V8 (#644, #910), removing inline targets to shrink TurboFan
+graphs (#884, #920), a flag bit or fat views for strings (#901), returns
+into a caller slot (#876).
+
 ## Perf And Size Report
 
 Every perf change reports the same table, so results compare across jobs.
@@ -161,7 +189,8 @@ Every perf change reports the same table, so results compare across jobs.
   `node bench/runtime/run.mjs --release`, and
   `node bench/study/moonbit/compare.mjs`.
 - **Goal:** beat hand-written JS on every program except
-  `progs/string-build` (the deliberately naive `out + s` loop). After
-  that, beat MoonBit's linear backend.
+  `progs/string-build` (the deliberately naive `out + s` loop). Then beat
+  MoonBit's linear backend clearly on every program at every tier (#866).
+  Then MoonBit's wasm-gc backend (#913).
 - Report integer milliseconds. Release builds wrap integer overflow, as
   Rust does.
