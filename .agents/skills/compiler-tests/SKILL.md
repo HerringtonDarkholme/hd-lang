@@ -1,6 +1,6 @@
 ---
 name: compiler-tests
-description: Test the hd compiler with stage fixtures and benchmarks - write a focused .hd case, pick the view that shows one topic (tokens, tree, tir, own, wat, counts, layout), bless and review generated baselines, record bad emitted code with an expected note, and measure performance, run the gates for a compiler change (conformance in three modes, stage tests), and report perf and size in the standard table (all 19 programs against JS, the three V8 tier columns, sizes, compile time). Use when adding or changing a compiler test, checking what a stage emits for some code, gating a compiler change, or measuring a perf change.
+description: Test the hd compiler with stage fixtures and benchmarks - write a focused .hd case, pick the view that shows one topic (tokens, tree, tir, own, wat, counts, layout), bless and review generated baselines, record bad emitted code with an expected note, and measure performance, run the gates for a compiler change (conformance in three modes, stage tests), and report perf and size in the standard table (every bench program against JS, the three V8 tier columns, sizes, compile time). Use when adding or changing a compiler test, checking what a stage emits for some code, gating a compiler change, or measuring a perf change.
 ---
 
 # Test The hd Compiler
@@ -134,8 +134,8 @@ dev profile for tests.
 
 Every perf change reports the same table, so results compare across jobs.
 
-- **All 19 programs, hd only, base and head:** the 11 study programs plus
-  the 8 in `bench/runtime/progs` (19 since #863). Use
+- **Every program, hd only, base and head:** the 11 study programs plus
+  every one in `bench/runtime/progs` (20 in all today; count the directory). Use
   `node bench/study/run.mjs --no-refs` in release mode with `--engines node`,
   or interleaved runs of the two compilers' modules. Give each program's
   ms before and after, the geometric mean of head/base, and the machine
