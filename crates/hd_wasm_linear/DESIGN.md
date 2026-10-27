@@ -302,6 +302,11 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
   the page's free list, popped and pushed in constant time; a page whose
   live count falls to zero returns to the page pool, unless it heads its
   class's list.
+- **Freed lists.** A block freed at its known class goes on one list per
+  class instead, with no page update; allocation pops that list first.
+  Its page still counts it live until the heap needs a page: then every
+  listed block goes back to its page first, so empty pages still return
+  to the pool.
 - **Large blocks** (over 2 KiB) are runs of whole pages, first fit from
   the pool's runs, coalesced with free neighbors on free; every page of a
   run points at its first (§23.5).

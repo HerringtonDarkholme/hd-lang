@@ -12,6 +12,7 @@ use std.rt.alloc.{
     block_size,
     free,
     free_class,
+    reclaim,
     release,
     release_known,
     retain,
@@ -265,7 +266,7 @@ tests:
             assert(second == first, "the freed slot is reused")
             free_class(second, i + 1)
 
-    it("constant-class slow paths restore full pages and retire empty non-head pages"):
+    it("constant-class frees wait on the freed list until reclaim retires empty non-head pages"):
         let mut slots: List[usize] = []
         for i in 0..32:
             slots.push(alloc_class(2048, 20))
@@ -273,10 +274,12 @@ tests:
         second_page := slots[31]
         assert(first / PAGE != second_page / PAGE, "the 32nd slot crosses a page boundary")
         free_class(first, 20)
-        assert(alloc_class(2048, 20) == first, "freeing a full page restores it to the class")
+        assert(alloc_class(2048, 20) == first, "a freed block is reused first")
+        free_class(second_page, 20)
         for i in 0..31:
             free_class(slots[i], 20)
-        free_class(second_page, 20)
+        assert(block_of(second_page) == second_page, "a listed block's page still counts it")
+        reclaim()
         assert(block_of(second_page) == 0, "an empty non-head page returns to the pool")
         again := alloc_class(2048, 20)
         assert(again / PAGE == first / PAGE, "the empty head page stays cached")

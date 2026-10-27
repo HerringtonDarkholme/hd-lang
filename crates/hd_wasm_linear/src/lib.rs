@@ -383,7 +383,6 @@ pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
         .chain([
             (RUNTIME_MODULE, "metadata"),
             (RUNTIME_MODULE, "alloc_class"),
-            (RUNTIME_MODULE, "free_class"),
             (RUNTIME_MODULE, "block_of"),
         ])
         .collect()
@@ -412,7 +411,6 @@ pub struct Runtime {
 pub struct SmallAlloc {
     pub metadata: Hash128,
     pub alloc: Hash128,
-    pub free: Hash128,
 }
 
 /// The runtime's free and releases without collector hooks, which a
@@ -465,7 +463,7 @@ impl Runtime {
     #[must_use]
     pub fn from_keys(keys: &[Option<Hash128>]) -> Option<Runtime> {
         let keys: Vec<Hash128> = keys.iter().copied().collect::<Option<_>>()?;
-        let (keys, [metadata, alloc_class, free_class, block_of]) = keys.split_last_chunk::<4>()?;
+        let (keys, [metadata, alloc_class, block_of]) = keys.split_last_chunk::<3>()?;
         let (counts, rest) = keys.split_first_chunk::<9>()?;
         let (checked, rest) = match rest.len() {
             n if n == CYCLE_FNS.len() => (None, rest),
@@ -514,7 +512,6 @@ impl Runtime {
             small: SmallAlloc {
                 metadata: *metadata,
                 alloc: *alloc_class,
-                free: *free_class,
             },
             cycle: Cycle {
                 collect,

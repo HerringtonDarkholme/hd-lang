@@ -2345,11 +2345,16 @@ fn note_allocation(f: &mut Func, m: &Module, table: u32) {
     f.op(Instruction::I32Store(mem(HEAP, 244, 2)));
 }
 
-/// Pop a free slot or bump within the head page when it remains non-full.
-/// The last available slot, a missing page/table, and page-list maintenance
-/// stay in std, which is given the class's bytes as the size. There is no
-/// call between reading metadata and updating it. Both fast paths share
-/// one tail, so that V8 inlines this into each allocation.
+/// The offset of each class's freed list in std's allocator metadata
+/// (`std.rt.alloc`'s `FREED`): class `c`'s is at `FREED + 4 * c`.
+const FREED: u32 = 256;
+
+/// Pop the class's freed list, else a free slot, or bump within the head
+/// page when it remains non-full. The last available slot, a missing
+/// page/table, and page-list maintenance stay in std, which is given the
+/// class's bytes as the size. There is no call between reading metadata
+/// and updating it. The page fast paths share one tail, so that V8 inlines
+/// this into each allocation.
 fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
     let mut f = m.func(format!("rt:alloc_class/{class}"), vec![], vec![Val::I32]);
     let Some(r) = m.runtime else {
@@ -2374,6 +2379,20 @@ fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
     f.op(Instruction::LocalTee(table));
     f.op(Instruction::I32Eqz);
     f.op(Instruction::BrIf(0));
+    // A block on the class's freed list, which its page still counts.
+    let freed = u64::from(FREED + class * 4);
+    f.get(table);
+    f.op(Instruction::I32Load(mem(HEAP, freed, 2)));
+    f.op(Instruction::LocalTee(slot));
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(table);
+    f.get(slot);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32Store(mem(HEAP, freed, 2)));
+    note_allocation(&mut f, m, table);
+    f.get(slot);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
     f.get(table);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(class * 4), 2)));
     f.op(Instruction::LocalTee(page));
@@ -2435,9 +2454,9 @@ fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
     f
 }
 
-/// A live block on its class's head page needs only a free-list push and
-/// live decrement. Empty head pages remain cached. Other pages use std's
-/// known-class slow path; buffered candidates keep the collector's free.
+/// A live block of a known class goes on its class's freed list, which
+/// its page keeps counting until std's `reclaim`. Buffered candidates keep
+/// the collector's free.
 fn free_class(m: &Module) -> Func {
     let mut f = m.func("rt:free_class", vec![Val::I32], vec![]);
     let Some(r) = m.runtime else {
@@ -2448,12 +2467,7 @@ fn free_class(m: &Module) -> Func {
         f.call(Sym::Inst(r.free));
         return f;
     }
-    let (desc, class, table, page) = (
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-    );
+    let (desc, class, list) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
     f.set(desc);
@@ -2472,39 +2486,19 @@ fn free_class(m: &Module) -> Func {
     f.op(Instruction::I32Eqz);
     f.op(Instruction::I32And);
     f.op(Instruction::If(BlockType::Empty));
-    f.get(0);
-    f.i32(-65536);
-    f.op(Instruction::I32And);
-    f.set(page);
     f.call(Sym::Inst(r.small.metadata));
-    f.set(table);
-    f.get(table);
     f.get(class);
     f.i32(2);
     f.op(Instruction::I32Shl);
     f.op(Instruction::I32Add);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.get(page);
-    f.op(Instruction::I32Eq);
-    f.op(Instruction::If(BlockType::Empty));
+    f.set(list);
     f.get(0);
-    f.get(page);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.get(list);
+    f.op(Instruction::I32Load(mem(HEAP, u64::from(FREED), 2)));
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    f.get(page);
+    f.get(list);
     f.get(0);
-    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    f.get(page);
-    f.get(page);
-    f.op(Instruction::I32Load16U(mem(HEAP, 12, 1)));
-    f.i32(1);
-    f.op(Instruction::I32Sub);
-    f.op(Instruction::I32Store16(mem(HEAP, 12, 1)));
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.get(0);
-    f.get(class);
-    f.call(Sym::Inst(r.small.free));
+    f.op(Instruction::I32Store(mem(HEAP, u64::from(FREED), 2)));
     f.op(Instruction::Return);
     f.op(Instruction::End);
     f.get(0);
