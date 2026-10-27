@@ -1,7 +1,8 @@
-// hd release Wasm vs MoonBit's linear-memory wasm backend, same programs.
+// hd release Wasm vs MoonBit, same programs. MoonBit's target is its
+// linear-memory `wasm` backend, or `wasm-gc` with --target wasm-gc.
 //
-//   node bench/study/moonbit/compare.mjs --build          build both sides
-//   node bench/study/moonbit/compare.mjs [--runs 11] [--only a,b]
+//   node bench/study/moonbit/compare.mjs --build [--target wasm-gc]   build both sides
+//   node bench/study/moonbit/compare.mjs [--target wasm-gc] [--runs 11] [--only a,b]
 //
 // Every run is a fresh `node` process: a child (`--child`) loads one module,
 // instantiates it, then times only the call of its entry. The parent also
@@ -19,7 +20,11 @@ const REPO = resolve(HERE, "..", "..", "..");
 const WORK = join(HERE, "work");
 const MOON = process.env.MOON ?? "/Users/hd/.moon/bin/moon";
 const HD = join(REPO, "target", "release", "hd");
-const MBT_BUILD = join(HERE, "_build", "wasm", "release", "build");
+const TARGET = process.argv.includes("--target")
+  ? process.argv[process.argv.indexOf("--target") + 1]
+  : "wasm";
+if (TARGET !== "wasm" && TARGET !== "wasm-gc") throw new Error(`unknown --target ${TARGET}`);
+const MBT_BUILD = join(HERE, "_build", TARGET, "release", "build");
 
 const EMPTY = 'pub fn main() -> void:\n    if 1 + 1 != 2: panic("wrong")\n';
 const study = [
@@ -40,6 +45,7 @@ const progs = [
   "int-loop",
   "list-sort",
   "map-count",
+  "map-count-long",
   "nested-display",
   "string-build",
   "string-builder",
@@ -75,7 +81,7 @@ function build(cases, hd) {
   }
   execFileSync(
     "nice",
-    [MOON, "build", "--target", "wasm", "--release", ...cases.map((c) => c.name)],
+    [MOON, "build", "--target", TARGET, "--release", ...cases.map((c) => c.name)],
     {
       cwd: HERE,
       stdio: ["ignore", "ignore", "inherit"],
@@ -98,10 +104,13 @@ async function child(kind, file) {
     host.close();
     if (status !== 0) throw new Error(`hd status ${status}`);
   } else {
-    // The whole host MoonBit needs: fd_write for println.
+    // The whole host MoonBit needs: fd_write for println (wasm), or
+    // print_char, one UTF-16 unit per call (wasm-gc).
     let mem;
     const chunks = [];
+    const units = [];
     const imports = {
+      spectest: { print_char: (c) => units.push(c) },
       wasi_snapshot_preview1: {
         fd_write(_fd, iov, n, nw) {
           const dv = new DataView(mem.buffer);
@@ -123,6 +132,8 @@ async function child(kind, file) {
     instance.exports._start();
     ms = performance.now() - t;
     out.push(Buffer.concat(chunks).toString());
+    for (let i = 0; i < units.length; i += 4096)
+      out.push(String.fromCharCode(...units.slice(i, i + 4096)));
   }
   process.stdout.write(JSON.stringify({ ms, out: out.join("") }));
 }
@@ -177,6 +188,7 @@ async function main() {
   let hd = HD;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--build") continue;
+    else if (argv[i] === "--target") i++;
     else if (argv[i] === "--hd" && argv[i + 1]) hd = resolve(argv[++i]);
     else if (argv[i] === "--runs") runs = Number(argv[++i]);
     else if (argv[i] === "--only") only = argv[++i].split(",");
@@ -219,7 +231,7 @@ async function main() {
     );
   };
   console.log(
-    `node ${process.version}, runs ${runs} (median, 1 discarded warm-up), load avg at end ${os
+    `MoonBit target ${TARGET}; node ${process.version}, runs ${runs} (median, 1 discarded warm-up), load avg at end ${os
       .loadavg()
       .map((x) => x.toFixed(2))
       .join(" ")}`,
