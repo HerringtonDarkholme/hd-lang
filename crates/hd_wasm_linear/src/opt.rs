@@ -58,7 +58,11 @@
 //!     holds or an index it checked;
 //! 17. a count whose every operand is a constant, pushed directly or
 //!     held in a local that only constants are written to, goes
-//!     ([`static_counts`]): a constant address is null or static data.
+//!     ([`static_counts`]): a constant address is null or static data;
+//! 18. `local.set r_k; ...; local.set r_1; br L`, where `L` is a block
+//!     whose `end` only `local.get r_1; ...; local.get r_k` follows to the
+//!     function's end, is `return`: the values the exit would read back
+//!     are on the stack already ([`exits`]).
 //!
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
@@ -205,6 +209,7 @@ pub fn locals(f: &mut Func, arity: &Arity) {
         origins.finish(f);
         changed |= forward(f, np);
         changed |= shapes(f, np);
+        changed |= exits(f);
         changed |= fold(f);
         changed |= drops(f);
         changed |= schedule(f, np, arity);
@@ -1722,6 +1727,92 @@ fn block_end(b: &[Ins], at: usize) -> Option<usize> {
         }
     }
     None
+}
+
+/// Rule 18: each `br` to the function's exit block, after the sets of the
+/// locals the exit pushes, returns those values from the stack.
+fn exits(f: &mut Func) -> bool {
+    let b = &f.body;
+    let Some(end) = b
+        .iter()
+        .rposition(|i| !matches!(i, Ins::Op(I::LocalGet(_))))
+    else {
+        return false;
+    };
+    if !matches!(b[end], Ins::Op(I::End)) {
+        return false;
+    }
+    let rets: Vec<u32> = b[end + 1..]
+        .iter()
+        .filter_map(|i| match i {
+            Ins::Op(I::LocalGet(l)) => Some(*l),
+            _ => None,
+        })
+        .collect();
+    let mut distinct = rets.clone();
+    distinct.sort_stable();
+    distinct.dedup();
+    if distinct.len() != rets.len() {
+        return false;
+    }
+    let mut depth = 0u32;
+    let mut open = None;
+    for at in (0..end).rev() {
+        match b[at] {
+            Ins::Op(I::End) => depth += 1,
+            Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) if depth > 0 => depth -= 1,
+            Ins::Op(I::Block(wasm_encoder::BlockType::Empty)) => {
+                open = Some(at);
+                break;
+            }
+            Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => return false,
+            _ => {}
+        }
+    }
+    let Some(open) = open else {
+        return false;
+    };
+    let n = rets.len();
+    let mut gone = vec![false; b.len()];
+    let mut returns = Vec::new();
+    let mut depth = 0u32;
+    for at in open + 1..end {
+        match b[at] {
+            Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => depth += 1,
+            Ins::Op(I::End) => depth -= 1,
+            Ins::Op(I::Br(d))
+                if d == depth
+                    && at >= n
+                    && (0..n).all(|j| {
+                        !gone[at - 1 - j]
+                            && matches!(b[at - 1 - j], Ins::Op(I::LocalSet(l)) if l == rets[j])
+                    }) =>
+            {
+                gone[at - n..at].fill(true);
+                returns.push(at);
+            }
+            _ => {}
+        }
+    }
+    if returns.is_empty() {
+        return false;
+    }
+    let mut origins = Remap::new(f.origins.as_deref());
+    let mut out = Vec::with_capacity(b.len());
+    for (at, ins) in b.iter().enumerate() {
+        if gone[at] {
+            continue;
+        }
+        out.push(if returns.binary_search(&at).is_ok() {
+            Ins::Op(I::Return)
+        } else {
+            *ins
+        });
+        origins.copy(at..at + 1);
+    }
+    f.body = out;
+    origins.finish(f);
+    true
 }
 
 /// Whether memory instruction `i` loads.
@@ -3364,6 +3455,44 @@ mod origin_tests {
             },
         );
         assert_eq!(f.body.len(), 5);
+    }
+
+    #[test]
+    fn a_branch_to_the_exit_after_its_values_returns_them() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        // The first branch sets both exit values and returns; the second
+        // sets one only and keeps its branch.
+        let f = run(
+            tracked(
+                &symbols,
+                1,
+                2,
+                vec![
+                    op(I::Block(BlockType::Empty)),
+                    op(I::LocalGet(0)),
+                    op(I::If(BlockType::Empty)),
+                    op(I::I32Const(1)),
+                    op(I::I32Const(2)),
+                    op(I::LocalSet(2)),
+                    op(I::LocalSet(1)),
+                    op(I::Br(1)),
+                    op(I::End),
+                    op(I::I32Const(3)),
+                    op(I::LocalSet(2)),
+                    op(I::Br(0)),
+                    op(I::End),
+                    op(I::LocalGet(1)),
+                    op(I::LocalGet(2)),
+                ],
+            ),
+            |f| {
+                assert!(exits(f));
+            },
+        );
+        assert!(matches!(f.body[5], Ins::Op(I::Return)), "{:?}", f.body);
+        assert!(matches!(f.body[9], Ins::Op(I::Br(0))), "{:?}", f.body);
+        assert_eq!(spans(&f)[5], 17);
     }
 
     #[test]
