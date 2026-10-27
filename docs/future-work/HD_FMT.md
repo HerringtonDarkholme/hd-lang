@@ -14,7 +14,8 @@ the same layout; other input spacing and wrapping have no effect.
 Keep literal spelling, comments and meaningful blank-line boundaries.
 
 ```text
-fn total(xs: List[i32]) -> i32: combine(xs, +1)
+fn total(xs: List[i32]) -> i32:
+    combine(xs, +1)
 ```
 
 Both `combine( xs,+1 )` and an unnecessarily vertical `combine` call become
@@ -27,6 +28,7 @@ not its tabs or its particular line-breaking rules.
 
 1. Approve the fixed style and parse/build/print architecture below? Recommendation: yes.
 2. Keep formatting outside the web compiler until a Format feature is approved? Recommendation: yes; zero added download now.
+3. Keep function and statement suites on their own lines, joining only match arms, closures and parenthesized conditionals? Recommendation: yes. The review estimates joining all fitting suites would move about 1,400 of std’s 4,100 indented bodies onto headers.
 
 ## Problems it solves
 
@@ -64,16 +66,18 @@ The private document uses a safe indexed `Vec` arena, borrowed source spans,
 indentation, groups, soft/hard lines, verbatim text and suffix comments.
 An iterative `fits` walk follows the same commands as printing, including
 following punctuation. A flat parent makes its children flat without more fits.
-Width cutoff alone does **not** bound zero-width tags: Appendix E specifies
+The builder removes empty groups/indents and asserts that invariant. Width
+cutoff alone does **not** bound other zero-width tags: Appendix E specifies
 jump tables and operation-count gates. The bound is O(input + 100 × groups +
 output), with O(input) auxiliary storage; emitted indentation counts as output.
 
-A one-statement **executable** suite is a group: flat `: body` or `=> body`,
-broken header plus an indented body. The complete flat body must remain flat.
-Offer flat form only where hd's inline grammar permits that statement; direct
-`if`/`match` in an inline function body is forbidden, for example. Multistatement,
-comment-forced and inherently multiline bodies break. Existing short match arms,
-parenthesized inline conditionals and closure arguments stay compact.
+The recommended style keeps function and statement-suite bodies on their own
+lines, even when short. Match arms, closures and parenthesized conditionals may
+group flat only where hd's inline grammar permits; a complete flat body stays
+flat. An eligible parenthesized conditional joins **all** branches on one line when the whole expression
+fits; otherwise every branch starts a separate line, with indented bodies for
+statement suites. Other conditionals use one branch per line. Comments or
+multiline bodies force the group to break.
 
 Attach comments once, recording leading/trailing/dangling roles and boundary
 slots. Before assigning a comment after a suite, use its source indentation:
@@ -98,18 +102,22 @@ expansion. Keep at most one authored sibling blank line, except doc ownership.
 Generated layout uses LF and one final newline; empty/blank files become empty.
 Literal/comment bytes retain original whitespace and line endings.
 
-**Preserve every authored parenthesis in the first implementation.** The removal
-whitelist is empty, especially around call targets: `(handler.callback)(event)`
-must never become `handler.callback(event)`. Binary continuation may add a wrapper
-only in listed legal expression positions; reuse an existing wrapper next time.
-Neither the tree oracle nor a future optimization may erase call-target groups.
+Preserve authored parentheses except one explicit, precedence-safe removal class:
+a continuation wrapper directly enclosing a binary/postfix/pipe chain in a
+listed noncallee value/header slot. Recompute that wrapper from canonical width,
+so shortening a chain also removes an obsolete wrapper. Call targets are never
+eligible: `(handler.callback)(event)` must retain its group. Appendix E defines
+the tree oracle and exact slots; never globally erase `ParenExpr`.
 
-Long postfix chains use leading-dot lines four spaces beyond their statement.
-Keep the first complete call as the head, then put each remaining dot segment
-on its own line; a dot-only chain starts from its root receiver. Argument groups
-can also break. Parenthesized call targets remain opaque heads. Emit a suite-final
-argument's comma after dedenting out of its body, with the closer on another line.
-Indivisible tokens/unbreakable syntax and unavoidable indentation may exceed 100.
+Long postfix chains normally use leading-dot lines at statement indent + four;
+keep the first complete call as the head, then one remaining dot segment per
+line. **No unparenthesized dot-line continuation in suite headers**: wrap the full condition/iterable/matchee
+in continuation parentheses and break inside, then close before the suite colon.
+**No dot lines after a same-depth pipe**. Break pipe chains with leading `|>`
+lines; a bare pipe path stays atomic, never parenthesized. Pipe-step suites stay
+inline, preserving the checker's single-line rule. Unbreakable syntax may exceed
+100. Parenthesized callees remain opaque. Dedent a suite-final argument before
+its comma, with the closer on another line.
 
 Share the **existing tree and tokens** with lint. Comment attachment stays
 private until a real second consumer needs ownership; then extract only the
@@ -128,7 +136,6 @@ common neutral data. Formatting never requests semantic/type facts or links
 | Web compiler | 5,103,008 raw / 1,707,892 gzip B; formatter absent | Keep that dependency graph; no formatter code added now. |
 | Formatter in web | No Format export today | If later shipped, measure complete raw/gzip delta; no size estimate substitutes for a build. |
 
-
 Appendix D gives measured current timings. No new formatter exists yet:
 new timing, allocation counts and added Wasm size are unmeasured, not claimed wins.
 The frozen web control is from the same base, measured with Node gzip level 9;
@@ -140,7 +147,6 @@ about **43.5 ms** against today's 14.492 ms parse. Fix/print visit counts must
 obey Appendix E's linear bounds; repeated-unit doubling must not add superlinear
 work. Missing either gate requires redesign before the bulk reformat.
 Publish corpus times, allocations, maximum memory and raw/gzip deltas.
-
 
 ## A. Stress test
 
@@ -163,8 +169,8 @@ impl Base64:
             .UrlNoPad => false
 ```
 
-Parenthesized conditional, from `encoding.hd:176`. Outer branches may flatten;
-the parentheses and short inner branches remain.
+Parenthesized conditional, from `encoding.hd:176`. Statement branches retain
+indented bodies; short parenthesized inner conditionals remain compact.
 
 Before:
 
@@ -185,21 +191,10 @@ impl Base64:
             -1
 ```
 
-Proposed:
-
-```text
-impl Base64:
-    fn value(self, code: u8) -> i32:
-        if code >= 65 && code <= 90: i32(code) - 65
-        else if code >= 97 && code <= 122: i32(code) - 71
-        else if code >= 48 && code <= 57: i32(code) + 4
-        else if code == (if self.is_url(): 45 else: 43): 62
-        else if code == (if self.is_url(): 95 else: 47): 63
-        else: -1
-```
+Proposed: identical to the input above.
 
 Closure argument, from `http.hd:449`. A short closure stays flat; its containing
-function is too wide to join.
+function body remains on its own line.
 
 Before and proposed output are identical:
 
@@ -267,7 +262,8 @@ impl Debug for ContextError:
             .finish()
 ```
 
-Function-valued field call, from `iter.hd:224`; never turn it into a method call.
+Function-valued field call, from `iter.hd:224`; never turn it into a method call
+or join its function suite.
 
 Before:
 
@@ -281,7 +277,8 @@ Proposed:
 
 ```text
 impl[T] Iterator[T] for FromFn[T]:
-    fn next(&mut self) -> T?: (self.step)()
+    fn next(&mut self) -> T?:
+        (self.step)()
 ```
 
 A Go [request-construction excerpt](https://github.com/golang/go/blob/6c49ac311e5642fa5399b46c736295a9dc4eeec9/src/net/http/request.go#L919)
@@ -309,7 +306,7 @@ fn request(method: string, url: Url, body: Body):
     }
 ```
 
-A previously vertical short group must join, including its containing suite:
+A previously vertical short call must join; its function body stays indented:
 
 ```text
 fn compact():
@@ -319,7 +316,91 @@ fn compact():
 ```
 
 ```text
-fn compact(): consume(value)
+fn compact():
+    consume(value)
+```
+
+Suite-header adversary, derived from std's iterator/header patterns. Every
+header kind uses a complete continuation wrapper; dot lines never become suite
+layout. Before:
+
+```text
+fn headers(source: Source):
+    if source.configuration_for_the_current_authenticated_application().has_valid_authorization_for_the_selected_request():
+        pass
+    while source.configuration_for_the_current_authenticated_application().has_remaining_requests_for_the_selected_application():
+        pass
+    for item in source.configuration_for_the_current_authenticated_application().pending_requests_for_the_selected_application():
+        pass
+    match source.configuration_for_the_current_authenticated_application().response_status_for_the_selected_application():
+        _ => pass
+```
+
+Proposed broken layout (when the header exceeds width):
+
+```text
+fn headers(source: Source):
+    if (
+        source.configuration_for_the_current_authenticated_application()
+            .has_valid_authorization_for_the_selected_request()
+    ):
+        pass
+    while (
+        source.configuration_for_the_current_authenticated_application()
+            .has_remaining_requests_for_the_selected_application()
+    ):
+        pass
+    for item in (
+        source.configuration_for_the_current_authenticated_application()
+            .pending_requests_for_the_selected_application()
+    ):
+        pass
+    match (
+        source.configuration_for_the_current_authenticated_application()
+            .response_status_for_the_selected_application()
+    ):
+        _ => pass
+```
+
+Pipe adversary uses leading pipes, never leading dots after a same-depth pipe.
+The long bare names make the complete pipe exceed 100 columns.
+Before:
+
+```text
+fn double_the_current_authenticated_request_count(value: i32) -> i32: value + value
+fn increment_the_current_authenticated_request_count(value: i32) -> i32: value + +1
+fn pipeline() -> i32:
+    +1 |> double_the_current_authenticated_request_count |> increment_the_current_authenticated_request_count
+```
+
+Proposed broken layout, also retaining function bodies on their own lines:
+
+```text
+fn double_the_current_authenticated_request_count(value: i32) -> i32:
+    value + value
+fn increment_the_current_authenticated_request_count(value: i32) -> i32:
+    value + +1
+fn pipeline() -> i32:
+    +1
+        |> double_the_current_authenticated_request_count
+        |> increment_the_current_authenticated_request_count
+```
+
+After a rename shortens a binary chain, canonical formatting removes only its
+approved optional wrapper. Before:
+
+```text
+fn sum(a: i32, b: i32) -> i32:
+    result := (a + b)
+    result
+```
+
+Proposed:
+
+```text
+fn sum(a: i32, b: i32) -> i32:
+    result := a + b
+    result
 ```
 
 | Adversary | Required handling |
@@ -327,12 +408,12 @@ fn compact(): consume(value)
 | An inline function containing a direct if/match | No flat suite offered; obey existing inline/continued grammar. |
 | Deeply nested/EOF tail comments, including the gap before else | Source-column container plus ordered boundary slot; never drift to the next declaration. |
 | `(handler.callback)(event)` versus `handler.callback(event)` | Preserve authored callee parentheses in both printing and tree comparison. |
-| Zero-width groups before one long token | Jump over zero runs; failed fits must obey operation bounds. |
+| Empty groups/indents and zero-width tags before a long token | Collapse empties in the builder; assert canonical IR and bounded fit work. |
 | `consume(value # note` followed by `)` | Put a generated comma before the suffix flush. |
 | Multiline/interpolated strings with comments | Copy opaque bytes once, including interior comments. |
 | Singleton tuple, mixed operators, 100-column token plus punctuation | Preserve grammar/precedence; recognize unavoidable overflow. |
 
-Parse log: all 15 `text` blocks parse cleanly with the frozen current parser. No type-check or runtime equivalence is
+Parse log: all 20 `text` blocks parse cleanly with the frozen current parser. No type-check or runtime equivalence is
 claimed by these parser probes; source-owner and verdict checks are separate gates.
 
 ## B. Prior art, with code
@@ -582,7 +663,7 @@ struct Document<'s> {
     source: &'s str,
     tape: Vec<Command>,
     groups: Vec<GroupInfo>, // matching ends, exact flat widths, cannot_flatten
-    next_flat: Vec<TapeIdx>,
+    next_flat: Vec<TapeIdx>,     // only remaining effective-event gaps
     next_expanded: Vec<TapeIdx>,
 }
 enum Command {
@@ -593,7 +674,10 @@ enum Command {
 }
 ```
 
-The printer and fitter consume this balanced tape with matching group-end
+The builder omits/collapses groups and indents with empty effective bodies and
+coalesces only redundant no-op/break commands, preserving authored blank-line and
+comment boundaries. Assert this in tests; never emit
+`Group(empty)` as printable IR. The printer and fitter consume this balanced tape with matching group-end
 indices and one parent per nonleaf. `ModeText` has static punctuation only;
 there are no arbitrary alternatives, cross-group conditions or shared nonleaf DAGs.
 Cache each emitted text leaf's width once (capped at 101), plus literal first-line
@@ -616,21 +700,36 @@ most once; inherit flat mode under a verified flat parent. This yields
 O(N + 100G + output) work and O(N) space, subject to the actual implementation
 meeting these invariants. A cutoff **without** zero-run jumps is insufficient:
 `Group(empty)` repeated before one overlong token otherwise causes quadratic
-failed fits. Compare optimized fits against a simple reference measurer in tests.
+failed fits in an unnormalized IR. Feed that input through the builder and
+assert collapse. Compare optimized fits against a simple reference measurer for
+all modes, suffixes and continuations, not only empty-group adversaries.
+
+The parser's 160-level syntax limit does not bound document depth: postfix
+and same-precedence binary parsing build nested nodes in loops. Empty removal
+alone therefore does not replace zero-event jumps or justify a new IR depth cap.
 
 Instrument preprocessing/printing visits ≤ fixed constants × N, fit calls ≤ G,
 and effective fit events ≤ 101 × fit calls plus fixed setup. Charge output
-bytes separately. Exercise failed-fit zero groups, deep hard-line groups, cached
+bytes separately. Exercise builder empty collapse, surviving zero tags, deep hard-line groups, cached
 long tokens, 100/101 boundaries and long ignored comments; doubling alone is
 not a substitute for these absolute bounds.
 
-The parenthesis-removal whitelist is initially empty. Adding binary continuation
-wrappers is permitted only for a binding value, return value, expression statement,
-argument, condition or binary operand where grammar allows it—never a callee.
-A context-aware paired-tree comparison permits just those additions; it matches
-all authored `ParenExpr` nodes, required precedence and tuples. Reuse an existing
-parenthesized chain rather than wrapping it twice. Future removal needs an explicit
-operand-position whitelist with a fixture per position and separate approval.
+The wrapper whitelist is exactly a `ParenExpr` directly enclosing a binary,
+postfix or pipe chain, in a binding RHS, return, expression statement, argument,
+binary operand or suite-header condition/iterable/matchee. Removal also requires
+precedence/associativity and comment ownership to remain unchanged. Callees,
+standalone names/literals, tuples and every other parenthesis position are out.
+Compute canonical width without this optional wrapper: keep/add one only when
+continuation requires it. This handles both source-authored and previously-added
+wrappers identically, without hidden provenance. Never wrap a bare pipe step/path;
+parenthesize a complete pipe only in an approved outer slot. Existing authored
+placeholder-step parentheses remain intact; no new per-step wrapper is introduced.
+
+A paired-tree oracle allows **only** insertion/removal of those proven wrappers;
+all other `ParenExpr` nodes and operator/statement nesting remain exact. Preserve
+call-target groups regardless of width. Check verdict/codes as well as parsing:
+parenthesizing `x |> f`'s bare `f` changes pipe semantics, and splitting an inline
+pipe-step suite can introduce `multi-line-pipe-step`. Neither is allowed.
 
 Standalone comment placement uses the innermost compatible suite/container and
 source-ordered slot, including before `else`, after its last statement and EOF.
@@ -646,7 +745,7 @@ Implementation slices are about one hour each, each reviewed and tested:
 1. Private source/comment ownership and node-coverage inventory; round-trip and doc/tail-comment tests.
 2. Document/printer/fits kernel; reference equivalence, width boundaries, zero-tag adversaries and visit counters.
 3. Expression/comma/chain rules; whitespace variants, preserved call targets and approved continuation wrappers.
-4. Grammar-eligible suite groups and comments; all std and every parseable fixture in memory.
+4. Approved suite/conditional style and comments; all std and every parseable fixture in memory.
 5. Parallel CLI integration using existing --jobs; spec/fixtures, fuzz fmt contract and hard cost budgets.
 6. A separately approved #899 source-only reformat, preserving excluded raw/stage inputs and refreshing SDK provenance.
 
@@ -655,8 +754,8 @@ node and use checked IDs. There are no new user budget knobs.
 Each slice retains failed inputs. Gate idempotence and normalized-tree equality
 as errors, not known differences. Tree comparison ignores positions/layout
 and optional separator commas,
-and permits only the listed added continuation wrappers. It preserves authored
-parentheses, statement nesting, expression/operator structure and literal bytes.
+and permits only the listed continuation-wrapper insertions/removals. It preserves
+all other parentheses, statement nesting, expression/operator structure and literal bytes.
 Separately compare every comment's bytes, order, kind and semantic owner.
 Test every production, empty/singleton/multiline group, Unicode, tabs/CRLF,
 comments at every boundary, incomplete syntax, and nesting/size limits.
