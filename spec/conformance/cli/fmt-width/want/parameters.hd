@@ -1,6 +1,6 @@
 fn f(
     the_first_descriptive_parameter_name: i64,
     the_second_descriptive_parameter_name: i64,
-    the_third_descriptive_parameter_name: i64
+    the_third_descriptive_parameter_name: i64,
 ) -> void:
     pass

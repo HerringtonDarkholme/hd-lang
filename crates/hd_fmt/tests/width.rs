@@ -35,7 +35,7 @@ fn calls_structs_lists_and_parameters_put_one_element_on_each_line() {
     assert_eq!(
         narrow(&call),
         format!(
-            "fn f():\n    render(\n        {FIRST},\n        {SECOND},\n        {THIRD}\n    )\n"
+            "fn f():\n    render(\n        {FIRST},\n        {SECOND},\n        {THIRD},\n    )\n"
         )
     );
     let record =
@@ -43,19 +43,19 @@ fn calls_structs_lists_and_parameters_put_one_element_on_each_line() {
     assert_eq!(
         narrow(&record),
         format!(
-            "fn f():\n    Record {{\n        first: {FIRST},\n        second: {SECOND},\n        third: {THIRD}\n    }}\n"
+            "fn f():\n    Record {{\n        first: {FIRST},\n        second: {SECOND},\n        third: {THIRD},\n    }}\n"
         )
     );
     let list = format!("fn f():\n    [{FIRST}, {SECOND}, {THIRD}]\n");
     assert_eq!(
         narrow(&list),
-        format!("fn f():\n    [\n        {FIRST},\n        {SECOND},\n        {THIRD}\n    ]\n")
+        format!("fn f():\n    [\n        {FIRST},\n        {SECOND},\n        {THIRD},\n    ]\n")
     );
     let parameters = format!("fn f({FIRST}: i64, {SECOND}: i64, {THIRD}: i64) -> i64:\n    +1\n");
     assert_eq!(
         narrow(&parameters),
         format!(
-            "fn f(\n    {FIRST}: i64,\n    {SECOND}: i64,\n    {THIRD}: i64\n) -> i64:\n    +1\n"
+            "fn f(\n    {FIRST}: i64,\n    {SECOND}: i64,\n    {THIRD}: i64,\n) -> i64:\n    +1\n"
         )
     );
 }
@@ -119,7 +119,7 @@ fn literal_arguments_split_without_splitting_either_literal() {
     let source = format!("fn f():\n    consume(\"{first}\", \"{second}\")\n");
     assert_eq!(
         narrow(&source),
-        format!("fn f():\n    consume(\n        \"{first}\",\n        \"{second}\"\n    )\n")
+        format!("fn f():\n    consume(\n        \"{first}\",\n        \"{second}\",\n    )\n")
     );
 }
 
@@ -169,6 +169,10 @@ fn an_existing_multiline_call_moves_closure_bodies_with_their_headers() {
         formatted.contains("        fn(value):\n            use_value(value)"),
         "{formatted}"
     );
+    assert!(
+        formatted.contains("            use_value(value)\n        ,\n    )"),
+        "{formatted}"
+    );
 }
 
 #[test]
@@ -188,5 +192,111 @@ fn inline_argument_comments_and_multiline_literals_keep_their_text() {
     assert!(
         formatted.contains("\"\"\"alpha\n  literal indentation\nend\"\"\""),
         "{formatted}"
+    );
+}
+
+#[test]
+fn a_short_broken_group_gets_its_last_comma_before_the_inline_comment() {
+    let source = "fn f():\n    consume(\n        value # last argument  \n    )\n";
+    assert_eq!(
+        wrapped(source),
+        "fn f():\n    consume(\n        value, # last argument  \n    )\n"
+    );
+    let source = "fn f():\n    consume(\n        value, # already has its comma  \n    )\n";
+    assert_eq!(wrapped(source), source);
+}
+
+#[test]
+fn every_comma_group_keeps_a_trailing_comma_when_broken() {
+    use hd_syntax::{SyntaxKind as S, TokenKind as T};
+    for (kind, source) in [
+        (S::ParameterList, "fn f(\n    value: i64\n):\n    pass\n"),
+        (
+            S::ArgumentList,
+            "fn f():\n    consume(\n        value\n    )\n",
+        ),
+        (
+            S::DataExpr,
+            "fn f():\n    Item {\n        value: +1\n    }\n",
+        ),
+        (S::ListExpr, "fn f():\n    [\n        +1\n    ]\n"),
+        (S::UseGroup, "use pkg.{\n    first\n}\n"),
+        (S::GenericParameterList, "fn f[\n    T\n]():\n    pass\n"),
+        (
+            S::TypeArgumentList,
+            "fn f():\n    consume::[\n        T\n    ]()\n",
+        ),
+        (
+            S::TupleExpr,
+            "fn f():\n    (\n        +1,\n        +2\n    )\n",
+        ),
+        (S::MapExpr, "fn f():\n    {\n        +1: +2\n    }\n"),
+        (
+            S::PatternArgumentList,
+            "fn f(value: Item):\n    match value:\n        .Some(\n            found\n        ) => pass\n",
+        ),
+        (
+            S::TupleType,
+            "fn f(value: (\n    i64,\n    i64\n)):\n    pass\n",
+        ),
+        (
+            S::TuplePattern,
+            "fn f(pair: Pair):\n    let (\n        first,\n        second\n    ) = pair\n",
+        ),
+        (
+            S::DataPattern,
+            "fn f(value: Item):\n    match value:\n        Item {\n            field: found\n        } => pass\n",
+        ),
+        (
+            S::ArgumentList,
+            "fn f():\n    $.with(\n        Console=provider\n    ):\n        pass\n",
+        ),
+        (
+            S::ContextExpr,
+            "fn f():\n    $.use(\n        Console\n    )\n",
+        ),
+    ] {
+        let before = hd_syntax::parse(source.as_bytes());
+        assert!(before.is_ok(), "{kind:?}: {:?}", before.diagnostics);
+        assert!(before.tree.root().descendants().any(|n| n.kind() == kind));
+        let formatted = narrow(source);
+        let after = hd_syntax::parse(formatted.as_bytes());
+        let node = after
+            .tree
+            .root()
+            .descendants()
+            .find(|n| n.kind() == kind)
+            .unwrap();
+        assert_eq!(
+            after.tokens.kind[node.last_token().idx() - 1],
+            T::Comma,
+            "{kind:?}: {formatted}"
+        );
+    }
+}
+
+#[test]
+fn a_parenthesized_value_and_single_context_argument_never_become_tuples() {
+    let source = "fn f():\n    (\n        +1\n    )\n";
+    assert_eq!(wrapped(source), source);
+    let source = "fn f(ctx: $.Context[\n    $ Console\n]):\n    pass\n";
+    let formatted = wrapped(source);
+    assert!(!formatted.contains("Console,"), "{formatted}");
+    let source = "fn f():\n    $.Context[\n        $ Console\n    ]\n";
+    assert_eq!(wrapped(source), source);
+}
+
+#[test]
+fn a_required_comma_keeps_an_unsplittable_literal_exact_at_the_width_boundary() {
+    let literal = "x".repeat(90);
+    let source = format!("fn f():\n    consume(\n        \"{literal}\"\n    )\n");
+    let formatted = wrapped(&source);
+    assert_eq!(
+        formatted,
+        format!("fn f():\n    consume(\n        \"{literal}\",\n    )\n")
+    );
+    assert_eq!(
+        formatted.lines().nth(2).unwrap().chars().count(),
+        MAX_COLUMNS + 1
     );
 }

@@ -53,3 +53,11 @@ run: hd fmt --check inputs/records.input
 stdout-json: []
 run: hd fmt inputs/records.input
 same-text: inputs/records.input want/records.hd
+run: hd fmt --check inputs/already-broken.input
+exit: 1
+run: hd fmt inputs/already-broken.input
+same-text: inputs/already-broken.input want/already-broken.hd
+run: hd fmt --check inputs/already-broken.input
+stdout-json: []
+run: hd fmt inputs/already-broken.input
+same-text: inputs/already-broken.input want/already-broken.hd

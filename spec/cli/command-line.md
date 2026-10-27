@@ -1387,6 +1387,7 @@ hd fmt --check          # writes nothing; lists each file that would change
 13. r[cli.fmt.width.binary-grouping] A broken binary chain uses parentheses for implicit line continuation.
 14. r[cli.fmt.width.binary-operands] A broken binary chain places one operand per line, with the operator before each later operand.
 15. r[cli.fmt.width.protected] Comment and string literal text remains as written, even when it exceeds the width.
+16. r[cli.fmt.width.trailing-comma] A comma-delimited group written one element per line ends its last element with a comma.
 
 > **Why.** Formatting around a syntax error could rewrite code that the
 > parser misread, so the file waits until it parses.

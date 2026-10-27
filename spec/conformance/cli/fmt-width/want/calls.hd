@@ -2,5 +2,5 @@ fn f():
     consume(
         the_first_descriptive_parameter_name,
         the_second_descriptive_parameter_name,
-        the_third_descriptive_parameter_name
+        the_third_descriptive_parameter_name,
     )

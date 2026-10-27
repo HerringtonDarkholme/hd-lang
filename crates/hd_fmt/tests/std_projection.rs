@@ -62,7 +62,8 @@ fn std_projection_is_idempotent_and_every_breakable_code_line_fits() {
                 let indentation = code.chars().take_while(|c| matches!(c, ' ' | '\t')).count();
                 let literal_cannot_fit = literals.iter().any(|&(lo, hi)| {
                     let (lo, hi) = (lo.max(start), hi.min(code_end));
-                    lo < hi && indentation + formatted[lo..hi].chars().count() > MAX_COLUMNS
+                    let comma = usize::from(formatted[hi..code_end].trim() == ",");
+                    lo < hi && indentation + formatted[lo..hi].chars().count() + comma > MAX_COLUMNS
                 });
                 if !literal_cannot_fit {
                     wide.push(format!(

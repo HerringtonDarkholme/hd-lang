@@ -15,9 +15,6 @@ struct Change {
 /// Reparse before another expansion: bracket suffixes and same-line suites
 /// depend on physical line boundaries, not only on a token sequence.
 pub(super) fn layout(mut current: String) -> String {
-    if current.lines().all(|line| columns(line) <= MAX_COLUMNS) {
-        return current;
-    }
     loop {
         let parsed = hd_syntax::parse(current.as_bytes());
         let ranges = protected(&parsed);
@@ -121,6 +118,13 @@ fn group(kind: S) -> bool {
     )
 }
 
+fn comma_group(node: NodeRef<'_>, tokens: &TokenBuf) -> bool {
+    group(node.kind())
+        && node.kind() != S::ContextType
+        && (node.kind() != S::ContextExpr
+            || node.direct_tokens().any(|t| tokens.kind(t) == T::LParen))
+}
+
 fn collect<'a>(
     node: NodeRef<'a>,
     parent: Option<NodeRef<'a>>,
@@ -135,10 +139,18 @@ fn collect<'a>(
     }
     if (group(node.kind()) || binary(node.kind()))
         && let Some((start, end)) = bounds(node, &parsed.tokens)
-        && needs_break(source, &parsed.tokens, start, end)
+        && (needs_break(source, &parsed.tokens, start, end)
+            || (group(node.kind()) && source[start..end].contains('\n')))
     {
         if group(node.kind()) {
-            if let Some(text) = group_layout(node, parsed, source, ranges) {
+            if let Some(text) = group_layout(node, parsed, source, ranges, false) {
+                out.push(Change { start, end, text });
+            }
+            // A comma after an indented suite must first dedent out of its
+            // body. The same parse/shape guard judges this alternate boundary.
+            if source[start..end].contains('\n')
+                && let Some(text) = group_layout(node, parsed, source, ranges, true)
+            {
                 out.push(Change { start, end, text });
             }
         } else if binary(node.kind()) && !source[start..end].contains('\n') {
@@ -222,6 +234,7 @@ fn element(
     lo: usize,
     hi: usize,
     deeper: &str,
+    comma: Option<usize>,
 ) -> String {
     let (lo, hi) = trim_layout(source, ranges, lo, hi);
     if lo == hi {
@@ -239,7 +252,7 @@ fn element(
     let mut at = lo;
     for (line, text) in source[lo..hi].split_inclusive('\n').enumerate() {
         if line == 0 || inside(ranges, at) {
-            out.push_str(text);
+            append_with_comma(&mut out, text, at, comma);
         } else {
             let spaces = text
                 .bytes()
@@ -252,11 +265,24 @@ fn element(
                 indentation.saturating_sub(old_indent - new_indent)
             };
             out.push_str(&" ".repeat(shifted));
-            out.push_str(&text[spaces..]);
+            append_with_comma(&mut out, &text[spaces..], at + spaces, comma);
         }
         at += text.len();
     }
     out
+}
+
+fn append_with_comma(out: &mut String, text: &str, start: usize, comma: Option<usize>) {
+    if let Some(at) = comma
+        && at >= start
+        && at <= start + text.len()
+    {
+        out.push_str(&text[..at - start]);
+        out.push(',');
+        out.push_str(&text[at - start..]);
+    } else {
+        out.push_str(text);
+    }
 }
 
 fn group_layout(
@@ -264,6 +290,7 @@ fn group_layout(
     parsed: &Parse,
     source: &str,
     ranges: &[(usize, usize)],
+    standalone_comma: bool,
 ) -> Option<String> {
     let tokens = &parsed.tokens;
     let (start, end) = bounds(node, tokens)?;
@@ -276,9 +303,12 @@ fn group_layout(
     }
     let begin = tokens.end[open.idx()] as usize;
     let stop = tokens.start[close.idx()] as usize;
-    if begin >= stop || source[begin..stop].trim().is_empty() {
+    if close.idx() <= open.idx() + 1 {
         return None;
     }
+    let last = close.idx() - 1;
+    let comma = (comma_group(node, tokens) && tokens.kind[last] != T::Comma)
+        .then_some(tokens.end[last] as usize);
     let base = indent(source, tokens.start[open.idx()] as usize);
     let deeper = format!("{base}    ");
     let mut out = source[start..begin].trim_end().to_owned();
@@ -302,13 +332,26 @@ fn group_layout(
     }
     boundaries.push(stop);
     for end in boundaries {
-        let item = element(source, tokens, ranges, next, end, &deeper);
+        let item = element(
+            source,
+            tokens,
+            ranges,
+            next,
+            end,
+            &deeper,
+            if standalone_comma { None } else { comma },
+        );
         if !item.is_empty() {
             out.push('\n');
             out.push_str(&deeper);
             out.push_str(&item);
         }
         next = end;
+    }
+    if standalone_comma && comma.is_some() {
+        out.push('\n');
+        out.push_str(&deeper);
+        out.push(',');
     }
     out.push('\n');
     out.push_str(base);
@@ -359,13 +402,37 @@ fn shape(node: NodeRef<'_>, out: &mut Vec<(S, bool)>) {
     }
 }
 
-fn token_text<'a>(parsed: &Parse, source: &'a str) -> Vec<(T, &'a str)> {
+fn trailing_commas(parsed: &Parse) -> (Vec<bool>, Vec<bool>) {
+    let tokens = &parsed.tokens;
+    let mut skip = vec![false; tokens.kind.len()];
+    let mut present = Vec::new();
+    for node in parsed
+        .tree
+        .root()
+        .descendants()
+        .filter(|&n| comma_group(n, tokens))
+    {
+        let close = node.last_token();
+        let comma = close.idx().checked_sub(1).filter(|&i| {
+            tokens.kind(close).is_close_delimiter()
+                && tokens.kind[i] == T::Comma
+                && node.direct_tokens().any(|t| t.idx() == i)
+        });
+        if let Some(i) = comma {
+            skip[i] = true;
+        }
+        present.push(comma.is_some());
+    }
+    (skip, present)
+}
+
+fn token_text<'a>(parsed: &Parse, source: &'a str, skip: &[bool]) -> Vec<(T, &'a str)> {
     parsed
         .tokens
         .kind
         .iter()
         .enumerate()
-        .filter(|(_, kind)| !matches!(kind, T::LParen | T::RParen))
+        .filter(|(i, kind)| !skip[*i] && !matches!(kind, T::LParen | T::RParen))
         .map(|(i, &kind)| {
             (
                 kind,
@@ -387,14 +454,74 @@ fn comments<'a>(parsed: &Parse, source: &'a str) -> Vec<&'a str> {
 
 fn equivalent(before: &Parse, source: &str, next: &str) -> bool {
     let after = hd_syntax::parse(next.as_bytes());
-    if !after.is_ok()
-        || token_text(before, source) != token_text(&after, next)
-        || comments(before, source) != comments(&after, next)
-    {
+    if !after.is_ok() || comments(before, source) != comments(&after, next) {
         return false;
     }
     let (mut old, mut new) = (Vec::new(), Vec::new());
     shape(before.tree.root(), &mut old);
     shape(after.tree.root(), &mut new);
-    old == new
+    if old != new {
+        return false;
+    }
+    // Matching tree shape also matches comma groups in preorder. Only a new
+    // optional trailing comma is allowed: an existing one may never disappear,
+    // and every nontrailing token (apart from transparent parentheses) is exact.
+    let (old_skip, old_present) = trailing_commas(before);
+    let (new_skip, new_present) = trailing_commas(&after);
+    old_present.len() == new_present.len()
+        && old_present
+            .iter()
+            .zip(new_present)
+            .all(|(&old, new)| !old || new)
+        && token_text(before, source, &old_skip) == token_text(&after, next, &new_skip)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::equivalent;
+
+    #[test]
+    fn only_optional_trailing_commas_may_be_added_and_none_may_be_removed() {
+        for (before, after, expected) in [
+            (
+                "fn f(): consume(value)\n",
+                "fn f(): consume(value,)\n",
+                true,
+            ),
+            (
+                "fn f(): consume(value,)\n",
+                "fn f(): consume(value)\n",
+                false,
+            ),
+            (
+                "fn f(): consume(inner(value), other)\n",
+                "fn f(): consume(inner(value,), other,)\n",
+                true,
+            ),
+            ("fn f(): (value)\n", "fn f(): (value,)\n", false),
+            (
+                "fn f(): consume(value)\n",
+                "fn f(): consume(value, other)\n",
+                false,
+            ),
+            (
+                "fn f(): consume(value) # comment\n",
+                "fn f(): consume(value,) # changed\n",
+                false,
+            ),
+            (
+                "fn f(): consume(\"text\")\n",
+                "fn f(): consume(\"changed\",)\n",
+                false,
+            ),
+        ] {
+            let parsed = hd_syntax::parse(before.as_bytes());
+            assert!(parsed.is_ok(), "{before}");
+            assert_eq!(
+                equivalent(&parsed, before, after),
+                expected,
+                "{before} -> {after}"
+            );
+        }
+    }
 }
