@@ -183,13 +183,14 @@ for (const [name, mutate] of [
   [
     "returned handle member",
     (i) => {
-      i.find((x) => x.identity.trait_path === "console.Console").methods[0].member = "write_error";
+      const [method] = i.find((x) => x.identity.trait_path === "console.Console").methods;
+      method.member = method.member === "write_sync" ? "write_error_sync" : "write_sync";
     },
   ],
   [
     "returned handle suspension",
     (i) => {
-      i.find((x) => x.identity.trait_path === "console.Console").methods[0].wait = "never";
+      i.find((x) => x.identity.trait_path === "console.Console").methods[0].wait = "may";
     },
   ],
   [

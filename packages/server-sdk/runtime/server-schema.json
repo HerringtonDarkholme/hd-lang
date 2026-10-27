@@ -2,15 +2,15 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "4869fd47294ddf7e1081d88ca7f3de5a8088ef84",
-    "compilerBaseRevision": "4869fd47294ddf7e1081d88ca7f3de5a8088ef84",
-    "compilerSha256": "79bcda992fa228f12345ab01f18e620ad327e7fb983e6f01f7485b3f408113b6",
-    "referenceWasmSha256": "6d9f79fb68a972eccaf54f73d82dda167f1debf8db46e42150e29c01af444bc1",
-    "referenceContractSha256": "0351cc8388f31274c0bf7255f26ebb5b75ed584afd1b9730fb3614bc650f568f",
-    "probeSha256": "d44128ba67997f25eba8bbb3a826195787a0c8f51a0d285a35332f683b16fce3",
+    "sourceBaseRevision": "21f7d8d9a6ca8229df417e0fbc137115862685f8",
+    "compilerBaseRevision": "21f7d8d9a6ca8229df417e0fbc137115862685f8",
+    "compilerSha256": "eef7632af2515c909aaf7bfa951e06c98e78f78fc72371ee5ef281f54f6907cf",
+    "referenceWasmSha256": "afa00f2a15d8f3108969c08edc2fa3aa63cf35f91777a11b9d0bd0d487d56487",
+    "referenceContractSha256": "f702cd9f1a46f1b9b8e55465e9d80e5b8c680555c5d3fe7a60e81fe24e953b15",
+    "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
     "sourceHashes": {
       "packages/server-sdk/src/server.hd": "f0421a49787f4bf08313d823f07dad074f14f3ea32aa296db373bf037854318b",
-      "lib/std/console.hd": "57079d6dfa8eb8e3c05e608bf57add23a6c4b87f20c56ccbefc534f93f924778",
+      "lib/std/console.hd": "a385fcd716e2633a3c5100748bd6f179b84fec5630eb7707813437750847b953",
       "lib/std/http.hd": "42f18dd2af90bf2af3637ef17e3d979ede884cc063f63ff02a24b1bfa4b825fe",
       "lib/std/http_wire.hd": "d58415dc76138985a78a6283a085c1e2f78ea908ca40240bdc31502297d63484",
       "lib/std/time.hd": "d59ae209988e88c14db543c683909e8b87d3589a8ce253a753d365b1640ddcfd"
@@ -18,7 +18,7 @@
   },
   "coverage": {
     "server.HttpServer": ["accept", "cancelled", "client", "clock", "console", "finish", "respond"],
-    "console.Console": ["write", "write_error"],
+    "console.Console": ["write_error_sync", "write_sync"],
     "http.Http": ["send"],
     "time.Clock": ["monotonic", "now", "sleep"]
   },
@@ -227,9 +227,9 @@
         "handle": true,
         "methods": [
           {
-            "name": "write",
-            "member": "write",
-            "wait": "may",
+            "name": "write_error_sync",
+            "member": "write_error_sync",
+            "wait": "never",
             "params": [[6]],
             "result": [
               13,
@@ -245,9 +245,9 @@
             ]
           },
           {
-            "name": "write_error",
-            "member": "write_error",
-            "wait": "may",
+            "name": "write_sync",
+            "member": "write_sync",
+            "wait": "never",
             "params": [[6]],
             "result": [
               13,
@@ -455,5 +455,5 @@
       }
     ]
   },
-  "fingerprint": "607f8435f4e097a7c6db98bafa5590363b903f7cbf2945c08aaf98df3cbe8422"
+  "fingerprint": "a00d5dd832f8e0a4fb1ff65bc7171075cb8875114cade954eedb768a1124c181"
 }
