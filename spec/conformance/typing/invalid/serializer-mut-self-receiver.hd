@@ -15,7 +15,7 @@ impl Serializer for Count:
     fn bool(&mut self, value: bool) -> Result[void, never]:
         .Ok(())
 
-    fn int(mut self, value: i64) -> Result[void, never]:  # diagnostic: trait-method-signature
+    fn int(mut self, value: i64) -> Result[void, never]: # diagnostic: trait-method-signature
         .Ok(())
 
     fn uint(&mut self, value: u64) -> Result[void, never]:

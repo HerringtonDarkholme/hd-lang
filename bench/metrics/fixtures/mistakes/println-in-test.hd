@@ -9,5 +9,5 @@ tests:
     use std.testing.assert_equal
 
     it("doubles"):
-        println("checking")  # diagnostic: missing-requirement
+        println("checking") # diagnostic: missing-requirement
         assert_equal(twice(2), 4, reason="double")

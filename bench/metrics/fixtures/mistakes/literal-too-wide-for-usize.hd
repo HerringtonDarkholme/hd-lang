@@ -3,4 +3,4 @@
 # expect: integer-literal-range
 
 fn big(total: usize) -> bool:
-    total != 50000005000000  # diagnostic: integer-literal-range
+    total != 50000005000000 # diagnostic: integer-literal-range

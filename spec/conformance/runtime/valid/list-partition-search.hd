@@ -14,9 +14,11 @@ tests:
         assert_equal([1].find(fn(n: i32) -> bool: n > 4), .None, reason="no match")
     it("stops at the deciding element"):
         let calls = 0
-        _ := [1, 2, 3].any(fn(n: i32) -> bool:
-            calls = calls + 1
-            n == 1
+        _ := [1, 2, 3].any(
+            fn(n: i32) -> bool:
+                calls = calls + 1
+                n == 1
+            ,
         )
         assert_equal(calls, 1, reason="any stops at the first true")
     it("an empty list"):

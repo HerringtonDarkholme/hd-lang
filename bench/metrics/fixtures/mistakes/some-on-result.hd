@@ -8,5 +8,5 @@ fn parse(text: string) -> Result[i32, string]:
 
 fn value(text: string) -> i32:
     match parse(text):
-        .Some(n) => n  # diagnostic: unknown-variant
+        .Some(n) => n # diagnostic: unknown-variant
         .None => 0

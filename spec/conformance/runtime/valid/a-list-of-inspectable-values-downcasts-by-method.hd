@@ -14,9 +14,10 @@ struct Tag:
 fn describe(value: &dyn Inspectable) -> string:
     match value.downcast_ref::[User]():
         .Some(user) => "user ${user.name}"
-        .None => match value.downcast_ref::[Tag]():
-            .Some(tag) => "tag ${tag.label}"
-            .None => "other"
+        .None =>
+            match value.downcast_ref::[Tag]():
+                .Some(tag) => "tag ${tag.label}"
+                .None => "other"
 
 pub fn main() -> void $ Console:
     let values: List[*dyn Inspectable] = [&User { name: "Ada" }, &Tag { label: "hi" }, &3]

@@ -7,9 +7,10 @@ struct FixedTag:
     value: string
 
 impl Tag for FixedTag:
-    fn name(self) -> string: self.value
+    fn name(self) -> string:
+        self.value
 
 trait Log
 
 fn named() -> string $ Log:
-    $.use(Tag).name()  # diagnostic: missing-requirement
+    $.use(Tag).name() # diagnostic: missing-requirement

@@ -22,4 +22,4 @@ fn serve_all(handlers: List[fn() -> void $ Db]) -> void:
     pass
 
 fn wire(handlers: List[fn() -> void $ Db + Clock]) -> void:
-    serve_all(handlers)  # diagnostic: type-mismatch
+    serve_all(handlers) # diagnostic: type-mismatch

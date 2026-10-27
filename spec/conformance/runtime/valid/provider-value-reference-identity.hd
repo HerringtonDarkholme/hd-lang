@@ -7,7 +7,8 @@ struct Named:
     label: string
 
 impl Label for Named:
-    fn name(self) -> string: self.label
+    fn name(self) -> string:
+        self.label
 
 pub fn main() -> void $ Console:
     $.with(Label=Named { label: "inner" }):

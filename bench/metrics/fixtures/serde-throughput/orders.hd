@@ -25,5 +25,14 @@ pub fn orders(count: i64) -> List[Order]:
         for j in 0..3:
             lines.push(Line { sku: "SKU-${i}-${j}", quantity: i32(j + 1), price: 9.5 })
         let note: string? = if i % 3 == 0: .Some("leave at door") else: .None
-        out.push(Order { id: i, customer: "customer ${i}", paid: i % 2 == 0, note: note, tags: ["web", "eu"], lines: lines })
+        out.push(
+            Order {
+                id: i,
+                customer: "customer ${i}",
+                paid: i % 2 == 0,
+                note: note,
+                tags: ["web", "eu"],
+                lines: lines,
+            },
+        )
     out

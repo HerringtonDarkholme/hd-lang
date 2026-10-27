@@ -16,6 +16,6 @@ struct Duration:
 fn ticks(n: i32) -> Duration:
     Duration { millis: n }
 
-@fn_fact  # diagnostic: unsatisfied-trait-bound
+@fn_fact # diagnostic: unsatisfied-trait-bound
 fn named(label: string) -> Duration:
     Duration { millis: 0 }

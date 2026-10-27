@@ -2,6 +2,5 @@
 # Spec 01 Same-Line Suites: lex.suite-end.else-next-line.
 # expect: parse
 fn choose(flag: bool) -> i32:
-    value := if flag: +1
-    else: +2
+    value := if flag: +1 else: +2
     value

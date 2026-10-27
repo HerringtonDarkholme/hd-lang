@@ -1,4 +1,4 @@
 # test: float literal past f64 range is rejected
 pub fn main() -> void:
-    let x: f64 = -1e999  # diagnostic: float-literal-range
+    let x: f64 = -1e999 # diagnostic: float-literal-range
     pass

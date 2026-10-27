@@ -3,4 +3,5 @@
 struct Q:
     x: i32
 
-fn show(q: Q) -> string: debug(q)  # diagnostic: unsatisfied-trait-bound
+fn show(q: Q) -> string:
+    debug(q) # diagnostic: unsatisfied-trait-bound

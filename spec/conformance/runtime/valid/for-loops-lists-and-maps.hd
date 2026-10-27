@@ -7,7 +7,8 @@
 # flow.loop.else.exhaustion, flow.loop.else.plain-break,
 # flow.loop.else.continue.
 
-fn load!() -> List[i32]: [1, 2, 3]
+fn load!() -> List[i32]:
+    [1, 2, 3]
 
 fn first_or(values: List[i32]) -> i32:
     for value in values:
@@ -21,11 +22,11 @@ fn main!() -> i32:
         if value == 2:
             continue
         total = total + value
-    scores := {"a": +10, "b": 20}
+    scores := { "a": +10, "b": 20 }
     for (key, score) in scores:
         if key.len() == 1:
             total = total + score
-    for entry in {"c": +7}:
+    for entry in { "c": +7 }:
         total = total + entry._1
     let cleanup = +0
     for value in [+1, 2]:
@@ -34,13 +35,14 @@ fn main!() -> i32:
         if value == 1:
             continue
         break
-    if total + first_or([]) == 42 && cleanup == 20:
-        42
-    else:
-        0
+    if total + first_or([]) == 42 && cleanup == 20: 42 else: 0
 
 tests:
     use std.testing.assert_equal
 
     it("main returns 42"):
-        assert_equal(main!(), 42, reason="for loops iterate lists and maps with continue, destructuring, and else values")
+        assert_equal(
+            main!(),
+            42,
+            reason="for loops iterate lists and maps with continue, destructuring, and else values",
+        )

@@ -1,14 +1,16 @@
 # The empty loop: plain calls only, to subtract from the others.
 use std.task.{all, race}
 
-fn echo!(value: i64) -> i64: value
+fn echo!(value: i64) -> i64:
+    value
 
-fn echo_plain(value: i64) -> i64: value
+fn echo_plain(value: i64) -> i64:
+    value
 
 fn work!() -> i64:
     let total: i64 = 0
     let i: i64 = 0
-    while i < 200000:  # param: count
+    while i < 200000: # param: count
         total = total + echo_plain(i) + echo_plain(i + 1)
         i = i + 1
     total

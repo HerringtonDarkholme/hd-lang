@@ -185,7 +185,11 @@ pub fn visit(address: usize) -> bool:
     true
 
 ## Frees the candidates whose last count went, then, unless `due` asked for that alone, collects the others' garbage cycles: `trace` runs a block's release glue, `release` releases one reference, and `free` frees a block.
-pub fn collect(trace: fn(usize) -> void, release: fn(usize) -> void, free: fn(usize) -> void) -> void:
+pub fn collect(
+    trace: fn(usize) -> void,
+    release: fn(usize) -> void,
+    free: fn(usize) -> void,
+) -> void:
     if collecting:
         return
     collecting = true
@@ -331,9 +335,11 @@ fn compact() -> void:
 # Whether the object at `block` takes part: its descriptor has the CYCLIC
 # bit and, for a frame, its saved slots are stable.
 fn takes_part(block: usize) -> bool:
-    (usize(load_u32(block + 4)) & CYCLIC) != 0 && (
-        (word(block) & FRAME) == 0 ||
-        (usize(load_u32(block + FRAME_FLAGS)) & FRAME_RUNNING) == 0
+    (
+        (usize(load_u32(block + 4)) & CYCLIC) != 0
+        && ((word(block) & FRAME) == 0 || (usize(
+            load_u32(block + FRAME_FLAGS),
+        ) & FRAME_RUNNING) == 0)
     )
 
 fn word(block: usize) -> usize:

@@ -5,7 +5,7 @@ trait Visitor:
     fn visit[T < AnyRef](self, value: T) -> void
 
 trait Worker:
-    fn run[$R](self, job: fn() -> void $ R) -> void $ R
+    fn run[$ R](self, job: fn() -> void $ R) -> void $ R
 
 fn walk() -> void $ Visitor + Worker:
     pass

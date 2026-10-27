@@ -5,26 +5,98 @@ use std.hash.hash_of
 
 tests:
     it("every named header parses to its canonical variant"):
-        let known: List[(HeaderName, string)] = [(HeaderName.Accept,"accept"),(HeaderName.AcceptEncoding,"accept-encoding"),(HeaderName.AcceptLanguage,"accept-language"),(HeaderName.ContentDisposition,"content-disposition"),(HeaderName.ContentEncoding,"content-encoding"),(HeaderName.ContentLength,"content-length"),(HeaderName.ContentRange,"content-range"),(HeaderName.ContentType,"content-type"),(HeaderName.Range,"range"),(HeaderName.CacheControl,"cache-control"),(HeaderName.ETag,"etag"),(HeaderName.Expires,"expires"),(HeaderName.IfMatch,"if-match"),(HeaderName.IfModifiedSince,"if-modified-since"),(HeaderName.IfNoneMatch,"if-none-match"),(HeaderName.LastModified,"last-modified"),(HeaderName.Vary,"vary"),(HeaderName.Authorization,"authorization"),(HeaderName.Cookie,"cookie"),(HeaderName.RetryAfter,"retry-after"),(HeaderName.SetCookie,"set-cookie"),(HeaderName.WwwAuthenticate,"www-authenticate"),(HeaderName.AccessControlAllowCredentials,"access-control-allow-credentials"),(HeaderName.AccessControlAllowHeaders,"access-control-allow-headers"),(HeaderName.AccessControlAllowMethods,"access-control-allow-methods"),(HeaderName.AccessControlAllowOrigin,"access-control-allow-origin"),(HeaderName.AccessControlMaxAge,"access-control-max-age"),(HeaderName.AccessControlRequestHeaders,"access-control-request-headers"),(HeaderName.AccessControlRequestMethod,"access-control-request-method"),(HeaderName.Origin,"origin"),(HeaderName.ContentSecurityPolicy,"content-security-policy"),(HeaderName.StrictTransportSecurity,"strict-transport-security"),(HeaderName.XContentTypeOptions,"x-content-type-options"),(HeaderName.XFrameOptions,"x-frame-options"),(HeaderName.Allow,"allow"),(HeaderName.Forwarded,"forwarded"),(HeaderName.Host,"host"),(HeaderName.Location,"location"),(HeaderName.Referer,"referer"),(HeaderName.XForwardedFor,"x-forwarded-for"),(HeaderName.XForwardedHost,"x-forwarded-host"),(HeaderName.XForwardedProto,"x-forwarded-proto"),(HeaderName.Date,"date"),(HeaderName.Server,"server"),(HeaderName.UserAgent,"user-agent"),(HeaderName.XRequestId,"x-request-id")]
+        let known: List[(HeaderName, string)] = [
+            (HeaderName.Accept, "accept"),
+            (HeaderName.AcceptEncoding, "accept-encoding"),
+            (HeaderName.AcceptLanguage, "accept-language"),
+            (HeaderName.ContentDisposition, "content-disposition"),
+            (HeaderName.ContentEncoding, "content-encoding"),
+            (HeaderName.ContentLength, "content-length"),
+            (HeaderName.ContentRange, "content-range"),
+            (HeaderName.ContentType, "content-type"),
+            (HeaderName.Range, "range"),
+            (HeaderName.CacheControl, "cache-control"),
+            (HeaderName.ETag, "etag"),
+            (HeaderName.Expires, "expires"),
+            (HeaderName.IfMatch, "if-match"),
+            (HeaderName.IfModifiedSince, "if-modified-since"),
+            (HeaderName.IfNoneMatch, "if-none-match"),
+            (HeaderName.LastModified, "last-modified"),
+            (HeaderName.Vary, "vary"),
+            (HeaderName.Authorization, "authorization"),
+            (HeaderName.Cookie, "cookie"),
+            (HeaderName.RetryAfter, "retry-after"),
+            (HeaderName.SetCookie, "set-cookie"),
+            (HeaderName.WwwAuthenticate, "www-authenticate"),
+            (HeaderName.AccessControlAllowCredentials, "access-control-allow-credentials"),
+            (HeaderName.AccessControlAllowHeaders, "access-control-allow-headers"),
+            (HeaderName.AccessControlAllowMethods, "access-control-allow-methods"),
+            (HeaderName.AccessControlAllowOrigin, "access-control-allow-origin"),
+            (HeaderName.AccessControlMaxAge, "access-control-max-age"),
+            (HeaderName.AccessControlRequestHeaders, "access-control-request-headers"),
+            (HeaderName.AccessControlRequestMethod, "access-control-request-method"),
+            (HeaderName.Origin, "origin"),
+            (HeaderName.ContentSecurityPolicy, "content-security-policy"),
+            (HeaderName.StrictTransportSecurity, "strict-transport-security"),
+            (HeaderName.XContentTypeOptions, "x-content-type-options"),
+            (HeaderName.XFrameOptions, "x-frame-options"),
+            (HeaderName.Allow, "allow"),
+            (HeaderName.Forwarded, "forwarded"),
+            (HeaderName.Host, "host"),
+            (HeaderName.Location, "location"),
+            (HeaderName.Referer, "referer"),
+            (HeaderName.XForwardedFor, "x-forwarded-for"),
+            (HeaderName.XForwardedHost, "x-forwarded-host"),
+            (HeaderName.XForwardedProto, "x-forwarded-proto"),
+            (HeaderName.Date, "date"),
+            (HeaderName.Server, "server"),
+            (HeaderName.UserAgent, "user-agent"),
+            (HeaderName.XRequestId, "x-request-id"),
+        ]
         for pair in known:
             assert_equal(pair._0.wire_name(), pair._1, reason="registered wire spelling")
             match pair._1.upper().parse::[HeaderName]():
                 .Ok(.Other(_)) => panic("listed header names must choose named variants")
-                .Ok(found) => assert_equal(found, pair._0, reason="ASCII case selects the named variant")
+                .Ok(found) =>
+                    assert_equal(found, pair._0, reason="ASCII case selects the named variant")
                 .Err(_) => panic("listed header name must parse")
 
     it("other names normalize and equal named aliases"):
-        assert_equal("X-Application-Key".parse::[HeaderName](), .Ok(.Other("x-application-key")), reason="extension name")
+        assert_equal(
+            "X-Application-Key".parse::[HeaderName](),
+            .Ok(.Other("x-application-key")),
+            reason="extension name",
+        )
         assert_equal(HeaderName.Other("CONTENT-Type"), .ContentType, reason="same wire name")
-        assert_equal(hash_of(HeaderName.Other("CONTENT-Type")), hash_of(HeaderName.ContentType), reason="equal names hash equally")
+        assert_equal(
+            hash_of(HeaderName.Other("CONTENT-Type")),
+            hash_of(HeaderName.ContentType),
+            reason="equal names hash equally",
+        )
         let mut headers: Map[HeaderName, string] = {}
         headers[HeaderName.ContentType] = "first"
         headers[HeaderName.Other("CONTENT-TYPE")] = "second"
         assert_equal(headers.len(), 1, reason="case aliases address one key")
-        assert_equal(headers.get(.ContentType), .Some("second"), reason="named lookup reads replacement")
+        assert_equal(
+            headers.get(.ContentType),
+            .Some("second"),
+            reason="named lookup reads replacement",
+        )
 
     it("invalid field names preserve their original text"):
         for text in ["", "x y", "x:y", "x\r\ny", "café", "x\u{0}y"]:
-            assert_equal(text.parse::[HeaderName](), .Err(HeaderError.InvalidName(text)), reason="not an RFC token")
-        assert_equal("!#$%&'*+-.^_`|~".parse::[HeaderName](), .Ok(.Other("!#$%&'*+-.^_`|~")), reason="all token punctuation")
-        assert_equal(HeaderError.InvalidValue("x-test").to_string(), "invalid value for header x-test", reason="value errors identify the field")
+            assert_equal(
+                text.parse::[HeaderName](),
+                .Err(HeaderError.InvalidName(text)),
+                reason="not an RFC token",
+            )
+        assert_equal(
+            "!#$%&'*+-.^_`|~".parse::[HeaderName](),
+            .Ok(.Other("!#$%&'*+-.^_`|~")),
+            reason="all token punctuation",
+        )
+        assert_equal(
+            HeaderError.InvalidValue("x-test").to_string(),
+            "invalid value for header x-test",
+            reason="value errors identify the field",
+        )

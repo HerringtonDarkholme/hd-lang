@@ -17,4 +17,4 @@ impl Add[i64] for Money:
         Money { cents: self.cents + rhs }
 
 fn charge(price: Money) -> Money:
-    price.add(5)  # diagnostic: type-mismatch
+    price.add(5) # diagnostic: type-mismatch

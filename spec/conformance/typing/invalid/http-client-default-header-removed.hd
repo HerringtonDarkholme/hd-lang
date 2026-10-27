@@ -2,4 +2,4 @@
 use std.http.Client
 
 pub fn main() -> void:
-    _ := Client::new().header("Accept", "text/plain")  # diagnostic: unknown-method
+    _ := Client::new().header("Accept", "text/plain") # diagnostic: unknown-method

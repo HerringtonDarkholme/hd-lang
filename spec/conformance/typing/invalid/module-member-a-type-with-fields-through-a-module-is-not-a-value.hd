@@ -3,5 +3,5 @@
 use pkg.shapes
 
 pub fn main() -> void:
-    counter := shapes.Counter  # diagnostic: type-used-as-value
+    counter := shapes.Counter # diagnostic: type-used-as-value
     pass

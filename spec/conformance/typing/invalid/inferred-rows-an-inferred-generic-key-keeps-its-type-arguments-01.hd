@@ -13,11 +13,13 @@ pub struct Post: pass
 struct UserRepo: pass
 
 impl Repo[User] for UserRepo:
-    fn count(self) -> i32: 20
+    fn count(self) -> i32:
+        20
 
 impl Store for UserRepo:
     type Item = i32
-    fn load(self) -> i32: 7
+    fn load(self) -> i32:
+        7
 
 fn find[T]() -> i32:
     $.use(Repo[T]).count()

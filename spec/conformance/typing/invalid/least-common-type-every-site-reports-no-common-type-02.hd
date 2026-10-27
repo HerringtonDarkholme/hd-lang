@@ -2,4 +2,4 @@
 # Spec lang/04-type-system.md: types.lct.sites.
 
 fn f(a: i16, b: i64) -> void:
-    _v := {a: 1, b: 2} # diagnostic: no-common-type
+    _v := { a: 1, b: 2 } # diagnostic: no-common-type

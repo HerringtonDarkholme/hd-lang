@@ -5,5 +5,5 @@ struct Holder:
 
 fn demo() -> i32:
     let mut xs = [+1, 2]
-    saved := Holder { slot: &mut xs[0] }  # diagnostic: element-reference-outlives-call
+    saved := Holder { slot: &mut xs[0] } # diagnostic: element-reference-outlives-call
     *saved.slot

@@ -3,5 +3,5 @@
 fn covered(n: i32) -> string:
     match n:
         0..=9 => "digit"
-        3..5 => "never"  # diagnostic: unreachable-match-arm
+        3..5 => "never" # diagnostic: unreachable-match-arm
         _ => "other"

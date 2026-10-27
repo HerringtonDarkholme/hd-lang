@@ -2,7 +2,7 @@
 # std Collections, List And Map Values: std-collections.value.receiver, std-collections.value.own-copy, std-collections.value.results.
 fn joined(first: List[i32], second: List[i32]) -> List[i32]:
     let mut all = first
-    all.extend(second)  # first is unchanged
+    all.extend(second) # first is unchanged
     all
 
 tests:

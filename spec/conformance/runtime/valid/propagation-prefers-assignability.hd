@@ -7,7 +7,8 @@ enum Failure:
     Converted
 
 impl From[Failure] for Failure:
-    fn from(value: Failure) -> Failure: Failure.Converted
+    fn from(value: Failure) -> Failure:
+        Failure.Converted
 
 fn fail() -> Result[i32, Failure]:
     .Err(Failure.Original(7))
@@ -33,4 +34,8 @@ tests:
         assert_equal(code(relay()), 7, reason="step 1 applies, so from is not called")
 
     it("a direct call still uses the implementation"):
-        assert_equal(code(.Err(Failure::from(Failure.Original(7)))), -1, reason="Failure::from converts")
+        assert_equal(
+            code(.Err(Failure::from(Failure.Original(7)))),
+            -1,
+            reason="Failure::from converts",
+        )

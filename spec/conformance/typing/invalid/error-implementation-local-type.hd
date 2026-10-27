@@ -8,7 +8,8 @@ fn local() -> void:
         Failed
 
     impl Display for LocalError:
-        fn to_string(self) -> string: "failed"
+        fn to_string(self) -> string:
+            "failed"
 
-    impl Error for LocalError  # diagnostic: missing-supertrait-implementation
+    impl Error for LocalError # diagnostic: missing-supertrait-implementation
     pass

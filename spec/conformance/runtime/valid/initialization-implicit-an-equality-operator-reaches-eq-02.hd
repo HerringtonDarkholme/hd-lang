@@ -8,7 +8,8 @@ struct Tag:
 later := +5
 
 impl Eq for Tag:
-    fn eq(self, other: Tag) -> bool: self.n + later == other.n
+    fn eq(self, other: Tag) -> bool:
+        self.n + later == other.n
 
 first := Tag { n: 1 } == Tag { n: 6 }
 

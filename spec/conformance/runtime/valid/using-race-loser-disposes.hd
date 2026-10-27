@@ -24,9 +24,11 @@ fn connect(name: string, log: *mut List[string]) -> *mut Conn $ Clock:
     &mut Conn { name: name, log: log, closing: sleep(ms(2)) }
 
 fn fetch!(log: *mut List[string]) -> string $ Clock:
-    defer: log.push("defer outer")
+    defer:
+        log.push("defer outer")
     using a = connect("a", log)
-    defer: log.push("defer inner")
+    defer:
+        log.push("defer inner")
     sleep!(s(60))
     log.push("fetched")
     "late"

@@ -12,13 +12,23 @@ impl Node:
     fn keep(*self) -> *Node:
         self
 
-    fn grow(*mut self) -> void: pass
+    fn grow(*mut self) -> void:
+        pass
 
-fn parameter(a: *Point, b: *mut Point) -> void: pass
+fn parameter(a: *Point, b: *mut Point) -> void:
+    pass
 
-fn grouped(a: *(Point?), b: *(*Point), c: *(Point, Point), d: *dyn Display, e: *mut dyn Display) -> void: pass
+fn grouped(
+    a: *(Point?),
+    b: *(*Point),
+    c: *(Point, Point),
+    d: *dyn Display,
+    e: *mut dyn Display,
+) -> void:
+    pass
 
-fn function_types(f: fn(&Point, *mut Point) -> *Point) -> void: pass
+fn function_types(f: fn(&Point, *mut Point) -> *Point) -> void:
+    pass
 
 fn annotated() -> void:
     let q: *mut Point = &mut Point { x: 1.0, y: 2.0 }

@@ -1,7 +1,8 @@
 # test: a named argument in a call through a function value names no parameter
 # Spec 07 Function Types And Values: fn.type.positional.named, fn.ref.value.
-fn resize(width: i32, height: i32) -> i32: width * height
+fn resize(width: i32, height: i32) -> i32:
+    width * height
 
 fn area() -> i32:
     scale := resize
-    scale(640, height=480)  # diagnostic: unknown-named-argument
+    scale(640, height=480) # diagnostic: unknown-named-argument

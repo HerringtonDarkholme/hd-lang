@@ -16,7 +16,7 @@ fn get(n: i32) -> i32:
     n
 
 fn wire(layer: Layer) -> i32:
-    get >> layer  # diagnostic: type-mismatch
+    get >> layer # diagnostic: type-mismatch
 
 fn wire_typed(layer: Layer) -> i32:
     let handler: fn(i32) -> i32 $ Db = get

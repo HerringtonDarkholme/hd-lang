@@ -1,4 +1,4 @@
 # test: a parameter without $ is type-kinded even when every use of it is in a row
 # Spec 11 Row Parameters: req.row.param.no-inference.
-fn run[R](job: fn() -> void $ R) -> void $ R:  # diagnostic: generic-kind-mismatch
+fn run[R](job: fn() -> void $ R) -> void $ R: # diagnostic: generic-kind-mismatch
     job()

@@ -18,7 +18,8 @@ struct Feed[I]:
 type Person = User
 
 impl[T < Display] Summary for Feed[T]:
-    fn summary(self) -> string: "x"
+    fn summary(self) -> string:
+        "x"
 
 pub fn main() -> void:
     pass

@@ -16,8 +16,15 @@ tests:
 
     it("the inherent method answers a dot call on the concrete type"):
         shipment := Shipment { carrier: "ups" }
-        assert_equal(shipment.runtime_type(), "shipment by ups", reason="ordinary lookup finds the inherent method")
+        assert_equal(
+            shipment.runtime_type(),
+            "shipment by ups",
+            reason="ordinary lookup finds the inherent method",
+        )
 
     it("the compiler-supplied runtime_type is unchanged"):
         shipment := Shipment { carrier: "dhl" }
-        assert(recorded(&shipment) == TypeId::of::[Shipment](), reason="the erased value reports Shipment")
+        assert(
+            recorded(&shipment) == TypeId::of::[Shipment](),
+            reason="the erased value reports Shipment",
+        )

@@ -8,7 +8,8 @@ struct FixedTag:
     value: string
 
 impl Tag for FixedTag:
-    fn name(self) -> string: self.value
+    fn name(self) -> string:
+        self.value
 
 fn shout() -> string:
     $.use(Tag).name() + "!"

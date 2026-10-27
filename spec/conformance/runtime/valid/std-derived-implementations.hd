@@ -23,47 +23,139 @@ tests:
 
     it("derived std structs retain field labels and order"):
         xs := [+1, +2, +3]
-        assert_equal(debug(xs.view(0, 2)), "ListView { items: [1, 2, 3], start: 0, end: 2, len: 3 }", reason="the view reads through its reference")
+        assert_equal(
+            debug(xs.view(0, 2)),
+            "ListView { items: [1, 2, 3], start: 0, end: 2, len: 3 }",
+            reason="the view reads through its reference",
+        )
         assert_equal(debug(Reverse { value: +4 }), "Reverse { value: 4 }", reason="generic field")
-        assert_equal(debug(Annotate { kinds: [.Fn, .Data] }), "Annotate { kinds: [Target.Fn, Target.Data] }", reason="annotation values")
-        assert_equal(debug(Arg { name: "out" }), "Arg { name: \"out\", kind: ArgKind.Option, short: Option.None, help: \"\", required: false, choices: [], repeated: false }", reason="declaration defaults")
-        assert_equal(debug(ErrorReport { message: "top", sources: ["root"] }), "ErrorReport { message: \"top\", sources: [\"root\"] }", reason="report fields")
-        assert_equal(debug(Entry { path: Path("a"), kind: .File, size: 3 }), "Entry { path: Path(\"a\"), kind: EntryKind.File, size: 3, modified: Option.None }", reason="custom newtype Debug stays wrapped")
-        assert_equal(debug(ScriptedArgs::new("tool", ["x"])), "ScriptedArgs { program: \"tool\", values: [\"x\"] }", reason="provider fields")
-        assert_equal(debug(Datagram { bytes: [1u8], host: "h", port: 80 }), "Datagram { bytes: [1], host: \"h\", port: 80 }", reason="network data")
-        assert_equal(debug(Match { start: 0, end: 1, text: "a" }), "Match { start: 0, end: 1, text: \"a\" }", reason="match fields")
-        assert_equal(debug(Date { year: +2026, month: 10, day: 20 }), "Date { year: 2026, month: 10, day: 20 }", reason="date fields")
+        assert_equal(
+            debug(Annotate { kinds: [.Fn, .Data] }),
+            "Annotate { kinds: [Target.Fn, Target.Data] }",
+            reason="annotation values",
+        )
+        assert_equal(
+            debug(Arg { name: "out" }),
+            "Arg { name: \"out\", kind: ArgKind.Option, short: Option.None, help: \"\", required: false, choices: [], repeated: false }",
+            reason="declaration defaults",
+        )
+        assert_equal(
+            debug(ErrorReport { message: "top", sources: ["root"] }),
+            "ErrorReport { message: \"top\", sources: [\"root\"] }",
+            reason="report fields",
+        )
+        assert_equal(
+            debug(Entry { path: Path("a"), kind: .File, size: 3 }),
+            "Entry { path: Path(\"a\"), kind: EntryKind.File, size: 3, modified: Option.None }",
+            reason="custom newtype Debug stays wrapped",
+        )
+        assert_equal(
+            debug(ScriptedArgs::new("tool", ["x"])),
+            "ScriptedArgs { program: \"tool\", values: [\"x\"] }",
+            reason="provider fields",
+        )
+        assert_equal(
+            debug(Datagram { bytes: [1u8], host: "h", port: 80 }),
+            "Datagram { bytes: [1], host: \"h\", port: 80 }",
+            reason="network data",
+        )
+        assert_equal(
+            debug(Match { start: 0, end: 1, text: "a" }),
+            "Match { start: 0, end: 1, text: \"a\" }",
+            reason="match fields",
+        )
+        assert_equal(
+            debug(Date { year: +2026, month: 10, day: 20 }),
+            "Date { year: 2026, month: 10, day: 20 }",
+            reason="date fields",
+        )
         assert_equal(debug(RangeFull {}), "RangeFull {}", reason="empty structs retain braces")
 
     it("derived std enums retain qualified names and named payloads"):
         assert_equal(debug(SelfRef.Optional), "SelfRef.Optional", reason="fieldless variant")
         assert_equal(debug(Base64.Url), "Base64.Url", reason="encoding variant")
         assert_equal(debug(CleanupEnd.Abandoned), "CleanupEnd.Abandoned", reason="cleanup variant")
-        assert_equal(debug(DecodeError.InvalidLength(3)), "DecodeError.InvalidLength(position=3)", reason="named payload")
-        assert_equal(debug(CliError.InvalidValue("n", "bad")), "CliError.InvalidValue(name=\"n\", reason=\"bad\")", reason="two named fields")
-        assert_equal(debug(ProcessError.Exited(ProcessOutput { status: 2, stderr: "bad", program: "tool" })), "ProcessError.Exited(output=ProcessOutput { stdout: \"\", stderr: \"bad\", status: 2, program: \"tool\" })", reason="exit status is a field")
-        assert_equal(debug(Json.Array([.Bool(true)])), "Json.Array(items=[Json.Bool(value=true)])", reason="recursive enum")
+        assert_equal(
+            debug(DecodeError.InvalidLength(3)),
+            "DecodeError.InvalidLength(position=3)",
+            reason="named payload",
+        )
+        assert_equal(
+            debug(CliError.InvalidValue("n", "bad")),
+            "CliError.InvalidValue(name=\"n\", reason=\"bad\")",
+            reason="two named fields",
+        )
+        assert_equal(
+            debug(ProcessError.Exited(ProcessOutput { status: 2, stderr: "bad", program: "tool" })),
+            "ProcessError.Exited(output=ProcessOutput { stdout: \"\", stderr: \"bad\", status: 2, program: \"tool\" })",
+            reason="exit status is a field",
+        )
+        assert_equal(
+            debug(Json.Array([.Bool(true)])),
+            "Json.Array(items=[Json.Bool(value=true)])",
+            reason="recursive enum",
+        )
 
     it("error derivations preserve messages and absent sources"):
-        assert_equal(DecodeError.InvalidPadding(2).to_string(), "invalid padding at position 2", reason="position template")
-        assert_equal(HostError.InvalidValue("PORT", "bad").to_string(), "invalid value for PORT: bad", reason="two interpolations")
+        assert_equal(
+            DecodeError.InvalidPadding(2).to_string(),
+            "invalid padding at position 2",
+            reason="position template",
+        )
+        assert_equal(
+            HostError.InvalidValue("PORT", "bad").to_string(),
+            "invalid value for PORT: bad",
+            reason="two interpolations",
+        )
         assert_equal(NetError.Other("raw").to_string(), "raw", reason="forwarded text")
-        assert_equal(ProcessError.Exited(ProcessOutput { status: 2, stderr: "bad", program: "tool" }).to_string(), "program tool exited with status 2: bad", reason="signed status")
-        assert_equal(ParseTimeError.Inexact(4).to_string(), "not a whole number of milliseconds at position 4", reason="time error")
-        assert(DecodeError.InvalidLength(3).source().is_none(), reason="plain errors have no source")
+        assert_equal(
+            ProcessError.Exited(ProcessOutput { status: 2, stderr: "bad", program: "tool" })
+                .to_string(),
+            "program tool exited with status 2: bad",
+            reason="signed status",
+        )
+        assert_equal(
+            ParseTimeError.Inexact(4).to_string(),
+            "not a whole number of milliseconds at position 4",
+            reason="time error",
+        )
+        assert(
+            DecodeError.InvalidLength(3).source().is_none(),
+            reason="plain errors have no source",
+        )
 
     it("structural equality retains fields and variants"):
         assert(ArgKind.Flag != ArgKind.Option, reason="variant identity")
         assert(Base64.Url == Base64.Url, reason="same variant")
-        assert(DecodeError.InvalidLength(2) != DecodeError.InvalidLength(3), reason="payload differs")
+        assert(
+            DecodeError.InvalidLength(2) != DecodeError.InvalidLength(3),
+            reason="payload differs",
+        )
         assert(ExitCode(2) != ExitCode(3), reason="newtype base equality")
-        assert(ProcessOutput { stdout: "x" } != ProcessOutput { stdout: "y" }, reason="struct field differs")
-        assert(Request::get(Url::parse("https://example.test/a").expect("fixture URL")) != Request::get(Url::parse("https://example.test/b").expect("fixture URL")), reason="request field differs")
+        assert(
+            ProcessOutput { stdout: "x" } != ProcessOutput { stdout: "y" },
+            reason="struct field differs",
+        )
+        assert(
+            (
+                Request::get(Url::parse("https://example.test/a").expect("fixture URL"))
+                != Request::get(Url::parse("https://example.test/b").expect("fixture URL"))
+            ),
+            reason="request field differs",
+        )
         assert(Response::status(.Ok) != Response::status(.Created), reason="response field differs")
         assert(Number::from_i64(-1) != Number::from_u64(1), reason="private number representation")
         assert(Json.Array([.Bool(true)]) == Json.Array([.Bool(true)]), reason="recursive equality")
 
     it("behavior-specific formatting remains custom"):
         assert_equal(debug(ExitCode(2)), "ExitCode(2)", reason="newtype Debug keeps its wrapper")
-        assert_equal(debug(Number::from_i64(-1)), "Number(-1)", reason="number Debug hides its private representation")
-        assert_equal(TimedOut { limit: ms(10), cleanup: .Abandoned }.to_string(), "timed out after 10ms, cleanup abandoned", reason="conditional timeout message")
+        assert_equal(
+            debug(Number::from_i64(-1)),
+            "Number(-1)",
+            reason="number Debug hides its private representation",
+        )
+        assert_equal(
+            TimedOut { limit: ms(10), cleanup: .Abandoned }.to_string(),
+            "timed out after 10ms, cleanup abandoned",
+            reason="conditional timeout message",
+        )

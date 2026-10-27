@@ -3,4 +3,4 @@
 
 enum Status(code: i32):
     Ok -> Status(200)
-    Moved(code: i32) -> Status(301)  # diagnostic: duplicate-field
+    Moved(code: i32) -> Status(301) # diagnostic: duplicate-field

@@ -1,2 +1,3 @@
 # Spec 10 Prelude: module.prelude.no-shadow.
-fn assert_equal() -> void: pass  # diagnostic: prelude-name-shadow
+fn assert_equal() -> void: # diagnostic: prelude-name-shadow
+    pass

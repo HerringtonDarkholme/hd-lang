@@ -22,7 +22,11 @@ tests:
             inner := $.with(Tag=FixedTag { value: "inner" }):
                 current()
             after := current()
-            assert_equal(before + "," + inner + "," + after, "outer,inner,outer", reason="outer provider restored after the nested block")
+            assert_equal(
+                before + "," + inner + "," + after,
+                "outer,inner,outer",
+                reason="outer provider restored after the nested block",
+            )
 
     it("context spreads apply left to right and later bindings win"):
         base := $.context(Tag=FixedTag { value: "spread" })

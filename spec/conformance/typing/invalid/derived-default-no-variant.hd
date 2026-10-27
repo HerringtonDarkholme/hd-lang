@@ -2,7 +2,7 @@
 # std Ops, Derived Default: std-ops.default.derive.one-variant (owner decision Q6-default-derive, batch 51, 2026-10-02).
 use std.ops.Default
 
-@derive(Default)  # diagnostic: invalid-default-variant
+@derive(Default) # diagnostic: invalid-default-variant
 enum Mode:
     Fast
     Slow

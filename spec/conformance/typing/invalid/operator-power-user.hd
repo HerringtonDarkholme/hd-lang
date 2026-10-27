@@ -4,4 +4,4 @@ struct Money:
     cents: i64
 
 fn squared(price: Money) -> Money:
-    price ** 2  # diagnostic: type-mismatch
+    price ** 2 # diagnostic: type-mismatch

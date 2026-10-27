@@ -4,7 +4,7 @@ use std.random.Rng
 
 fn draw_four(cards: List[i32]) -> List[i32]:
     deck := Rng::new(1)
-    deck.sample(cards, 4)  # panic: explicit-panic
+    deck.sample(cards, 4) # panic: explicit-panic
 
 tests:
     it("rejects a count above the length"):

@@ -11,7 +11,8 @@ struct Timeout:
     seconds: i32
 
 impl Display for Timeout:
-    fn to_string(self) -> string: "timed out after ${self.seconds}s"
+    fn to_string(self) -> string:
+        "timed out after ${self.seconds}s"
 
 impl Error for Timeout
 

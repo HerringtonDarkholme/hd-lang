@@ -18,7 +18,8 @@ struct Feed[I]:
 type Person = User
 
 impl User:
-    fn label(self) -> string: self.name
+    fn label(self) -> string:
+        self.name
 
 pub fn main() -> void:
     pass

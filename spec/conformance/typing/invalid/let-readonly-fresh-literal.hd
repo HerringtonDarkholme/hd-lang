@@ -4,4 +4,4 @@ struct User:
 
 fn invalid() -> void:
     let user = User { name: "Ada" }
-    user.name = "Grace"  # diagnostic: not-writable
+    user.name = "Grace" # diagnostic: not-writable

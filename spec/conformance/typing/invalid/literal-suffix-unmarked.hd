@@ -7,5 +7,5 @@ fn pt(count: i32) -> Pixels:
     Pixels { count: count }
 
 fn layout() -> Pixels:
-    size := 12pt  # diagnostic: invalid-literal-suffix
+    size := 12pt # diagnostic: invalid-literal-suffix
     size

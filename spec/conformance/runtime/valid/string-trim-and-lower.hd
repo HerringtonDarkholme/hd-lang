@@ -2,10 +2,7 @@
 
 fn main() -> i32:
     value := " \tÄBC Σİ ".trim().lower()
-    if value == "äbc σi̇":
-        42
-    else:
-        0
+    if value == "äbc σi̇": 42 else: 0
 
 tests:
     use std.testing.assert_equal

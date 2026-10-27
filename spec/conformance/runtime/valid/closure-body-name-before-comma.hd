@@ -5,12 +5,10 @@
 # expect-stdout: 3
 # expect-stdout: 7
 fn apply(f: fn(i32) -> i32, keep: bool) -> i32:
-    if keep:
-        f(+1)
-    else:
-        f(+0)
+    if keep: f(+1) else: f(+0)
 
-fn pick(first: fn(i32) -> i32, second: fn(i32) -> i32, x: i32) -> i32: first(x) + second(x)
+fn pick(first: fn(i32) -> i32, second: fn(i32) -> i32, x: i32) -> i32:
+    first(x) + second(x)
 
 pub fn main() -> void $ Console:
     ratio := apply(fn(x: i32) -> i32: x, true)

@@ -4,5 +4,5 @@
 
 fn table() -> Map[string, i32]:
     let scores: Map[string, i32] = {}
-    scores["ada"] = 10  # diagnostic: not-writable
+    scores["ada"] = 10 # diagnostic: not-writable
     scores

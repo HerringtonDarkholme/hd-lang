@@ -4,13 +4,25 @@ tests:
     use std.testing.assert
 
     it("letters of other scripts"):
-        assert('é'.is_alphabetic() && 'ß'.is_alphabetic(), reason="a Latin letter with a diacritic and the sharp s")
-        assert('中'.is_alphabetic() && 'Ж'.is_alphabetic() && 'λ'.is_alphabetic(), reason="Han, Cyrillic, and Greek letters")
-        assert('é'.is_alphanumeric() && '中'.is_alphanumeric(), reason="every alphabetic scalar is alphanumeric")
+        assert(
+            'é'.is_alphabetic() && 'ß'.is_alphabetic(),
+            reason="a Latin letter with a diacritic and the sharp s",
+        )
+        assert(
+            '中'.is_alphabetic() && 'Ж'.is_alphabetic() && 'λ'.is_alphabetic(),
+            reason="Han, Cyrillic, and Greek letters",
+        )
+        assert(
+            'é'.is_alphanumeric() && '中'.is_alphanumeric(),
+            reason="every alphabetic scalar is alphanumeric",
+        )
         assert(!'é'.is_ascii_digit() && !'é'.is_whitespace(), reason="neither a digit nor a space")
 
     it("letter numbers are alphabetic"):
-        assert('Ⅻ'.is_alphabetic(), reason="U+216B ROMAN NUMERAL TWELVE, Nl, has the Alphabetic property")
+        assert(
+            'Ⅻ'.is_alphabetic(),
+            reason="U+216B ROMAN NUMERAL TWELVE, Nl, has the Alphabetic property",
+        )
 
     it("symbols are not"):
         assert(!'€'.is_alphabetic() && !'€'.is_alphanumeric(), reason="a currency sign")

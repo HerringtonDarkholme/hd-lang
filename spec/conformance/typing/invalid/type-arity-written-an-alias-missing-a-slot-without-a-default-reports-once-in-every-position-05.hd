@@ -9,4 +9,4 @@ struct Pair[K, V]:
     value: V
 
 enum Shape:
-    Dot(Both[i32])  # diagnostic: partial-generic-arguments
+    Dot(Both[i32]) # diagnostic: partial-generic-arguments

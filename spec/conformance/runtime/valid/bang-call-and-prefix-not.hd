@@ -3,9 +3,11 @@
 # Spec 02 Method Type Arguments: grammar.expr.method-type-arguments.bang, grammar.expr.method-type-arguments.valid.
 # Spec 01 Operators And Delimiters: lex.op.bang-call, lex.op.inequality.
 # expect-stdout: true 7 true false
-fn is_ready!(value: i32) -> bool: value > 0
+fn is_ready!(value: i32) -> bool:
+    value > 0
 
-fn convert![T](value: T) -> T: value
+fn convert![T](value: T) -> T:
+    value
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
@@ -13,5 +15,5 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     typed := convert!::[i32](+7)
     left := is_ready!(+1)
     right := is_ready!(+0)
-    differs := left!=right
+    differs := left != right
     console.write!("$negated $typed $differs ${!left}\n")

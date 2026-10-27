@@ -4,5 +4,5 @@ fn read() -> Result[i32, string]:
 
 fn report() -> i32:
     match read():
-        .Ok(()) => 0  # diagnostic: type-mismatch
+        .Ok(()) => 0 # diagnostic: type-mismatch
         .Err(_) => 1

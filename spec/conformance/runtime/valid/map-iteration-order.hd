@@ -14,7 +14,7 @@ tests:
     use std.testing.assert_equal
 
     it("map iteration visits each entry once, in the same order every time"):
-        values := {"first": +1, "second": 2, "third": 3}
+        values := { "first": +1, "second": 2, "third": 3 }
         assert_equal(total(values), 6, reason="each value once")
         assert_equal(keys(values).len(), 3, reason="each key once")
         assert_equal(keys(values), keys(values), reason="a deterministic order")

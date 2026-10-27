@@ -1,3 +1,5 @@
 # test: declaration checks a module name is declared once
-fn value(input: i32) -> i32: input
-fn text(input: string) -> string: input
+fn value(input: i32) -> i32:
+    input
+fn text(input: string) -> string:
+    input

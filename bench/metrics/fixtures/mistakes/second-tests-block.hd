@@ -11,6 +11,6 @@ tests:
     it("doubles two"):
         assert_equal(twice(2), 4, reason="double")
 
-tests:  # diagnostic: duplicate-tests-block
+tests: # diagnostic: duplicate-tests-block
     it("doubles three"):
         assert_equal(twice(3), 6, reason="double")

@@ -10,10 +10,7 @@ struct Log:
 
 fn check(log: &mut Log, value: i32) -> Result[i32, string]:
     log.text = log.text + "c"
-    if value < 0:
-        .Err("negative")
-    else:
-        .Ok(value)
+    if value < 0: .Err("negative") else: .Ok(value)
 
 fn doubled(log: &mut Log, value: i32) -> Result[i32, string]:
     checked := check(log, value)?

@@ -1,13 +1,14 @@
 # test: character literals carry Unicode scalar values and compare in scalar order
 
 fn main() -> char:
-    if 'A' < '界' && '😀' == '\u{1F600}':
-        '😀'
-    else:
-        'x'
+    if 'A' < '界' && '😀' == '\u{1F600}': '😀' else: 'x'
 
 tests:
     use std.testing.assert_equal
 
     it("main returns '\u{1F600}'"):
-        assert_equal(main(), '\u{1F600}', reason="character literals carry Unicode scalar values and compare in scalar order")
+        assert_equal(
+            main(),
+            '\u{1F600}',
+            reason="character literals carry Unicode scalar values and compare in scalar order",
+        )

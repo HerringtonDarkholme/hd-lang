@@ -3,5 +3,5 @@
 
 @error
 enum WriteError:
-    @error(opaque)  # diagnostic: invalid-error-marker
+    @error(opaque) # diagnostic: invalid-error-marker
     Full

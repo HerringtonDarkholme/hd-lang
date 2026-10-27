@@ -21,4 +21,4 @@ impl Point by Structure:
     x += [tag("a")]
 
 fn read(p: Point) -> i64:
-    p.x()  # diagnostic: unknown-method
+    p.x() # diagnostic: unknown-method

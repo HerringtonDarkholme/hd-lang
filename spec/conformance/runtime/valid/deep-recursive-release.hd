@@ -22,7 +22,11 @@ tests:
     it("drops a million-node chain without consuming the native stack"):
         let head = chain(1000000)
         head = .None
-        assert_equal(head.is_none(), true, reason="execution continues after the entire chain is released")
+        assert_equal(
+            head.is_none(),
+            true,
+            reason="execution continues after the entire chain is released",
+        )
 
     it("keeps a shared suffix alive and drains branching payloads"):
         let first = chain(4096)
@@ -33,4 +37,8 @@ tests:
         assert_equal(suffix.is_some(), true, reason="a second owner keeps the suffix alive")
         let branch: (*mut Branch)? = .Some(&mut Branch { left: suffix, right: suffix })
         branch = .None
-        assert_equal(branch.is_none(), true, reason="both owned fields release through the same worklist")
+        assert_equal(
+            branch.is_none(),
+            true,
+            reason="both owned fields release through the same worklist",
+        )

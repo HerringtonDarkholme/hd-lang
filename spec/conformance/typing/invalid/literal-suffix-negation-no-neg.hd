@@ -10,4 +10,4 @@ fn px(count: i32) -> Pixels:
     Pixels { count: count }
 
 fn indent() -> Pixels:
-    -12px  # diagnostic: type-mismatch
+    -12px # diagnostic: type-mismatch

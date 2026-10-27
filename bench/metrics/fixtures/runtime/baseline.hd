@@ -1,3 +1,4 @@
 # A program with no work, to subtract start-up from each case.
 pub fn main() -> void:
-    if 1 + 1 != 2: panic("wrong")
+    if 1 + 1 != 2:
+        panic("wrong")

@@ -11,7 +11,8 @@ trait Marker:
     fn mark(self) -> i32
 
 impl Marker for Fn[(), i32, $ AppRow]:
-    fn mark(self) -> i32: 1
+    fn mark(self) -> i32:
+        1
 
 fn count() -> i32 $ Db + Cache:
     2

@@ -12,16 +12,19 @@ struct Release:
 
 impl Disposable for Release:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("dispose defer")
+        defer:
+            self.log.push("dispose defer")
         self.log.push("dispose start")
         let mut wait = self.closing
         wait!()
         self.log.push("dispose end")
 
 fn ordered!(res: &mut Release, log: &mut List[string]) -> string $ Clock:
-    defer: log.push("outer")
+    defer:
+        log.push("outer")
     using r = res
-    defer: log.push("tail")
+    defer:
+        log.push("tail")
     sleep!(s(60))
     "late"
 
@@ -31,6 +34,9 @@ fn stop!(job: mut Suspend[string]) -> string:
 
 pub fn main!() -> void $ Console + Clock:
     let mut log: List[string] = []
-    let job: mut Suspend[string] = ordered(&mut Release { log: &mut log, closing: sleep(ms(5)) }, &mut log)
+    let job: mut Suspend[string] = ordered(
+        &mut Release { log: &mut log, closing: sleep(ms(5)) },
+        &mut log,
+    )
     println(race!(job, stop(job)))
     println(log.join(", "))

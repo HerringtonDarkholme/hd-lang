@@ -6,5 +6,5 @@ struct Square:
     side: f64
 
 fn demo(square: &Square) -> void:
-    let shape: &dyn Shape = square  # diagnostic: type-mismatch
+    let shape: &dyn Shape = square # diagnostic: type-mismatch
     _ := shape

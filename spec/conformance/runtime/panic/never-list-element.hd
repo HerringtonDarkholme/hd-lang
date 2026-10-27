@@ -2,5 +2,5 @@
 # Spec 04 The never Type: types.never.assignable; Spec 05: expr.order.left-to-right (issue #850).
 
 pub fn main() -> void $ Console:
-    let xs: List[i32] = [+1, panic("no element"), +3]  # panic: explicit-panic
+    let xs: List[i32] = [+1, panic("no element"), +3] # panic: explicit-panic
     println("${xs.len()}")

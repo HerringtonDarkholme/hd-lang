@@ -27,14 +27,22 @@ tests:
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(5000))
         $.with(Clock=clock):
             assert_equal(timed_nap!(), 3500ms, reason="1.5s plus 2s")
-        assert_equal(clock.now(), Timestamp::from_unix_milliseconds(8500), reason="the provider kept the time")
+        assert_equal(
+            clock.now(),
+            Timestamp::from_unix_milliseconds(8500),
+            reason="the provider kept the time",
+        )
 
     it("monotonic reads the provider and never changes it"):
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(1000))
         $.with(Clock=clock):
             first := monotonic()
             second := monotonic()
-            assert_equal(first, Instant::from_milliseconds(1000), reason="the provider's monotonic reading")
+            assert_equal(
+                first,
+                Instant::from_milliseconds(1000),
+                reason="the provider's monotonic reading",
+            )
             assert(first == second, reason="a read does not advance")
             assert_equal(elapsed(first), 0s, reason="nothing passed")
 

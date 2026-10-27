@@ -2,4 +2,4 @@ fn operation!() -> i32:
     1
 
 fn invalid() -> i32:
-    operation!()  # diagnostic: bang-call-outside-suspension
+    operation!() # diagnostic: bang-call-outside-suspension

@@ -6,6 +6,7 @@ fn describe(base: string) -> string:
         text: string
 
     impl Label:
-        fn full(self) -> string: base + self.text  # diagnostic: unknown-name
+        fn full(self) -> string:
+            base + self.text # diagnostic: unknown-name
 
     Label { text: "x" }.full()

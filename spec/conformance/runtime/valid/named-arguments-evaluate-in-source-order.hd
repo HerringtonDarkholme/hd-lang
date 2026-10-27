@@ -32,7 +32,11 @@ tests:
 
     it("all named arguments in reverse declaration order"):
         let mut log = &mut Log { text: "" }
-        result := combine(third=note(log, "3", 3), second=note(log, "2", 2), first=note(log, "1", 1))
+        result := combine(
+            third=note(log, "3", 3),
+            second=note(log, "2", 2),
+            first=note(log, "1", 1),
+        )
         assert_equal(log.text, "321", reason="evaluation follows the call site")
         assert_equal(result, 123, reason="binding still follows parameter names")
 

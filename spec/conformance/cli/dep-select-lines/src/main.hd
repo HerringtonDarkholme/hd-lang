@@ -4,6 +4,8 @@ use dep.json_v04
 use dep.json_v03
 
 pub fn main() -> void $ Console:
-    println("${json.json_version()} ${json_v1.json_version()} ${json_v04.json_version()} ${json_v03.json_version()}")
+    println(
+        "${json.json_version()} ${json_v1.json_version()} ${json_v04.json_version()} ${json_v03.json_version()}",
+    )
 
 # Spec 10 Versions: module.version.line; Version Selection: module.select.one-per-line.

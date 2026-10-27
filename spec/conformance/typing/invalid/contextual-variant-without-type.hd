@@ -2,5 +2,5 @@ enum Status:
     Queued
 
 fn invalid() -> void:
-    status := .Queued  # diagnostic: missing-contextual-enum-type
+    status := .Queued # diagnostic: missing-contextual-enum-type
     pass

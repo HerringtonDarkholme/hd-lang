@@ -67,7 +67,12 @@ fn response!(job: mut Suspend[Result[Response, TimedOut]], state: &mut CleanupSt
             state.abandoned = error.cleanup == CleanupEnd.Abandoned
             .Response(Response::status(.GatewayTimeout).set_text("request timed out"))
 
-fn request![S, $R](server: *mut dyn HttpServer, incoming: Incoming, state: *mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R:
+fn request![S, $ R](
+    server: *mut dyn HttpServer,
+    incoming: Incoming,
+    state: *mut S,
+    handler: fn!(Request, &mut S) -> Response $ R,
+) -> Result[void, ServerError] $ R:
     message := match request_from_wire(incoming.request):
         .Ok(message) => message
         .Err(error) =>
@@ -77,8 +82,16 @@ fn request![S, $R](server: *mut dyn HttpServer, incoming: Incoming, state: *mut 
     client := server.client(incoming.id)
     clock := server.clock(incoming.id)
     console := server.console(incoming.id)
-    let job: mut Suspend[Result[Response, TimedOut]] = $.with(Http=client, Clock=clock, Console=console):
-        apply(timeout(s(20), cleanup=ms(100)), work=fn!() -> Result[Response, TimedOut] $ R: .Ok(handler!(message, state)))
+    let job: mut Suspend[Result[Response, TimedOut]] = $.with(
+        Http=client,
+        Clock=clock,
+        Console=console,
+    ):
+        apply(
+            timeout(s(20), cleanup=ms(100)),
+            work=fn!() -> Result[Response, TimedOut] $ R: .Ok(handler!(message, state))
+            ,
+        )
     using lease = Lease { server: server, id: incoming.id, job: job, state: cleanup }
     end := race!(cancellation(server, incoming.id), response(job, cleanup))
     match end:
@@ -89,7 +102,10 @@ fn request![S, $R](server: *mut dyn HttpServer, incoming: Incoming, state: *mut 
                 .Err(.Expired) => .Ok(())
                 result => result
 
-fn worker![S, $R](state: *mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R + HttpServer:
+fn worker![S, $ R](
+    state: *mut S,
+    handler: fn!(Request, &mut S) -> Response $ R,
+) -> Result[void, ServerError] $ R + HttpServer:
     let server: *mut dyn HttpServer = $.use(HttpServer)
     while true:
         incoming := match server.accept!()?:
@@ -97,12 +113,21 @@ fn worker![S, $R](state: *mut S, handler: fn!(Request, &mut S) -> Response $ R) 
             .None => return .Ok(())
         request!(server, incoming, state, handler)?
 
-pub fn serve![S, $R](workers: usize, state: *mut S, handler: fn!(Request, &mut S) -> Response $ R) -> Result[void, ServerError] $ R + HttpServer:
+pub fn serve![S, $ R](
+    workers: usize,
+    state: *mut S,
+    handler: fn!(Request, &mut S) -> Response $ R,
+) -> Result[void, ServerError] $ R + HttpServer:
     width := if workers < 1: 1 else: workers
     let mut slots: List[usize] = []
     for slot in 0..width:
         slots.push(slot)
-    results := map_all!(slots, width, fn!(_slot: usize) -> Result[void, ServerError] $ R + HttpServer: worker!(state, handler))
+    results := map_all!(
+        slots,
+        width,
+        fn!(_slot: usize) -> Result[void, ServerError] $ R + HttpServer: worker!(state, handler)
+        ,
+    )
     for result in results:
         result?
     .Ok(())

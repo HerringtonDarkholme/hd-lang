@@ -8,4 +8,8 @@ tests:
 
     it("debug of the newtype is debug of the base value"):
         let distance: i64 = 3
-        assert_equal(debug(Meters(distance)), debug(distance), reason="the base implementation is applied")
+        assert_equal(
+            debug(Meters(distance)),
+            debug(distance),
+            reason="the base implementation is applied",
+        )

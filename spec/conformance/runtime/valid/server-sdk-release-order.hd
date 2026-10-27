@@ -15,21 +15,36 @@ struct Source:
 
 impl HttpServer for Source:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]:
-        if self.next == 3: return .Ok(.None)
+        if self.next == 3:
+            return .Ok(.None)
         id := RequestId { generation: 17, sequence: self.next }
         self.next += 1
         self.events.push("accept ${id.sequence}")
-        .Ok(.Some(Incoming { id: id, request: WireRequest { method: .Get, url: "https://server.test" } }))
+        .Ok(
+            .Some(
+                Incoming {
+                    id: id,
+                    request: WireRequest { method: .Get, url: "https://server.test" },
+                },
+            ),
+        )
     fn respond!(&mut self, id: RequestId, response: WireResponse) -> Result[void, ServerError]:
-        assert_equal(response.body, "reply".to_utf8(), reason="the source receives the complete body before release")
+        assert_equal(
+            response.body,
+            "reply".to_utf8(),
+            reason="the source receives the complete body before release",
+        )
         self.events.push("respond ${id.sequence}")
         .Ok(())
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason:
         self.clock.sleep!(s(60))
         .Stopping
-    fn client(&mut self, _id: RequestId) -> *mut dyn Http: self.http
-    fn console(&mut self, _id: RequestId) -> *mut dyn Console: MemoryConsole::new()
-    fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: self.clock
+    fn client(&mut self, _id: RequestId) -> *mut dyn Http:
+        self.http
+    fn console(&mut self, _id: RequestId) -> *mut dyn Console:
+        MemoryConsole::new()
+    fn clock(&mut self, _id: RequestId) -> *mut dyn Clock:
+        self.clock
     fn finish(&mut self, id: RequestId, abandoned: bool) -> void:
         assert_equal(abandoned, false, reason="normal replies finish cleanup")
         self.events.push("finish ${id.sequence}")
@@ -42,4 +57,8 @@ pub fn main!() -> void $ Clock:
     let mut state: List[string] = []
     $.with(HttpServer=source):
         serve!(1, &mut state, handle).expect("source ends normally")
-    assert_equal(source.events, ["accept 1", "respond 1", "finish 1", "accept 2", "respond 2", "finish 2"], reason="a worker releases each response lease before reusing its slot")
+    assert_equal(
+        source.events,
+        ["accept 1", "respond 1", "finish 1", "accept 2", "respond 2", "finish 2"],
+        reason="a worker releases each response lease before reusing its slot",
+    )

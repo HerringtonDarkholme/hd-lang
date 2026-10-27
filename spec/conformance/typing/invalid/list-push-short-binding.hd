@@ -2,5 +2,5 @@
 # Spec 04 Collection Values: types.coll.writable.call.
 fn names() -> usize:
     found := ["ada"]
-    found.push("grace")  # diagnostic: not-writable
+    found.push("grace") # diagnostic: not-writable
     found.len()

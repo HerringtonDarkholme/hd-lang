@@ -12,4 +12,4 @@ impl Named for User:
         self.label
 
 fn erased_name(value: &dyn Any) -> string:
-    value.name()  # diagnostic: unknown-method
+    value.name() # diagnostic: unknown-method

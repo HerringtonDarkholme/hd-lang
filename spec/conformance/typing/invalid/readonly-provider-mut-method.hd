@@ -3,7 +3,7 @@
 
 fn tick() -> void $ Counter:
     let counter: &dyn Counter = $.use(Counter)
-    counter.bump()  # diagnostic: not-writable
+    counter.bump() # diagnostic: not-writable
 
 trait Counter:
     fn count(self) -> i32

@@ -2,7 +2,8 @@
 # Spec 04 Numeric Display: types.display.special, types.display.nan-canonical.
 # expect-stdout: -0.0 inf -inf
 # expect-stdout: NaN NaN
-fn ratio(a: f64, b: f64) -> f64: a / b
+fn ratio(a: f64, b: f64) -> f64:
+    a / b
 
 pub fn main() -> void $ Console:
     zero := 0.0

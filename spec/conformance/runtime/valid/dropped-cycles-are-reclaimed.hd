@@ -10,14 +10,14 @@ fn ring(round: i32) -> i32:
     second := &mut Stop { name: "second", next: .Some(first) }
     first.next = .Some(second)
     match first.next:
-        .Some(stop) => if stop.name == "second": 1 else: 0
+        .Some(stop) =>
+            if stop.name == "second": 1 else: 0
         .None => 0
 
 # A recursive local closure: its environment holds the cell that holds it.
 fn sum_to(limit: i32) -> i32:
     sum := fn(n: i32) -> i32:
-        if n == 0: 0
-        else: n + sum(n - 1)
+        if n == 0: 0 else: n + sum(n - 1)
     sum(limit)
 
 tests:

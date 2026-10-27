@@ -1,5 +1,6 @@
 # test: suspending data field default
 
-fn wait!() -> i32: 1
+fn wait!() -> i32:
+    1
 struct Bad:
-    value: i32 = wait!()  # diagnostic: suspension-forbidden-context
+    value: i32 = wait!() # diagnostic: suspension-forbidden-context

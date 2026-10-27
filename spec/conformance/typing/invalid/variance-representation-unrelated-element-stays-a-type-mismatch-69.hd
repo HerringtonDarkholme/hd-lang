@@ -3,4 +3,4 @@ struct Producer[+T]:
     value: T
 
 fn widen(value: Producer[i32]) -> Producer[string]:
-    value  # diagnostic: type-mismatch
+    value # diagnostic: type-mismatch

@@ -1,50 +1,41 @@
 # Ten independent type and name errors, each in its own function.
 fn label(n: i32) -> string:
-    let text: string = n  # diagnostic: type-mismatch
+    let text: string = n # diagnostic: type-mismatch
     text
 
-
 fn greet() -> string:
-    greeting  # diagnostic: unknown-name
-
+    greeting # diagnostic: unknown-name
 
 fn shout(text: string) -> string:
-    text.shout()  # diagnostic: unknown-method
-
+    text.shout() # diagnostic: unknown-method
 
 fn add(a: i32, b: i32) -> i32:
     a + b
 
 fn three() -> i32:
-    add(1)  # diagnostic: argument-count
+    add(1) # diagnostic: argument-count
 
-
-fn width(text: Strng) -> usize:  # diagnostic: unknown-type
+fn width(text: Strng) -> usize: # diagnostic: unknown-type
     0
-
 
 fn pieces(text: string) -> List[string]:
     let found: List[string] = []
-    found.push(text)  # diagnostic: not-writable
+    found.push(text) # diagnostic: not-writable
     found
-
 
 fn sum(values: List[i32]) -> i32:
     total := +0
     for value in values:
-        total = total + value  # diagnostic: non-reassignable-binding
+        total = total + value # diagnostic: non-reassignable-binding
     total
 
-
 fn grow(base: i64, values: List[i64]) -> i64:
-    base + values.len()  # diagnostic: mixed-signedness
-
+    base + values.len() # diagnostic: mixed-signedness
 
 fn hello(name: string?) -> string:
-    "hello ${name}"  # diagnostic: unsatisfied-trait-bound
-
+    "hello ${name}" # diagnostic: unsatisfied-trait-bound
 
 fn table() -> Map[string, i32]:
     let scores: Map[string, i32] = {}
-    scores["ada"] = 1  # diagnostic: not-writable
+    scores["ada"] = 1 # diagnostic: not-writable
     scores

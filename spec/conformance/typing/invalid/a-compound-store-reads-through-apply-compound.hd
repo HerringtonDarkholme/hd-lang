@@ -10,4 +10,4 @@ impl Update[i32] for Sink:
         self.last = value
 
 fn run(sink: &mut Sink) -> void:
-    sink() += 1  # diagnostic: type-mismatch
+    sink() += 1 # diagnostic: type-mismatch

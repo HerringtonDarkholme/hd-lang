@@ -45,7 +45,8 @@ struct RenamedForm:
     @rename("wire-name")
     source_name: string
 
-fn request() -> Request: Request::post(Url::parse("https://example.test/").expect("fixture URL"))
+fn request() -> Request:
+    Request::post(Url::parse("https://example.test/").expect("fixture URL"))
 
 tests:
     it("json replaces the body once and detaches from the previous value"):
@@ -55,32 +56,90 @@ tests:
         assert_equal(calls.len(), 1, reason="one Serialize walk")
         assert_equal(changed.text(), .Ok("\"once\""), reason="JSON replacement")
         assert_equal(original.bytes(), .Ok([0, 1]), reason="original body independent")
-        assert_equal(changed.header(.ContentType), .Some("application/json"), reason="JSON content type")
+        assert_equal(
+            changed.header(.ContentType),
+            .Some("application/json"),
+            reason="JSON content type",
+        )
         value := Payload { count: 42, label: "é\"\n", note: .None, tags: ["a", "b"] }
-        assert_equal(request().set_json(value).bytes(), .Ok(encode(value).to_utf8()), reason="ordinary JSON encoder")
+        assert_equal(
+            request().set_json(value).bytes(),
+            .Ok(encode(value).to_utf8()),
+            reason="ordinary JSON encoder",
+        )
 
     it("typed writers replace content types and byte writers retain headers"):
         original := request().set_header(.ContentType, "custom/type")
         json := original.set_json(+7)
-        assert_equal(json.header(.ContentType), .Some("application/json"), reason="JSON replaces the prior type")
+        assert_equal(
+            json.header(.ContentType),
+            .Some("application/json"),
+            reason="JSON replaces the prior type",
+        )
         form := json.set_form(RenamedForm { source_name: "yes" })
-        assert_equal(form.header(.ContentType), .Some("application/x-www-form-urlencoded"), reason="form replaces JSON type")
+        assert_equal(
+            form.header(.ContentType),
+            .Some("application/x-www-form-urlencoded"),
+            reason="form replaces JSON type",
+        )
         text := form.set_text("plain")
-        assert_equal(text.header(.ContentType), .Some("text/plain; charset=utf-8"), reason="text replaces form type")
-        assert_equal(text.set_bytes([1]).header(.ContentType), text.header(.ContentType), reason="bytes leave headers alone")
-        assert_equal(original.header(.ContentType), .Some("custom/type"), reason="value writers leave the original intact")
+        assert_equal(
+            text.header(.ContentType),
+            .Some("text/plain; charset=utf-8"),
+            reason="text replaces form type",
+        )
+        assert_equal(
+            text.set_bytes([1]).header(.ContentType),
+            text.header(.ContentType),
+            reason="bytes leave headers alone",
+        )
+        assert_equal(
+            original.header(.ContentType),
+            .Some("custom/type"),
+            reason="value writers leave the original intact",
+        )
 
     it("forms omit None, repeat scalar fields, and encode UTF-8 and reserved bytes"):
-        value := request().set_form(Form { count: 42, label: "é +/%~*", absent: .None, note: .Some(""), tags: ["a b", "+"], empty: [], sort: .Asc, active: true, signed: -2, ratio: 1.5 })
+        value := request()
+            .set_form(
+                Form {
+                    count: 42,
+                    label: "é +/%~*",
+                    absent: .None,
+                    note: .Some(""),
+                    tags: ["a b", "+"],
+                    empty: [],
+                    sort: .Asc,
+                    active: true,
+                    signed: -2,
+                    ratio: 1.5,
+                },
+            )
         expected := "count=42&label=%C3%A9+%2B%2F%25%7E*&note=&tags=a+b&tags=%2B&sort=Asc&active=true&signed=-2&ratio=1.5"
         assert_equal(value.text(), .Ok(expected), reason="ordered form field stream")
-        assert_equal(value.header(.ContentType), .Some("application/x-www-form-urlencoded"), reason="form content type")
+        assert_equal(
+            value.header(.ContentType),
+            .Some("application/x-www-form-urlencoded"),
+            reason="form content type",
+        )
 
     it("unsupported roots retain an error until the body is read"):
-        value := request().set_form({"key": "value"})
-        assert_equal(value.bytes(), .Err(BodyError.Form(FormError.Unsupported("$"))), reason="maps are not record roots")
-        assert_equal(value.bytes(), .Err(BodyError.Used), reason="the failed read still claims the body")
-        assert_equal(request().set_form(Empty {}).bytes(), .Ok([]), reason="empty records write no pairs")
+        value := request().set_form({ "key": "value" })
+        assert_equal(
+            value.bytes(),
+            .Err(BodyError.Form(FormError.Unsupported("$"))),
+            reason="maps are not record roots",
+        )
+        assert_equal(
+            value.bytes(),
+            .Err(BodyError.Used),
+            reason="the failed read still claims the body",
+        )
+        assert_equal(
+            request().set_form(Empty {}).bytes(),
+            .Ok([]),
+            reason="empty records write no pairs",
+        )
 
     it("form names honor the format-neutral rename fact"):
         value := request().set_form(RenamedForm { source_name: "yes" })
@@ -90,6 +149,10 @@ tests:
         original := Response::status(.Created).set_text("original")
         changed := original.set_json(Payload { count: 42, label: "é", note: .None, tags: [] })
         assert_equal(changed.status, .Created, reason="status retained")
-        assert_equal(changed.header(.ContentType), .Some("application/json"), reason="JSON response type")
+        assert_equal(
+            changed.header(.ContentType),
+            .Some("application/json"),
+            reason="JSON response type",
+        )
         assert_equal(original.text(), .Ok("original"), reason="original response retained")
         assert_equal(changed.bytes().is_ok(), true, reason="new response body unread")

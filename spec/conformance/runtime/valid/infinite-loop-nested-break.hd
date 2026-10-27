@@ -28,7 +28,11 @@ tests:
     use std.testing.assert_equal
 
     it("an inner break leaves the outer loop running"):
-        assert_equal(first_row_total([[1, -1, 9], [5, 6]], 10), 11, reason="the second row reaches the limit")
+        assert_equal(
+            first_row_total([[1, -1, 9], [5, 6]], 10),
+            11,
+            reason="the second row reaches the limit",
+        )
 
     it("an inner infinite loop's break does not exit the outer one"):
         assert_equal(countdown(3), 3, reason="the outer loop returns")

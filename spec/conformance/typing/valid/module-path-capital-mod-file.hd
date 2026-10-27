@@ -3,4 +3,5 @@
 # fixture-package-tree: path-suffix/src/app.hd
 use pkg.sub.Mod.{inner}
 
-pub fn shown() -> i32: inner()
+pub fn shown() -> i32:
+    inner()

@@ -1,7 +1,8 @@
 # test: a bare literal defaults to usize, a primitive distinct from i32 and u32
 # Spec 04 The usize Type: types.usize.primitive; Open Literal Width: types.literal.local.default.
-fn take_i32(x: i32) -> i32: x
+fn take_i32(x: i32) -> i32:
+    x
 
 fn run() -> i32:
     total := 0
-    take_i32(total)  # diagnostic: type-mismatch
+    take_i32(total) # diagnostic: type-mismatch

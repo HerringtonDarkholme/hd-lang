@@ -12,5 +12,5 @@ fn positive[F < Integer]() -> Positive[F]:
 struct Account:
     @positive::[i64]()
     id: i64
-    @positive::[i32]()  # diagnostic: type-mismatch
+    @positive::[i32]() # diagnostic: type-mismatch
     count: i64

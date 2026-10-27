@@ -10,8 +10,11 @@ enum ReadError:
 @error
 enum LoadError:
     @error("read failed")
-    Read(@from error: ReadError)
+    Read(
+        @from
+        error: ReadError,
+    )
 
-impl From[ReadError] for LoadError:  # diagnostic: overlapping-impl
+impl From[ReadError] for LoadError: # diagnostic: overlapping-impl
     fn from(value: ReadError) -> LoadError:
         LoadError.Read(value)

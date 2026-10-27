@@ -4,4 +4,4 @@
 use pkg.words
 
 fn shout(word: string) -> string:
-    words.squash(word)  # diagnostic: private-import
+    words.squash(word) # diagnostic: private-import

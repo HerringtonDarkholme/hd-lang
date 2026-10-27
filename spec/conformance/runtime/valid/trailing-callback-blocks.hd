@@ -3,8 +3,10 @@
 # fn.trailing.empty-parentheses, fn.trailing.closure, fn.trailing.position,
 # fn.trailing.parameterized.
 
-fn apply(callback: fn() -> i32) -> i32: callback()
-fn add(base: i32, callback: fn() -> i32) -> i32: base + callback()
+fn apply(callback: fn() -> i32) -> i32:
+    callback()
+fn add(base: i32, callback: fn() -> i32) -> i32:
+    base + callback()
 fn main() -> i32:
     left := apply:
         40

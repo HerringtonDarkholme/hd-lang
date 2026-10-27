@@ -20,16 +20,21 @@ trait Scale[T]:
     fn scale(self, factor: T) -> T
 
 impl Parser:
-    fn echo[Value](self, value: Value) -> Value: value
+    fn echo[Value](self, value: Value) -> Value:
+        value
 
 impl Scale[i32] for Price:
-    fn scale(self, factor: i32) -> i32: self.cents * factor
+    fn scale(self, factor: i32) -> i32:
+        self.cents * factor
 
-fn first[T](items: List[T]) -> T: items[0]
+fn first[T](items: List[T]) -> T:
+    items[0]
 
-fn convert[A, B](value: A, change: fn(A) -> B) -> B: change(value)
+fn convert[A, B](value: A, change: fn(A) -> B) -> B:
+    change(value)
 
-fn smaller[T < Ord](items: List[T], low: usize, high: usize) -> bool: items[low] < items[high] && low < high
+fn smaller[T < Ord](items: List[T], low: usize, high: usize) -> bool:
+    items[low] < items[high] && low < high
 
 pub fn main() -> void $ Console:
     names := ["Ada", "Grace"]

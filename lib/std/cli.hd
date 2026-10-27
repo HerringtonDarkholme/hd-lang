@@ -43,7 +43,15 @@ pub struct ArgParser:
 
 impl ArgParser:
     pub fn new(program: string, about: string = "") -> *mut ArgParser:
-        parser := &mut ArgParser { program: program, about: about, declarations: [], options: {}, names: {}, positional_slots: [], commands: {} }
+        parser := &mut ArgParser {
+            program: program,
+            about: about,
+            declarations: [],
+            options: {},
+            names: {},
+            positional_slots: [],
+            commands: {},
+        }
         parser.arg(Arg { name: "help", kind: .Flag, short: 'h', help: "Print this help." })
 
     pub fn arg(*mut self, arg: Arg) -> *mut ArgParser:
@@ -51,13 +59,18 @@ impl ArgParser:
             panic("std.cli: argument ${arg.name} declared twice")
         index := self.declarations.len()
         if arg.kind == .Positional:
-            if self.commands.len() > 0: panic("std.cli: a parser with commands takes no positionals")
+            if self.commands.len() > 0:
+                panic("std.cli: a parser with commands takes no positionals")
             if arg.short.is_some():
                 panic("std.cli: a positional has no short option")
             if !self.positional_slots.is_empty():
-                previous := self.declarations[self.positional_slots[self.positional_slots.len() - 1]]
+                previous := self.declarations[
+                    self.positional_slots[self.positional_slots.len() - 1]
+                ]
                 if previous.repeated:
-                    panic("std.cli: positional ${arg.name} cannot follow repeated positional ${previous.name}")
+                    panic(
+                        "std.cli: positional ${arg.name} cannot follow repeated positional ${previous.name}",
+                    )
             self.positional_slots.push(index)
         else:
             long := "--${arg.name}"
@@ -75,8 +88,10 @@ impl ArgParser:
 
     ## Adds a command's parser by value; its options belong only to that command.
     pub fn command(*mut self, name: string, parser: ArgParser) -> *mut ArgParser:
-        if self.positional_slots.len() > 0: panic("std.cli: a parser with positionals takes no commands")
-        if self.commands.get(name).is_some(): panic("std.cli: command $name declared twice")
+        if self.positional_slots.len() > 0:
+            panic("std.cli: a parser with positionals takes no commands")
+        if self.commands.get(name).is_some():
+            panic("std.cli: command $name declared twice")
         self.commands[name] = parser
         self
 
@@ -155,13 +170,27 @@ impl ArgParser:
                             return .Err(CliError.MissingValue(option.name))
                         store_value(option, arguments[index], &mut values, &mut histories)?
                         index = index + 1
-        if self.commands.len() > 0 && self.command_required && selected.is_empty(): return .Err(CliError.MissingCommand)
+        if self.commands.len() > 0 && self.command_required && selected.is_empty():
+            return .Err(CliError.MissingCommand)
         for arg in self.declarations:
             if arg.required:
-                present := if arg.kind == .Flag: flags.get(arg.name).unwrap_or(false) else: values.get(arg.name).is_some()
+                present := if arg.kind == .Flag:
+                    flags.get(arg.name).unwrap_or(false)
+                else:
+                    values.get(arg.name).is_some()
                 if !present:
                     return .Err(CliError.MissingArgument(argument_name(arg)))
-        .Ok(Parsed { present_flags: flags, option_values: values, value_histories: histories, position_values: positionals, selected_command: selected, flag_counts: flag_counts, command_field: self.command_field })
+        .Ok(
+            Parsed {
+                present_flags: flags,
+                option_values: values,
+                value_histories: histories,
+                position_values: positionals,
+                selected_command: selected,
+                flag_counts: flag_counts,
+                command_field: self.command_field,
+            },
+        )
 
     pub fn parse_args(&self) -> Result[Parsed, CliError] $ Args:
         self.parse($.use(Args).list())
@@ -177,18 +206,21 @@ impl ArgParser:
         for slot in self.positional_slots:
             arg := self.declarations[slot]
             text.push(" ")
-            if !arg.required: text.push("[")
+            if !arg.required:
+                text.push("[")
             text.push("<")
             text.push(arg.name)
             text.push(">")
-            if !arg.required: text.push("]")
+            if !arg.required:
+                text.push("]")
         if self.about != "":
             text.push("\n\n")
             text.push(self.about)
         if self.commands.len() > 0:
             text.push("\n\ncommands:")
             let command_width: usize = 0
-            for (name, _) in self.commands: command_width = max(command_width, name.chars().count())
+            for (name, _) in self.commands:
+                command_width = max(command_width, name.chars().count())
             for (name, parser) in self.commands:
                 text.push("\n  ")
                 text.push(name)
@@ -235,18 +267,26 @@ fn write_entry(text: &mut StringBuilder, term: string, arg: Arg, width: usize) -
         text.push("  ")
         text.push(arg.help)
         if !arg.choices.is_empty():
-            if arg.help != "": text.push(" ")
+            if arg.help != "":
+                text.push(" ")
             text.push("[choices: ")
             text.push(arg.choices.join(", "))
             text.push("]")
 
 # Repeated values append through a private shared buffer while parsing;
 # Parsed exposes copies, so no caller can mutate a parsed result through it.
-fn store_value(arg: Arg, value: string, values: &mut Map[string, string], histories: &mut Map[string, *mut List[string]]) -> Result[void, CliError]:
+fn store_value(
+    arg: Arg,
+    value: string,
+    values: &mut Map[string, string],
+    histories: &mut Map[string, *mut List[string]],
+) -> Result[void, CliError]:
     if !arg.repeated && values.get(arg.name).is_some():
         return .Err(CliError.InvalidValue(arg.name, "argument cannot be repeated"))
     if !arg.choices.is_empty() && !arg.choices.contains(value):
-        return .Err(CliError.InvalidValue(arg.name, "expected ${arg.choices.join(" or ")}, got $value"))
+        return .Err(
+            CliError.InvalidValue(arg.name, "expected ${arg.choices.join(" or ")}, got $value"),
+        )
     if arg.repeated:
         match histories.get(arg.name):
             .Some(buffer) => buffer.push(value)
@@ -268,10 +308,12 @@ pub struct Parsed:
 
 impl Parsed:
     ## The selected command and a copy of its parsed arguments, when present.
-    pub fn command(self) -> (string, Parsed)?: self.selected_command.get(0)
+    pub fn command(self) -> (string, Parsed)?:
+        self.selected_command.get(0)
 
     ## A copy of every positional in input order, including extra positionals.
-    pub fn positionals(self) -> List[string]: self.position_values
+    pub fn positionals(self) -> List[string]:
+        self.position_values
 
     ## True when the flag `name` was present.
     ## See [std-cli.parsed.flag-presence](../../spec/std/cli.md#r-std-cli.parsed.flag-presence).
@@ -311,7 +353,11 @@ impl Parsed:
     fn has(self, name: string) -> bool:
         if self.one_name.is_some() && self.one_name != .Some(name):
             return false
-        self.flag(name) || self.value(name).is_some() || (self.command_field == .Some(name) && !self.selected_command.is_empty())
+        (
+            self.flag(name)
+            || self.value(name).is_some()
+            || (self.command_field == .Some(name) && !self.selected_command.is_empty())
+        )
 
     fn count(self, name: string) -> usize:
         if self.one_name.is_some():
@@ -384,15 +430,23 @@ impl CliError:
 # Keep handwritten Debug: show declarations as arguments and omit lookup indexes.
 impl Debug for ArgParser:
     fn debug(self, out: *mut DebugWriter) -> void:
-        fields := out.debug_struct("ArgParser").field("program", self.program).field("about", self.about).field("arguments", self.declarations)
-        if self.commands.len() > 0: fields.field("commands", self.commands)
+        fields := out.debug_struct("ArgParser")
+            .field("program", self.program)
+            .field("about", self.about)
+            .field("arguments", self.declarations)
+        if self.commands.len() > 0:
+            fields.field("commands", self.commands)
         fields.finish()
 
 # Keep handwritten Debug: keep public-facing field labels instead of private storage names.
 impl Debug for Parsed:
     fn debug(self, out: *mut DebugWriter) -> void:
-        fields := out.debug_struct("Parsed").field("flags", self.present_flags).field("values", self.option_values).field("positionals", self.position_values)
-        if !self.selected_command.is_empty(): fields.field("command", self.command())
+        fields := out.debug_struct("Parsed")
+            .field("flags", self.present_flags)
+            .field("values", self.option_values)
+            .field("positionals", self.position_values)
+        if !self.selected_command.is_empty():
+            fields.field("command", self.command())
         fields.finish()
 
 # Keep handwritten Debug: empty tuple builders apply dbg depth limits to these variants.
@@ -449,25 +503,54 @@ impl[T] Cli for T by Structure:
     fn declare(parser: *mut ArgParser, arg: Arg) -> void:
         if arg.name.is_empty():
             parser.program = cli_name(T::name())
-        let mut describer = CliDescriber::[T] { parser: parser, arg: arg, record: false, choices: [], choice_help: [], payload: false, commands: [], current: .None, variant_name: "", members: 0, valid_shape: true }
+        let mut describer = CliDescriber::[T] {
+            parser: parser,
+            arg: arg,
+            record: false,
+            choices: [],
+            choice_help: [],
+            payload: false,
+            commands: [],
+            current: .None,
+            variant_name: "",
+            members: 0,
+            valid_shape: true,
+        }
         _ := T::describe(&mut describer)
         if !describer.record:
             if describer.payload:
                 describer.finish_variant()
                 binding := scalar_arg(arg).name
                 if arg.short.is_some():
-                    parser.declaration_error = .Some(.InvalidValue(binding, "subcommand field `$binding` cannot have a short option"))
+                    parser.declaration_error = .Some(
+                        .InvalidValue(
+                            binding,
+                            "subcommand field `$binding` cannot have a short option",
+                        ),
+                    )
                     return
                 if arg.kind == .Positional:
-                    parser.declaration_error = .Some(.InvalidValue(binding, "subcommand field `$binding` cannot be a positional value"))
+                    parser.declaration_error = .Some(
+                        .InvalidValue(
+                            binding,
+                            "subcommand field `$binding` cannot be a positional value",
+                        ),
+                    )
                     return
                 if arg.repeated:
-                    parser.declaration_error = .Some(.InvalidValue(binding, "a subcommand field cannot be repeated"))
+                    parser.declaration_error = .Some(
+                        .InvalidValue(binding, "a subcommand field cannot be repeated"),
+                    )
                     return
                 match parser.command_field:
                     .Some(previous) =>
                         if previous != binding:
-                            parser.declaration_error = .Some(.InvalidValue(binding, "command fields `$previous` and `$binding` cannot share a parser"))
+                            parser.declaration_error = .Some(
+                                .InvalidValue(
+                                    binding,
+                                    "command fields `$previous` and `$binding` cannot share a parser",
+                                ),
+                            )
                             return
                     .None => pass
                 parser.command_field = .Some(binding)
@@ -478,9 +561,14 @@ impl[T] Cli for T by Structure:
             else:
                 let help = arg.help
                 if !describer.choice_help.is_empty():
-                    if help != "": help += "\n"
+                    if help != "":
+                        help += "\n"
                     help += describer.choice_help.join("\n")
-                declare_scalar(parser, Arg { ...arg, help: help, choices: describer.choices }, cli_name(T::name()))
+                declare_scalar(
+                    parser,
+                    Arg { ...arg, help: help, choices: describer.choices },
+                    cli_name(T::name()),
+                )
 
     fn read(parsed: Parsed, arg: Arg) -> Result[T, CliError]:
         let mut source = CliSource::[T] { parsed: parsed, arg: arg, at: 0, command_payload: false }
@@ -503,7 +591,12 @@ impl[S] CliDescriber[S]:
     fn finish_variant(&mut self) -> void:
         if !self.valid_shape && self.parser.declaration_error.is_none():
             name := cli_name(self.variant_name)
-            self.parser.declaration_error = .Some(.InvalidValue(name, "subcommand variant `${self.variant_name}` must be unit or have exactly one unnamed Cli payload"))
+            self.parser.declaration_error = .Some(
+                .InvalidValue(
+                    name,
+                    "subcommand variant `${self.variant_name}` must be unit or have exactly one unnamed Cli payload",
+                ),
+            )
 
 impl[S] Describer[S] for CliDescriber[S]:
     type Error = never
@@ -514,12 +607,19 @@ impl[S] Describer[S] for CliDescriber[S]:
         if self.arg.name.is_empty() && (self.record || self.choices.is_empty()):
             match variant.info.type_doc:
                 .Some(doc) =>
-                    if self.parser.about == "": self.parser.about = doc
-                    else if self.parser.about != doc: self.parser.about += "\n\n$doc"
+                    if self.parser.about == "":
+                        self.parser.about = doc
+                    else if self.parser.about != doc:
+                        self.parser.about += "\n\n$doc"
                 .None => pass
         if self.record:
             if !self.arg.name.is_empty() && self.parser.declaration_error.is_none():
-                self.parser.declaration_error = .Some(.InvalidValue(self.arg.name, "record field `${self.arg.name}` is not supported; subcommands are an enum"))
+                self.parser.declaration_error = .Some(
+                    .InvalidValue(
+                        self.arg.name,
+                        "record field `${self.arg.name}` is not supported; subcommands are an enum",
+                    ),
+                )
         else:
             name := cli_name(variant.info.name)
             self.choices.push(name)
@@ -543,7 +643,10 @@ impl[S] Describer[S] for CliDescriber[S]:
             self.payload = true
             self.members += 1
             if self.members == 1 && field.info.positional:
-                F::declare(self.current.expect("a command parser"), Arg { name: "", required: true })
+                F::declare(
+                    self.current.expect("a command parser"),
+                    Arg { name: "", required: true },
+                )
             else:
                 self.valid_shape = false
         .Ok(())
@@ -602,7 +705,14 @@ impl[S] Source[S] for CliSource[S]:
 
 fn cli_arg[S, F < Cli](field: Field[S, F]) -> Arg:
     kind := if field.fact::[Positional[F]]().is_some(): ArgKind.Positional else: ArgKind.Option
-    Arg { name: cli_name(field.info.name), help: field.info.doc.unwrap_or(""), required: !field.has_default(), kind: kind, short: field.fact::[Short[F]]().map(fn(fact): fact.letter) }
+    Arg {
+        name: cli_name(field.info.name),
+        help: field.info.doc.unwrap_or(""),
+        required: !field.has_default(),
+        kind: kind,
+        short: field.fact::[Short[F]]().map(fn(fact): fact.letter)
+        ,
+    }
 
 fn cli_name(name: string) -> string:
     out := StringBuilder::new()

@@ -2,11 +2,12 @@
 # Spec 11 Suspension Values: req.value.single, req.value.exclusive,
 # req.value.stateful, req.check.code.after-end.
 
-fn ready!() -> i32: 42
+fn ready!() -> i32:
+    42
 fn main!() -> i32:
     let pending: mut Suspend[i32] = ready()
     _ := pending!()
-    pending!()  # panic: suspension-invalid-state
+    pending!() # panic: suspension-invalid-state
 
 tests:
     it("a completed suspension cannot be driven again"):

@@ -1,11 +1,14 @@
 # test: a tuple spread fills the remaining fixed parameters, one element each
 # expect: test
 use std.function.{Fn, Tuple}
-fn add(a: i32, b: i32) -> i32: a + b
-fn add3(a: i32, b: i32, c: i32) -> i32: a + b + c
-fn twice!(a: i32, b: i32) -> i32: (a + b) * 2
+fn add(a: i32, b: i32) -> i32:
+    a + b
+fn add3(a: i32, b: i32, c: i32) -> i32:
+    a + b + c
+fn twice!(a: i32, b: i32) -> i32:
+    (a + b) * 2
 
-fn through[Args < Tuple, O](f: Fn[Args, O, $()], args: Args) -> O:
+fn through[Args < Tuple, O](f: Fn[Args, O, $ ()], args: Args) -> O:
     f(args...)
 
 fn suspended!(pair: (i32, i32)) -> i32:

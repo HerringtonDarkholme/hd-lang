@@ -1,5 +1,6 @@
 # test: valid rest and vararg forms stay clean
-fn apply(callback: fn(List[i32]...) -> i32) -> i32: 0
+fn apply(callback: fn(List[i32]...) -> i32) -> i32:
+    0
 
 pub fn main() -> void:
     pass

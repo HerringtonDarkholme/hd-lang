@@ -1,7 +1,7 @@
 # test: pow overflows as multiplication does when u32 cannot hold the power
 # Spec std/num Powers: std-num.pow.overflow.
 fn power(base: u32, exp: u32) -> u32:
-    base.pow(exp)  # panic: integer-overflow
+    base.pow(exp) # panic: integer-overflow
 
 tests:
     it("overflows"):

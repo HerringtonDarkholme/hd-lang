@@ -8,4 +8,5 @@ struct Pair[K, V]:
     key: K
     value: V
 
-fn f(b: Both) -> i32: 0  # diagnostic: partial-generic-arguments
+fn f(b: Both) -> i32: # diagnostic: partial-generic-arguments
+    0

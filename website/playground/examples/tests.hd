@@ -5,8 +5,12 @@ tests:
     it("lowers and joins words"):
         assert_equal(slug(" Hello World "), "hello-world", reason="trimmed and joined")
 
-    it_each("keeps one word", ["hd", "lang"], body=fn!(word: string):  # ← one case per row
-        assert_equal(slug(word), word, reason="nothing to change")
+    it_each(
+        "keeps one word",
+        ["hd", "lang"],
+        body=fn!(word: string): # ← one case per row
+            assert_equal(slug(word), word, reason="nothing to change")
+        ,
     )
 
     it("renders a title"):
@@ -19,4 +23,5 @@ tests:
 fn slug(title: string) -> string:
     title.trim().lower().replace(" ", "-")
 
-fn first(items: List[i32]) -> i32: items[0]
+fn first(items: List[i32]) -> i32:
+    items[0]

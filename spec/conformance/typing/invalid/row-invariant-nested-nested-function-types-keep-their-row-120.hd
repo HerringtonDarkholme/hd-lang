@@ -22,4 +22,4 @@ fn run(maker: fn() -> (fn() -> void $ Db + Clock)) -> void:
     pass
 
 fn wire(maker: fn() -> (fn() -> void $ Db)) -> void:
-    run(maker)  # diagnostic: type-mismatch
+    run(maker) # diagnostic: type-mismatch

@@ -11,4 +11,4 @@ fn sum[T < Num](items: List[T]) -> T:
     total
 
 fn total(items: List[Meters]) -> Meters:
-    sum(items)  # diagnostic: unsatisfied-trait-bound
+    sum(items) # diagnostic: unsatisfied-trait-bound

@@ -1,1 +1,2 @@
-pub fn price() -> i32: +2
+pub fn price() -> i32:
+    +2

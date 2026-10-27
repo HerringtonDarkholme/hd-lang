@@ -5,7 +5,7 @@ fn run() -> void:
     struct Request:
         query: string
 
-    impl Request by Structure:  # diagnostic: misplaced-derivation
+    impl Request by Structure: # diagnostic: misplaced-derivation
         query = [1]
 
     pass

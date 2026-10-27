@@ -68,9 +68,18 @@ tests:
         text := help::[Pack](["--help"])
         assert(text.contains("json: Preserve structured data."), reason="JSON variant doc")
         assert(text.contains("markdown: Write readable prose."), reason="Markdown variant doc")
-        assert(text.contains("[choices: json, markdown, raw]"), reason="undocumented choice retained")
-        assert(!text.contains("Choose an output format."), reason="field type does not replace parent about")
-        assert(help::[Format](["-h"]).contains("Choose an output format."), reason="root enum about")
+        assert(
+            text.contains("[choices: json, markdown, raw]"),
+            reason="undocumented choice retained",
+        )
+        assert(
+            !text.contains("Choose an output format."),
+            reason="field type does not replace parent about",
+        )
+        assert(
+            help::[Format](["-h"]).contains("Choose an output format."),
+            reason="root enum about",
+        )
 
     it("subcommand help has variant and payload docs with its own options"):
         root := help::[Command](["--help"])
@@ -80,8 +89,14 @@ tests:
         assert(text.contains("Create a local archive."), reason="selected command doc")
         assert(text.contains("Build the selected archive."), reason="payload type doc")
         assert(text.contains("Set the output file."), reason="payload field doc")
-        assert(!text.contains("Remove local artifacts."), reason="sibling docs stay outside child help")
-        assert(!text.contains("Operate on archives."), reason="parent about stays outside child help")
+        assert(
+            !text.contains("Remove local artifacts."),
+            reason="sibling docs stay outside child help",
+        )
+        assert(
+            !text.contains("Operate on archives."),
+            reason="parent about stays outside child help",
+        )
 
     it("nested and unit command help stop in their selected scope"):
         remote := help::[Command](["remote", "-h"])

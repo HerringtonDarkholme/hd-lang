@@ -6,7 +6,8 @@ struct Parse:
     text: string
 
 impl Display for Parse:
-    fn to_string(self) -> string: self.text
+    fn to_string(self) -> string:
+        self.text
 
 impl Error for Parse
 
@@ -14,7 +15,8 @@ struct Wrapped:
     parse: Parse
 
 impl From[Parse] for Wrapped:
-    fn from(value: Parse) -> Wrapped: Wrapped { parse: value }
+    fn from(value: Parse) -> Wrapped:
+        Wrapped { parse: value }
 
 fn parse() -> Result[i32, Parse]:
     .Err(Parse { text: "x" })

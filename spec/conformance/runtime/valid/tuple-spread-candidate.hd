@@ -7,10 +7,12 @@ struct Item:
     value: i32
 
 impl Build[bool] for Item:
-    fn build(first: bool, second: bool) -> Item: Item { value: 0 }
+    fn build(first: bool, second: bool) -> Item:
+        Item { value: 0 }
 
 impl Build[i32] for Item:
-    fn build(first: i32, second: i32) -> Item: Item { value: first + second }
+    fn build(first: i32, second: i32) -> Item:
+        Item { value: first + second }
 
 fn main() -> i32:
     pair := (+40, +2)

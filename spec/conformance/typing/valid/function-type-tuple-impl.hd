@@ -5,6 +5,6 @@ use std.function.{Fn, Tuple}
 trait Describe:
     fn describe(self) -> string
 
-impl[Args < Tuple, O, $R] Describe for Fn[Args, O, $ R]:
+impl[Args < Tuple, O, $ R] Describe for Fn[Args, O, $ R]:
     fn describe(self) -> string:
         "function"

@@ -15,4 +15,4 @@ struct RightBox:
 
 struct Record:
     LeftBox
-    RightBox  # diagnostic: ambiguous-promoted-member
+    RightBox # diagnostic: ambiguous-promoted-member

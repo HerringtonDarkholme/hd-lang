@@ -2,4 +2,4 @@
 # flow.panic.sources, flow.panic.stop, flow.panic.nothing-runs,
 # flow.panic.no-handler, flow.panic.report, flow.panic.instance,
 # flow.panic.explicit, flow.panic.never.
-panic("requested failure")  # panic: explicit-panic
+panic("requested failure") # panic: explicit-panic

@@ -10,6 +10,7 @@ enum Choice[T]:
 type Wrap[T](T)
 
 struct Holder:
-    c: Choice[i32, i32]  # diagnostic: argument-count
+    c: Choice[i32, i32] # diagnostic: argument-count
 
-fn h() -> Holder: Holder { c: 5 }
+fn h() -> Holder:
+    Holder { c: 5 }

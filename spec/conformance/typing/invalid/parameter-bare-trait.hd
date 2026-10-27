@@ -4,5 +4,5 @@
 trait Greet:
     fn greet(self) -> string
 
-fn demo(g: Greet) -> string:  # diagnostic: trait-used-as-type
+fn demo(g: Greet) -> string: # diagnostic: trait-used-as-type
     g.greet()

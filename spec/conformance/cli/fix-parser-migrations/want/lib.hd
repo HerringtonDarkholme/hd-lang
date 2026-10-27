@@ -8,10 +8,12 @@ fn empty() -> Map[string, i32]:
     let table: Map[string, i32] = {}
     table
 
-fn save() -> void: pass
+fn save() -> void:
+    pass
 
 fn finish() -> void:
-    defer: save()
+    defer:
+        save()
 
 fn spread(pair: (i32, i32)) -> i32:
     let (low, high) = pair

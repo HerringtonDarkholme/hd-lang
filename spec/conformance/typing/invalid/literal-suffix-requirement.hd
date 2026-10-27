@@ -10,4 +10,4 @@ fn px(count: i32) -> Pixels $ Console:
     Pixels { count: count }
 
 pub fn layout() -> Pixels:
-    12px  # diagnostic: missing-requirement
+    12px # diagnostic: missing-requirement

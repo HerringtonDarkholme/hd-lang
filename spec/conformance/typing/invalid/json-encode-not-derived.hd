@@ -6,4 +6,4 @@ struct Plain:
     id: i32
 
 fn show(value: Plain) -> string:
-    encode(value)  # diagnostic: unsatisfied-trait-bound
+    encode(value) # diagnostic: unsatisfied-trait-bound

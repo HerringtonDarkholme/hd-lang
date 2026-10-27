@@ -27,6 +27,6 @@ impl[T] Show for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-@derive(Show)  # diagnostic: member-not-derivable
+@derive(Show) # diagnostic: member-not-derivable
 struct Label:
     text: string

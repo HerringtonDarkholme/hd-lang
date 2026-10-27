@@ -1,7 +1,8 @@
 # test: a Tuple-bounded vararg type that no other argument solves is the tuple of the argument types
 # expect: test
 use std.function.Tuple
-fn pack[Args < Tuple](args...: Args) -> Args: args
+fn pack[Args < Tuple](args...: Args) -> Args:
+    args
 
 tests:
     use std.testing.assert_equal

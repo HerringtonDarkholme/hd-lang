@@ -1,4 +1,5 @@
 # test: checker prelude names cannot be shadowed
-fn lookup(name: string) -> string: name
+fn lookup(name: string) -> string:
+    name
 pub fn main() -> void:
     pass

@@ -15,4 +15,4 @@ impl Metrics:
 
 struct Service:
     Logger
-    Metrics  # diagnostic: ambiguous-promoted-member
+    Metrics # diagnostic: ambiguous-promoted-member

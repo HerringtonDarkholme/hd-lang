@@ -8,7 +8,8 @@ struct Node:
     body: &mut Point
     kids: List[&Node]
 
-fn parameter(a: &Point, b: &mut Point) -> void: pass
+fn parameter(a: &Point, b: &mut Point) -> void:
+    pass
 
 fn result() -> &mut Point:
     &mut Point { x: 0.0, y: 0.0 }
@@ -19,9 +20,11 @@ fn generic_arguments(items: List[&Point], maybe: Option[&mut Point]) -> Map[stri
 fn optional_reference(p: &Point?) -> &mut Point?:
     .None
 
-fn grouped(a: &(Point?), b: &(&Point), c: &(Point, Point), d: &dyn Display) -> void: pass
+fn grouped(a: &(Point?), b: &(&Point), c: &(Point, Point), d: &dyn Display) -> void:
+    pass
 
-fn function_types(f: fn(&Point, &mut Point) -> &Point, g: (fn(&Point) -> &Point)?) -> void: pass
+fn function_types(f: fn(&Point, &mut Point) -> &Point, g: (fn(&Point) -> &Point)?) -> void:
+    pass
 
 fn annotated(p: &Point) -> void:
     let q: &mut Point = &mut Point { x: 1.0, y: 2.0 }

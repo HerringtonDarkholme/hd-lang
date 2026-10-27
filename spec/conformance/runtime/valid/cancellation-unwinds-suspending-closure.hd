@@ -15,5 +15,4 @@ pub fn main!() -> void $ Gate:
     operation!()
 
 pub fn cleanup_ran() -> i32:
-    if cleaned: 1
-    else: 0
+    if cleaned: 1 else: 0

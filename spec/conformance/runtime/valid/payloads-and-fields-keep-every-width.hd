@@ -46,7 +46,11 @@ pub fn main() -> void $ Console:
     println(describe(Shape.Rect(+3, -5000000000)))
     println(describe(Shape.Label("tea", Point { x: +1, y: 3 })))
     println(describe(Shape.Nothing))
-    let mut h = Holder { small: Small { a: -1, b: -300, c: 255, d: true, e: 65535 }, pair: (+7, Point { x: +8, y: 0 }, 1.5), count: +0 }
+    let mut h = Holder {
+        small: Small { a: -1, b: -300, c: 255, d: true, e: 65535 },
+        pair: (+7, Point { x: +8, y: 0 }, 1.5),
+        count: +0,
+    }
     println("${h.small.a} ${h.small.b} ${h.small.c} ${h.small.d} ${h.small.e}")
     h.small = Small { ...h.small, a: -2, d: false }
     println("${h.small.a} ${h.small.b} ${h.small.c} ${h.small.d} ${h.small.e}")

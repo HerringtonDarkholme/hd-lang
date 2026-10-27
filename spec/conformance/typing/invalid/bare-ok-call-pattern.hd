@@ -2,5 +2,5 @@
 
 fn value_or_zero(result: Result[i32, string]) -> i32:
     match result:
-        Ok(number) => number  # diagnostic: bare-variant-pattern
+        Ok(number) => number # diagnostic: bare-variant-pattern
         .Err(_) => 0

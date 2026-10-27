@@ -3,7 +3,7 @@
 fn stale(items: *mut List[i32]) -> usize:
     window := items.view(0, 2)
     items.push(4)
-    window.len()  # panic: iterator-invalidated
+    window.len() # panic: iterator-invalidated
 
 let mut numbers: List[i32] = [1, 2, 3]
 result := stale(&mut numbers)

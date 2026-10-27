@@ -19,10 +19,10 @@ impl[K < Eq & Hash, V] Index[K, V]:
         self.entries.get(key)
 
 fn apples_in_stock() -> i32?:
-    let counts: Map[string, i32] = {"apple": 3, "pear": 5}
+    let counts: Map[string, i32] = { "apple": 3, "pear": 5 }
     index := Index { name: "fruit", entries: counts }
     index.lookup("apple")
 
 fn pears_in_stock() -> i32?:
-    let counts: Map[string, i32] = {"apple": 3, "pear": 5}
+    let counts: Map[string, i32] = { "apple": 3, "pear": 5 }
     stock_of(counts, "pear")

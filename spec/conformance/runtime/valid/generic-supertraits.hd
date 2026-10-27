@@ -14,13 +14,16 @@ struct Box[T]:
     item: T
 
 impl[T] Source[List[T]] for Box[T]:
-    fn source(self) -> List[T]: [self.item]
+    fn source(self) -> List[T]:
+        [self.item]
 
 impl[T] Wrapped[T] for Box[T]:
-    fn marker(self) -> i32: 0
+    fn marker(self) -> i32:
+        0
 
 impl Specialized[i32] for Box[i32]:
-    fn specialized(self) -> i32: 0
+    fn specialized(self) -> i32:
+        0
 
 fn generic_supertrait_direct() -> i32:
     Box::[i32] { item: 42 }.source()[0]
@@ -53,16 +56,36 @@ tests:
     use std.testing.assert_equal
 
     it("generic_supertrait_direct returns 42"):
-        assert_equal(generic_supertrait_direct(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
+        assert_equal(
+            generic_supertrait_direct(),
+            42,
+            reason="generic supertraits substitute parent arguments across every dispatch path",
+        )
 
     it("generic_supertrait_bound returns 42"):
-        assert_equal(generic_supertrait_bound(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
+        assert_equal(
+            generic_supertrait_bound(),
+            42,
+            reason="generic supertraits substitute parent arguments across every dispatch path",
+        )
 
     it("generic_supertrait_dynamic returns 42"):
-        assert_equal(generic_supertrait_dynamic(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
+        assert_equal(
+            generic_supertrait_dynamic(),
+            42,
+            reason="generic supertraits substitute parent arguments across every dispatch path",
+        )
 
     it("generic_supertrait_widened returns 42"):
-        assert_equal(generic_supertrait_widened(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
+        assert_equal(
+            generic_supertrait_widened(),
+            42,
+            reason="generic supertraits substitute parent arguments across every dispatch path",
+        )
 
     it("concrete_child_uses_blanket_parent returns 42"):
-        assert_equal(concrete_child_uses_blanket_parent(), 42, reason="generic supertraits substitute parent arguments across every dispatch path")
+        assert_equal(
+            concrete_child_uses_blanket_parent(),
+            42,
+            reason="generic supertraits substitute parent arguments across every dispatch path",
+        )

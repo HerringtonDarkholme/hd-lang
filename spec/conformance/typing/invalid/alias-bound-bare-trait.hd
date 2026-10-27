@@ -4,7 +4,7 @@
 trait Source[T]:
     fn read(self) -> T
 
-type Checked[S < Source[Factory]] = S  # diagnostic: trait-used-as-type
+type Checked[S < Source[Factory]] = S # diagnostic: trait-used-as-type
 
 trait Factory:
     fn create() -> Self

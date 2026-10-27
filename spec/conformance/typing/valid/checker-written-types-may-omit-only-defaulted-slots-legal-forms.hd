@@ -7,10 +7,14 @@ trait Same[Other = Self]:
 trait Repo[T]:
     fn find(self, id: string) -> T?
 
-fn case_127(p: Pair[i32, i64]) -> void: pass
+fn case_127(p: Pair[i32, i64]) -> void:
+    pass
 
-fn case_128(p: Pair[i32]) -> void: pass
+fn case_128(p: Pair[i32]) -> void:
+    pass
 
-fn case_129(r: &dyn Repo[i32]) -> void: pass
+fn case_129(r: &dyn Repo[i32]) -> void:
+    pass
 
-fn case_130() -> void $ Repo[i32]: pass
+fn case_130() -> void $ Repo[i32]:
+    pass

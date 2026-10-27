@@ -6,4 +6,4 @@
 use dep.members.{Outer}
 
 fn invalid(outer: Outer) -> i32:
-    outer.revision  # diagnostic: private-member
+    outer.revision # diagnostic: private-member

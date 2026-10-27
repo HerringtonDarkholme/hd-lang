@@ -21,23 +21,23 @@ enum Slot:
     Held(item: i32, qty: i32)
 
 fn find(id: i32) -> i32?:
-    if id == 0:
-        .None
-    else:
-        .Some(id * 10)
+    if id == 0: .None else: .Some(id * 10)
 
 fn pair_sum(id: i32) -> i32?:
-    let .Some(first) = find(id) else: return .None
+    let .Some(first) = find(id) else:
+        return .None
     let .Some(second) = find(id + 1) else:
         return .None
     .Some(first + second)
 
 fn choose(flag: bool) -> i32:
-    let .Some(value) = (if flag: find(+0) else: find(+3)) else: return -1
+    let .Some(value) = (if flag: find(+0) else: find(+3)) else:
+        return -1
     value
 
 fn qty_of(slot: Slot) -> i32:
-    let Slot.Held(item, qty = amount) = slot else: return 0
+    let Slot.Held(item, qty = amount) = slot else:
+        return 0
     item + amount
 
 pub fn main() -> void $ Console:
@@ -51,7 +51,7 @@ pub fn main() -> void $ Console:
     println(pair_sum(+0).unwrap_or(-9))
     println(choose(false))
     println(choose(true))
-    println(qty_of(Slot.Held(item = +15, qty = +5)))
+    println(qty_of(Slot.Held(item=+15, qty=+5)))
     let Tally { mut tags, name } = Tally { tags: ["a"], name: "box" }
     tags.push("b")
     println("${name} ${tags.len()}")

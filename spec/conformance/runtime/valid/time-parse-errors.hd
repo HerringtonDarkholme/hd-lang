@@ -11,39 +11,138 @@ tests:
     it("text that ends early"):
         assert_equal(parsed(""), .Err(ParseTimeError.TooShort(0)), reason="empty")
         assert_equal(parsed("2026-10-03"), .Err(ParseTimeError.TooShort(10)), reason="a date alone")
-        assert_equal(parsed("2026-10-03T12:00:00"), .Err(ParseTimeError.TooShort(19)), reason="no offset")
-        assert_equal(parsed("2026-10-03T12:00:00."), .Err(ParseTimeError.TooShort(20)), reason="a point with no digits")
-        assert_equal(parsed("2026-10-03T12:00:00+05"), .Err(ParseTimeError.TooShort(22)), reason="half an offset")
+        assert_equal(
+            parsed("2026-10-03T12:00:00"),
+            .Err(ParseTimeError.TooShort(19)),
+            reason="no offset",
+        )
+        assert_equal(
+            parsed("2026-10-03T12:00:00."),
+            .Err(ParseTimeError.TooShort(20)),
+            reason="a point with no digits",
+        )
+        assert_equal(
+            parsed("2026-10-03T12:00:00+05"),
+            .Err(ParseTimeError.TooShort(22)),
+            reason="half an offset",
+        )
 
     it("characters the grammar does not allow"):
-        assert_equal(parsed("2026/10/03T12:00:00Z"), .Err(ParseTimeError.InvalidCharacter(4)), reason="a slash")
-        assert_equal(parsed("2026-10-03 12:00:00Z"), .Err(ParseTimeError.InvalidCharacter(10)), reason="a space for T")
-        assert_equal(parsed("2026-1-03T12:00:00Z"), .Err(ParseTimeError.InvalidCharacter(6)), reason="a one-digit month")
-        assert_equal(parsed("2026-10-03T12:00:00.Z"), .Err(ParseTimeError.InvalidCharacter(20)), reason="a point with no digits")
-        assert_equal(parsed("2026-10-03T12:00:00+0530"), .Err(ParseTimeError.InvalidCharacter(22)), reason="an offset without a colon")
-        assert_equal(parsed("2026-10-03T12:00:00UTC"), .Err(ParseTimeError.InvalidCharacter(19)), reason="a zone name")
-        assert_equal(parsed("2026-10-03T12:00:00Zx"), .Err(ParseTimeError.InvalidCharacter(20)), reason="text after the timestamp")
-        assert_equal(parsed("é2026-10-03T12:00:00Z"), .Err(ParseTimeError.InvalidCharacter(0)), reason="not ASCII")
-        assert_equal(parsed("2026-10-03T12:00:00é"), .Err(ParseTimeError.InvalidCharacter(19)), reason="every byte before it is ASCII")
+        assert_equal(
+            parsed("2026/10/03T12:00:00Z"),
+            .Err(ParseTimeError.InvalidCharacter(4)),
+            reason="a slash",
+        )
+        assert_equal(
+            parsed("2026-10-03 12:00:00Z"),
+            .Err(ParseTimeError.InvalidCharacter(10)),
+            reason="a space for T",
+        )
+        assert_equal(
+            parsed("2026-1-03T12:00:00Z"),
+            .Err(ParseTimeError.InvalidCharacter(6)),
+            reason="a one-digit month",
+        )
+        assert_equal(
+            parsed("2026-10-03T12:00:00.Z"),
+            .Err(ParseTimeError.InvalidCharacter(20)),
+            reason="a point with no digits",
+        )
+        assert_equal(
+            parsed("2026-10-03T12:00:00+0530"),
+            .Err(ParseTimeError.InvalidCharacter(22)),
+            reason="an offset without a colon",
+        )
+        assert_equal(
+            parsed("2026-10-03T12:00:00UTC"),
+            .Err(ParseTimeError.InvalidCharacter(19)),
+            reason="a zone name",
+        )
+        assert_equal(
+            parsed("2026-10-03T12:00:00Zx"),
+            .Err(ParseTimeError.InvalidCharacter(20)),
+            reason="text after the timestamp",
+        )
+        assert_equal(
+            parsed("é2026-10-03T12:00:00Z"),
+            .Err(ParseTimeError.InvalidCharacter(0)),
+            reason="not ASCII",
+        )
+        assert_equal(
+            parsed("2026-10-03T12:00:00é"),
+            .Err(ParseTimeError.InvalidCharacter(19)),
+            reason="every byte before it is ASCII",
+        )
 
     it("values out of range"):
-        assert_equal(parsed("2026-13-03T12:00:00Z"), .Err(ParseTimeError.OutOfRange(5)), reason="month 13")
-        assert_equal(parsed("2026-00-03T12:00:00Z"), .Err(ParseTimeError.OutOfRange(5)), reason="month 0")
-        assert_equal(parsed("2026-10-00T12:00:00Z"), .Err(ParseTimeError.OutOfRange(8)), reason="day 0")
-        assert_equal(parsed("2026-04-31T12:00:00Z"), .Err(ParseTimeError.OutOfRange(8)), reason="April 31")
-        assert_equal(parsed("1900-02-29T12:00:00Z"), .Err(ParseTimeError.OutOfRange(8)), reason="1900 is not a leap year")
-        assert_equal(parsed("2026-10-03T24:00:00Z"), .Err(ParseTimeError.OutOfRange(11)), reason="hour 24")
-        assert_equal(parsed("2026-10-03T12:60:00Z"), .Err(ParseTimeError.OutOfRange(14)), reason="minute 60")
-        assert_equal(parsed("2016-12-31T23:59:60Z"), .Err(ParseTimeError.OutOfRange(17)), reason="a leap second")
-        assert_equal(parsed("2026-10-03T12:00:00+24:00"), .Err(ParseTimeError.OutOfRange(20)), reason="offset hour 24")
-        assert_equal(parsed("2026-10-03T12:00:00-05:60"), .Err(ParseTimeError.OutOfRange(23)), reason="offset minute 60")
+        assert_equal(
+            parsed("2026-13-03T12:00:00Z"),
+            .Err(ParseTimeError.OutOfRange(5)),
+            reason="month 13",
+        )
+        assert_equal(
+            parsed("2026-00-03T12:00:00Z"),
+            .Err(ParseTimeError.OutOfRange(5)),
+            reason="month 0",
+        )
+        assert_equal(
+            parsed("2026-10-00T12:00:00Z"),
+            .Err(ParseTimeError.OutOfRange(8)),
+            reason="day 0",
+        )
+        assert_equal(
+            parsed("2026-04-31T12:00:00Z"),
+            .Err(ParseTimeError.OutOfRange(8)),
+            reason="April 31",
+        )
+        assert_equal(
+            parsed("1900-02-29T12:00:00Z"),
+            .Err(ParseTimeError.OutOfRange(8)),
+            reason="1900 is not a leap year",
+        )
+        assert_equal(
+            parsed("2026-10-03T24:00:00Z"),
+            .Err(ParseTimeError.OutOfRange(11)),
+            reason="hour 24",
+        )
+        assert_equal(
+            parsed("2026-10-03T12:60:00Z"),
+            .Err(ParseTimeError.OutOfRange(14)),
+            reason="minute 60",
+        )
+        assert_equal(
+            parsed("2016-12-31T23:59:60Z"),
+            .Err(ParseTimeError.OutOfRange(17)),
+            reason="a leap second",
+        )
+        assert_equal(
+            parsed("2026-10-03T12:00:00+24:00"),
+            .Err(ParseTimeError.OutOfRange(20)),
+            reason="offset hour 24",
+        )
+        assert_equal(
+            parsed("2026-10-03T12:00:00-05:60"),
+            .Err(ParseTimeError.OutOfRange(23)),
+            reason="offset minute 60",
+        )
 
     it("the first error from the left wins"):
-        assert_equal(parsed("2026-13-xxT12:00:00Z"), .Err(ParseTimeError.OutOfRange(5)), reason="the month before the day")
-        assert_equal(parsed("2026-02-30"), .Err(ParseTimeError.OutOfRange(8)), reason="the range before the end")
+        assert_equal(
+            parsed("2026-13-xxT12:00:00Z"),
+            .Err(ParseTimeError.OutOfRange(5)),
+            reason="the month before the day",
+        )
+        assert_equal(
+            parsed("2026-02-30"),
+            .Err(ParseTimeError.OutOfRange(8)),
+            reason="the range before the end",
+        )
 
     it("ParseTimeError implements Eq and Display"):
         assert(ParseTimeError.TooShort(3) == ParseTimeError.TooShort(3), reason="same position")
         assert(ParseTimeError.TooShort(3) != ParseTimeError.TooShort(4), reason="another position")
-        assert(ParseTimeError.OutOfRange(5) != ParseTimeError.InvalidCharacter(5), reason="another variant")
+        assert(
+            ParseTimeError.OutOfRange(5) != ParseTimeError.InvalidCharacter(5),
+            reason="another variant",
+        )
         assert("${ParseTimeError.InvalidCharacter(4)}".len() > 0, reason="Display text")

@@ -1,6 +1,7 @@
 # test: drive readonly suspension
 
-fn work!() -> i32: 42
+fn work!() -> i32:
+    42
 fn main!() -> i32:
     pending := work()
-    pending!()  # diagnostic: not-writable
+    pending!() # diagnostic: not-writable

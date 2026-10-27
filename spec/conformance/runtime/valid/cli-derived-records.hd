@@ -59,15 +59,87 @@ tests:
 
     it("Pack uses absent defaults and reads supplied values"):
         absent := Pack::parse([]).expect("empty arguments")
-        assert_equal(absent, Pack { verbose: false, level: 6, exclude: [], limit: .None, dry_run: true }, reason="absent policy")
-        full := Pack::parse(["--verbose", "--level=9", "--exclude", "first", "--limit", "42", "--exclude=last", "--dry-run"]).expect("typed arguments")
-        assert_equal(full, Pack { verbose: true, level: 9, exclude: ["first", "last"], limit: .Some(42), dry_run: true }, reason="typed record")
-        assert_equal(Pack::parse(["--level", "300"]), .Err(CliError.InvalidValue("level", "number out of range for its type")), reason="names the invalid field")
-        assert_equal(Pack::parse(["--level", "x"]), .Err(CliError.InvalidValue("level", "invalid digit at position 0")), reason="Parse reason")
-        assert_equal(Pack::parse(["--level", "1", "--level", "2"]), .Err(CliError.InvalidValue("level", "argument cannot be repeated")), reason="scalar repetition refused")
+        assert_equal(
+            absent,
+            Pack { verbose: false, level: 6, exclude: [], limit: .None, dry_run: true },
+            reason="absent policy",
+        )
+        full := Pack::parse(
+            [
+                "--verbose",
+                "--level=9",
+                "--exclude",
+                "first",
+                "--limit",
+                "42",
+                "--exclude=last",
+                "--dry-run",
+            ],
+        )
+            .expect("typed arguments")
+        assert_equal(
+            full,
+            Pack {
+                verbose: true,
+                level: 9,
+                exclude: ["first", "last"],
+                limit: .Some(42),
+                dry_run: true,
+            },
+            reason="typed record",
+        )
+        assert_equal(
+            Pack::parse(["--level", "300"]),
+            .Err(CliError.InvalidValue("level", "number out of range for its type")),
+            reason="names the invalid field",
+        )
+        assert_equal(
+            Pack::parse(["--level", "x"]),
+            .Err(CliError.InvalidValue("level", "invalid digit at position 0")),
+            reason="Parse reason",
+        )
+        assert_equal(
+            Pack::parse(["--level", "1", "--level", "2"]),
+            .Err(CliError.InvalidValue("level", "argument cannot be repeated")),
+            reason="scalar repetition refused",
+        )
 
     it("all scalar types and a derived newtype read through Parse"):
-        value := Scalars::parse(["--text", "words", "--character", "é", "--small", "-8", "--medium", "-16", "--signed", "-32", "--large", "-64", "--byte", "8", "--port", "8080", "--count", "32", "--wide", "64", "--size", "17", "--single", "1.5", "--double", "2.5", "--path", "file.txt", "--duration", "10ms"]).expect("scalars")
+        value := Scalars::parse(
+            [
+                "--text",
+                "words",
+                "--character",
+                "é",
+                "--small",
+                "-8",
+                "--medium",
+                "-16",
+                "--signed",
+                "-32",
+                "--large",
+                "-64",
+                "--byte",
+                "8",
+                "--port",
+                "8080",
+                "--count",
+                "32",
+                "--wide",
+                "64",
+                "--size",
+                "17",
+                "--single",
+                "1.5",
+                "--double",
+                "2.5",
+                "--path",
+                "file.txt",
+                "--duration",
+                "10ms",
+            ],
+        )
+            .expect("scalars")
         assert_equal(value.text, "words", reason="string")
         assert_equal(value.character, 'é', reason="char")
         assert_equal(value.small, -8i8, reason="i8")
@@ -84,14 +156,40 @@ tests:
         assert_equal(value.path, Path("file.txt"), reason="Path")
         assert_equal(value.duration, ms(10), reason="Duration")
         match Scalars::parse([]):
-            .Err(error) => assert_equal(error, CliError.MissingArgument("--text"), reason="first required field")
+            .Err(error) =>
+                assert_equal(
+                    error,
+                    CliError.MissingArgument("--text"),
+                    reason="first required field",
+                )
             .Ok(_) => panic("missing scalar accepted")
 
     it("repeated views retain order and compose with wrappers"):
         absent := Repeated::parse([]).expect("absent lists")
         assert_equal(absent.numbers, [], reason="empty")
         assert_equal(absent.optional_list, .None, reason="absent optional list")
-        value := Repeated::parse(["--numbers", "3", "--switches", "--numbers=9", "--switches", "--optional", "2", "--optional", "4", "--nested", "a", "--nested", "b", "--optional-list", "x", "--optional-list", "y"]).expect("repeated")
+        value := Repeated::parse(
+            [
+                "--numbers",
+                "3",
+                "--switches",
+                "--numbers=9",
+                "--switches",
+                "--optional",
+                "2",
+                "--optional",
+                "4",
+                "--nested",
+                "a",
+                "--nested",
+                "b",
+                "--optional-list",
+                "x",
+                "--optional-list",
+                "y",
+            ],
+        )
+            .expect("repeated")
         assert_equal(value.numbers, [3u16, 9u16], reason="one value per view")
         assert_equal(value.switches, [true, true], reason="one true per flag")
         assert_equal(value.optional, [.Some(2u8), .Some(4u8)], reason="list of optional")
@@ -105,14 +203,23 @@ tests:
         help := ScriptedArgs::new("archive", ["--help"])
         $.with(Args=help):
             match from_host():
-                .Err(.Help(usage)) => assert_equal(usage.starts_with("usage: archive "), true, reason="provider program")
+                .Err(.Help(usage)) =>
+                    assert_equal(
+                        usage.starts_with("usage: archive "),
+                        true,
+                        reason="provider program",
+                    )
                 _ => panic("expected help")
 
     it("nested records are refused by name with enum guidance"):
         match App::parse([]):
             .Err(.InvalidValue(name, reason)) =>
                 assert_equal(name, "database", reason="field name")
-                assert_equal(reason, "record field `database` is not supported; subcommands are an enum", reason="composition guidance")
+                assert_equal(
+                    reason,
+                    "record field `database` is not supported; subcommands are an enum",
+                    reason="composition guidance",
+                )
             _ => panic("expected record field refusal")
 
     it("manual Cli implementations can use declarations and parsed accessors"):

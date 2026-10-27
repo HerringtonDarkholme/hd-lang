@@ -15,4 +15,4 @@ impl Disposable for Lock:
 
 fn swap!() -> void:
     using lock = Lock { name: "a" }
-    lock.rename("b")  # diagnostic: not-writable
+    lock.rename("b") # diagnostic: not-writable

@@ -9,7 +9,8 @@ struct Number:
     value: i32
 
 impl Named for Number:
-    fn value(self) -> i32: self.value
+    fn value(self) -> i32:
+        self.value
 
 fn main!() -> i32:
     let named: &dyn Named = &Number { value: 42 }

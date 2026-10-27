@@ -5,7 +5,7 @@ fn signal(speed: i32) -> string:
     enum Light:
         Red
         Green(limit: i32)
-    light := if speed > 0: Light.Green(limit = speed) else: Light.Red
+    light := if speed > 0: Light.Green(limit=speed) else: Light.Red
     match light:
         .Red => "stop"
         .Green(limit) => "go up to ${limit}"

@@ -20,7 +20,7 @@ impl Console for QuietConsole:
 fn print_now() -> i32:
     let mut console = QuietConsole {}
     $.with(Console=&mut console):
-        println("quiet")  # panic: suspension-forbidden-context
+        println("quiet") # panic: suspension-forbidden-context
     1
 
 fn cleanup() -> void:

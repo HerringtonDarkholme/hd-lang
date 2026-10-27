@@ -6,13 +6,15 @@ use std.function.{Fn, SuspendFn}
 
 trait Database
 
-fn check(id: i32, name: string) -> bool: id > 0
-fn load!(id: i32) -> string $ Database: "user"
+fn check(id: i32, name: string) -> bool:
+    id > 0
+fn load!(id: i32) -> string $ Database:
+    "user"
 
-fn spelled() -> Fn[(i32, string), bool, $()]:
+fn spelled() -> Fn[(i32, string), bool, $ ()]:
     check
 
-fn sugared(callback: Fn[(i32, string), bool, $()]) -> fn(i32, string) -> bool:
+fn sugared(callback: Fn[(i32, string), bool, $ ()]) -> fn(i32, string) -> bool:
     callback
 
 fn suspending() -> SuspendFn[(i32,), string, $ Database]:

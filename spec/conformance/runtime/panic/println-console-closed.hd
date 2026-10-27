@@ -14,7 +14,7 @@ impl Console for ClosedConsole:
         self.write!(text)
 
 fn greet(name: string) -> void $ Console:
-    println("hello, ${name}")  # panic: explicit-panic
+    println("hello, ${name}") # panic: explicit-panic
 
 tests:
     it("println panics when its first text write fails"):

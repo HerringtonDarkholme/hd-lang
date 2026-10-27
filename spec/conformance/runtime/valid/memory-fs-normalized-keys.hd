@@ -12,37 +12,82 @@ tests:
     it("read write append stat and remove share one key"):
         files := MemoryFs::new()
         assert(files.write_text!(Path("./a//./x"), "first").is_ok(), reason="seed through an alias")
-        assert_equal(files.read_text!(Path("a/x")).expect("file"), "first", reason="plain path reads the alias")
-        assert(files.append_text!(Path("a/./x/"), "!").is_ok(), reason="append through another alias")
-        assert_equal(files.read_bytes!(Path("./a/x")).expect("bytes"), "first!".to_utf8(), reason="one shared file")
-        assert(files.write_bytes!(Path("a//x"), "last".to_utf8()).is_ok(), reason="overwrite the same key")
+        assert_equal(
+            files.read_text!(Path("a/x")).expect("file"),
+            "first",
+            reason="plain path reads the alias",
+        )
+        assert(
+            files.append_text!(Path("a/./x/"), "!").is_ok(),
+            reason="append through another alias",
+        )
+        assert_equal(
+            files.read_bytes!(Path("./a/x")).expect("bytes"),
+            "first!".to_utf8(),
+            reason="one shared file",
+        )
+        assert(
+            files.write_bytes!(Path("a//x"), "last".to_utf8()).is_ok(),
+            reason="overwrite the same key",
+        )
         entry := files.stat!(Path("a/./x")).expect("stat").expect("entry")
         assert_equal(entry.kind, EntryKind.File, reason="a file")
         assert_equal(entry.size, 4, reason="overwrite changes its length")
         assert_equal(names!(files, "./a//."), [Path("a/x")], reason="one normalized listing")
         assert(files.remove!(Path("./a//x")).is_ok(), reason="remove through alias")
-        assert(files.stat!(Path("a/x")).expect("stat").is_none(), reason="the shared key was removed")
+        assert(
+            files.stat!(Path("a/x")).expect("stat").is_none(),
+            reason="the shared key was removed",
+        )
 
     it("directory creation and renaming normalize both ends"):
         files := MemoryFs::new()
-        assert(files.create_dir_all!(Path("./old//./deep/")).is_ok(), reason="create aliased directory")
+        assert(
+            files.create_dir_all!(Path("./old//./deep/")).is_ok(),
+            reason="create aliased directory",
+        )
         assert_equal(names!(files, "."), [Path("old")], reason="no dot directory is stored")
         assert(files.write_text!(Path("old/deep/./x"), "x").is_ok(), reason="nested file")
-        assert(files.rename!(Path("./old//."), Path("./new//.")).is_ok(), reason="rename aliased directory")
-        assert_equal(names!(files, "./new//deep/"), [Path("new/deep/x")], reason="descendant key moved")
+        assert(
+            files.rename!(Path("./old//."), Path("./new//.")).is_ok(),
+            reason="rename aliased directory",
+        )
+        assert_equal(
+            names!(files, "./new//deep/"),
+            [Path("new/deep/x")],
+            reason="descendant key moved",
+        )
         assert(files.stat!(Path("old")).expect("stat").is_none(), reason="source no longer exists")
-        assert(files.rename!(Path("new/./deep/x"), Path("./new/deep//y")).is_ok(), reason="rename a file")
-        assert_equal(files.read_text!(Path("new/deep/y")).expect("file"), "x", reason="file target normalized")
+        assert(
+            files.rename!(Path("new/./deep/x"), Path("./new/deep//y")).is_ok(),
+            reason="rename a file",
+        )
+        assert_equal(
+            files.read_text!(Path("new/deep/y")).expect("file"),
+            "x",
+            reason="file target normalized",
+        )
         assert(files.remove!(Path("new/deep/./y")).is_ok(), reason="remove child")
-        assert(files.remove!(Path("./new//deep/.")).is_ok(), reason="remove empty aliased directory")
+        assert(
+            files.remove!(Path("./new//deep/.")).is_ok(),
+            reason="remove empty aliased directory",
+        )
         assert_equal(names!(files, "new"), [], reason="explicit parent stays")
 
     it("root aliases stay directories and rooted paths stay rooted"):
         files := MemoryFs::new()
         assert(files.write_text!(Path("./x"), "relative").is_ok(), reason="relative file")
         assert(files.write_text!(Path("//./x"), "absolute").is_ok(), reason="absolute file")
-        assert_equal(files.read_text!(Path("x")).expect("relative"), "relative", reason="leading slash is significant")
-        assert_equal(files.read_text!(Path("/x")).expect("absolute"), "absolute", reason="rooted alias")
+        assert_equal(
+            files.read_text!(Path("x")).expect("relative"),
+            "relative",
+            reason="leading slash is significant",
+        )
+        assert_equal(
+            files.read_text!(Path("/x")).expect("absolute"),
+            "absolute",
+            reason="rooted alias",
+        )
         assert_equal(names!(files, "././"), [Path("x")], reason="relative root alias")
         assert_equal(names!(files, ""), [Path("x")], reason="empty relative key")
         assert_equal(names!(files, "//./"), [Path("/x")], reason="absolute root alias")
@@ -53,14 +98,40 @@ tests:
         files := MemoryFs::new()
         assert(files.write_text!(Path("./block"), "file").is_ok(), reason="blocking file")
         let blocked = Path("./block//./child")
-        assert_equal(files.write_text!(blocked, "no"), .Err(FsError.NotADirectory(path=blocked)), reason="file ancestor with normalized spelling")
-        assert_equal(files.create_dir_all!(Path("./block/.")), .Err(FsError.NotADirectory(path=Path("./block/."))), reason="file at the normalized directory key")
+        assert_equal(
+            files.write_text!(blocked, "no"),
+            .Err(FsError.NotADirectory(path=blocked)),
+            reason="file ancestor with normalized spelling",
+        )
+        assert_equal(
+            files.create_dir_all!(Path("./block/.")),
+            .Err(FsError.NotADirectory(path=Path("./block/."))),
+            reason="file at the normalized directory key",
+        )
         assert(files.create_dir_all!(Path("./dir//.")).is_ok(), reason="a directory")
-        assert_equal(files.write_text!(Path("dir/./"), "no"), .Err(FsError.IsADirectory(path=Path("dir/./"))), reason="directory alias cannot be overwritten")
-        assert_equal(files.read_text!(Path("./missing//x")), .Err(FsError.NotFound(path=Path("./missing//x"))), reason="missing error preserves spelling")
+        assert_equal(
+            files.write_text!(Path("dir/./"), "no"),
+            .Err(FsError.IsADirectory(path=Path("dir/./"))),
+            reason="directory alias cannot be overwritten",
+        )
+        assert_equal(
+            files.read_text!(Path("./missing//x")),
+            .Err(FsError.NotFound(path=Path("./missing//x"))),
+            reason="missing error preserves spelling",
+        )
 
     it("parent components remain literal"):
         files := MemoryFs::new()
-        assert(files.write_text!(Path("a/../x"), "literal").is_ok(), reason="parent is not resolved")
-        assert_equal(files.read_text!(Path("./a//.././x")).expect("literal file"), "literal", reason="only dot and empty components collapse")
-        assert(files.stat!(Path("x")).expect("stat").is_none(), reason="parent components are retained")
+        assert(
+            files.write_text!(Path("a/../x"), "literal").is_ok(),
+            reason="parent is not resolved",
+        )
+        assert_equal(
+            files.read_text!(Path("./a//.././x")).expect("literal file"),
+            "literal",
+            reason="only dot and empty components collapse",
+        )
+        assert(
+            files.stat!(Path("x")).expect("stat").is_none(),
+            reason="parent components are retained",
+        )

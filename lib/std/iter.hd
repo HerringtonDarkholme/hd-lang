@@ -94,7 +94,7 @@ pub trait Iterator[T]:
 
     ## Folds the remaining items into `initial`: `step(accumulator, item)` per item, in order.
     ## See [std-iter.adapter.fold.value](../../spec/std/iter.md#r-std-iter.adapter.fold.value).
-    fn fold[A, $R](self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
+    fn fold[A, $ R](self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
         let mut cursor = self
         let total = initial
         while true:
@@ -151,7 +151,6 @@ impl[T, I < Iterator[T]] Iterator[T] for *mut I:
     fn next(&mut self) -> T?:
         (*self).next()
 
-
 ## A concrete cursor forwarding to an erased iterator reference.
 pub struct DynIterator[T]:
     source: *mut dyn Iterator[T]
@@ -194,7 +193,10 @@ impl[T] dyn Iterator[T]:
     pub fn chain[J < Iterable[T]](*mut self, other: J) -> Chain[DynIterator[T], T]:
         DynIterator { source: self }.chain::[J](other)
 
-    pub fn flat_map[U, J < Iterable[U]](*mut self, transform: fn(T) -> J) -> FlatMap[DynIterator[T], T, U, J]:
+    pub fn flat_map[U, J < Iterable[U]](
+        *mut self,
+        transform: fn(T) -> J,
+    ) -> FlatMap[DynIterator[T], T, U, J]:
         DynIterator { source: self }.flat_map::[U, J](transform)
 
     pub fn any(*mut self, test: fn(T) -> bool) -> bool:
@@ -209,7 +211,7 @@ impl[T] dyn Iterator[T]:
     pub fn count(*mut self) -> usize:
         DynIterator { source: self }.count()
 
-    pub fn fold[A, $R](*mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
+    pub fn fold[A, $ R](*mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
         DynIterator { source: self }.fold::[A](initial, step)
 
     pub fn collect[C < FromIterator[T] = List[T]](*mut self) -> C:

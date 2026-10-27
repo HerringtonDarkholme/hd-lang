@@ -4,7 +4,8 @@ struct Counter:
     remaining: i32
 
 impl Iterator[i32] for Counter:
-    fn next(&mut self) -> i32?: .None
+    fn next(&mut self) -> i32?:
+        .None
 
 fn borrow(cursor: Counter) -> void:
-    _ := cursor.by_ref()  # diagnostic: not-writable
+    _ := cursor.by_ref() # diagnostic: not-writable

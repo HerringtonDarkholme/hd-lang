@@ -11,19 +11,24 @@ use std.num.Num
 use std.ops.num_suffix
 
 @num_suffix
-fn secs(count: i64) -> i64: count * 1000
+fn secs(count: i64) -> i64:
+    count * 1000
 
 @num_suffix
-fn ticks[N < Num](count: N) -> N: count
+fn ticks[N < Num](count: N) -> N:
+    count
 
 @num_suffix
-fn kb(size: f64) -> f64: size * 1024.0
+fn kb(size: f64) -> f64:
+    size * 1024.0
 
 @num_suffix
-fn em(count: i64) -> i64: count * 3
+fn em(count: i64) -> i64:
+    count * 3
 
 @num_suffix
-fn 度(count: i64) -> i64: count * 360
+fn 度(count: i64) -> i64:
+    count * 360
 
 pub fn main() -> void $ Console:
     println(5secs)

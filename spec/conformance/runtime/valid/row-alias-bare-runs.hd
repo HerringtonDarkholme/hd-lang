@@ -10,12 +10,14 @@ trait Log:
 struct MemoryDb: pass
 
 impl Db for MemoryDb:
-    fn name(self) -> string: "db"
+    fn name(self) -> string:
+        "db"
 
 struct PlainLog: pass
 
 impl Log for PlainLog:
-    fn tag(self) -> string: "log"
+    fn tag(self) -> string:
+        "log"
 
 type AppRow = $ Db + Log
 

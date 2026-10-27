@@ -1,4 +1,4 @@
 # test: returning an element reference is an error, since an element reference lives for one call
 # Spec 13 Call-Scoped Access: ref.elem.kept.
 fn first(xs: &mut List[i32]) -> *mut i32:
-    &mut xs[0]  # diagnostic: element-reference-outlives-call
+    &mut xs[0] # diagnostic: element-reference-outlives-call

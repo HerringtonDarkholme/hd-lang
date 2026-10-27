@@ -2,12 +2,10 @@
 # Spec 01 Suites Inside Delimiters: lex.nested.reference, lex.nested.body-depth, lex.nested.body-left.
 # expect: parse
 
-fn run(callback: fn(i32) -> i32) -> i32: callback(1)
+fn run(callback: fn(i32) -> i32) -> i32:
+    callback(1)
 
 fn main() -> void:
     if true:
-        x := run(
-    fn(v):
-            v + 1
-)
+        x := run(fn(v): v + 1)
         pass

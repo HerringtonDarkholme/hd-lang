@@ -1,4 +1,4 @@
 # test: one type parameter list cannot name the same parameter twice
 # Spec 03 Type Parameters: names.type-param.unique.
-fn pair[T, T](value: T) -> T:  # diagnostic: duplicate-binding
+fn pair[T, T](value: T) -> T: # diagnostic: duplicate-binding
     value

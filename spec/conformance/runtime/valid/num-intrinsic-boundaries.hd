@@ -17,11 +17,17 @@ fn check_bounds[N < Integer](low: N, high: N) -> void:
     assert(low.checked_div(zero).is_none(), reason="division by zero is checked")
     assert(high.saturating_add(one) == high, reason="saturation uses the maximum constant")
     assert(low.saturating_sub(one) == low, reason="saturation uses the minimum constant")
-    assert(high.wrapping_mul(two) == zero.wrapping_sub(two), reason="multiplication keeps the low bits")
+    assert(
+        high.wrapping_mul(two) == zero.wrapping_sub(two),
+        reason="multiplication keeps the low bits",
+    )
     assert(high.wrapping_mul(high) == one, reason="the maximum squared wraps to one")
     assert(low.wrapping_mul(all_ones) == low, reason="minimum times all ones keeps its bits")
     if low < zero:
-        assert(low.checked_div(all_ones).is_none(), reason="signed minimum over minus one is checked")
+        assert(
+            low.checked_div(all_ones).is_none(),
+            reason="signed minimum over minus one is checked",
+        )
 
 tests:
     it("i8 generic boundaries"):

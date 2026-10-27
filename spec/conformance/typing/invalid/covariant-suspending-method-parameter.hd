@@ -5,5 +5,5 @@ struct Feed[+T]:
     latest: T
 
 impl[T] Feed[T]:
-    pub fn publish!(self, value: T) -> void:  # diagnostic: invalid-variance
+    pub fn publish!(self, value: T) -> void: # diagnostic: invalid-variance
         pass

@@ -23,10 +23,7 @@ fn as_return() -> Fn[(i32,), mut Suspend[i32], $ Clock]:
     return tick
 
 fn as_branch(flag: bool) -> Fn[(i32,), mut Suspend[i32], $ Clock]:
-    if flag:
-        tick
-    else:
-        ticker
+    if flag: tick else: ticker
 
 fn as_constructor(op: SuspendFn[(i32,), i32, $ Clock]) -> Fn[(i32,), mut Suspend[i32], $ Clock]:
     op

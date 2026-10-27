@@ -24,7 +24,8 @@ struct User:
     name: string
 
 impl Display for User:
-    fn to_string(self) -> string: "user ${self.name}"
+    fn to_string(self) -> string:
+        "user ${self.name}"
 
 fn twice[T](x: T) -> List[T]:
     [x, x]
@@ -34,8 +35,7 @@ trait Collector:
     fn apply[T](self, x: T, f: fn(T) -> T) -> T
     fn show_all[T < Display](self, xs: List[T]) -> string
     fn pick[T](self, xs: List[T]) -> T?:
-        if xs.len() > 0: xs[0]
-        else: .None
+        if xs.len() > 0: xs[0] else: .None
 
 struct Simple:
     tag: string

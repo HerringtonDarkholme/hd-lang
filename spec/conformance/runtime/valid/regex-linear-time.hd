@@ -8,4 +8,8 @@ tests:
         text := "a".repeat(20000)
         assert_equal(Regex::new("(a*)*b").expect("compiles").is_match(text), false, reason="no b")
         assert_equal(Regex::new("(a|aa)*c").expect("compiles").is_match(text), false, reason="no c")
-        assert_equal(Regex::new("(a*)*\$").expect("compiles").is_match(text), true, reason="a match at the end")
+        assert_equal(
+            Regex::new("(a*)*\$").expect("compiles").is_match(text),
+            true,
+            reason="a match at the end",
+        )

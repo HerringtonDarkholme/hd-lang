@@ -20,10 +20,11 @@ trait Entity < Named
 trait Handle < AnyRef
 
 impl Named for User:
-    fn label(self) -> string: self.name
+    fn label(self) -> string:
+        self.name
 
 impl Entity for User:
     pass
 
 fn f(a: &Box[Box[User]], b: &Box[User]) -> bool:
-    a is b  # diagnostic: incompatible-identity-operands
+    a is b # diagnostic: incompatible-identity-operands

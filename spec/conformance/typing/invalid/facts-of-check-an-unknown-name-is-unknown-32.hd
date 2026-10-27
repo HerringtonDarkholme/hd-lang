@@ -8,6 +8,6 @@ fn tagged() -> void:
 fn plain() -> void:
     pass
 
-value := facts_of(missing)  # diagnostic: unknown-name
+value := facts_of(missing) # diagnostic: unknown-name
 pub fn main() -> void:
     pass

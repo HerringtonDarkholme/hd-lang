@@ -13,5 +13,5 @@ impl Cache for Both
 type AppRow = $ Db + Cache
 
 fn run() -> void:
-    $.with(AppRow=Both {}):  # diagnostic: generic-kind-mismatch
+    $.with(AppRow=Both {}): # diagnostic: generic-kind-mismatch
         pass

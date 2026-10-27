@@ -9,4 +9,4 @@ impl Counter:
         Counter { value: 0 }
 
 fn restart(counter: Counter) -> fn() -> Counter:
-    counter::zero  # diagnostic: unknown-method
+    counter::zero # diagnostic: unknown-method

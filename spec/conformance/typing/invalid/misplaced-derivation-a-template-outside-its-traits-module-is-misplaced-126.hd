@@ -3,6 +3,6 @@
 use pkg.lib.show.Show
 use std.structure.Structure
 
-impl[T] Show for T by Structure:  # diagnostic: misplaced-derivation
+impl[T] Show for T by Structure: # diagnostic: misplaced-derivation
     fn show(self) -> string:
         "x"

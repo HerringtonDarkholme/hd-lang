@@ -23,13 +23,17 @@ enum CreateError:
     Body(error: BodyError)
 
 impl From[HttpError] for CreateError:
-    fn from(error: HttpError) -> CreateError: .Http(error)
+    fn from(error: HttpError) -> CreateError:
+        .Http(error)
 
 impl From[BodyError] for CreateError:
-    fn from(error: BodyError) -> CreateError: .Body(error)
+    fn from(error: BodyError) -> CreateError:
+        .Body(error)
 
 fn create!(name: string) -> Result[Created, CreateError] $ Http:
-    response := Request::post(Url::parse("https://example.com/users").expect("fixture URL")).set_json(NewUser { name: name }).send!()?
+    response := Request::post(Url::parse("https://example.com/users").expect("fixture URL"))
+        .set_json(NewUser { name: name })
+        .send!()?
     .Ok(response.ok()?.json::[Created]()?)
 
 tests:
@@ -37,41 +41,69 @@ tests:
 
     it("decodes a created user and sends the JSON request"):
         http := ScriptedHttp::new()
-        http.reply("https://example.com/users", .Ok(Response::status(.Created).set_text("{\"id\":7,\"name\":\"Ada\"}")))
+        http.reply(
+            "https://example.com/users",
+            .Ok(Response::status(.Created).set_text("{\"id\":7,\"name\":\"Ada\"}")),
+        )
         $.with(Http=http):
             match create!("Ada"):
-                .Ok(created) => assert_equal((created.id, created.name), (7, "Ada"), reason="decoded")
+                .Ok(created) =>
+                    assert_equal((created.id, created.name), (7, "Ada"), reason="decoded")
                 .Err(_) => assert_equal(true, false, reason="a 201 with JSON decodes")
         sent := http.received()[0]
         assert_equal(sent.method, .Post, reason="POST method")
         assert_equal(sent.header(.ContentType), .Some("application/json"), reason="JSON header")
-        assert_equal(sent.text(), .Ok("{\"name\":\"Ada\"}"), reason="the recorded request has its own body")
+        assert_equal(
+            sent.text(),
+            .Ok("{\"name\":\"Ada\"}"),
+            reason="the recorded request has its own body",
+        )
 
     it("a body that is not JSON retains the typed decoder error"):
         http := ScriptedHttp::new()
         http.reply("https://example.com/users", .Ok(Response::status(.Ok).set_text("oops")))
         $.with(Http=http):
             match create!("Ada"):
-                .Err(.Body(.Json(error))) => assert_equal(error, JsonError.UnexpectedCharacter(0), reason="typed decode cause")
+                .Err(.Body(.Json(error))) =>
+                    assert_equal(
+                        error,
+                        JsonError.UnexpectedCharacter(0),
+                        reason="typed decode cause",
+                    )
                 _ => assert_equal(true, false, reason="a body JSON error")
 
     it("a body of the wrong shape names the path"):
         http := ScriptedHttp::new()
-        http.reply("https://example.com/users", .Ok(Response::status(.Ok).set_text("{\"id\":\"x\",\"name\":\"Ada\"}")))
+        http.reply(
+            "https://example.com/users",
+            .Ok(Response::status(.Ok).set_text("{\"id\":\"x\",\"name\":\"Ada\"}")),
+        )
         $.with(Http=http):
             match create!("Ada"):
-                .Err(.Body(.Json(error))) => assert_equal(error.to_string(), "expected i64 at $.id", reason="the path")
+                .Err(.Body(.Json(error))) =>
+                    assert_equal(error.to_string(), "expected i64 at $.id", reason="the path")
                 _ => assert_equal(true, false, reason="a body JSON error")
 
     it("a bad status stops before decoding and retains the complete response"):
         http := ScriptedHttp::new()
-        http.reply("https://example.com/users", .Ok(Response::status(.InternalServerError).set_text("oops")))
+        http.reply(
+            "https://example.com/users",
+            .Ok(Response::status(.InternalServerError).set_text("oops")),
+        )
         $.with(Http=http):
             match create!("Ada"):
                 .Err(.Http(.Status(response))) =>
                     assert_equal(response.status, .InternalServerError, reason="status retained")
-                    assert_equal(response.url.map(fn(value): value.to_string()), .Some("https://example.com/users"), reason="URL retained")
-                    assert_equal(response.text(), .Ok("oops"), reason="status check did not read the body")
+                    assert_equal(
+                        response.url.map(fn(value): value.to_string()),
+                        .Some("https://example.com/users"),
+                        reason="URL retained",
+                    )
+                    assert_equal(
+                        response.text(),
+                        .Ok("oops"),
+                        reason="status check did not read the body",
+                    )
                 _ => assert_equal(true, false, reason="a Status error")
 
     it("json alone ignores the status"):
@@ -83,5 +115,13 @@ tests:
     it("a failed decode consumes the body shared by copies"):
         response := Response::status(.Ok).set_text("oops")
         copy := response
-        assert_equal(response.json::[Created]().err(), .Some(BodyError.Json(JsonError.UnexpectedCharacter(0))), reason="typed decoder cause")
-        assert_equal(copy.json::[Created]().err(), .Some(BodyError.Used), reason="copy observes the failed read")
+        assert_equal(
+            response.json::[Created]().err(),
+            .Some(BodyError.Json(JsonError.UnexpectedCharacter(0))),
+            reason="typed decoder cause",
+        )
+        assert_equal(
+            copy.json::[Created]().err(),
+            .Some(BodyError.Used),
+            reason="copy observes the failed read",
+        )

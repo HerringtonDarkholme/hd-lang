@@ -3,4 +3,4 @@ fn pick[T](left: T, right: T) -> T:
     left
 
 fn first() -> i32:
-    pick(1, true)  # diagnostic: type-mismatch
+    pick(1, true) # diagnostic: type-mismatch

@@ -12,7 +12,8 @@ struct Runner:
 
 impl Disposable for Runner:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("runner defer")
+        defer:
+            self.log.push("runner defer")
         let mut job = self.job
         value := job!()
         self.log.push("runner got ${value}")
@@ -27,12 +28,14 @@ fn ended!(job: mut Suspend[void]) -> string:
         .Abandoned => "abandoned"
 
 fn slow!(log: &mut List[string]) -> string $ Clock:
-    defer: log.push("victim defer")
+    defer:
+        log.push("victim defer")
     sleep!(s(60))
     "victim never"
 
 fn winner_later!(victim: mut Suspend[string], log: &mut List[string]) -> string $ Clock:
-    defer: log.push("other defer")
+    defer:
+        log.push("other defer")
     sleep!(ms(1))
     _ := victim.cancel!()
     log.push("victim cancelled")

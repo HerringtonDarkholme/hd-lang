@@ -41,7 +41,11 @@ tests:
     it("an integer reads as the nearest f64"):
         assert_equal(read("7").as_f64(), .Some(7.0), reason="small")
         assert_equal(read("-7").as_f64(), .Some(-7.0), reason="negative")
-        assert_equal(Number::from_u64(9007199254740993).as_f64(), .Some(9007199254740992.0), reason="rounds to even")
+        assert_equal(
+            Number::from_u64(9007199254740993).as_f64(),
+            .Some(9007199254740992.0),
+            reason="rounds to even",
+        )
 
     it("a float has no integer reading"):
         assert_equal(float(1.5).as_f64(), .Some(1.5), reason="f64")
@@ -56,7 +60,10 @@ tests:
     it("equal integers are equal numbers, and an integer never equals a float"):
         let one: i64 = 1
         let ones: u64 = 1
-        assert(Number::from_i64(one) == Number::from_u64(ones), reason="one integer, two constructors")
+        assert(
+            Number::from_i64(one) == Number::from_u64(ones),
+            reason="one integer, two constructors",
+        )
         assert(Number::from_i64(one) != float(1.0), reason="1 and 1.0")
         assert(Number::from_u64(ones) != float(1.0), reason="1 and 1.0 from u64")
         assert(float(0.0) == float(-0.0), reason="zeros compare as f64")

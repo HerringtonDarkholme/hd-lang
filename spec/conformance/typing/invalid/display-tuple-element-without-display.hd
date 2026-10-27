@@ -4,4 +4,4 @@ struct Secret:
     value: i32
 
 fn show(pair: (i32, Secret)) -> string:
-    "$pair"  # diagnostic: unsatisfied-trait-bound
+    "$pair" # diagnostic: unsatisfied-trait-bound

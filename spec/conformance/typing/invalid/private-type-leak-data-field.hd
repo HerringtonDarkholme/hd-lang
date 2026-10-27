@@ -5,4 +5,4 @@ struct Address:
 
 pub struct Customer:
     pub name: string
-    pub address: Address  # diagnostic: private-type-leak
+    pub address: Address # diagnostic: private-type-leak

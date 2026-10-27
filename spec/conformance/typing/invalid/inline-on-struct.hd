@@ -3,6 +3,6 @@
 # annot.target.limit.kind-error applies.
 use std.annotation.inline
 
-@inline  # diagnostic: decorator-target-kind
+@inline # diagnostic: decorator-target-kind
 struct Point:
     x: i32

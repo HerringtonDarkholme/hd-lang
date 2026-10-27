@@ -5,4 +5,4 @@ struct Point:
     y: i32
 
 fn invalid(r: &Point) -> void:
-    r.x = 1  # diagnostic: not-writable
+    r.x = 1 # diagnostic: not-writable

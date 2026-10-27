@@ -4,4 +4,4 @@ enum State:
 
 fn inspect(state: State) -> string:
     match state:
-        Ready => "ready"  # diagnostic: bare-variant-pattern
+        Ready => "ready" # diagnostic: bare-variant-pattern

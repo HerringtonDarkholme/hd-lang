@@ -4,7 +4,8 @@ struct Timer:
     count: i32
 
 impl Timer:
-    fn count(self) -> i32: self.count * 10
+    fn count(self) -> i32:
+        self.count * 10
 
 tests:
     use std.testing.assert_equal

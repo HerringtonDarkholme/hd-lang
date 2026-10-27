@@ -3,6 +3,6 @@
 use std.structure.Facts
 
 fn first_or[M](facts: Facts, fallback: M) -> M:
-    match facts.find::[M]():  # diagnostic: unsatisfied-trait-bound
+    match facts.find::[M](): # diagnostic: unsatisfied-trait-bound
         .Some(found) => found
         .None => fallback

@@ -6,10 +6,12 @@ trait Make[T]:
 struct Item: pass
 
 impl Make[bool] for Item:
-    fn make() -> bool: false
+    fn make() -> bool:
+        false
 
 impl Make[i32] for Item:
-    fn make() -> i32: 42
+    fn make() -> i32:
+        42
 
 fn main() -> i32:
     Item::make()

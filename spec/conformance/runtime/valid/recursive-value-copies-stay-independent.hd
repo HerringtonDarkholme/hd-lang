@@ -33,14 +33,21 @@ tests:
     use std.testing.assert_equal
 
     it("a nested list write keeps the original recursive value"):
-        original := Dir { value: +1, kids: [Dir { value: +2, kids: [Dir { value: +3, kids: [] }] }] }
+        original := Dir {
+            value: +1,
+            kids: [Dir { value: +2, kids: [Dir { value: +3, kids: [] }] }],
+        }
         let mut changed = original
         changed.kids[0].kids[0].value = +9
         assert_equal(sum(original), +6, reason="the old nested children stay unchanged")
         assert_equal(sum(changed), +12, reason="the changed children belong to the copy")
         let mut parent = original
         parent.kids.push(original)
-        assert_equal(sum(parent), +12, reason="inserting an older value cannot form a reference cycle")
+        assert_equal(
+            sum(parent),
+            +12,
+            reason="inserting an older value cannot form a reference cycle",
+        )
 
     it("recursive enum payloads through lists keep their old leaves"):
         tree := Tree.Branch([Tree.Leaf(+3), Tree.Branch([Tree.Leaf(+4)])])
@@ -50,13 +57,21 @@ tests:
                 let mut changed = children
                 changed[0] = .Leaf(+10)
                 assert_equal(leaves(tree), +7, reason="the old enum's list remains unchanged")
-                assert_equal(leaves(.Branch(changed)), +14, reason="the copied list has its new leaf")
+                assert_equal(
+                    leaves(.Branch(changed)),
+                    +14,
+                    reason="the copied list has its new leaf",
+                )
 
     it("recursive maps keep independent values after a nested write"):
-        original := Catalog { value: +1, entries: {"child": Catalog { value: +2, entries: {} }} }
+        original := Catalog { value: +1, entries: { "child": Catalog { value: +2, entries: {} } } }
         let mut changed = original
         let mut entry = changed.entries["child"]
         entry.value = +9
         changed.entries["child"] = entry
-        assert_equal(original.entries["child"].value, +2, reason="the old map keeps its child's value")
+        assert_equal(
+            original.entries["child"].value,
+            +2,
+            reason="the old map keeps its child's value",
+        )
         assert_equal(changed.entries["child"].value, +9, reason="the changed map owns its child")

@@ -2,5 +2,5 @@
 # log: 2026-10-02 #219 integer-width probe
 # expect: unknown-trait
 
-fn show[N < Integer](value: N) -> N:  # diagnostic: unknown-trait
+fn show[N < Integer](value: N) -> N: # diagnostic: unknown-trait
     value

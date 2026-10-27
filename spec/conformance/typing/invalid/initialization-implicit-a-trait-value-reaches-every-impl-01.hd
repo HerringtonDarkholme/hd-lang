@@ -10,7 +10,8 @@ struct Other:
     n: i32
 
 impl Name for Tag:
-    fn name(self) -> string: "a"
+    fn name(self) -> string:
+        "a"
 
 fn pick() -> *dyn Name:
     &Tag { n: 1 }
@@ -19,7 +20,8 @@ first := pick().name() # diagnostic: top-level-read-before-initialization
 later := +5
 
 impl Name for Other:
-    fn name(self) -> string: "b${later}"
+    fn name(self) -> string:
+        "b${later}"
 
 pub fn main() -> void $ Console:
     println(first)

@@ -26,7 +26,8 @@ same-line body. `$ Console` is a requirement row: the function may print.
 fn greet(name: string) -> void $ Console:
     println("hello, $name")
 
-fn shout(name: string) -> void $ Console: println(name.upper())
+fn shout(name: string) -> void $ Console:
+    println(name.upper())
 
 greet("Ada")
 ```
@@ -87,7 +88,7 @@ A list you will change is a `let mut` variable, and a list is a value, so
 
 ```hd
 names := ["Ada", "Grace", "Linus"]
-scores := {"Ada": 10, "Grace": 12}
+scores := { "Ada": 10, "Grace": 12 }
 let (x, y) = (10, 20)
 long_names := [for name in names if name.len() > 3 => name]
 total := scores.get("Ada").unwrap_or(0)
@@ -218,7 +219,8 @@ trait Describe:
     fn describe(&self) -> string
 
 impl Describe for User:
-    fn describe(&self) -> string: self.email
+    fn describe(&self) -> string:
+        self.email
 
 @derive(Eq, Hash)
 struct Point:

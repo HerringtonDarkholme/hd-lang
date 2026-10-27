@@ -17,5 +17,6 @@ enum Choice[T]:
 
 type Wrap[T](T)
 
-impl Conv[i32, i32] for i32:  # diagnostic: argument-count
-    fn conv(self) -> i32: 0
+impl Conv[i32, i32] for i32: # diagnostic: argument-count
+    fn conv(self) -> i32:
+        0

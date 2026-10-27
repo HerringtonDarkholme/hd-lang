@@ -11,4 +11,8 @@ tests:
         let only: (List[i32]...,) = (5, 6)
         assert_equal(only.to_string(), "(5, 6)", reason="a rest-only tuple writes its items")
         let one: (i32, List[i32]...) = (7,)
-        assert_equal("$one", "(7,)", reason="one element in all, with an empty rest, ends with a comma (expr.interp.std.tuple.one)")
+        assert_equal(
+            "$one",
+            "(7,)",
+            reason="one element in all, with an empty rest, ends with a comma (expr.interp.std.tuple.one)",
+        )

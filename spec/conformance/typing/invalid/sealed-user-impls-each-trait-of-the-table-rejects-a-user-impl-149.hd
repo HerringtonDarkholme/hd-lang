@@ -3,4 +3,4 @@ use std.core.AnyRef
 
 struct Handle: pass
 
-impl AnyRef for Handle  # diagnostic: sealed-trait-implementation
+impl AnyRef for Handle # diagnostic: sealed-trait-implementation

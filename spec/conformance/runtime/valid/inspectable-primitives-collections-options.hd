@@ -32,9 +32,9 @@ tests:
     use std.testing.assert_equal
 
     it("a map and a tuple come back with their exact types"):
-        let stock: Map[string, i32] = {"apple": 12}
+        let stock: Map[string, i32] = { "apple": 12 }
         assert_equal(stock_of(&stock), 12, reason="Map[string, i32]")
-        let other: Map[string, i64] = {"apple": 12}
+        let other: Map[string, i64] = { "apple": 12 }
         assert_equal(stock_of(&other), -1, reason="Map[string, i64] is another type")
         let pair: (i32, string) = (7, "bolts")
         assert_equal(pair_of(&pair), "7:bolts", reason="a tuple of inspectable elements")

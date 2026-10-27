@@ -8,5 +8,5 @@ trait Clock:
 fn current_time() -> i32 $ Clock:
     $.use(Clock).now()
 
-fn stamp(time: i32 = current_time()) -> i32 $ Clock:  # diagnostic: requirement-in-default
+fn stamp(time: i32 = current_time()) -> i32 $ Clock: # diagnostic: requirement-in-default
     time

@@ -24,19 +24,18 @@ fn ring(round: i32) -> i32:
     second := &mut Stop { name: "second $round", next: .Some(first) }
     first.next = .Some(second)
     match first.next:
-        .Some(stop) => if stop.name == "second $round": 1 else: 0
+        .Some(stop) =>
+            if stop.name == "second $round": 1 else: 0
         .None => 0
 
 fn sum_to(limit: i32) -> i32:
     sum := fn(n: i32) -> i32:
-        if n == 0: 0
-        else: n + sum(n - 1)
+        if n == 0: 0 else: n + sum(n - 1)
     sum(limit)
 
 fn biased_sum_to(limit: i32, seed: i32) -> i32:
     sum := fn(n: i32) -> i32:
-        if n == 0: seed
-        else: n + sum(n - 1)
+        if n == 0: seed else: n + sum(n - 1)
     sum(limit)
 
 struct FrameRing:
@@ -72,7 +71,6 @@ fn bodies(xs: List[Body]) -> i32:
 fn apply(f: fn(i32) -> i32) -> i32:
     f(1)
 
-
 struct Dir:
     value: i32
     kids: List[Dir]
@@ -97,7 +95,6 @@ fn copied_list_ring(n: i32) -> i32:
     assert(list_count(xs) == 1, "a copied cyclic list keeps its element")
     first.next[0].value
 
-
 let traced: usize = 0
 let probe: usize = 0
 
@@ -110,7 +107,6 @@ fn unexpected_release(address: usize) -> void:
 
 fn unexpected_free(block: usize) -> void:
     panic("a live probe frame must not be freed")
-
 
 tests:
     it("a running frame remains a candidate until its saved slots are stable"):
@@ -144,8 +140,14 @@ tests:
         while round < 1000:
             total = total + floats(xs) + bodies(bs) + apply(add)
             round = round + 1
-        assert(pending() == before, "no list, struct or closure of acyclic types became a candidate")
-        assert(total == 7000 && xs.len() == 2 && bs.len() == 1 && add(0) == 3, "the values stay alive")
+        assert(
+            pending() == before,
+            "no list, struct or closure of acyclic types became a candidate",
+        )
+        assert(
+            total == 7000 && xs.len() == 2 && bs.len() == 1 && add(0) == 3,
+            "the values stay alive",
+        )
         _ := ring(+1)
         assert(pending() > before, "a dropped ring of references is a candidate")
 
@@ -178,7 +180,10 @@ tests:
             total += sum_to(round % 10)
             total += biased_sum_to(round % 10, 1)
         assert(total == 6800000, "recursive closures keep their own captured seed")
-        assert(pending() == before, "neither a cell nor an environment back-link becomes a candidate")
+        assert(
+            pending() == before,
+            "neither a cell nor an environment back-link becomes a candidate",
+        )
 
     it("dropped argument and capture frame cycles reuse their heap"):
         let total = +0

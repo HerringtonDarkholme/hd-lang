@@ -7,5 +7,7 @@ trait Named:
 struct User: pass
 
 impl Named for User:
-    fn name(self) -> string: "Ada"
-    fn name(self) -> string: "Grace"  # diagnostic: duplicate-trait-member
+    fn name(self) -> string:
+        "Ada"
+    fn name(self) -> string: # diagnostic: duplicate-trait-member
+        "Grace"

@@ -7,7 +7,7 @@ fn ready!() -> i32:
 
 fn wait_now() -> i32:
     let pending: mut Suspend[i32] = ready()
-    match block_on(pending):  # panic: suspension-forbidden-context
+    match block_on(pending): # panic: suspension-forbidden-context
         .Completed(value) => value
         _ => 0
 

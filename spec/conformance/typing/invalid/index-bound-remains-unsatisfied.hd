@@ -2,7 +2,8 @@
 # trait.bound.unsatisfied.
 use std.ops.Index
 
-fn need_index[T < Index[usize]](value: T) -> void: pass
+fn need_index[T < Index[usize]](value: T) -> void:
+    pass
 
 fn run() -> void:
-    need_index(+0)  # diagnostic: unsatisfied-trait-bound
+    need_index(+0) # diagnostic: unsatisfied-trait-bound

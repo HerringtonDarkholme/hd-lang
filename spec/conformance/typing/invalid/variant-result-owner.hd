@@ -4,4 +4,4 @@ enum Other(i32):
     Value -> Other(1)
 
 enum Status(i32):
-    Broken -> Other(2)  # diagnostic: variant-result-owner
+    Broken -> Other(2) # diagnostic: variant-result-owner

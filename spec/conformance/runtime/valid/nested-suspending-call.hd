@@ -1,7 +1,9 @@
 # test: nested suspending call
 
-fn child!() -> i32: 41
-fn main!() -> i32: child!() + 1
+fn child!() -> i32:
+    41
+fn main!() -> i32:
+    child!() + 1
 
 tests:
     use std.testing.assert_equal

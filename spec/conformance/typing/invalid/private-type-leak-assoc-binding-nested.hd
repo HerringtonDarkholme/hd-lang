@@ -11,6 +11,6 @@ pub struct Maker:
     k: i32
 
 impl Make for Maker:
-    type Out = List[Hidden]  # diagnostic: private-type-leak
+    type Out = List[Hidden] # diagnostic: private-type-leak
     fn make(self) -> List[Hidden]:
         []

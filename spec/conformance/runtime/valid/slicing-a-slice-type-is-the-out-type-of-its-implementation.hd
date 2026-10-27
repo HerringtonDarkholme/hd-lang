@@ -7,8 +7,10 @@ use std.ops.{Index, Range}
 fn head[C < Index[Range[usize]]](items: C) -> C::Out:
     items[0..1]
 
-fn texts(text: string) -> string: head(text)
-fn lists(items: List[i32]) -> List[i32]: head(items)
+fn texts(text: string) -> string:
+    head(text)
+fn lists(items: List[i32]) -> List[i32]:
+    head(items)
 fn grown(items: List[i32]) -> List[i32]:
     let mut part = items[0..2]
     part.push(9)

@@ -33,5 +33,13 @@ tests:
     use std.testing.assert_equal
 
     it("? converts the error once through From"):
-        assert_equal(describe(sync("config.toml")), "synced theme = dark", reason="the success passes through")
-        assert_equal(describe(sync("cache.db")), "missing cache.db", reason="FsError became SyncError")
+        assert_equal(
+            describe(sync("config.toml")),
+            "synced theme = dark",
+            reason="the success passes through",
+        )
+        assert_equal(
+            describe(sync("cache.db")),
+            "missing cache.db",
+            reason="FsError became SyncError",
+        )

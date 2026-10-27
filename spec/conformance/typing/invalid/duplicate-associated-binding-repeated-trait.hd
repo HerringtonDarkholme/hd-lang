@@ -4,5 +4,5 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-fn count[I < Supplier[Item = i32] & Supplier[Item = string]](source: I) -> i32:  # diagnostic: duplicate-associated-binding
+fn count[I < Supplier[Item = i32] & Supplier[Item = string]](source: I) -> i32: # diagnostic: duplicate-associated-binding
     0

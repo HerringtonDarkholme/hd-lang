@@ -13,12 +13,24 @@ tests:
     it("as_i64 gives the integers in the i64 range"):
         assert_equal(read("42").as_i64(), .Some(42), reason="small")
         assert_equal(read("-3").as_i64(), .Some(-3), reason="negative")
-        assert_equal(read("-9223372036854775808").as_i64(), .Some(-9223372036854775808), reason="i64 min")
-        assert_equal(read("9223372036854775807").as_i64(), .Some(9223372036854775807), reason="i64 max")
+        assert_equal(
+            read("-9223372036854775808").as_i64(),
+            .Some(-9223372036854775808),
+            reason="i64 min",
+        )
+        assert_equal(
+            read("9223372036854775807").as_i64(),
+            .Some(9223372036854775807),
+            reason="i64 max",
+        )
         assert_equal(read("9223372036854775808").as_i64(), .None, reason="past i64 max")
 
     it("as_u64 gives the integers from zero up"):
-        assert_equal(read("18446744073709551615").as_u64(), .Some(18446744073709551615), reason="u64 max")
+        assert_equal(
+            read("18446744073709551615").as_u64(),
+            .Some(18446744073709551615),
+            reason="u64 max",
+        )
         assert_equal(read("0").as_u64(), .Some(0), reason="zero")
         assert_equal(read("-1").as_u64(), .None, reason="negative")
 
@@ -31,7 +43,11 @@ tests:
     it("as_f64 gives every number, an integer as the nearest f64"):
         assert_equal(read("2.5").as_f64(), .Some(2.5), reason="float")
         assert_equal(read("-3").as_f64(), .Some(-3.0), reason="integer")
-        assert_equal(read("18446744073709551615").as_f64(), .Some(18446744073709551616.0), reason="nearest")
+        assert_equal(
+            read("18446744073709551615").as_f64(),
+            .Some(18446744073709551616.0),
+            reason="nearest",
+        )
 
     it("any other kind is .None"):
         assert_equal(read("\"2\"").as_i64(), .None, reason="text")

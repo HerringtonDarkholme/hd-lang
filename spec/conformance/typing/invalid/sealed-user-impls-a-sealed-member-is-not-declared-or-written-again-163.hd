@@ -5,4 +5,4 @@ trait Plugin < Inspectable:
     fn name(self) -> string
 
 trait Loud < Plugin:
-    fn runtime_type(self) -> TypeId  # diagnostic: sealed-trait-implementation
+    fn runtime_type(self) -> TypeId # diagnostic: sealed-trait-implementation

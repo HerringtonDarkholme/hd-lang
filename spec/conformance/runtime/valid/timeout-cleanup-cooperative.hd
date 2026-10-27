@@ -16,7 +16,8 @@ struct Flush:
 
 impl Disposable for Flush:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("closed at ${self.clock.now().unix_milliseconds()}")
+        defer:
+            self.log.push("closed at ${self.clock.now().unix_milliseconds()}")
         self.clock.sleep!(ms(200))
         self.log.push("flushed at ${self.clock.now().unix_milliseconds()}")
         let mut ack = self.ack
@@ -30,7 +31,11 @@ fn silent!() -> void $ Clock:
 fn quick!() -> void:
     pass
 
-fn flush!(log: *mut List[string], ack: mut Suspend[void], bound: Duration) -> Result[void, TimedOut] $ Clock:
+fn flush!(
+    log: *mut List[string],
+    ack: mut Suspend[void],
+    bound: Duration,
+) -> Result[void, TimedOut] $ Clock:
     let reply: mut Suspend[void] = silent()
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):

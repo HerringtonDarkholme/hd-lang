@@ -12,7 +12,8 @@ struct Close:
 
 impl Disposable for Close:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("closed")
+        defer:
+            self.log.push("closed")
         self.log.push("closing")
         let mut ack = self.ack
         ack!()
@@ -44,6 +45,10 @@ fn mark!(log: &mut List[string], at: Duration, text: string) -> void $ Clock:
 
 pub fn main!() -> void $ Console + Clock:
     let mut log: List[string] = []
-    let (outcome, _, _) = all!(race(request(&mut log), caller_cancels(&mut log)), mark(&mut log, ms(250), "still closing"), mark(&mut log, ms(400), "after deadline"))
+    let (outcome, _, _) = all!(
+        race(request(&mut log), caller_cancels(&mut log)),
+        mark(&mut log, ms(250), "still closing"),
+        mark(&mut log, ms(400), "after deadline"),
+    )
     println(outcome)
     println(log.join(", "))

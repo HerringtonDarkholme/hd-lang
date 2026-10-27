@@ -11,4 +11,4 @@ fn make() -> Point:
     Point { x: 0, y: 0 }
 
 fn demo() -> void:
-    make().shift(1)  # a writable receiver temporary
+    make().shift(1) # a writable receiver temporary

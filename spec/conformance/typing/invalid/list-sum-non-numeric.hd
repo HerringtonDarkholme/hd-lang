@@ -5,4 +5,4 @@ fn total(values: List[i32]) -> i32:
     values.sum()
 
 fn joined(words: List[string]) -> string:
-    words.sum()  # diagnostic: unsatisfied-trait-bound
+    words.sum() # diagnostic: unsatisfied-trait-bound

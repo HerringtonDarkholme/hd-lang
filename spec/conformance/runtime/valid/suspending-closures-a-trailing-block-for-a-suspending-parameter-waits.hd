@@ -1,6 +1,6 @@
 # test: a trailing block for a suspending parameter waits
 # expect-stdout: took 3 calls 3
-fn retry_n![$R](times: i32, attempt: fn!() -> bool $ R) -> i32 $ R:
+fn retry_n![$ R](times: i32, attempt: fn!() -> bool $ R) -> i32 $ R:
     ok := attempt!()
     if ok || times <= 1:
         return 1

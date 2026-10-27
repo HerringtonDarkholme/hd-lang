@@ -1,5 +1,5 @@
 # test: a written type that omits a slot without a default is an error
 # Spec 04 Type-Argument Defaults: types.generic.default.written-missing (Type-Argument Defaults TD3, TD4).
 
-fn size(counts: Map[string]) -> i32:  # diagnostic: partial-generic-arguments
+fn size(counts: Map[string]) -> i32: # diagnostic: partial-generic-arguments
     0

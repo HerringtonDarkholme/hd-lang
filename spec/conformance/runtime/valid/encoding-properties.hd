@@ -76,7 +76,11 @@ fn verify_hex(bytes: List[u8]) -> void:
     expected := reference_encode(bytes, "0123456789abcdef", 4, false)
     actual := hex_encode(bytes)
     assert_equal(actual, expected, reason="hex agrees with independent binary digits")
-    assert_equal(reference_decode(actual, "0123456789abcdef", 4), bytes, reason="the independent reader recovers each byte")
+    assert_equal(
+        reference_decode(actual, "0123456789abcdef", 4),
+        bytes,
+        reason="the independent reader recovers each byte",
+    )
     assert_equal(hex_decode(expected), .Ok(bytes), reason="hex reads the reference text")
     assert_equal(hex_decode(actual), .Ok(bytes), reason="hex round trip")
     assert_equal(hex_decode(actual.upper()), .Ok(bytes), reason="uppercase hex round trip")
@@ -86,7 +90,11 @@ fn verify_base64(encoding: Base64, bytes: List[u8]) -> void:
     expected := reference_encode(bytes, digits, 6, padded(encoding))
     actual := encoding.encode(bytes)
     assert_equal(actual, expected, reason="base64 agrees with independent binary digits")
-    assert_equal(reference_decode(actual, digits, 6), bytes, reason="the independent reader recovers each byte")
+    assert_equal(
+        reference_decode(actual, digits, 6),
+        bytes,
+        reason="the independent reader recovers each byte",
+    )
     assert_equal(encoding.decode(expected), .Ok(bytes), reason="base64 reads the reference text")
     assert_equal(encoding.decode(actual), .Ok(bytes), reason="base64 round trip")
 
@@ -112,98 +120,159 @@ struct BadBase64:
     error: DecodeError
 
 tests:
-    it_prop("hex matches the bitstream model and round trips", cases=100, prop=fn!(bytes: List[u8]):
-        verify_hex(bytes)
+    it_prop(
+        "hex matches the bitstream model and round trips",
+        cases=100,
+        prop=fn!(bytes: List[u8]): verify_hex(bytes)
+        ,
     )
 
-    it_prop("Standard base64 matches the bitstream model and round trips", cases=100, prop=fn!(bytes: List[u8]):
-        verify_base64(.Standard, bytes)
+    it_prop(
+        "Standard base64 matches the bitstream model and round trips",
+        cases=100,
+        prop=fn!(bytes: List[u8]): verify_base64(.Standard, bytes)
+        ,
     )
 
-    it_prop("StandardNoPad base64 matches the bitstream model and round trips", cases=100, prop=fn!(bytes: List[u8]):
-        verify_base64(.StandardNoPad, bytes)
+    it_prop(
+        "StandardNoPad base64 matches the bitstream model and round trips",
+        cases=100,
+        prop=fn!(bytes: List[u8]): verify_base64(.StandardNoPad, bytes)
+        ,
     )
 
-    it_prop("Url base64 matches the bitstream model and round trips", cases=100, prop=fn!(bytes: List[u8]):
-        verify_base64(.Url, bytes)
+    it_prop(
+        "Url base64 matches the bitstream model and round trips",
+        cases=100,
+        prop=fn!(bytes: List[u8]): verify_base64(.Url, bytes)
+        ,
     )
 
-    it_prop("UrlNoPad base64 matches the bitstream model and round trips", cases=100, prop=fn!(bytes: List[u8]):
-        verify_base64(.UrlNoPad, bytes)
+    it_prop(
+        "UrlNoPad base64 matches the bitstream model and round trips",
+        cases=100,
+        prop=fn!(bytes: List[u8]): verify_base64(.UrlNoPad, bytes)
+        ,
     )
 
-    it_each("canonical vectors cover empty input and incomplete groups", rows=[
-        Vector { bytes: [], hex: "", standard: "", url: "" },
-        Vector { bytes: [102], hex: "66", standard: "Zg==", url: "Zg==" },
-        Vector { bytes: [102, 111], hex: "666f", standard: "Zm8=", url: "Zm8=" },
-        Vector { bytes: [102, 111, 111], hex: "666f6f", standard: "Zm9v", url: "Zm9v" },
-        Vector { bytes: [102, 111, 111, 98], hex: "666f6f62", standard: "Zm9vYg==", url: "Zm9vYg==" },
-        Vector { bytes: [102, 111, 111, 98, 97], hex: "666f6f6261", standard: "Zm9vYmE=", url: "Zm9vYmE=" },
-        Vector { bytes: [102, 111, 111, 98, 97, 114], hex: "666f6f626172", standard: "Zm9vYmFy", url: "Zm9vYmFy" },
-        Vector { bytes: [0], hex: "00", standard: "AA==", url: "AA==" },
-        Vector { bytes: [255], hex: "ff", standard: "/w==", url: "_w==" },
-        Vector { bytes: [251, 255], hex: "fbff", standard: "+/8=", url: "-_8=" },
-        Vector { bytes: [251, 255, 191], hex: "fbffbf", standard: "+/+/", url: "-_-_" }
-    ], body=fn!(row: Vector):
-        assert_equal(hex_encode(row.bytes), row.hex, reason="known hex vector")
-        assert_equal(hex_decode(row.hex), .Ok(row.bytes), reason="known hex payload")
-        for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:
-            let expected = if encoding == .Standard || encoding == .StandardNoPad: row.standard else: row.url
-            if !padded(encoding):
-                expected = without_padding(expected)
-            assert_equal(encoding.encode(row.bytes), expected, reason="known base64 vector")
-            assert_equal(encoding.decode(expected), .Ok(row.bytes), reason="known base64 payload")
-            verify_base64(encoding, row.bytes)
+    it_each(
+        "canonical vectors cover empty input and incomplete groups",
+        rows=[
+            Vector { bytes: [], hex: "", standard: "", url: "" },
+            Vector { bytes: [102], hex: "66", standard: "Zg==", url: "Zg==" },
+            Vector { bytes: [102, 111], hex: "666f", standard: "Zm8=", url: "Zm8=" },
+            Vector { bytes: [102, 111, 111], hex: "666f6f", standard: "Zm9v", url: "Zm9v" },
+            Vector {
+                bytes: [102, 111, 111, 98],
+                hex: "666f6f62",
+                standard: "Zm9vYg==",
+                url: "Zm9vYg==",
+            },
+            Vector {
+                bytes: [102, 111, 111, 98, 97],
+                hex: "666f6f6261",
+                standard: "Zm9vYmE=",
+                url: "Zm9vYmE=",
+            },
+            Vector {
+                bytes: [102, 111, 111, 98, 97, 114],
+                hex: "666f6f626172",
+                standard: "Zm9vYmFy",
+                url: "Zm9vYmFy",
+            },
+            Vector { bytes: [0], hex: "00", standard: "AA==", url: "AA==" },
+            Vector { bytes: [255], hex: "ff", standard: "/w==", url: "_w==" },
+            Vector { bytes: [251, 255], hex: "fbff", standard: "+/8=", url: "-_8=" },
+            Vector { bytes: [251, 255, 191], hex: "fbffbf", standard: "+/+/", url: "-_-_" },
+        ],
+        body=fn!(row: Vector):
+            assert_equal(hex_encode(row.bytes), row.hex, reason="known hex vector")
+            assert_equal(hex_decode(row.hex), .Ok(row.bytes), reason="known hex payload")
+            for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:
+                let expected = if encoding == .Standard || encoding == .StandardNoPad:
+                    row.standard
+                else:
+                    row.url
+                if !padded(encoding):
+                    expected = without_padding(expected)
+                assert_equal(encoding.encode(row.bytes), expected, reason="known base64 vector")
+                assert_equal(
+                    encoding.decode(expected),
+                    .Ok(row.bytes),
+                    reason="known base64 payload",
+                )
+                verify_base64(encoding, row.bytes)
+        ,
     )
 
-    it_each("byte and length boundaries agree with the reference", rows=[0, 1, 2, 3, 4, 5, 6, 7, 8, 15, 16, 17, 31, 32, 33, 63, 64, 65, 255, 256, 257], body=fn!(length: usize):
-        let mut bytes: List[u8] = []
-        for index in 0..length:
-            bytes.push(u8(index % 256))
-        verify_hex(bytes)
-        for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:
-            verify_base64(encoding, bytes)
+    it_each(
+        "byte and length boundaries agree with the reference",
+        rows=[0, 1, 2, 3, 4, 5, 6, 7, 8, 15, 16, 17, 31, 32, 33, 63, 64, 65, 255, 256, 257],
+        body=fn!(length: usize):
+            let mut bytes: List[u8] = []
+            for index in 0..length:
+                bytes.push(u8(index % 256))
+            verify_hex(bytes)
+            for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:
+                verify_base64(encoding, bytes)
+        ,
     )
 
-    it_each("hex rejects bad digits and checks byte length first", rows=[
-        BadHex { text: "0", error: .InvalidLength(1) },
-        BadHex { text: "zz1", error: .InvalidLength(3) },
-        BadHex { text: "0g", error: .InvalidCharacter(1) },
-        BadHex { text: "g0", error: .InvalidCharacter(0) },
-        BadHex { text: " 0", error: .InvalidCharacter(0) },
-        BadHex { text: "00\n0", error: .InvalidCharacter(2) },
-        BadHex { text: "é0", error: .InvalidLength(3) },
-        BadHex { text: "é00", error: .InvalidCharacter(0) },
-        BadHex { text: "0λ0", error: .InvalidCharacter(1) }
-    ], body=fn!(row: BadHex):
-        assert_equal(hex_decode(row.text), .Err(row.error), reason="hex refusal kind and byte offset")
+    it_each(
+        "hex rejects bad digits and checks byte length first",
+        rows=[
+            BadHex { text: "0", error: .InvalidLength(1) },
+            BadHex { text: "zz1", error: .InvalidLength(3) },
+            BadHex { text: "0g", error: .InvalidCharacter(1) },
+            BadHex { text: "g0", error: .InvalidCharacter(0) },
+            BadHex { text: " 0", error: .InvalidCharacter(0) },
+            BadHex { text: "00\n0", error: .InvalidCharacter(2) },
+            BadHex { text: "é0", error: .InvalidLength(3) },
+            BadHex { text: "é00", error: .InvalidCharacter(0) },
+            BadHex { text: "0λ0", error: .InvalidCharacter(1) },
+        ],
+        body=fn!(row: BadHex):
+            assert_equal(
+                hex_decode(row.text),
+                .Err(row.error),
+                reason="hex refusal kind and byte offset",
+            )
+        ,
     )
 
-    it_each("base64 rejects bad alphabets lengths and padding", rows=[
-        BadBase64 { encoding: .Standard, text: "Zg", error: .InvalidLength(2) },
-        BadBase64 { encoding: .Url, text: "Zg=", error: .InvalidLength(3) },
-        BadBase64 { encoding: .StandardNoPad, text: "Z", error: .InvalidLength(1) },
-        BadBase64 { encoding: .UrlNoPad, text: "Zm9vY", error: .InvalidLength(5) },
-        BadBase64 { encoding: .Standard, text: "Zm-_", error: .InvalidCharacter(2) },
-        BadBase64 { encoding: .StandardNoPad, text: "Zm_v", error: .InvalidCharacter(2) },
-        BadBase64 { encoding: .Url, text: "Zm+/", error: .InvalidCharacter(2) },
-        BadBase64 { encoding: .UrlNoPad, text: "Zm9/", error: .InvalidCharacter(3) },
-        BadBase64 { encoding: .Standard, text: "Zg=a", error: .InvalidPadding(2) },
-        BadBase64 { encoding: .Url, text: "Z===", error: .InvalidPadding(1) },
-        BadBase64 { encoding: .Standard, text: "====", error: .InvalidPadding(0) },
-        BadBase64 { encoding: .Url, text: "Zg==Zg==", error: .InvalidPadding(2) },
-        BadBase64 { encoding: .Standard, text: "Zh==", error: .InvalidPadding(1) },
-        BadBase64 { encoding: .Url, text: "Zm9=", error: .InvalidPadding(2) },
-        BadBase64 { encoding: .StandardNoPad, text: "Zg==", error: .InvalidPadding(2) },
-        BadBase64 { encoding: .UrlNoPad, text: "Zm8=", error: .InvalidPadding(3) },
-        BadBase64 { encoding: .StandardNoPad, text: "Zh", error: .InvalidPadding(1) },
-        BadBase64 { encoding: .UrlNoPad, text: "Zm9", error: .InvalidPadding(2) },
-        BadBase64 { encoding: .Standard, text: "!h==", error: .InvalidCharacter(0) },
-        BadBase64 { encoding: .Standard, text: " Zg=", error: .InvalidCharacter(0) },
-        BadBase64 { encoding: .Standard, text: "Zm9v\n", error: .InvalidLength(5) },
-        BadBase64 { encoding: .UrlNoPad, text: "Zm\nv", error: .InvalidCharacter(2) },
-        BadBase64 { encoding: .Standard, text: "Zé=", error: .InvalidCharacter(1) },
-        BadBase64 { encoding: .UrlNoPad, text: "Zé", error: .InvalidCharacter(1) }
-    ], body=fn!(row: BadBase64):
-        assert_equal(row.encoding.decode(row.text), .Err(row.error), reason="base64 refusal kind and byte offset")
+    it_each(
+        "base64 rejects bad alphabets lengths and padding",
+        rows=[
+            BadBase64 { encoding: .Standard, text: "Zg", error: .InvalidLength(2) },
+            BadBase64 { encoding: .Url, text: "Zg=", error: .InvalidLength(3) },
+            BadBase64 { encoding: .StandardNoPad, text: "Z", error: .InvalidLength(1) },
+            BadBase64 { encoding: .UrlNoPad, text: "Zm9vY", error: .InvalidLength(5) },
+            BadBase64 { encoding: .Standard, text: "Zm-_", error: .InvalidCharacter(2) },
+            BadBase64 { encoding: .StandardNoPad, text: "Zm_v", error: .InvalidCharacter(2) },
+            BadBase64 { encoding: .Url, text: "Zm+/", error: .InvalidCharacter(2) },
+            BadBase64 { encoding: .UrlNoPad, text: "Zm9/", error: .InvalidCharacter(3) },
+            BadBase64 { encoding: .Standard, text: "Zg=a", error: .InvalidPadding(2) },
+            BadBase64 { encoding: .Url, text: "Z===", error: .InvalidPadding(1) },
+            BadBase64 { encoding: .Standard, text: "====", error: .InvalidPadding(0) },
+            BadBase64 { encoding: .Url, text: "Zg==Zg==", error: .InvalidPadding(2) },
+            BadBase64 { encoding: .Standard, text: "Zh==", error: .InvalidPadding(1) },
+            BadBase64 { encoding: .Url, text: "Zm9=", error: .InvalidPadding(2) },
+            BadBase64 { encoding: .StandardNoPad, text: "Zg==", error: .InvalidPadding(2) },
+            BadBase64 { encoding: .UrlNoPad, text: "Zm8=", error: .InvalidPadding(3) },
+            BadBase64 { encoding: .StandardNoPad, text: "Zh", error: .InvalidPadding(1) },
+            BadBase64 { encoding: .UrlNoPad, text: "Zm9", error: .InvalidPadding(2) },
+            BadBase64 { encoding: .Standard, text: "!h==", error: .InvalidCharacter(0) },
+            BadBase64 { encoding: .Standard, text: " Zg=", error: .InvalidCharacter(0) },
+            BadBase64 { encoding: .Standard, text: "Zm9v\n", error: .InvalidLength(5) },
+            BadBase64 { encoding: .UrlNoPad, text: "Zm\nv", error: .InvalidCharacter(2) },
+            BadBase64 { encoding: .Standard, text: "Zé=", error: .InvalidCharacter(1) },
+            BadBase64 { encoding: .UrlNoPad, text: "Zé", error: .InvalidCharacter(1) },
+        ],
+        body=fn!(row: BadBase64):
+            assert_equal(
+                row.encoding.decode(row.text),
+                .Err(row.error),
+                reason="base64 refusal kind and byte offset",
+            )
+        ,
     )

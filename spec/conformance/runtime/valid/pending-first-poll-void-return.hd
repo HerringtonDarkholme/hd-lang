@@ -25,4 +25,8 @@ fn run!(state: &mut State) -> void $ Console:
 pub fn main!() -> void $ Console:
     let mut state = State { count: 0 }
     run!(&mut state)
-    assert_equal(state.count, 1, reason="the early return skipped the assignment and defer ran once")
+    assert_equal(
+        state.count,
+        1,
+        reason="the early return skipped the assignment and defer ran once",
+    )

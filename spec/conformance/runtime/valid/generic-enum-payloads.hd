@@ -9,7 +9,8 @@ enum Tree[T]:
     Leaf(value: T)
     Branch(left: *Tree[T], right: *Tree[T])
 
-fn keep[T](value: Maybe[T]) -> Maybe[T]: value
+fn keep[T](value: Maybe[T]) -> Maybe[T]:
+    value
 
 fn unwrap(value: Maybe[i32]) -> i32:
     match value:

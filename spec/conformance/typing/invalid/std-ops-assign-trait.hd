@@ -1,3 +1,3 @@
 # test: std.ops declares no assign trait such as AddAssign
 # Spec 05 Compound Assignment: expr.assign.compound.no-assign-traits.
-use std.ops.AddAssign  # diagnostic: unknown-import
+use std.ops.AddAssign # diagnostic: unknown-import

@@ -7,19 +7,20 @@
 # expect-stdout: -21 -2 true
 # expect-stdout: 1
 # expect-stdout: true false
-fn smaller(items: List[i32], limit: usize) -> bool: items.len()<limit
+fn smaller(items: List[i32], limit: usize) -> bool:
+    items.len() < limit
 
 pub fn main() -> void $ Console:
     a := +7
     b := +3
     println("${a<b} ${a>b} ${a<=b} ${a>=b} ${a==b} ${a!=b}")
     println("${a--b} ${a+-b} ${a- -b} ${a<<2} ${a>>1}")
-    x:=-b
+    x := -b
     let y = +0
-    y=-b
+    y = -b
     println("$x $y ${a<-1} ${a!=-b}")
     println("${a*-b} ${a/-b} ${!(a<b)}")
     let z = +7
-    z%=3
+    z %= 3
     println(z)
     println("${smaller([+1], 2)} ${smaller([+1, +2], 2)}")

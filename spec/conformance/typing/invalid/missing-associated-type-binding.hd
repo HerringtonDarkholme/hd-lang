@@ -7,5 +7,6 @@ trait Supplier:
 
 struct Numbers: pass
 
-impl Supplier for Numbers:  # diagnostic: missing-trait-method
-    fn get(self) -> i32: 1
+impl Supplier for Numbers: # diagnostic: missing-trait-method
+    fn get(self) -> i32:
+        1

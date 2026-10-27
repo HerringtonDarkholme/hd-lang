@@ -9,5 +9,5 @@ fn parse(text: string) -> Result[i32, ParseError]:
     if text == "": .Err(ParseError.Empty) else: .Ok(1)
 
 fn doubled(text: string) -> Result[i32, string]:
-    n := parse(text)?  # diagnostic: invalid-result-propagation
+    n := parse(text)? # diagnostic: invalid-result-propagation
     .Ok(n * 2)

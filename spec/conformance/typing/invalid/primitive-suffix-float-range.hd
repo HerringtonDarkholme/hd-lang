@@ -1,3 +1,3 @@
 # test: a floating primitive suffix fixes its finite range
 fn value() -> f32:
-    1e39f32  # diagnostic: float-literal-range
+    1e39f32 # diagnostic: float-literal-range

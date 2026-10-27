@@ -3,7 +3,8 @@ pub struct Failure:
     text: string
 
 impl Display for Failure:
-    fn to_string(self) -> string: self.text
+    fn to_string(self) -> string:
+        self.text
 
-pub fn main() -> Result[void, Failure]:  # diagnostic: unsatisfied-trait-bound
+pub fn main() -> Result[void, Failure]: # diagnostic: unsatisfied-trait-bound
     .Err(Failure { text: "failed" })

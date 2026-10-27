@@ -2,5 +2,5 @@
 # Spec 11 Row Slots: req.row.slot.list; Requirement Keys: req.key.traits.
 use std.function.Fn
 
-fn schedule(job: Fn[(), void, $ Mailer]) -> void:  # diagnostic: unknown-trait
+fn schedule(job: Fn[(), void, $ Mailer]) -> void: # diagnostic: unknown-trait
     pass

@@ -1,2 +1,2 @@
 # test: callers send on Request instead of importing the removed free send helper
-use std.http.send  # diagnostic: unknown-import
+use std.http.send # diagnostic: unknown-import

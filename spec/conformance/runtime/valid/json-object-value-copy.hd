@@ -31,7 +31,9 @@ pub fn main() -> void $ Console:
     _ := copy.remove("k3")
     copy.set("k3", Json.Text("again"))
     keys := copy.keys()
-    println("${big.len()} ${shown(big.get("k3"))} ${copy.len()} ${shown(copy.get("k3"))} ${keys[keys.len() - 1]}")
+    println(
+        "${big.len()} ${shown(big.get("k3"))} ${copy.len()} ${shown(copy.get("k3"))} ${keys[keys.len() - 1]}",
+    )
     shared := &mut big
     shared.set("k0", Json.Null)
     println(shown(big.get("k0")))

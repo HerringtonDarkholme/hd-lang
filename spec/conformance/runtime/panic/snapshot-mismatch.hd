@@ -4,4 +4,4 @@ tests:
     use std.testing.snapshot
 
     it("the text differs from the expectation"):
-        snapshot("hello, Ada", expect="hello, Grace")  # panic: assertion-failed
+        snapshot("hello, Ada", expect="hello, Grace") # panic: assertion-failed

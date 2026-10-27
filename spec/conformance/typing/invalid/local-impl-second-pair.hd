@@ -12,7 +12,7 @@ fn receipt(rush: bool) -> i32:
             self.unit
 
     if rush:
-        impl Priced for Line:  # diagnostic: overlapping-impl
+        impl Priced for Line: # diagnostic: overlapping-impl
             fn price(self) -> i32:
                 self.unit * 2
 

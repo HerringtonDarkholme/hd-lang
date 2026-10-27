@@ -2,8 +2,10 @@ use std.text.StringBuilder
 use std.console.eprintln
 use std.error.Error
 
-fn builder(value: StringBuilder) -> void: pass
-fn errors[T < Error](value: T) -> void: pass
+fn builder(value: StringBuilder) -> void:
+    pass
+fn errors[T < Error](value: T) -> void:
+    pass
 
 fn helpers() -> void $ Console:
     _number := "1.5".parse::[f64]()

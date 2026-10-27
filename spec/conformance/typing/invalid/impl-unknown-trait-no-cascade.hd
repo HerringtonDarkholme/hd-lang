@@ -3,10 +3,12 @@
 struct CliError:
     message: string
 
-impl From[string] for CliError:  # diagnostic: unknown-trait
-    fn from(message: string) -> CliError: CliError { message: message }
+impl From[string] for CliError: # diagnostic: unknown-trait
+    fn from(message: string) -> CliError:
+        CliError { message: message }
 
-fn parse(text: string) -> Result[i32, string]: .Err(text)
+fn parse(text: string) -> Result[i32, string]:
+    .Err(text)
 
 fn run(text: string) -> Result[i32, CliError]:
     value := parse(text)?

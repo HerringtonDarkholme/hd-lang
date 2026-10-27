@@ -4,11 +4,8 @@
 # expect-stdout: 5
 
 fn pick(`if`: bool, `else`: i32 = 2) -> i32:
-    if `if`:
-        `else` * 10
-    else:
-        `else`
+    if `if`: `else` * 10 else: `else`
 
 pub fn main() -> void $ Console:
-    println(pick(`if` = true))
-    println(pick(`if` = false, `else` = +5))
+    println(pick(`if`=true))
+    println(pick(`if`=false, `else`=+5))

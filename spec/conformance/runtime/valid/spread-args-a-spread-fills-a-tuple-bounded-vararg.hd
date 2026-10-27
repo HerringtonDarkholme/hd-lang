@@ -5,8 +5,10 @@
 # expect-stdout: 1a
 use std.function.Tuple
 
-fn pack[Args < Tuple](args...: Args) -> Args: args
-fn label(parts...: (i32, string)) -> string: "${parts._0}${parts._1}"
+fn pack[Args < Tuple](args...: Args) -> Args:
+    args
+fn label(parts...: (i32, string)) -> string:
+    "${parts._0}${parts._1}"
 
 pub fn main() -> void $ Console:
     pair := (+3, +4)

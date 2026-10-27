@@ -6,4 +6,5 @@ struct Local:
     n: i32
 
 impl Tagged for Local:
-    fn tag(self) -> string: "local"
+    fn tag(self) -> string:
+        "local"

@@ -2,7 +2,7 @@
 # Spec 03 Module Execution Scope: names.exec.not-usable. The tree's src/config.hd binds
 # limit := +3 at top level and declares the public function scaled.
 # fixture-package-tree: exec-binding/src/user.hd
-use pkg.config.{limit}  # diagnostic: unknown-import
+use pkg.config.{limit} # diagnostic: unknown-import
 
 pub fn doubled() -> i32:
     limit * 2

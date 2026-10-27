@@ -7,5 +7,5 @@ fn move_stock(stock: &mut Stock, shelves: &mut Map[string, Stock]) -> void:
     shelves["pear"] = Stock { count: stock.count }
 
 fn demo() -> void:
-    let mut shelves: Map[string, Stock] = {"apple": Stock { count: 1 }}
-    move_stock(&mut shelves["apple"], &mut shelves)  # diagnostic: conflicting-access
+    let mut shelves: Map[string, Stock] = { "apple": Stock { count: 1 } }
+    move_stock(&mut shelves["apple"], &mut shelves) # diagnostic: conflicting-access

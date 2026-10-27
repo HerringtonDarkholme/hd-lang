@@ -6,4 +6,5 @@ trait Named:
 struct User:
     value: i32
 impl Named for User:
-    fn name(self) -> i32: 0  # diagnostic: trait-method-signature
+    fn name(self) -> i32: # diagnostic: trait-method-signature
+        0

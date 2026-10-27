@@ -5,4 +5,4 @@ use std.process.Command
 fn same() -> bool:
     left := Command::new("git").arg("log")
     right := Command::new("git").arg("log")
-    left == right  # diagnostic: reference-equality
+    left == right # diagnostic: reference-equality

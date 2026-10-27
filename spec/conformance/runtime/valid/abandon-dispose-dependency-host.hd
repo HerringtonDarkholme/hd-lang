@@ -16,7 +16,8 @@ struct Channel:
 
 impl Disposable for Channel:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("channel defer")
+        defer:
+            self.log.push("channel defer")
         self.log.push("send close")
         let mut wait = self.ack
         wait!()

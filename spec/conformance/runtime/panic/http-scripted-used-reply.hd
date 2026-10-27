@@ -5,4 +5,4 @@ pub fn main() -> void:
     response := Response::status(.Ok).set_text("already read")
     _ := response.text()
     http := ScriptedHttp::new()
-    http.reply("https://example.test/", .Ok(response))  # panic: explicit-panic
+    http.reply("https://example.test/", .Ok(response)) # panic: explicit-panic

@@ -1,1 +1,2 @@
-pub fn label() -> string: "library checkout"
+pub fn label() -> string:
+    "library checkout"

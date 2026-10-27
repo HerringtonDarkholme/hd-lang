@@ -25,20 +25,34 @@ tests:
         $.with(FsRead=files, FsWrite=files):
             assert_equal(copy_notes!(), .Ok(()), reason="read and written through one object")
             assert_equal(size_of!(Path("notes.bak")), 4, reason="the read provider sees the write")
-        assert_equal(files.read_text!(Path("notes.bak")), .Ok("tea!"), reason="the test reads what the code wrote")
+        assert_equal(
+            files.read_text!(Path("notes.bak")),
+            .Ok("tea!"),
+            reason="the test reads what the code wrote",
+        )
 
     it("a copy of the struct is its own file system"):
         files := MemoryFs::new()
         seed!(files)
         snapshot := *files
         _ := files.write_text!(Path("later.txt"), "x")
-        assert_equal(snapshot.read_text!(Path("later.txt")).is_err(), true, reason="the copy has no later file")
-        assert_equal(snapshot.read_text!(Path("notes.txt")), .Ok("tea"), reason="the copy keeps what was there")
+        assert_equal(
+            snapshot.read_text!(Path("later.txt")).is_err(),
+            true,
+            reason="the copy has no later file",
+        )
+        assert_equal(
+            snapshot.read_text!(Path("notes.txt")),
+            .Ok("tea"),
+            reason="the copy keeps what was there",
+        )
 
     it("an Entry is a value"):
         files := MemoryFs::new()
         seed!(files)
-        entry := files.stat!(Path("notes.txt")).unwrap_or(.None).unwrap_or(Entry { path: Path(""), kind: EntryKind.Directory, size: 0 })
+        entry := files.stat!(Path("notes.txt"))
+            .unwrap_or(.None)
+            .unwrap_or(Entry { path: Path(""), kind: EntryKind.Directory, size: 0 })
         let mut changed = entry
         changed.size = 99
         assert_equal(entry.size, 3, reason="the original keeps its size")

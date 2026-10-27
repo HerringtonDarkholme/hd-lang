@@ -1,14 +1,29 @@
 # test: Client is a value with a serializable jar, explicit Clock authority, and borrowed read-once requests
 use std.convert.From
-use std.http.{BodyError, Client, CookieJar, Headers, Http, HttpError, Request, Response, ScriptedHttp, Url}
+use std.http.{
+    BodyError,
+    Client,
+    CookieJar,
+    Headers,
+    Http,
+    HttpError,
+    Request,
+    Response,
+    ScriptedHttp,
+    Url,
+}
 use std.task.{timeout, apply}
 use std.testing.assert_equal
 use std.time.{Clock, Duration, Instant, ManualClock, Timestamp}
 
-pub fn send_only!(client: &mut Client, request: &Request) -> Result[Response, HttpError] $ Http + Clock:
+pub fn send_only!(
+    client: &mut Client,
+    request: &Request,
+) -> Result[Response, HttpError] $ Http + Clock:
     client.send!(request)
 
-fn url(text: string) -> Url: Url::parse(text).expect("fixture URL")
+fn url(text: string) -> Url:
+    Url::parse(text).expect("fixture URL")
 
 # A value receiver cannot mutate `reads`; the retained counter records calls
 # without changing the Clock trait's receiver contract.
@@ -19,26 +34,44 @@ impl Clock for ReadClock:
     fn now(self) -> Timestamp:
         self.reads.push(1)
         Timestamp::from_unix_milliseconds(1000)
-    fn monotonic(self) -> Instant: Instant::from_milliseconds(0)
-    fn sleep!(&mut self, _duration: Duration) -> void: pass
+    fn monotonic(self) -> Instant:
+        Instant::from_milliseconds(0)
+    fn sleep!(&mut self, _duration: Duration) -> void:
+        pass
 
 tests:
     it("sends an unchecked response and preserves explicit message headers"):
         http := ScriptedHttp::new()
-        http.reply("https://api.example/repos/x", .Ok(Response::status(.ServiceUnavailable).set_bytes([1, 2])))
+        http.reply(
+            "https://api.example/repos/x",
+            .Ok(Response::status(.ServiceUnavailable).set_bytes([1, 2])),
+        )
         let mut client = Client::new()
-        request := Request::get(url("https://api.example/repos/x")).set_header(.Authorization, "Bearer test").set_header(.Accept, "application/json")
+        request := Request::get(url("https://api.example/repos/x"))
+            .set_header(.Authorization, "Bearer test")
+            .set_header(.Accept, "application/json")
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Http=http, Clock=clock):
             response := send_only!(&mut client, &request).expect("scripted response")
-            assert_equal(response.status, .ServiceUnavailable, reason="client does not check status")
+            assert_equal(
+                response.status,
+                .ServiceUnavailable,
+                reason="client does not check status",
+            )
             assert_equal(response.bytes(), .Ok([1, 2]), reason="body retained")
         assert_equal(http.received()[0].headers, request.headers, reason="only request headers")
-        assert_equal(request.bytes(), .Err(BodyError.Used), reason="sending consumes the shared request body")
+        assert_equal(
+            request.bytes(),
+            .Err(BodyError.Used),
+            reason="sending consumes the shared request body",
+        )
 
     it("reads its clock once across redirect hops"):
         http := ScriptedHttp::new()
-        http.reply("https://api.example/start", .Ok(Response::status(.Found).set_header(.Location, "/end")))
+        http.reply(
+            "https://api.example/start",
+            .Ok(Response::status(.Found).set_header(.Location, "/end")),
+        )
         http.reply("https://api.example/end", .Ok(Response {}))
         let mut reads: List[usize] = []
         let mut clock = ReadClock { reads: &mut reads }
@@ -51,11 +84,27 @@ tests:
     it("with_jar copies plain data and later client changes do not mutate the source"):
         target := url("https://api.example/")
         let mut jar = CookieJar::new()
-        jar.store(&target, &Response { headers: Headers::from([("Set-Cookie", "token=old")]) }, Timestamp::from_unix_milliseconds(0))
+        jar.store(
+            &target,
+            &Response { headers: Headers::from([("Set-Cookie", "token=old")]) },
+            Timestamp::from_unix_milliseconds(0),
+        )
         let mut client = Client::with_jar(jar)
-        client.jar.store(&target, &Response { headers: Headers::from([("Set-Cookie", "token=new")]) }, Timestamp::from_unix_milliseconds(0))
-        assert_equal(jar.cookies_for(&target, Timestamp::from_unix_milliseconds(0)), [("token", "old")], reason="source jar remains independent")
-        assert_equal(client.jar.cookies_for(&target, Timestamp::from_unix_milliseconds(0)), [("token", "new")], reason="client owns changed data")
+        client.jar.store(
+            &target,
+            &Response { headers: Headers::from([("Set-Cookie", "token=new")]) },
+            Timestamp::from_unix_milliseconds(0),
+        )
+        assert_equal(
+            jar.cookies_for(&target, Timestamp::from_unix_milliseconds(0)),
+            [("token", "old")],
+            reason="source jar remains independent",
+        )
+        assert_equal(
+            client.jar.cookies_for(&target, Timestamp::from_unix_milliseconds(0)),
+            [("token", "new")],
+            reason="client owns changed data",
+        )
 
     it("a caller can compose a shorter timeout explicitly"):
         http := ScriptedHttp::new()

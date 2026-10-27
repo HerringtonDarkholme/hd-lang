@@ -20,10 +20,11 @@ trait Entity < Named
 trait Handle < AnyRef
 
 impl Named for User:
-    fn label(self) -> string: self.name
+    fn label(self) -> string:
+        self.name
 
 impl Entity for User:
     pass
 
 fn f(a: User) -> bool:
-    a is 1  # diagnostic: identity-requires-references
+    a is 1 # diagnostic: identity-requires-references

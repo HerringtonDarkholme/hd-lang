@@ -24,7 +24,7 @@ impl[T] Named for T by Structure:
         _ := T::describe(&mut d)
         T::name()
 
-impl[T] Named for T by Structure:  # diagnostic: overlapping-impl
+impl[T] Named for T by Structure: # diagnostic: overlapping-impl
     fn type_name() -> string:
         let mut d = Count { n: 0 }
         _ := T::describe(&mut d)

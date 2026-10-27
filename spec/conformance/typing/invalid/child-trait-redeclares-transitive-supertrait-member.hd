@@ -8,5 +8,5 @@ trait Polite < Greeter:
     fn thank(self) -> string
 
 trait Loud < Polite:
-    fn greet(self) -> string:  # diagnostic: duplicate-trait-member
+    fn greet(self) -> string: # diagnostic: duplicate-trait-member
         "HELLO"

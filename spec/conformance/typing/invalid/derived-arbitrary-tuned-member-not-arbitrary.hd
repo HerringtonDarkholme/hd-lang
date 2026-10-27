@@ -11,7 +11,7 @@ struct Port:
 fn port(c: &mut Choices) -> Port:
     Port { number: c.int(1024..=65535) }
 
-@derive(Arbitrary)  # diagnostic: member-not-derivable
+@derive(Arbitrary) # diagnostic: member-not-derivable
 struct Server:
     @arbitrary.with(port)
     port: Port

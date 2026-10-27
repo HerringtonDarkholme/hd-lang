@@ -16,5 +16,5 @@ impl Markup for i32:
 
 fn quote() -> i64:
     let cents = 250
-    let total = cents.scale(4)  # diagnostic: unknown-method
+    let total = cents.scale(4) # diagnostic: unknown-method
     total

@@ -5,7 +5,8 @@ struct Box:
     width: i32
 
 impl Box:
-    pub fn width_of(self) -> i32: self.width
+    pub fn width_of(self) -> i32:
+        self.width
 
 pub fn main() -> void:
     pass

@@ -6,7 +6,8 @@ use pkg.other
 struct Shape:
     a: i32
 
-fn take(shape: Shape) -> i32: shape.a
+fn take(shape: Shape) -> i32:
+    shape.a
 
 fn mismatch() -> i32:
-    take(other.Shape { a: +1 })  # diagnostic: type-mismatch
+    take(other.Shape { a: +1 }) # diagnostic: type-mismatch

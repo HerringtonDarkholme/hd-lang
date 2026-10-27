@@ -3,7 +3,9 @@ struct Box[T]:
     value: T
 
 impl Box[string]:
-    fn show(self) -> string: "string box"
+    fn show(self) -> string:
+        "string box"
 
 impl Box[i32]:
-    fn show(self) -> string: "int box"
+    fn show(self) -> string:
+        "int box"

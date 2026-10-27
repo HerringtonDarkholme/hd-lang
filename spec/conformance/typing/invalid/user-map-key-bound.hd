@@ -4,5 +4,5 @@ struct UserId:
     value: string
 
 fn setup() -> void:
-    let users: Map[UserId, string] = {}  # diagnostic: unsatisfied-trait-bound
+    let users: Map[UserId, string] = {} # diagnostic: unsatisfied-trait-bound
     pass

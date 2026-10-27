@@ -3,4 +3,4 @@
 struct Opaque: pass
 
 @derive(Eq)
-type Wrapped(Opaque)  # diagnostic: derive-field-missing-trait
+type Wrapped(Opaque) # diagnostic: derive-field-missing-trait

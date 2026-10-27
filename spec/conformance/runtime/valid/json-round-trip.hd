@@ -10,7 +10,19 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("each kind prints as the compact text it parsed from"):
-        for text in ["null", "true", "false", "0", "-12", "\"\"", "\"a b\"", "[]", "{}", "[1,[2,{\"a\":null}],\"x\"]", "{\"b\":1,\"a\":[true,false]}"]:
+        for text in [
+            "null",
+            "true",
+            "false",
+            "0",
+            "-12",
+            "\"\"",
+            "\"a b\"",
+            "[]",
+            "{}",
+            "[1,[2,{\"a\":null}],\"x\"]",
+            "{\"b\":1,\"a\":[true,false]}",
+        ]:
             assert_equal("${read(text)}", text, reason=text)
 
     it("parsing the printed text gives an equal value"):
@@ -20,10 +32,26 @@ tests:
     it("accessors read the matching kind"):
         value := read("{\"a\":[10,\"s\",null,true]}")
         items := value.get("a")
-        assert_equal(items.and_then(fn(found): found.at(1)).and_then(fn(found): found.as_text()), .Some("s"), reason="text")
-        assert_equal(items.and_then(fn(found): found.at(3)).and_then(fn(found): found.as_bool()), .Some(true), reason="bool")
-        assert_equal(items.and_then(fn(found): found.at(2)).map(fn(found): found.is_null()), .Some(true), reason="null")
-        assert_equal(items.and_then(fn(found): found.at(0)).and_then(fn(found): found.as_u64()), .Some(10), reason="number")
+        assert_equal(
+            items.and_then(fn(found): found.at(1)).and_then(fn(found): found.as_text()),
+            .Some("s"),
+            reason="text",
+        )
+        assert_equal(
+            items.and_then(fn(found): found.at(3)).and_then(fn(found): found.as_bool()),
+            .Some(true),
+            reason="bool",
+        )
+        assert_equal(
+            items.and_then(fn(found): found.at(2)).map(fn(found): found.is_null()),
+            .Some(true),
+            reason="null",
+        )
+        assert_equal(
+            items.and_then(fn(found): found.at(0)).and_then(fn(found): found.as_u64()),
+            .Some(10),
+            reason="number",
+        )
 
     it("an accessor on another kind, or a missing key or index, gives none"):
         value := read("{\"a\":[1]}")
@@ -40,6 +68,9 @@ tests:
     it("Json implements Eq"):
         assert(read("[1,{\"a\":null}]") == read("[1, {\"a\": null}]"), reason="equal")
         assert(read("[1,2]") != read("[2,1]"), reason="array order matters")
-        assert(read("{\"a\":1,\"b\":2}") == read("{\"b\":2,\"a\":1}"), reason="object order does not")
+        assert(
+            read("{\"a\":1,\"b\":2}") == read("{\"b\":2,\"a\":1}"),
+            reason="object order does not",
+        )
         assert(read("1") != read("\"1\""), reason="another kind")
         assert(read("null") != read("false"), reason="another kind")

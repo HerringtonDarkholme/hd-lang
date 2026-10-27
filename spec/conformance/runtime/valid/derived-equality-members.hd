@@ -14,10 +14,19 @@ tests:
     use std.testing.assert
 
     it("equal fields make equal values"):
-        assert(Paint { finish: Finish.Custom("teal"), coats: 2 } == Paint { finish: Finish.Custom("teal"), coats: 2 }, reason="every field equal")
+        assert(
+            (
+                Paint { finish: Finish.Custom("teal"), coats: 2 }
+                == Paint { finish: Finish.Custom("teal"), coats: 2 }
+            ),
+            reason="every field equal",
+        )
 
     it("a field difference makes values unequal"):
-        assert(Paint { finish: Finish.Matte, coats: 2 } != Paint { finish: Finish.Matte, coats: 3 }, reason="coats differ")
+        assert(
+            Paint { finish: Finish.Matte, coats: 2 } != Paint { finish: Finish.Matte, coats: 3 },
+            reason="coats differ",
+        )
         assert(Finish.Custom("teal") != Finish.Custom("navy"), reason="payloads differ")
 
     it("different variants are unequal"):

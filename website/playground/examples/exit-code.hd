@@ -2,7 +2,7 @@ use std.error.{Error, message}
 
 # `?` in `main` turns an early error into a failing exit code.
 pub fn main() -> Result[ExitCode, *dyn Error] $ Console:
-    changed := changed_files(["a.hd", "b.hd"])?  # ← an `.Err` exits with 1
+    changed := changed_files(["a.hd", "b.hd"])? # ← an `.Err` exits with 1
     println("${changed.len()} files changed")
     .Ok(if changed.len() > 0: ExitCode(1) else: ExitCode(0))
 

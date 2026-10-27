@@ -36,5 +36,7 @@ pub fn main() -> void $ Console:
         match c.next():
             .Some(v) => println("next ${v}")
             .None => break
-    evens := Countdown { left: 5 }.iter().filter(fn(n: i32) -> bool: n % 2 == 0).collect::[List[i32]]()
+    evens := Countdown { left: 5 }.iter()
+        .filter(fn(n: i32) -> bool: n % 2 == 0)
+        .collect::[List[i32]]()
     println("${evens.len()}")

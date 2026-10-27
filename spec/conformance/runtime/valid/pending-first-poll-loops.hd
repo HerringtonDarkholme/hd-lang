@@ -21,4 +21,8 @@ pub fn main!() -> void $ Console:
             break total
     else:
         0
-    assert_equal(value + total - 44, 42, reason="continue, break value, and cleanup keep their results")
+    assert_equal(
+        value + total - 44,
+        42,
+        reason="continue, break value, and cleanup keep their results",
+    )

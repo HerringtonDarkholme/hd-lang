@@ -3,4 +3,4 @@
 use std.inspect.TypeId
 
 fn kind_of[T](value: T) -> TypeId:
-    TypeId::of::[T]()  # diagnostic: unsatisfied-trait-bound
+    TypeId::of::[T]() # diagnostic: unsatisfied-trait-bound

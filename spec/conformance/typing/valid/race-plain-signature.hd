@@ -2,8 +2,10 @@
 # expect: accept
 use std.task.race
 
-fn fast!() -> i32: 1
-fn slow!() -> i32: 2
+fn fast!() -> i32:
+    1
+fn slow!() -> i32:
+    2
 
 fn first!() -> i32:
     race!(fast(), slow())

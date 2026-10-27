@@ -5,7 +5,7 @@ tests:
     use std.testing.assert_equal
 
     it("removal during map iteration leaves the loop's entries"):
-        let mut values: Map[string, i32] = {"a": 1, "b": 2}
+        let mut values: Map[string, i32] = { "a": 1, "b": 2 }
         let total = +0
         for (key, value) in values:
             if key == "a" && value == 1:

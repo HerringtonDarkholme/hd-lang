@@ -2,9 +2,11 @@
 # trait declaration gives it.
 # Spec 09 Method Parameter Defaults: trait.impl.param-default.no-restate.
 trait Check:
-    fn limit(self, max: usize = 64) -> usize: max
+    fn limit(self, max: usize = 64) -> usize:
+        max
 
 struct Loose: pass
 
 impl Check for Loose:
-    fn limit(self, max: usize = 128) -> usize: max  # diagnostic: trait-method-signature
+    fn limit(self, max: usize = 128) -> usize: # diagnostic: trait-method-signature
+        max

@@ -9,5 +9,5 @@ fn label(c: &mut Choices) -> string:
 
 @derive(Arbitrary, Debug)
 struct Item:
-    @arbitrary.with(label)  # diagnostic: type-mismatch
+    @arbitrary.with(label) # diagnostic: type-mismatch
     price: i32

@@ -3,5 +3,5 @@
 # expect: private-main
 # fixed: pub fn main() -> void $ Console:
 
-fn main() -> void $ Console:  # warning: private-main
+fn main() -> void $ Console: # warning: private-main
     println("hello")

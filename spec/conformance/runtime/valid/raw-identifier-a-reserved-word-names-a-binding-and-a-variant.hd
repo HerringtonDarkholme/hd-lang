@@ -7,7 +7,7 @@ enum `match`:
     `else`(`for`: i32)
 
 pub fn main() -> void $ Console:
-    `type` := `match`.`else`(`for` = +9)
+    `type` := `match`.`else`(`for`=+9)
     r := match `type`:
         `match`.`if` => 0
         `match`.`else`(`while`) => `while`

@@ -4,25 +4,30 @@
 # expect-stdout: [email:ops@example.com] to ops@example.com: hi
 trait Channel < Display:
     fn send(self, message: string) -> string
-    fn urgent(self, message: string) -> string: self.send(message.upper())
+    fn urgent(self, message: string) -> string:
+        self.send(message.upper())
 
 struct Email:
     address: string
 
 impl Display for Email:
-    fn to_string(self) -> string: "email:${self.address}"
+    fn to_string(self) -> string:
+        "email:${self.address}"
 
 impl Channel for Email:
-    fn send(self, message: string) -> string: "to ${self.address}: ${message}"
+    fn send(self, message: string) -> string:
+        "to ${self.address}: ${message}"
 
 struct Pager:
     number: i32
 
 impl Display for Pager:
-    fn to_string(self) -> string: "pager:${self.number}"
+    fn to_string(self) -> string:
+        "pager:${self.number}"
 
 impl Channel for Pager:
-    fn send(self, message: string) -> string: "page ${self.number}: ${message}"
+    fn send(self, message: string) -> string:
+        "page ${self.number}: ${message}"
 
 fn notify[C < Channel](channel: C, message: string) -> string:
     channel.send(message)

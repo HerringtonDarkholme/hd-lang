@@ -8,9 +8,10 @@ struct FixedTag:
     value: string
 
 impl Tag for FixedTag:
-    fn name(self) -> string: self.value
+    fn name(self) -> string:
+        self.value
 
-fn tagged[$R](job: fn() -> string $ R + Tag) -> string $ R:
+fn tagged[$ R](job: fn() -> string $ R + Tag) -> string $ R:
     $.with(Tag=FixedTag { value: "x" }):
         job()
 

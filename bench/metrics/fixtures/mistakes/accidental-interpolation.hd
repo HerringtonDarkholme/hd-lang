@@ -4,4 +4,4 @@
 # fixed:     "costs \$total"
 
 fn price_label() -> string:
-    "costs $total"  # diagnostic: unknown-name
+    "costs $total" # diagnostic: unknown-name

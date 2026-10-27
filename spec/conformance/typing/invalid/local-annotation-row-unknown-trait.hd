@@ -2,5 +2,5 @@
 # Spec 11 Requirement Keys: req.key.traits.
 
 fn run() -> void:
-    let job: fn() -> void $ Mailer = fn() -> void: pass  # diagnostic: unknown-trait
+    let job: fn() -> void $ Mailer = fn() -> void: pass # diagnostic: unknown-trait
     job()

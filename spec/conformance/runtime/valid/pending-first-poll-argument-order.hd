@@ -10,12 +10,18 @@ fn mark!(id: i32) -> i32 $ Console:
     order = order * 10 + id
     id
 
-fn add!(left: i32, right: i32) -> i32: left + right
+fn add!(left: i32, right: i32) -> i32:
+    left + right
 
-fn sum!(first: i32, second: i32, third: i32) -> i32: first + second + third
+fn sum!(first: i32, second: i32, third: i32) -> i32:
+    first + second + third
 
 pub fn main!() -> void $ Console:
     assert_equal(add!(mark!(1), mark!(2)), 3, reason="the nested results add")
     assert_equal(order, 12, reason="the first argument runs before the second")
-    assert_equal(sum!(mark!(3), add!(mark!(4), mark!(5)), mark!(6)), 18, reason="nested arguments add")
+    assert_equal(
+        sum!(mark!(3), add!(mark!(4), mark!(5)), mark!(6)),
+        18,
+        reason="nested arguments add",
+    )
     assert_equal(order, 123456, reason="arguments run in source order")

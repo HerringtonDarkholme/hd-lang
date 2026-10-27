@@ -3,5 +3,5 @@
 use pkg.shapes
 
 pub fn main() -> void:
-    secret := shapes.Secret::new()  # diagnostic: private-import
+    secret := shapes.Secret::new() # diagnostic: private-import
     pass

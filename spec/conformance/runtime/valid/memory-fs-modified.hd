@@ -15,9 +15,17 @@ tests:
         time := Timestamp::from_unix_milliseconds(-123)
         assert_equal(stamp!(files, "d/file"), .None, reason="no invented clock time")
         assert_equal(stamp!(files, "d"), .None, reason="implicit directories also start unknown")
-        assert_equal(files.set_modified(Path("./d//file"), time), .Ok(()), reason="script an existing alias")
+        assert_equal(
+            files.set_modified(Path("./d//file"), time),
+            .Ok(()),
+            reason="script an existing alias",
+        )
         assert_equal(stamp!(files, "d/./file"), .Some(time), reason="one normalized entry")
-        assert_equal(files.set_modified(Path("./missing"), time), .Err(FsError.NotFound(path=Path("./missing"))), reason="missing path retains its spelling")
+        assert_equal(
+            files.set_modified(Path("./missing"), time),
+            .Err(FsError.NotFound(path=Path("./missing"))),
+            reason="missing path retains its spelling",
+        )
         let mut entry = files.stat!(Path("d/file")).expect("stat succeeds").expect("entry exists")
         copy := entry
         entry.modified = .None
@@ -39,8 +47,16 @@ tests:
         assert_equal(files.read_text!(Path("f")), .Ok("three!"), reason="the content still changes")
         _ := files.create_dir_all!(Path("dir"))
         _ := files.set_modified(Path("dir"), time)
-        assert_equal(files.write_text!(Path("dir"), "no"), .Err(.IsADirectory(path=Path("dir"))), reason="the write is rejected")
-        assert_equal(stamp!(files, "dir"), .Some(time), reason="failed writes leave metadata unchanged")
+        assert_equal(
+            files.write_text!(Path("dir"), "no"),
+            .Err(.IsADirectory(path=Path("dir"))),
+            reason="the write is rejected",
+        )
+        assert_equal(
+            stamp!(files, "dir"),
+            .Some(time),
+            reason="failed writes leave metadata unchanged",
+        )
 
     it("file rename moves a time and overwrites stale destination metadata"):
         files := MemoryFs::new()
@@ -51,11 +67,19 @@ tests:
         _ := files.set_modified(Path("a"), first)
         _ := files.set_modified(Path("b"), other)
         _ := files.rename!(Path("a"), Path("b"))
-        assert_equal(stamp!(files, "b"), .Some(first), reason="the source timestamp moves with the file")
+        assert_equal(
+            stamp!(files, "b"),
+            .Some(first),
+            reason="the source timestamp moves with the file",
+        )
         assert_equal(files.stat!(Path("a")), .Ok(.None), reason="the old entry is gone")
         _ := files.write_text!(Path("fresh"), "fresh")
         _ := files.rename!(Path("fresh"), Path("b"))
-        assert_equal(stamp!(files, "b"), .None, reason="an unscripted source clears the overwritten time")
+        assert_equal(
+            stamp!(files, "b"),
+            .None,
+            reason="an unscripted source clears the overwritten time",
+        )
 
     it("directory rename carries descendant times through listing and walking"):
         files := MemoryFs::new()
@@ -73,7 +97,11 @@ tests:
         assert_equal(stamp!(files, "dst/sub/f"), .Some(leaf), reason="nested file time")
         $.with(FsRead=files):
             entries := walk!(Path("dst")).expect("walk succeeds")
-            assert_equal(entries.map(fn(entry: Entry): entry.modified), [.Some(sub), .Some(leaf)], reason="walk retains stat metadata")
+            assert_equal(
+                entries.map(fn(entry: Entry): entry.modified),
+                [.Some(sub), .Some(leaf)],
+                reason="walk retains stat metadata",
+            )
 
     it("removal forgets the timestamp before a directory is recreated"):
         files := MemoryFs::new()
@@ -81,13 +109,25 @@ tests:
         _ := files.set_modified(Path("d"), Timestamp::from_unix_milliseconds(10))
         _ := files.remove!(Path("d"))
         _ := files.create_dir_all!(Path("d"))
-        assert_equal(stamp!(files, "d"), .None, reason="a new entry does not inherit removed metadata")
+        assert_equal(
+            stamp!(files, "d"),
+            .None,
+            reason="a new entry does not inherit removed metadata",
+        )
 
     it("an implicit directory loses its script when its last child disappears"):
         files := MemoryFs::new()
         _ := files.write_text!(Path("implicit/f"), "f")
         _ := files.set_modified(Path("implicit"), Timestamp::from_unix_milliseconds(10))
         _ := files.remove!(Path("implicit/f"))
-        assert_equal(files.stat!(Path("implicit")), .Ok(.None), reason="no child or explicit directory remains")
+        assert_equal(
+            files.stat!(Path("implicit")),
+            .Ok(.None),
+            reason="no child or explicit directory remains",
+        )
         _ := files.write_text!(Path("implicit/g"), "g")
-        assert_equal(stamp!(files, "implicit"), .None, reason="recreating a directory does not resurrect a script")
+        assert_equal(
+            stamp!(files, "implicit"),
+            .None,
+            reason="recreating a directory does not resurrect a script",
+        )

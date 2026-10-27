@@ -9,5 +9,5 @@ trait Keyed:
 
 trait Record < Named & Keyed
 
-fn third[T, R < Record[Item = T]](record: R) -> T:  # diagnostic: ambiguous-associated-type
+fn third[T, R < Record[Item = T]](record: R) -> T: # diagnostic: ambiguous-associated-type
     panic("unreachable")

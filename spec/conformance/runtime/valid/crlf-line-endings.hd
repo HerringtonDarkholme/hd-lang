@@ -5,10 +5,7 @@
 # expect-stdout: second
 # expect-stdout: true
 fn shift_name(hour: i32) -> string:
-    if hour >= 20:
-        "night"
-    else:
-        "day"
+    if hour >= 20: "night" else: "day"
 
 pub fn main() -> void $ Console:
     println("shift: ${shift_name(22)}")

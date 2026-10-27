@@ -3,4 +3,4 @@
 use dep.members.{Outer}
 
 fn invalid(outer: Outer) -> string:
-    outer.audit()  # diagnostic: unknown-method
+    outer.audit() # diagnostic: unknown-method

@@ -1,5 +1,6 @@
-fn load!() -> i32: 1
+fn load!() -> i32:
+    1
 
 fn caller() -> void:
-    load()  # diagnostic: discarded-must-use-value
+    load() # diagnostic: discarded-must-use-value
     pass

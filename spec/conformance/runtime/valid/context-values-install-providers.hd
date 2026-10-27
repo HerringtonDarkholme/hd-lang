@@ -7,7 +7,8 @@
 fn make_context() -> $.Context[$ Clock + Backup] $ Clock + Backup:
     $.context(Clock=$.use(Clock), Backup=$.use(Backup))
 
-fn read() -> i32 $ Clock: 42
+fn read() -> i32 $ Clock:
+    42
 
 fn run() -> i32 $ Clock + Backup:
     context := make_context()
@@ -28,7 +29,8 @@ struct FixedBackup: pass
 impl Clock for FixedBackup
 
 impl Backup for FixedBackup:
-    fn label(self) -> i32: 0
+    fn label(self) -> i32:
+        0
 
 tests:
     use std.testing.assert_equal

@@ -1,4 +1,4 @@
 # test: checker checker errors are reported
 pub fn main() -> void $ Console:
-    v := .Ok(1)  # diagnostic: missing-contextual-enum-type
+    v := .Ok(1) # diagnostic: missing-contextual-enum-type
     println(1)

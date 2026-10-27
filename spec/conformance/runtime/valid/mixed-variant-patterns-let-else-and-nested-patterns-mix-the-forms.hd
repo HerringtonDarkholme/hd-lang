@@ -14,7 +14,8 @@ enum Bin:
     Open
 
 fn take(slot: Slot) -> i32:
-    let .Held(item, qty = amount) = slot else: return -1
+    let .Held(item, qty = amount) = slot else:
+        return -1
     item + amount
 
 fn inner(bin: Bin) -> i32:

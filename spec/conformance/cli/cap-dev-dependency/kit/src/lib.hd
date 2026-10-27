@@ -1,1 +1,2 @@
-pub fn text() -> string: "root grant"
+pub fn text() -> string:
+    "root grant"

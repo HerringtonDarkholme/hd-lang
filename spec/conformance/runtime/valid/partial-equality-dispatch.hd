@@ -22,10 +22,21 @@ tests:
         assert(ada == same_ada, reason="concrete equality dispatch")
         assert(ada != grace, reason="inequality negates Eq.eq")
         assert(same(ada, same_ada), reason="generic bound dictionary dispatch")
-        assert(same_list([ada], [same_ada]), reason="nested list equality uses its element dictionary")
+        assert(
+            same_list([ada], [same_ada]),
+            reason="nested list equality uses its element dictionary",
+        )
         assert_equal(ada, same_ada, reason="assert_equal uses Eq.eq")
-        assert_equal((ada, grace), (same_ada, grace), reason="tuple fields use explicit implementations")
-        assert_equal({"user": ada}, {"user": same_ada}, reason="map values use explicit implementations")
+        assert_equal(
+            (ada, grace),
+            (same_ada, grace),
+            reason="tuple fields use explicit implementations",
+        )
+        assert_equal(
+            { "user": ada },
+            { "user": same_ada },
+            reason="map values use explicit implementations",
+        )
 
     it("optional and Result equality use explicit payload implementations"):
         ada := User { id: "ada" }

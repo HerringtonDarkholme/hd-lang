@@ -4,4 +4,4 @@ fn sum(a: i32, b: i32) -> i32:
     a + b
 
 pair := (1, 2)
-result := sum(pair..., 3)  # diagnostic: nonfinal-positional-spread
+result := sum(pair..., 3) # diagnostic: nonfinal-positional-spread

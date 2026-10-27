@@ -3,7 +3,7 @@
 
 pub fn main() -> void:
     counter := MemoryCounter { value: 0 }
-    $.with(Counter=&counter):  # diagnostic: mutable-upgrade
+    $.with(Counter=&counter): # diagnostic: mutable-upgrade
         _ := $.use(Counter).count()
 
 trait Counter:

@@ -8,4 +8,4 @@ fn label(text: string) -> void $ PropertyRunner:
 
 tests:
     it("labels the input", timeout=5s):
-        label("a")  # diagnostic: missing-requirement
+        label("a") # diagnostic: missing-requirement

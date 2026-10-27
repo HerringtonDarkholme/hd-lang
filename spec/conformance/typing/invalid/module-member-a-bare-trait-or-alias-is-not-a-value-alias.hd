@@ -3,5 +3,5 @@
 use pkg.shapes.{Tally}
 
 pub fn main() -> void:
-    t := Tally  # diagnostic: type-used-as-value
+    t := Tally # diagnostic: type-used-as-value
     pass

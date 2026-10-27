@@ -9,8 +9,10 @@ struct D:
     n: i32
 
 impl Factory for D:
-    fn create() -> D: D { n: 0 }
-    fn name(self) -> string: "d"
+    fn create() -> D:
+        D { n: 0 }
+    fn name(self) -> string:
+        "d"
 
 fn build(f: &dyn Factory) -> string:
     f.create().name() # diagnostic: dyn-member-unavailable

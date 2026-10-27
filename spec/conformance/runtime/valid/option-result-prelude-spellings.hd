@@ -38,7 +38,11 @@ tests:
         let sugared: string? = Option.None
         assert_equal(greeting("Margaret"), "Peggy", reason="Some through the qualified spelling")
         assert_equal(greeting("Ada"), "Ada", reason="None matched by Option.None")
-        assert_equal(or_default(explicit, "?"), "Peggy", reason="string? and Option[string] are one type")
+        assert_equal(
+            or_default(explicit, "?"),
+            "Peggy",
+            reason="string? and Option[string] are one type",
+        )
         assert_equal(or_default(sugared, "none"), "none", reason="Option.None fills a string?")
 
     it("Result values and patterns"):

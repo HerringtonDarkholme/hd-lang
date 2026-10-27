@@ -52,7 +52,7 @@ fn tokens(a: i32, b: i32, c: bool, xs: List[i32], t: (i32, i32)) -> i32?:
     _ := (a, xs...)
     _ := Cell { left: a, right: b }
     _ := Cell { ...Cell { left: a, right: b }, left: b }
-    _ := {"k": a}
+    _ := { "k": a }
     _ := fn(x: i32) -> i32: x
     _ := t._0
     _ := maybe()?
@@ -61,6 +61,8 @@ fn tokens(a: i32, b: i32, c: bool, xs: List[i32], t: (i32, i32)) -> i32?:
         _ => total
     .Some(total)
 
-fn double(n: i32) -> i32: n * 2
+fn double(n: i32) -> i32:
+    n * 2
 
-fn maybe() -> i32?: .None
+fn maybe() -> i32?:
+    .None

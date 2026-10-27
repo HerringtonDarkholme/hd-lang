@@ -6,7 +6,7 @@ struct User: pass
 struct Post: pass
 
 fn mixed[T](local: *dyn Repo[User]) -> void $ Repo[T]:
-    $.with(Repo[User]=local):  # diagnostic: generic-requirement-key-collision
+    $.with(Repo[User]=local): # diagnostic: generic-requirement-key-collision
         pass
 
 fn distinct(local: *dyn Repo[User]) -> void $ Repo[Post]:

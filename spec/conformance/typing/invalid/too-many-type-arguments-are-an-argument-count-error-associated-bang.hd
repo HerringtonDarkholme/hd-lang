@@ -19,9 +19,11 @@ impl[T] Box[T]:
     fn wrap[U](item: T, other: U) -> (T, U):
         (item, other)
 
-fn convert![T](value: T) -> T: value
+fn convert![T](value: T) -> T:
+    value
 
-fn ready!() -> i32: 1
+fn ready!() -> i32:
+    1
 
 fn use_it!() -> void:
-    _ := Identity::echo!::[i32, i32](42)  # diagnostic: argument-count
+    _ := Identity::echo!::[i32, i32](42) # diagnostic: argument-count

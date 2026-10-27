@@ -1,6 +1,6 @@
 # test: a function is visible before its declaration, but a statement calling it still runs in statement order
 # Spec 03 Module Scope: names.module.no-init-order.
-first := total()  # diagnostic: top-level-read-before-initialization
+first := total() # diagnostic: top-level-read-before-initialization
 
 start := +1
 

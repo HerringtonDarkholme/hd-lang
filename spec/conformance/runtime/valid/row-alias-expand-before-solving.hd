@@ -8,7 +8,8 @@ struct FixedTag:
     value: string
 
 impl Tag for FixedTag:
-    fn name(self) -> string: self.value
+    fn name(self) -> string:
+        self.value
 
 trait Log:
     fn prefix(self) -> string
@@ -16,11 +17,12 @@ trait Log:
 struct FixedLog: pass
 
 impl Log for FixedLog:
-    fn prefix(self) -> string: "log:"
+    fn prefix(self) -> string:
+        "log:"
 
 type AppRow = $ Tag + Log
 
-fn provide_log[$R](job: fn() -> string $ R + Log) -> string $ R:
+fn provide_log[$ R](job: fn() -> string $ R + Log) -> string $ R:
     $.with(Log=FixedLog {}):
         job()
 

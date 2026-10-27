@@ -3,4 +3,4 @@
 use std.error.Error
 
 pub fn main() -> void:
-    let _error: &dyn Error = &"disk full"  # diagnostic: type-mismatch
+    let _error: &dyn Error = &"disk full" # diagnostic: type-mismatch

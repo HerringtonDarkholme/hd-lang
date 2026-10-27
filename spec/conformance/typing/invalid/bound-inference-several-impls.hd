@@ -19,4 +19,4 @@ fn read[U, S < Source[U]](source: S) -> U:
     source.take()
 
 fn several(both: Both) -> void:
-    value := read(both)  # diagnostic: ambiguous-type
+    value := read(both) # diagnostic: ambiguous-type

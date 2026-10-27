@@ -6,4 +6,4 @@ struct Socket:
 @derive(Eq)
 enum Endpoint:
     Local(path: string)
-    Remote(socket: Socket)  # diagnostic: derive-field-missing-trait
+    Remote(socket: Socket) # diagnostic: derive-field-missing-trait

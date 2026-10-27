@@ -13,10 +13,16 @@ enum Step:
     Next(result: Result[*Step, string])
 
 tests:
-    it_prop("a directly recursive enum panics", expect_panic="explicit-panic", prop=fn!(value: Loop):
-        pass
+    it_prop(
+        "a directly recursive enum panics",
+        expect_panic="explicit-panic",
+        prop=fn!(value: Loop): pass
+        ,
     )
 
-    it_prop("an enum recursive through Ok panics", expect_panic="explicit-panic", prop=fn!(value: Step):
-        pass
+    it_prop(
+        "an enum recursive through Ok panics",
+        expect_panic="explicit-panic",
+        prop=fn!(value: Step): pass
+        ,
     )

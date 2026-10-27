@@ -16,10 +16,12 @@ struct Constant:
 
 impl Supplier for Constant:
     type Item = string
-    fn get(self) -> string: self.value
+    fn get(self) -> string:
+        self.value
 
 impl NamedSupplier for Constant:
-    fn name(self) -> string: "constant"
+    fn name(self) -> string:
+        "constant"
 
 fn read(source: Constant) -> string:
     first(source)

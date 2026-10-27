@@ -33,6 +33,7 @@ tests:
                 log.push("next")
                 at = at + 1
                 .Some(at * 10)
+            ,
         }
         let mut joined = [+1].iter().chain(probe)
         assert_equal(log, ["iter"], reason="iter at the call, and no next")

@@ -3,4 +3,4 @@ use std.structure.Structure
 
 struct Handle: pass
 
-impl Structure for Handle  # diagnostic: sealed-trait-implementation
+impl Structure for Handle # diagnostic: sealed-trait-implementation

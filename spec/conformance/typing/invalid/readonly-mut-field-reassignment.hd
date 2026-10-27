@@ -6,4 +6,4 @@ struct Parent:
     child: *mut Child
 
 fn invalid(parent: &Parent) -> void:
-    parent.child = &mut Child { name: "new" }  # diagnostic: not-writable
+    parent.child = &mut Child { name: "new" } # diagnostic: not-writable

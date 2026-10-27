@@ -4,4 +4,4 @@
 use pkg.words
 
 fn headline(titles: List[string]) -> string:
-    words.join_wordz(titles, " ")  # diagnostic: unknown-import
+    words.join_wordz(titles, " ") # diagnostic: unknown-import

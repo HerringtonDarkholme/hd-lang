@@ -9,4 +9,4 @@ struct Pair[K, V]:
     value: V
 
 struct Holder:
-    both: Both[i32]  # diagnostic: partial-generic-arguments
+    both: Both[i32] # diagnostic: partial-generic-arguments

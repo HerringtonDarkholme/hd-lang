@@ -15,7 +15,8 @@ struct Box[T]:
 
 impl[T] Supplier for Box[T]:
     type Item = T
-    fn get(self) -> T: self.value
+    fn get(self) -> T:
+        self.value
 
 struct Shelf[T]:
     Box[T]

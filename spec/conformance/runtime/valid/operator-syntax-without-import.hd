@@ -13,4 +13,8 @@ tests:
     use std.testing.assert_equal
 
     it("adds money with + and no use of Add"):
-        assert_equal(balance([Money { cents: 250 }, Money { cents: 125 }]).cents, 375, reason="Money implements Add")
+        assert_equal(
+            balance([Money { cents: 250 }, Money { cents: 125 }]).cents,
+            375,
+            reason="Money implements Add",
+        )

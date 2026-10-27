@@ -1,6 +1,6 @@
 # test: failed single use reports one error
 # fixture-package-tree: failed-import-25/src/main.hd
-use pkg.nowhere.m  # diagnostic: unknown-module
+use pkg.nowhere.m # diagnostic: unknown-module
 
 pub fn main() -> void:
     m.f()

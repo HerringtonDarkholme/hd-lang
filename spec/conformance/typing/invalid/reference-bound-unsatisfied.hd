@@ -1,6 +1,8 @@
 # test: a primitive argument does not satisfy an AnyRef bound
 # Spec 09 Traits: trait.bound.unsatisfied, trait.bound.unsatisfied.cases.
 
-fn same[T < AnyRef](left: T, right: T) -> bool: left is right
+fn same[T < AnyRef](left: T, right: T) -> bool:
+    left is right
 
-fn check() -> bool: same(1, 1)  # diagnostic: unsatisfied-trait-bound
+fn check() -> bool:
+    same(1, 1) # diagnostic: unsatisfied-trait-bound

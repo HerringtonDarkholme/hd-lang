@@ -9,10 +9,12 @@ struct Named:
     label: string
 
 impl Tag for Named:
-    fn name(self) -> string: self.label
+    fn name(self) -> string:
+        self.label
 
 impl Log for Named:
-    fn tag(self) -> string: "log:" + self.label
+    fn tag(self) -> string:
+        "log:" + self.label
 
 fn current() -> string $ Tag:
     $.use(Tag).name()
@@ -22,4 +24,4 @@ fn both() -> string $ Tag + Log:
 
 pub fn run(ctx: $.Context[$ Tag]) -> string:
     $.with(ctx...):
-        both()  # diagnostic: missing-requirement
+        both() # diagnostic: missing-requirement

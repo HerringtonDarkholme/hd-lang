@@ -1,4 +1,4 @@
 # test: a plain value and a nested optional have no common type
 pub fn main() -> void:
     let nested: i32?? = .None
-    let list = [1, nested]  # diagnostic: no-common-type
+    let list = [1, nested] # diagnostic: no-common-type

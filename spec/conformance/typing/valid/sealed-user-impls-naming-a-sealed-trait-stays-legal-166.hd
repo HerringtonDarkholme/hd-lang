@@ -2,13 +2,20 @@
 use std.inspect.Inspectable
 use std.num.{Float, Integer, Num}
 
-fn double[N < Num](n: N) -> N: n + n
-fn count[N < Integer](n: N) -> N: n
-fn half[F < Float](f: F) -> F: f
-fn show[T < Inspectable](value: T) -> string: "${value.runtime_type()}"
-fn same[T < AnyRef](a: T, b: T) -> bool: a is b
-fn boxed(value: i32) -> *dyn Any: &value
-fn inspected(value: i32) -> *dyn Inspectable: &value
+fn double[N < Num](n: N) -> N:
+    n + n
+fn count[N < Integer](n: N) -> N:
+    n
+fn half[F < Float](f: F) -> F:
+    f
+fn show[T < Inspectable](value: T) -> string:
+    "${value.runtime_type()}"
+fn same[T < AnyRef](a: T, b: T) -> bool:
+    a is b
+fn boxed(value: i32) -> *dyn Any:
+    &value
+fn inspected(value: i32) -> *dyn Inspectable:
+    &value
 
 trait Named < Inspectable:
     fn type_name(self) -> string
@@ -17,4 +24,5 @@ struct User:
     name: string
 
 impl Named for User:
-    fn type_name(self) -> string: "User"
+    fn type_name(self) -> string:
+        "User"

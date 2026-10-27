@@ -15,4 +15,8 @@ impl[T] Encode for T by Structure:
 
 enum Reply:
     Sent(id: i64)
-    Moved(to: string, @rename("why") reason: string)
+    Moved(
+        to: string,
+        @rename("why")
+        reason: string,
+    )

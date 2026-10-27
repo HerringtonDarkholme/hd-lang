@@ -2,10 +2,7 @@ struct Counter:
     value: i32
 
 fn adjust(counter: Counter, enabled: bool) -> i32:
-    if enabled:
-        counter.value + 1
-    else:
-        counter.value
+    if enabled: counter.value + 1 else: counter.value
 
 pub fn main() -> void $ Console:
     let total = +0

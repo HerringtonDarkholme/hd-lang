@@ -3,5 +3,5 @@
 fn keep[T](value: T) -> T:
     value
 
-fn other(value: T) -> i32:  # diagnostic: unknown-type
+fn other(value: T) -> i32: # diagnostic: unknown-type
     +0

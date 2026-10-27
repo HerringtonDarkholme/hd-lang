@@ -34,7 +34,11 @@ tests:
         assert_equal(preview([]), ["(empty)"], reason="no lines")
         assert_equal([1, 2].take(5), [1, 2], reason="take past the end")
         assert_equal([1, 2, 3].reversed(), [3, 2, 1], reason="reversed")
-        assert_equal([1, 2, 3].zip(["a", "b"]), [(1, "a"), (2, "b")], reason="zip stops at the shorter")
+        assert_equal(
+            [1, 2, 3].zip(["a", "b"]),
+            [(1, "a"), (2, "b")],
+            reason="zip stops at the shorter",
+        )
 
     it("grows a list"):
         assert_equal(merged([3, -1, 1], [2]), [3, 2, 1], reason="filter, extend, sort descending")
@@ -44,5 +48,8 @@ tests:
 
     it("sorts stably"):
         pairs := [(+1, "b"), (+0, "x"), (+1, "a")]
-        sorted := pairs.sorted_by(fn(a: (i32, string), b: (i32, string)) -> Ordering: a._0.cmp(b._0))
+        sorted := pairs.sorted_by(
+            fn(a: (i32, string), b: (i32, string)) -> Ordering: a._0.cmp(b._0)
+            ,
+        )
         assert_equal(sorted, [(0, "x"), (1, "b"), (1, "a")], reason="equal keys keep their order")

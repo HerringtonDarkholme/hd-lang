@@ -46,21 +46,37 @@ tests:
     it("retries while when is true and returns the first .Ok"):
         manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=manual):
-            let mut replies: List[Result[string, string]] = [.Err("busy"), .Err("busy"), .Ok("ready")]
+            let mut replies: List[Result[string, string]] = [
+                .Err("busy"),
+                .Err("busy"),
+                .Ok("ready"),
+            ]
             assert_equal(connect!(&mut replies), .Ok("ready"), reason="two busy errors, then ready")
 
     it("returns an error that when rejects without another call"):
         manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=manual):
-            let mut replies: List[Result[string, string]] = [.Err("busy"), .Err("refused"), .Ok("ready")]
-            assert_equal(connect!(&mut replies), .Err("refused"), reason="the second error is rejected")
+            let mut replies: List[Result[string, string]] = [
+                .Err("busy"),
+                .Err("refused"),
+                .Ok("ready"),
+            ]
+            assert_equal(
+                connect!(&mut replies),
+                .Err("refused"),
+                reason="the second error is rejected",
+            )
             assert_equal(replies.len(), 1, reason="no third call")
 
     it("asks when once for each error, and not for an .Ok"):
         manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=manual):
             server := &mut Server { errors: ["busy", "busy"], calls: 0, asked: [] }
-            result := apply!(retry(Backoff { attempts: 5, initial: 0ms }).when(fn(error: string): judge(server, error))):
+            result := apply!(
+                retry(Backoff { attempts: 5, initial: 0ms })
+                    .when(fn(error: string): judge(server, error))
+                ,
+            ):
                 ask!(server)
             assert_equal(result, .Ok("ready"), reason="the third call succeeds")
             assert_equal(server.asked, ["busy", "busy"], reason="one question for each .Err")

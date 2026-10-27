@@ -1,6 +1,7 @@
 # test: i64 remainder by a zero divisor reports the specified panic
 # Spec 04 Checked Arithmetic: types.arith.always.
 
-fn remainder(a: i64, b: i64) -> i64: a % b
+fn remainder(a: i64, b: i64) -> i64:
+    a % b
 
-_ := remainder(1, 0)  # panic: integer-division-by-zero
+_ := remainder(1, 0) # panic: integer-division-by-zero

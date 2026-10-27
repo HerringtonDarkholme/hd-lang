@@ -16,12 +16,12 @@ impl Restart for List[i64]:
 
 impl Restart for Map[string, i64]:
     fn restarted(mut self) -> usize:
-        self = {"a": 1}
+        self = { "a": 1 }
         self["b"] = 2
         self.len()
 
     fn replaced(mut self) -> Map[string, i64]:
-        self = {"z": 0}
+        self = { "z": 0 }
         self
 
 tests:

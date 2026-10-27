@@ -1,1 +1,2 @@
-fn bonus() -> i32: +7
+fn bonus() -> i32:
+    +7

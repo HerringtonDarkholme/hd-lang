@@ -4,7 +4,8 @@ trait Sized:
 struct Box:
     width: i32
 
-pub fn shown() -> i32: 1
+pub fn shown() -> i32:
+    1
 
 pub fn main() -> void:
     pass

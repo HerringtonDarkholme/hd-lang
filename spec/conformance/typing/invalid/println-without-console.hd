@@ -2,4 +2,4 @@
 # Spec 10 Console: module.console.println.
 
 pub fn main() -> void:
-    println("missing")  # diagnostic: missing-requirement
+    println("missing") # diagnostic: missing-requirement

@@ -8,7 +8,10 @@ trait Right:
 struct User:
     value: i32
 impl Left for User:
-    fn label(self) -> i32: self.value
+    fn label(self) -> i32:
+        self.value
 impl Right for User:
-    fn label(self) -> i32: self.value
-fn main() -> i32: User { value: 42 }.label()  # diagnostic: ambiguous-method
+    fn label(self) -> i32:
+        self.value
+fn main() -> i32:
+    User { value: 42 }.label() # diagnostic: ambiguous-method

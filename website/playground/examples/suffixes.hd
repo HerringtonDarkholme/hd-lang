@@ -1,5 +1,6 @@
 # Units live in the type: `250ms` is a Duration, `12px` is Pixels.
-fn backoff() -> List[Duration]: [250ms, 1s, 5s]  # ← a retry schedule reads as data
+fn backoff() -> List[Duration]:
+    [250ms, 1s, 5s] # ← a retry schedule reads as data
 
 tests:
     use std.testing.assert_equal
@@ -19,11 +20,14 @@ struct Pixels:
     count: i32
 
 @num_suffix
-fn px(count: i32) -> Pixels: Pixels { count: count }
+fn px(count: i32) -> Pixels:
+    Pixels { count: count }
 
-fn add(a: Pixels, b: Pixels) -> Pixels: Pixels { count: a.count + b.count }
+fn add(a: Pixels, b: Pixels) -> Pixels:
+    Pixels { count: a.count + b.count }
 
-fn wait(delay: Duration) -> void: pass
+fn wait(delay: Duration) -> void:
+    pass
 
 pub fn main() -> void $ Console:
     println("width ${add(12px, 4px).count}px")

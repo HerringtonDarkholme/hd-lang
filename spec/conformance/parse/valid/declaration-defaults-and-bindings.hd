@@ -6,7 +6,8 @@ pub trait Add[Rhs = Self]
 
 # method parameter nested comma.
 impl Eq for Value:
-    fn eq(self, other: Result[i32, string]) -> bool: true
+    fn eq(self, other: Result[i32, string]) -> bool:
+        true
 
 # public field default.
 pub struct Request:
@@ -20,4 +21,5 @@ fn typed_let_nested_comma() -> void:
     let entries: mut Map[string, string] = {}
 
 # value parameter default.
-pub fn value_parameter_default(width: usize = +0) -> usize: width
+pub fn value_parameter_default(width: usize = +0) -> usize:
+    width

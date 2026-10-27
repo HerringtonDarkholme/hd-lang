@@ -6,5 +6,5 @@ enum Flag:
 
 fn level(flag: Flag) -> i32:
     match flag:
-        On(value) => value  # diagnostic: bare-variant-pattern
+        On(value) => value # diagnostic: bare-variant-pattern
         .Off => +0

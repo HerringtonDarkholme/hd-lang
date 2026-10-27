@@ -1,4 +1,4 @@
 # test: an empty list literal bound with let and no annotation has no expected collection type
 # Spec 05 Element Types: expr.collection.empty.error.
 fn start() -> void:
-    let _values = []  # diagnostic: cannot-infer-type
+    let _values = [] # diagnostic: cannot-infer-type

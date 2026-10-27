@@ -11,5 +11,6 @@ struct Box[T]:
 
 impl[T < Eq] Parent for Box[T]
 
-impl[T] Child for Box[T]:  # diagnostic: missing-supertrait-implementation
-    fn value(self) -> i32: 0
+impl[T] Child for Box[T]: # diagnostic: missing-supertrait-implementation
+    fn value(self) -> i32:
+        0

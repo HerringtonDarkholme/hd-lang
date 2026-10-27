@@ -13,10 +13,12 @@ struct UserRepo: pass
 struct PostRepo: pass
 
 impl Repo[User] for UserRepo:
-    fn count(self) -> i32: 20
+    fn count(self) -> i32:
+        20
 
 impl Repo[Post] for PostRepo:
-    fn count(self) -> i32: 1
+    fn count(self) -> i32:
+        1
 
 fn activity() -> i32 $ Repo[User] + Repo[Post]:
     $.use(Repo[User]).count() * 10 + $.use(Repo[Post]).count()

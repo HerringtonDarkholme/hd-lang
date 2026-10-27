@@ -5,4 +5,4 @@ struct Handler:
     callback: fn(string) -> i32
 
 fn dispatch(handler: Handler, event: string) -> i32:
-    handler.callback(event)  # diagnostic: unknown-method
+    handler.callback(event) # diagnostic: unknown-method

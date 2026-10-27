@@ -2,4 +2,4 @@
 # Spec 09 Generic Bounds And Static Dispatch: trait.bound.no-implied (owner decision IMPLIED-BOUNDS = A, task #261).
 struct Index[K, V]:
     name: string
-    entries: Map[K, V]  # diagnostic: unsatisfied-trait-bound
+    entries: Map[K, V] # diagnostic: unsatisfied-trait-bound

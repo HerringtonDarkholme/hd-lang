@@ -58,24 +58,35 @@ tests:
     it("absent required scalar and list members name the variable"):
         assert_equal(failure::[Amount]({}), HostError.Missing("AMOUNT"), reason="required scalar")
         error := failure::[Items]({})
-        assert_equal(error, HostError.Missing("ITEMS"), reason="an absent required list does not become empty")
-        assert_equal("$error", "missing environment variable ITEMS", reason="the shared error names the missing variable")
+        assert_equal(
+            error,
+            HostError.Missing("ITEMS"),
+            reason="an absent required list does not become empty",
+        )
+        assert_equal(
+            "$error",
+            "missing environment variable ITEMS",
+            reason="the shared error names the missing variable",
+        )
 
     it("invalid bool and numeric values name the variable and give a reason"):
-        match failure::[Flag]({"ENABLED": "perhaps"}):
+        match failure::[Flag]({ "ENABLED": "perhaps" }):
             .InvalidValue(name, reason) =>
                 assert_equal(name, "ENABLED", reason="invalid bool variable")
                 assert(!reason.is_empty(), reason="bool refusal includes its reason")
             _ => panic("expected InvalidValue for the bool")
-        match failure::[Count]({"COUNT": "many"}):
+        match failure::[Count]({ "COUNT": "many" }):
             .InvalidValue(name, reason) =>
                 assert_equal(name, "COUNT", reason="invalid numeric variable")
                 assert(!reason.is_empty(), reason="numeric refusal includes its reason")
             _ => panic("expected InvalidValue for the number")
-        match failure::[Count]({"COUNT": "256"}):
+        match failure::[Count]({ "COUNT": "256" }):
             .InvalidValue(name, reason) =>
                 assert_equal(name, "COUNT", reason="out-of-range numeric variable")
-                assert(!reason.is_empty(), reason="the scalar's Deserialize can refuse the parsed number")
+                assert(
+                    !reason.is_empty(),
+                    reason="the scalar's Deserialize can refuse the parsed number",
+                )
             _ => panic("expected InvalidValue for the out-of-range number")
 
     it("scalar list map enum and tuple roots are refused before environment reads"):
@@ -87,4 +98,8 @@ tests:
         assert_equal(without_reads::[(i32, string)](), expected, reason="tuple root")
 
     it("an empty EnvName names the field and is rejected before Env.get"):
-        assert_equal(without_reads::[BadName](), HostError.InvalidValue("deploy_token", "empty environment name"), reason="the field name identifies the bad override without reading an empty variable")
+        assert_equal(
+            without_reads::[BadName](),
+            HostError.InvalidValue("deploy_token", "empty environment name"),
+            reason="the field name identifies the bad override without reading an empty variable",
+        )

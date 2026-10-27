@@ -27,12 +27,7 @@ fn effectful(log: &mut List[i32], value: i32? = record(log)) -> i32:
         .Some(found) => found
 
 fn twice(first: bool = false, second: bool = true) -> i32:
-    if first:
-        +91
-    else if second:
-        +7
-    else:
-        +3
+    if first: +91 else if second: +7 else: +3
 
 fn changes_later(mut enabled: bool = false, outer: bool = false) -> i32:
     before := if enabled: +90 else: +6
@@ -76,7 +71,11 @@ tests:
         assert_equal(effectful(&mut log), 7, reason="first default result")
         assert_equal(effectful(&mut log), 7, reason="second default result")
         assert_equal(log, [+1, +1], reason="each omitted argument evaluates its default")
-        assert_equal(effectful(&mut log, value=.Some(+23)), 23, reason="an explicit argument bypasses the default")
+        assert_equal(
+            effectful(&mut log, value= .Some(+23)),
+            23,
+            reason="an explicit argument bypasses the default",
+        )
         assert_equal(log, [+1, +1], reason="the explicit call adds no effect")
 
     it("does not use a later parameter assignment for an earlier read"):

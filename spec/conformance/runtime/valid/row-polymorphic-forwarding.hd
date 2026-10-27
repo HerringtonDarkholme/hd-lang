@@ -5,10 +5,10 @@
 # req.poly.least, req.poly.least.example, req.poly.body, req.poly.one-body,
 # req.poly.no-subtraction, req.poly.rows-only.
 
-fn invoke[$R](callback: fn() -> i32 $ R) -> i32 $ R:
+fn invoke[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 
-fn forward[$S](callback: fn() -> i32 $ S + Clock) -> i32 $ S + Clock:
+fn forward[$ S](callback: fn() -> i32 $ S + Clock) -> i32 $ S + Clock:
     invoke(callback)
 
 fn read() -> i32 $ Clock + Logger:

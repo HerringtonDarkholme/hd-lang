@@ -28,7 +28,11 @@ tests:
         assert_equal(decode([127]), "\u{7f}", reason="the last one-byte scalar")
         assert_equal(decode([239, 191, 191]), "\u{ffff}", reason="the last three-byte scalar")
         assert_equal(decode([244, 143, 191, 191]), "\u{10ffff}", reason="the last scalar value")
-        assert_equal(decode([238, 128, 128]), "\u{e000}", reason="the first scalar after the surrogates")
+        assert_equal(
+            decode([238, 128, 128]),
+            "\u{e000}",
+            reason="the first scalar after the surrogates",
+        )
 
     it("round trip"):
         for text in ["", "ascii", "héllo, 世界 😀", "\u{10ffff}\0"]:

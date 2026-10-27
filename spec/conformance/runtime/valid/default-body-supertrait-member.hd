@@ -13,10 +13,12 @@ struct User:
     value: string
 
 impl Named for User:
-    fn name(self) -> string: self.value
+    fn name(self) -> string:
+        self.value
 
 impl Greeter for User:
-    fn greeting(self) -> string: "hi"
+    fn greeting(self) -> string:
+        "hi"
 
 tests:
     use std.testing.assert_equal

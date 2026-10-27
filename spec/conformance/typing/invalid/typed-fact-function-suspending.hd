@@ -12,6 +12,6 @@ fn handler[R]() -> Handler[fn(i64) -> R]:
 fn count(id: i64) -> i64:
     id
 
-@handler  # diagnostic: type-mismatch
+@handler # diagnostic: type-mismatch
 fn later!(id: i64) -> i64:
     id

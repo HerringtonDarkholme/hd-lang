@@ -19,4 +19,8 @@ tests:
     use std.testing.assert_equal
 
     it("reads and stores each element"):
-        assert_equal(bump(&mut [1, 2], &mut [Score { points: 1 }]), (7, 12), reason="2 + 5, and 11 + the old 1")
+        assert_equal(
+            bump(&mut [1, 2], &mut [Score { points: 1 }]),
+            (7, 12),
+            reason="2 + 5, and 11 + the old 1",
+        )

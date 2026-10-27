@@ -16,7 +16,8 @@ fn wrap() -> (fn() -> i32 $ Log + Trace) $ Console:
         _ := $.use(Log, Trace)
         2
 
-fn plain(f: fn() -> i32) -> i32: f()
+fn plain(f: fn() -> i32) -> i32:
+    f()
 
 fn run() -> i32 $ Console + Log + Trace:
     counter := fn() -> fn() -> i32 $ Console + Log:

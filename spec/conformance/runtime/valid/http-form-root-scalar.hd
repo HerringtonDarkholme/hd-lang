@@ -5,4 +5,8 @@ use std.serde.Serialize
 
 pub fn main() -> void:
     request := Request::post(Url::parse("https://example.test/").expect("fixture URL")).set_form(+7)
-    assert_equal(request.bytes(), .Err(BodyError.Form(FormError.Unsupported("$"))), reason="unsupported form preparation is a typed error")
+    assert_equal(
+        request.bytes(),
+        .Err(BodyError.Form(FormError.Unsupported("$"))),
+        reason="unsupported form preparation is a typed error",
+    )

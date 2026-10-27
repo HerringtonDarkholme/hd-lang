@@ -2,4 +2,5 @@
 
 struct Box[T]:
     value: T? = .None
-fn make() -> Box[i32]: Box {}
+fn make() -> Box[i32]:
+    Box {}

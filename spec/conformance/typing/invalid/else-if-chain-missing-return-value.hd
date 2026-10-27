@@ -2,7 +2,7 @@
 # Function Bodies: fn.body.paths. A chain without a final `else` is one
 # conditional, so as a function-body tail it falls through like a plain `if`.
 fn invalid(a: bool, b: bool) -> i32:
-    if a:  # diagnostic: missing-return-value
+    if a: # diagnostic: missing-return-value
         return 1
     else if b:
         return 2

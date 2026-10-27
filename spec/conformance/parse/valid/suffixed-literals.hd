@@ -3,10 +3,12 @@
 use std.ops.num_suffix
 
 @num_suffix
-fn ticks(count: i64) -> i64: count
+fn ticks(count: i64) -> i64:
+    count
 
 @num_suffix
-fn secs(count: i64) -> i64: count * 1000
+fn secs(count: i64) -> i64:
+    count * 1000
 
 timeout := 5secs
 delay := 1_500ticks

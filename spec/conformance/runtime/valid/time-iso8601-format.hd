@@ -24,13 +24,25 @@ tests:
         assert_equal(day_text(253402300800000), "10000-01-01", reason="a five digit year")
 
     it("a date literal is written as it is"):
-        assert_equal(Date { year: 7, month: 3, day: 9 }.to_iso8601(), "0007-03-09", reason="padding")
-        assert_equal(Date { year: 2026, month: 13, day: 40 }.to_iso8601(), "2026-13-40", reason="no validation")
+        assert_equal(
+            Date { year: 7, month: 3, day: 9 }.to_iso8601(),
+            "0007-03-09",
+            reason="padding",
+        )
+        assert_equal(
+            Date { year: 2026, month: 13, day: 40 }.to_iso8601(),
+            "2026-13-40",
+            reason="no validation",
+        )
 
     it("the ISO text is the date part of the RFC 3339 text"):
         for millis in [0, 1700000000500, -1, 951782400000]:
             stamp := Timestamp::from_unix_milliseconds(millis)
-            assert_equal(stamp.date().to_iso8601(), stamp.to_rfc3339().slice(0, 10), reason="same ten characters")
+            assert_equal(
+                stamp.date().to_iso8601(),
+                stamp.to_rfc3339().slice(0, 10),
+                reason="same ten characters",
+            )
 
     it("each specifier"):
         assert_equal(clock_text(1700000000500), "2023-11-14 22:13", reason="date and time")
@@ -38,8 +50,16 @@ tests:
         assert_equal(laid_out(1700000000500, "%d/%m/%Y"), "14/11/2023", reason="another order")
         assert_equal(laid_out(1700000000500, "%z"), "+0000", reason="always UTC")
         assert_equal(laid_out(0, "%Y%m%d%H%M%S"), "19700101000000", reason="zero padding")
-        assert_equal(laid_out(-1, "%Y-%m-%d %H:%M:%S"), "1969-12-31 23:59:59", reason="the last second before the epoch")
-        assert_equal(laid_out(-62198755200000, "%Y"), "-0001", reason="the year as RFC 3339 writes it")
+        assert_equal(
+            laid_out(-1, "%Y-%m-%d %H:%M:%S"),
+            "1969-12-31 23:59:59",
+            reason="the last second before the epoch",
+        )
+        assert_equal(
+            laid_out(-62198755200000, "%Y"),
+            "-0001",
+            reason="the year as RFC 3339 writes it",
+        )
 
     it("other characters stay as written"):
         assert_equal(laid_out(0, ""), "", reason="empty layout")

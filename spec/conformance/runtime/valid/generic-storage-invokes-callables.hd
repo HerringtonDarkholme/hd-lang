@@ -27,7 +27,8 @@ fn run_named[T](jobs: Map[string, fn() -> T], name: string, fallback: T) -> T:
         .Some(job) => job()
         .None => fallback
 
-fn nightly_backup() -> i32: 42
+fn nightly_backup() -> i32:
+    42
 
 fn queued_backup() -> i32:
     run_queued(Queue { jobs: [fn() -> i32: 42] })
@@ -36,7 +37,11 @@ tests:
     use std.testing.assert_equal
 
     it("a generic list invokes a stored closure"):
-        assert_equal(first_job([fn() -> i32: 42]), 42, reason="the element is called through List[fn() -> T]")
+        assert_equal(
+            first_job([fn() -> i32: 42]),
+            42,
+            reason="the element is called through List[fn() -> T]",
+        )
 
     it("a generic list result keeps the stored function"):
         jobs := pending_scores(nightly_backup)
@@ -44,7 +49,11 @@ tests:
         assert_equal(job(), 42, reason="List[fn() -> T] returned with T = i32")
 
     it("a generic list invokes a callable with a generic input"):
-        assert_equal(score_first([fn(points: i32) -> i32: points + 1], 41), 42, reason="the input crosses as T")
+        assert_equal(
+            score_first([fn(points: i32) -> i32: points + 1], 41),
+            42,
+            reason="the input crosses as T",
+        )
 
     it("nested generic storage invokes a stored callable"):
         assert_equal(queued_backup(), 42, reason="Queue[List[fn() -> T]]")
@@ -53,4 +62,8 @@ tests:
         assert_equal(run_paired((fn() -> i32: 42, "backup")), 42, reason="(fn() -> T, string)")
 
     it("a generic map invokes a stored callable"):
-        assert_equal(run_named({"backup": fn() -> i32: 42}, "backup", 0), 42, reason="Map[string, fn() -> T]")
+        assert_equal(
+            run_named({ "backup": fn() -> i32: 42 }, "backup", 0),
+            42,
+            reason="Map[string, fn() -> T]",
+        )

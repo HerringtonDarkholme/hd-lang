@@ -4,5 +4,5 @@
 struct Invoice:
     total: i64
 
-fn archive(invoice: Invoice) -> void $ Ledger[Invoice]:  # diagnostic: unknown-trait
+fn archive(invoice: Invoice) -> void $ Ledger[Invoice]: # diagnostic: unknown-trait
     pass

@@ -12,7 +12,8 @@ enum Failure:
     Open
 
 impl From[CircuitOpen] for Failure:
-    fn from(error: CircuitOpen) -> Failure: .Open
+    fn from(error: CircuitOpen) -> Failure:
+        .Open
 
 pub fn guard_counts!() -> (usize, usize):
     state := &mut Breaker { failures: 0, limit: 2, calls: 0 }
@@ -27,10 +28,15 @@ struct Activity:
     starts: usize
     closed: usize
 
-fn pending!(state: *mut Breaker, activity: *mut Activity, wait: mut Suspend[void]) -> Result[string, Failure]:
+fn pending!(
+    state: *mut Breaker,
+    activity: *mut Activity,
+    wait: mut Suspend[void],
+) -> Result[string, Failure]:
     assert_equal(state.calls, 1, reason="calls increments before work starts")
     activity.starts += 1
-    defer: activity.closed += 1
+    defer:
+        activity.closed += 1
     wait!()
     .Err(.Offline)
 
@@ -49,12 +55,25 @@ pub fn main!() -> void $ Clock:
     for i in 0..4:
         outcome := apply!(endpoint_guard):
             endpoint.starts += 1
-            defer: endpoint.closed += 1
+            defer:
+                endpoint.closed += 1
             let failed: Result[string, Failure] = .Err(.Offline)
             failed
-        assert_equal(outcome, if i < 2: .Err(.Offline) else: .Err(.Open), reason="U2 two endpoint failures then two typed refusals")
-    assert_equal((endpoint.starts, endpoint.closed), (2, 2), reason="only two actual endpoint invocations run, each closing once")
-    assert_equal((endpoint_state.calls, endpoint_state.failures), (2, 2), reason="breaker counters agree with independent endpoint counters")
+        assert_equal(
+            outcome,
+            if i < 2: .Err(.Offline) else: .Err(.Open),
+            reason="U2 two endpoint failures then two typed refusals",
+        )
+    assert_equal(
+        (endpoint.starts, endpoint.closed),
+        (2, 2),
+        reason="only two actual endpoint invocations run, each closing once",
+    )
+    assert_equal(
+        (endpoint_state.calls, endpoint_state.failures),
+        (2, 2),
+        reason="breaker counters agree with independent endpoint counters",
+    )
     state := &mut Breaker { failures: 0, limit: 2, calls: 0 }
     guard := guarded(state)
     alias := guard
@@ -67,7 +86,11 @@ pub fn main!() -> void $ Clock:
         let good: Result[string, Failure] = .Ok("reused")
         good
     assert_equal(good, .Ok("reused"), reason="the same guard supports another success type")
-    assert_equal((state.calls, state.failures), (2, 0), reason="success through a copy resets the shared streak")
+    assert_equal(
+        (state.calls, state.failures),
+        (2, 0),
+        reason="success through a copy resets the shared streak",
+    )
     state.failures = 2
     refused := apply!(guard):
         panic("open guard invoked work")
@@ -82,14 +105,22 @@ pub fn main!() -> void $ Clock:
         let unreachable: Result[usize, Failure] = .Ok(0)
         unreachable
     assert_equal(refused_zero, .Err(.Open), reason="zero limit refuses immediately")
-    assert_equal((state.calls, state.failures), (2, 0), reason="zero-limit refusal also preserves counters")
+    assert_equal(
+        (state.calls, state.failures),
+        (2, 0),
+        reason="zero-limit refusal also preserves counters",
+    )
 
     survivor := retained()
     for _i in 0..2:
         result := apply!(survivor):
             let failed: Result[string, Failure] = .Err(.Offline)
             failed
-        assert_equal(result, .Err(.Offline), reason="counted state survives the builder's local scope")
+        assert_equal(
+            result,
+            .Err(.Offline),
+            reason="counted state survives the builder's local scope",
+        )
     final := apply!(survivor):
         let value: Result[string, Failure] = .Ok("must not run")
         value
@@ -98,7 +129,19 @@ pub fn main!() -> void $ Clock:
     cancel_state := &mut Breaker { failures: 1, limit: 3, calls: 0 }
     activity := &mut Activity { starts: 0, closed: 0 }
     let wait: mut Suspend[void] = sleep(60s)
-    let job: mut Suspend[Result[string, Failure]] = apply(guarded(cancel_state), work=fn!() -> Result[string, Failure]: pending!(cancel_state, activity, wait))
+    let job: mut Suspend[Result[string, Failure]] = apply(
+        guarded(cancel_state),
+        work=fn!() -> Result[string, Failure]: pending!(cancel_state, activity, wait)
+        ,
+    )
     assert_equal(race!(job, cancel(job)), .Ok("canceled"), reason="cancel pending guarded work")
-    assert_equal((activity.starts, activity.closed), (1, 1), reason="the child starts and its defer runs")
-    assert_equal((cancel_state.calls, cancel_state.failures), (1, 1), reason="cancellation counts admission without updating the failure streak")
+    assert_equal(
+        (activity.starts, activity.closed),
+        (1, 1),
+        reason="the child starts and its defer runs",
+    )
+    assert_equal(
+        (cancel_state.calls, cancel_state.failures),
+        (1, 1),
+        reason="cancellation counts admission without updating the failure streak",
+    )

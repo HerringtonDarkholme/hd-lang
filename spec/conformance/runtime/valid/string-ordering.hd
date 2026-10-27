@@ -1,10 +1,7 @@
 # test: strings compare by UTF-8 value order
 
 fn main() -> i32:
-    if "same" == "same" && "a" < "é" && "é" < "界" && "abc" < "abcd" && "界" < "界面":
-        42
-    else:
-        0
+    if "same" == "same" && "a" < "é" && "é" < "界" && "abc" < "abcd" && "界" < "界面": 42 else: 0
 
 tests:
     use std.testing.assert_equal

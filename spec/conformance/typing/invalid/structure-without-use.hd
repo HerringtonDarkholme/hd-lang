@@ -5,4 +5,4 @@ trait Show:
 struct Point:
     x: i64
 
-impl Show for Point by Structure  # diagnostic: unknown-trait
+impl Show for Point by Structure # diagnostic: unknown-trait

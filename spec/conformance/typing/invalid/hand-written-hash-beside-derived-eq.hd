@@ -3,7 +3,7 @@
 
 use std.hash.Hasher
 
-@derive(Eq)  # diagnostic: mixed-derived-law
+@derive(Eq) # diagnostic: mixed-derived-law
 struct Key:
     name: string
 

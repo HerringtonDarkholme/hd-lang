@@ -12,8 +12,11 @@ struct Box[T]:
     value: T
 
 impl[T < Named & Tagged] Named for Box[T]:
-    fn name(self) -> string: self.value.name()
+    fn name(self) -> string:
+        self.value.name()
 
-fn label[T < Named & Tagged](value: T) -> string: value.name() + value.tag()
+fn label[T < Named & Tagged](value: T) -> string:
+    value.name() + value.tag()
 
-fn twice[T < Named & Tagged, U < Tagged](value: T, other: U) -> string: other.tag()
+fn twice[T < Named & Tagged, U < Tagged](value: T, other: U) -> string:
+    other.tag()

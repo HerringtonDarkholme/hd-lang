@@ -13,10 +13,12 @@ struct Constant:
 
 impl Supplier for Constant:
     type Item = i32
-    fn get(self) -> i32: self.value
+    fn get(self) -> i32:
+        self.value
 
 impl NamedSupplier for Constant:
-    fn name(self) -> string: "constant"
+    fn name(self) -> string:
+        "constant"
 
 fn read(source: &dyn Supplier[Item = i32]) -> i32:
     source.get() + 1

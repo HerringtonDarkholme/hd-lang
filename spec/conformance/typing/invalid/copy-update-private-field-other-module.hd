@@ -5,4 +5,4 @@
 use pkg.cart.{Cart}
 
 fn rename(cart: Cart, owner: string) -> Cart:
-    Cart { ...cart, owner: owner }  # diagnostic: private-member
+    Cart { ...cart, owner: owner } # diagnostic: private-member

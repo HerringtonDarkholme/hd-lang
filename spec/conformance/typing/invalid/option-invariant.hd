@@ -4,4 +4,4 @@ struct User:
     name: string
 
 fn view(user: (*mut User)?) -> (*User)?:
-    user  # diagnostic: type-mismatch
+    user # diagnostic: type-mismatch

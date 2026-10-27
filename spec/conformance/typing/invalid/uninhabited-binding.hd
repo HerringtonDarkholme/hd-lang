@@ -2,5 +2,5 @@
 # Spec 04 Binding Forms: types.bind.never (error-code proposal NEVER-BIND, owner 2026-10-06).
 
 fn first_even(values: List[i32]) -> i32:
-    found := panic("no even value")  # diagnostic: uninhabited-binding
+    found := panic("no even value") # diagnostic: uninhabited-binding
     found

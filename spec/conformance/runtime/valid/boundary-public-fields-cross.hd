@@ -18,5 +18,6 @@ pub fn main() -> void $ Vault:
     kept := $.use(Vault).keep(Token { owner: "ada", scope: Scope.Write(["/orders"]) })
     assert_equal(kept.owner, "ada", reason="a pub field crosses without either trait")
     match kept.scope:
-        Scope.Write(paths) => assert_equal(paths, ["/orders"], reason="an enum payload crosses without either trait")
+        Scope.Write(paths) =>
+            assert_equal(paths, ["/orders"], reason="an enum payload crosses without either trait")
         Scope.Read => panic("the scope changed")

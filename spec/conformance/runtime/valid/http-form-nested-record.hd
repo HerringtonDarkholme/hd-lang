@@ -12,5 +12,10 @@ struct Input:
     child: Child
 
 pub fn main() -> void:
-    request := Request::post(Url::parse("https://example.test/").expect("fixture URL")).set_form(Input { child: Child { value: "x" } })
-    assert_equal(request.text(), .Ok("child%5Bvalue%5D=x"), reason="one deepObject level is supported")
+    request := Request::post(Url::parse("https://example.test/").expect("fixture URL"))
+        .set_form(Input { child: Child { value: "x" } })
+    assert_equal(
+        request.text(),
+        .Ok("child%5Bvalue%5D=x"),
+        reason="one deepObject level is supported",
+    )

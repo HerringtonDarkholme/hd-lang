@@ -7,4 +7,7 @@ enum ReadError:
     Closed
 
 enum Plain:
-    Wrap(@from error: ReadError)  # diagnostic: unknown-name
+    Wrap(
+        @from # diagnostic: unknown-name
+        error: ReadError,
+    )

@@ -7,7 +7,8 @@ struct Named:
     label: string
 
 impl Tag for Named:
-    fn read(&self) -> string: self.label
+    fn read(&self) -> string:
+        self.label
 
 trait Make:
     type Out
@@ -34,11 +35,11 @@ impl Make for Nested:
     fn make(self) -> (fn() -> string $ Tag,):
         (fn() -> string $ Tag: $.use(Tag).read(),)
 
-fn call[$S, P < Make[Out = fn() -> string $ S]](maker: P) -> string $ S:
+fn call[$ S, P < Make[Out = fn() -> string $ S]](maker: P) -> string $ S:
     callback := maker.make()
     callback()
 
-fn nested[$S, P < Make[Out = (fn() -> string $ S,)]](maker: P) -> string $ S:
+fn nested[$ S, P < Make[Out = (fn() -> string $ S,)]](maker: P) -> string $ S:
     callback := maker.make()._0
     callback()
 

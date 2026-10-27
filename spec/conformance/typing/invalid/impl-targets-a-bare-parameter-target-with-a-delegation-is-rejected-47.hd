@@ -5,4 +5,4 @@ trait Describe:
 struct Inner:
     n: i32
 
-impl[T] Describe for T by inner  # diagnostic: bare-parameter-impl-target
+impl[T] Describe for T by inner # diagnostic: bare-parameter-impl-target

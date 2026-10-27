@@ -6,5 +6,6 @@ use std.inspect.{Inspectable, TypeId}
 struct User:
     name: string
 
-impl Inspectable for User:  # diagnostic: sealed-trait-implementation
-    fn runtime_type(self) -> TypeId: TypeId::of::[string]()
+impl Inspectable for User: # diagnostic: sealed-trait-implementation
+    fn runtime_type(self) -> TypeId:
+        TypeId::of::[string]()

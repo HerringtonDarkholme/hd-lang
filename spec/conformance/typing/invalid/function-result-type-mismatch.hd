@@ -1,3 +1,4 @@
 # test: function result type mismatch
 
-fn main() -> i32: true  # diagnostic: type-mismatch
+fn main() -> i32:
+    true # diagnostic: type-mismatch

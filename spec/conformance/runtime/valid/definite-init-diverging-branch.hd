@@ -24,7 +24,15 @@ tests:
         assert_equal(greeting(["greet"]), "usage: greet NAME", reason="the guard branch")
 
     it("the name is bound after the guard"):
-        assert_equal(greeting(["greet", "Ada"]), "hello Ada", reason="only the binding path reaches the merge")
+        assert_equal(
+            greeting(["greet", "Ada"]),
+            "hello Ada",
+            reason="only the binding path reaches the merge",
+        )
 
     it("an else branch with an infinite loop does not reach the merge"):
-        assert_equal(port_or_wait(["serve", "8080"]), "port 8080", reason="the then path bound port")
+        assert_equal(
+            port_or_wait(["serve", "8080"]),
+            "port 8080",
+            reason="the then path bound port",
+        )

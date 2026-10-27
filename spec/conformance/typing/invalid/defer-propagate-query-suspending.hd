@@ -3,5 +3,5 @@
 fn run!() -> Result[i32, string]:
     defer:
         let answer: Result[i32, string] = .Err("failure")
-        _ := answer?  # diagnostic: defer-control-flow
+        _ := answer? # diagnostic: defer-control-flow
     .Ok(42)

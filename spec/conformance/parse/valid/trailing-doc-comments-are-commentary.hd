@@ -5,10 +5,11 @@
 # Spec 01 Documentation Comments: lex.doc.trailing, lex.doc.module, lex.doc.module.once, lex.doc.attach, lex.doc.form.
 
 ## Turns a title into a URL slug.
-pub fn slugify(title: string) -> string: title  ## trailing remark: not documentation
+pub fn slugify(title: string) -> string:
+    title ## trailing remark: not documentation
 
-limit := 80  ## also a trailing remark, followed directly by a declaration
+limit := 80 ## also a trailing remark, followed directly by a declaration
 struct Page:
     ## The page title.
-    title: string  ## trailing remark on a field
-    views: i32     ## and another
+    title: string ## trailing remark on a field
+    views: i32 ## and another

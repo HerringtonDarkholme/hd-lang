@@ -7,7 +7,8 @@ struct Counter:
 
 impl Apply for Counter:
     type Out = i32
-    fn apply(self) -> i32: self.hits
+    fn apply(self) -> i32:
+        self.hits
 
 fn invalid(counter: Counter) -> i32:
-    counter(1)  # diagnostic: argument-count
+    counter(1) # diagnostic: argument-count

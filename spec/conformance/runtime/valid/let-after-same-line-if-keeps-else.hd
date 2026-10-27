@@ -5,11 +5,15 @@
 # expect-stdout: skipped
 # expect-stdout: 7
 fn gate(ok: bool, pair: (i32, i32)) -> string:
-    if ok: let (a, b) = pair else: return "skipped"
+    if ok:
+        let (a, b) = pair
+    else:
+        return "skipped"
     "ran"
 
 fn first_or_zero(value: i32?) -> i32:
-    let .Some(found) = value else: return 0
+    let .Some(found) = value else:
+        return 0
     found
 
 pub fn main() -> void $ Console:

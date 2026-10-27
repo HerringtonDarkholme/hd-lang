@@ -1,3 +1,4 @@
 # test: multi provider use
 
-fn use_both() -> void $ Clock + Logger: _ := $.use(Clock, Logger)
+fn use_both() -> void $ Clock + Logger:
+    _ := $.use(Clock, Logger)

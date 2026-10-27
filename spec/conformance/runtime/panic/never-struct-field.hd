@@ -6,5 +6,5 @@ struct Point:
     y: i32
 
 pub fn main() -> void $ Console:
-    p := Point { x: +1, y: panic("no y") }  # panic: explicit-panic
+    p := Point { x: +1, y: panic("no y") } # panic: explicit-panic
     println("${p.x}")

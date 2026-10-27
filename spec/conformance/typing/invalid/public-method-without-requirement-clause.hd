@@ -11,4 +11,4 @@ struct Nightly: pass
 
 impl Nightly:
     pub fn run(self) -> void:
-        log("nightly")  # diagnostic: missing-requirement
+        log("nightly") # diagnostic: missing-requirement

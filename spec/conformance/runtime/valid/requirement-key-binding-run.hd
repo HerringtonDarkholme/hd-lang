@@ -12,7 +12,8 @@ struct UserStore:
 
 impl Store for UserStore:
     type Item = User
-    fn load(self, id: string) -> User: User { name: self.prefix + id }
+    fn load(self, id: string) -> User:
+        User { name: self.prefix + id }
 
 fn find(id: string) -> User $ Store[Item = User]:
     $.use(Store[Item = User]).load(id)

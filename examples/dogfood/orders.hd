@@ -76,10 +76,7 @@ fn place_order!(id: i32, lines: List[Line]) -> Result[Order, OrderError] $ Inven
     .Ok(Order { id: id, lines: lines, total_cents: total, placed_at: now.unix_milliseconds() })
 
 fn fresh_inventory() -> MemoryInventory:
-    MemoryInventory {
-        prices: {"apple": 50, "pear": 75},
-        counts: {"apple": 10, "pear": 2},
-    }
+    MemoryInventory { prices: { "apple": 50, "pear": 75 }, counts: { "apple": 10, "pear": 2 } }
 
 fn report!(id: i32, lines: List[Line]) -> string $ Inventory + Clock:
     match place_order!(id, lines):
@@ -88,8 +85,13 @@ fn report!(id: i32, lines: List[Line]) -> string $ Inventory + Clock:
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
-    $.with(Inventory=&mut fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_milliseconds(1000))):
-        console.write!(report!(1, [Line { sku: "apple", qty: 3 }, Line { sku: "pear", qty: 1 }]) + "\n")?
+    $.with(
+        Inventory=&mut fresh_inventory(),
+        Clock=ManualClock::new(Timestamp::from_unix_milliseconds(1000)),
+    ):
+        console.write!(
+            report!(1, [Line { sku: "apple", qty: 3 }, Line { sku: "pear", qty: 1 }]) + "\n",
+        )?
         console.write!(report!(2, [Line { sku: "pear", qty: 2 }]) + "\n")?
         console.write!(report!(3, [Line { sku: "kiwi", qty: 1 }]) + "\n")?
         console.write!(report!(4, []) + "\n")?
@@ -99,7 +101,10 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("places an order and reserves stock"):
-        $.with(Inventory=&mut fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_milliseconds(5))):
+        $.with(
+            Inventory=&mut fresh_inventory(),
+            Clock=ManualClock::new(Timestamp::from_unix_milliseconds(5)),
+        ):
             result := place_order!(7, [Line { sku: "apple", qty: 4 }, Line { sku: "pear", qty: 2 }])
             match result:
                 .Ok(order) =>
@@ -109,10 +114,21 @@ tests:
             assert_equal($.use(Inventory).stock!("apple"), 6, reason="reserved")
             assert_equal($.use(Inventory).stock!("pear"), 0, reason="reserved")
     it("rejects bad orders and keeps stock"):
-        $.with(Inventory=&mut fresh_inventory(), Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
+        $.with(
+            Inventory=&mut fresh_inventory(),
+            Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0)),
+        ):
             assert_equal(place_order!(1, []), .Err(OrderError.EmptyOrder), reason="empty")
-            assert_equal(place_order!(1, [Line { sku: "apple", qty: 0 }]), .Err(OrderError.BadQuantity("apple", 0)), reason="qty")
-            assert_equal(place_order!(1, [Line { sku: "kiwi", qty: 1 }]), .Err(OrderError.UnknownSku("kiwi")), reason="sku")
+            assert_equal(
+                place_order!(1, [Line { sku: "apple", qty: 0 }]),
+                .Err(OrderError.BadQuantity("apple", 0)),
+                reason="qty",
+            )
+            assert_equal(
+                place_order!(1, [Line { sku: "kiwi", qty: 1 }]),
+                .Err(OrderError.UnknownSku("kiwi")),
+                reason="sku",
+            )
             assert_equal(
                 place_order!(1, [Line { sku: "apple", qty: 1 }, Line { sku: "pear", qty: 3 }]),
                 .Err(OrderError.OutOfStock("pear", 3, 2)),

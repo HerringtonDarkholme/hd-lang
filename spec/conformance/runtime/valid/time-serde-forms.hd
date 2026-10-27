@@ -11,7 +11,12 @@ struct Lease:
     checked: Instant
 
 fn lease() -> Lease:
-    Lease { holder: "ada", granted_at: Timestamp::from_unix_milliseconds(1700000000000), term: Duration::seconds(30), checked: Instant::from_milliseconds(5) }
+    Lease {
+        holder: "ada",
+        granted_at: Timestamp::from_unix_milliseconds(1700000000000),
+        term: Duration::seconds(30),
+        checked: Instant::from_milliseconds(5),
+    }
 
 fn stamp() -> Timestamp:
     Timestamp::from_unix_milliseconds(1700000000000)
@@ -20,7 +25,11 @@ tests:
     use std.testing.assert_equal
 
     it("durations and instants write milliseconds, timestamps RFC 3339 text"):
-        assert_equal(encode(lease()), "{\"holder\":\"ada\",\"granted_at\":\"2023-11-14T22:13:20Z\",\"term\":30000,\"checked\":5}", reason="forms")
+        assert_equal(
+            encode(lease()),
+            "{\"holder\":\"ada\",\"granted_at\":\"2023-11-14T22:13:20Z\",\"term\":30000,\"checked\":5}",
+            reason="forms",
+        )
         assert_equal(encode(Duration::milliseconds(1500)), "1500", reason="a duration is one int")
 
     it("each time type reads its form back"):
@@ -37,16 +46,37 @@ tests:
             .Ok(back) => assert_equal(back, stamp(), reason="round trip")
             .Err(error) => panic("decode failed: $error")
         match decode::[Timestamp]("\"2023-11-14T22:13:20+02:00\""):
-            .Ok(back) => assert_equal(back, Timestamp::from_unix_milliseconds(1699992800000), reason="offset accepted")
+            .Ok(back) =>
+                assert_equal(
+                    back,
+                    Timestamp::from_unix_milliseconds(1699992800000),
+                    reason="offset accepted",
+                )
             .Err(error) => panic("decode failed: $error")
 
     it("a value that is not the form names the time type"):
-        assert_equal(decode::[Duration]("1.5"), .Err(JsonError.WrongType("$", "Duration")), reason="number")
-        assert_equal(decode::[Timestamp]("1.5"), .Err(JsonError.WrongType("$", "Timestamp")), reason="number")
+        assert_equal(
+            decode::[Duration]("1.5"),
+            .Err(JsonError.WrongType("$", "Duration")),
+            reason="number",
+        )
+        assert_equal(
+            decode::[Timestamp]("1.5"),
+            .Err(JsonError.WrongType("$", "Timestamp")),
+            reason="number",
+        )
 
     it("a negative duration number is a decode error naming Duration"):
-        assert_equal(decode::[Duration]("-1500"), .Err(JsonError.WrongType("$", "Duration")), reason="negative")
+        assert_equal(
+            decode::[Duration]("-1500"),
+            .Err(JsonError.WrongType("$", "Duration")),
+            reason="negative",
+        )
         assert_equal(decode::[Duration]("0"), .Ok(Duration::milliseconds(0)), reason="zero")
 
     it("a bad timestamp string is a decode error naming Timestamp"):
-        assert_equal(decode::[Timestamp]("\"30s\""), .Err(JsonError.WrongType("$", "Timestamp")), reason="bad text")
+        assert_equal(
+            decode::[Timestamp]("\"30s\""),
+            .Err(JsonError.WrongType("$", "Timestamp")),
+            reason="bad text",
+        )

@@ -1,6 +1,7 @@
 # test: a requirement free default is clean
 # Spec 07 Default Values: fn.default.eval.
-fn base() -> i32: 7
+fn base() -> i32:
+    7
 
 struct Event:
     time: i32 = base() + 1

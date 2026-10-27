@@ -1,4 +1,4 @@
 # test: numeric family and tuple targets are rejected too
 use std.num.Float
 
-impl Float for i32  # diagnostic: sealed-trait-implementation
+impl Float for i32 # diagnostic: sealed-trait-implementation

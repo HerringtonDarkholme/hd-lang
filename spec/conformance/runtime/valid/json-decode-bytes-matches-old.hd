@@ -62,7 +62,12 @@ fn parse_value(bytes: List[u8], start: usize, depth: usize) -> Result[*Parsed, J
         return parse_number(bytes, index)
     .Err(unexpected(bytes, index))
 
-fn parse_word(bytes: List[u8], start: usize, word: string, value: Json) -> Result[*Parsed, JsonError]:
+fn parse_word(
+    bytes: List[u8],
+    start: usize,
+    word: string,
+    value: Json,
+) -> Result[*Parsed, JsonError]:
     let index = start
     for expected in word.bytes():
         if index >= bytes.len() || bytes[index] != expected:
@@ -156,7 +161,10 @@ fn parse_string(bytes: List[u8], open: usize) -> Result[*ParsedText, JsonError]:
             if unit >= 56320 && unit <= 57343:
                 return .Err(JsonError.LoneSurrogate(backslash))
             if unit >= 55296 && unit <= 56319:
-                low := if index + 1 < bytes.len() && bytes[index] == 92 && bytes[index + 1] == 117: read_hex4(bytes, index + 2) else: -1
+                low := if index + 1 < bytes.len() && bytes[index] == 92 && bytes[index + 1] == 117:
+                    read_hex4(bytes, index + 2)
+                else:
+                    -1
                 if low < 56320 || low > 57343:
                     return .Err(JsonError.LoneSurrogate(backslash))
                 point = 65536 + (unit - 55296) * 1024 + (low - 56320)
@@ -265,7 +273,9 @@ fn parse_number(bytes: List[u8], start: usize) -> Result[*Parsed, JsonError]:
             .Some(zero) => return .Ok(&mut Parsed { value: Json.Number(zero), end: index })
             .None => return float_number(bytes, start, index)
     if magnitude == sign_limit():
-        return .Ok(&mut Parsed { value: Json.Number(Number::from_i64(-9223372036854775808)), end: index })
+        return .Ok(
+            &mut Parsed { value: Json.Number(Number::from_i64(-9223372036854775808)), end: index },
+        )
     .Ok(&mut Parsed { value: Json.Number(Number::from_i64(-i64(magnitude))), end: index })
 
 # The float of the number text from `start` up to `end`, which the caller
@@ -406,7 +416,15 @@ impl Deserializer for OldReader:
         if self.present:
             match self.value:
                 .Array(items) =>
-                    self.push(&mut OldFrame { base: self.path, home: self.path, items: &items, keys: &[], fields: JsonObject::new() })
+                    self.push(
+                        &mut OldFrame {
+                            base: self.path,
+                            home: self.path,
+                            items: &items,
+                            keys: &[],
+                            fields: JsonObject::new(),
+                        },
+                    )
                     return .Ok(())
                 _ => pass
         .Err(self.fail("array"))
@@ -434,7 +452,15 @@ impl Deserializer for OldReader:
                     for entry in fields:
                         keys.push(entry._0)
                         items.push(entry._1)
-                    self.push(&mut OldFrame { base: self.path, home: self.path, items: &items, keys: &keys, fields: JsonObject::new() })
+                    self.push(
+                        &mut OldFrame {
+                            base: self.path,
+                            home: self.path,
+                            items: &items,
+                            keys: &keys,
+                            fields: JsonObject::new(),
+                        },
+                    )
                     return .Ok(())
                 _ => pass
         .Err(self.fail("object"))
@@ -457,12 +483,24 @@ impl Deserializer for OldReader:
     # A data type reads an object. An enum reads `"Variant"` as
     # `{"Variant": {}}`, or an object with exactly one key
     # (r-std-json.derive.from-json.enum).
-    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
+    fn begin_variant(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+    ) -> Result[usize, JsonError]:
         if choices.len() == 1 && choices[0].of_data:
             if self.present:
                 match self.value:
                     .Object(fields) =>
-                        self.push(&mut OldFrame { base: self.path, home: self.path, items: &[], keys: &[], fields: fields })
+                        self.push(
+                            &mut OldFrame {
+                                base: self.path,
+                                home: self.path,
+                                items: &[],
+                                keys: &[],
+                                fields: fields,
+                            },
+                        )
                         return .Ok(0)
                     _ => pass
             return .Err(self.fail("object"))
@@ -488,7 +526,15 @@ impl Deserializer for OldReader:
                 fields := match payload:
                     .Object(found) => found
                     _ => return .Err(JsonError.WrongType(base, "object"))
-                self.push(&mut OldFrame { base: base, home: self.path, items: &[], keys: &[], fields: fields })
+                self.push(
+                    &mut OldFrame {
+                        base: base,
+                        home: self.path,
+                        items: &[],
+                        keys: &[],
+                        fields: fields,
+                    },
+                )
                 return .Ok(index)
             index = index + 1
         .Err(JsonError.UnknownVariant(self.path, name))
@@ -558,33 +604,120 @@ fn read_disagreement[T < Deserialize & Debug](value: Json) -> string:
 # Random JSON texts.
 
 NUMBERS := [
-    "0", "-0", "1", "-1", "7", "42", "-42", "0.5", "-0.0", "1e2", "1E+2", "1e-2", "2.5E-3", "123.456e7",
-    "9223372036854775807", "9223372036854775808", "-9223372036854775808", "-9223372036854775809",
-    "18446744073709551615", "18446744073709551616", "123456789012345678901234567890",
-    "-123456789012345678901234567890", "100000000000000000000", "1e308", "1.7976931348623157e308",
-    "1e309", "-1e400", "1e-400", "4.9e-324", "2.2250738585072014e-308", "0.1",
+    "0",
+    "-0",
+    "1",
+    "-1",
+    "7",
+    "42",
+    "-42",
+    "0.5",
+    "-0.0",
+    "1e2",
+    "1E+2",
+    "1e-2",
+    "2.5E-3",
+    "123.456e7",
+    "9223372036854775807",
+    "9223372036854775808",
+    "-9223372036854775808",
+    "-9223372036854775809",
+    "18446744073709551615",
+    "18446744073709551616",
+    "123456789012345678901234567890",
+    "-123456789012345678901234567890",
+    "100000000000000000000",
+    "1e308",
+    "1.7976931348623157e308",
+    "1e309",
+    "-1e400",
+    "1e-400",
+    "4.9e-324",
+    "2.2250738585072014e-308",
+    "0.1",
 ]
 
 # The inside of a JSON string, as written in the text: plain text, raw
 # non-ASCII, and every escape class, with surrogate pairs in both cases.
 STRING_PIECES := [
-    "a", "Z", " ", "key", "\u{7f}", "\u{e9}", "\u{20ac}", "\u{1f600}", "\\\"", "\\\\", "\\/", "\\b", "\\f", "\\n",
-    "\\r", "\\t", "\\u0041", "\\u00e9", "\\u00E9", "\\u20ac", "\\u0000", "\\u001f", "\\ud83d\\ude00",
-    "\\uD83D\\uDE00", "\\udbff\\udfff", "\\ud800\\udc00",
+    "a",
+    "Z",
+    " ",
+    "key",
+    "\u{7f}",
+    "\u{e9}",
+    "\u{20ac}",
+    "\u{1f600}",
+    "\\\"",
+    "\\\\",
+    "\\/",
+    "\\b",
+    "\\f",
+    "\\n",
+    "\\r",
+    "\\t",
+    "\\u0041",
+    "\\u00e9",
+    "\\u00E9",
+    "\\u20ac",
+    "\\u0000",
+    "\\u001f",
+    "\\ud83d\\ude00",
+    "\\uD83D\\uDE00",
+    "\\udbff\\udfff",
+    "\\ud800\\udc00",
 ]
 
 # Pieces that break a string: bad escapes, lone surrogates, raw control
 # characters, and a backslash at the end.
 BAD_PIECES := [
-    "\\x", "\\u12", "\\uzzzz", "\\u12g4", "\\ud800", "\\udc00", "\\ud800\\u0041", "\\ud800x", "\\ud83d\\ud83d",
-    "\\U0041", "\u{1}", "\u{1f}", "\t", "\n", "\\",
+    "\\x",
+    "\\u12",
+    "\\uzzzz",
+    "\\u12g4",
+    "\\ud800",
+    "\\udc00",
+    "\\ud800\\u0041",
+    "\\ud800x",
+    "\\ud83d\\ud83d",
+    "\\U0041",
+    "\u{1}",
+    "\u{1f}",
+    "\t",
+    "\n",
+    "\\",
 ]
 
 # Keys, as written in the text; some are the probe's member and variant names.
 KEYS := ["a", "b", "x", "y", "k0", "k1", "D", "name", "", "\u{e9}", "a\\\"b", "\\u0061"]
 
 # Single characters that break a text when inserted, replaced, or removed.
-INSERTS := ["\"", "\\", "{", "}", "[", "]", ",", ":", " ", "0", "-", "+", ".", "e", "u", "x", "\u{1}", "\u{1f}", "\u{7f}", "\n", "\u{e9}", "n", "t", "f"]
+INSERTS := [
+    "\"",
+    "\\",
+    "{",
+    "}",
+    "[",
+    "]",
+    ",",
+    ":",
+    " ",
+    "0",
+    "-",
+    "+",
+    ".",
+    "e",
+    "u",
+    "x",
+    "\u{1}",
+    "\u{1f}",
+    "\u{7f}",
+    "\n",
+    "\u{e9}",
+    "n",
+    "t",
+    "f",
+]
 
 fn space(c: &mut Choices, parts: &mut List[string]) -> void:
     if c.int(0..=3) == 0:
@@ -658,8 +791,7 @@ fn broken_text(c: &mut Choices) -> string:
         return c.choose(INSERTS)
     at := c.int(usize(0)..=chars.len() - 1)
     match c.int(0..=4):
-        0 =>
-            _ := chars.remove_at(at)
+        0 => _ := chars.remove_at(at)
         1 => chars.insert(at, c.choose(INSERTS))
         2 => chars[at] = c.choose(INSERTS)
         3 =>
@@ -695,7 +827,23 @@ fn nested_text(c: &mut Choices) -> string:
 # and sometimes missing, of the wrong kind, out of range, or joined by an
 # extra key; the members come in declaration order or reversed.
 
-TEXTS := ["", "a", "b", "x", "k0", "D", "Guest", "Member", "Admin", "Pair", "Nope", "\u{e9}", "\u{1f600}", "two", "a.b[0]"]
+TEXTS := [
+    "",
+    "a",
+    "b",
+    "x",
+    "k0",
+    "D",
+    "Guest",
+    "Member",
+    "Admin",
+    "Pair",
+    "Nope",
+    "\u{e9}",
+    "\u{1f600}",
+    "two",
+    "a.b[0]",
+]
 
 @derive(Deserialize, Debug)
 enum Role:
@@ -753,8 +901,35 @@ fn any_json(c: &mut Choices, depth: i32) -> Json:
     match pick:
         0 => Json.Null
         1 => Json.Bool(c.bool())
-        2 => int_json(c.choose([0, -1, 1, 127, 128, -129, 255, 256, 65536, 2147483648, -9223372036854775807 - 1, 9223372036854775807]))
-        3 => c.choose([float_json(1.5), float_json(-0.0), float_json(1e39), float_json(-1e300), Json.Number(Number::from_u64(18446744073709551615))])
+        2 =>
+            int_json(
+                c.choose(
+                    [
+                        0,
+                        -1,
+                        1,
+                        127,
+                        128,
+                        -129,
+                        255,
+                        256,
+                        65536,
+                        2147483648,
+                        -9223372036854775807 - 1,
+                        9223372036854775807,
+                    ],
+                ),
+            )
+        3 =>
+            c.choose(
+                [
+                    float_json(1.5),
+                    float_json(-0.0),
+                    float_json(1e39),
+                    float_json(-1e300),
+                    Json.Number(Number::from_u64(18446744073709551615)),
+                ],
+            )
         4 => Json.Text(c.choose(TEXTS))
         5 => Json.Array([])
         6 =>
@@ -765,7 +940,10 @@ fn any_json(c: &mut Choices, depth: i32) -> Json:
         _ =>
             let mut fields = JsonObject::new()
             for _ in 0..c.int(0..=11):
-                fields.set(c.choose(["a", "b", "x", "y", "k0", "D", "name", "f3", "since", "0"]), any_json(c, depth + 1))
+                fields.set(
+                    c.choose(["a", "b", "x", "y", "k0", "D", "name", "f3", "since", "0"]),
+                    any_json(c, depth + 1),
+                )
             Json.Object(fields)
 
 # One of `good` most of the time, and sometimes one of `bad`.
@@ -790,7 +968,10 @@ fn object_of(c: &mut Choices, pairs: List[(string, Json)]) -> Json:
     for pair in pairs:
         ordered.push(pair)
     if c.int(0..=4) == 4:
-        ordered.insert(c.int(usize(0)..=ordered.len()), (c.choose(["extra", "x", "Name", "name "]), any_json(c, 2)))
+        ordered.insert(
+            c.int(usize(0)..=ordered.len()),
+            (c.choose(["extra", "x", "Name", "name "]), any_json(c, 2)),
+        )
     let mut fields = JsonObject::new()
     walk := if c.int(0..=3) == 3: ordered.reversed() else: ordered
     for pair in walk:
@@ -807,7 +988,16 @@ fn role_json(c: &mut Choices) -> Json:
             wrap("Member", object_of(c, pairs))
         3 =>
             let mut pairs: List[(string, Json)] = []
-            put(c, &mut pairs, "level", edge(c, [int_json(0), int_json(7), int_json(-128), int_json(127)], [int_json(300), int_json(-129)]))
+            put(
+                c,
+                &mut pairs,
+                "level",
+                edge(
+                    c,
+                    [int_json(0), int_json(7), int_json(-128), int_json(127)],
+                    [int_json(300), int_json(-129)],
+                ),
+            )
             put(c, &mut pairs, "note", c.choose([Json.Null, Json.Text("n")]))
             wrap("Admin", object_of(c, pairs))
         4 =>
@@ -832,17 +1022,58 @@ fn wrap(name: string, payload: Json) -> Json:
 fn address_json(c: &mut Choices) -> Json:
     let mut pairs: List[(string, Json)] = []
     put(c, &mut pairs, "city", Json.Text(c.choose(TEXTS)))
-    put(c, &mut pairs, "zip", edge(c, [int_json(0), int_json(8000), int_json(65535)], [int_json(65536), int_json(-1)]))
+    put(
+        c,
+        &mut pairs,
+        "zip",
+        edge(c, [int_json(0), int_json(8000), int_json(65535)], [int_json(65536), int_json(-1)]),
+    )
     object_of(c, pairs)
 
 fn user_json(c: &mut Choices, depth: i32) -> Json:
     let mut pairs: List[(string, Json)] = []
     put(c, &mut pairs, "name", Json.Text(c.choose(TEXTS)))
-    put(c, &mut pairs, "age", edge(c, [int_json(0), int_json(30), int_json(255)], [int_json(256), int_json(-1), float_json(30.0)]))
+    put(
+        c,
+        &mut pairs,
+        "age",
+        edge(
+            c,
+            [int_json(0), int_json(30), int_json(255)],
+            [int_json(256), int_json(-1), float_json(30.0)],
+        ),
+    )
     put(c, &mut pairs, "email", if c.bool(): Json.Null else: Json.Text("e@x"))
-    put(c, &mut pairs, "letter", edge(c, [Json.Text("a"), Json.Text("\u{e9}"), Json.Text("\u{1f600}")], [Json.Text("ab"), Json.Text("")]))
-    put(c, &mut pairs, "ratio", edge(c, [float_json(0.25), int_json(2), float_json(-3.4e38)], [float_json(1e39), float_json(-3.5e38)]))
-    put(c, &mut pairs, "big", edge(c, [Json.Number(Number::from_u64(18446744073709551615)), int_json(5)], [int_json(-5), float_json(1.0)]))
+    put(
+        c,
+        &mut pairs,
+        "letter",
+        edge(
+            c,
+            [Json.Text("a"), Json.Text("\u{e9}"), Json.Text("\u{1f600}")],
+            [Json.Text("ab"), Json.Text("")],
+        ),
+    )
+    put(
+        c,
+        &mut pairs,
+        "ratio",
+        edge(
+            c,
+            [float_json(0.25), int_json(2), float_json(-3.4e38)],
+            [float_json(1e39), float_json(-3.5e38)],
+        ),
+    )
+    put(
+        c,
+        &mut pairs,
+        "big",
+        edge(
+            c,
+            [Json.Number(Number::from_u64(18446744073709551615)), int_json(5)],
+            [int_json(-5), float_json(1.0)],
+        ),
+    )
     let mut tags: List[Json] = []
     for _ in 0..c.int(0..=3):
         tags.push(maybe(c, Json.Text(c.choose(TEXTS))))
@@ -923,10 +1154,26 @@ impl ProbeState:
         .Ok(())
 
 fn member_named(name: string) -> Member:
-    Member { name: name, position: +0, facts: Facts { items: [] }, doc: .None, embedded: false, positional: false, self_ref: SelfRef.Absent }
+    Member {
+        name: name,
+        position: +0,
+        facts: Facts { items: [] },
+        doc: .None,
+        embedded: false,
+        positional: false,
+        self_ref: SelfRef.Absent,
+    }
 
 fn variant_named(name: string, of_data: bool) -> VariantInfo:
-    VariantInfo { name: name, index: +0, facts: Facts { items: [] }, doc: .None, of_data: of_data, shared: [], self_ref: SelfRef.Absent }
+    VariantInfo {
+        name: name,
+        index: +0,
+        facts: Facts { items: [] },
+        doc: .None,
+        of_data: of_data,
+        shared: [],
+        self_ref: SelfRef.Absent,
+    }
 
 fn kind_name(kind: ValueKind) -> string:
     match kind:
@@ -958,7 +1205,11 @@ fn scalars[R < Deserializer](input: &mut R, state: &mut ProbeState) -> Result[vo
     error := input.invalid("x")
     state.failed("invalid", error)
 
-fn probe[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: i32) -> Result[void, R::Error]:
+fn probe[R < Deserializer](
+    input: &mut R,
+    state: &mut ProbeState,
+    depth: i32,
+) -> Result[void, R::Error]:
     let kind = ValueKind.Null
     match input.peek():
         .Ok(found) =>
@@ -983,7 +1234,11 @@ fn probe[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: i32) ->
             probe_enum(input, state, depth)
         _ => scalars(input, state)
 
-fn probe_list[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: i32) -> Result[void, R::Error]:
+fn probe_list[R < Deserializer](
+    input: &mut R,
+    state: &mut ProbeState,
+    depth: i32,
+) -> Result[void, R::Error]:
     match input.begin_list():
         .Ok(_) => state.log.push("list")
         .Err(error) => return state.failed("list", error)
@@ -1007,7 +1262,12 @@ fn probe_list[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: i3
     scalars(input, state)
 
 # With `items_first`, the first value is read with `next_item`.
-fn probe_map[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: i32, items_first: bool) -> Result[void, R::Error]:
+fn probe_map[R < Deserializer](
+    input: &mut R,
+    state: &mut ProbeState,
+    depth: i32,
+    items_first: bool,
+) -> Result[void, R::Error]:
     match input.begin_map():
         .Ok(_) => state.log.push("map")
         .Err(error) => return state.failed("map", error)
@@ -1038,7 +1298,11 @@ fn probe_map[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: i32
     state.log.push("map end")
     .Ok(())
 
-fn probe_record[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: i32) -> Result[void, R::Error]:
+fn probe_record[R < Deserializer](
+    input: &mut R,
+    state: &mut ProbeState,
+    depth: i32,
+) -> Result[void, R::Error]:
     match input.begin_variant(Facts { items: [] }, [variant_named("D", true)]):
         .Ok(index) => state.log.push("record $index")
         .Err(error) => return state.failed("record", error)
@@ -1057,8 +1321,20 @@ fn probe_record[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: 
             .Err(error) => return state.failed("record item", error)
     scalars(input, state)
 
-fn probe_enum[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: i32) -> Result[void, R::Error]:
-    choices := [variant_named("a", false), variant_named("b", false), variant_named("x", false), variant_named("k0", false), variant_named("Member", false), variant_named("Admin", false), variant_named("Guest", false)]
+fn probe_enum[R < Deserializer](
+    input: &mut R,
+    state: &mut ProbeState,
+    depth: i32,
+) -> Result[void, R::Error]:
+    choices := [
+        variant_named("a", false),
+        variant_named("b", false),
+        variant_named("x", false),
+        variant_named("k0", false),
+        variant_named("Member", false),
+        variant_named("Admin", false),
+        variant_named("Guest", false),
+    ]
     match input.begin_variant(Facts { items: [] }, choices):
         .Ok(index) => state.log.push("variant $index")
         .Err(error) => return state.failed("variant", error)
@@ -1126,7 +1402,26 @@ fn probe_gen(c: &mut Choices) -> Json:
 # `JsonObject` against a list of pairs searched from the front: a new key
 # goes last, and an existing key keeps its place with the new value.
 
-OBJECT_KEYS := ["k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9", "k10", "k11", "k12", "k13", "k14", "", "\u{e9}", "k1 "]
+OBJECT_KEYS := [
+    "k0",
+    "k1",
+    "k2",
+    "k3",
+    "k4",
+    "k5",
+    "k6",
+    "k7",
+    "k8",
+    "k9",
+    "k10",
+    "k11",
+    "k12",
+    "k13",
+    "k14",
+    "",
+    "\u{e9}",
+    "k1 ",
+]
 
 @derive(Debug)
 struct Sets:
@@ -1181,10 +1476,45 @@ fn object_disagreement(sets: &Sets) -> string:
 tests:
     it("the texts of the spec parse as before"):
         for text in [
-            "", " ", "null", "true", "false", "nul", "tru", "-", "01", "1.", "1e", "1e+", "-0", "0.0e0", "[1,]", "{\"a\":1,}", "1 2",
-            "\"a\\u0041\\n\"", "\"\\ud83d\\ude00\"", "\"\\ud83d\"", "\"\\ude00\"", "\"\\ud83dx\"", "\"\\u12\"", "\"\\u12", "\"\\uzz\"",
-            "\"\\q\"", "\"a\u{1}\"", "\"\\", "\"abc", "{\"b\": 1, \"a\": 2, \"b\": 3}", "1e400", "-1e400", "[1e400]",
-            "18446744073709551616", "-9223372036854775809", "{\"a\" 1}", "{1:2}", "[\"\u{e9}\u{1f600}\"]", "{\"\":{\"\":[]}}",
+            "",
+            " ",
+            "null",
+            "true",
+            "false",
+            "nul",
+            "tru",
+            "-",
+            "01",
+            "1.",
+            "1e",
+            "1e+",
+            "-0",
+            "0.0e0",
+            "[1,]",
+            "{\"a\":1,}",
+            "1 2",
+            "\"a\\u0041\\n\"",
+            "\"\\ud83d\\ude00\"",
+            "\"\\ud83d\"",
+            "\"\\ude00\"",
+            "\"\\ud83dx\"",
+            "\"\\u12\"",
+            "\"\\u12",
+            "\"\\uzz\"",
+            "\"\\q\"",
+            "\"a\u{1}\"",
+            "\"\\",
+            "\"abc",
+            "{\"b\": 1, \"a\": 2, \"b\": 3}",
+            "1e400",
+            "-1e400",
+            "[1e400]",
+            "18446744073709551616",
+            "-9223372036854775809",
+            "{\"a\" 1}",
+            "{1:2}",
+            "[\"\u{e9}\u{1f600}\"]",
+            "{\"\":{\"\":[]}}",
         ]:
             assert_equal(parse_disagreement(text), "", reason=debug(text))
 
@@ -1206,36 +1536,78 @@ tests:
     it("an object past 8 keys keeps the first place and the last value of a repeated key"):
         text := "{\"k0\":0,\"k1\":1,\"k2\":2,\"k3\":3,\"k4\":4,\"k5\":5,\"k6\":6,\"k7\":7,\"k8\":8,\"k9\":9,\"k3\":33,\"k9\":99,\"k0\":0}"
         assert_equal(parse_disagreement(text), "", reason="against the old parser")
-        assert_equal("${parse(text).expect("parses")}", "{\"k0\":0,\"k1\":1,\"k2\":2,\"k3\":33,\"k4\":4,\"k5\":5,\"k6\":6,\"k7\":7,\"k8\":8,\"k9\":99}", reason="text")
+        assert_equal(
+            "${parse(text).expect("parses")}",
+            "{\"k0\":0,\"k1\":1,\"k2\":2,\"k3\":33,\"k4\":4,\"k5\":5,\"k6\":6,\"k7\":7,\"k8\":8,\"k9\":99}",
+            reason="text",
+        )
 
     it("the decode errors of the spec read as before"):
         assert_equal(read_disagreement::[*User](Json.Array([])), "", reason="data from an array")
         assert_equal(read_disagreement::[Role](Json.Text("Admin")), "", reason="a name alone")
         assert_equal(read_disagreement::[Role](Json.Text("Owner")), "", reason="unknown name")
-        assert_equal(read_disagreement::[Role](wrap("Member", int_json(3))), "", reason="payload not an object")
-        assert_equal(read_disagreement::[Map[string, Role]](wrap("ada", wrap("Member", wrap("since", Json.Text("x"))))), "", reason="map value variant member")
-        assert_equal(read_disagreement::[List[*Wide]](Json.Array([Json.Object(JsonObject::new())])), "", reason="missing in a list item")
+        assert_equal(
+            read_disagreement::[Role](wrap("Member", int_json(3))),
+            "",
+            reason="payload not an object",
+        )
+        assert_equal(
+            read_disagreement::[Map[string, Role]](
+                wrap("ada", wrap("Member", wrap("since", Json.Text("x")))),
+            ),
+            "",
+            reason="map value variant member",
+        )
+        assert_equal(
+            read_disagreement::[List[*Wide]](Json.Array([Json.Object(JsonObject::new())])),
+            "",
+            reason="missing in a list item",
+        )
 
-    it_prop_with("random valid texts parse as before", gen=valid_text, cases=300, prop=fn!(text: string):
-        assert_equal(parse_disagreement(text), "", reason="valid")
+    it_prop_with(
+        "random valid texts parse as before",
+        gen=valid_text,
+        cases=300,
+        prop=fn!(text: string): assert_equal(parse_disagreement(text), "", reason="valid")
+        ,
     )
 
-    it_prop_with("random broken texts fail as before", gen=broken_text, cases=500, prop=fn!(text: string):
-        assert_equal(parse_disagreement(text), "", reason="broken")
+    it_prop_with(
+        "random broken texts fail as before",
+        gen=broken_text,
+        cases=500,
+        prop=fn!(text: string): assert_equal(parse_disagreement(text), "", reason="broken")
+        ,
     )
 
-    it_prop_with("texts nested near the limit parse as before", gen=nested_text, cases=60, prop=fn!(text: string):
-        assert_equal(parse_disagreement(text), "", reason="nested")
+    it_prop_with(
+        "texts nested near the limit parse as before",
+        gen=nested_text,
+        cases=60,
+        prop=fn!(text: string): assert_equal(parse_disagreement(text), "", reason="nested")
+        ,
     )
 
-    it_prop_with("random typed decodes read as before", gen=typed_gen, cases=600, prop=fn!(typed: &Typed):
-        assert_equal(typed_disagreement(typed), "", reason="typed")
+    it_prop_with(
+        "random typed decodes read as before",
+        gen=typed_gen,
+        cases=600,
+        prop=fn!(typed: &Typed): assert_equal(typed_disagreement(typed), "", reason="typed")
+        ,
     )
 
-    it_prop_with("a hand-written reader walk reads as before", gen=probe_gen, cases=200, prop=fn!(value: Json):
-        assert_equal(probe_disagreement(value), "", reason="probe")
+    it_prop_with(
+        "a hand-written reader walk reads as before",
+        gen=probe_gen,
+        cases=200,
+        prop=fn!(value: Json): assert_equal(probe_disagreement(value), "", reason="probe")
+        ,
     )
 
-    it_prop_with("JsonObject sets and gets as a list of pairs", gen=sets_gen, cases=200, prop=fn!(sets: &Sets):
-        assert_equal(object_disagreement(sets), "", reason="object")
+    it_prop_with(
+        "JsonObject sets and gets as a list of pairs",
+        gen=sets_gen,
+        cases=200,
+        prop=fn!(sets: &Sets): assert_equal(object_disagreement(sets), "", reason="object")
+        ,
     )

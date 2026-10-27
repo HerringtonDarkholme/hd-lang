@@ -9,6 +9,7 @@ struct Names: pass
 
 impl Supplier for Names:
     type Item = string
-    type Key = i32  # diagnostic: extra-trait-member
+    type Key = i32 # diagnostic: extra-trait-member
 
-    fn get(self) -> string: "Ada"
+    fn get(self) -> string:
+        "Ada"

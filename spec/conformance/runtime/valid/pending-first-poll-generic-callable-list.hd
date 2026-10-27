@@ -12,4 +12,8 @@ fn invoke_first![T](tasks: List[fn!() -> T $ Console]) -> T $ Console:
     task!()
 
 pub fn main!() -> void $ Console:
-    assert_equal(invoke_first!([stored]), 42, reason="the stored callable completes after its pending write")
+    assert_equal(
+        invoke_first!([stored]),
+        42,
+        reason="the stored callable completes after its pending write",
+    )

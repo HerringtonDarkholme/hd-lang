@@ -1,5 +1,6 @@
 # Spec 08 Field Defaults: data.default.allowed, data.literal.defaulted.
-fn default_name() -> string: "anonymous"
+fn default_name() -> string:
+    "anonymous"
 
 struct User:
     id: i32

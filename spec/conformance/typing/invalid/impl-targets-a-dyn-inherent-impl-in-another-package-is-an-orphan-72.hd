@@ -2,5 +2,6 @@
 # fixture-package-role: library
 use dep.members.Tagged
 
-impl dyn Tagged:  # diagnostic: orphan-impl
-    fn double(self) -> string: self.tag() + self.tag()
+impl dyn Tagged: # diagnostic: orphan-impl
+    fn double(self) -> string:
+        self.tag() + self.tag()

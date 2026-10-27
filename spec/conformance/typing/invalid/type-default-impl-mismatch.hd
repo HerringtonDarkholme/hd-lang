@@ -17,5 +17,5 @@ trait Source:
 struct Numbers: pass
 
 impl Source for Numbers:
-    fn drain[C < Blank](self) -> C:  # diagnostic: trait-method-signature
+    fn drain[C < Blank](self) -> C: # diagnostic: trait-method-signature
         C::blank()

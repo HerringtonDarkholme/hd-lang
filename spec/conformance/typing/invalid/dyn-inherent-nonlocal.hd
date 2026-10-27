@@ -4,6 +4,6 @@
 # fixture-package-tree: dyn-inherent-nonlocal/src/beta.hd
 use pkg.alpha.Shape
 
-impl dyn Shape:  # diagnostic: nonlocal-impl
+impl dyn Shape: # diagnostic: nonlocal-impl
     fn double(self) -> f64:
         self.area() * 2.0

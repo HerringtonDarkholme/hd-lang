@@ -32,4 +32,4 @@ enum Reply:
     Busy
 
 impl Show for Reply by Structure:
-    Busy = pass  # diagnostic: invalid-member-line
+    Busy = pass # diagnostic: invalid-member-line

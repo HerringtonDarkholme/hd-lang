@@ -12,10 +12,12 @@ struct Number:
     extra: i32
 
 impl Describe for Number:
-    fn describe(self) -> i32: self.value
+    fn describe(self) -> i32:
+        self.value
 
 impl Named for Number:
-    fn name(self) -> i32: self.extra
+    fn name(self) -> i32:
+        self.extra
 
 fn describe_one[T < Describe](value: T) -> i32:
     value.describe()

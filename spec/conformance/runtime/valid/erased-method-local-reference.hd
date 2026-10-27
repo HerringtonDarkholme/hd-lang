@@ -18,8 +18,7 @@ trait Relay:
 
     fn copy[T](self, value: T) -> T:
         let mut saved = value
-        replace := fn(next: T) -> void:
-            saved = next
+        replace := fn(next: T) -> void: saved = next
         replace(value)
         saved
 

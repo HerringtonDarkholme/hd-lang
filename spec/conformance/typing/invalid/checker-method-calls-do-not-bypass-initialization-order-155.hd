@@ -5,7 +5,7 @@ struct Meter:
 struct Holder[T]:
     value: T
 made := Meter { scale: +2 }
-reading := made.reads()  # diagnostic: top-level-read-before-initialization
+reading := made.reads() # diagnostic: top-level-read-before-initialization
 offset := +1
 trait Reads:
     fn reads(self) -> i32:

@@ -13,4 +13,7 @@ tests:
 
     it("both derived implementations hold under the declared two-trait bound"):
         assert(same(Pair { left: 1, right: 2 }, Pair { left: 1, right: 2 }), reason="equal pairs")
-        assert(!same(Pair { left: 1, right: 2 }, Pair { left: 2, right: 1 }), reason="different pairs")
+        assert(
+            !same(Pair { left: 1, right: 2 }, Pair { left: 2, right: 1 }),
+            reason="different pairs",
+        )

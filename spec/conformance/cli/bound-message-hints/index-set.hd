@@ -3,4 +3,5 @@ use std.ops.IndexSet
 struct Board: pass
 
 impl IndexSet[(usize, usize)] for Board:
-    fn index_set(&mut self, key: usize, value: usize) -> void: pass
+    fn index_set(&mut self, key: usize, value: usize) -> void:
+        pass

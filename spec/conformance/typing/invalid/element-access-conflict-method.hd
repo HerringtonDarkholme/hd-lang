@@ -5,4 +5,4 @@ fn place(target: &mut i32, value: i32) -> void:
 
 fn demo() -> void:
     let mut scores = [+1, 2]
-    place(&mut scores[0], scores.remove_at(1))  # diagnostic: conflicting-access
+    place(&mut scores[0], scores.remove_at(1)) # diagnostic: conflicting-access

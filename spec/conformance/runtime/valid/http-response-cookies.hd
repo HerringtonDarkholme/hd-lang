@@ -25,101 +25,284 @@ tests:
         assert(expired.secure && expired.http_only, reason="deletion keeps secure defaults")
 
     it("incoming cookies reflect only the attributes received"):
-        headers := Headers::from([("Set-Cookie", "a=one"), ("set-cookie", "b=two; Path=/app; Domain=.EXAMPLE.COM; Secure; HttpOnly; SameSite=Strict; Max-Age=30")])
+        headers := Headers::from(
+            [
+                ("Set-Cookie", "a=one"),
+                (
+                    "set-cookie",
+                    "b=two; Path=/app; Domain=.EXAMPLE.COM; Secure; HttpOnly; SameSite=Strict; Max-Age=30",
+                ),
+            ],
+        )
         cookies := headers.response_cookies()
         assert_equal(cookies.len(), 2, reason="one cookie per line")
-        assert_equal(cookies[0], Cookie { name: "a", value: "one", path: .None, secure: false, http_only: false }, reason="incoming defaults do not invent outgoing attributes")
-        assert_equal(cookies[1], Cookie { name: "b", value: "two", path: .Some("/app"), domain: .Some("example.com"), secure: true, http_only: true, same_site: .Strict, max_age: .Some(Duration::seconds(30)) }, reason="case-insensitive known attributes")
+        assert_equal(
+            cookies[0],
+            Cookie { name: "a", value: "one", path: .None, secure: false, http_only: false },
+            reason="incoming defaults do not invent outgoing attributes",
+        )
+        assert_equal(
+            cookies[1],
+            Cookie {
+                name: "b",
+                value: "two",
+                path: .Some("/app"),
+                domain: .Some("example.com"),
+                secure: true,
+                http_only: true,
+                same_site: .Strict,
+                max_age: .Some(Duration::seconds(30)),
+            },
+            reason="case-insensitive known attributes",
+        )
 
     it("unknown attributes and malformed lines cannot swallow separate cookies"):
-        headers := Headers::from([("Set-Cookie", "missing-equals"), ("Set-Cookie", "=empty-name"), ("Set-Cookie", "good=value; Priority=High; SameSite=unknown"), ("Set-Cookie", "bad=value\r\nInjected: yes"), ("Set-Cookie", "last=value; SameSite=None")])
+        headers := Headers::from(
+            [
+                ("Set-Cookie", "missing-equals"),
+                ("Set-Cookie", "=empty-name"),
+                ("Set-Cookie", "good=value; Priority=High; SameSite=unknown"),
+                ("Set-Cookie", "bad=value\r\nInjected: yes"),
+                ("Set-Cookie", "last=value; SameSite=None"),
+            ],
+        )
         cookies := headers.response_cookies()
         assert_equal(cookies.len(), 2, reason="bad lines skipped and CRLF rejected")
         assert_equal(cookies[0].name, "good", reason="unknown attribute tolerated")
         assert_equal(cookies[0].same_site, SameSite.Lax, reason="unknown SameSite maps to Lax")
-        assert_equal(cookies[1].same_site, SameSite.None, reason="incoming SameSite=None represented faithfully")
+        assert_equal(
+            cookies[1].same_site,
+            SameSite.None,
+            reason="incoming SameSite=None represented faithfully",
+        )
         assert(!cookies[1].secure, reason="incoming metadata is not rewritten")
 
     it("cookie dates accept legacy delimiters and two-digit years"):
-        for date in ["Wed, 09 Jun 2027 10:18:14 GMT", "Wednesday, 09-Jun-27 10:18:14 GMT", "Wed Jun 9 10:18:14 2027", "10:18:14 9 Jun 2027"]:
+        for date in [
+            "Wed, 09 Jun 2027 10:18:14 GMT",
+            "Wednesday, 09-Jun-27 10:18:14 GMT",
+            "Wed Jun 9 10:18:14 2027",
+            "10:18:14 9 Jun 2027",
+        ]:
             cookies := Headers::from([("Set-Cookie", "a=b; Expires=$date")]).response_cookies()
-            assert_equal(cookies[0].expires, .Some(timestamp("2027-06-09T10:18:14Z")), reason="RFC6265 token order and separators")
-        cookies := Headers::from([("Set-Cookie", "a=b; Expires=01 Jan 70 00:00:00 GMT"), ("Set-Cookie", "a=b; Expires=01 Jan 69 00:00:00 GMT")]).response_cookies()
-        assert_equal(cookies[0].expires, .Some(timestamp("1970-01-01T00:00:00Z")), reason="70 maps to 1970")
-        assert_equal(cookies[1].expires, .Some(timestamp("2069-01-01T00:00:00Z")), reason="69 maps to 2069")
+            assert_equal(
+                cookies[0].expires,
+                .Some(timestamp("2027-06-09T10:18:14Z")),
+                reason="RFC6265 token order and separators",
+            )
+        cookies := Headers::from(
+            [
+                ("Set-Cookie", "a=b; Expires=01 Jan 70 00:00:00 GMT"),
+                ("Set-Cookie", "a=b; Expires=01 Jan 69 00:00:00 GMT"),
+            ],
+        )
+            .response_cookies()
+        assert_equal(
+            cookies[0].expires,
+            .Some(timestamp("1970-01-01T00:00:00Z")),
+            reason="70 maps to 1970",
+        )
+        assert_equal(
+            cookies[1].expires,
+            .Some(timestamp("2069-01-01T00:00:00Z")),
+            reason="69 maps to 2069",
+        )
 
     it("invalid dates do not destroy cookies or previous valid attributes"):
-        for date in ["Wed, 31 Feb 2027 10:18:14 GMT", "Wed, 09 Jun 1600 10:18:14 GMT", "Wed, 09 Jun 2027 24:18:14 GMT", "Wed, 09 Jun 2027 10:18:60 GMT", "not a date"]:
+        for date in [
+            "Wed, 31 Feb 2027 10:18:14 GMT",
+            "Wed, 09 Jun 1600 10:18:14 GMT",
+            "Wed, 09 Jun 2027 24:18:14 GMT",
+            "Wed, 09 Jun 2027 10:18:60 GMT",
+            "not a date",
+        ]:
             cookies := Headers::from([("Set-Cookie", "a=b; Expires=$date")]).response_cookies()
             assert_equal(cookies[0].expires, .None, reason="invalid date ignored")
-        cookies := Headers::from([("Set-Cookie", "a=b; Expires=Wed, 09 Jun 2027 10:18:14 GMT; Expires=nope; Max-Age=30; Max-Age=bad; SameSite=Strict; SameSite=Lax")]).response_cookies()
-        assert_equal(cookies[0].expires, .Some(timestamp("2027-06-09T10:18:14Z")), reason="invalid duplicate does not replace valid expiry")
-        assert_equal(cookies[0].max_age, .Some(Duration::seconds(30)), reason="invalid duplicate does not replace valid max-age")
+        cookies := Headers::from(
+            [
+                (
+                    "Set-Cookie",
+                    "a=b; Expires=Wed, 09 Jun 2027 10:18:14 GMT; Expires=nope; Max-Age=30; Max-Age=bad; SameSite=Strict; SameSite=Lax",
+                ),
+            ],
+        )
+            .response_cookies()
+        assert_equal(
+            cookies[0].expires,
+            .Some(timestamp("2027-06-09T10:18:14Z")),
+            reason="invalid duplicate does not replace valid expiry",
+        )
+        assert_equal(
+            cookies[0].max_age,
+            .Some(Duration::seconds(30)),
+            reason="invalid duplicate does not replace valid max-age",
+        )
         assert_equal(cookies[0].same_site, SameSite.Lax, reason="last valid attribute wins")
 
     it("Max-Age is bounded without overflow or a negative Duration"):
-        headers := Headers::from([("Set-Cookie", "a=b; Max-Age=-1"), ("Set-Cookie", "a=b; Max-Age=99999999999999999999999999999"), ("Set-Cookie", "a=b; Max-Age=+3"), ("Set-Cookie", "a=b; Max-Age=3x")])
+        headers := Headers::from(
+            [
+                ("Set-Cookie", "a=b; Max-Age=-1"),
+                ("Set-Cookie", "a=b; Max-Age=99999999999999999999999999999"),
+                ("Set-Cookie", "a=b; Max-Age=+3"),
+                ("Set-Cookie", "a=b; Max-Age=3x"),
+            ],
+        )
         cookies := headers.response_cookies()
         assert_equal(cookies[0].max_age, .Some(Duration::seconds(0)), reason="nonpositive expires")
-        assert_equal(cookies[1].max_age, .Some(Duration::milliseconds(9223372036854775807i64)), reason="huge age saturates without overflow")
+        assert_equal(
+            cookies[1].max_age,
+            .Some(Duration::milliseconds(9223372036854775807i64)),
+            reason="huge age saturates without overflow",
+        )
         assert_equal(cookies[2].max_age, .None, reason="plus is not RFC max-age")
         assert_equal(cookies[3].max_age, .None, reason="max-age requires digits throughout")
 
     it("setting response cookies replaces exactly the case-sensitive name"):
-        let mut headers = Headers::from([("Set-Cookie", "session=old; Path=/old"), ("Accept", "text/plain"), ("Set-Cookie", "theme=light"), ("set-cookie", "session=older"), ("Set-Cookie", "Session=case-sensitive")])
-        headers.set_response_cookie(Cookie { name: "session", value: "new", max_age: .Some(Duration::seconds(30)) })
+        let mut headers = Headers::from(
+            [
+                ("Set-Cookie", "session=old; Path=/old"),
+                ("Accept", "text/plain"),
+                ("Set-Cookie", "theme=light"),
+                ("set-cookie", "session=older"),
+                ("Set-Cookie", "Session=case-sensitive"),
+            ],
+        )
+        headers.set_response_cookie(
+            Cookie { name: "session", value: "new", max_age: .Some(Duration::seconds(30)) },
+        )
         cookies := headers.response_cookies()
         assert_equal(cookies.len(), 3, reason="both earlier same-name lines replaced")
         assert_equal(cookies[0].name, "theme", reason="unrelated cookie order retained")
         assert_equal(cookies[1].name, "Session", reason="cookie names remain case-sensitive")
         assert_equal(cookies[2].name, "session", reason="replacement appended as one line")
         assert_equal(cookies[2].value, "new", reason="new value")
-        assert_equal(cookies[2].max_age, .Some(Duration::seconds(30)), reason="max-age carried on one line")
+        assert_equal(
+            cookies[2].max_age,
+            .Some(Duration::seconds(30)),
+            reason="max-age carried on one line",
+        )
         assert_equal(headers.get(.Accept), .Some("text/plain"), reason="other headers unchanged")
         copy := headers
         assert_equal(copy, headers, reason="copy retains cookie preparation state")
         headers.set_response_cookie(Cookie::expired("session"))
-        assert_equal(headers.response_cookies()[2].max_age, .Some(Duration::seconds(0)), reason="deletion replaces previous cookie")
+        assert_equal(
+            headers.response_cookies()[2].max_age,
+            .Some(Duration::seconds(0)),
+            reason="deletion replaces previous cookie",
+        )
         assert_equal(copy.response_cookies()[2].value, "new", reason="copy is independent")
 
     it("secure defaults and explicit attributes become separate Set-Cookie lines"):
         let mut headers = Headers::new()
         headers.set_response_cookie(Cookie { name: "session", value: "abc" })
-        assert_equal(headers.get(.SetCookie), .Some("session=abc; Path=/; Secure; HttpOnly; SameSite=Lax"), reason="secure outgoing defaults")
-        headers.set_response_cookie(Cookie { name: "theme", value: "light", path: .None, domain: .Some("example.com"), secure: false, http_only: false, same_site: .Strict })
-        assert_equal(headers.entries()[1]._1, "theme=light; Domain=example.com; SameSite=Strict", reason="absent and false attributes omitted")
+        assert_equal(
+            headers.get(.SetCookie),
+            .Some("session=abc; Path=/; Secure; HttpOnly; SameSite=Lax"),
+            reason="secure outgoing defaults",
+        )
+        headers.set_response_cookie(
+            Cookie {
+                name: "theme",
+                value: "light",
+                path: .None,
+                domain: .Some("example.com"),
+                secure: false,
+                http_only: false,
+                same_site: .Strict,
+            },
+        )
+        assert_equal(
+            headers.entries()[1]._1,
+            "theme=light; Domain=example.com; SameSite=Strict",
+            reason="absent and false attributes omitted",
+        )
         assert_equal(headers.response_cookies().len(), 2, reason="one line per response cookie")
 
     it("positive fractional Max-Age rounds up and only zero deletes"):
-        let ages: List[(i64, string)] = [(0, "0"), (1, "1"), (999, "1"), (1000, "1"), (1001, "2"), (1500, "2"), (9223372036854775807, "9223372036854776")]
+        let ages: List[(i64, string)] = [
+            (0, "0"),
+            (1, "1"),
+            (999, "1"),
+            (1000, "1"),
+            (1001, "2"),
+            (1500, "2"),
+            (9223372036854775807, "9223372036854776"),
+        ]
         for (millis, seconds) in ages:
             let mut headers = Headers::new()
-            headers.set_response_cookie(Cookie { name: "a", value: "b", max_age: .Some(Duration::milliseconds(millis)) })
+            headers.set_response_cookie(
+                Cookie { name: "a", value: "b", max_age: .Some(Duration::milliseconds(millis)) },
+            )
             text := headers.get(.SetCookie).unwrap_or("")
-            assert(text.contains("Max-Age=$seconds;"), reason="ceiling conversion without overflowing milliseconds")
+            assert(
+                text.contains("Max-Age=$seconds;"),
+                reason="ceiling conversion without overflowing milliseconds",
+            )
 
     it("Expires is a UTC HTTP date even before the Unix epoch"):
-        let dates: List[(Timestamp, string)] = [(Timestamp::from_unix_milliseconds(0), "Thu, 01 Jan 1970 00:00:00 GMT"), (Timestamp::from_unix_milliseconds(-1), "Wed, 31 Dec 1969 23:59:59 GMT"), (timestamp("2027-06-09T10:18:14Z"), "Wed, 09 Jun 2027 10:18:14 GMT"), (timestamp("2000-02-29T00:00:00Z"), "Tue, 29 Feb 2000 00:00:00 GMT")]
+        let dates: List[(Timestamp, string)] = [
+            (Timestamp::from_unix_milliseconds(0), "Thu, 01 Jan 1970 00:00:00 GMT"),
+            (Timestamp::from_unix_milliseconds(-1), "Wed, 31 Dec 1969 23:59:59 GMT"),
+            (timestamp("2027-06-09T10:18:14Z"), "Wed, 09 Jun 2027 10:18:14 GMT"),
+            (timestamp("2000-02-29T00:00:00Z"), "Tue, 29 Feb 2000 00:00:00 GMT"),
+        ]
         for (date, expected) in dates:
             let mut headers = Headers::new()
             headers.set_response_cookie(Cookie { name: "a", value: "b", expires: .Some(date) })
-            assert(headers.get(.SetCookie).unwrap_or("").contains("Expires=$expected;"), reason="calendar date and weekday use UTC")
+            assert(
+                headers.get(.SetCookie).unwrap_or("").contains("Expires=$expected;"),
+                reason="calendar date and weekday use UTC",
+            )
             parsed := headers.response_cookies()[0].expires
-            expected_millis := date.unix_milliseconds() - ((date.unix_milliseconds() % 1000 + 1000) % 1000)
-            assert_equal(parsed, .Some(Timestamp::from_unix_milliseconds(expected_millis)), reason="wire dates have whole-second precision")
+            expected_millis := (
+                date.unix_milliseconds()
+                - ((date.unix_milliseconds() % 1000 + 1000) % 1000)
+            )
+            assert_equal(
+                parsed,
+                .Some(Timestamp::from_unix_milliseconds(expected_millis)),
+                reason="wire dates have whole-second precision",
+            )
 
     it("date token suffixes follow RFC6265 grammar"):
         headers := Headers::from([("Set-Cookie", "a=b; Expires=09 Jun99 2027 10:18:14:trailing")])
-        assert_equal(headers.response_cookies()[0].expires, .Some(timestamp("2027-06-09T10:18:14Z")), reason="month allows any suffix and time permits a nondigit tail")
+        assert_equal(
+            headers.response_cookies()[0].expires,
+            .Some(timestamp("2027-06-09T10:18:14Z")),
+            reason="month allows any suffix and time permits a nondigit tail",
+        )
 
     it("the first matching time token is validated after token selection"):
-        for date in ["09 Jun 2027 25:00:00 10:18:14", "09 Jun 2027 10:99:00 10:18:14", "09 Jun 2027 10:18:99 10:18:14"]:
+        for date in [
+            "09 Jun 2027 25:00:00 10:18:14",
+            "09 Jun 2027 10:99:00 10:18:14",
+            "09 Jun 2027 10:18:99 10:18:14",
+        ]:
             headers := Headers::from([("Set-Cookie", "a=b; Expires=$date")])
-            assert_equal(headers.response_cookies()[0].expires, .None, reason="an out-of-range first time is not replaced by a later time")
+            assert_equal(
+                headers.response_cookies()[0].expires,
+                .None,
+                reason="an out-of-range first time is not replaced by a later time",
+            )
 
     it("invalid Path attributes defer the request default and replace earlier paths"):
-        for attributes in ["Path=", "Path=relative", "Path=/private; Path=", "Path=/private; Path=relative"]:
+        for attributes in [
+            "Path=",
+            "Path=relative",
+            "Path=/private; Path=",
+            "Path=/private; Path=relative",
+        ]:
             cookies := Headers::from([("Set-Cookie", "a=b; $attributes")]).response_cookies()
-            assert_equal(cookies[0].path, .None, reason="request default needs the later jar's URL context")
-        cookies := Headers::from([("Set-Cookie", "a=b; Path=relative; Path=/public")]).response_cookies()
-        assert_equal(cookies[0].path, .Some("/public"), reason="later valid explicit path replaces the contextual default")
+            assert_equal(
+                cookies[0].path,
+                .None,
+                reason="request default needs the later jar's URL context",
+            )
+        cookies := Headers::from([("Set-Cookie", "a=b; Path=relative; Path=/public")])
+            .response_cookies()
+        assert_equal(
+            cookies[0].path,
+            .Some("/public"),
+            reason="later valid explicit path replaces the contextual default",
+        )

@@ -4,15 +4,14 @@
 # expect-stdout: 2 0
 # expect-stdout: true
 # expect-stdout: 1 0
-fn pick(x: bool, y: bool) -> string: "$x $y"
+fn pick(x: bool, y: bool) -> string:
+    "$x $y"
 
 fn count(flag: bool, other: bool) -> i32:
-    if flag && !other:
-        1
-    else:
-        0
+    if flag && !other: 1 else: 0
 
-fn bounded[T < Ord](items: List[T], i: usize, j: usize) -> bool: items[i] < items[j]
+fn bounded[T < Ord](items: List[T], i: usize, j: usize) -> bool:
+    items[i] < items[j]
 
 pub fn main() -> void $ Console:
     a := +1

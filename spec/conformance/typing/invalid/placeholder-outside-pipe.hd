@@ -4,7 +4,8 @@
 fn format(value: i32, width: i32) -> string:
     "$value/$width"
 
-fn apply(value: i32, f: fn(i32) -> string) -> string: f(value)
+fn apply(value: i32, f: fn(i32) -> string) -> string:
+    f(value)
 
 fn run() -> string:
-    apply(3, format(_, 8))  # diagnostic: placeholder-outside-pipe
+    apply(3, format(_, 8)) # diagnostic: placeholder-outside-pipe

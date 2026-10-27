@@ -2,4 +2,4 @@ struct Consumer[-T]:
     consume: fn(T) -> void
 
 fn narrow(value: Consumer[*dyn Display]) -> Consumer[*i32]:
-    value  # diagnostic: variance-representation-change
+    value # diagnostic: variance-representation-change

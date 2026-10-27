@@ -1,4 +1,4 @@
 # test: one parameter cannot be both a value type and a row
 # Spec 11 Row Parameters: req.row.param.one-kind.
-fn keep[$R](value: R, job: fn() -> void $ R) -> void $ R:  # diagnostic: generic-kind-mismatch
+fn keep[$ R](value: R, job: fn() -> void $ R) -> void $ R: # diagnostic: generic-kind-mismatch
     job()

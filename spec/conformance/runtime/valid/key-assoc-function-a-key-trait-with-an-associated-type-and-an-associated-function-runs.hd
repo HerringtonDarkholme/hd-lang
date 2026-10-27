@@ -13,11 +13,13 @@ struct D:
     n: i32
 
 impl Maker for D:
-    fn make() -> i32: 7
+    fn make() -> i32:
+        7
 
 impl Named for D:
     type Label = string
-    fn label(self) -> string: "lbl"
+    fn label(self) -> string:
+        "lbl"
 
 fn show() -> string $ Named[Label = string]:
     $.use(Named[Label = string]).label()

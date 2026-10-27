@@ -26,9 +26,25 @@ tests:
         assert_equal(command.stdin, "", reason="stdin defaults to the empty string")
 
     it("setters append and replace, and calls chain"):
-        command := Command::new("make").arg("-j").args(["all", "docs"]).env("A", "1").env("A", "2").current_dir(Path("a")).current_dir(Path("b")).stdin("x").stdin("y")
-        assert_equal(command.args, ["-j", "all", "docs"], reason="arg and args append, each item its own argument")
-        assert_equal(command.env, [("A", "1"), ("A", "2")], reason="env appends every pair in order")
+        command := Command::new("make")
+            .arg("-j")
+            .args(["all", "docs"])
+            .env("A", "1")
+            .env("A", "2")
+            .current_dir(Path("a"))
+            .current_dir(Path("b"))
+            .stdin("x")
+            .stdin("y")
+        assert_equal(
+            command.args,
+            ["-j", "all", "docs"],
+            reason="arg and args append, each item its own argument",
+        )
+        assert_equal(
+            command.env,
+            [("A", "1"), ("A", "2")],
+            reason="env appends every pair in order",
+        )
         assert_equal(command.current_dir, .Some(Path("b")), reason="current_dir replaces")
         assert_equal(command.stdin, "y", reason="stdin replaces")
 
@@ -41,7 +57,11 @@ tests:
         right := Command::new("git").arg("log").env("A", "1")
         assert_equal(*left == *right, true, reason="the same fields")
         assert_equal(*left == *Command::new("git").arg("log"), false, reason="another environment")
-        assert_equal(debug(Command::new("git").arg("log")), "Command { program: \"git\", args: [\"log\"], env: [], current_dir: Option.None, stdin: \"\" }", reason="Debug")
+        assert_equal(
+            debug(Command::new("git").arg("log")),
+            "Command { program: \"git\", args: [\"log\"], env: [], current_dir: Option.None, stdin: \"\" }",
+            reason="Debug",
+        )
 
     it("run! answers from the provider"):
         let mut process = ScriptedProcess::new()
@@ -58,4 +78,8 @@ tests:
     it("run! reports an unscripted program as NotFound"):
         let mut process = ScriptedProcess::new()
         $.with(Process=process):
-            assert_equal(status_of!("nope"), .Err(ProcessError.NotFound(program="nope")), reason="not scripted")
+            assert_equal(
+                status_of!("nope"),
+                .Err(ProcessError.NotFound(program="nope")),
+                reason="not scripted",
+            )

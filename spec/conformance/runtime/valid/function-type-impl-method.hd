@@ -7,7 +7,8 @@ impl Describe for fn(i32) -> i32:
     fn describe(self) -> string:
         "i32 to i32"
 
-fn inc(value: i32) -> i32: value + 1
+fn inc(value: i32) -> i32:
+    value + 1
 
 tests:
     use std.testing.assert_equal

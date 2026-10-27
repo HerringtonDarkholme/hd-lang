@@ -12,7 +12,32 @@
 
 # The prelude names (spec/lang/10-modules.md#prelude). `std.core`'s names
 # and `std.task`'s names are compiler-provided.
-pub use std.core.{never, bool, i8, i16, i32, i64, u8, u16, u32, u64, usize, f32, f64, char, string, void, List, Map, Any, AnyVal, AnyRef, Option, Result, panic}
+pub use std.core.{
+    never,
+    bool,
+    i8,
+    i16,
+    i32,
+    i64,
+    u8,
+    u16,
+    u32,
+    u64,
+    usize,
+    f32,
+    f64,
+    char,
+    string,
+    void,
+    List,
+    Map,
+    Any,
+    AnyVal,
+    AnyRef,
+    Option,
+    Result,
+    panic,
+}
 pub use std.format.{Display, Debug, debug, dbg}
 pub use std.cmp.{Eq, PartialOrd, Ord, Ordering}
 pub use std.hash.{Hash}
@@ -27,7 +52,28 @@ use std.convert.{From}
 # Operator syntax, ranges, indexing, and calls of callable values use these
 # (module.prelude.ops-operator-traits, module.prelude.ops-call-traits,
 # expr.range.not-prelude).
-use std.ops.{Add, Sub, Mul, Div, Rem, Neg, Not, BitAnd, BitOr, BitXor, Shl, Shr, Index, IndexSet, Apply, Update, Range, RangeFrom, RangeTo, RangeFull}
+use std.ops.{
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Rem,
+    Neg,
+    Not,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
+    Index,
+    IndexSet,
+    Apply,
+    Update,
+    Range,
+    RangeFrom,
+    RangeTo,
+    RangeFull,
+}
 
 # Inherent methods on built-in types need no `use` (trait.own.inherent.std),
 # and string `+`, `==`, and order call `std.text`'s string kernel.

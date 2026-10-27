@@ -4,5 +4,5 @@ trait Named:
     fn rename(&mut self, to: i32) -> void
 
 fn cannot_change() -> void:
-    let rename: fn(&dyn Named, i32) -> void = Named::rename  # diagnostic: not-writable
+    let rename: fn(&dyn Named, i32) -> void = Named::rename # diagnostic: not-writable
     _ := rename

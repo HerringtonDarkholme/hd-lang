@@ -19,4 +19,4 @@ pub trait Vault:
     fn keep(self, token: Token) -> Token
 
 pub fn main() -> void $ Vault:
-    _ := $.use(Vault).keep(Token { owner: "ada", secret: 42 })  # panic: host-contract
+    _ := $.use(Vault).keep(Token { owner: "ada", secret: 42 }) # panic: host-contract

@@ -3,7 +3,8 @@
 # Spec 05 Names: expr.name.identifier.
 LEVEL := +1
 
-fn double(x: i32) -> i32: x * 2
+fn double(x: i32) -> i32:
+    x * 2
 
 fn outer() -> i32:
     LEVEL

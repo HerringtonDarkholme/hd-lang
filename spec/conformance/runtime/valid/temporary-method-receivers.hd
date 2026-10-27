@@ -57,18 +57,34 @@ tests:
         make_point().translate(1, 1)
         Point { x: 3, y: 4 }.translate(1, 1)
         Wrapped { point: make_point() }.point.translate(1, 1)
-        assert_equal(make_point().moved(4), 5, reason="the method reads its temporary after changing it")
+        assert_equal(
+            make_point().moved(4),
+            5,
+            reason="the method reads its temporary after changing it",
+        )
         let mut into: List[i32] = []
         Appender { into: &mut into }.add(3)
         assert_equal(into, [3], reason="a temporary method may also change a referenced place")
 
     it("a chain keeps the constructor result alive through returned references"):
         args := Builder::new("tool").arg("one").arg("two").finish()
-        assert_equal(args, ["tool", "one", "two"], reason="each returned reference reaches the same temporary")
+        assert_equal(
+            args,
+            ["tool", "one", "two"],
+            reason="each returned reference reaches the same temporary",
+        )
 
     it("next can mutate the cursor returned by chars"):
         s := "abc"
-        assert_equal(s.chars().next(), .Some('a'), reason="the returned cursor is a writable temporary")
+        assert_equal(
+            s.chars().next(),
+            .Some('a'),
+            reason="the returned cursor is a writable temporary",
+        )
 
     it("a bound trait method can mutate a temporary produced by a callback"):
-        assert_equal(generic_step(make_point), 4, reason="the generic receiver follows the same temporary rule")
+        assert_equal(
+            generic_step(make_point),
+            4,
+            reason="the generic receiver follows the same temporary rule",
+        )

@@ -8,6 +8,6 @@ fn invalid() -> void:
     let mut s = Slot.Full(+1)
     match s:
         .Full(n) =>
-            r := &mut n  # diagnostic: not-writable
+            r := &mut n # diagnostic: not-writable
             *r = n
         .Empty => ()

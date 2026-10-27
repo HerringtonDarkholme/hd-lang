@@ -7,9 +7,10 @@ struct Label:
     text: string
 
 impl Label:
-    pub fn describe(self) -> string: self.text
+    pub fn describe(self) -> string:
+        self.text
 
 struct Page:
     Label
 
-impl Describe for Page  # diagnostic: missing-trait-method
+impl Describe for Page # diagnostic: missing-trait-method

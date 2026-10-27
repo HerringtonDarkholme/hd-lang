@@ -21,7 +21,11 @@ tests:
         let mut console = MemoryConsole::new()
         $.with(Args=ScriptedArgs::new("tool", ["--levl", "3"]), Console=console):
             assert_equal(u8(main()), 2, reason="error.exit() returns the usage code")
-        assert_equal(console.error_output(), ["unknown option --levl\n"], reason="the error on error output")
+        assert_equal(
+            console.error_output(),
+            ["unknown option --levl\n"],
+            reason="the error on error output",
+        )
         assert_equal(console.output(), [], reason="nothing on standard output")
 
     it("a good command line exits 0"):

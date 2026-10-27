@@ -15,4 +15,8 @@ tests:
         assert_equal(text, "{\"value\":7}", reason="the member is written")
         back := decode::[Example[i32]](text).expect("read")
         assert_equal(back.value, .Some(+7), reason="the member is read back")
-        assert_equal(decode::[Example[i32]]("{\"value\":null}").expect("null").value, .None, reason="an absent payload reads as None")
+        assert_equal(
+            decode::[Example[i32]]("{\"value\":null}").expect("null").value,
+            .None,
+            reason="an absent payload reads as None",
+        )

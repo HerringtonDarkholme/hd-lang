@@ -18,4 +18,8 @@ tests:
     it("passes values that have no Display to the prefix function"):
         first := Cell { amount: 2 }
         second := Cell { amount: 5 }
-        assert_equal(total"cells $first and $second", 7, reason="the call returns the prefix function's i32")
+        assert_equal(
+            total"cells $first and $second",
+            7,
+            reason="the call returns the prefix function's i32",
+        )

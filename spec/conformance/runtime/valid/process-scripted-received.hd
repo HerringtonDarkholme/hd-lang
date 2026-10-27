@@ -6,7 +6,12 @@ use std.path.Path
 use std.process.{Command, Process, ProcessError, ProcessOutput, ScriptedProcess}
 
 fn changes!(repo: Path) -> Result[bool, ProcessError] $ Process:
-    output := Command::new("git").args(["diff", "--quiet"]).current_dir(repo).env("GIT_PAGER", "cat").stdin("none").run!()?
+    output := Command::new("git")
+        .args(["diff", "--quiet"])
+        .current_dir(repo)
+        .env("GIT_PAGER", "cat")
+        .stdin("none")
+        .run!()?
     .Ok(output.status == 1)
 
 tests:

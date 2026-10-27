@@ -1,6 +1,6 @@
 # test: requirements / row extension / provider restoration
 
-fn provide_logger[$R](callback: fn() -> i32 $ R + Logger) -> i32 $ R + Backup:
+fn provide_logger[$ R](callback: fn() -> i32 $ R + Logger) -> i32 $ R + Backup:
     $.with(Logger=$.use(Backup)):
         callback()
 
@@ -28,7 +28,8 @@ struct FixedBackup: pass
 impl Logger for FixedBackup
 
 impl Backup for FixedBackup:
-    fn label(self) -> i32: 0
+    fn label(self) -> i32:
+        0
 
 tests:
     use std.testing.assert_equal

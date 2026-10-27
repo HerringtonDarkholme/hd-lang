@@ -5,7 +5,7 @@
 # fixed:     let mut chars: List[char] = []
 
 fn letters(text: string) -> List[char]:
-    let chars: mut List[char] = []  # diagnostic: mut-on-struct
+    let chars: mut List[char] = [] # diagnostic: mut-on-struct
     for c in text.chars():
         chars.push(c)
     chars

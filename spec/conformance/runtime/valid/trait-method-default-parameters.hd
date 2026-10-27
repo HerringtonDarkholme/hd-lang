@@ -18,13 +18,16 @@ pub enum Mode:
     All
 
 trait Check:
-    fn validated(self, mode: Mode = .All, limit: usize = 64) -> usize: limit
+    fn validated(self, mode: Mode = .All, limit: usize = 64) -> usize:
+        limit
     fn base(self) -> usize
-    fn scaled(self, k: usize = self.base() * 2) -> usize: k
+    fn scaled(self, k: usize = self.base() * 2) -> usize:
+        k
 
 struct Item: pass
 impl Check for Item:
-    fn base(self) -> usize: 5
+    fn base(self) -> usize:
+        5
 
 struct Strict: pass
 impl Check for Strict:
@@ -32,11 +35,14 @@ impl Check for Strict:
         match mode:
             .First => limit + 1000
             .All => limit + 2000
-    fn base(self) -> usize: 7
+    fn base(self) -> usize:
+        7
 
-fn through_bound[T < Check](x: T) -> usize: x.validated()
+fn through_bound[T < Check](x: T) -> usize:
+    x.validated()
 
-fn through_value(x: &dyn Check) -> usize: x.validated() + x.scaled()
+fn through_value(x: &dyn Check) -> usize:
+    x.validated() + x.scaled()
 
 pub fn main() -> void $ Console:
     println(Item {}.validated())

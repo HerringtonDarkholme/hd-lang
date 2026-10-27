@@ -5,4 +5,4 @@ enum Color:
     Green
 
 fn pick() -> Color:
-    Color.Blue  # diagnostic: unknown-variant
+    Color.Blue # diagnostic: unknown-variant

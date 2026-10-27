@@ -6,22 +6,46 @@ use std.convert.From
 
 tests:
     it("body errors distinguish shared consumption and nested codec failures"):
-        assert_equal(BodyError.Used.to_string(), "the body was already read", reason="shared-read failure")
+        assert_equal(
+            BodyError.Used.to_string(),
+            "the body was already read",
+            reason="shared-read failure",
+        )
         json := JsonError.UnexpectedEnd(3)
         error := BodyError.Json(json)
-        assert_equal(error.to_string(), "invalid JSON body: unexpected end of text at position 3", reason="JSON diagnostic retained")
+        assert_equal(
+            error.to_string(),
+            "invalid JSON body: unexpected end of text at position 3",
+            reason="JSON diagnostic retained",
+        )
         match error:
             .Json(found) => assert_equal(found, json, reason="typed JSON payload")
             _ => panic("JSON error variant")
         form := FormError.Invalid("age", "not-a-number")
-        assert_equal(BodyError.Form(form).to_string(), "invalid form body: field age: cannot read not-a-number", reason="nested form diagnostic")
+        assert_equal(
+            BodyError.Form(form).to_string(),
+            "invalid form body: field age: cannot read not-a-number",
+            reason="nested form diagnostic",
+        )
         assert(BodyError.Form(form) != BodyError.Used, reason="different failure kinds")
 
     it("form errors retain the exact field and input"):
-        assert_equal(FormError.Unsupported("address[city]").to_string(), "field address[city] has no form encoding", reason="unsupported shape path")
-        assert_equal(FormError.Missing("port").to_string(), "missing field port", reason="required field")
+        assert_equal(
+            FormError.Unsupported("address[city]").to_string(),
+            "field address[city] has no form encoding",
+            reason="unsupported shape path",
+        )
+        assert_equal(
+            FormError.Missing("port").to_string(),
+            "missing field port",
+            reason="required field",
+        )
         error := FormError.Invalid("page", "x=y")
-        assert_equal(error.to_string(), "field page: cannot read x=y", reason="input is not reinterpreted")
+        assert_equal(
+            error.to_string(),
+            "field page: cannot read x=y",
+            reason="input is not reinterpreted",
+        )
         match error:
             .Invalid(field, text) =>
                 assert_equal(field, "page", reason="typed field")
@@ -33,9 +57,21 @@ tests:
             invalid := UrlError.Invalid(text)
             relative := UrlError.RelativeWithoutBase(text)
             assert_equal(invalid.to_string(), "invalid URL: $text", reason="invalid URL message")
-            assert_equal(relative.to_string(), "relative URL without a base: $text", reason="relative URL message")
-            assert_equal(HttpError::from(invalid), HttpError.InvalidUrl(text), reason="invalid input preserved through From")
-            assert_equal(HttpError::from(relative), HttpError.InvalidUrl(text), reason="relative input preserved through From")
+            assert_equal(
+                relative.to_string(),
+                "relative URL without a base: $text",
+                reason="relative URL message",
+            )
+            assert_equal(
+                HttpError::from(invalid),
+                HttpError.InvalidUrl(text),
+                reason="invalid input preserved through From",
+            )
+            assert_equal(
+                HttpError::from(relative),
+                HttpError.InvalidUrl(text),
+                reason="relative input preserved through From",
+            )
 
     it("HTTP errors retain body failures and invalid header names"):
         body := BodyError.Form(FormError.Invalid("port", "zero?"))
@@ -44,5 +80,9 @@ tests:
         assert_equal(error.to_string(), body.to_string(), reason="body diagnostic retained")
         assert(!error.is_transient(), reason="body errors cannot recover through retry")
         header := HttpError.InvalidHeader("X-User-Value")
-        assert_equal(header.to_string(), "invalid header X-User-Value", reason="original header name")
+        assert_equal(
+            header.to_string(),
+            "invalid header X-User-Value",
+            reason="original header name",
+        )
         assert(!header.is_transient(), reason="invalid headers cannot recover through retry")

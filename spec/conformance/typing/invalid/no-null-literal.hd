@@ -2,4 +2,4 @@
 # Spec 04 Type System: types.literal.no-absent.
 
 fn none() -> i32?:
-    null  # diagnostic: unknown-name
+    null # diagnostic: unknown-name

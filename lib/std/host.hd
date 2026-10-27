@@ -86,7 +86,10 @@ impl EnvReader:
             .Some(text) => .Ok(text)
             .None => .Err(HostError.Missing(self.name))
 
-    fn parse[T < Parse[Error = E], E < Display](&mut self, expected: string) -> Result[T, HostError]:
+    fn parse[T < Parse[Error = E], E < Display](
+        &mut self,
+        expected: string,
+    ) -> Result[T, HostError]:
         text := self.read_text(expected)?
         match T::parse(text):
             .Ok(value) => .Ok(value)
@@ -148,7 +151,11 @@ impl Deserializer for EnvReader:
     fn next_key(&mut self) -> Result[string?, HostError]:
         .Err(self.invalid("a scalar or list"))
 
-    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, HostError]:
+    fn begin_variant(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+    ) -> Result[usize, HostError]:
         if self.record:
             return .Err(self.invalid("a scalar or list"))
         if choices.len() != 1 || !choices[0].of_data || choices[0].name == "":
@@ -280,7 +287,8 @@ impl Sys for ScriptedSys:
 
     fn cpu_count(self) -> Result[u32, HostError]:
         match self.values.get("cpu_count"):
-            .Some(text) => match text.parse::[u32]():
-                .Ok(count) => .Ok(count)
-                .Err(_) => .Err(HostError.Unsupported("cpu_count"))
+            .Some(text) =>
+                match text.parse::[u32]():
+                    .Ok(count) => .Ok(count)
+                    .Err(_) => .Err(HostError.Unsupported("cpu_count"))
             .None => .Err(HostError.Unsupported("cpu_count"))

@@ -3,5 +3,5 @@
 # expect: missing-result-type
 # fixed: pub fn main() -> void:
 
-pub fn main():  # diagnostic: missing-result-type
+pub fn main(): # diagnostic: missing-result-type
     pass

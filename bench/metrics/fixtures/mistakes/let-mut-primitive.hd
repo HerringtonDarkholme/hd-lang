@@ -5,7 +5,7 @@
 # fixed:     let count = +0
 
 fn count_up(limit: i32) -> i32:
-    let mut count = +0  # warning: redundant-let-mut
+    let mut count = +0 # warning: redundant-let-mut
     while count < limit:
         count = count + 1
     count

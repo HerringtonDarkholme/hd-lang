@@ -4,5 +4,5 @@ trait Versioned:
     fn newer(self, other: Self) -> bool
 
 fn unavailable() -> void:
-    let compare: fn(&dyn Versioned, &dyn Versioned) -> bool = Versioned::newer  # diagnostic: dyn-member-unavailable
+    let compare: fn(&dyn Versioned, &dyn Versioned) -> bool = Versioned::newer # diagnostic: dyn-member-unavailable
     _ := compare

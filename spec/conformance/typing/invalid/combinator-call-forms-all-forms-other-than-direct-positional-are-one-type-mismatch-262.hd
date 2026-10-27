@@ -1,10 +1,12 @@
 # test: combinator call forms all forms other than direct positional are one type mismatch
 use std.task.{all, race}
 
-fn one!() -> i32: 1
+fn one!() -> i32:
+    1
 
-fn two!() -> i32: 2
+fn two!() -> i32:
+    2
 
 pub fn main!() -> void $ Console:
     let tasks: List[mut Suspend[i32]] = [one()]
-    println(all!(x=one(), y=two()))  # diagnostic: type-mismatch
+    println(all!(x=one(), y=two())) # diagnostic: type-mismatch

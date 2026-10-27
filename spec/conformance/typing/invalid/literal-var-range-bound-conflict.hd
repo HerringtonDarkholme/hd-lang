@@ -5,5 +5,5 @@ fn take(n: i32) -> i32:
 
 fn run(count: usize) -> i32:
     for i in 0..count:
-        return take(i)  # diagnostic: type-mismatch
+        return take(i) # diagnostic: type-mismatch
     0

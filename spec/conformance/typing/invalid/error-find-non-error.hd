@@ -3,4 +3,4 @@
 use std.error.Error
 
 fn code(failure: *dyn Error) -> i32?:
-    failure.find::[i32]()  # diagnostic: unsatisfied-trait-bound
+    failure.find::[i32]() # diagnostic: unsatisfied-trait-bound

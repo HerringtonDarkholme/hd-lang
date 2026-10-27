@@ -7,5 +7,5 @@ struct Money:
 
 impl Add for Money:
     type Out = Money
-    @intrinsic  # diagnostic: unknown-name
+    @intrinsic # diagnostic: unknown-name
     fn add(self, rhs: Money) -> Money

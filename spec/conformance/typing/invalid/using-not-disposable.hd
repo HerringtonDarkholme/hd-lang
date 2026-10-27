@@ -4,5 +4,5 @@ struct Note:
     text: string
 
 fn read!(note: Note) -> string:
-    using copy = Note { ...note }  # diagnostic: unsatisfied-trait-bound
+    using copy = Note { ...note } # diagnostic: unsatisfied-trait-bound
     copy.text

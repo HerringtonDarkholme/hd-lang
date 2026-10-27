@@ -5,8 +5,4 @@ let initialized = +0
 initialized = initialized + 1
 
 pub fn main() -> void:
-    assert_equal(
-        initialized,
-        1,
-        reason="module initialization must run before main",
-    )
+    assert_equal(initialized, 1, reason="module initialization must run before main")

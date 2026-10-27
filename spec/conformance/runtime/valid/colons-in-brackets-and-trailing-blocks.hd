@@ -10,18 +10,23 @@ struct Account:
     limit: i32
 
 fn repeat(times: i32, body: fn() -> void) -> void:
-    for i in 0..times: body()
+    for i in 0..times:
+        body()
 
 fn transaction(body: fn() -> void) -> void $ Console:
     println("transaction body")
     body()
 
-fn measure(body: fn() -> i32) -> i32: body() * 2
+fn measure(body: fn() -> i32) -> i32:
+    body() * 2
 
 pub fn main() -> void $ Console:
-    accounts := {"ada": Account { owner: "ada", limit: +5 }, "grace": Account { owner: "grace", limit: +9 }}
+    accounts := {
+        "ada": Account { owner: "ada", limit: +5 },
+        "grace": Account { owner: "grace", limit: +9 },
+    }
     println("${accounts.len()} entries, ${accounts["ada"].owner}")
-    actions := {"inc": fn(x: i32) -> i32: x + 1, "dec": fn(x: i32) -> i32: x - 1}
+    actions := { "inc": fn(x: i32) -> i32: x + 1, "dec": fn(x: i32) -> i32: x - 1 }
     println(actions["inc"](+1))
     let count = +0
     repeat(3):

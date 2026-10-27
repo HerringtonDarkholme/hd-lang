@@ -1,6 +1,7 @@
 # test: a vararg function's value keeps the vararg, so it fits a function type whose inputs end in a rest element
 
-fn count(values...: List[i32]) -> usize: values.len()
+fn count(values...: List[i32]) -> usize:
+    values.len()
 fn invoke(callback: fn(List[i32]...) -> usize, items: List[i32]) -> usize:
     callback(1, 2) * 10 + callback(items...)
 fn main() -> usize:

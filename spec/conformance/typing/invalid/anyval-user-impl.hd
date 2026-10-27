@@ -3,4 +3,4 @@
 struct Parcel:
     weight: i32
 
-impl AnyVal for Parcel  # diagnostic: sealed-trait-implementation
+impl AnyVal for Parcel # diagnostic: sealed-trait-implementation

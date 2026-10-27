@@ -5,7 +5,4 @@ fn stop(reason: string) -> never:
     panic(reason)
 
 fn pick(flag: bool) -> i32:
-    if flag:
-        1
-    else:
-        stop("no value")
+    if flag: 1 else: stop("no value")

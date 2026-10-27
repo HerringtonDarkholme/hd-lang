@@ -14,7 +14,8 @@ struct Runner:
 
 impl Disposable for Runner:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("runner defer")
+        defer:
+            self.log.push("runner defer")
         let mut job = self.job
         value := job!()
         self.log.push("runner got ${value}")
@@ -29,7 +30,8 @@ fn ended!(job: mut Suspend[void]) -> string:
         .Abandoned => "abandoned"
 
 fn slow!(name: string, log: &mut List[string]) -> void $ Clock:
-    defer: log.push("${name} defer")
+    defer:
+        log.push("${name} defer")
     sleep!(s(60))
 
 fn stop_later!(job: mut Suspend[void], log: &mut List[string]) -> void $ Clock:
@@ -39,23 +41,29 @@ fn stop_later!(job: mut Suspend[void], log: &mut List[string]) -> void $ Clock:
         .Abandoned => log.push("stopper abandoned")
 
 fn waiter!(job: mut Suspend[void], log: &mut List[string]) -> void:
-    defer: log.push("waiter defer")
+    defer:
+        log.push("waiter defer")
     job!()
     log.push("waiter never")
 
 fn supervise!(job: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
-    defer: log.push("supervise defer")
+    defer:
+        log.push("supervise defer")
     _ := all!(job, stop_later(job, log))
     "supervise never"
 
 fn supervise_waiter!(job: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
-    defer: log.push("supervise defer")
+    defer:
+        log.push("supervise defer")
     _ := all!(waiter(job, log), stop_later(job, log))
     "supervise never"
 
 pub fn main!() -> void $ Console + Clock:
     let mut log: List[string] = []
-    let runner: mut Suspend[void] = run(&mut log, supervise(race(slow("a", &mut log), slow("b", &mut log)), &mut log))
+    let runner: mut Suspend[void] = run(
+        &mut log,
+        supervise(race(slow("a", &mut log), slow("b", &mut log)), &mut log),
+    )
     runner!()
     println(log.join(", "))
     println(ended!(runner))

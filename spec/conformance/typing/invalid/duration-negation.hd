@@ -3,4 +3,4 @@
 use std.time.{Duration, s}
 
 fn rewind() -> Duration:
-    -5s  # diagnostic: type-mismatch
+    -5s # diagnostic: type-mismatch

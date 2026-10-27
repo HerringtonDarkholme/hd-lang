@@ -7,13 +7,15 @@ trait Clock:
 struct SystemClock: pass
 
 impl Clock for SystemClock:
-    fn now(self) -> i64: 1700000000
+    fn now(self) -> i64:
+        1700000000
 
 struct FixedClock:
     at: i64
 
 impl Clock for FixedClock:
-    fn now(self) -> i64: self.at
+    fn now(self) -> i64:
+        self.at
 
 fn stamp(label: string) -> string $ Clock:
     "${label}@${$.use(Clock).now()}"

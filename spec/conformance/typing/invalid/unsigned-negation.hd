@@ -1,3 +1,2 @@
-
 let value: u8 = 1
-invalid := -value  # diagnostic: type-mismatch
+invalid := -value # diagnostic: type-mismatch

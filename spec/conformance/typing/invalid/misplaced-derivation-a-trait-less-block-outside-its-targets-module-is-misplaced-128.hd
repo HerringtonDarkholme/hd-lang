@@ -3,5 +3,5 @@
 use pkg.lib.shapes.Point
 use std.structure.Structure
 
-impl Point by Structure:  # diagnostic: misplaced-derivation
+impl Point by Structure: # diagnostic: misplaced-derivation
     x = []

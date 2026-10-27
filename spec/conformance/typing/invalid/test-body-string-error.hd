@@ -8,6 +8,6 @@ tests:
     use std.testing.assert
 
     it("an error that is not an Error does not convert"):
-        value := lookup(80)?  # diagnostic: invalid-result-propagation
+        value := lookup(80)? # diagnostic: invalid-result-propagation
         assert(value > 0, reason="a positive port")
         .Ok(())

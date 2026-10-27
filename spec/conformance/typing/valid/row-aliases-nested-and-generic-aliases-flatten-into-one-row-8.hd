@@ -8,7 +8,7 @@ fn serve() -> void $ Web + Db:
 fn run() -> void $ Log + Cache + Db:
     serve()
 
-fn logged[$R](job: fn() -> void $ R) -> void $ WithLog[$ R]:
+fn logged[$ R](job: fn() -> void $ R) -> void $ WithLog[$ R]:
     job()
 
 fn quiet() -> void $ Db:

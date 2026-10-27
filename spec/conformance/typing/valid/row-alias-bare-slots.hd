@@ -9,7 +9,7 @@ trait Log
 
 type AppRow = $ Db + Cache
 
-type WithLog[$R] = $ R + Log
+type WithLog[$ R] = $ R + Log
 
 fn install(ctx: $.Context[$ AppRow], job: Fn[(), void, $ AppRow]) -> void:
     $.with(ctx...):
@@ -18,7 +18,7 @@ fn install(ctx: $.Context[$ AppRow], job: Fn[(), void, $ AppRow]) -> void:
 fn logged() -> void $ WithLog[$ AppRow]:
     pass
 
-fn provide_log[$R](callback: fn() -> void $ R + Log) -> void $ R:
+fn provide_log[$ R](callback: fn() -> void $ R + Log) -> void $ R:
     pass
 
 fn run() -> void $ AppRow:

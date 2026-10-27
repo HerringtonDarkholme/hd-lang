@@ -1,1 +1,2 @@
-fn revision() -> usize: 1
+fn revision() -> usize:
+    1

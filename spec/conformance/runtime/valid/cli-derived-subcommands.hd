@@ -98,79 +98,183 @@ tests:
     use std.testing.assert_equal
 
     it("Notes reads global flags and the selected payload's arguments"):
-        value := Notes::parse(["-v", "build", "-x", "drafts", "-x", "tmp", "docs/**/*.md"]).expect("Notes build")
-        assert_equal(value, Notes { verbose: true, command: .Build(BuildOptions { exclude: ["drafts", "tmp"], out: Path("site"), pattern: "docs/**/*.md" }) }, reason="scoped payload")
+        value := Notes::parse(["-v", "build", "-x", "drafts", "-x", "tmp", "docs/**/*.md"])
+            .expect("Notes build")
+        assert_equal(
+            value,
+            Notes {
+                verbose: true,
+                command: .Build(
+                    BuildOptions {
+                        exclude: ["drafts", "tmp"],
+                        out: Path("site"),
+                        pattern: "docs/**/*.md",
+                    },
+                ),
+            },
+            reason="scoped payload",
+        )
         clean := Notes::parse(["clean", "-o", "public"]).expect("Notes clean")
-        assert_equal(clean.command, .Clean(CleanOptions { out: Path("public") }), reason="other payload")
-        assert_equal(Notes::parse(["stop"]), .Ok(Notes { verbose: false, command: .Stop }), reason="unit command")
+        assert_equal(
+            clean.command,
+            .Clean(CleanOptions { out: Path("public") }),
+            reason="other payload",
+        )
+        assert_equal(
+            Notes::parse(["stop"]),
+            .Ok(Notes { verbose: false, command: .Stop }),
+            reason="unit command",
+        )
 
     it("required commands and child positionals are named and scoped"):
         assert_equal(Notes::parse([]), .Err(CliError.MissingCommand), reason="required command")
-        assert_equal(Notes::parse(["publish"]), .Err(CliError.UnknownCommand("publish")), reason="closed command set")
-        assert_equal(Notes::parse(["build"]), .Err(CliError.MissingArgument("<pattern>")), reason="required child argument")
-        assert_equal(Notes::parse(["clean", "-x", "tmp"]), .Err(CliError.UnknownOption("-x")), reason="no sibling options")
-        assert_equal(Notes::parse(["stop", "--verbose"]), .Err(CliError.UnknownOption("--verbose")), reason="global flag belongs before the command")
+        assert_equal(
+            Notes::parse(["publish"]),
+            .Err(CliError.UnknownCommand("publish")),
+            reason="closed command set",
+        )
+        assert_equal(
+            Notes::parse(["build"]),
+            .Err(CliError.MissingArgument("<pattern>")),
+            reason="required child argument",
+        )
+        assert_equal(
+            Notes::parse(["clean", "-x", "tmp"]),
+            .Err(CliError.UnknownOption("-x")),
+            reason="no sibling options",
+        )
+        assert_equal(
+            Notes::parse(["stop", "--verbose"]),
+            .Err(CliError.UnknownOption("--verbose")),
+            reason="global flag belongs before the command",
+        )
 
     it("optional command fields and root options permit no selection"):
-        assert_equal(MaybeNotes::parse([]), .Ok(MaybeNotes { verbose: false, command: .None }), reason="absent optional command")
-        assert_equal(MaybeNotes::parse(["--verbose", "stop"]), .Ok(MaybeNotes { verbose: true, command: .Some(.Stop) }), reason="present optional command")
+        assert_equal(
+            MaybeNotes::parse([]),
+            .Ok(MaybeNotes { verbose: false, command: .None }),
+            reason="absent optional command",
+        )
+        assert_equal(
+            MaybeNotes::parse(["--verbose", "stop"]),
+            .Ok(MaybeNotes { verbose: true, command: .Some(.Stop) }),
+            reason="present optional command",
+        )
         assert_equal(OptionalCommand::parse([]), .Ok(.None), reason="optional root")
-        assert_equal(OptionalCommand::parse(["stop"]), .Ok(.Some(Command.Stop)), reason="selected root")
-        assert_equal(MaybeNotes::parser().usage().contains("[<command>]"), true, reason="optional usage term")
+        assert_equal(
+            OptionalCommand::parse(["stop"]),
+            .Ok(.Some(Command.Stop)),
+            reason="selected root",
+        )
+        assert_equal(
+            MaybeNotes::parser().usage().contains("[<command>]"),
+            true,
+            reason="optional usage term",
+        )
 
     it("a command field's default applies only when absent"):
-        assert_equal(DefaultNotes::parse([]), .Ok(DefaultNotes { command: .Stop }), reason="absent default")
+        assert_equal(
+            DefaultNotes::parse([]),
+            .Ok(DefaultNotes { command: .Stop }),
+            reason="absent default",
+        )
         selected := DefaultNotes::parse(["build", "file.md"]).expect("explicit command")
-        assert_equal(selected.command, .Build(BuildOptions { exclude: [], out: Path("site"), pattern: "file.md" }), reason="selected command overrides default")
+        assert_equal(
+            selected.command,
+            .Build(BuildOptions { exclude: [], out: Path("site"), pattern: "file.md" }),
+            reason="selected command overrides default",
+        )
 
     it("value enums stay options beside a selected subcommand"):
         parsed := Formatted::parse(["--format", "markdown", "stop"]).expect("option and command")
-        assert_equal(parsed, Formatted { format: .Markdown, command: .Some(.Stop) }, reason="independent enum modes")
-        assert_equal(Formatted::parse(["--format", "html"]), .Err(CliError.InvalidValue("format", "expected json or markdown, got html")), reason="value choices retained")
+        assert_equal(
+            parsed,
+            Formatted { format: .Markdown, command: .Some(.Stop) },
+            reason="independent enum modes",
+        )
+        assert_equal(
+            Formatted::parse(["--format", "html"]),
+            .Err(CliError.InvalidValue("format", "expected json or markdown, got html")),
+            reason="value choices retained",
+        )
 
     it("nested payload commands retain the full Args program scope in help"):
         nested := Nested::parse(["enter", "clean", "-o", "nested"]).expect("nested selection")
-        assert_equal(nested, .Enter(NestedOptions { command: .Clean(CleanOptions { out: Path("nested") }) }), reason="two levels")
+        assert_equal(
+            nested,
+            .Enter(NestedOptions { command: .Clean(CleanOptions { out: Path("nested") }) }),
+            reason="two levels",
+        )
         provider := ScriptedArgs::new("notes-tool", ["enter", "build", "--help"])
         $.with(Args=provider):
             match from_host():
                 .Err(.Help(usage)) =>
-                    assert_equal(usage.starts_with("usage: notes-tool enter build "), true, reason="full invocation path")
+                    assert_equal(
+                        usage.starts_with("usage: notes-tool enter build "),
+                        true,
+                        reason="full invocation path",
+                    )
                     assert_equal(usage.contains("--exclude"), true, reason="current child options")
-                    assert_equal(usage.contains("--verbose"), false, reason="parent flags not copied")
+                    assert_equal(
+                        usage.contains("--verbose"),
+                        false,
+                        reason="parent flags not copied",
+                    )
                 _ => panic("expected child help")
 
     it("named and multiple payload shapes are refused by actual variant name"):
         match BadNamed::parse(["named"]):
             .Err(.InvalidValue(name, reason)) =>
                 assert_equal(name, "named", reason="command name")
-                assert_equal(reason, "subcommand variant `Named` must be unit or have exactly one unnamed Cli payload", reason="declared variant")
+                assert_equal(
+                    reason,
+                    "subcommand variant `Named` must be unit or have exactly one unnamed Cli payload",
+                    reason="declared variant",
+                )
             _ => panic("expected named-shape refusal")
         match BadPair::parse(["pair", "a", "b"]):
             .Err(.InvalidValue(name, reason)) =>
                 assert_equal(name, "pair", reason="command name")
-                assert_equal(reason, "subcommand variant `Pair` must be unit or have exactly one unnamed Cli payload", reason="declared variant")
+                assert_equal(
+                    reason,
+                    "subcommand variant `Pair` must be unit or have exactly one unnamed Cli payload",
+                    reason="declared variant",
+                )
             _ => panic("expected multiple-shape refusal")
 
     it("two command fields at one level are refused by both field names"):
         match TwoCommands::parse([]):
             .Err(.InvalidValue(name, reason)) =>
                 assert_equal(name, "second", reason="later field")
-                assert_equal(reason, "command fields `first` and `second` cannot share a parser", reason="both names")
+                assert_equal(
+                    reason,
+                    "command fields `first` and `second` cannot share a parser",
+                    reason="both names",
+                )
             _ => panic("expected ambiguous command field refusal")
 
     it("repeated commands are refused through list wrappers"):
         match RepeatedCommands::parse([]):
             .Err(.InvalidValue(name, reason)) =>
                 assert_equal(name, "commands", reason="list field")
-                assert_equal(reason, "a subcommand field cannot be repeated", reason="grammar limit")
+                assert_equal(
+                    reason,
+                    "a subcommand field cannot be repeated",
+                    reason="grammar limit",
+                )
             _ => panic("expected repeated command refusal")
         match WrappedCommands::parse([]):
-            .Err(.InvalidValue(name, _)) => assert_equal(name, "nested", reason="newtype-wrapped list field")
+            .Err(.InvalidValue(name, _)) =>
+                assert_equal(name, "nested", reason="newtype-wrapped list field")
             _ => panic("expected wrapped command list refusal")
         match OptionalRepeatedCommands::parse([]):
-            .Err(.InvalidValue(name, _)) => assert_equal(name, "wrapped", reason="optional list field")
+            .Err(.InvalidValue(name, _)) =>
+                assert_equal(name, "wrapped", reason="optional list field")
             _ => panic("expected optional command list refusal")
 
     it("a newtype command derives through its base"):
-        assert_equal(WrappedCommand::parse(["stop"]), .Ok(WrappedCommand(.Stop)), reason="unit command through newtype")
+        assert_equal(
+            WrappedCommand::parse(["stop"]),
+            .Ok(WrappedCommand(.Stop)),
+            reason="unit command through newtype",
+        )

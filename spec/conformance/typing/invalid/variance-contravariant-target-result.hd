@@ -7,5 +7,5 @@ struct Consumer[-T]:
     consume: fn(T) -> void
 
 impl[U] Box[Consumer[U]]:
-    pub fn make(self, factory: fn() -> U) -> U:  # diagnostic: invalid-variance
+    pub fn make(self, factory: fn() -> U) -> U: # diagnostic: invalid-variance
         factory()

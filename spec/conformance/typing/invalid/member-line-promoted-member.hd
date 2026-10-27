@@ -49,4 +49,4 @@ struct Account:
     id: i64
 
 impl Probe for Account by Structure:
-    at += [tag("a")]  # diagnostic: unknown-annotation-member
+    at += [tag("a")] # diagnostic: unknown-annotation-member

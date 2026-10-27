@@ -29,4 +29,4 @@ struct Pair:
     right: i64
 
 impl Show for Pair by Structure:
-    right = 5  # diagnostic: invalid-member-line
+    right = 5 # diagnostic: invalid-member-line

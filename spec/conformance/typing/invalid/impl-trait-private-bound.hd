@@ -8,5 +8,5 @@ impl View for Hidden:
     fn get(self) -> i32:
         self.value
 
-pub fn make() -> impl View:  # diagnostic: private-type-leak
+pub fn make() -> impl View: # diagnostic: private-type-leak
     Hidden { value: +7 }

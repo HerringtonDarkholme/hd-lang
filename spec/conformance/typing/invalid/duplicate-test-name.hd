@@ -4,5 +4,5 @@ tests:
     it("counts"):
         pass
 
-    it("counts"):  # diagnostic: duplicate-test-name
+    it("counts"): # diagnostic: duplicate-test-name
         pass

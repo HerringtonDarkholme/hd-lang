@@ -43,7 +43,7 @@ pub fn main() -> void $ Console:
     let big: i64 = 1 << 40
     println(r.relay(store, big))
     println(r.relay(store, 2.5))
-    shape := Shape.Box(w = 1.5, h = 2.0)
+    shape := Shape.Box(w=1.5, h=2.0)
     s := r.relay(store, shape)
     match s:
         .Dot => println("dot")

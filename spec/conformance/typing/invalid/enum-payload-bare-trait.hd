@@ -2,7 +2,7 @@
 # Spec 09 Dynamic Trait Values: trait.dyn.reference-keyword, trait.dyn.keyword.positions; Spec 03 Module Scope: names.module.order-free.
 
 enum Event:
-    Created(Factory?)  # diagnostic: trait-used-as-type
+    Created(Factory?) # diagnostic: trait-used-as-type
 
 trait Factory:
     fn create() -> Self

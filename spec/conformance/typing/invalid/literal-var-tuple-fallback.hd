@@ -5,4 +5,4 @@ fn second():
     b
 
 fn run() -> f32:
-    second()  # diagnostic: implicit-narrowing
+    second() # diagnostic: implicit-narrowing

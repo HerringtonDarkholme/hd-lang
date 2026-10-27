@@ -3,4 +3,4 @@ struct Batch[T]:
     items: List[T]
 
 pub fn main() -> void:
-    _ := Batch { items: [] }  # diagnostic: cannot-infer-type
+    _ := Batch { items: [] } # diagnostic: cannot-infer-type

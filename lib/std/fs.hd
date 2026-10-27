@@ -178,7 +178,8 @@ pub fn glob!(pattern: string) -> Result[List[Path], FsError] $ FsRead:
     for component in components:
         match parse_glob_component(component):
             .Ok(_) => pass
-            .Err(reason) => return .Err(FsError.Other(message="invalid glob pattern ${pattern}: ${reason}"))
+            .Err(reason) =>
+                return .Err(FsError.Other(message="invalid glob pattern ${pattern}: ${reason}"))
     let mut found: List[Path] = []
     if components.len() > 0:
         glob_from!(if pattern.starts_with("/"): "/" else: "", components, 0, &mut found)?
@@ -199,7 +200,12 @@ fn glob_has_meta(component: string) -> bool:
 
 # Matches `components[index..]` below the directory `base`, whose text is ""
 # for the current directory (r-std-fs.glob.relative).
-fn glob_from!(base: string, components: List[string], index: usize, found: &mut List[Path]) -> Result[void, FsError] $ FsRead:
+fn glob_from!(
+    base: string,
+    components: List[string],
+    index: usize,
+    found: &mut List[Path],
+) -> Result[void, FsError] $ FsRead:
     component := components[index]
     last := index + 1 == components.len()
     if component == "**":
@@ -228,7 +234,13 @@ fn glob_from!(base: string, components: List[string], index: usize, found: &mut 
 
 # A matched entry ends the pattern, or is a directory the next component
 # looks into; a symlink is never looked into (r-std-fs.glob.symlinks).
-fn glob_step!(entry: Entry, text: string, components: List[string], index: usize, found: &mut List[Path]) -> Result[void, FsError] $ FsRead:
+fn glob_step!(
+    entry: Entry,
+    text: string,
+    components: List[string],
+    index: usize,
+    found: &mut List[Path],
+) -> Result[void, FsError] $ FsRead:
     if index + 1 == components.len():
         found.push(Path(text))
     else if entry.kind == EntryKind.Directory:
@@ -433,7 +445,11 @@ impl FsRead for MemoryFs:
         key := memory_key(path)
         match self.file_at(key):
             .Some(bytes) => .Ok(bytes)
-            .None => if self.dir_at(key): .Err(FsError.IsADirectory(path=path)) else: .Err(FsError.NotFound(path=path))
+            .None =>
+                if self.dir_at(key):
+                    .Err(FsError.IsADirectory(path=path))
+                else:
+                    .Err(FsError.NotFound(path=path))
 
     fn read_text!(self, path: Path) -> Result[string, FsError]:
         bytes := self.read_bytes!(path)?
@@ -478,8 +494,31 @@ impl FsRead for MemoryFs:
     fn stat!(self, path: Path) -> Result[Entry?, FsError]:
         key := memory_key(path)
         match self.file_at(key):
-            .Some(bytes) => .Ok(.Some(Entry { path: path, kind: EntryKind.File, size: u64(bytes.len()), modified: self.modified.get(key) }))
-            .None => if self.dir_at(key): .Ok(.Some(Entry { path: path, kind: EntryKind.Directory, size: 0, modified: self.modified.get(key) })) else: .Ok(.None)
+            .Some(bytes) =>
+                .Ok(
+                    .Some(
+                        Entry {
+                            path: path,
+                            kind: EntryKind.File,
+                            size: u64(bytes.len()),
+                            modified: self.modified.get(key),
+                        },
+                    ),
+                )
+            .None =>
+                if self.dir_at(key):
+                    .Ok(
+                        .Some(
+                            Entry {
+                                path: path,
+                                kind: EntryKind.Directory,
+                                size: 0,
+                                modified: self.modified.get(key),
+                            },
+                        ),
+                    )
+                else:
+                    .Ok(.None)
 
 impl FsWrite for MemoryFs:
     fn copy!(&mut self, from: Path, to: Path) -> Result[void, FsError]:

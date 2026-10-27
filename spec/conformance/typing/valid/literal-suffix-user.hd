@@ -10,7 +10,7 @@ fn px(count: i32) -> Pixels:
     Pixels { count: count }
 
 fn indent() -> Pixels:
-    24px  # px(24)
+    24px # px(24)
 
 fn margin() -> Pixels:
     12px

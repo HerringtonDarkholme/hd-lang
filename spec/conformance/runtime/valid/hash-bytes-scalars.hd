@@ -25,7 +25,11 @@ tests:
         let pair: u16 = 258
         let byte: u8 = 200
         assert_equal(bytes_of(small), [42, 0, 0, 0], reason="i32 is four bytes")
-        assert_equal(bytes_of(negative), [254, 255, 255, 255, 255, 255, 255, 255], reason="i64 is eight two's-complement bytes")
+        assert_equal(
+            bytes_of(negative),
+            [254, 255, 255, 255, 255, 255, 255, 255],
+            reason="i64 is eight two's-complement bytes",
+        )
         assert_equal(bytes_of(pair), [2, 1], reason="u16 is two bytes, low byte first")
         assert_equal(bytes_of(byte), [200], reason="u8 is one byte")
 

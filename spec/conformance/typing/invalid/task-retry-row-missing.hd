@@ -8,5 +8,5 @@ fn ask!() -> Result[string, string] $ Console:
     .Ok("ready")
 
 fn connect!() -> Result[string, string] $ Clock:
-    apply!(retry(Backoff { attempts: 2, initial: 0ms })):  # diagnostic: missing-requirement
+    apply!(retry(Backoff { attempts: 2, initial: 0ms })): # diagnostic: missing-requirement
         ask!()

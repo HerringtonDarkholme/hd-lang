@@ -10,7 +10,8 @@ trait Job:
 struct Worker:
     value: i32
 
-fn wait!() -> void: pass
+fn wait!() -> void:
+    pass
 
 impl Job for Worker:
     fn run!(self) -> void:

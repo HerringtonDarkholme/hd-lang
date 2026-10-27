@@ -2,5 +2,5 @@
 # Spec 13 Writable Places Of References: ref.place.not-writable.short.
 fn invalid() -> i32:
     fixed := 1
-    s := &mut fixed  # diagnostic: non-reassignable-binding
+    s := &mut fixed # diagnostic: non-reassignable-binding
     *s

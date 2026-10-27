@@ -15,4 +15,4 @@ fn parsed(text: string) -> Result[i32, ParseNumberError]:
     text.parse::[i32]()
 
 fn port(settings: Map[string, string]) -> Result[i32, ConfigError]:
-    setting(settings, "port").and_then(parsed)  # diagnostic: type-mismatch
+    setting(settings, "port").and_then(parsed) # diagnostic: type-mismatch

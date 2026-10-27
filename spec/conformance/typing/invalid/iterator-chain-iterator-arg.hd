@@ -6,4 +6,4 @@ fn joined_eagerly(first: List[i32], rest: *mut dyn Iterator[i32]) -> List[i32]:
     first.iter().chain(tail).collect()
 
 fn joined(first: List[i32], rest: &mut dyn Iterator[i32]) -> List[i32]:
-    first.iter().chain(rest).collect()  # diagnostic: unsatisfied-trait-bound
+    first.iter().chain(rest).collect() # diagnostic: unsatisfied-trait-bound

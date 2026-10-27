@@ -3,5 +3,5 @@
 trait Supplier:
     fn supply(self) -> i32
 
-fn take[T < Supplier](x: T) -> T::Element:  # diagnostic: unknown-associated-type
+fn take[T < Supplier](x: T) -> T::Element: # diagnostic: unknown-associated-type
     x.supply()

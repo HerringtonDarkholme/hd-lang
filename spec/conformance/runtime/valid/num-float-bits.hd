@@ -14,17 +14,29 @@ tests:
         assert_equal((-1.0 / 0.0).to_bits(), 18442240474082181120, reason="negative infinity")
         assert_equal(f64::from_bits(4607182418800017408), 1.0, reason="one back")
         assert_equal(f64::from_bits(9218868437227405312), 1.0 / 0.0, reason="infinity back")
-        assert_equal(f64::from_bits(9223372036854775808).to_bits(), 9223372036854775808, reason="negative zero back")
+        assert_equal(
+            f64::from_bits(9223372036854775808).to_bits(),
+            9223372036854775808,
+            reason="negative zero back",
+        )
 
     it("f64 NaN"):
         let positive: u64 = 9221120237041090560
         let negative: u64 = 18444492273895866368
         let payload: u64 = 9219994337134247936
         assert_equal(f64::from_bits(positive).to_bits(), positive, reason="a positive quiet NaN")
-        assert_equal(f64::from_bits(negative).to_bits(), negative, reason="a negative NaN keeps its sign")
+        assert_equal(
+            f64::from_bits(negative).to_bits(),
+            negative,
+            reason="a negative NaN keeps its sign",
+        )
         assert_equal(f64::from_bits(payload).to_bits(), payload, reason="a NaN keeps its payload")
         assert_equal(f64::from_bits(negative).is_nan(), true, reason="it is a NaN")
-        assert_equal(f64::from_bits(9218868437227405313).is_nan(), true, reason="a signaling pattern is a NaN")
+        assert_equal(
+            f64::from_bits(9218868437227405313).is_nan(),
+            true,
+            reason="a signaling pattern is a NaN",
+        )
 
     it("f32 patterns"):
         let one: f32 = 1.0
@@ -40,9 +52,21 @@ tests:
         assert_equal(f32::from_bits(2139095040), infinity, reason="infinity back")
 
     it("f32 NaN"):
-        assert_equal(f32::from_bits(2143289344).to_bits(), 2143289344, reason="a positive quiet NaN")
-        assert_equal(f32::from_bits(4290772992).to_bits(), 4290772992, reason="a negative NaN keeps its sign")
-        assert_equal(f32::from_bits(2141192192).to_bits(), 2141192192, reason="a NaN keeps its payload")
+        assert_equal(
+            f32::from_bits(2143289344).to_bits(),
+            2143289344,
+            reason="a positive quiet NaN",
+        )
+        assert_equal(
+            f32::from_bits(4290772992).to_bits(),
+            4290772992,
+            reason="a negative NaN keeps its sign",
+        )
+        assert_equal(
+            f32::from_bits(2141192192).to_bits(),
+            2141192192,
+            reason="a NaN keeps its payload",
+        )
 
     it("the spec example tells -0.0 from +0.0"):
         assert_equal(is_negative_zero(-0.0), true, reason="negative zero")

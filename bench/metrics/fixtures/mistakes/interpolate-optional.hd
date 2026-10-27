@@ -4,4 +4,4 @@
 # fixed:     "hello ${nickname.unwrap_or("friend")}"
 
 fn greeting(nickname: string?) -> string:
-    "hello ${nickname}"  # diagnostic: unsatisfied-trait-bound
+    "hello ${nickname}" # diagnostic: unsatisfied-trait-bound

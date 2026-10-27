@@ -8,9 +8,10 @@ fn receipt_header() -> string:
         fn label(self) -> string
 
     struct Receipt:
-        header: string = Invoice { number: "1001" }.label()  # diagnostic: unknown-method
+        header: string = Invoice { number: "1001" }.label() # diagnostic: unknown-method
 
     impl Labeled for Invoice:
-        fn label(self) -> string: "INV-" + self.number
+        fn label(self) -> string:
+            "INV-" + self.number
 
     Receipt {}.header

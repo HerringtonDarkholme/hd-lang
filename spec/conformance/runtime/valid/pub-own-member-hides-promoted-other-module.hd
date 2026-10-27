@@ -10,4 +10,8 @@ tests:
         assert_equal(draft.id, "draft", reason="the pub own field hides the promoted one")
         assert_equal(draft.label(), "draft", reason="the pub own method hides the promoted one")
         assert_equal(draft.CreatedBySystem.id, "system", reason="the part's field, by its path")
-        assert_equal(draft.CreatedBySystem.label(), "created by system", reason="the part's method, by its path")
+        assert_equal(
+            draft.CreatedBySystem.label(),
+            "created by system",
+            reason="the part's method, by its path",
+        )

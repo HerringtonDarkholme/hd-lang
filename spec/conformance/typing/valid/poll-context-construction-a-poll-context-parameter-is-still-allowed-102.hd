@@ -4,4 +4,5 @@ use std.task.PollContext
 pub fn main() -> void $ Console:
     println("x")
 
-fn take(_c: PollContext) -> void: pass
+fn take(_c: PollContext) -> void:
+    pass

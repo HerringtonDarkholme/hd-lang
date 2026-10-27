@@ -4,4 +4,4 @@ struct Batch[T]:
     items: List[T]
 
 fn schedule() -> void:
-    _ := Batch { items: [] }  # diagnostic: cannot-infer-type
+    _ := Batch { items: [] } # diagnostic: cannot-infer-type

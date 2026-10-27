@@ -3,5 +3,5 @@
 use std.annotation.cold
 
 trait Step:
-    @cold  # diagnostic: invalid-inline-decorator
+    @cold # diagnostic: invalid-inline-decorator
     fn step(self, x: i32) -> i32

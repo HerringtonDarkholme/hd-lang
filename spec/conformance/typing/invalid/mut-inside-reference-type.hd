@@ -3,5 +3,5 @@
 struct Post:
     x: i32
 
-fn touch(post: &(mut Post)) -> void:  # diagnostic: mut-on-struct
+fn touch(post: &(mut Post)) -> void: # diagnostic: mut-on-struct
     pass

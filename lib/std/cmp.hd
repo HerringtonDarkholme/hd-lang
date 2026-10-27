@@ -345,7 +345,11 @@ impl[T] PartialOrd for T by Structure:
             let mut probe = VariantIndex::[T] { index: 0 }
             _ := Structure::walk(value, &mut probe)
             probe.index
-        let mut w = PartialOrderWalker::[T] { other: other, other_index: index, result: .Some(.Equal) }
+        let mut w = PartialOrderWalker::[T] {
+            other: other,
+            other_index: index,
+            result: .Some(.Equal),
+        }
         _ := Structure::walk(self, &mut w)
         w.result
 
@@ -456,13 +460,21 @@ impl[T < Tuple] Eq for T by Structure:
 
 impl[T < Tuple] PartialOrd for T by Structure:
     fn partial_cmp(self, other: T) -> Ordering?:
-        let mut w = PartialOrderWalker::[T] { other: other, other_index: fn(value: T) -> usize: 0, result: .Some(.Equal) }
+        let mut w = PartialOrderWalker::[T] {
+            other: other,
+            other_index: fn(value: T) -> usize: 0,
+            result: .Some(.Equal),
+        }
         _ := Structure::walk(self, &mut w)
         w.result
 
 impl[T < Tuple] Ord for T by Structure:
     fn cmp(self, other: T) -> Ordering:
-        let mut w = OrderWalker::[T] { other: other, other_index: fn(value: T) -> usize: 0, result: .Equal }
+        let mut w = OrderWalker::[T] {
+            other: other,
+            other_index: fn(value: T) -> usize: 0,
+            result: .Equal,
+        }
         _ := Structure::walk(self, &mut w)
         w.result
 

@@ -3,5 +3,5 @@
 # fixture-package-tree: word-joiner/src/main.hd
 use pkg.words
 
-fn headline(phrase: words.Phrasee) -> string:  # diagnostic: unknown-import
+fn headline(phrase: words.Phrasee) -> string: # diagnostic: unknown-import
     "phrase"

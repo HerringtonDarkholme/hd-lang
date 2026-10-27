@@ -5,4 +5,4 @@ struct Coordinate:
     lon: i32
 
 fn pin(lat: i32, lon: i32) -> Coordinate:
-    Coordinate { lat, lon, lat: 0 }  # diagnostic: duplicate-field
+    Coordinate { lat, lon, lat: 0 } # diagnostic: duplicate-field

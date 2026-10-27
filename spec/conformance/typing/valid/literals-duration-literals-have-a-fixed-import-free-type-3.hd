@@ -1,7 +1,9 @@
 # test: duration literals have a fixed import free type
 use std.time.Duration
-fn ms(n: i64) -> i64: n
-fn delay() -> Duration: 500ms
+fn ms(n: i64) -> i64:
+    n
+fn delay() -> Duration:
+    500ms
 
 pub fn main() -> void:
     pass

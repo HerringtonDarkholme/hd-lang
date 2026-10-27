@@ -18,5 +18,5 @@ enum Choice[T]:
 type Wrap[T](T)
 
 fn f() -> i32:
-    let _x: &dyn Conv[i32, i32] = panic("x")  # diagnostic: argument-count
+    let _x: &dyn Conv[i32, i32] = panic("x") # diagnostic: argument-count
     0

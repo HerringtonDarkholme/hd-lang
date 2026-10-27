@@ -3,5 +3,5 @@
 
 @error
 enum ParseError:
-    @error("bad $self")  # diagnostic: unknown-name
+    @error("bad $self") # diagnostic: unknown-name
     Other

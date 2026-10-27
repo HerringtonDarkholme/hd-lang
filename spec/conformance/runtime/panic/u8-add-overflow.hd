@@ -1,6 +1,7 @@
 # test: u8 addition past the maximum traps instead of wrapping
-fn add(a: u8, b: u8) -> u8: a + b
+fn add(a: u8, b: u8) -> u8:
+    a + b
 
 tests:
     it("adding past 255 traps"):
-        _ := add(200, 56)  # panic: integer-overflow
+        _ := add(200, 56) # panic: integer-overflow

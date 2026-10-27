@@ -10,6 +10,6 @@ fn example[F](value: F) -> Example[F]:
     Example::[F] { value: value }
 
 enum Answer:
-    @example(1)  # diagnostic: decorator-target-kind
+    @example(1) # diagnostic: decorator-target-kind
     Yes
     No

@@ -1,5 +1,7 @@
 # test: supplying one parameter twice is an error
 # Spec 07 Positional And Named Arguments: fn.arg.duplicate.
-fn resize(width: i32, height: i32) -> i32: width * height
+fn resize(width: i32, height: i32) -> i32:
+    width * height
 
-fn twice() -> i32: resize(+640, width=+480)  # diagnostic: duplicate-argument
+fn twice() -> i32:
+    resize(+640, width=+480) # diagnostic: duplicate-argument

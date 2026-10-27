@@ -25,19 +25,19 @@ fn add(a: i32, b: i32) -> i32:
 fn load_user!(id: &UserId) -> Result[*User, *DbError] $ Database:
     $.use(Database).load_user!(id)
 
-fn new_user() -> *User: &mut User { name: "Ada" }
-fn new_mutable_user() -> *mut User: &mut User { name: "Ada" }
+fn new_user() -> *User:
+    &mut User { name: "Ada" }
+fn new_mutable_user() -> *mut User:
+    &mut User { name: "Ada" }
 
-fn inspect(user: &User) -> string: user.name
+fn inspect(user: &User) -> string:
+    user.name
 
 fn rename(user: &mut User, name: string) -> void:
     user.name = name
 
 fn first[T](items: List[T]) -> T?:
-    if items.len() == 0:
-        .None
-    else:
-        items[0]
+    if items.len() == 0: .None else: items[0]
 
 fn connect(host: string, port: i32 = 443, tls: bool = true) -> string:
     "${host}${port}${tls}"

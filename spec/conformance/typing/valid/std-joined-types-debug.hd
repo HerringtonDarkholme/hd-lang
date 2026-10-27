@@ -13,10 +13,19 @@ fn shown[T < Debug](value: T) -> string:
 fn annotation_texts(target: Target, marker: Annotate) -> List[string]:
     [shown(target), shown(marker)]
 
-fn collection_texts(view: ListView[i32], console: MemoryConsole, hasher: DefaultHasher) -> List[string]:
+fn collection_texts(
+    view: ListView[i32],
+    console: MemoryConsole,
+    hasher: DefaultHasher,
+) -> List[string]:
     [shown(view), shown(console), shown(hasher)]
 
-fn ops_texts(range: Range[i32], from: RangeFrom[i64], to: RangeTo[u8], full: RangeFull) -> List[string]:
+fn ops_texts(
+    range: Range[i32],
+    from: RangeFrom[i64],
+    to: RangeTo[u8],
+    full: RangeFull,
+) -> List[string]:
     [shown(range), shown(from), shown(to), shown(full)]
 
 fn other_texts(writer: DebugWriter, list: DebugList) -> List[string]:

@@ -44,7 +44,8 @@ trait HasValue:
     fn number(&self) -> i64
 
 impl HasValue for Node:
-    fn number(&self) -> i64: self.value
+    fn number(&self) -> i64:
+        self.value
 
 fn selected_erased(node: *Node) -> *dyn HasValue:
     match node.left:
@@ -68,7 +69,11 @@ tests:
     it("a call-free match reads the borrowed payload"):
         node := Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
         assert_equal(value(&node), 42, reason="the payload stays live for the arm")
-        assert_equal(value(&Node { value: 1, left: .None }), 0, reason="the empty arm borrows nothing")
+        assert_equal(
+            value(&Node { value: 1, left: .None }),
+            0,
+            reason="the empty arm borrows nothing",
+        )
 
     it("a call replacing the field keeps its former payload alive"):
         let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
@@ -88,16 +93,31 @@ tests:
 
     it("a guard call is included in the scrutinee span"):
         let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
-        assert_equal(across_guard(&node, &mut node), 42, reason="guard evaluation cannot free the payload")
+        assert_equal(
+            across_guard(&node, &mut node),
+            42,
+            reason="guard evaluation cannot free the payload",
+        )
 
     it("a match over an erased view keeps its owned fallback until the arm ends"):
         let factory: &dyn Factory = &Maker {}
         for n in 0..20:
-            node := factory.hold(Node { value: 1, left: .Some(&Node { value: i64(n), left: .None }) }).item
-            assert_equal(value(node), i64(n), reason="a view-backed field stays live through its match")
+            node := factory.hold(
+                Node { value: 1, left: .Some(&Node { value: i64(n), left: .None }) },
+            )
+                .item
+            assert_equal(
+                value(node),
+                i64(n),
+                reason="a view-backed field stays live through its match",
+            )
             child := selected(node)
             node.left = .None
-            assert_equal(child.value, i64(n), reason="a returned payload owns its count after the getter is released")
+            assert_equal(
+                child.value,
+                i64(n),
+                reason="a returned payload owns its count after the getter is released",
+            )
 
     it("an erased returned payload keeps its owned coercion"):
         let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }

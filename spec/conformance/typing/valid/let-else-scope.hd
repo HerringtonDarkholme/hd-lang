@@ -5,5 +5,5 @@ fn find(id: i32) -> i32?:
 
 fn read(id: i32) -> i32:
     let .Some(value) = find(id) else:
-        return 0  # value is not visible here
+        return 0 # value is not visible here
     value + 1

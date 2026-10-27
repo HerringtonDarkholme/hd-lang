@@ -25,7 +25,11 @@ tests:
         let minus8: i8 = -2
         assert_equal(minus8.pow(7), -128, reason="i8 minimum")
         let seven: i8 = 7
-        assert_equal(seven.pow(2), 49, reason="no squaring past the last bit: 49 squared does not fit")
+        assert_equal(
+            seven.pow(2),
+            49,
+            reason="no squaring past the last bit: 49 squared does not fit",
+        )
         let two16: i16 = 2
         assert_equal(two16.pow(14), 16384, reason="i16")
         let minus16: i16 = -2

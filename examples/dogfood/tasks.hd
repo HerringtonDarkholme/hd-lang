@@ -24,7 +24,13 @@ struct Walk:
     state: Map[string, i32]
     order: List[string]
 
-fn visit(graph: Graph, walk: &mut Walk, path: List[string], name: string, needed_by: string) -> Result[void, PlanError]:
+fn visit(
+    graph: Graph,
+    walk: &mut Walk,
+    path: List[string],
+    name: string,
+    needed_by: string,
+) -> Result[void, PlanError]:
     deps := match graph.deps.get(name):
         .Some(d) => d
         .None => return .Err(PlanError.UnknownTask(name, needed_by))
@@ -128,7 +134,7 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     match plan(graph):
         .Ok(order) => console.write!("order: ${order.join(", ")}\n")?
         .Err(e) => console.write!("error: $e\n")?
-    cyclic := Graph { deps: {"a": ["b"], "b": ["c"], "c": ["a"], "d": []} }
+    cyclic := Graph { deps: { "a": ["b"], "b": ["c"], "c": ["a"], "d": [] } }
     match plan(cyclic):
         .Ok(_) => console.write!("unexpected\n")?
         .Err(e) => console.write!("error: $e\n")?
@@ -144,27 +150,39 @@ tests:
     it("orders dependencies first"):
         match plan(build_graph()):
             .Ok(order) =>
-                assert_equal(order, ["core", "lib", "assets", "app", "docs"], reason="dfs from app visits lib before assets")
+                assert_equal(
+                    order,
+                    ["core", "lib", "assets", "app", "docs"],
+                    reason="dfs from app visits lib before assets",
+                )
             .Err(_) => assert(false, reason="no cycle")
     it("reports the cycle path"):
-        cyclic := Graph { deps: {"a": ["b"], "b": ["c"], "c": ["a"]} }
+        cyclic := Graph { deps: { "a": ["b"], "b": ["c"], "c": ["a"] } }
         assert_equal(plan(cyclic), .Err(PlanError.Cycle(["a", "b", "c", "a"])), reason="cycle")
     it("reports a self dependency"):
-        loop_graph := Graph { deps: {"x": ["x"]} }
+        loop_graph := Graph { deps: { "x": ["x"] } }
         assert_equal(plan(loop_graph), .Err(PlanError.Cycle(["x", "x"])), reason="self")
     it("reports unknown tasks"):
-        broken := Graph { deps: {"a": ["ghost"]} }
+        broken := Graph { deps: { "a": ["ghost"] } }
         assert_equal(plan(broken), .Err(PlanError.UnknownTask("ghost", "a")), reason="unknown")
     it("groups independent tasks into waves"):
         graph := build_graph()
         match plan(graph):
             .Ok(order) =>
-                assert_equal(waves(graph, order), [["core"], ["lib", "assets", "docs"], ["app"]], reason="waves")
+                assert_equal(
+                    waves(graph, order),
+                    [["core"], ["lib", "assets", "docs"], ["app"]],
+                    reason="waves",
+                )
             .Err(_) => assert(false, reason="no cycle")
     it("runs tasks through the provider"):
         $.with(Runner=&mut LogRunner { log: [] }):
             result := execute!(build_graph())
-            assert_equal(result, .Ok(["wave of 1", "wave of 3", "wave of 1"]), reason="deferred notes")
+            assert_equal(
+                result,
+                .Ok(["wave of 1", "wave of 3", "wave of 1"]),
+                reason="deferred notes",
+            )
     it("runs a wave larger than one all! batch"):
         $.with(Runner=&mut LogRunner { log: [] }):
             names := ["a", "b", "c", "d", "e", "f", "g"]

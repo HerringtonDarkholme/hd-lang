@@ -5,7 +5,7 @@ use std.serde.Deserialize
 struct Signature:
     digest: string
 
-@derive(Deserialize)  # diagnostic: member-not-derivable
+@derive(Deserialize) # diagnostic: member-not-derivable
 struct Release:
     version: string
     signature: Signature

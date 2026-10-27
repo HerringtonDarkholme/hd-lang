@@ -5,4 +5,4 @@ struct User:
     name: string
 
 impl User by Structure:
-    missing = []  # diagnostic: unknown-annotation-member
+    missing = [] # diagnostic: unknown-annotation-member

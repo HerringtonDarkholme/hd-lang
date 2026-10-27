@@ -13,7 +13,7 @@ impl Console for FlakyConsole:
     fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
         if text == "lost":
             let mut gate = self.gate
-            gate!()              # the gate was abandoned: this write is cancelled
+            gate!() # the gate was abandoned: this write is cancelled
         self.lines.push(text)
         .Ok(())
 

@@ -3,4 +3,4 @@ fn ready!() -> i32:
 
 fn cannot_cancel() -> void:
     pending := ready()
-    _ := pending.cancel()  # diagnostic: not-writable
+    _ := pending.cancel() # diagnostic: not-writable

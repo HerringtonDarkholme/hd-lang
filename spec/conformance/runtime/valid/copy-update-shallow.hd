@@ -23,7 +23,11 @@ tests:
         assert(copy.child is original.child, reason="shallow copy shares the child")
         copy.child.name = "b"
         assert_equal(original.child.name, "b", reason="mutation through the copy is visible")
-        assert_equal(original.label, "x", reason="replaced primitive field does not affect the source")
+        assert_equal(
+            original.label,
+            "x",
+            reason="replaced primitive field does not affect the source",
+        )
 
     it("the spread supplies defaulted fields instead of re-evaluating defaults"):
         let mut original = Parent { child: &mut Child { name: "a" }, label: "x" }

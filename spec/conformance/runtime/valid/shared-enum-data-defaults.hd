@@ -19,4 +19,8 @@ tests:
     use std.testing.assert_equal
 
     it("main returns 84"):
-        assert_equal(main(), 84, reason="shared enum data uses per-variant factories and pure ordered defaults")
+        assert_equal(
+            main(),
+            84,
+            reason="shared enum data uses per-variant factories and pure ordered defaults",
+        )

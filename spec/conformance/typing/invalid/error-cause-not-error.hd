@@ -4,4 +4,7 @@
 @error
 enum SaveError:
     @error("bad path")
-    Path(@source reason: i64)  # diagnostic: unsatisfied-trait-bound
+    Path(
+        @source # diagnostic: unsatisfied-trait-bound
+        reason: i64,
+    )

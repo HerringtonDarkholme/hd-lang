@@ -8,7 +8,8 @@ struct Number:
     value: i32
 
 impl Describe for Number:
-    fn describe(self) -> i32: self.value
+    fn describe(self) -> i32:
+        self.value
 
 fn show[T < Describe](value: T) -> i32:
     value.describe()

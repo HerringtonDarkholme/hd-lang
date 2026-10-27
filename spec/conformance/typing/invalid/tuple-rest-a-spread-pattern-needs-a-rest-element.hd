@@ -1,4 +1,4 @@
 # test: a spread pattern needs a rest element
 fn other(n: i32) -> i32:
-    let (first, _rest...) = n  # diagnostic: type-mismatch
+    let (first, _rest...) = n # diagnostic: type-mismatch
     first

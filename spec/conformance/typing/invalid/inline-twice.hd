@@ -3,6 +3,6 @@
 use std.annotation.inline
 
 @inline
-@inline(.Never)  # diagnostic: duplicate-fact
+@inline(.Never) # diagnostic: duplicate-fact
 fn thrice(x: i32) -> i32:
     x * 3

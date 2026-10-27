@@ -1,5 +1,5 @@
 # `main` limits what the whole program can reach.
-pub fn main!() -> void $ Console:  # ← the console, and nothing else
+pub fn main!() -> void $ Console: # ← the console, and nothing else
     let mut outbox = Outbox { sent: [] }
     $.with(Mailer=&mut outbox, Clock=epoch()):
         welcome!("ada@example.com")

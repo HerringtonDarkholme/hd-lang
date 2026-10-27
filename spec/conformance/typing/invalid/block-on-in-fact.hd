@@ -10,6 +10,6 @@ fn ready!() -> string:
 fn style_of[T](source: T) -> Style:
     Style { prefix: "p_" }
 
-@style_of(block_on(ready()))  # diagnostic: suspension-forbidden-context
+@style_of(block_on(ready())) # diagnostic: suspension-forbidden-context
 struct User:
     id: i32

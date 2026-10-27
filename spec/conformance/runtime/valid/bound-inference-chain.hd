@@ -14,4 +14,8 @@ tests:
     use std.testing.assert_equal
 
     it("Outer, then Inner, then T"):
-        assert_equal(first_name([[], ["ada", "bob"]]), .Some("ada"), reason="the first item of the first nonempty group")
+        assert_equal(
+            first_name([[], ["ada", "bob"]]),
+            .Some("ada"),
+            reason="the first item of the first nonempty group",
+        )

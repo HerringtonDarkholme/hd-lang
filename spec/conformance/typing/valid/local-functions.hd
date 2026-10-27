@@ -11,9 +11,6 @@ fn total_with_bonus(values: List[i32], bonus: i32) -> i32:
 
 fn factorial(n: i32) -> i32:
     fn step(value: i32) -> i32:
-        if value <= 1:
-            1
-        else:
-            value * step(value - 1)
+        if value <= 1: 1 else: value * step(value - 1)
 
     step(n)

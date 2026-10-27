@@ -7,4 +7,4 @@ fn ids(t: Template[i32]) -> string:
     "ids"
 
 fn find(big: i64) -> string:
-    ids"id = $big"  # diagnostic: implicit-narrowing
+    ids"id = $big" # diagnostic: implicit-narrowing

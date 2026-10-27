@@ -11,12 +11,14 @@ trait Clock:
 struct MemoryDb: pass
 
 impl Db for MemoryDb:
-    fn name(self) -> string: "db"
+    fn name(self) -> string:
+        "db"
 
 struct FixedClock: pass
 
 impl Clock for FixedClock:
-    fn now(self) -> string: "noon"
+    fn now(self) -> string:
+        "noon"
 
 fn health() -> string $ Clock:
     $.use(Clock).now()
@@ -34,5 +36,5 @@ fn serve(admin: bool) -> string $ Db + Clock:
     handler()
 
 pub fn main() -> void $ Console:
-    $.with(Db = MemoryDb {}, Clock = FixedClock {}):
+    $.with(Db=MemoryDb {}, Clock=FixedClock {}):
         println(serve(true) + "," + serve(false))

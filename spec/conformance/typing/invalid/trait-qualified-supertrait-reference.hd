@@ -10,10 +10,12 @@ trait Child < Parent:
 struct Item: pass
 
 impl Parent for Item:
-    fn id(self) -> i32: 1
+    fn id(self) -> i32:
+        1
 
 impl Child for Item:
-    fn label(self) -> string: "item"
+    fn label(self) -> string:
+        "item"
 
 fn show() -> fn(Item) -> i32:
-    Child::id  # diagnostic: unknown-method
+    Child::id # diagnostic: unknown-method

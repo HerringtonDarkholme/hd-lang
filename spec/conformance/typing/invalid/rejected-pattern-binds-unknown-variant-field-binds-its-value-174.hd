@@ -4,7 +4,7 @@ enum Choice:
 
 fn f(choice: Choice) -> i32:
     match choice:
-        Choice.Pair(missing=value, right=other) => value  # diagnostic: unknown-field
+        Choice.Pair(missing = value, right = other) => value # diagnostic: unknown-field
 
 pub fn main() -> void $ Console:
     println(1)

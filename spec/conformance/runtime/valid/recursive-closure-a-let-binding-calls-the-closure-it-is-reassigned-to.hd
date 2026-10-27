@@ -4,10 +4,7 @@
 
 fn run() -> i32:
     let step = fn(n: i32) -> i32:
-        if n == 0:
-            0
-        else:
-            1 + step(n - 1)
+        if n == 0: 0 else: 1 + step(n - 1)
     first := step(4)
     step = fn(n: i32) -> i32: 100
     first + step(4)

@@ -10,10 +10,11 @@ struct Ints:
 
 impl Source for Ints:
     type Item = i32
-    fn next(&mut self) -> i32?: .Some(self.value)
+    fn next(&mut self) -> i32?:
+        .Some(self.value)
 
 fn words(source: &mut dyn Source[Item = string]) -> void:
     pass
 
 fn run() -> void:
-    words(Ints { value: 1 })  # diagnostic: type-mismatch
+    words(Ints { value: 1 }) # diagnostic: type-mismatch

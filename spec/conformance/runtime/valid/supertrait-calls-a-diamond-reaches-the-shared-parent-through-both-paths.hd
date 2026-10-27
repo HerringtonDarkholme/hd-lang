@@ -18,16 +18,20 @@ struct Num:
     n: i32
 
 impl Base for Num:
-    fn base(self) -> i32: self.n
+    fn base(self) -> i32:
+        self.n
 
 impl Left for Num:
-    fn left(self) -> i32: self.n + 1
+    fn left(self) -> i32:
+        self.n + 1
 
 impl Right for Num:
-    fn right(self) -> i32: self.n + 2
+    fn right(self) -> i32:
+        self.n + 2
 
 impl Both for Num:
-    fn both(self) -> i32: self.n + 3
+    fn both(self) -> i32:
+        self.n + 3
 
 fn via_left(left: &dyn Left) -> i32:
     left.base() + left.left()

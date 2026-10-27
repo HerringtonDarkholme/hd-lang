@@ -11,5 +11,5 @@ impl Hasher for Recorder:
 
 fn bytes_of(value: i32) -> List[u8]:
     let mut recorder = Recorder { bytes: [] }
-    value.hash(recorder)  # diagnostic: type-mismatch
+    value.hash(recorder) # diagnostic: type-mismatch
     recorder.bytes

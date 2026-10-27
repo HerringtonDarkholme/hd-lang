@@ -5,4 +5,4 @@
 use pkg.cart.{Cart}
 
 fn report(cart: Cart) -> string:
-    cart.audit()  # diagnostic: private-member
+    cart.audit() # diagnostic: private-member

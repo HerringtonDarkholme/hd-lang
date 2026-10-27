@@ -14,7 +14,8 @@ struct Close:
 
 impl Disposable for Close:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("closed")
+        defer:
+            self.log.push("closed")
         self.log.push("closing")
         let mut ack = self.ack
         ack!()
@@ -24,7 +25,11 @@ impl Disposable for Close:
 fn silent!() -> void $ Clock:
     sleep!(60s)
 
-fn close!(log: *mut List[string], reply: mut Suspend[void], ack: mut Suspend[void]) -> Result[void, HttpError] $ Clock:
+fn close!(
+    log: *mut List[string],
+    reply: mut Suspend[void],
+    ack: mut Suspend[void],
+) -> Result[void, HttpError] $ Clock:
     apply!(timeout(5s, cleanup=0s)):
         using close = &mut Close { log: log, ack: ack }
         reply!()

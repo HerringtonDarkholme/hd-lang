@@ -22,4 +22,8 @@ tests:
         xs := factory.make([+1, +2, +3])
         fill(xs, 3)
         let actual: List[i32] = *xs
-        assert_equal(actual, [+10, +11, +12], reason="a representation view forwards the field writes")
+        assert_equal(
+            actual,
+            [+10, +11, +12],
+            reason="a representation view forwards the field writes",
+        )

@@ -19,11 +19,11 @@ fn closure(count: i32, found: i32?) -> i32?:
     pick(true)
 
 fn values(count: i32, found: i32?) -> Map[string, i32?]:
-    joined := {"a": count, "b": found}
+    joined := { "a": count, "b": found }
     joined
 
 fn keys(small: i16) -> Map[i16, string]:
-    joined := {small: "a", 2: "b"}
+    joined := { small: "a", 2: "b" }
     joined
 
 fn show(v: i32?) -> string:

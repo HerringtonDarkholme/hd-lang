@@ -4,10 +4,11 @@ struct Token:
     text: string
 
 impl Eq for Token:
-    fn eq(self, other: Self) -> bool: self.text == other.text
+    fn eq(self, other: Self) -> bool:
+        self.text == other.text
 
 tests:
     use std.testing.assert_equal
 
     it("needs Debug to show failures"):
-        assert_equal(Token { text: "a" }, Token { text: "a" }, reason="equal text")  # diagnostic: unsatisfied-trait-bound
+        assert_equal(Token { text: "a" }, Token { text: "a" }, reason="equal text") # diagnostic: unsatisfied-trait-bound

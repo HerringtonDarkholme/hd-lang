@@ -3,4 +3,4 @@
 type Meters(f64)
 
 fn total(a: Meters, b: Meters) -> Meters:
-    a + b  # diagnostic: type-mismatch
+    a + b # diagnostic: type-mismatch

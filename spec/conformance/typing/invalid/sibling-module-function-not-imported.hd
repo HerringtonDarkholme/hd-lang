@@ -5,4 +5,4 @@
 use pkg.cart.{Cart}
 
 fn charge(cart: Cart) -> i32:
-    total(cart)  # diagnostic: unknown-name
+    total(cart) # diagnostic: unknown-name

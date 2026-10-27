@@ -7,5 +7,5 @@ trait Named:
 trait Keyed:
     type Item
 
-fn pick[I < Named & Keyed](value: I) -> I::Item:  # diagnostic: ambiguous-associated-type
+fn pick[I < Named & Keyed](value: I) -> I::Item: # diagnostic: ambiguous-associated-type
     panic("unreachable")

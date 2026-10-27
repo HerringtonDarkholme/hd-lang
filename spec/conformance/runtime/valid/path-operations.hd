@@ -28,7 +28,11 @@ tests:
     use std.testing.assert_equal
 
     it("the documented examples"):
-        assert_equal(config_file(Path("/home/ada")), Path("/home/ada/.config/hd.toml"), reason="join twice")
+        assert_equal(
+            config_file(Path("/home/ada")),
+            Path("/home/ada/.config/hd.toml"),
+            reason="join twice",
+        )
         assert_equal(sibling(Path("/srv/a.txt"), "b.txt"), Path("/srv/b.txt"), reason="a sibling")
         assert_equal(sibling(Path("/"), "b.txt"), Path("b.txt"), reason="no parent")
         assert_equal(is_markdown(Path("notes/readme.md")), true, reason="md")
@@ -41,7 +45,11 @@ tests:
         assert_equal(Path("").join("b"), Path("b"), reason="an empty path adds no separator")
         assert_equal(Path("/").join("a"), Path("/a"), reason="the root")
         assert_equal(Path("a").join(""), Path("a/"), reason="an empty part, as Rust")
-        assert_equal(Path("a/b").join("c/d"), Path("a/b/c/d"), reason="a part of several components")
+        assert_equal(
+            Path("a/b").join("c/d"),
+            Path("a/b/c/d"),
+            reason="a part of several components",
+        )
         assert_equal(Path("").join(""), Path(""), reason="both empty")
 
     it("parent"):
@@ -75,7 +83,15 @@ tests:
         assert_equal(name(Path("a").extension()), "none", reason="no dot")
         assert_equal(name(Path(".bashrc").extension()), "none", reason="only a leading dot")
         assert_equal(name(Path(".a.b").extension()), "some b", reason="a dotfile with an extension")
-        assert_equal(name(Path("a.").extension()), "some ", reason="a trailing dot gives an empty extension")
+        assert_equal(
+            name(Path("a.").extension()),
+            "some ",
+            reason="a trailing dot gives an empty extension",
+        )
         assert_equal(name(Path("a/..").extension()), "none", reason="no file name")
         assert_equal(name(Path("/").extension()), "none", reason="the root")
-        assert_equal(name(Path("dir.d/file").extension()), "none", reason="a dot in a directory name")
+        assert_equal(
+            name(Path("dir.d/file").extension()),
+            "none",
+            reason="a dot in a directory name",
+        )

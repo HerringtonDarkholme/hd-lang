@@ -3,4 +3,4 @@ struct Box[+T]:
     value: T
 
 struct Holder[+T]:
-    Box[T]  # diagnostic: invalid-variance
+    Box[T] # diagnostic: invalid-variance

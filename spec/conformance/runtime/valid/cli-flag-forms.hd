@@ -2,7 +2,18 @@
 # Spec std/cli Argument Forms: std-cli.form.long-user-flag, std-cli.form.short-user-flag, std-cli.form.long-option, std-cli.form.attached, std-cli.form.short-option, std-cli.form.end-scope, std-cli.form.dash-scope, std-cli.form.plain-argument, std-cli.form.interleaved, std-cli.form.repeat-user-flag, std-cli.form.repeat-declared, std-cli.form.value-dash; Parsed Arguments (task #242).
 use std.cli.{Arg, ArgParser, CliError, Parsed}
 fn tool() -> *mut ArgParser:
-    ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, repeated: true, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
+    ArgParser::new("count")
+        .arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" })
+        .arg(
+            Arg {
+                name: "out",
+                kind: .Option,
+                repeated: true,
+                short: 'o',
+                help: "write the total here",
+            },
+        )
+        .arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
 
 fn read(arguments: List[string]) -> Parsed:
     match tool().parse(arguments):
@@ -18,17 +29,41 @@ tests:
         assert(!read(["*.txt"]).flag("verbose"), reason="not given")
 
     it("an option's value is the next argument, or follows ="):
-        assert_equal(read(["--out", "total.txt", "*.txt"]).value("out"), .Some("total.txt"), reason="--out VALUE")
-        assert_equal(read(["--out=total.txt", "*.txt"]).value("out"), .Some("total.txt"), reason="--out=VALUE")
-        assert_equal(read(["-o", "total.txt", "*.txt"]).value("out"), .Some("total.txt"), reason="-o VALUE")
-        assert_equal(read(["--out=a=b", "*.txt"]).value("out"), .Some("a=b"), reason="the text after the first =")
+        assert_equal(
+            read(["--out", "total.txt", "*.txt"]).value("out"),
+            .Some("total.txt"),
+            reason="--out VALUE",
+        )
+        assert_equal(
+            read(["--out=total.txt", "*.txt"]).value("out"),
+            .Some("total.txt"),
+            reason="--out=VALUE",
+        )
+        assert_equal(
+            read(["-o", "total.txt", "*.txt"]).value("out"),
+            .Some("total.txt"),
+            reason="-o VALUE",
+        )
+        assert_equal(
+            read(["--out=a=b", "*.txt"]).value("out"),
+            .Some("a=b"),
+            reason="the text after the first =",
+        )
         assert_equal(read(["--out=", "*.txt"]).value("out"), .Some(""), reason="an empty value")
-        assert_equal(read(["--out", "-v", "*.txt"]).value("out"), .Some("-v"), reason="a value that starts with -")
+        assert_equal(
+            read(["--out", "-v", "*.txt"]).value("out"),
+            .Some("-v"),
+            reason="a value that starts with -",
+        )
         assert_equal(read(["*.txt"]).value("out"), .None, reason="not given")
 
     it("positionals come in any order, and -- ends the options"):
         parsed := read(["*.txt", "-v", "extra", "--", "-o", "--verbose", "-"])
-        assert_equal(parsed.positionals(), ["*.txt", "extra", "-o", "--verbose", "-"], reason="every positional, in order")
+        assert_equal(
+            parsed.positionals(),
+            ["*.txt", "extra", "-o", "--verbose", "-"],
+            reason="every positional, in order",
+        )
         assert_equal(parsed.flag("verbose"), true, reason="only the flag before --")
         assert_equal(read(["-", "-v"]).positionals(), ["-"], reason="a lone - is a positional")
 

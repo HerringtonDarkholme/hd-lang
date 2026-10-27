@@ -13,13 +13,16 @@ struct Concierge:
     who: string
 
 impl Named for Concierge:
-    fn name(self) -> string: self.who
+    fn name(self) -> string:
+        self.who
 
 impl Greeter for Concierge:
-    fn greeting(self) -> string: "welcome"
+    fn greeting(self) -> string:
+        "welcome"
 
 impl Host for Concierge:
-    fn room(self) -> string: "lobby"
+    fn room(self) -> string:
+        "lobby"
 
 fn introduce(host: &dyn Host) -> string:
     "${host.greeting()}, I am ${host.name()} in the ${host.room()}"

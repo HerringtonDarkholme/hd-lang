@@ -3,6 +3,6 @@ fn make[T]() -> T:
     panic("no")
 
 fn main() -> void $ Console:
-    let .Some(y) = make() else:  # diagnostic: cannot-infer-type
+    let .Some(y) = make() else: # diagnostic: cannot-infer-type
         return
     println(y)

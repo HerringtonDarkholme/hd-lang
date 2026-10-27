@@ -13,13 +13,16 @@ tests:
     use std.testing.assert_equal
 
     it("a call writes the value through &mut m[k]"):
-        let mut shelves: Map[string, Stock] = {"apple": Stock { count: 1 }, "pear": Stock { count: 2 }}
+        let mut shelves: Map[string, Stock] = {
+            "apple": Stock { count: 1 },
+            "pear": Stock { count: 2 },
+        }
         restock(&mut shelves["apple"], 10)
         assert_equal(shelves["apple"].count, 11, reason="the value changed in the map")
         assert_equal(count(&shelves["pear"]), 2, reason="a read-only reference reads the value")
 
     it("the map may grow after the call"):
-        let mut shelves: Map[string, Stock] = {"apple": Stock { count: 1 }}
+        let mut shelves: Map[string, Stock] = { "apple": Stock { count: 1 } }
         restock(&mut shelves["apple"], 1)
         shelves["fig"] = Stock { count: 0 }
         assert_equal(shelves.len(), 2, reason="the access ended with the call")

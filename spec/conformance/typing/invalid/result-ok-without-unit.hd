@@ -4,4 +4,4 @@
 fn save(ready: bool) -> Result[void, string]:
     if ready:
         return .Ok(())
-    .Ok()  # diagnostic: argument-count
+    .Ok() # diagnostic: argument-count

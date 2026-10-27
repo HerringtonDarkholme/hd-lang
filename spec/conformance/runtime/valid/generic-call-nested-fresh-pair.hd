@@ -14,4 +14,8 @@ tests:
     use std.testing.assert_equal
 
     it("solves T as i64 and U as string from the nested literal"):
-        assert_equal(left(Pair { first: Box { item: i64(7) }, second: "seven" }), i64(7), reason="T is i64 and U is string")
+        assert_equal(
+            left(Pair { first: Box { item: i64(7) }, second: "seven" }),
+            i64(7),
+            reason="T is i64 and U is string",
+        )

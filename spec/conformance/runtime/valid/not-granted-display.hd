@@ -8,7 +8,15 @@ tests:
     use std.testing.assert_equal
 
     it("a refused path names the path"):
-        assert_equal(FsError.NotGranted(Path("data/x.csv")).to_string(), "access to data/x.csv is not granted", reason="plain denial without host-specific advice")
+        assert_equal(
+            FsError.NotGranted(Path("data/x.csv")).to_string(),
+            "access to data/x.csv is not granted",
+            reason="plain denial without host-specific advice",
+        )
 
     it("a refused program describes the denial"):
-        assert_equal(ProcessError.NotGranted.to_string(), "program not granted", reason="plain program denial")
+        assert_equal(
+            ProcessError.NotGranted.to_string(),
+            "program not granted",
+            reason="plain program denial",
+        )

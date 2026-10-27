@@ -10,7 +10,8 @@ struct Meter:
 
 impl Apply for Meter:
     type Out = i32
-    fn apply(self) -> i32: self.reading
+    fn apply(self) -> i32:
+        self.reading
 
 impl Update[i32] for Meter:
     fn update(&mut self, value: i32) -> void:

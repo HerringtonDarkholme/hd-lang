@@ -4,7 +4,8 @@ struct Stamp:
     pub created: i32
 
 impl Stamp:
-    pub fn age(self, now: i32) -> i32: now - self.created
+    pub fn age(self, now: i32) -> i32:
+        now - self.created
 
 struct Post:
     Stamp

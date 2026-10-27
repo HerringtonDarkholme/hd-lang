@@ -6,14 +6,12 @@ enum Step:
     Double
 
 fn chain(line: string, step: Step) -> i32:
-    names := line
-        .slice(0, 8)
+    names := line.slice(0, 8)
         # a comment line does not end the chain
 
         .slice(2, 5)
     match step:
-        .Add => names
-            .len()
+        .Add => names.len()
         .Double =>
             .Double
             0

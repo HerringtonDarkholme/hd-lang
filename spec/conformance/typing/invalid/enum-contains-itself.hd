@@ -1,4 +1,4 @@
 # Spec 08 Generic And Recursive Enums: data.enum.no-recursion, an enum whose payload is the enum itself.
 enum Tree:
     Leaf(value: i64)
-    Node(left: Tree, right: Tree)  # diagnostic: recursive-value-type
+    Node(left: Tree, right: Tree) # diagnostic: recursive-value-type

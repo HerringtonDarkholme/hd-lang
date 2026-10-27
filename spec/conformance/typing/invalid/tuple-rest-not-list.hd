@@ -1,3 +1,4 @@
 # test: a rest element's type must be List[T]
 
-fn first(values: (i32, i32...)) -> i32: values._0  # diagnostic: type-mismatch
+fn first(values: (i32, i32...)) -> i32: # diagnostic: type-mismatch
+    values._0

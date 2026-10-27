@@ -4,11 +4,14 @@
 # expect-stdout: 13
 # expect-stdout: 8
 # expect-stdout: [ada
-fn wrap(text: string, mark: string) -> string: "$mark$text$mark"
+fn wrap(text: string, mark: string) -> string:
+    "$mark$text$mark"
 
-fn add(a: i32, b: i32) -> i32: a + b
+fn add(a: i32, b: i32) -> i32:
+    a + b
 
-fn double(n: i32) -> i32: n * 2
+fn double(n: i32) -> i32:
+    n * 2
 
 fn demo(text: string) -> string:
     text |> wrap(_, "*")

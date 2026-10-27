@@ -15,11 +15,13 @@ pub trait Inspectable:
 impl dyn Inspectable:
     ## Recovers the original shared reference when its concrete type is `T`.
     @intrinsic("downcast_ref")
-    pub fn downcast_ref[T < Inspectable](&self) -> (*T)?: panic("intrinsic")
+    pub fn downcast_ref[T < Inspectable](&self) -> (*T)?:
+        panic("intrinsic")
 
     ## Recovers the original mutable reference when its concrete type is `T`.
     @intrinsic("downcast_mut")
-    pub fn downcast_mut[T < Inspectable](&mut self) -> (*mut T)?: panic("intrinsic")
+    pub fn downcast_mut[T < Inspectable](&mut self) -> (*mut T)?:
+        panic("intrinsic")
 
 # `key` is the type's identity, which `Eq` compares; `name` is its canonical
 # printable name (trait.typeid.name), which `Display` prints. Two types of
@@ -34,15 +36,18 @@ pub struct TypeId:
 impl TypeId:
     ## The `TypeId` of `T`.
     @intrinsic("type_id_of")
-    pub fn of[T < Inspectable]() -> TypeId: panic("intrinsic")
+    pub fn of[T < Inspectable]() -> TypeId:
+        panic("intrinsic")
 
 # Keep handwritten Eq: compare the identity key, ignoring the descriptive name.
 impl Eq for TypeId:
-    fn eq(self, other: TypeId) -> bool: self.key == other.key
+    fn eq(self, other: TypeId) -> bool:
+        self.key == other.key
 
 # Keep handwritten Display: display only the descriptive type name; this is not an Error.
 impl Display for TypeId:
-    fn to_string(self) -> string: self.name
+    fn to_string(self) -> string:
+        self.name
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
 # written by hand with the builder calls that `@derive(Debug)` generates

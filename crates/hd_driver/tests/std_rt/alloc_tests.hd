@@ -3,7 +3,20 @@
 # as `std.rt.alloc_tests` and runs its cases on the linear backend
 # (crates/hd_driver/tests/conformance.rs, `STD_RT_TESTS`). Each case runs
 # in an instance of its own, so each starts with a fresh heap.
-use std.rt.alloc.{alloc, alloc_class, allocated, block_bytes, block_of, block_size, free, free_class, release, release_known, retain, retain_known}
+use std.rt.alloc.{
+    alloc,
+    alloc_class,
+    allocated,
+    block_bytes,
+    block_of,
+    block_size,
+    free,
+    free_class,
+    release,
+    release_known,
+    retain,
+    retain_known,
+}
 use std.rt.cycle.{collect, pending, track}
 use std.rt.memory.{grow, load_u32, store_u32, store_u8}
 
@@ -137,14 +150,38 @@ tests:
         assert(release(16) == 0, "static data has no count")
 
     it("every small-page offset uses the exact reciprocal quotient"):
-        let sizes: List[usize] = [16, 32, 48, 64, 80, 96, 112, 128, 160, 208, 256, 320, 400, 512, 640, 800, 1024, 1280, 1600, 2048]
+        let sizes: List[usize] = [
+            16,
+            32,
+            48,
+            64,
+            80,
+            96,
+            112,
+            128,
+            160,
+            208,
+            256,
+            320,
+            400,
+            512,
+            640,
+            800,
+            1024,
+            1280,
+            1600,
+            2048,
+        ]
         for size in sizes:
             first := alloc(size)
             page := first / PAGE * PAGE
             let offset: usize = 0
             while offset < PAGE - 16:
                 expected := page + 16 + offset / size * size
-                assert(block_of(page + 16 + offset) == expected, "the class table gives the exact slot")
+                assert(
+                    block_of(page + 16 + offset) == expected,
+                    "the class table gives the exact slot",
+                )
                 offset += 1
 
     it("known payload counts agree with interior-address counts"):
@@ -172,7 +209,9 @@ tests:
         assert(release_known(block + 8) == block, "the final count returns the block")
         free(block)
 
-    it("known releases buffer cyclic blocks once, and a collection frees one whose last count went"):
+    it(
+        "known releases buffer cyclic blocks once, and a collection frees one whose last count went",
+    ):
         block := alloc(64)
         store_u32(block, 3)
         store_u32(block + 4, 0x80000001)
@@ -192,7 +231,28 @@ tests:
         assert(alloc(64) == block, "its block is reused")
 
     it("constant classes agree with block classification and allocation totals"):
-        let sizes: List[usize] = [16, 32, 48, 64, 80, 96, 112, 128, 160, 208, 256, 320, 400, 512, 640, 800, 1024, 1280, 1600, 2048]
+        let sizes: List[usize] = [
+            16,
+            32,
+            48,
+            64,
+            80,
+            96,
+            112,
+            128,
+            160,
+            208,
+            256,
+            320,
+            400,
+            512,
+            640,
+            800,
+            1024,
+            1280,
+            1600,
+            2048,
+        ]
         for i in 0..sizes.len():
             bytes := sizes[i]
             before := allocated()

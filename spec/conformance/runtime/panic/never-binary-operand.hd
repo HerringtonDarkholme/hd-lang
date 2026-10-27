@@ -3,4 +3,4 @@
 
 pub fn main() -> void $ Console:
     a := +1
-    println("${a + panic("no operand")}")  # panic: explicit-panic
+    println("${a + panic("no operand")}") # panic: explicit-panic

@@ -1,5 +1,6 @@
 # Spec 13 Operator Tokens: ref.token.and-and, ref.token.caret, ref.token.and-bound.
-fn bounded[T < Display & Debug](value: T) -> void: pass
+fn bounded[T < Display & Debug](value: T) -> void:
+    pass
 
 fn tokens(a: bool, b: bool, x: i32, y: i32) -> void:
     both := a && b

@@ -21,10 +21,12 @@ enum RequestFailure:
     Offline
 
 impl From[TimedOut] for RequestFailure:
-    fn from(error: TimedOut) -> RequestFailure: .Deadline
+    fn from(error: TimedOut) -> RequestFailure:
+        .Deadline
 
 impl From[HttpError] for RequestFailure:
-    fn from(error: HttpError) -> RequestFailure: .Offline
+    fn from(error: HttpError) -> RequestFailure:
+        .Offline
 
 struct DelayedHttp:
     first_wait: mut Suspend[void]
@@ -41,8 +43,12 @@ impl Http for DelayedHttp:
         self.urls.push(url)
         if url == "http://primary/item":
             self.started += 1
-            defer: self.closed += 1
-            let wait: mut Suspend[void] = if self.started == 1: self.first_wait else: self.second_wait
+            defer:
+                self.closed += 1
+            let wait: mut Suspend[void] = if self.started == 1:
+                self.first_wait
+            else:
+                self.second_wait
             wait!()
             self.finished += 1
         else:
@@ -60,13 +66,15 @@ struct Activity:
 
 fn wait_primary!(activity: *mut Activity, wait: mut Suspend[void]) -> Result[usize, string]:
     activity.primary += 1
-    defer: activity.closed += 1
+    defer:
+        activity.closed += 1
     wait!()
     .Ok(1)
 
 fn wait_backup!(activity: *mut Activity, wait: mut Suspend[void]) -> Result[usize, string]:
     activity.backup += 1
-    defer: activity.closed += 1
+    defer:
+        activity.closed += 1
     wait!()
     .Ok(2)
 
@@ -109,29 +117,67 @@ pub fn main!() -> void $ Clock:
     primary := &mut PrimarySource { result: .Ok(41), calls: 0 }
     other_source := &mut BackupSource { calls: 0 }
     $.with(Primary=primary, Backup=other_source):
-        assert_equal(distinct_providers!(), .Ok(41), reason="work success retains the Primary row and value")
-        assert_equal(other_source.calls, 0, reason="success does not invoke the distinct Backup provider")
+        assert_equal(
+            distinct_providers!(),
+            .Ok(41),
+            reason="work success retains the Primary row and value",
+        )
+        assert_equal(
+            other_source.calls,
+            0,
+            reason="success does not invoke the distinct Backup provider",
+        )
         primary.result = .Err("offline")
-        assert_equal(distinct_providers!(), .Ok(99), reason="fallback joins the distinct Backup row")
-    assert_equal((primary.calls, other_source.calls), (2, 1), reason="one primary call per application and one backup only after failure")
+        assert_equal(
+            distinct_providers!(),
+            .Ok(99),
+            reason="fallback joins the distinct Backup row",
+        )
+    assert_equal(
+        (primary.calls, other_source.calls),
+        (2, 1),
+        reason="one primary call per application and one backup only after failure",
+    )
     let first_wait: mut Suspend[void] = sleep(60s)
     let second_wait: mut Suspend[void] = sleep(60s)
     let primary_wait: mut Suspend[void] = sleep(60s)
     let backup_wait: mut Suspend[void] = sleep(60s)
-    http := &mut DelayedHttp { first_wait: first_wait, second_wait: second_wait, urls: [], started: 0, finished: 0, closed: 0, closed_before_backup: 0 }
+    http := &mut DelayedHttp {
+        first_wait: first_wait,
+        second_wait: second_wait,
+        urls: [],
+        started: 0,
+        finished: 0,
+        closed: 0,
+        closed_before_backup: 0,
+    }
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock, Http=http):
-        backup_request := fn!() -> Result[string, RequestFailure] $ Http: fetch!("http://backup/item")
-        policy := (timeout(50ms), retry(Backoff { attempts: 2, initial: 1ms })) |> fallback(backup_request, _)
+        backup_request := fn!() -> Result[string, RequestFailure] $ Http:
+            fetch!("http://backup/item")
+        policy := (timeout(50ms), retry(Backoff { attempts: 2, initial: 1ms }))
+            |> fallback(backup_request, _)
         outcome := apply!(policy):
             fetch!("http://primary/item")
         assert_equal(outcome, .Ok("200"), reason="U1 two timed-out HTTP attempts fall back once")
-    assert_equal(http.urls, ["http://primary/item", "http://primary/item", "http://backup/item"], reason="the exact request order")
+    assert_equal(
+        http.urls,
+        ["http://primary/item", "http://primary/item", "http://backup/item"],
+        reason="the exact request order",
+    )
     assert_equal(http.started, 2, reason="both attempts really start")
     assert_equal(http.finished, 0, reason="neither canceled primary returns")
-    assert_equal(http.closed_before_backup, 2, reason="both attempt cleanups finish before backup starts")
+    assert_equal(
+        http.closed_before_backup,
+        2,
+        reason="both attempt cleanups finish before backup starts",
+    )
     assert_equal(http.closed, 2, reason="both primary defers run before fallback returns")
-    assert_equal(clock.now().unix_milliseconds(), 101, reason="each attempt has its own 50ms deadline with one 1ms backoff")
+    assert_equal(
+        clock.now().unix_milliseconds(),
+        101,
+        reason="each attempt has its own 50ms deadline with one 1ms backoff",
+    )
 
     activity := &mut Activity { primary: 0, backup: 0, closed: 0 }
     other := fn!() -> Result[usize, string]:
@@ -149,12 +195,24 @@ pub fn main!() -> void $ Clock:
     assert_equal(failed, .Err("backup-error"), reason="backup failure is returned unchanged")
     assert_equal(activity.backup, 1, reason="backup runs exactly once")
 
-    let pending: mut Suspend[Result[usize, string]] = apply(fallback(other, ()), work=fn!() -> Result[usize, string]: wait_primary!(activity, primary_wait))
+    let pending: mut Suspend[Result[usize, string]] = apply(
+        fallback(other, ()),
+        work=fn!() -> Result[usize, string]: wait_primary!(activity, primary_wait)
+        ,
+    )
     assert_equal(race!(pending, cancel(pending)), .Ok(9), reason="cancel the in-flight primary")
     assert_equal(activity.backup, 1, reason="cancellation is not a failure that starts backup")
     assert_equal(activity.closed, 1, reason="canceled primary defer runs exactly once")
     waiting_backup := fn!() -> Result[usize, string]: wait_backup!(activity, backup_wait)
-    let pending_backup: mut Suspend[Result[usize, string]] = apply(fallback(waiting_backup, ()), work=fn!() -> Result[usize, string]: .Err("primary-error"))
-    assert_equal(race!(pending_backup, cancel(pending_backup)), .Ok(9), reason="cancel the active backup")
+    let pending_backup: mut Suspend[Result[usize, string]] = apply(
+        fallback(waiting_backup, ()),
+        work=fn!() -> Result[usize, string]: .Err("primary-error")
+        ,
+    )
+    assert_equal(
+        race!(pending_backup, cancel(pending_backup)),
+        .Ok(9),
+        reason="cancel the active backup",
+    )
     assert_equal(activity.backup, 2, reason="backup starts once before cancellation")
     assert_equal(activity.closed, 2, reason="canceled backup defer also runs exactly once")

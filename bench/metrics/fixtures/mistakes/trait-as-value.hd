@@ -7,4 +7,4 @@ trait Clock:
     fn now(&self) -> i64
 
 fn stamp() -> i64 $ Clock:
-    Clock.now()  # diagnostic: argument-count
+    Clock.now() # diagnostic: argument-count

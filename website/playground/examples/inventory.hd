@@ -1,5 +1,5 @@
 # No class, no `new`, no null: a missing item is `.None`.
-fn find(items: List[Item], sku: string) -> Item?:  # ← the type says it may be missing
+fn find(items: List[Item], sku: string) -> Item?: # ← the type says it may be missing
     for item in items:
         if item.sku == sku:
             return .Some(item)

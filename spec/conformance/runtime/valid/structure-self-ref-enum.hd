@@ -49,4 +49,8 @@ tests:
 
     it("an enum whose every variant needs the enclosing type makes a member required"):
         expected := "Num=absent;value=absent;Wrap=required;inner=required;Pick=optional;choice=optional;"
-        assert_equal(Expr::shape(), expected, reason="Inner always needs an Expr, and Choice can Skip")
+        assert_equal(
+            Expr::shape(),
+            expected,
+            reason="Inner always needs an Expr, and Choice can Skip",
+        )

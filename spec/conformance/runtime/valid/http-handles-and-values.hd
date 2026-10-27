@@ -16,7 +16,8 @@ fn body!(url: string) -> string $ Http:
         .Ok(response) => response.text().expect("body")
         .Err(_) => "error"
 
-fn url(text: string) -> Url: Url::parse(text).expect("fixture URL")
+fn url(text: string) -> Url:
+    Url::parse(text).expect("fixture URL")
 
 tests:
     use std.testing.assert_equal
@@ -25,7 +26,11 @@ tests:
         request := Request::get(url("https://example.com/")).set_text("shared")
         let mut changed = request
         changed.url = url("https://example.org/")
-        assert_equal(request.url.to_string(), "https://example.com/", reason="the original keeps its URL")
+        assert_equal(
+            request.url.to_string(),
+            "https://example.com/",
+            reason="the original keeps its URL",
+        )
         assert_equal(changed.text(), .Ok("shared"), reason="copy reads the body")
         assert_equal(request.text(), .Err(BodyError.Used), reason="original observes the read")
         response := Response::status(.Ok)
@@ -41,7 +46,11 @@ tests:
         $.with(Http=http):
             _ := Request::get(url("https://example.com/missing")).send!()
         assert_equal(http.received().len(), 2, reason="both scopes recorded on one object")
-        assert_equal(http.received()[1].url.to_string(), "https://example.com/missing", reason="unanswered request retained")
+        assert_equal(
+            http.received()[1].url.to_string(),
+            "https://example.com/missing",
+            reason="unanswered request retained",
+        )
 
     it("a struct fake counts through a local mutable borrow"):
         let mut fake = Counting { seen: 0 }

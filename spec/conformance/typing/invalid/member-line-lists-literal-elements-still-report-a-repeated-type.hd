@@ -52,4 +52,4 @@ struct Point:
     a: i64
 
 impl Point by Structure:
-    a = [tag("x"), tagged..., tag("y")]  # diagnostic: duplicate-fact
+    a = [tag("x"), tagged..., tag("y")] # diagnostic: duplicate-fact

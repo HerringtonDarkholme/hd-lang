@@ -3,4 +3,4 @@ trait Counter:
     fn bump(&mut self) -> void
 
 fn replace(counter: &mut dyn Counter, other: &dyn Counter) -> void:
-    *counter = other  # diagnostic: type-mismatch
+    *counter = other # diagnostic: type-mismatch

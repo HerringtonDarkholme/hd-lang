@@ -4,6 +4,5 @@ struct User:
     name: string
 
 fn rename(user: *User) -> void:
-    change := fn() -> void:
-        user.name = "Grace"  # diagnostic: not-writable
+    change := fn() -> void: user.name = "Grace" # diagnostic: not-writable
     change()

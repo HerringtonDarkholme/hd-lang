@@ -8,7 +8,7 @@ trait Bag[T]:
 struct Words:
     text: string
 
-impl Bag[i32] for Words:  # diagnostic: unsatisfied-trait-bound
+impl Bag[i32] for Words: # diagnostic: unsatisfied-trait-bound
     type Cursor = string
     fn cursor(self) -> string:
         self.text

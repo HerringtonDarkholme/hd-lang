@@ -1,1 +1,2 @@
-pub fn inner() -> i32: +3
+pub fn inner() -> i32:
+    +3

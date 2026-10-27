@@ -1,6 +1,7 @@
 # test: generic suspending function
 
-fn echo![T](value: T) -> T: value
+fn echo![T](value: T) -> T:
+    value
 
 fn main!() -> i32:
     let pending: mut Suspend[i32] = echo(20)

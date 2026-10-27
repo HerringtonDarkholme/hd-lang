@@ -3,4 +3,5 @@
 
 enum Pair:
     Value(first: i32, second: i32)
-fn make() -> Pair: Pair.Value(missing=1, first=2)  # diagnostic: unknown-field
+fn make() -> Pair:
+    Pair.Value(missing=1, first=2) # diagnostic: unknown-field

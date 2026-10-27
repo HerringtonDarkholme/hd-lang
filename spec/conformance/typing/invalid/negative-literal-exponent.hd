@@ -1,3 +1,4 @@
 # test: a negated literal exponent is signed, so an integer power rejects it at compile time
 
-fn inverse() -> i32: 2 ** -1  # diagnostic: type-mismatch
+fn inverse() -> i32:
+    2 ** -1 # diagnostic: type-mismatch

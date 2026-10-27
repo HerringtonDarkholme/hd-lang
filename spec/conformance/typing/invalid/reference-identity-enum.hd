@@ -5,4 +5,4 @@ enum Expr:
     Neg(inner: *Expr)
 
 fn same(a: Expr, b: Expr) -> bool:
-    a is b  # diagnostic: identity-requires-references
+    a is b # diagnostic: identity-requires-references

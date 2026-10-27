@@ -5,4 +5,4 @@ fn five():
     n
 
 fn run() -> i64:
-    five()  # diagnostic: type-mismatch
+    five() # diagnostic: type-mismatch

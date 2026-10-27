@@ -3,4 +3,4 @@ use std.num.Num
 
 struct Handle: pass
 
-impl Num for Handle  # diagnostic: sealed-trait-implementation
+impl Num for Handle # diagnostic: sealed-trait-implementation

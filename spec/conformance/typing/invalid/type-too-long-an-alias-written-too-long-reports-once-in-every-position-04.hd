@@ -17,5 +17,6 @@ enum Choice[T]:
 
 type Wrap[T](T)
 
-impl Show for Both[i32, string, bool]:  # diagnostic: argument-count
-    fn show(self) -> string: ""
+impl Show for Both[i32, string, bool]: # diagnostic: argument-count
+    fn show(self) -> string:
+        ""

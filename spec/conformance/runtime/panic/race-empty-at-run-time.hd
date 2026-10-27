@@ -3,7 +3,7 @@
 use std.task.{block_on, race}
 
 fn first!(tasks: List[mut Suspend[i32]]) -> i32:
-    race!(tasks...)  # panic: explicit-panic
+    race!(tasks...) # panic: explicit-panic
 
 fn run() -> i32:
     let tasks: List[mut Suspend[i32]] = []

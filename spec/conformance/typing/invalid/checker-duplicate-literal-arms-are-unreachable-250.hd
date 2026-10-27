@@ -2,5 +2,5 @@
 fn f(x: f64) -> i32:
     match x:
         1.5 => 1
-        1.5 => 2  # diagnostic: unreachable-match-arm
+        1.5 => 2 # diagnostic: unreachable-match-arm
         _ => 3

@@ -4,6 +4,6 @@ fn find(id: i32) -> i32?:
     if id == 0: .Some(7) else: .None
 
 fn falls_through(id: i32) -> i32:
-    let .Some(value) = find(id) else:  # diagnostic: let-else-falls-through
+    let .Some(value) = find(id) else: # diagnostic: let-else-falls-through
         println("missing")
     value

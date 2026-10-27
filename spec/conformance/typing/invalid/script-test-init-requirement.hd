@@ -3,11 +3,13 @@
 # A direct `println` here is also suspension-forbidden-context, so the call is of a function with a Clock row.
 trait Clock
 
-fn rows() -> List[string]: ["apple", "pear"]
+fn rows() -> List[string]:
+    ["apple", "pear"]
 
-fn stamp() -> i32 $ Clock: 1
+fn stamp() -> i32 $ Clock:
+    1
 
-seeded := stamp()  # diagnostic: missing-requirement
+seeded := stamp() # diagnostic: missing-requirement
 
 tests:
     use std.testing.assert_equal

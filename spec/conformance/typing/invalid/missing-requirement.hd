@@ -4,4 +4,4 @@ fn query() -> void $ Database:
     pass
 
 pub fn invalid() -> void:
-    query()  # diagnostic: missing-requirement
+    query() # diagnostic: missing-requirement

@@ -3,5 +3,5 @@
 struct Point:
     x: i32
 
-fn first(points: List[&Point]) -> i32:  # diagnostic: local-reference-escapes
+fn first(points: List[&Point]) -> i32: # diagnostic: local-reference-escapes
     0

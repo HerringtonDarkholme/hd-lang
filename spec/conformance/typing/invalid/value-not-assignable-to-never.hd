@@ -2,4 +2,4 @@
 # Spec 04 Type System: types.never.assignable.
 
 fn stop() -> never:
-    "done"  # diagnostic: type-mismatch
+    "done" # diagnostic: type-mismatch

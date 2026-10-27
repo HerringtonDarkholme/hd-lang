@@ -7,5 +7,5 @@ fn empty_list[T]() -> List[T]:
     []
 
 fn count() -> usize:
-    items := empty_list()  # diagnostic: cannot-infer-type
+    items := empty_list() # diagnostic: cannot-infer-type
     items.len()

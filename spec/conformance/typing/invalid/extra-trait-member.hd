@@ -7,5 +7,7 @@ trait Named:
 struct Admin: pass
 
 impl Named for Admin:
-    fn name(self) -> string: "admin"
-    fn shout(self) -> string: "ADMIN"  # diagnostic: extra-trait-member
+    fn name(self) -> string:
+        "admin"
+    fn shout(self) -> string: # diagnostic: extra-trait-member
+        "ADMIN"

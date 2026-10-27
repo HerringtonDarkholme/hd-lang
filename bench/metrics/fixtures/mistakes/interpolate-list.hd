@@ -4,4 +4,4 @@
 # fixed:     "args ${args.len()}"
 
 fn show(args: List[string]) -> string:
-    "args ${args}"  # diagnostic: unsatisfied-trait-bound
+    "args ${args}" # diagnostic: unsatisfied-trait-bound

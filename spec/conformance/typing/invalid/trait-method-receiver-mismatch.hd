@@ -6,4 +6,5 @@ trait Add:
 struct Counter:
     value: i32
 impl Add for Counter:
-    fn add(self) -> void: pass  # diagnostic: trait-method-signature
+    fn add(self) -> void: # diagnostic: trait-method-signature
+        pass

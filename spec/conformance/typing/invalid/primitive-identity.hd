@@ -1,2 +1,2 @@
 fn same(left: i32, right: i32) -> bool:
-    left is right  # diagnostic: identity-requires-references
+    left is right # diagnostic: identity-requires-references

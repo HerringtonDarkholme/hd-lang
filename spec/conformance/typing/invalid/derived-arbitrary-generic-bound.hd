@@ -6,7 +6,8 @@ use std.testing.Arbitrary
 struct Box[T]:
     value: T
 
-fn needs[T < Arbitrary](value: T) -> T: value
+fn needs[T < Arbitrary](value: T) -> T:
+    value
 
 fn invalid(item: Box[fn() -> i32]) -> Box[fn() -> i32]:
-    needs(item)  # diagnostic: unsatisfied-trait-bound
+    needs(item) # diagnostic: unsatisfied-trait-bound

@@ -61,7 +61,14 @@ tests:
     it("TimedOut has an Eq and a Display text"):
         error := TimedOut { limit: 1500ms, cleanup: .Finished }
         assert_equal(error, TimedOut { limit: 1500ms, cleanup: .Finished }, reason="equal fields")
-        assert(error != TimedOut { limit: 1500ms, cleanup: .Abandoned }, reason="the cleanup ends differ")
+        assert(
+            error != TimedOut { limit: 1500ms, cleanup: .Abandoned },
+            reason="the cleanup ends differ",
+        )
         assert_equal(error.to_string(), "timed out after 1.5s", reason="the limit is shown")
         cut := TimedOut { limit: 1500ms, cleanup: .Abandoned }
-        assert_equal(cut.to_string(), "timed out after 1.5s, cleanup abandoned", reason="an abandoned cleanup is shown")
+        assert_equal(
+            cut.to_string(),
+            "timed out after 1.5s, cleanup abandoned",
+            reason="an abandoned cleanup is shown",
+        )

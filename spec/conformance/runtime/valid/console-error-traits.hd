@@ -8,8 +8,16 @@ tests:
 
     it("compares, shows, and displays"):
         assert(closed(ConsoleError.Closed), reason="one case")
-        assert_equal(ConsoleError.Closed, ConsoleError.Closed, reason="assert_equal needs Eq and Debug")
-        assert_equal(debug(ConsoleError.Closed), "ConsoleError.Closed", reason="the qualified case name")
+        assert_equal(
+            ConsoleError.Closed,
+            ConsoleError.Closed,
+            reason="assert_equal needs Eq and Debug",
+        )
+        assert_equal(
+            debug(ConsoleError.Closed),
+            "ConsoleError.Closed",
+            reason="the qualified case name",
+        )
         assert_equal("${ConsoleError.Closed}", "console closed", reason="the Display text")
 
     it("compares and renders error payloads"):
@@ -21,5 +29,13 @@ tests:
         assert(denied != other, reason="different variants")
         assert_equal("$denied", "console access to stdout is not granted", reason="denial display")
         assert_equal("$other", "sink failed", reason="other display")
-        assert_equal(debug(denied), "ConsoleError.NotGranted(subject=\"stdout\")", reason="named subject")
-        assert_equal(debug(other), "ConsoleError.Other(message=\"sink failed\")", reason="named message")
+        assert_equal(
+            debug(denied),
+            "ConsoleError.NotGranted(subject=\"stdout\")",
+            reason="named subject",
+        )
+        assert_equal(
+            debug(other),
+            "ConsoleError.Other(message=\"sink failed\")",
+            reason="named message",
+        )

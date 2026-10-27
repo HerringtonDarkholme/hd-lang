@@ -19,7 +19,8 @@ impl Lookup for PhoneBook:
             if self.names[index] == key:
                 return .Some(self.numbers[index])
         .None
-    fn keys(self) -> List[string]: self.names
+    fn keys(self) -> List[string]:
+        self.names
 
 struct Squares:
     size: i32

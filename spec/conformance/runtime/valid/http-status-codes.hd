@@ -5,7 +5,37 @@ use std.hash.hash_of
 
 tests:
     it("known codes choose named variants"):
-        for code in [200u16,201u16,202u16,204u16,206u16,301u16,302u16,303u16,304u16,307u16,308u16,400u16,401u16,403u16,404u16,405u16,408u16,409u16,410u16,412u16,413u16,415u16,422u16,429u16,500u16,501u16,502u16,503u16,504u16]:
+        for code in [
+            200u16,
+            201u16,
+            202u16,
+            204u16,
+            206u16,
+            301u16,
+            302u16,
+            303u16,
+            304u16,
+            307u16,
+            308u16,
+            400u16,
+            401u16,
+            403u16,
+            404u16,
+            405u16,
+            408u16,
+            409u16,
+            410u16,
+            412u16,
+            413u16,
+            415u16,
+            422u16,
+            429u16,
+            500u16,
+            501u16,
+            502u16,
+            503u16,
+            504u16,
+        ]:
             status := HttpStatus::from_code(code)
             assert_equal(status.code(), code, reason="numeric code survives")
             match status:
@@ -21,9 +51,17 @@ tests:
 
     it("numeric aliases compare and hash alike"):
         assert_equal(HttpStatus.Other(404), .NotFound, reason="named and other are the same code")
-        assert_equal(hash_of(HttpStatus.Other(404)), hash_of(HttpStatus.NotFound), reason="equal values hash equally")
+        assert_equal(
+            hash_of(HttpStatus.Other(404)),
+            hash_of(HttpStatus.NotFound),
+            reason="equal values hash equally",
+        )
         let mut responses: Map[HttpStatus, string] = {}
         responses[HttpStatus.NotFound] = "first"
         responses[HttpStatus.Other(404)] = "replacement"
         assert_equal(responses.len(), 1, reason="numeric aliases address one key")
-        assert_equal(responses.get(.NotFound), .Some("replacement"), reason="both forms read the same key")
+        assert_equal(
+            responses.get(.NotFound),
+            .Some("replacement"),
+            reason="both forms read the same key",
+        )

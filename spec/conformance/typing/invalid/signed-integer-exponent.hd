@@ -1,3 +1,4 @@
 # test: an integer exponent must have an unsigned type
 
-fn power(exponent: i32) -> i32: 2 ** exponent  # diagnostic: type-mismatch
+fn power(exponent: i32) -> i32:
+    2 ** exponent # diagnostic: type-mismatch

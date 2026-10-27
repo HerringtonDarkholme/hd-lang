@@ -1,6 +1,6 @@
 # test: a grouped std use that names a declaration its existing module lacks is an error at the use
 # Spec 10 Use Forms: module.use.missing-name (batch 53).
-use std.text.{nope}  # diagnostic: unknown-import
+use std.text.{nope} # diagnostic: unknown-import
 
 pub fn label() -> string:
     "label"

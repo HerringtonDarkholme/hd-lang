@@ -27,4 +27,5 @@ tests:
     it("a body without ? is void"):
         match parse_digit("x"):
             .Ok(_) => panic("x is not a digit")
-            .Err(error) => assert_equal(error.to_string(), "not a digit: x", reason="the helper rejects x")
+            .Err(error) =>
+                assert_equal(error.to_string(), "not a digit: x", reason="the helper rejects x")

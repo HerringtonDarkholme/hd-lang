@@ -5,4 +5,4 @@
 use pkg.meter.{Meter}
 
 pub fn read(meter: Meter) -> string:
-    meter.code  # diagnostic: private-member
+    meter.code # diagnostic: private-member

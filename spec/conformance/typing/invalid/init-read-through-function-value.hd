@@ -3,7 +3,7 @@
 fn apply(f: fn() -> i32) -> i32:
     f()
 
-first := apply(total)  # diagnostic: top-level-read-before-initialization
+first := apply(total) # diagnostic: top-level-read-before-initialization
 
 start := +1
 

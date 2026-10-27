@@ -82,7 +82,11 @@ impl Base64:
         let index: usize = 0
         let at: usize = 0
         while index + 3 <= size:
-            group := (i32(bytes[index]) << 16) | (i32(bytes[index + 1]) << 8) | i32(bytes[index + 2])
+            group := (
+                (i32(bytes[index]) << 16)
+                | (i32(bytes[index + 1]) << 8)
+                | i32(bytes[index + 2])
+            )
             codes[at] = self.symbol(group >> 18)
             codes[at + 1] = self.symbol((group >> 12) & 63)
             codes[at + 2] = self.symbol((group >> 6) & 63)

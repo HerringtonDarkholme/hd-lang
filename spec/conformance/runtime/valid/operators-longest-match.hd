@@ -9,36 +9,37 @@
 # expect-stdout: 2 1
 # expect-stdout: 12
 # expect-stdout: 6 10 5
-fn double(n: i32) -> i32: n * 2
+fn double(n: i32) -> i32:
+    n * 2
 
 pub fn main() -> void $ Console:
     println(2 ** 3 ** 2)
     f := +3
     g := +4
-    println(f!=g)
-    println(true&&!false||false)
+    println(f != g)
+    println(true && !false || false)
     let shifted = +4
-    shifted<<=1
+    shifted <<= 1
     println(shifted)
     let a = +100
     let b = +4
-    a-=b
+    a -= b
     println(a)
     let c = +7
-    c+=4
+    c += 4
     let d = +3
-    d-=2
+    d -= 2
     let e = +12
-    e%=5
+    e %= 5
     println("$c $d $e")
     let m = +7
-    m*=2
-    m/=7
+    m *= 2
+    m /= 7
     let n = +1
-    n|=2
-    n&=3
-    n^=1
-    n>>=1
+    n |= 2
+    n &= 3
+    n ^= 1
+    n >>= 1
     println("$m $n")
     println(3 |> double |> double)
     let up_to = +0

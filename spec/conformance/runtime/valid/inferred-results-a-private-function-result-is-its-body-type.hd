@@ -2,13 +2,17 @@
 # Spec lang/07-functions.md: fn.decl.result-inferred.
 # expect-stdout: 42 x
 
-fn first(): second() + 1
+fn first():
+    second() + 1
 
-fn second(): answer() - 1
+fn second():
+    answer() - 1
 
-fn answer(): +42
+fn answer():
+    +42
 
-fn head[T](items: List[T]): items[0]
+fn head[T](items: List[T]):
+    items[0]
 
 pub fn main() -> void $ Console:
     let n: i32 = first()

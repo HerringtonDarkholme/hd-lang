@@ -1,6 +1,7 @@
 # test: primitives, strings, and tuples satisfy an AnyVal bound
 
-fn keep[T < AnyVal](value: T) -> T: value
+fn keep[T < AnyVal](value: T) -> T:
+    value
 
 fn check() -> (i32, string, (i32, bool)):
     (keep(1), keep("hd"), keep((1, true)))

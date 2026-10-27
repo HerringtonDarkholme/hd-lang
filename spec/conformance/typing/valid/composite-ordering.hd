@@ -1,7 +1,2 @@
-fn ordered(
-    left: (string, i32),
-    right: (string, i32),
-    maybe_left: i32?,
-    maybe_right: i32?,
-) -> bool:
+fn ordered(left: (string, i32), right: (string, i32), maybe_left: i32?, maybe_right: i32?) -> bool:
     left < right && maybe_left < maybe_right

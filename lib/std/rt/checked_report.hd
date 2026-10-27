@@ -1,6 +1,20 @@
 # Optional checked-cycle measurement. The browser embeds neither this
 # module nor checked.hd. Descriptors and their names belong to the host.
-pub use std.rt.checked.{allocate, free, retain, release, retain_known, release_known, free_acyclic, release_acyclic, release_known_acyclic, live, audit, retained, released}
+pub use std.rt.checked.{
+    allocate,
+    free,
+    retain,
+    release,
+    retain_known,
+    release_known,
+    free_acyclic,
+    release_acyclic,
+    release_known_acyclic,
+    live,
+    audit,
+    retained,
+    released,
+}
 use std.rt.alloc.{alloc, free_block}
 use std.rt.cycle.freeing_cycles
 use std.rt.memory.{copy, fill, load_u32, load_u64, store_u64}
@@ -27,5 +41,7 @@ pub fn collected(block: usize) -> void:
     at := counts + id * 8
     store_u64(at, load_u64(at) + 1)
 
-pub fn pointer() -> usize: counts
-pub fn length() -> usize: slots
+pub fn pointer() -> usize:
+    counts
+pub fn length() -> usize:
+    slots

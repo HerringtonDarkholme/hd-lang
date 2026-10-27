@@ -1,4 +1,3 @@
-
 @derive(Eq, PartialOrd, Ord)
 struct Measurement:
-    value: f64  # diagnostic: derive-field-missing-trait
+    value: f64 # diagnostic: derive-field-missing-trait

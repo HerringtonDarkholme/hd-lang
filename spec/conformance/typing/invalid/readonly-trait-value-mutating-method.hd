@@ -6,5 +6,7 @@ trait Add:
 struct Counter:
     value: i32
 impl Add for Counter:
-    fn add(&mut self) -> void: pass
-fn invalid(value: &dyn Add) -> void: value.add()  # diagnostic: not-writable
+    fn add(&mut self) -> void:
+        pass
+fn invalid(value: &dyn Add) -> void:
+    value.add() # diagnostic: not-writable

@@ -1,9 +1,10 @@
 # test: a cold cancel built without the bang and discarded is a discarded suspension
 # Spec lang/11 Cancellation: req.cancel.cold.discard.
-fn ready!() -> i32: 42
+fn ready!() -> i32:
+    42
 
 fn stop!(job: mut Suspend[i32]) -> void:
-    job.cancel()  # diagnostic: discarded-must-use-value
+    job.cancel() # diagnostic: discarded-must-use-value
 
 fn stop_now!(job: mut Suspend[i32]) -> void:
     _ := job.cancel!()

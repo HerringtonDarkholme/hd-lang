@@ -6,4 +6,5 @@ struct Tagged[T < Hash, H < Hash = T]:
     tag: T
     hash: H
 
-fn use_it(tagged: Tagged[Plain]) -> i32: 0  # diagnostic: unsatisfied-trait-bound
+fn use_it(tagged: Tagged[Plain]) -> i32: # diagnostic: unsatisfied-trait-bound
+    0

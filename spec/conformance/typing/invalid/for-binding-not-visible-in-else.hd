@@ -8,4 +8,4 @@ fn last(values: List[i32]) -> i32:
         if value > 10:
             break value
     else:
-        value  # diagnostic: unknown-name
+        value # diagnostic: unknown-name

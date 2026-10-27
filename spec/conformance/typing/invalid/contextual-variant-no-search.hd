@@ -8,5 +8,5 @@ enum Phase:
     Queued
 
 fn invalid() -> void:
-    state := .Paused  # diagnostic: missing-contextual-enum-type
+    state := .Paused # diagnostic: missing-contextual-enum-type
     pass

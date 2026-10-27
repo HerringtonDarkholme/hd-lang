@@ -9,4 +9,4 @@ struct Job:
     Base
 
 fn invalid(job: Job) -> i32:
-    job.run()  # diagnostic: unknown-method
+    job.run() # diagnostic: unknown-method

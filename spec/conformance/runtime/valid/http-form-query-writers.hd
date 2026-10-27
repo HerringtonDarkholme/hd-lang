@@ -67,59 +67,151 @@ struct Bracketed:
 tests:
     it("query writes replace pairs and keep the other URL components"):
         let mut url = parsed("https://x/path?old=yes#frag")
-        value := Query { filter: Filter { count: 42, note: .Some("a b+c") }, tags: ["tea", "green"], active: true, optional: .None }
+        value := Query {
+            filter: Filter { count: 42, note: .Some("a b+c") },
+            tags: ["tea", "green"],
+            active: true,
+            optional: .None,
+        }
         url.set_query_as(value)
-        assert_equal(url.query, [("filter[wire-count]", "42"), ("filter[note]", "a b+c"), ("tags", "tea"), ("tags", "green"), ("active", "true")], reason="decoded components in declared/member and item order")
-        assert_equal(url.to_string(), "https://x/path?filter%5Bwire-count%5D=42&filter%5Bnote%5D=a%20b%2Bc&tags=tea&tags=green&active=true#frag", reason="components encoded exactly once")
-        assert_equal(url.query_as::[Query](), .Ok(value), reason="shared reader reverses the writer")
+        assert_equal(
+            url.query,
+            [
+                ("filter[wire-count]", "42"),
+                ("filter[note]", "a b+c"),
+                ("tags", "tea"),
+                ("tags", "green"),
+                ("active", "true"),
+            ],
+            reason="decoded components in declared/member and item order",
+        )
+        assert_equal(
+            url.to_string(),
+            "https://x/path?filter%5Bwire-count%5D=42&filter%5Bnote%5D=a%20b%2Bc&tags=tea&tags=green&active=true#frag",
+            reason="components encoded exactly once",
+        )
+        assert_equal(
+            url.query_as::[Query](),
+            .Ok(value),
+            reason="shared reader reverses the writer",
+        )
 
     it("empty query writes clear the explicit empty-query marker"):
         let mut url = parsed("https://x/path?#frag")
         url.set_query_as(Empty {})
         assert_equal(url.query, [], reason="empty parameter record")
-        assert_equal(url.to_string(), "https://x/path#frag", reason="the writer replaces query presence too")
+        assert_equal(
+            url.to_string(),
+            "https://x/path#frag",
+            reason="the writer replaces query presence too",
+        )
 
     it("unit variants and scalar tuples share repeated-key encoding"):
         let mut url = parsed("https://x/")
         units := Units { state: .Done, states: [.Draft, .Done] }
         url.set_query_as(units)
-        assert_equal(url.query, [("state", "Done"), ("states", "Draft"), ("states", "Done")], reason="units are named scalars")
+        assert_equal(
+            url.query,
+            [("state", "Done"), ("states", "Draft"), ("states", "Done")],
+            reason="units are named scalars",
+        )
         assert_equal(url.query_as::[Units](), .Ok(units), reason="unit enum round-trip")
         pair := Pair { values: ("tea", 42) }
         url.set_query_as(pair)
-        assert_equal(url.query, [("values", "tea"), ("values", "42")], reason="tuple uses serde list model")
-        assert_equal(url.query_as::[Pair](), .Ok(pair), reason="tuple count and scalar types read back")
+        assert_equal(
+            url.query,
+            [("values", "tea"), ("values", "42")],
+            reason="tuple uses serde list model",
+        )
+        assert_equal(
+            url.query_as::[Pair](),
+            .Ok(pair),
+            reason="tuple count and scalar types read back",
+        )
 
     it("empty record lists and absent optional records encode without schema preflight"):
         let mut url = parsed("https://x/")
         url.set_query_as(RecordList { items: [] })
-        assert_equal(url.query_as::[RecordList]().map(fn(value): value.items.len()), .Ok(0), reason="no record element visited")
+        assert_equal(
+            url.query_as::[RecordList]().map(fn(value): value.items.len()),
+            .Ok(0),
+            reason="no record element visited",
+        )
         url.set_query_as(OptionalRecord { filter: .None })
-        assert_equal(url.query_as::[OptionalRecord]().map(fn(value): value.filter.is_none()), .Ok(true), reason="no optional record visited")
+        assert_equal(
+            url.query_as::[OptionalRecord]().map(fn(value): value.filter.is_none()),
+            .Ok(true),
+            reason="no optional record visited",
+        )
 
     it("unsupported writes retain typed failures until a successful replacement"):
         let mut url = parsed("https://x/?old=yes")
-        url.set_query_as(BadMap { entries: {"key": "value"} })
-        assert_equal(url.query_as::[Empty](), .Err(FormError.Unsupported("entries")), reason="dynamic map preparation failure retained")
+        url.set_query_as(BadMap { entries: { "key": "value" } })
+        assert_equal(
+            url.query_as::[Empty](),
+            .Err(FormError.Unsupported("entries")),
+            reason="dynamic map preparation failure retained",
+        )
         url.add_param("valid", 42)
-        assert_equal(url.query_as::[Empty](), .Err(FormError.Unsupported("entries")), reason="appending a pair does not replace a failed query")
+        assert_equal(
+            url.query_as::[Empty](),
+            .Err(FormError.Unsupported("entries")),
+            reason="appending a pair does not replace a failed query",
+        )
         url.set_query_as(Empty {})
-        assert_equal(url.query_as::[Empty](), .Ok(Empty {}), reason="successful whole replacement clears preparation failure")
+        assert_equal(
+            url.query_as::[Empty](),
+            .Ok(Empty {}),
+            reason="successful whole replacement clears preparation failure",
+        )
         url.set_query_as(Bracketed { value: 1 })
-        assert_equal(url.query_as::[Empty](), .Err(FormError.Unsupported("value[nested]")), reason="a rename cannot invent bracket structure")
+        assert_equal(
+            url.query_as::[Empty](),
+            .Err(FormError.Unsupported("value[nested]")),
+            reason="a rename cannot invent bracket structure",
+        )
 
     it("visited payloads and containers fail without panicking in the writer"):
         let mut url = parsed("https://x/")
         url.set_query_as(Units { state: .Data(7), states: [] })
-        assert_equal(url.query_as::[Empty](), .Err(FormError.Unsupported("state")), reason="payload enum is not a scalar")
+        assert_equal(
+            url.query_as::[Empty](),
+            .Err(FormError.Unsupported("state")),
+            reason="payload enum is not a scalar",
+        )
         url.set_query_as(RecordList { items: [Filter { count: 1, note: .None }] })
-        assert_equal(url.query_as::[Empty](), .Err(FormError.Unsupported("items")), reason="record list element visited")
+        assert_equal(
+            url.query_as::[Empty](),
+            .Err(FormError.Unsupported("items")),
+            reason="record list element visited",
+        )
         url.set_query_as(NestedList { items: [[1]] })
-        assert_equal(url.query_as::[Empty](), .Err(FormError.Unsupported("items")), reason="nested list visited")
-        url.set_query_as(Deep { query: Query { filter: Filter { count: 1, note: .None }, tags: [], active: false, optional: .None } })
-        assert_equal(url.query_as::[Empty](), .Err(FormError.Unsupported("query[filter]")), reason="third record frame")
+        assert_equal(
+            url.query_as::[Empty](),
+            .Err(FormError.Unsupported("items")),
+            reason="nested list visited",
+        )
+        url.set_query_as(
+            Deep {
+                query: Query {
+                    filter: Filter { count: 1, note: .None },
+                    tags: [],
+                    active: false,
+                    optional: .None,
+                },
+            },
+        )
+        assert_equal(
+            url.query_as::[Empty](),
+            .Err(FormError.Unsupported("query[filter]")),
+            reason="third record frame",
+        )
         url.set_query_as(42)
-        assert_equal(url.query_as::[Empty](), .Err(FormError.Unsupported("$")), reason="root is a parameter record")
+        assert_equal(
+            url.query_as::[Empty](),
+            .Err(FormError.Unsupported("$")),
+            reason="root is a parameter record",
+        )
 
     it("resolution keeps a pending failure exactly when it inherits the query"):
         let mut base = parsed("https://x/dir/file?old=value")
@@ -128,10 +220,30 @@ tests:
             resolved := match base.resolve(reference):
                 .Ok(url) => url
                 .Err(error) => panic("$error")
-            assert_equal(resolved.query_as::[Empty](), .Err(FormError.Unsupported("entries")), reason="base query is inherited")
-        for reference in ["?", "?fresh=yes", "next", "./", "/new", "//other/path", "https://other/path"]:
+            assert_equal(
+                resolved.query_as::[Empty](),
+                .Err(FormError.Unsupported("entries")),
+                reason="base query is inherited",
+            )
+        for reference in [
+            "?",
+            "?fresh=yes",
+            "next",
+            "./",
+            "/new",
+            "//other/path",
+            "https://other/path",
+        ]:
             resolved := match base.resolve(reference):
                 .Ok(url) => url
                 .Err(error) => panic("$error")
-            assert_equal(resolved.query_as::[Empty](), .Ok(Empty {}), reason="reference replaces the query component")
-        assert_equal(base.query_as::[Empty](), .Err(FormError.Unsupported("entries")), reason="resolution does not mutate the base")
+            assert_equal(
+                resolved.query_as::[Empty](),
+                .Ok(Empty {}),
+                reason="reference replaces the query component",
+            )
+        assert_equal(
+            base.query_as::[Empty](),
+            .Err(FormError.Unsupported("entries")),
+            reason="resolution does not mutate the base",
+        )

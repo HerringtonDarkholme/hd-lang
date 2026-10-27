@@ -1,6 +1,7 @@
 # test: a call has at most one positional spread, and it is the final positional argument
 # Spec 05 Positional Spreads: expr.call.spread.position.
-fn add(a: i32, b: i32) -> i32: a + b
+fn add(a: i32, b: i32) -> i32:
+    a + b
 
 fn both(left: (i32,), right: (i32,)) -> i32:
-    add(left..., right...)  # diagnostic: nonfinal-positional-spread
+    add(left..., right...) # diagnostic: nonfinal-positional-spread

@@ -11,4 +11,4 @@ impl Add for Money:
         Money { cents: self.cents + rhs.cents }
 
 fn bump(price: Money, cents: i64) -> Money:
-    price + cents  # diagnostic: type-mismatch
+    price + cents # diagnostic: type-mismatch

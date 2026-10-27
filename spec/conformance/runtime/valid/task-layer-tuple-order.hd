@@ -17,7 +17,7 @@ pub fn wrapped() -> string:
 struct Double:
     events: *mut List[string]
 
-impl[$R] Layer[fn!() -> usize $ R] for Double:
+impl[$ R] Layer[fn!() -> usize $ R] for Double:
     type Wrapped = fn!() -> usize $ R
     fn wrap(self, work: fn!() -> usize $ R) -> (fn!() -> usize $ R):
         self.events.push("wrap double")
@@ -31,7 +31,7 @@ struct Add:
     events: *mut List[string]
     amount: usize
 
-impl[$R] Layer[fn!() -> usize $ R] for Add:
+impl[$ R] Layer[fn!() -> usize $ R] for Add:
     type Wrapped = fn!() -> usize $ R
     fn wrap(self, work: fn!() -> usize $ R) -> (fn!() -> usize $ R):
         self.events.push("wrap add")
@@ -49,7 +49,11 @@ tests:
     use std.testing.assert_equal
 
     it("ordinary string layers compose in tuple order"):
-        assert_equal(wrapped(), "second:first:work", reason="the outer component receives the inner result")
+        assert_equal(
+            wrapped(),
+            "second:first:work",
+            reason="the outer component receives the inner result",
+        )
 
     it("function wrappers preserve order and run only when applied"):
         events := &mut []
@@ -58,4 +62,16 @@ tests:
         result := apply!(policy):
             two!(events)
         assert_equal(result, 7, reason="double is inside add, rather than add inside double")
-        assert_equal(*events, ["wrap double", "wrap add", "enter add", "enter double", "work", "leave double", "leave add"], reason="each wrapper is built once and each returned function runs once")
+        assert_equal(
+            *events,
+            [
+                "wrap double",
+                "wrap add",
+                "enter add",
+                "enter double",
+                "work",
+                "leave double",
+                "leave add",
+            ],
+            reason="each wrapper is built once and each returned function runs once",
+        )

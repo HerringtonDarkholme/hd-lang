@@ -3,4 +3,4 @@
 
 fn swap() -> (string, i32):
     let pair: (i32, string) = (1, "a")
-    pair  # diagnostic: type-mismatch
+    pair # diagnostic: type-mismatch

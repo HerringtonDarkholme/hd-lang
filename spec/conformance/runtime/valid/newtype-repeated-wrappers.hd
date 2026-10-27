@@ -17,7 +17,11 @@ tests:
         assert_equal(values.get(Foo(Foo(+2))), .Some("two"), reason="second nested key")
         values[Foo(Foo(+1))] = "updated"
         assert_equal(values.len(), 2, reason="equal nested key replaces its value")
-        assert_equal(values.get(Foo(Foo(+1))), .Some("updated"), reason="replacement survives hashing")
+        assert_equal(
+            values.get(Foo(Foo(+1))),
+            .Some("updated"),
+            reason="replacement survives hashing",
+        )
         assert_equal(values.get(Foo(Foo(+3))), .None, reason="missing nested key")
 
     it("nested same-newtype list elements retain their values and forward debug"):

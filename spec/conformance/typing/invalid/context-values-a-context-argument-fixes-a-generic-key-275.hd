@@ -13,4 +13,4 @@ fn take[T](ctx: $.Context[$ Repo[T]]) -> void:
     pass
 
 fn run() -> void:
-    take($.context(Repo[i32]=Ints {}, Log=Ints {}))  # diagnostic: type-mismatch
+    take($.context(Repo[i32]=Ints {}, Log=Ints {})) # diagnostic: type-mismatch

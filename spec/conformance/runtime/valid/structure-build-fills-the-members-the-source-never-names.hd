@@ -17,10 +17,12 @@ trait Default:
     fn default() -> Self
 
 impl Default for i32:
-    fn default() -> i32: +0
+    fn default() -> i32:
+        +0
 
 impl Default for string:
-    fn default() -> string: ""
+    fn default() -> string:
+        ""
 use std.structure.{Structure, Field, Variant, Members, Key, Source}
 
 trait Make:

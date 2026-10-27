@@ -56,4 +56,8 @@ tests:
         assert_equal(Expr::shape(), expected, reason="direct, list, and no self references")
 
     it("a data type's one variant reports its members' strongest self reference"):
-        assert_equal(Node::shape(), "Node=optional;label=absent;parent=optional;", reason="an optional self reference")
+        assert_equal(
+            Node::shape(),
+            "Node=optional;label=absent;parent=optional;",
+            reason="an optional self reference",
+        )

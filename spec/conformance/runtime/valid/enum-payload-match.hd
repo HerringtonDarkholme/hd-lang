@@ -11,7 +11,8 @@ fn read(outcome: Outcome) -> i32:
         Outcome.Failure(code) => -code
         Outcome.Empty => 0
 
-fn main() -> i32: read(Outcome.Value(42))
+fn main() -> i32:
+    read(Outcome.Value(42))
 
 tests:
     use std.testing.assert_equal

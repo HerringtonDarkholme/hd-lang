@@ -5,7 +5,9 @@ use std.time.ms
 
 it("a process still runs after cancellation of its predecessor"):
     cancelled := apply!(timeout(500ms)):
-        let done: Result[Result[ProcessOutput, ProcessError], TimedOut] = .Ok(Command::new("wait").run!())
+        let done: Result[Result[ProcessOutput, ProcessError], TimedOut] = .Ok(
+            Command::new("wait").run!(),
+        )
         done
     assert(cancelled.is_err(), reason="the pending process is cancelled")
     output := Command::new("next").run!().expect("the successor starts")

@@ -4,4 +4,4 @@ struct Point:
     x: i32
 
 origin := Point { x: 0 }
-let origin_ref: &Point = &origin  # diagnostic: local-reference-escapes
+let origin_ref: &Point = &origin # diagnostic: local-reference-escapes

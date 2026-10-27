@@ -19,4 +19,4 @@ pub fn main!() -> void:
     let mut slot = Slot { task: .None }
     let pending: mut Suspend[i32] = outer(&mut slot)
     slot.task = pending
-    _ := pending!()  # panic: suspension-reentrant-poll
+    _ := pending!() # panic: suspension-reentrant-poll

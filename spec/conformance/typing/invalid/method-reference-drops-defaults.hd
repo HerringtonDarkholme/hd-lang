@@ -9,4 +9,4 @@ impl Greeter:
 
 fn hello(greeter: Greeter) -> string:
     greet := Greeter::greet
-    greet(greeter)  # diagnostic: argument-count
+    greet(greeter) # diagnostic: argument-count

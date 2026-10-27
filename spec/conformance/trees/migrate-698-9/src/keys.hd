@@ -10,4 +10,4 @@ pub type WebRow = $ AppRow + Log
 
 pub type AppRow = $ Db + Cache
 
-pub type WithLog[$R] = $ R + Log
+pub type WithLog[$ R] = $ R + Log

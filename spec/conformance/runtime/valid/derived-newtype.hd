@@ -18,7 +18,7 @@ tests:
         assert_equal(same(Mile(1), Mile(2)), false, reason="different base values")
 
     it("a derived newtype can be a map key"):
-        distances := {Mile(5): "short"}
+        distances := { Mile(5): "short" }
         assert_equal(distances.get(Mile(5)), .Some("short"), reason="lookup by an equal key")
 
     it("derived newtype ordering follows the base type"):

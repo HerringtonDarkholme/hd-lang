@@ -164,7 +164,9 @@ impl Choices:
         let half: u64 = 0x7FFFFFFFFFFFFFFF
         let edge: i64 = -1
         match zero:
-            .Some(at) => if at <= half: edge = i64(at)
+            .Some(at) =>
+                if at <= half:
+                    edge = i64(at)
             .None => pass
         if last <= half:
             return u64(self.next_edge(i64(last), 0, i64(last), edge))
@@ -190,7 +192,11 @@ impl Choices:
         if self.spent():
             return if start > zero: start else if last < zero: last else: zero
         if start >= zero:
-            offset := self.offset(last.to_u64() - start.to_u64(), if start == zero: .Some(0) else: .None)
+            offset := self.offset(
+                last.to_u64() - start.to_u64(),
+                if start == zero: .Some(0) else: .None
+                ,
+            )
             return N::from_u64(start.to_u64() + offset)
         # The magnitude of a negative bound, `-(b + 1) + 1`, which cannot overflow.
         low := (zero - (start + one)).to_u64() + 1
@@ -220,7 +226,14 @@ impl Choices:
         steps := F::from_i64(1000000)
         t := F::from_i64(self.next(if range.inclusive: 1000000 else: 999999)) / steps
         value := lo * (F::one() - t) + hi * t
-        if value < lo: lo else if value >= hi && !range.inclusive: lo else if value > hi: hi else: value
+        if value < lo:
+            lo
+        else if value >= hi && !range.inclusive:
+            lo
+        else if value > hi:
+            hi
+        else:
+            value
 
     ## Draws a `bool`.
     ## See [std-testing.choices.bool](../../spec/std/testing.md#r-std-testing.choices.bool).
@@ -255,7 +268,12 @@ impl Choices:
     # again keeps the later value (r-std-testing.choices.map.duplicate).
     ## Draws at most `max` entries, each key drawn by `key` and its value by `value`.
     ## See [std-testing.choices.map-max-ref](../../spec/std/testing.md#r-std-testing.choices.map-max-ref).
-    pub fn map[K < Eq & Hash, V](&mut self, max: usize, key: fn(&mut Choices) -> K, value: fn(&mut Choices) -> V) -> Map[K, V]:
+    pub fn map[K < Eq & Hash, V](
+        &mut self,
+        max: usize,
+        key: fn(&mut Choices) -> K,
+        value: fn(&mut Choices) -> V,
+    ) -> Map[K, V]:
         let mut entries: Map[K, V] = {}
         if self.spent():
             return entries
@@ -409,10 +427,12 @@ impl[S] Source[S] for ArbitrarySource[S]:
 # now and then the smallest or the largest value of the type
 # (r-std-testing.edge.int-type).
 impl Arbitrary for i8:
-    fn arbitrary(c: &mut Choices) -> i8: c.int(-128..=127)
+    fn arbitrary(c: &mut Choices) -> i8:
+        c.int(-128..=127)
 
 impl Arbitrary for i16:
-    fn arbitrary(c: &mut Choices) -> i16: c.int(-32768..=32767)
+    fn arbitrary(c: &mut Choices) -> i16:
+        c.int(-32768..=32767)
 
 impl Arbitrary for i32:
     fn arbitrary(c: &mut Choices) -> i32:
@@ -429,10 +449,12 @@ impl Arbitrary for i64:
             _ => c.int(-1000..=1000)
 
 impl Arbitrary for u8:
-    fn arbitrary(c: &mut Choices) -> u8: c.int(0..=255)
+    fn arbitrary(c: &mut Choices) -> u8:
+        c.int(0..=255)
 
 impl Arbitrary for u16:
-    fn arbitrary(c: &mut Choices) -> u16: c.int(0..=65535)
+    fn arbitrary(c: &mut Choices) -> u16:
+        c.int(0..=65535)
 
 impl Arbitrary for u32:
     fn arbitrary(c: &mut Choices) -> u32:
@@ -462,7 +484,8 @@ impl Arbitrary for f64:
         let zero: f64 = 0.0
         match c.int(0..=9):
             5 => zero / zero
-            6 => if c.bool(): -1.0 / zero else: 1.0 / zero
+            6 =>
+                if c.bool(): -1.0 / zero else: 1.0 / zero
             7 => zero * -1.0
             8 => f64(c.int(1..=1000000)) * 4.9406564584124654e-324
             9 => c.float(-1.0..=1.0) * 1.7976931348623157e308
@@ -478,20 +501,24 @@ impl Arbitrary for f32:
         let unit: f32 = 1.0
         match c.int(0..=9):
             5 => zero / zero
-            6 => if c.bool(): -unit / zero else: unit / zero
+            6 =>
+                if c.bool(): -unit / zero else: unit / zero
             7 => zero * -unit
             8 => f32(c.int(1..=1000)) * tiny
             9 => c.float(-unit..=unit) * huge
             _ => c.float(low..=high)
 
 impl Arbitrary for bool:
-    fn arbitrary(c: &mut Choices) -> bool: c.bool()
+    fn arbitrary(c: &mut Choices) -> bool:
+        c.bool()
 
 impl Arbitrary for char:
-    fn arbitrary(c: &mut Choices) -> char: c.choose(['a', 'b', 'z', ' ', '0', '\u{E9}', '\u{3C0}', '\u{1F600}'])
+    fn arbitrary(c: &mut Choices) -> char:
+        c.choose(['a', 'b', 'z', ' ', '0', '\u{E9}', '\u{3C0}', '\u{1F600}'])
 
 impl Arbitrary for string:
-    fn arbitrary(c: &mut Choices) -> string: c.string(16)
+    fn arbitrary(c: &mut Choices) -> string:
+        c.string(16)
 
 impl[T < Arbitrary] Arbitrary for List[T]:
     fn arbitrary(c: &mut Choices) -> List[T]:
@@ -538,17 +565,43 @@ impl[A < Arbitrary, B < Arbitrary, C < Arbitrary] Arbitrary for (A, B, C):
 # (module.testing.direct-call), so these bodies never run.
 ## Registers one test case for each element of `rows`, named `name[i]`, which runs `body` with that element.
 ## See [module.testing.reg.calls-ref](../../spec/lang/10-modules.md#r-module.testing.reg.calls-ref).
-pub fn it_each[A, T < Termination, $R](name: string, rows: List[A], ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, body: fn!(A) -> T $ R) -> void $ R:
+pub fn it_each[A, T < Termination, $ R](
+    name: string,
+    rows: List[A],
+    ignore: string? = .None,
+    expect_panic: string? = .None,
+    timeout: Duration? = .None,
+    body: fn!(A) -> T $ R,
+) -> void $ R:
     panic("std.testing: it_each registers test cases only in test position")
 
 ## Registers one property test case, whose inputs `T`'s `Arbitrary` draws.
 ## See [module.testing.reg.calls-ref](../../spec/lang/10-modules.md#r-module.testing.reg.calls-ref).
-pub fn it_prop[T < Arbitrary & Debug, R < Termination, $Q](name: string, ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, cases: usize = 100, shrink: usize = 500, examples: List[T] = [], prop: fn!(T) -> R $ Q) -> void $ Q:
+pub fn it_prop[T < Arbitrary & Debug, R < Termination, $ Q](
+    name: string,
+    ignore: string? = .None,
+    expect_panic: string? = .None,
+    timeout: Duration? = .None,
+    cases: usize = 100,
+    shrink: usize = 500,
+    examples: List[T] = [],
+    prop: fn!(T) -> R $ Q,
+) -> void $ Q:
     panic("std.testing: it_prop registers a test case only in test position")
 
 ## Registers one property test case, whose inputs `gen` draws.
 ## See [module.testing.reg.calls-ref](../../spec/lang/10-modules.md#r-module.testing.reg.calls-ref).
-pub fn it_prop_with[T < Debug, R < Termination, $Q](name: string, gen: fn(&mut Choices) -> T, ignore: string? = .None, expect_panic: string? = .None, timeout: Duration? = .None, cases: usize = 100, shrink: usize = 500, examples: List[T] = [], prop: fn!(T) -> R $ Q) -> void $ Q:
+pub fn it_prop_with[T < Debug, R < Termination, $ Q](
+    name: string,
+    gen: fn(&mut Choices) -> T,
+    ignore: string? = .None,
+    expect_panic: string? = .None,
+    timeout: Duration? = .None,
+    cases: usize = 100,
+    shrink: usize = 500,
+    examples: List[T] = [],
+    prop: fn!(T) -> R $ Q,
+) -> void $ Q:
     panic("std.testing: it_prop_with registers a test case only in test position")
 
 # The body of an `it_each` test case (spec/std/testing.md#table-test-rows).
@@ -558,7 +611,14 @@ pub fn it_prop_with[T < Debug, R < Termination, $Q](name: string, gen: fn(&mut C
 # it selected, and runs `body` with that row. With no rows, row 0 panics
 # with `index-out-of-bounds` after the runner heard count 0, which it reads
 # as an empty table.
-fn each_case![A, T, $R](_name: string, rows: List[A], _ignore: string?, _expect_panic: string?, _timeout: Duration?, body: fn!(A) -> T $ R) -> T $ R + TestRunner:
+fn each_case![A, T, $ R](
+    _name: string,
+    rows: List[A],
+    _ignore: string?,
+    _expect_panic: string?,
+    _timeout: Duration?,
+    body: fn!(A) -> T $ R,
+) -> T $ R + TestRunner:
     index := $.use(TestRunner).row(rows.len())
     body!(rows[index])
 
@@ -569,7 +629,16 @@ fn each_case![A, T, $R](_name: string, rows: List[A], _ignore: string?, _expect_
 # example the case names or draws the input with `T`'s `Arbitrary` from a
 # fresh `Choices`, shows the input's `Debug` text, and runs `prop`
 # (r-std-testing.runner.show-before-body).
-fn prop_case![T < Arbitrary & Debug, R, $Q](_name: string, _ignore: string?, _expect_panic: string?, _timeout: Duration?, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
+fn prop_case![T < Arbitrary & Debug, R, $ Q](
+    _name: string,
+    _ignore: string?,
+    _expect_panic: string?,
+    _timeout: Duration?,
+    cases: usize,
+    shrink: usize,
+    examples: List[T],
+    prop: fn!(T) -> R $ Q,
+) -> R $ Q + PropertyRunner:
     let runner: *mut dyn PropertyRunner = $.use(PropertyRunner)
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:
@@ -579,7 +648,17 @@ fn prop_case![T < Arbitrary & Debug, R, $Q](_name: string, _ignore: string?, _ex
     prop!(value)
 
 # The same for `it_prop_with`, which draws the input with `gen`.
-fn prop_with_case![T < Debug, R, $Q](_name: string, gen: fn(&mut Choices) -> T, _ignore: string?, _expect_panic: string?, _timeout: Duration?, cases: usize, shrink: usize, examples: List[T], prop: fn!(T) -> R $ Q) -> R $ Q + PropertyRunner:
+fn prop_with_case![T < Debug, R, $ Q](
+    _name: string,
+    gen: fn(&mut Choices) -> T,
+    _ignore: string?,
+    _expect_panic: string?,
+    _timeout: Duration?,
+    cases: usize,
+    shrink: usize,
+    examples: List[T],
+    prop: fn!(T) -> R $ Q,
+) -> R $ Q + PropertyRunner:
     let runner: *mut dyn PropertyRunner = $.use(PropertyRunner)
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:
@@ -593,7 +672,14 @@ fn prop_with_case![T < Debug, R, $Q](_name: string, gen: fn(&mut Choices) -> T, 
 # records its draws through it with no requirement row
 # (r-std-testing.runner.choices).
 fn choices(runner: *mut dyn PropertyRunner, current: PropertyCase) -> *mut Choices:
-    &mut Choices { runner: runner, random: SeededRandom::new(u64(current.seed)), size: current.size, replay: current.replay, draws: 0, edge: edge_plan(current.seed, current.size) }
+    &mut Choices {
+        runner: runner,
+        random: SeededRandom::new(u64(current.seed)),
+        size: current.size,
+        replay: current.replay,
+        draws: 0,
+        edge: edge_plan(current.seed, current.size),
+    }
 
 # The edge of a generated case (r-std-testing.edge.plan): the first four
 # cases, those of `size` 0 to 3, take the edge that their seed picks, so
@@ -607,7 +693,7 @@ fn edge_plan(seed: i64, size: i32) -> i64:
 # The body of a timed `it` test case, after `case_timeout`: the written
 # body as a closure, so the runner's `TestRunner` covers only the test
 # function around it (spec/std/testing.md#runner-capabilities).
-fn run_case![R, $Q](body: fn!() -> R $ Q) -> R $ Q:
+fn run_case![R, $ Q](body: fn!() -> R $ Q) -> R $ Q:
     body!()
 
 # A test case's `timeout` option, which its test function evaluates first
@@ -631,7 +717,10 @@ pub fn assert(condition: bool, reason: string) -> void:
 # (spec/lang/10-modules.md#r-module.testing.assert-equal-debug).
 fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
     if actual != expected:
-        panic_with("assertion-failed", "${reason}: actual ${debug(actual)}, expected ${debug(expected)}")
+        panic_with(
+            "assertion-failed",
+            "${reason}: actual ${debug(actual)}, expected ${debug(expected)}",
+        )
 
 # The checked runtime panic of `category`, such as `assertion-failed`,
 # showing `message`, or no message when it is empty; it does not return.
@@ -651,7 +740,10 @@ pub fn snapshot(text: string, expect: string = "") -> void:
         # case goes on (std-testing.snapshot.update).
         if snapshot_update(text):
             return
-        panic_with("assertion-failed", "the text differs from the snapshot's expectation: expected ${debug(expect)}, actual ${debug(text)}")
+        panic_with(
+            "assertion-failed",
+            "the text differs from the snapshot's expectation: expected ${debug(expect)}, actual ${debug(text)}",
+        )
 
 # The host's side of `hd test --update` for `snapshot`: in an update run of
 # an `it` case it records `text` and the frames of the call, and answers
@@ -682,7 +774,8 @@ pub fn snapshot_file(text: string) -> void $ TestRunner:
 pub fn hd_run!(command: Command) -> ProcessOutput $ Process:
     match $.use(Process).run!(command):
         .Ok(output) => output
-        .Err(.NotFound(_)) => panic("hd_run!: the package has no executable or task named '${command.program}'")
+        .Err(.NotFound(_)) =>
+            panic("hd_run!: the package has no executable or task named '${command.program}'")
         .Err(error) => panic("hd_run!: '${command.program}' did not start: ${error}")
 
 # The running test case's own temporary directory, which the runner
@@ -718,7 +811,13 @@ pub fn temp_dir() -> Path $ TestRunner:
 ##             assert_equal(system, expected, reason="the command's expected count")
 ##     )
 ## ```
-pub fn commands[M, C](c: &mut Choices, max: usize, initial: M, next: fn(&mut Choices, &M) -> C?, advance: fn(&M, &C) -> M) -> List[C]:
+pub fn commands[M, C](
+    c: &mut Choices,
+    max: usize,
+    initial: M,
+    next: fn(&mut Choices, &M) -> C?,
+    advance: fn(&M, &C) -> M,
+) -> List[C]:
     let mut history: List[C] = []
     let model = initial
     count := c.int(0..=max)

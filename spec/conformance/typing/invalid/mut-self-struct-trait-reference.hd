@@ -7,4 +7,5 @@ struct Counter:
     n: usize
 
 impl Bump for Counter:
-    fn bump(&mut self) -> usize: self.n + 1  # diagnostic: trait-method-signature
+    fn bump(&mut self) -> usize: # diagnostic: trait-method-signature
+        self.n + 1

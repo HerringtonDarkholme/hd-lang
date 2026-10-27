@@ -5,4 +5,4 @@
 use pkg.cart.{Cart}
 
 fn empty(owner: string) -> Cart:
-    Cart { owner: owner, total: 0 }  # diagnostic: private-member
+    Cart { owner: owner, total: 0 } # diagnostic: private-member

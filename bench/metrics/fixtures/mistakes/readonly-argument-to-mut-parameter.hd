@@ -10,5 +10,5 @@ fn bump(counter: &mut Counter) -> void:
 
 fn run() -> i32:
     let counter = Counter { hits: 0 }
-    bump(&mut counter)  # diagnostic: not-writable
+    bump(&mut counter) # diagnostic: not-writable
     counter.hits

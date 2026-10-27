@@ -6,25 +6,23 @@
 # expect-stdout: wards checked: 3
 fn describe(ward: i32, beds: i32) -> string:
     if beds > 0:
-        if beds == 1:
-            "ward ${ward}: 1 bed free"
-        else:
-            "ward ${ward}: ${beds} beds free"
+        if beds == 1: "ward ${ward}: 1 bed free" else: "ward ${ward}: ${beds} beds free"
     else:
         "ward ${ward}: full"
 
-fn visit(open: bool, ward: i32, beds: i32) -> string: (if open: describe(ward, beds) else: "ward ${ward}: closed")
+fn visit(open: bool, ward: i32, beds: i32) -> string:
+    (if open: describe(ward, beds) else: "ward ${ward}: closed")
 
 pub fn main() -> void $ Console:
     let seen = +0
     for ward in [+2, +3, +5]:
 
         # a comment-only line at any indentation leaves the stack alone
-  # even one indented less than the block
-            # or more than it
+        # even one indented less than the block
+        # or more than it
         open := ward != 5
         beds := if ward == 2: +2 else: +0
 
         println(visit(open, ward, beds))
         seen = seen + 1
-    println(  "wards checked: ${seen}"  )
+    println("wards checked: ${seen}")

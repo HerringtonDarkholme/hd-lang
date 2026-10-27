@@ -1,5 +1,5 @@
 trait View:
     fn value(self) -> i32
 
-fn bad() -> impl View:  # diagnostic: unsatisfied-trait-bound
+fn bad() -> impl View: # diagnostic: unsatisfied-trait-bound
     +7

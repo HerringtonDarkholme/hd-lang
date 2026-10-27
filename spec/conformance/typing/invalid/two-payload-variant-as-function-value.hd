@@ -13,4 +13,4 @@ fn apply(make: fn(i32, FsError) -> SyncError) -> SyncError:
     make(1, FsError.NotFound("a.txt"))
 
 fn retry() -> SyncError:
-    apply(SyncError.Retry)  # diagnostic: unsaturated-enum-constructor
+    apply(SyncError.Retry) # diagnostic: unsaturated-enum-constructor

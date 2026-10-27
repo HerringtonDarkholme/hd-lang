@@ -18,4 +18,4 @@ impl Tagged for User:
         self.name
 
 fn invalid(user: User) -> string:
-    user.label()  # diagnostic: ambiguous-method
+    user.label() # diagnostic: ambiguous-method

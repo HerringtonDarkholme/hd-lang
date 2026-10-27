@@ -3,5 +3,5 @@ pub fn main() -> void:
     x := 3
     y := +3
     z := -1
-    let w: usize = y  # diagnostic: type-mismatch
+    let w: usize = y # diagnostic: type-mismatch
     pass

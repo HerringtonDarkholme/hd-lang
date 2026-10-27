@@ -2,8 +2,9 @@
 struct Plain:
     x: i32
 
-struct Tagged[T, H < Hash = Plain]:  # diagnostic: unsatisfied-trait-bound
+struct Tagged[T, H < Hash = Plain]: # diagnostic: unsatisfied-trait-bound
     tag: T
     hash: H
 
-fn use_it(tagged: Tagged[i32]) -> i32: 0
+fn use_it(tagged: Tagged[i32]) -> i32:
+    0

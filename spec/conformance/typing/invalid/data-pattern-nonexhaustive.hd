@@ -5,5 +5,5 @@ struct User:
     active: bool
 
 fn read(user: User) -> i32:
-    match user:  # diagnostic: nonexhaustive-match
+    match user: # diagnostic: nonexhaustive-match
         User { age: 1 } => 1

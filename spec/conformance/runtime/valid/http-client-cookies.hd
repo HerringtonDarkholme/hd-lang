@@ -4,28 +4,59 @@ use std.http.{Client, Headers, Http, Request, Response, ScriptedHttp, Url}
 use std.time.{Clock, ManualClock, Timestamp}
 use std.testing.assert_equal
 
-fn url(text: string) -> Url: Url::parse(text).expect("fixture URL")
+fn url(text: string) -> Url:
+    Url::parse(text).expect("fixture URL")
 fn response(lines: List[string]) -> Response:
     Response { headers: Headers::from(lines.map(fn(line): ("Set-Cookie", line))) }
-fn clock() -> *mut ManualClock: ManualClock::new(Timestamp::from_unix_milliseconds(0))
+fn clock() -> *mut ManualClock:
+    ManualClock::new(Timestamp::from_unix_milliseconds(0))
 
 tests:
     it("a login cookie is sent on redirects and subsequent requests"):
         http := ScriptedHttp::new()
         # A redirect status is explicit; cookie headers survive value updates.
         redirect := response(["csrftoken=abc", "rejected=no; Domain=other.example"])
-        http.reply("https://api.example/login2", .Ok(Response { ...redirect, status: .Found }.set_header(.Location, "/home")))
+        http.reply(
+            "https://api.example/login2",
+            .Ok(Response { ...redirect, status: .Found }.set_header(.Location, "/home")),
+        )
         http.reply("https://api.example/home", .Ok(Response {}))
         let mut client = Client::new()
         $.with(Http=http, Clock=clock()):
-            assert_equal(client.send!(&Request::get(url("https://api.example/login2"))).expect("login").url, .Some(url("https://api.example/home")), reason="followed the redirect")
+            assert_equal(
+                client.send!(&Request::get(url("https://api.example/login2"))).expect("login").url,
+                .Some(url("https://api.example/home")),
+                reason="followed the redirect",
+            )
             _ := client.send!(&Request::get(url("https://api.example/home"))).expect("next request")
         sent := http.received()
         assert_equal(sent[0].header(.Cookie), .None, reason="empty jar")
-        assert_equal(sent[1].header(.Cookie), .Some("csrftoken=abc"), reason="redirect gets the new cookie")
-        assert_equal(sent[2].header(.Cookie), .Some("csrftoken=abc"), reason="later send uses the jar")
-        assert_equal(client.jar.cookies_for(&url("https://other.example/"), Timestamp::from_unix_milliseconds(0)), [], reason="unrelated Domain was rejected")
-        assert_equal(client.jar.cookies_for(&url("https://sub.api.example/"), Timestamp::from_unix_milliseconds(0)), [], reason="host-only scope")
+        assert_equal(
+            sent[1].header(.Cookie),
+            .Some("csrftoken=abc"),
+            reason="redirect gets the new cookie",
+        )
+        assert_equal(
+            sent[2].header(.Cookie),
+            .Some("csrftoken=abc"),
+            reason="later send uses the jar",
+        )
+        assert_equal(
+            client.jar.cookies_for(
+                &url("https://other.example/"),
+                Timestamp::from_unix_milliseconds(0),
+            ),
+            [],
+            reason="unrelated Domain was rejected",
+        )
+        assert_equal(
+            client.jar.cookies_for(
+                &url("https://sub.api.example/"),
+                Timestamp::from_unix_milliseconds(0),
+            ),
+            [],
+            reason="host-only scope",
+        )
 
     it("Secure cookies stay on HTTPS and header names ignore ASCII case"):
         http := ScriptedHttp::new()
@@ -37,8 +68,16 @@ tests:
             _ := client.send!(&Request::get(url("https://API.example/set"))).expect("set")
             _ := client.send!(&Request::get(url("http://api.example/next"))).expect("http")
             _ := client.send!(&Request::get(url("https://api.example/next"))).expect("https")
-        assert_equal(http.received()[1].header(.Cookie), .Some("plain=ok"), reason="only plaintext cookie on HTTP")
-        assert_equal(http.received()[2].header(.Cookie), .Some("secret=yes; plain=ok"), reason="both on HTTPS")
+        assert_equal(
+            http.received()[1].header(.Cookie),
+            .Some("plain=ok"),
+            reason="only plaintext cookie on HTTP",
+        )
+        assert_equal(
+            http.received()[2].header(.Cookie),
+            .Some("secret=yes; plain=ok"),
+            reason="both on HTTPS",
+        )
 
     it("same-scope updates replace and Max-Age zero deletes"):
         target := url("https://api.example/")
@@ -49,11 +88,23 @@ tests:
         let mut client = Client::new()
         $.with(Http=http, Clock=clock()):
             _ := client.send!(&Request::get(target)).expect("set")
-            assert_equal(client.jar.cookies_for(&target, Timestamp::from_unix_milliseconds(0)), [("token", "two")], reason="latest value")
+            assert_equal(
+                client.jar.cookies_for(&target, Timestamp::from_unix_milliseconds(0)),
+                [("token", "two")],
+                reason="latest value",
+            )
             _ := client.send!(&Request::get(target)).expect("delete")
-            assert_equal(client.jar.cookies_for(&target, Timestamp::from_unix_milliseconds(0)), [], reason="deleted")
+            assert_equal(
+                client.jar.cookies_for(&target, Timestamp::from_unix_milliseconds(0)),
+                [],
+                reason="deleted",
+            )
             _ := client.send!(&Request::get(target)).expect("after deletion")
-        assert_equal(http.received()[1].header(.Cookie), .Some("token=two"), reason="latest sent before deletion")
+        assert_equal(
+            http.received()[1].header(.Cookie),
+            .Some("token=two"),
+            reason="latest sent before deletion",
+        )
         assert_equal(http.received()[2].header(.Cookie), .None, reason="deleted cookie not sent")
 
     it("an explicit Cookie header overrides without replacing the jar"):
@@ -64,16 +115,32 @@ tests:
         let mut client = Client::new()
         $.with(Http=http, Clock=clock()):
             _ := client.send!(&Request::get(target)).expect("set")
-            _ := client.send!(&Request::get(target).set_header(.Cookie, "token=manual")).expect("manual")
-        assert_equal(http.received()[1].header(.Cookie), .Some("token=manual"), reason="explicit header wins")
-        assert_equal(client.jar.cookies_for(&target, Timestamp::from_unix_milliseconds(0)), [("token", "jar")], reason="stored cookie unchanged")
+            _ := client.send!(&Request::get(target).set_header(.Cookie, "token=manual"))
+                .expect("manual")
+        assert_equal(
+            http.received()[1].header(.Cookie),
+            .Some("token=manual"),
+            reason="explicit header wins",
+        )
+        assert_equal(
+            client.jar.cookies_for(&target, Timestamp::from_unix_milliseconds(0)),
+            [("token", "jar")],
+            reason="stored cookie unchanged",
+        )
 
     it("jar filling preserves duplicate names at different paths"):
         http := ScriptedHttp::new()
-        http.reply("https://api.example/app/login", .Ok(response(["id=root; Path=/", "id=deep; Path=/app"])))
+        http.reply(
+            "https://api.example/app/login",
+            .Ok(response(["id=root; Path=/", "id=deep; Path=/app"])),
+        )
         http.reply("https://api.example/app/page", .Ok(Response {}))
         let mut client = Client::new()
         $.with(Http=http, Clock=clock()):
             _ := client.send!(&Request::get(url("https://api.example/app/login"))).expect("store")
             _ := client.send!(&Request::get(url("https://api.example/app/page"))).expect("read")
-        assert_equal(http.received()[1].header(.Cookie), .Some("id=deep; id=root"), reason="path order and duplicates preserved")
+        assert_equal(
+            http.received()[1].header(.Cookie),
+            .Some("id=deep; id=root"),
+            reason="path order and duplicates preserved",
+        )

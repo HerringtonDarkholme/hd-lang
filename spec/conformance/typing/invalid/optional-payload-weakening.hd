@@ -4,4 +4,4 @@ struct User:
     name: i32
 
 fn view(value: (*mut User)?) -> (*User)?:
-    value  # diagnostic: type-mismatch
+    value # diagnostic: type-mismatch

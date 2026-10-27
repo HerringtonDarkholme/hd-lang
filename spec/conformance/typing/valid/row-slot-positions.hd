@@ -4,9 +4,9 @@ use std.function.Fn
 
 trait Db
 
-type Job[$R] = fn() -> void $ R
+type Job[$ R] = fn() -> void $ R
 
-fn run[$R](job: fn() -> void $ R) -> void $ R:
+fn run[$ R](job: fn() -> void $ R) -> void $ R:
     job()
 
 fn install(ctx: $.Context[$ Db], job: Job[$ Db], other: Fn[(), void, $ Db]) -> void:

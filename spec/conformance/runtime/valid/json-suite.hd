@@ -13,8 +13,16 @@ tests:
             ("y_array_with_trailing_space", "[2] ", "[2]"),
             ("y_object_empty", "{}", "{}"),
             ("y_object_basic", "{\"asd\":\"sdf\"}", "{\"asd\":\"sdf\"}"),
-            ("y_object_extreme_numbers", "{ \"min\": -9223372036854775808, \"max\": 18446744073709551615 }", "{\"min\":-9223372036854775808,\"max\":18446744073709551615}"),
-            ("y_object_long_strings", "{\"x\":[{\"id\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}], \"id\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}", "{\"x\":[{\"id\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}],\"id\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}"),
+            (
+                "y_object_extreme_numbers",
+                "{ \"min\": -9223372036854775808, \"max\": 18446744073709551615 }",
+                "{\"min\":-9223372036854775808,\"max\":18446744073709551615}",
+            ),
+            (
+                "y_object_long_strings",
+                "{\"x\":[{\"id\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}], \"id\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+                "{\"x\":[{\"id\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}],\"id\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+            ),
             ("y_object_duplicated_key", "{\"a\":\"b\",\"a\":\"c\"}", "{\"a\":\"c\"}"),
             ("y_object_with_newlines", "{\n\"a\": \"b\"\n}", "{\"a\":\"b\"}"),
             ("y_number_negative_int", "[-123]", "[-123]"),

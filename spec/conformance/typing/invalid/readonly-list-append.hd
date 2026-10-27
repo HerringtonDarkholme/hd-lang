@@ -1,4 +1,4 @@
 # test: readonly list append
 
 fn bad(values: List[i32]) -> void:
-    values.push(1)  # diagnostic: not-writable
+    values.push(1) # diagnostic: not-writable

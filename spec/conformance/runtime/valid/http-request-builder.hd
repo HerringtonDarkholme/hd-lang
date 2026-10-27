@@ -3,18 +3,29 @@
 use std.http.{BodyError, Http, HttpError, Method, Request, Response, ScriptedHttp, Url}
 use std.testing.assert_equal
 
-fn url(text: string) -> Url: Url::parse(text).expect("fixture URL")
+fn url(text: string) -> Url:
+    Url::parse(text).expect("fixture URL")
 
 tests:
     it("constructs defaults and changes values without changing the original"):
         request := Request::get(url("https://example.test/"))
-        changed := request.set_header(.Other("X-One"), "1").set_header(.Other("x-one"), "2").set_bytes([2, 3])
+        changed := request.set_header(.Other("X-One"), "1")
+            .set_header(.Other("x-one"), "2")
+            .set_bytes([2, 3])
         assert_equal(request.headers.entries(), [], reason="original headers remain empty")
         assert_equal(request.bytes(), .Ok([]), reason="the original body remains empty")
         assert_equal(changed.header(.Other("X-ONE")), .Some("2"), reason="set replaces the field")
         assert_equal(changed.bytes(), .Ok([2, 3]), reason="replacement bytes")
-        assert_equal(Request::post(url("https://example.test/")).method, .Post, reason="POST constructor")
-        assert_equal(Request::new(.Other("CUSTOM"), url("https://example.test/")).method, .Other("CUSTOM"), reason="explicit method")
+        assert_equal(
+            Request::post(url("https://example.test/")).method,
+            .Post,
+            reason="POST constructor",
+        )
+        assert_equal(
+            Request::new(.Other("CUSTOM"), url("https://example.test/")).method,
+            .Other("CUSTOM"),
+            reason="explicit method",
+        )
 
     it("encodes parsed query pairs and rejects a second send through a copy"):
         text := "https://example.test/?page=2&x%20y=%2B%2F%25%C3%A9&x%20y=&=v&safe=AZaz09-._~"
@@ -29,17 +40,37 @@ tests:
         request := Request::get(target).set_header(.Other("X-One"), "1")
         copy := request
         $.with(Http=http):
-            assert_equal(request.send!(0).expect("first send").status, .Found, reason="encoded URL matches")
-            assert_equal(copy.send!(0), .Err(HttpError.Body(BodyError.Used)), reason="copies share consumption")
+            assert_equal(
+                request.send!(0).expect("first send").status,
+                .Found,
+                reason="encoded URL matches",
+            )
+            assert_equal(
+                copy.send!(0),
+                .Err(HttpError.Body(BodyError.Used)),
+                reason="copies share consumption",
+            )
         assert_equal(http.received().len(), 1, reason="used body is not sent again")
         assert_equal(http.received()[0].url.to_string(), text, reason="query encoded once")
-        assert_equal(http.received()[0].header(.Other("x-one")), .Some("1"), reason="header forwarded")
+        assert_equal(
+            http.received()[0].header(.Other("x-one")),
+            .Some("1"),
+            reason="header forwarded",
+        )
         assert_equal(request.url.query[0], ("page", "2"), reason="decoded query retained")
 
     it("preserves existing decoded query pairs and fragments when appending"):
         let mut target = url("https://example.test/?old=%2F#frag")
         target.add_param("new", "?")
-        assert_equal(target.to_string(), "https://example.test/?old=%2F&new=%3F#frag", reason="one encoded query before the fragment")
+        assert_equal(
+            target.to_string(),
+            "https://example.test/?old=%2F&new=%3F#frag",
+            reason="one encoded query before the fragment",
+        )
         let mut empty = url("https://example.test/?#frag")
         empty.add_param("new", "?")
-        assert_equal(empty.to_string(), "https://example.test/?new=%3F#frag", reason="explicit empty query replaced")
+        assert_equal(
+            empty.to_string(),
+            "https://example.test/?new=%3F#frag",
+            reason="explicit empty query replaced",
+        )

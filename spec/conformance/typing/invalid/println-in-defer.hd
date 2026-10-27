@@ -4,5 +4,5 @@
 
 fn report() -> void $ Console:
     defer:
-        println("done")  # diagnostic: suspension-forbidden-context
+        println("done") # diagnostic: suspension-forbidden-context
     pass

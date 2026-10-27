@@ -29,7 +29,7 @@ pub struct NumSuffix[F]: pass
 
 ## Returns the `@num_suffix` marker for a suffix function of that signature.
 ## See [expr.literal-fn.fn-only](../../spec/lang/05-expressions.md#r-expr.literal-fn.fn-only).
-pub fn num_suffix[N < Num, R, $Q]() -> NumSuffix[fn(N) -> R $ Q]:
+pub fn num_suffix[N < Num, R, $ Q]() -> NumSuffix[fn(N) -> R $ Q]:
     NumSuffix::[fn(N) -> R $ Q] {}
 
 @annotate::[F](.Fn)
@@ -40,7 +40,7 @@ pub struct StrPrefix[F]: pass
 
 ## Returns the `@str_prefix` marker for a prefix function of that signature.
 ## See [expr.literal-fn.fn-only](../../spec/lang/05-expressions.md#r-expr.literal-fn.fn-only).
-pub fn str_prefix[T, R, $Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
+pub fn str_prefix[T, R, $ Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
     StrPrefix::[fn(Template[T]) -> R $ Q] {}
 
 # The argument of a prefix function: the `n + 1` raw text pieces around the
@@ -172,7 +172,8 @@ pub trait Disposable:
 # (spec/lang/05-expressions.md#r-expr.index.map.read-value).
 impl[T] Index[usize] for List[T]:
     type Out = T
-    fn index(self, key: usize) -> T: self[key]
+    fn index(self, key: usize) -> T:
+        self[key]
 
 impl[T] IndexSet[usize, T] for List[T]:
     fn index_set(&mut self, key: usize, value: T) -> void:
@@ -180,7 +181,8 @@ impl[T] IndexSet[usize, T] for List[T]:
 
 impl[K < Eq & Hash, V] Index[K] for Map[K, V]:
     type Out = V
-    fn index(self, key: K) -> V: self[key]
+    fn index(self, key: K) -> V:
+        self[key]
 
 impl[K < Eq & Hash, V] IndexSet[K, V] for Map[K, V]:
     fn index_set(&mut self, key: K, value: V) -> void:
@@ -188,7 +190,8 @@ impl[K < Eq & Hash, V] IndexSet[K, V] for Map[K, V]:
 
 impl Index[usize] for string:
     type Out = u8
-    fn index(self, key: usize) -> u8: self[key]
+    fn index(self, key: usize) -> u8:
+        self[key]
 
 # The range types (spec/lang/05-expressions.md#range-expressions). A range
 # expression builds one of them with no `use`, but they are not prelude
@@ -272,131 +275,163 @@ fn panic_with(category: string, message: string) -> void:
 # `string` and `List`.
 impl Index[RangeFull] for string:
     type Out = string
-    fn index(self, key: RangeFull) -> string: self
+    fn index(self, key: RangeFull) -> string:
+        self
 
 impl[T] Index[RangeFull] for List[T]:
     type Out = List[T]
-    fn index(self, key: RangeFull) -> List[T]: slice_list(self, 0, u64(self.len()), false)
+    fn index(self, key: RangeFull) -> List[T]:
+        slice_list(self, 0, u64(self.len()), false)
 
 impl Index[Range[u8]] for string:
     type Out = string
-    fn index(self, key: Range[u8]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
+    fn index(self, key: Range[u8]) -> string:
+        slice_string(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl[T] Index[Range[u8]] for List[T]:
     type Out = List[T]
-    fn index(self, key: Range[u8]) -> List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+    fn index(self, key: Range[u8]) -> List[T]:
+        slice_list(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl Index[RangeFrom[u8]] for string:
     type Out = string
-    fn index(self, key: RangeFrom[u8]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
+    fn index(self, key: RangeFrom[u8]) -> string:
+        slice_string(self, u64(key.start), u64(self.len()), false)
 
 impl[T] Index[RangeFrom[u8]] for List[T]:
     type Out = List[T]
-    fn index(self, key: RangeFrom[u8]) -> List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+    fn index(self, key: RangeFrom[u8]) -> List[T]:
+        slice_list(self, u64(key.start), u64(self.len()), false)
 
 impl Index[RangeTo[u8]] for string:
     type Out = string
-    fn index(self, key: RangeTo[u8]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
+    fn index(self, key: RangeTo[u8]) -> string:
+        slice_string(self, 0, u64(key.end), key.inclusive)
 
 impl[T] Index[RangeTo[u8]] for List[T]:
     type Out = List[T]
-    fn index(self, key: RangeTo[u8]) -> List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+    fn index(self, key: RangeTo[u8]) -> List[T]:
+        slice_list(self, 0, u64(key.end), key.inclusive)
 
 impl Index[Range[u16]] for string:
     type Out = string
-    fn index(self, key: Range[u16]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
+    fn index(self, key: Range[u16]) -> string:
+        slice_string(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl[T] Index[Range[u16]] for List[T]:
     type Out = List[T]
-    fn index(self, key: Range[u16]) -> List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+    fn index(self, key: Range[u16]) -> List[T]:
+        slice_list(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl Index[RangeFrom[u16]] for string:
     type Out = string
-    fn index(self, key: RangeFrom[u16]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
+    fn index(self, key: RangeFrom[u16]) -> string:
+        slice_string(self, u64(key.start), u64(self.len()), false)
 
 impl[T] Index[RangeFrom[u16]] for List[T]:
     type Out = List[T]
-    fn index(self, key: RangeFrom[u16]) -> List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+    fn index(self, key: RangeFrom[u16]) -> List[T]:
+        slice_list(self, u64(key.start), u64(self.len()), false)
 
 impl Index[RangeTo[u16]] for string:
     type Out = string
-    fn index(self, key: RangeTo[u16]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
+    fn index(self, key: RangeTo[u16]) -> string:
+        slice_string(self, 0, u64(key.end), key.inclusive)
 
 impl[T] Index[RangeTo[u16]] for List[T]:
     type Out = List[T]
-    fn index(self, key: RangeTo[u16]) -> List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+    fn index(self, key: RangeTo[u16]) -> List[T]:
+        slice_list(self, 0, u64(key.end), key.inclusive)
 
 impl Index[Range[usize]] for string:
     type Out = string
-    fn index(self, key: Range[usize]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
+    fn index(self, key: Range[usize]) -> string:
+        slice_string(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl[T] Index[Range[usize]] for List[T]:
     type Out = List[T]
-    fn index(self, key: Range[usize]) -> List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+    fn index(self, key: Range[usize]) -> List[T]:
+        slice_list(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl Index[RangeFrom[usize]] for string:
     type Out = string
-    fn index(self, key: RangeFrom[usize]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
+    fn index(self, key: RangeFrom[usize]) -> string:
+        slice_string(self, u64(key.start), u64(self.len()), false)
 
 impl[T] Index[RangeFrom[usize]] for List[T]:
     type Out = List[T]
-    fn index(self, key: RangeFrom[usize]) -> List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+    fn index(self, key: RangeFrom[usize]) -> List[T]:
+        slice_list(self, u64(key.start), u64(self.len()), false)
 
 impl Index[RangeTo[usize]] for string:
     type Out = string
-    fn index(self, key: RangeTo[usize]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
+    fn index(self, key: RangeTo[usize]) -> string:
+        slice_string(self, 0, u64(key.end), key.inclusive)
 
 impl[T] Index[RangeTo[usize]] for List[T]:
     type Out = List[T]
-    fn index(self, key: RangeTo[usize]) -> List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+    fn index(self, key: RangeTo[usize]) -> List[T]:
+        slice_list(self, 0, u64(key.end), key.inclusive)
 
 impl Index[Range[u32]] for string:
     type Out = string
-    fn index(self, key: Range[u32]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
+    fn index(self, key: Range[u32]) -> string:
+        slice_string(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl[T] Index[Range[u32]] for List[T]:
     type Out = List[T]
-    fn index(self, key: Range[u32]) -> List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+    fn index(self, key: Range[u32]) -> List[T]:
+        slice_list(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl Index[RangeFrom[u32]] for string:
     type Out = string
-    fn index(self, key: RangeFrom[u32]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
+    fn index(self, key: RangeFrom[u32]) -> string:
+        slice_string(self, u64(key.start), u64(self.len()), false)
 
 impl[T] Index[RangeFrom[u32]] for List[T]:
     type Out = List[T]
-    fn index(self, key: RangeFrom[u32]) -> List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+    fn index(self, key: RangeFrom[u32]) -> List[T]:
+        slice_list(self, u64(key.start), u64(self.len()), false)
 
 impl Index[RangeTo[u32]] for string:
     type Out = string
-    fn index(self, key: RangeTo[u32]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
+    fn index(self, key: RangeTo[u32]) -> string:
+        slice_string(self, 0, u64(key.end), key.inclusive)
 
 impl[T] Index[RangeTo[u32]] for List[T]:
     type Out = List[T]
-    fn index(self, key: RangeTo[u32]) -> List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+    fn index(self, key: RangeTo[u32]) -> List[T]:
+        slice_list(self, 0, u64(key.end), key.inclusive)
 
 impl Index[Range[u64]] for string:
     type Out = string
-    fn index(self, key: Range[u64]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
+    fn index(self, key: Range[u64]) -> string:
+        slice_string(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl[T] Index[Range[u64]] for List[T]:
     type Out = List[T]
-    fn index(self, key: Range[u64]) -> List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+    fn index(self, key: Range[u64]) -> List[T]:
+        slice_list(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl Index[RangeFrom[u64]] for string:
     type Out = string
-    fn index(self, key: RangeFrom[u64]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
+    fn index(self, key: RangeFrom[u64]) -> string:
+        slice_string(self, u64(key.start), u64(self.len()), false)
 
 impl[T] Index[RangeFrom[u64]] for List[T]:
     type Out = List[T]
-    fn index(self, key: RangeFrom[u64]) -> List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+    fn index(self, key: RangeFrom[u64]) -> List[T]:
+        slice_list(self, u64(key.start), u64(self.len()), false)
 
 impl Index[RangeTo[u64]] for string:
     type Out = string
-    fn index(self, key: RangeTo[u64]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
+    fn index(self, key: RangeTo[u64]) -> string:
+        slice_string(self, 0, u64(key.end), key.inclusive)
 
 impl[T] Index[RangeTo[u64]] for List[T]:
     type Out = List[T]
-    fn index(self, key: RangeTo[u64]) -> List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+    fn index(self, key: RangeTo[u64]) -> List[T]:
+        slice_list(self, 0, u64(key.end), key.inclusive)
 
 # Range iteration (spec/lang/06-control-flow.md#range-iteration): one
 # implementation over every integer type, with a concrete cursor, so a
@@ -585,7 +620,8 @@ impl[N < Integer] Shr[usize] for N:
 # the string's bytes, not an intrinsic: interpolation joins the two texts.
 impl Add[string] for string:
     type Out = string
-    fn add(self, rhs: string) -> string: "$self$rhs"
+    fn add(self, rhs: string) -> string:
+        "$self$rhs"
 
 # `Default`: a type's default value (spec/std/ops.md#default-trait). It is
 # not a prelude name; code imports it as `use std.ops.Default`.
@@ -598,67 +634,83 @@ pub trait Default:
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for i8:
-    fn default() -> i8: 0
+    fn default() -> i8:
+        0
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for i16:
-    fn default() -> i16: 0
+    fn default() -> i16:
+        0
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for i32:
-    fn default() -> i32: 0
+    fn default() -> i32:
+        0
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for i64:
-    fn default() -> i64: 0
+    fn default() -> i64:
+        0
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for u8:
-    fn default() -> u8: 0
+    fn default() -> u8:
+        0
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for u16:
-    fn default() -> u16: 0
+    fn default() -> u16:
+        0
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for u32:
-    fn default() -> u32: 0
+    fn default() -> u32:
+        0
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for usize:
-    fn default() -> usize: 0
+    fn default() -> usize:
+        0
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for u64:
-    fn default() -> u64: 0
+    fn default() -> u64:
+        0
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for f32:
-    fn default() -> f32: 0.0
+    fn default() -> f32:
+        0.0
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for f64:
-    fn default() -> f64: 0.0
+    fn default() -> f64:
+        0.0
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for bool:
-    fn default() -> bool: false
+    fn default() -> bool:
+        false
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl Default for string:
-    fn default() -> string: ""
+    fn default() -> string:
+        ""
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl[T] Default for List[T]:
-    fn default() -> List[T]: []
+    fn default() -> List[T]:
+        []
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl[K < Eq & Hash, V] Default for Map[K, V]:
-    fn default() -> Map[K, V]: {}
+    fn default() -> Map[K, V]:
+        {}
 
 # Keep handwritten Default: construct the builtin zero/empty value, which has no derivable declaration.
 impl[T] Default for T?:
-    fn default() -> T?: .None
+    fn default() -> T?:
+        .None
 
 # Tuple `Default` (spec/std/ops.md#r-std-ops.default.std.tuple-template):
 # each element's default, at every size. A rest element is one `List[T]`

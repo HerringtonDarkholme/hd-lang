@@ -11,6 +11,10 @@ tests:
         assert_equal(groups.get("a"), .Some(["apple", "avocado"]), reason="group a")
         assert_equal(groups.get("b"), .Some(["bean", "beet"]), reason="group b")
     it("has one key per distinct result"):
-        assert_equal(by_initial(["bean", "apple", "beet"]).keys().sorted(), ["a", "b"], reason="a and b")
+        assert_equal(
+            by_initial(["bean", "apple", "beet"]).keys().sorted(),
+            ["a", "b"],
+            reason="a and b",
+        )
     it("gives an empty map for an empty list"):
         assert_equal(by_initial([]).len(), 0, reason="no groups")

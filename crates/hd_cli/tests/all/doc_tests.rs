@@ -27,7 +27,7 @@ fn hd(cache: &str, args: &[&str]) -> Output {
 }
 
 fn text(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
+    crate::normalize_std_lines(&String::from_utf8_lossy(b))
 }
 
 #[test]
@@ -38,7 +38,7 @@ fn doc_tests_run_with_the_integration_tests() {
         "\
 PANIC src/text.hd:16: doc text.slugify[1]
     panic: assertion-failed: stale: actual \"Ship-It\", expected \"Ship_It\"
-    <std>/testing.hd:634 std.testing.check_equal
+    <std>/testing.hd:LINE std.testing.check_equal
     src/text.hd:16 test \"doc text.slugify[1]\"
     repro: hd test src/text.hd --filter \"doc text.slugify[1]\"
 test result: FAILED. 3 passed; 1 failed; 0 ignored

@@ -35,34 +35,60 @@ struct Source:
 
 impl HttpServer for Source:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]:
-        if self.next == 3: return .Ok(.None)
+        if self.next == 3:
+            return .Ok(.None)
         sequence := self.next
         self.next += 1
-        .Ok(.Some(Incoming {
-            id: RequestId { generation: 31, sequence: sequence },
-            request: WireRequest { method: .Get, url: "https://test/$sequence" },
-        }))
-    fn respond!(&mut self, _id: RequestId, _response: WireResponse) -> Result[void, ServerError]: .Ok(())
+        .Ok(
+            .Some(
+                Incoming {
+                    id: RequestId { generation: 31, sequence: sequence },
+                    request: WireRequest { method: .Get, url: "https://test/$sequence" },
+                },
+            ),
+        )
+    fn respond!(&mut self, _id: RequestId, _response: WireResponse) -> Result[void, ServerError]:
+        .Ok(())
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason:
         self.clock.sleep!(s(60))
         .Stopping
-    fn client(&mut self, _id: RequestId) -> *mut dyn Http: self.http
-    fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: self.clock
+    fn client(&mut self, _id: RequestId) -> *mut dyn Http:
+        self.http
+    fn clock(&mut self, _id: RequestId) -> *mut dyn Clock:
+        self.clock
     fn console(&mut self, id: RequestId) -> *mut dyn Console:
         if id.sequence == 1: self.first else: self.second
     fn finish(&mut self, id: RequestId, abandoned: bool) -> void:
         assert_equal(abandoned, false, reason="normal handlers complete cleanup")
         log := if id.sequence == 1: self.first else: self.second
-        assert_equal(log.error_output(), ["cleanup https://test/${id.sequence}\n"], reason="cleanup logs precede lease release")
+        assert_equal(
+            log.error_output(),
+            ["cleanup https://test/${id.sequence}\n"],
+            reason="cleanup logs precede lease release",
+        )
 
 pub fn main!() -> void $ Clock:
     ambient := MemoryConsole::new()
     first := MemoryConsole::new()
     second := MemoryConsole::new()
-    source := &mut Source { next: 1, clock: $.use(Clock), http: ScriptedHttp::new(), first: first, second: second }
+    source := &mut Source {
+        next: 1,
+        clock: $.use(Clock),
+        http: ScriptedHttp::new(),
+        first: first,
+        second: second,
+    }
     $.with(Console=ambient, HttpServer=source):
         serve!(1, &mut State {}, handler).expect("source")
-    assert_equal(first.output(), ["handler https://test/1", "\n"], reason="the first lease receives only its handler output")
-    assert_equal(second.output(), ["handler https://test/2", "\n"], reason="the second lease receives only its handler output")
+    assert_equal(
+        first.output(),
+        ["handler https://test/1", "\n"],
+        reason="the first lease receives only its handler output",
+    )
+    assert_equal(
+        second.output(),
+        ["handler https://test/2", "\n"],
+        reason="the second lease receives only its handler output",
+    )
     assert_equal(ambient.output(), [], reason="handler output uses the source console")
     assert_equal(ambient.error_output(), [], reason="cleanup output uses the source console")

@@ -8,7 +8,7 @@ fn quadruple(count: i32) -> i32:
     double(double(count))
 
 fn larger(a: i32, b: i32) -> i32:
-    max(a, b)  # diagnostic: unknown-name
+    max(a, b) # diagnostic: unknown-name
 
 tests:
     it("quadruples the count"):

@@ -3,4 +3,4 @@
 trait Shape:
     fn area(self) -> i32
 
-type Shapes = dyn Shape  # diagnostic: trait-used-as-type
+type Shapes = dyn Shape # diagnostic: trait-used-as-type

@@ -18,4 +18,4 @@ enum Choice[T]:
 type Wrap[T](T)
 
 enum Shape:
-    Dot(Both[i32, string, bool])  # diagnostic: argument-count
+    Dot(Both[i32, string, bool]) # diagnostic: argument-count

@@ -19,7 +19,8 @@ trait Session < Disposable:
     fn name(&self) -> string
 
 impl Session for Conn:
-    fn name(&self) -> string: self.name
+    fn name(&self) -> string:
+        self.name
 
 fn by_value!(log: *mut List[string]) -> void:
     using conn = Conn { name: "value", log: log, open: true }

@@ -1,5 +1,5 @@
 # test: Map has no get_or method; compose get with Option.unwrap_or
 # Spec 03 Method Lookup: names.method-lookup.unknown.
 pub fn old_name() -> void:
-    stock := {"tea": +3}
-    _ := stock.get_or("tea", +0)  # diagnostic: unknown-method
+    stock := { "tea": +3 }
+    _ := stock.get_or("tea", +0) # diagnostic: unknown-method

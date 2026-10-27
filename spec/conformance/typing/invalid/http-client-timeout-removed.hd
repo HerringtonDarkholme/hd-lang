@@ -2,4 +2,4 @@
 use std.http.Client
 
 pub fn main() -> void:
-    Client::new().timeout(1s)  # diagnostic: unknown-method
+    Client::new().timeout(1s) # diagnostic: unknown-method

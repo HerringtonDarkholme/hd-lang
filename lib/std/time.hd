@@ -254,7 +254,15 @@ impl Timestamp:
         if clock < 0:
             clock = clock + 86400000
         let text = civil.to_iso8601()
-        text = text + "T" + zero_padded(clock / 3600000, 2) + ":" + zero_padded(clock / 60000 % 60, 2) + ":" + zero_padded(clock / 1000 % 60, 2)
+        text = (
+            text
+            + "T"
+            + zero_padded(clock / 3600000, 2)
+            + ":"
+            + zero_padded(clock / 60000 % 60, 2)
+            + ":"
+            + zero_padded(clock / 1000 % 60, 2)
+        )
         if clock % 1000 != 0:
             text = text + "." + zero_padded(clock % 1000, 3)
         text + "Z"
@@ -363,7 +371,13 @@ impl Date:
     ## The date as ISO 8601 text, as `2026-10-17`.
     ## See [std-time.date.iso8601](../../spec/std/time.md#r-std-time.date.iso8601).
     pub fn to_iso8601(self) -> string:
-        year_digits(self.year) + "-" + zero_padded(i64(self.month), 2) + "-" + zero_padded(i64(self.day), 2)
+        (
+            year_digits(self.year)
+            + "-"
+            + zero_padded(i64(self.month), 2)
+            + "-"
+            + zero_padded(i64(self.day), 2)
+        )
 
 # Why time text did not parse (spec/std/time.md#time-parse-errors): one error
 # for RFC 3339 timestamps and duration text.
@@ -457,7 +471,12 @@ fn rfc3339_reach(codes: List[i32], start: usize, shape: string) -> usize:
         if index >= codes.len():
             return index
         code := codes[index]
-        fits := if need == 100: code >= 48 && code <= 57 else if need == 84: code == 84 || code == 116 else: code == i32(need)
+        fits := if need == 100:
+            code >= 48 && code <= 57
+        else if need == 84:
+            code == 84 || code == 116
+        else:
+            code == i32(need)
         if !fits:
             return index
         index = index + 1
@@ -544,7 +563,13 @@ fn parse_byte_codes(codes: List[i32]) -> Result[Timestamp, ParseTimeError]:
         return .Err(ParseTimeError.InvalidCharacter(index))
     if index < codes.len():
         return .Err(ParseTimeError.InvalidCharacter(index))
-    local := days_from_civil(parts[0], parts[1], parts[2]) * 86400000 + parts[3] * 3600000 + parts[4] * 60000 + parts[5] * 1000 + fraction
+    local := (
+        days_from_civil(parts[0], parts[1], parts[2]) * 86400000
+        + parts[3] * 3600000
+        + parts[4] * 60000
+        + parts[5] * 1000
+        + fraction
+    )
     .Ok(Timestamp { millis: local - offset })
 
 # Whole milliseconds since an origin that the provider chooses
@@ -640,7 +665,9 @@ impl Clock for ManualClock:
 
     # A zero duration leaves the time as it is (r-std-time.manual.sleep.zero).
     fn sleep!(&mut self, duration: Duration) -> void:
-        self.current = Timestamp::from_unix_milliseconds(self.current.millis + duration.as_milliseconds())
+        self.current = Timestamp::from_unix_milliseconds(
+            self.current.millis + duration.as_milliseconds(),
+        )
 
 # `Duration` and `Instant` serialize to every format, and so to the host
 # boundary, as their whole milliseconds; a `Timestamp` serializes as its

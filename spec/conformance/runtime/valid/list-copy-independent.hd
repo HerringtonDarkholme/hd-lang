@@ -20,7 +20,7 @@ tests:
         assert_equal(kept.len(), 1, reason="kept holds the list as it was")
 
     it("a map copy changes alone"):
-        let mut stock: Map[string, i32] = {"apple": 3}
+        let mut stock: Map[string, i32] = { "apple": 3 }
         let mut copy = stock
         copy["pear"] = 1
         stock["apple"] = 0

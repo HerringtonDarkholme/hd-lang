@@ -3,4 +3,4 @@
 let limit = 100
 
 fn report() -> i32:
-    limit  # diagnostic: type-mismatch
+    limit # diagnostic: type-mismatch

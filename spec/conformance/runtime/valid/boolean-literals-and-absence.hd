@@ -6,10 +6,7 @@
 # expect-stdout: some 4
 # expect-stdout: not nil: 3
 fn status(open: bool) -> string:
-    if open:
-        "open"
-    else:
-        "closed"
+    if open: "open" else: "closed"
 
 fn describe(value: i32?) -> string:
     match value:

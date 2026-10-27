@@ -7,7 +7,7 @@ fn demo() -> i32:
     origin := Point { x: 0, y: 0 }
     let start = origin
     start = Point { x: 2, y: 0 }
-    start.x = 2  # diagnostic: not-writable
+    start.x = 2 # diagnostic: not-writable
     let mut cur = start
     cur.x = 3
     cur.x

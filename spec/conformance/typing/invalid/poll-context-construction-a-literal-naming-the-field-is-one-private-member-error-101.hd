@@ -2,5 +2,5 @@
 use std.task.PollContext
 
 pub fn main() -> void $ Console:
-    let _c = PollContext { waker: () }  # diagnostic: private-member
+    let _c = PollContext { waker: () } # diagnostic: private-member
     println("x")

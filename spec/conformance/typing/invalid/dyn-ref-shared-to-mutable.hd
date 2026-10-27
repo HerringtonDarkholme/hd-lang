@@ -10,5 +10,5 @@ impl Counter for Tally:
         self.n += 1
 
 fn demo(tally: &Tally) -> void:
-    let counter: &mut dyn Counter = tally  # diagnostic: mutable-upgrade
+    let counter: &mut dyn Counter = tally # diagnostic: mutable-upgrade
     counter.bump()

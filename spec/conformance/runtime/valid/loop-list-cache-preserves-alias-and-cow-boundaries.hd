@@ -15,7 +15,8 @@ fn fill_with_alias_call(xs: &mut List[i32]) -> void:
         grow(xs)
         xs[i] = i32(i)
 
-fn scalar(i: usize) -> i32: i32(i) + 20
+fn scalar(i: usize) -> i32:
+    i32(i) + 20
 
 fn fill_local() -> List[i32]:
     let mut xs: List[i32] = [+0, +0, +0]
@@ -75,19 +76,30 @@ tests:
         assert_equal(xs, [+0, +1, +2, +99, +99, +99], reason="each access uses the current buffer")
 
     it("a scalar call cannot reach an unescaped local list"):
-        assert_equal(fill_local(), [+20, +21, +22], reason="the local list remains stable across scalar calls")
+        assert_equal(
+            fill_local(),
+            [+20, +21, +22],
+            reason="the local list remains stable across scalar calls",
+        )
 
     it("a new owner inside the loop keeps per-access COW"):
         let mut xs = [+9, +9, +9]
         saved := snapshots(&mut xs)
-        assert_equal(saved, [[+9, +9, +9], [+0, +9, +9], [+0, +1, +9]], reason="each copy keeps its original elements")
+        assert_equal(
+            saved,
+            [[+9, +9, +9], [+0, +9, +9], [+0, +1, +9]],
+            reason="each copy keeps its original elements",
+        )
         assert_equal(xs, [+0, +1, +2], reason="only the active list is changed")
 
     it("a call with no arguments may reach a parameter through a global"):
         through_external_alias(shared)
         let actual: List[i32] = *shared
-        assert_equal(actual, [+0, +1, +2, +9, +9, +9], reason="external aliases disable speculative projections")
-
+        assert_equal(
+            actual,
+            [+0, +1, +2, +9, +9, +9],
+            reason="external aliases disable speculative projections",
+        )
 
     it("the first loop test reads initialized nonzero locals"):
         let mut xs = [+0, +0, +0]

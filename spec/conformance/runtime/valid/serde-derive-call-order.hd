@@ -88,11 +88,19 @@ tests:
 
     it("a data value is one variant of its members, in declaration order"):
         order := Order { id: 7, lines: [1, -2], note: .None }
-        assert_equal(calls(order), "variant:Order member:id uint:7 member:lines list:2 int:1 int:-2 end-list member:note null end-variant", reason="omitted cache is not written")
+        assert_equal(
+            calls(order),
+            "variant:Order member:id uint:7 member:lines list:2 int:1 int:-2 end-list member:note null end-variant",
+            reason="omitted cache is not written",
+        )
 
     it("an enum value is its variant with that variant's members"):
         assert_equal(calls(Step.Start), "variant:Start end-variant", reason="no members")
-        assert_equal(calls(Step.Move(3)), "variant:Move member:by int:3 end-variant", reason="one member")
+        assert_equal(
+            calls(Step.Move(3)),
+            "variant:Move member:by int:3 end-variant",
+            reason="one member",
+        )
 
     it("a map writes a key before each value"):
         assert_equal(calls({ "a": true }), "map:1 key:a bool:true end-map", reason="map")

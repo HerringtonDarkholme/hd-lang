@@ -2,4 +2,4 @@
 # Spec lang/05-expressions.md: expr.power.checked.
 
 pub fn main() -> void $ Console:
-    println(i16(3) ** 11)  # panic: integer-overflow
+    println(i16(3) ** 11) # panic: integer-overflow

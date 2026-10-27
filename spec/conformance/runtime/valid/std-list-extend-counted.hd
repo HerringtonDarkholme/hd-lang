@@ -75,7 +75,7 @@ tests:
         let mut words = ["a"]
         grow(&mut words, ["b", "c"])
         assert_equal(words, ["a", "b", "c"], reason="through &mut")
-        let mut groups: Map[string, List[i32]] = {"k": [+1]}
+        let mut groups: Map[string, List[i32]] = { "k": [+1] }
         groups["k"].extend([+2, 3])
         assert_equal(groups["k"], [+1, 2, 3], reason="where it is stored")
         holder := &mut Holder { words: ["h"] }

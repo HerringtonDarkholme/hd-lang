@@ -3,7 +3,10 @@
 use std.cli.{Arg, ArgParser, CliError, Parsed}
 use std.host.{Args, ScriptedArgs}
 fn tool() -> *mut ArgParser:
-    ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
+    ArgParser::new("count")
+        .arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" })
+        .arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" })
+        .arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
 
 fn target() -> string $ Args:
     match tool().parse_args():
@@ -26,5 +29,6 @@ tests:
         more := base.arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" })
         assert_equal(base is more, true, reason="the receiver is updated in place")
         match more.parse(["-v"]):
-            .Ok(parsed) => assert_equal(parsed.flag("verbose"), true, reason="the new ArgParser has the flag")
+            .Ok(parsed) =>
+                assert_equal(parsed.flag("verbose"), true, reason="the new ArgParser has the flag")
             .Err(error) => panic("parse failed: $error")

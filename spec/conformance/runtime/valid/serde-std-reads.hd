@@ -145,16 +145,32 @@ tests:
 
     it("each scalar type reads with its own call and its name as expected"):
         assert_equal(read::[bool]([Tok.Bool(true)]), (.Ok(true), "bool:bool", 1), reason="bool")
-        assert_equal(read::[string]([Tok.Text("north")]), (.Ok("north"), "text:string", 1), reason="string")
+        assert_equal(
+            read::[string]([Tok.Text("north")]),
+            (.Ok("north"), "text:string", 1),
+            reason="string",
+        )
         assert_equal(read::[char]([Tok.Text("N")]), (.Ok('N'), "text:char", 1), reason="char")
         assert_equal(read::[i8]([Tok.Int(-40)]), (.Ok(-40), "int:i8", 1), reason="i8")
         assert_equal(read::[i16]([Tok.Int(-300)]), (.Ok(-300), "int:i16", 1), reason="i16")
         assert_equal(read::[i32]([Tok.Int(70000)]), (.Ok(+70000), "int:i32", 1), reason="i32")
-        assert_equal(read::[i64]([Tok.Int(-9000000000)]), (.Ok(-9000000000), "int:i64", 1), reason="i64")
+        assert_equal(
+            read::[i64]([Tok.Int(-9000000000)]),
+            (.Ok(-9000000000), "int:i64", 1),
+            reason="i64",
+        )
         assert_equal(read::[u8]([Tok.Uint(255)]), (.Ok(255), "uint:u8", 1), reason="u8")
         assert_equal(read::[u16]([Tok.Uint(65535)]), (.Ok(65535), "uint:u16", 1), reason="u16")
-        assert_equal(read::[u32]([Tok.Uint(4000000000)]), (.Ok(4000000000), "uint:u32", 1), reason="u32")
-        assert_equal(read::[u64]([Tok.Uint(18446744073709551615)]), (.Ok(18446744073709551615), "uint:u64", 1), reason="u64")
+        assert_equal(
+            read::[u32]([Tok.Uint(4000000000)]),
+            (.Ok(4000000000), "uint:u32", 1),
+            reason="u32",
+        )
+        assert_equal(
+            read::[u64]([Tok.Uint(18446744073709551615)]),
+            (.Ok(18446744073709551615), "uint:u64", 1),
+            reason="u64",
+        )
         assert_equal(read::[usize]([Tok.Uint(12)]), (.Ok(12), "uint:usize", 1), reason="usize")
         assert_equal(read::[f64]([Tok.Float(21.5)]), (.Ok(21.5), "float:f64", 1), reason="f64")
         assert_equal(read::[f32]([Tok.Float(0.25)]), (.Ok(0.25), "float:f32", 1), reason="f32")
@@ -166,31 +182,67 @@ tests:
         assert_equal(read::[u8]([Tok.Uint(256)])._0, .Err("invalid u8"), reason="past u8")
         assert_equal(read::[u16]([Tok.Uint(65536)])._0, .Err("invalid u16"), reason="past u16")
         assert_equal(read::[u32]([Tok.Uint(4294967296)])._0, .Err("invalid u32"), reason="past u32")
-        assert_equal(read::[char]([Tok.Text("NE")])._0, .Err("invalid char"), reason="two characters")
+        assert_equal(
+            read::[char]([Tok.Text("NE")])._0,
+            .Err("invalid char"),
+            reason="two characters",
+        )
         assert_equal(read::[char]([Tok.Text("")])._0, .Err("invalid char"), reason="no character")
-        assert_equal(read::[f32]([Tok.Float(1.0e300)])._0, .Err("invalid f32"), reason="past the finite f32 range")
-        assert_equal(read::[f32]([Tok.Float(-1.0e300)])._0, .Err("invalid f32"), reason="below the finite f32 range")
+        assert_equal(
+            read::[f32]([Tok.Float(1.0e300)])._0,
+            .Err("invalid f32"),
+            reason="past the finite f32 range",
+        )
+        assert_equal(
+            read::[f32]([Tok.Float(-1.0e300)])._0,
+            .Err("invalid f32"),
+            reason="below the finite f32 range",
+        )
 
     it("a value of another kind is the reader's error too"):
-        assert_equal(read::[u8]([Tok.Int(5)])._0, .Err("invalid u8"), reason="an unsigned type reads uint")
-        assert_equal(read::[string]([Tok.Bool(false)])._0, .Err("invalid string"), reason="a string reads text")
+        assert_equal(
+            read::[u8]([Tok.Int(5)])._0,
+            .Err("invalid u8"),
+            reason="an unsigned type reads uint",
+        )
+        assert_equal(
+            read::[string]([Tok.Bool(false)])._0,
+            .Err("invalid string"),
+            reason="a string reads text",
+        )
 
     it("an f32 reads the nearest f32 to the f64"):
         let reading: f32 = 0.1
-        assert_equal(read::[f32]([Tok.Float(0.1)])._0, .Ok(reading), reason="0.1 rounds to the nearest f32")
+        assert_equal(
+            read::[f32]([Tok.Float(0.1)])._0,
+            .Ok(reading),
+            reason="0.1 rounds to the nearest f32",
+        )
 
     it("an optional asks is_null first"):
         assert_equal(read::[i32?]([Tok.Null]), (.Ok(.None), "is-null", 1), reason="null")
         assert_equal(read::[i32?]([Tok.Absent]), (.Ok(.None), "is-null", 1), reason="absent")
-        assert_equal(read::[i32?]([Tok.Int(12)]), (.Ok(.Some(+12)), "is-null int:i32", 1), reason="present")
+        assert_equal(
+            read::[i32?]([Tok.Int(12)]),
+            (.Ok(.Some(+12)), "is-null int:i32", 1),
+            reason="present",
+        )
 
     it("a list reads next_item before each item"):
-        readings := read::[List[f64]]([Tok.Item, Tok.Float(20.5), Tok.Item, Tok.Float(21.0), Tok.Done])
-        assert_equal(readings, (.Ok([20.5, 21.0]), "list float:f64 float:f64", 5), reason="two items")
+        readings := read::[List[f64]](
+            [Tok.Item, Tok.Float(20.5), Tok.Item, Tok.Float(21.0), Tok.Done],
+        )
+        assert_equal(
+            readings,
+            (.Ok([20.5, 21.0]), "list float:f64 float:f64", 5),
+            reason="two items",
+        )
         assert_equal(read::[List[f64]]([Tok.Done]), (.Ok([]), "list", 1), reason="no item")
 
     it("a map reads next_key before each entry, and keeps the order read"):
-        found := read::[Map[string, u16]]([Tok.Key("west"), Tok.Uint(3), Tok.Key("east"), Tok.Uint(9), Tok.Done])
+        found := read::[Map[string, u16]](
+            [Tok.Key("west"), Tok.Uint(3), Tok.Key("east"), Tok.Uint(9), Tok.Done],
+        )
         assert_equal(found._1, "map uint:u16 uint:u16", reason="calls")
         match found._0:
             .Ok(gusts) =>
@@ -202,4 +254,10 @@ tests:
             .Err(error) => panic("read failed: $error")
 
     it("a bad item ends the read with the reader's error"):
-        assert_equal(read::[List[u8]]([Tok.Item, Tok.Uint(1), Tok.Item, Tok.Uint(300), Tok.Item, Tok.Uint(2), Tok.Done]), (.Err("invalid u8"), "list uint:u8 uint:u8", 4), reason="stops at the second item")
+        assert_equal(
+            read::[List[u8]](
+                [Tok.Item, Tok.Uint(1), Tok.Item, Tok.Uint(300), Tok.Item, Tok.Uint(2), Tok.Done],
+            ),
+            (.Err("invalid u8"), "list uint:u8 uint:u8", 4),
+            reason="stops at the second item",
+        )

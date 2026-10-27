@@ -22,4 +22,8 @@ tests:
     use std.testing.assert_equal
 
     it("reads the attached route"):
-        assert_equal(users_path(), "/users", reason="the decorator value is one of the function's facts")
+        assert_equal(
+            users_path(),
+            "/users",
+            reason="the decorator value is one of the function's facts",
+        )

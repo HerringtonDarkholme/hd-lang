@@ -6,4 +6,4 @@ fn send[T < Serialize](value: T) -> void:
     pass
 
 fn send_counts(counts: Map[i32, i32]) -> void:
-    send(counts)  # diagnostic: unsatisfied-trait-bound
+    send(counts) # diagnostic: unsatisfied-trait-bound

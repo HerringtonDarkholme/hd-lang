@@ -5,4 +5,4 @@ fn first(text: string) -> u8:
     text[0]
 
 fn invalid(text: string) -> void:
-    text[0] = 65  # diagnostic: invalid-assignment-target
+    text[0] = 65 # diagnostic: invalid-assignment-target

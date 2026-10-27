@@ -14,11 +14,19 @@ tests:
     it("a push through a reference to the argument's place is not seen by the callee"):
         let mut items = [+1]
         shared := &mut items
-        assert_equal(len_after(items, fn(): shared.push(2)), 1, reason="the parameter is the list as passed")
+        assert_equal(
+            len_after(items, fn(): shared.push(2)),
+            1,
+            reason="the parameter is the list as passed",
+        )
         assert_equal(items.len(), 2, reason="the caller's list grew through the reference")
 
     it("a value read through a reference is copied before the call"):
         let mut items = [+1]
         shared := &mut items
-        assert_equal(read_through(shared, fn(): items.push(2)), 1, reason="the parameter is the list as read")
+        assert_equal(
+            read_through(shared, fn(): items.push(2)),
+            1,
+            reason="the parameter is the list as read",
+        )
         assert_equal(shared.len(), 2, reason="the referenced list grew")

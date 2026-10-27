@@ -4,4 +4,4 @@
 use dep.members.{Outer, Tagged}
 
 fn invalid(outer: Outer) -> string:
-    outer.tag()  # diagnostic: ambiguous-method
+    outer.tag() # diagnostic: ambiguous-method

@@ -6,6 +6,6 @@ trait Entity < AnyRef:
 
 type Message(string)
 
-impl Entity for Message:  # diagnostic: missing-supertrait-implementation
+impl Entity for Message: # diagnostic: missing-supertrait-implementation
     fn key(self) -> string:
         string(self)

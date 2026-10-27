@@ -9,4 +9,4 @@ fn count[I < Iterable[i32]](source: I) -> i32:
     total
 
 fn from_iterator(source: FromFn[i32]) -> i32:
-    count(source)  # diagnostic: unsatisfied-trait-bound
+    count(source) # diagnostic: unsatisfied-trait-bound

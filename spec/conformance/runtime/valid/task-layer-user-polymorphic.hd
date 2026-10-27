@@ -12,13 +12,15 @@ struct Name:
     value: string
 
 impl SourceName for Name:
-    fn word(&self) -> string: self.value
+    fn word(&self) -> string:
+        self.value
 
 struct Recorder:
     events: *mut List[string]
 
 impl Audit for Recorder:
-    fn note(&mut self, value: string) -> void: self.events.push(value)
+    fn note(&mut self, value: string) -> void:
+        self.events.push(value)
 
 struct Counts:
     wraps: usize
@@ -27,7 +29,7 @@ struct Counts:
 struct UserLayer:
     counts: *mut Counts
 
-impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for UserLayer:
+impl[T, E, $ R] Layer[fn!() -> Result[T, E] $ R] for UserLayer:
     type Wrapped = fn!() -> Result[T, E] $ R + Audit
     fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Audit):
         self.counts.wraps += 1
@@ -68,9 +70,25 @@ tests:
                 word!(true)
             error_result := apply!(policy):
                 word!(false)
-            assert_equal(number_result, .Ok(7), reason="the first concrete result type is preserved")
-            assert_equal(word_result, .Ok("live"), reason="the second concrete result type is preserved")
-            assert_equal(error_result, .Err(WordError.Rejected("live")), reason="the user's error stays statically typed")
+            assert_equal(
+                number_result,
+                .Ok(7),
+                reason="the first concrete result type is preserved",
+            )
+            assert_equal(
+                word_result,
+                .Ok("live"),
+                reason="the second concrete result type is preserved",
+            )
+            assert_equal(
+                error_result,
+                .Err(WordError.Rejected("live")),
+                reason="the user's error stays statically typed",
+            )
         assert_equal(counts.wraps, 3, reason="each application calls wrap once")
         assert_equal(counts.runs, 3, reason="each returned function is invoked once")
-        assert_equal(*events, ["enter", "leave", "enter", "leave", "enter", "leave"], reason="the added Audit provider and original SourceName provider reach every call")
+        assert_equal(
+            *events,
+            ["enter", "leave", "enter", "leave", "enter", "leave"],
+            reason="the added Audit provider and original SourceName provider reach every call",
+        )

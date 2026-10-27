@@ -37,13 +37,27 @@ struct YamlError:
 @error
 enum LoadError:
     @error("cannot read $path")
-    Read(path: string, @source error: FsError)
+    Read(
+        path: string,
+        @source
+        error: FsError,
+    )
     @error("cannot open $path")
-    Open(path: string, @source error: FsError?)
+    Open(
+        path: string,
+        @source
+        error: FsError?,
+    )
     @error("bad config")
-    Yaml(@from error: YamlError)
+    Yaml(
+        @from
+        error: YamlError,
+    )
     @error(transparent)
-    Fs(@from error: FsError)
+    Fs(
+        @from
+        error: FsError,
+    )
 
 @error(transparent)
 struct PublicError:
@@ -80,11 +94,19 @@ tests:
     use std.testing.assert_equal
 
     it("a message interpolates named and unnamed payload members"):
-        assert_equal(FsError.NotFound("a.txt").to_string(), "not found: a.txt", reason="a named member")
+        assert_equal(
+            FsError.NotFound("a.txt").to_string(),
+            "not found: a.txt",
+            reason="a named member",
+        )
         assert_equal(FsError.Denied("b.txt").to_string(), "permission denied: b.txt", reason="_0")
 
     it("_0 names the unnamed payload member, never unnamed shared data"):
-        assert_equal(HttpError.Denied("f.txt").to_string(), "denied: f.txt", reason="the payload member")
+        assert_equal(
+            HttpError.Denied("f.txt").to_string(),
+            "denied: f.txt",
+            reason="the payload member",
+        )
 
     it("a data type's message interpolates its fields"):
         assert_equal(YamlError { line: 3 }.to_string(), "bad yaml at line 3", reason="a field")
@@ -96,14 +118,30 @@ tests:
         assert_equal(source_text(&FsError.Busy), "none", reason="no automatic source")
 
     it("a @source member is the source"):
-        assert_equal(source_text(&LoadError.Read("c.txt", FsError.Busy)), "Busy", reason="the source")
+        assert_equal(
+            source_text(&LoadError.Read("c.txt", FsError.Busy)),
+            "Busy",
+            reason="the source",
+        )
 
     it("an optional @source member gives a source only when present"):
-        assert_equal(source_text(&LoadError.Open("c.txt", .None)), "none", reason="an absent source")
-        assert_equal(source_text(&LoadError.Open("c.txt", FsError.Busy)), "Busy", reason="a present source")
+        assert_equal(
+            source_text(&LoadError.Open("c.txt", .None)),
+            "none",
+            reason="an absent source",
+        )
+        assert_equal(
+            source_text(&LoadError.Open("c.txt", FsError.Busy)),
+            "Busy",
+            reason="a present source",
+        )
 
     it("? converts through the generated From, and @from marks the source"):
-        assert_equal(load_text(load("")), "bad config / bad yaml at line 3", reason="From[YamlError]")
+        assert_equal(
+            load_text(load("")),
+            "bad config / bad yaml at line 3",
+            reason="From[YamlError]",
+        )
         assert_equal(load_text(load("x")), "ok", reason="no error")
 
     it("a transparent variant forwards its message and its payload's source"):
@@ -112,6 +150,10 @@ tests:
         assert_equal(source_text(&wrapped), "none", reason="the payload's own source")
 
     it("a transparent data type forwards to its field and converts with From"):
-        assert_equal(publish_text(publish("")), "bad config / bad yaml at line 3", reason="From[LoadError]")
+        assert_equal(
+            publish_text(publish("")),
+            "bad config / bad yaml at line 3",
+            reason="From[LoadError]",
+        )
         let public: PublicError = PublicError { repr: LoadError.Read("e.txt", FsError.Busy) }
         assert_equal(source_text(&public), "Busy", reason="the field's source")

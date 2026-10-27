@@ -6,4 +6,4 @@ struct User:
 
 fn read(user: User) -> i32:
     match user:
-        User { missing } => 1  # diagnostic: unknown-field
+        User { missing } => 1 # diagnostic: unknown-field

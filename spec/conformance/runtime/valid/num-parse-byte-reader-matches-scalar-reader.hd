@@ -110,7 +110,10 @@ fn old_float_error(text: string) -> ParseNumberError?:
     if start == scalars.len():
         return .Some(ParseNumberError.InvalidDigit(start))
     first := scalars[start]
-    found := if first == "n" || first == "N" || first == "i" || first == "I": old_word_error(scalars, start) else: old_decimal_error(scalars, start)
+    found := if first == "n" || first == "N" || first == "i" || first == "I":
+        old_word_error(scalars, start)
+    else:
+        old_decimal_error(scalars, start)
     match found:
         .Some(position) => .Some(ParseNumberError.InvalidDigit(position))
         .None => .None
@@ -166,22 +169,126 @@ fn disagreement(text: string) -> string:
 
 # Boundary texts of every width, plus the odd ones.
 EDGES := [
-    "", "+", "-", "0", "-0", "+0", "00", "007", "-007",
-    "127", "128", "-128", "-129", "255", "256", "32767", "32768", "65535", "65536",
-    "2147483647", "2147483648", "-2147483648", "-2147483649", "+2147483647", "+2147483648",
-    "4294967295", "4294967296", "-4294967295", "4294967299", "42949672950",
-    "9223372036854775807", "9223372036854775808", "-9223372036854775808", "-9223372036854775809",
-    "18446744073709551615", "18446744073709551616", "18446744073709551619", "184467440737095516150",
-    "99999999999999999999999", "-99999999999999999999999",
-    "٣", "1٣", "-٣", "+٣", "１２", "é", "12é", "٣12", "1\u{0301}", "\u{1F600}", "1\u{1F600}2",
-    "2147483648x", "99999999999x", "1 ", " 1", "1_0", "0x10", "1e5", "1.5", ".5", "5.", ".", "1e", "1e+", "e5",
-    "+.5e-3", "-1.e2", "nan", "NaN", "inf", "-Infinity", "INFINITY", "infinit", "infinityx", "nanx", "na", "iNf", "n", "i", "in",
-    "1.5.2", "1ee5", "--1", "+-1", "1e5.5", "١.٥", "1.٥", "1e٥", "nаn",
+    "",
+    "+",
+    "-",
+    "0",
+    "-0",
+    "+0",
+    "00",
+    "007",
+    "-007",
+    "127",
+    "128",
+    "-128",
+    "-129",
+    "255",
+    "256",
+    "32767",
+    "32768",
+    "65535",
+    "65536",
+    "2147483647",
+    "2147483648",
+    "-2147483648",
+    "-2147483649",
+    "+2147483647",
+    "+2147483648",
+    "4294967295",
+    "4294967296",
+    "-4294967295",
+    "4294967299",
+    "42949672950",
+    "9223372036854775807",
+    "9223372036854775808",
+    "-9223372036854775808",
+    "-9223372036854775809",
+    "18446744073709551615",
+    "18446744073709551616",
+    "18446744073709551619",
+    "184467440737095516150",
+    "99999999999999999999999",
+    "-99999999999999999999999",
+    "٣",
+    "1٣",
+    "-٣",
+    "+٣",
+    "１２",
+    "é",
+    "12é",
+    "٣12",
+    "1\u{0301}",
+    "\u{1F600}",
+    "1\u{1F600}2",
+    "2147483648x",
+    "99999999999x",
+    "1 ",
+    " 1",
+    "1_0",
+    "0x10",
+    "1e5",
+    "1.5",
+    ".5",
+    "5.",
+    ".",
+    "1e",
+    "1e+",
+    "e5",
+    "+.5e-3",
+    "-1.e2",
+    "nan",
+    "NaN",
+    "inf",
+    "-Infinity",
+    "INFINITY",
+    "infinit",
+    "infinityx",
+    "nanx",
+    "na",
+    "iNf",
+    "n",
+    "i",
+    "in",
+    "1.5.2",
+    "1ee5",
+    "--1",
+    "+-1",
+    "1e5.5",
+    "١.٥",
+    "1.٥",
+    "1e٥",
+    "nаn",
 ]
 
 PIECES := [
-    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "9", "9", "+", "-", ".", "e", "E", "_", " ",
-    "x", "n", "a", "i", "f", "y", "٣", "é", "\u{1F600}",
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "9",
+    "9",
+    "+",
+    "-",
+    ".",
+    "e",
+    "E",
+    "_",
+    " ",
+    "x",
+    "n",
+    "a",
+    "i",
+    "f",
+    "y",
+    "٣",
+    "é",
+    "\u{1F600}",
 ]
 
 fn text_gen(c: &mut Choices) -> string:
@@ -201,10 +308,18 @@ tests:
         for text in EDGES:
             assert_equal(disagreement(text), "", reason="edge text ${debug(text)}")
 
-    it_prop_with("random texts match the old readers", gen=text_gen, cases=300, prop=fn!(text: string):
-        assert_equal(disagreement(text), "", reason="text ${debug(text)}")
+    it_prop_with(
+        "random texts match the old readers",
+        gen=text_gen,
+        cases=300,
+        prop=fn!(text: string): assert_equal(disagreement(text), "", reason="text ${debug(text)}")
+        ,
     )
 
-    it_prop_with("random digit runs match the old readers", gen=number_gen, cases=300, prop=fn!(text: string):
-        assert_equal(disagreement(text), "", reason="text ${debug(text)}")
+    it_prop_with(
+        "random digit runs match the old readers",
+        gen=number_gen,
+        cases=300,
+        prop=fn!(text: string): assert_equal(disagreement(text), "", reason="text ${debug(text)}")
+        ,
     )

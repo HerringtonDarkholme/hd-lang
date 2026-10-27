@@ -1,5 +1,5 @@
 # test: an enum match needs every variant, even one whose payload has type never
 # Spec 06 Exhaustiveness: flow.match.cover.enum.
 fn value(result: Result[i32, never]) -> i32:
-    match result:  # diagnostic: nonexhaustive-match
+    match result: # diagnostic: nonexhaustive-match
         .Ok(number) => number

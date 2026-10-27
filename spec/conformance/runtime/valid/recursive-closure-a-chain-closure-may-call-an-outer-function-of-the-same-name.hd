@@ -6,6 +6,5 @@ fn b(n: i32) -> i32:
     n * 10
 
 pub fn main() -> void $ Console:
-    a := b := fn(n: i32) -> i32:
-        b(n) + 1
+    a := b := fn(n: i32) -> i32: b(n) + 1
     println(a(3) + b(3))

@@ -12,10 +12,12 @@ trait FromNum:
     fn from_num(n: i64) -> Self
 
 impl FromNum for i64:
-    fn from_num(n: i64) -> i64: n
+    fn from_num(n: i64) -> i64:
+        n
 
 impl FromNum for string:
-    fn from_num(n: i64) -> string: "#$n"
+    fn from_num(n: i64) -> string:
+        "#$n"
 
 # Chooses the last variant, names every member in order, and reads the
 # next number for each.

@@ -4,5 +4,5 @@
 # expect-stdout: 2\t350
 pub fn main() -> void $ Console:
     # a raw tab follows this colon:	 and this comment still ends at the line end
-    println("qty\tprice")    # tab	here
+    println("qty\tprice") # tab	here
     println("2\t350")

@@ -3,7 +3,7 @@
 use std.time.{Duration, h}
 
 fn forever() -> Duration:
-    h(10_000_000_000_000_000)  # panic: integer-overflow
+    h(10_000_000_000_000_000) # panic: integer-overflow
 
 tests:
     it("overflows on the hour scale"):

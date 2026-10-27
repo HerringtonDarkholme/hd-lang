@@ -4,13 +4,16 @@
 use std.cli.{Arg, ArgParser}
 
 pub fn main() -> void $ Console:
-    base := ArgParser::new("tool").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "talk" })
+    base := ArgParser::new("tool")
+        .arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "talk" })
     match base.parse(["-v", "a"]):
         .Err(_) => println("error")
         .Ok(parsed) =>
             copied := parsed
             let mut changed = copied.positionals()
             changed.push("b")
-            println("${parsed.flag("verbose")} ${parsed.positionals().len()} ${changed.len()} ${parsed == copied}")
+            println(
+                "${parsed.flag("verbose")} ${parsed.positionals().len()} ${changed.len()} ${parsed == copied}",
+            )
     more := base.arg(Arg { name: "file", kind: .Positional, required: true, help: "input" })
     println("${base.usage().lines().len()} ${more.usage().lines().len()} ${base is more}")

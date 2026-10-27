@@ -8,4 +8,4 @@ enum Parcel:
 fn postage_cents(parcel: Parcel, note: string) -> i32:
     match parcel:
         Parcel.Letter => +80
-        Parcel.Box(_) => note  # diagnostic: type-mismatch
+        Parcel.Box(_) => note # diagnostic: type-mismatch

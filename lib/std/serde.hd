@@ -9,7 +9,20 @@ use std.annotation.{annotate, cold}
 use std.collections.Set
 use std.function.Tuple
 use std.hash.Hash
-use std.structure.{Structure, Walker, Describer, Source, Variant, VariantInfo, Field, Member, Members, Key, Facts, skips}
+use std.structure.{
+    Structure,
+    Walker,
+    Describer,
+    Source,
+    Variant,
+    VariantInfo,
+    Field,
+    Member,
+    Members,
+    Key,
+    Facts,
+    skips,
+}
 
 ## A named member's document name, independent of its hd field name.
 ## See [std-serde.rename.fact](../../spec/std/serde.md#r-std-serde.rename.fact).
@@ -197,7 +210,11 @@ pub trait Deserializer:
     fn next_item(&mut self) -> Result[bool, Self::Error]
     fn begin_map(&mut self) -> Result[void, Self::Error]
     fn next_key(&mut self) -> Result[string?, Self::Error]
-    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, Self::Error]
+    fn begin_variant(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+    ) -> Result[usize, Self::Error]
     fn member(&mut self, m: &Member) -> Result[void, Self::Error]
     fn end_variant(&mut self) -> Result[void, Self::Error]
     fn invalid(&mut self, expected: string) -> Self::Error
@@ -237,7 +254,11 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
 
     # A rest member is one `List[T]` member (annot.walk.rest.default),
     # which needs `T < Serialize` here, as `member` needs `F < Serialize`.
-    fn rest[T < Serialize](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, W::Error]:
+    fn rest[T < Serialize](
+        &mut self,
+        h: Field[S, List[T]],
+        items: List[T],
+    ) -> Result[void, W::Error]:
         self.member(h, items)
 
     fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
@@ -298,7 +319,10 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
         while self.at < members.infos.len():
             at := self.at
             self.at += 1
-            if members.infos[at].facts.items.is_empty() || members.infos[at].facts.find::[Skip]().is_none():
+            if (
+                members.infos[at].facts.items.is_empty()
+                || members.infos[at].facts.find::[Skip]().is_none()
+            ):
                 position := members.infos[at].position
                 return .Ok(members.at(position))
         .Ok(.None)
@@ -318,7 +342,8 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
             panic("std.serde: the source names every unskipped member")
         match h.default():
             .Some(value) => .Ok(value)
-            .None => .Err(self.input.invalid("skipped field `${h.info.name}` needs a declared default"))
+            .None =>
+                .Err(self.input.invalid("skipped field `${h.info.name}` needs a declared default"))
 
 # ---------------------------------------------------------------------------
 # The standard implementations (spec/std/serde.md#standard-implementations).
@@ -362,13 +387,22 @@ impl Deserialize for char:
 
 # A signed integer in `low` to `high`, or the reader's error for `expected`
 # (r-std-serde.std.range).
-fn signed_in[R < Deserializer](input: &mut R, low: i64, high: i64, expected: string) -> Result[i64, R::Error]:
+fn signed_in[R < Deserializer](
+    input: &mut R,
+    low: i64,
+    high: i64,
+    expected: string,
+) -> Result[i64, R::Error]:
     found := input.int(expected)?
     if found >= low && found <= high:
         return .Ok(found)
     .Err(input.invalid(expected))
 
-fn unsigned_in[R < Deserializer](input: &mut R, high: u64, expected: string) -> Result[u64, R::Error]:
+fn unsigned_in[R < Deserializer](
+    input: &mut R,
+    high: u64,
+    expected: string,
+) -> Result[u64, R::Error]:
     found := input.uint(expected)?
     if found <= high:
         return .Ok(found)

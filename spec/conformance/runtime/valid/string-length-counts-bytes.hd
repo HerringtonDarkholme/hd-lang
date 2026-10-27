@@ -3,9 +3,11 @@
 struct User:
     name: string
 
-fn name_length(user: User) -> i32: i32(user.name.len())
+fn name_length(user: User) -> i32:
+    i32(user.name.len())
 
-fn main() -> i32: name_length(User { name: "A界😀" })
+fn main() -> i32:
+    name_length(User { name: "A界😀" })
 
 tests:
     use std.testing.assert_equal

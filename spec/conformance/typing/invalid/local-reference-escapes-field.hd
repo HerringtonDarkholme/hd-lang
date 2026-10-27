@@ -4,4 +4,4 @@ struct Point:
     x: i32
 
 struct Holder:
-    point: &Point  # diagnostic: local-reference-escapes
+    point: &Point # diagnostic: local-reference-escapes

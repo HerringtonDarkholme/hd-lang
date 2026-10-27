@@ -3,6 +3,6 @@
 # annot.error.form.misplaced.examples; a data type takes @error("...") or
 # @error(transparent).
 
-@error  # diagnostic: decorator-target-kind
+@error # diagnostic: decorator-target-kind
 struct DiskError:
     free: i64

@@ -2,4 +2,4 @@
 # Spec 10 Test Cases: naming it in test code outside a direct call in test position is misplaced-test-case.
 tests:
     fn register() -> void:
-        make := it  # diagnostic: misplaced-test-case
+        make := it # diagnostic: misplaced-test-case

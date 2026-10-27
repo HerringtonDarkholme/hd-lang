@@ -23,6 +23,10 @@ fn classify!(input: Number) -> i32 $ Console:
         Number.Empty => 0
 
 pub fn main!() -> void $ Console:
-    assert_equal(classify!(Number.Value(20)), 42, reason="the guard passes and the arm uses the binding")
+    assert_equal(
+        classify!(Number.Value(20)),
+        42,
+        reason="the guard passes and the arm uses the binding",
+    )
     assert_equal(classify!(Number.Value(7)), 7, reason="a failed guard falls to the next arm")
     assert_equal(classify!(Number.Empty), 0, reason="a payload-free variant matches its arm")

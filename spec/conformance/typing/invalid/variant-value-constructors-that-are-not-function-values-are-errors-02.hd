@@ -4,4 +4,4 @@ enum Either[L, R]:
     Right(value: R)
 
 fn run() -> void:
-    _ := Either.Left  # diagnostic: cannot-infer-type
+    _ := Either.Left # diagnostic: cannot-infer-type

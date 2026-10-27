@@ -4,13 +4,12 @@ struct Step:
     size: i32
 
 impl Step:
-    fn grow(self) -> Step: Step { size: self.size + 1 }
+    fn grow(self) -> Step:
+        Step { size: self.size + 1 }
 
 fn measure(start: Step) -> i32:
     step := start
-    step
-        .grow()
-        .size
+    step.grow().size
 
 tests:
     use std.testing.assert_equal

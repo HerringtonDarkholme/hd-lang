@@ -8,5 +8,6 @@ trait Child < Parent:
 
 struct Item: pass
 
-impl Child for Item:  # diagnostic: missing-supertrait-implementation
-    fn value(self) -> i32: 42
+impl Child for Item: # diagnostic: missing-supertrait-implementation
+    fn value(self) -> i32:
+        42

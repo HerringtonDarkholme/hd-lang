@@ -4,5 +4,5 @@ use std.serde.{Serialize, skip_none}
 
 @derive(Serialize)
 struct Record:
-    @skip_none()  # diagnostic: type-mismatch
+    @skip_none() # diagnostic: type-mismatch
     value: i32

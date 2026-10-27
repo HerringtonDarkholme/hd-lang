@@ -52,7 +52,7 @@ pub fn main() -> void $ Console:
     println(debug((+1, "a")))
     println(debug((+1,)))
     println(debug([+1, +2]))
-    println(debug({"a": +1}))
+    println(debug({ "a": +1 }))
     println(debug("say \"hi\"\n\$5 \\ \t"))
     println(debug('\''))
     println(debug('\n'))

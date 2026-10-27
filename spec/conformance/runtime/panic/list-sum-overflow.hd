@@ -2,7 +2,7 @@
 # Spec std/collections List Helpers: std-collections.helper.sum.overflow.
 
 fn total(bytes: List[u8]) -> u8:
-    bytes.sum()  # panic: integer-overflow
+    bytes.sum() # panic: integer-overflow
 
 tests:
     it("overflows"):

@@ -4,5 +4,5 @@ struct Point:
     x: i32
 
 fn invalid(r: &Point) -> i32:
-    x := &mut r.x  # diagnostic: not-writable
+    x := &mut r.x # diagnostic: not-writable
     *x

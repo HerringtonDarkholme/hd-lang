@@ -43,4 +43,4 @@ impl[T] Probe for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-impl Probe for User by Structure  # diagnostic: misplaced-derivation
+impl Probe for User by Structure # diagnostic: misplaced-derivation

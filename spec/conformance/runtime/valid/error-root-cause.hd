@@ -8,18 +8,27 @@ struct DiskError:
 @error
 enum SaveError:
     @error("cannot save $path")
-    Write(path: string, @source error: DiskError)
+    Write(
+        path: string,
+        @source
+        error: DiskError,
+    )
 
 @error
 enum SyncError:
     @error("sync failed")
-    Save(@from error: SaveError)
+    Save(
+        @from
+        error: SaveError,
+    )
 
 tests:
     use std.testing.assert_equal
 
     it("the last error of a two-level chain"):
-        let failure: *dyn Error = &SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 }))
+        let failure: *dyn Error = &SyncError.Save(
+            SaveError.Write("notes.txt", DiskError { free: 0 }),
+        )
         assert_equal(failure.root_cause().to_string(), "disk full", reason="the innermost source")
 
     it("an error without a source"):

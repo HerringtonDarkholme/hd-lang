@@ -53,4 +53,8 @@ tests:
     use std.testing.assert_equal
 
     it("the walk sees the edited facts and members"):
-        assert_equal(Point { x: 1, y: 2 }.probe(), "x=a/-;", reason="x has the line's fact and y is left out")
+        assert_equal(
+            Point { x: 1, y: 2 }.probe(),
+            "x=a/-;",
+            reason="x has the line's fact and y is left out",
+        )

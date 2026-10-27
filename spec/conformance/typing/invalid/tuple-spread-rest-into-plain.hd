@@ -1,6 +1,7 @@
 # test: a tuple with a rest element does not spread into a function with a plain List parameter
 
-fn h(a: usize, b: usize, xs: List[i32]) -> usize: a + b + xs.len()
+fn h(a: usize, b: usize, xs: List[i32]) -> usize:
+    a + b + xs.len()
 
 fn crossed(t: (usize, usize, List[i32]...)) -> usize:
-    h(t...)  # diagnostic: type-mismatch
+    h(t...) # diagnostic: type-mismatch

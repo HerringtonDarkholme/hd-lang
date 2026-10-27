@@ -15,13 +15,21 @@ tests:
         assert(shown.starts_with("\"") && shown.ends_with("\""), reason="quoted literal")
         for byte in shown.bytes():
             assert(byte >= 32 && byte != 127, reason="controls are escaped")
-        assert_equal(process_escapes(shown.slice(1, shown.len() - 1)), .Ok(text), reason="all source escapes round-trip")
+        assert_equal(
+            process_escapes(shown.slice(1, shown.len() - 1)),
+            .Ok(text),
+            reason="all source escapes round-trip",
+        )
 
     it("keeps Unicode adjacent to leading trailing and consecutive escapes"):
         assert_equal(debug("\nλ界😀"), "\"\\nλ界😀\"", reason="run boundary")
         assert_equal(debug("λ界😀\n"), "\"λ界😀\\n\"", reason="run boundary")
         assert_equal(debug("λ\n\t\r\0界"), "\"λ\\n\\t\\r\\0界\"", reason="run boundary")
-        assert_equal(debug("\"\\\$\u{1f}\u{7f}😀"), "\"\\\"\\\\\\\$\\u{1f}\\u{7f}😀\"", reason="run boundary")
+        assert_equal(
+            debug("\"\\\$\u{1f}\u{7f}😀"),
+            "\"\\\"\\\\\\\$\\u{1f}\\u{7f}😀\"",
+            reason="run boundary",
+        )
 
     it("keeps char escaping separate from string interpolation escaping"):
         assert_equal(debug('\''), "'\\''", reason="char delimiter")

@@ -7,8 +7,21 @@ use std.testing.{assert_equal, hd_run, snapshot}
 
 it("forwards command data and preserves a nonzero exit status"):
     process := ScriptedProcess::new()
-    process.reply("child", .Ok(ProcessOutput { stdout: "argument tag input work\n", stderr: "child stderr", status: 7 }))
-    command := Command::new("child").arg("argument").env("TAG", "tag").current_dir(Path("work")).stdin("input\n")
+    process.reply(
+        "child",
+        .Ok(
+            ProcessOutput {
+                stdout: "argument tag input work\n",
+                stderr: "child stderr",
+                status: 7,
+            },
+        ),
+    )
+    command := Command::new("child")
+        .arg("argument")
+        .env("TAG", "tag")
+        .current_dir(Path("work"))
+        .stdin("input\n")
     $.with(Process=process):
         let output: ProcessOutput = hd_run!(*command)
         snapshot(output.stdout, expect="argument tag input work\n")

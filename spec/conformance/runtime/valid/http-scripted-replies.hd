@@ -14,12 +14,28 @@ tests:
         http.reply(url, .Ok(Response::status(.Other(200)).set_bytes("ready".to_utf8())))
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Http=http, Clock=clock):
-            result := apply!(retry(Backoff { attempts: 3, initial: 0ms }).when(fn(error: HttpError): error.is_transient())):
+            result := apply!(
+                retry(Backoff { attempts: 3, initial: 0ms })
+                    .when(fn(error: HttpError): error.is_transient())
+                ,
+            ):
                 get!(url)
-            assert_equal(result.expect("retry succeeds").text(), .Ok("ready"), reason="the real status check caused a retry")
-            assert_equal(get!(url).expect("last reply repeats").status.code(), 200, reason="third request")
+            assert_equal(
+                result.expect("retry succeeds").text(),
+                .Ok("ready"),
+                reason="the real status check caused a retry",
+            )
+            assert_equal(
+                get!(url).expect("last reply repeats").status.code(),
+                200,
+                reason="third request",
+            )
         assert_equal(http.received().len(), 3, reason="503 then 200 then the repeated 200")
-        assert_equal(http.received().map(fn(request): request.url.to_string()), [url, url, url], reason="all attempts are recorded")
+        assert_equal(
+            http.received().map(fn(request): request.url.to_string()),
+            [url, url, url],
+            reason="all attempts are recorded",
+        )
 
     it("queues and transport errors are independent for each URL"):
         a := "https://example.test/a"
@@ -29,11 +45,34 @@ tests:
         http.reply(a, .Ok(Response::status(.Other(201))))
         http.reply(b, .Ok(Response::status(.Other(503))))
         $.with(Http=http):
-            assert_equal(Request::get(Url::parse(a).expect("fixture URL")).send!(), .Err(HttpError.Timeout), reason="queued transport error unchanged")
-            assert_equal(Request::get(Url::parse(b).expect("fixture URL")).send!().expect("raw response").status.code(), 503, reason="fake does not check status")
-            assert_equal(get!(a).expect("second reply").status.code(), 201, reason="only a advanced")
-            assert_equal(get!(a).expect("last repeats").status.code(), 201, reason="success repeats")
-        assert_equal(http.received().map(fn(request): request.url.to_string()), [a, b, a, a], reason="interleaved requests")
+            assert_equal(
+                Request::get(Url::parse(a).expect("fixture URL")).send!(),
+                .Err(HttpError.Timeout),
+                reason="queued transport error unchanged",
+            )
+            assert_equal(
+                Request::get(Url::parse(b).expect("fixture URL")).send!()
+                    .expect("raw response")
+                    .status
+                    .code(),
+                503,
+                reason="fake does not check status",
+            )
+            assert_equal(
+                get!(a).expect("second reply").status.code(),
+                201,
+                reason="only a advanced",
+            )
+            assert_equal(
+                get!(a).expect("last repeats").status.code(),
+                201,
+                reason="success repeats",
+            )
+        assert_equal(
+            http.received().map(fn(request): request.url.to_string()),
+            [a, b, a, a],
+            reason="interleaved requests",
+        )
 
     it("appending after repetition supplies the next result and logs stay snapshots"):
         url := "https://example.test/append"
@@ -41,11 +80,19 @@ tests:
         http.reply(url, .Ok(Response::status(.Other(200))))
         $.with(Http=http):
             assert_equal(get!(url).expect("first").status.code(), 200, reason="first result")
-            assert_equal(get!(url).expect("repeat").status.code(), 200, reason="last result repeats")
+            assert_equal(
+                get!(url).expect("repeat").status.code(),
+                200,
+                reason="last result repeats",
+            )
         before := http.received()
         http.reply(url, .Ok(Response::status(.Other(201))))
         $.with(Http=http):
-            assert_equal(get!(url).expect("appended").status.code(), 201, reason="fresh queued result is next")
+            assert_equal(
+                get!(url).expect("appended").status.code(),
+                201,
+                reason="fresh queued result is next",
+            )
         assert_equal(before.len(), 2, reason="received returns a value snapshot")
         assert_equal(http.received().len(), 3, reason="new log includes the request")
 
@@ -56,25 +103,49 @@ tests:
         http.reply(url, .Ok(Response::status(.Other(200))))
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Http=http, Clock=clock):
-            result := apply!(retry(Backoff { attempts: 3, initial: 0ms }).when(fn(error: HttpError): error.is_transient())):
+            result := apply!(
+                retry(Backoff { attempts: 3, initial: 0ms })
+                    .when(fn(error: HttpError): error.is_transient())
+                ,
+            ):
                 get!(url)
             match result:
-                .Err(.Status(response)) => assert_equal(response.status.code(), 404, reason="real status error")
+                .Err(.Status(response)) =>
+                    assert_equal(response.status.code(), 404, reason="real status error")
                 _ => assert(false, reason="404 must stop retry")
             assert_equal(http.received().len(), 1, reason="only one attempt")
-            assert_equal(get!(url).expect("next reply remains").status.code(), 200, reason="the queue was not drained")
+            assert_equal(
+                get!(url).expect("next reply remains").status.code(),
+                200,
+                reason="the queue was not drained",
+            )
 
     it("query keys use canonical URL Display and value setters detach delivered bodies"):
         target := "https://example.test/search?term=a%20b"
         http := ScriptedHttp::new()
         http.reply(target, .Ok(Response::status(.Ok).set_bytes([1, 2])))
         $.with(Http=http):
-            delivered := Request::get(Url::parse(target).expect("fixture URL")).send!().expect("encoded key")
+            delivered := Request::get(Url::parse(target).expect("fixture URL")).send!()
+                .expect("encoded key")
             changed := delivered.set_bytes([1, 2, 3])
             assert_equal(changed.bytes(), .Ok([1, 2, 3]), reason="replacement body")
             assert_equal(delivered.bytes(), .Ok([1, 2]), reason="original delivery remains unread")
-            assert_equal(get!(target).expect("repeat").bytes(), .Ok([1, 2]), reason="stored reply stays unread")
-            assert(get!("https://example.test/search?term=a+b").is_ok(), reason="query parsing turns plus into space before Display")
-            assert(get!("https://example.test/search?term=a%2Bb").is_err(), reason="encoded literal plus differs from space")
-        assert_equal(http.received()[0].url.to_string(), target, reason="parsed query encoded before lookup")
+            assert_equal(
+                get!(target).expect("repeat").bytes(),
+                .Ok([1, 2]),
+                reason="stored reply stays unread",
+            )
+            assert(
+                get!("https://example.test/search?term=a+b").is_ok(),
+                reason="query parsing turns plus into space before Display",
+            )
+            assert(
+                get!("https://example.test/search?term=a%2Bb").is_err(),
+                reason="encoded literal plus differs from space",
+            )
+        assert_equal(
+            http.received()[0].url.to_string(),
+            target,
+            reason="parsed query encoded before lookup",
+        )
         assert_equal(http.received().len(), 4, reason="unanswered query is recorded too")

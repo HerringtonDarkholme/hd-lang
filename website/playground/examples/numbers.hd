@@ -1,5 +1,6 @@
 # Integers never wrap silently: widen on purpose, and `u8` stops at 255.
-fn to_millis(seconds: i32) -> i64: i64(seconds) * 1000  # ← widening is written out
+fn to_millis(seconds: i32) -> i64:
+    i64(seconds) * 1000 # ← widening is written out
 
 tests:
     use std.testing.assert_equal
@@ -9,7 +10,7 @@ tests:
 
     it("u8 overflow panics instead of wrapping to 0", expect_panic="integer-overflow"):
         let volume: u8 = 250
-        _ := volume + 6  # ← 256 does not fit
+        _ := volume + 6 # ← 256 does not fit
 
 # ── plumbing ──────────
 pub fn main() -> void $ Console:

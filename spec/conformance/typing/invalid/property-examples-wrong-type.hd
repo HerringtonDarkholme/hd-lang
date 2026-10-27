@@ -6,6 +6,10 @@ fn small(c: &mut Choices) -> i32:
     c.int(0..=9)
 
 tests:
-    it_prop_with("small values", gen=small, examples=["zero"], prop=fn!(n: i32):  # diagnostic: type-mismatch
-        pass
+    it_prop_with(
+        "small values",
+        gen=small,
+        examples=["zero"], # diagnostic: type-mismatch
+        prop=fn!(n: i32): pass
+        ,
     )

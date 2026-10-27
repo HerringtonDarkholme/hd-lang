@@ -24,5 +24,9 @@ tests:
         assert_equal(holder.items, [+1, 2], reason="the field retains the shortened list")
         holder.items.clear()
         assert_equal(holder.items.len(), 0, reason="clear uses the same live list field")
-        assert_equal(snapshot, [+1, 2, 3], reason="shrinking a referenced field preserves a value snapshot")
+        assert_equal(
+            snapshot,
+            [+1, 2, 3],
+            reason="shrinking a referenced field preserves a value snapshot",
+        )
         assert_equal(holder.count, +7, reason="shrinking preserves neighboring fields")

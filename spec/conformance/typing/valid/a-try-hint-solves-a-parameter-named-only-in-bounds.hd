@@ -23,7 +23,8 @@ struct AppError:
     reason: string
 
 impl From[LookupError] for AppError:
-    fn from(error: LookupError) -> AppError: AppError { reason: error.name }
+    fn from(error: LookupError) -> AppError:
+        AppError { reason: error.name }
 
 fn port() -> Result[u16?, AppError]:
     let value: u16? = read_as("PORT")?

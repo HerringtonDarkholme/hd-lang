@@ -21,13 +21,20 @@ impl[S] Source[S] for Sparse[S]:
             return .Ok(.None)
         self.ended = true
         assert(members.at(999).is_none(), reason="an absent position is None")
-        assert(members.find(fn(info: Member): info.name == "absent").is_none(), reason="an absent name is None")
+        assert(
+            members.find(fn(info: Member): info.name == "absent").is_none(),
+            reason="an absent name is None",
+        )
         found := members.find(fn(info: Member): info.name == "right")
         match found:
             .Some(key) =>
                 let position: usize = key.info.position
                 assert_equal(position, 1, reason="member positions are usize")
-                assert_equal(members.at(position).expect("present position").info.name, "right", reason="lookup by position finds the same member")
+                assert_equal(
+                    members.at(position).expect("present position").info.name,
+                    "right",
+                    reason="lookup by position finds the same member",
+                )
             .None => pass
         .Ok(found)
 

@@ -14,4 +14,4 @@ impl Pick[string] for Money:
         "money"
 
 fn invalid(price: Money) -> void:
-    value := price.pick()  # diagnostic: ambiguous-method
+    value := price.pick() # diagnostic: ambiguous-method

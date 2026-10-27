@@ -1,6 +1,7 @@
 # test: i32 minimum literal
 
-fn main() -> i32: -2147483648
+fn main() -> i32:
+    -2147483648
 
 tests:
     use std.testing.assert_equal

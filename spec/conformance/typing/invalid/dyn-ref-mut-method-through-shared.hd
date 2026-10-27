@@ -4,5 +4,5 @@ trait Counter:
     fn total(&self) -> i32
 
 fn poke(counter: &dyn Counter) -> i32:
-    counter.bump()  # diagnostic: not-writable
+    counter.bump() # diagnostic: not-writable
     counter.total()

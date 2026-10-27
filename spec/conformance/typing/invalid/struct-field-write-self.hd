@@ -5,4 +5,4 @@ struct Point:
 
 impl Point:
     fn reset(self) -> void:
-        self.x = 0  # diagnostic: non-reassignable-parameter-binding
+        self.x = 0 # diagnostic: non-reassignable-parameter-binding

@@ -8,8 +8,9 @@ fn shipping_cost() -> i32:
     trait Priced < Weighed:
         fn cost(self) -> i32
 
-    impl Priced for Parcel:  # diagnostic: missing-supertrait-implementation
-        fn cost(self) -> i32: 42
+    impl Priced for Parcel: # diagnostic: missing-supertrait-implementation
+        fn cost(self) -> i32:
+            42
 
     impl Weighed for Parcel
 

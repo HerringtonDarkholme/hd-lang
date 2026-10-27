@@ -14,7 +14,11 @@ tests:
     use std.testing.assert_equal
 
     it("filters, numbers, and limits"):
-        assert_equal(first_evens([1, 2, 3, 4, 5, 6]), [(0, 2), (1, 4)], reason="two evens with indices")
+        assert_equal(
+            first_evens([1, 2, 3, 4, 5, 6]),
+            [(0, 2), (1, 4)],
+            reason="two evens with indices",
+        )
 
     it("does not advance until next"):
         let mut tally = &mut Tally { pulled: 0 }
@@ -35,5 +39,13 @@ tests:
         assert_equal(source.collect(), [8, 9, 10], reason="the rest")
 
     it("map transforms and fold combines in order"):
-        assert_equal([1, 2, 3].iter().map(fn(value): value * 10).collect(), [10, 20, 30], reason="mapped")
-        assert_equal([1, 2, 3].iter().fold("", fn(text, value): "$text$value"), "123", reason="folded in order")
+        assert_equal(
+            [1, 2, 3].iter().map(fn(value): value * 10).collect(),
+            [10, 20, 30],
+            reason="mapped",
+        )
+        assert_equal(
+            [1, 2, 3].iter().fold("", fn(text, value): "$text$value"),
+            "123",
+            reason="folded in order",
+        )

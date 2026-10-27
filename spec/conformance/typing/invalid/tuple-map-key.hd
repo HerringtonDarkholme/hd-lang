@@ -1,2 +1,1 @@
-
-let points: Map[(i32, f64), string] = {}  # diagnostic: unsatisfied-trait-bound
+let points: Map[(i32, f64), string] = {} # diagnostic: unsatisfied-trait-bound

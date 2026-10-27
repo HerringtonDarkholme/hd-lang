@@ -13,7 +13,8 @@ struct Close:
 
 impl Disposable for Close:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("closed")
+        defer:
+            self.log.push("closed")
         self.log.push("closing")
         let mut ack = self.ack
         ack!()

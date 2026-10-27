@@ -13,10 +13,7 @@ impl Display for FsError:
 impl Error for FsError
 
 fn read_config(path: string, present: bool) -> Result[string, FsError]:
-    if present:
-        .Ok("https://example.test")
-    else:
-        .Err(FsError.NotFound(path))
+    if present: .Ok("https://example.test") else: .Err(FsError.NotFound(path))
 
 fn load(path: string, present: bool) -> Result[string, *dyn Error]:
     text := read_config(path, present)?
@@ -31,7 +28,15 @@ tests:
     use std.testing.assert_equal
 
     it("the success value continues"):
-        assert_equal(describe(load("a.txt", true)), "https://example.test", reason="Ok passes through ?")
+        assert_equal(
+            describe(load("a.txt", true)),
+            "https://example.test",
+            reason="Ok passes through ?",
+        )
 
     it("the domain error becomes an erased Error"):
-        assert_equal(describe(load("a.txt", false)), "error: not found: a.txt", reason="Err is wrapped as a dynamic Error value")
+        assert_equal(
+            describe(load("a.txt", false)),
+            "error: not found: a.txt",
+            reason="Err is wrapped as a dynamic Error value",
+        )

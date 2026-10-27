@@ -1,4 +1,5 @@
 # test: checker power operand errors are one type mismatch
-fn f(s: string) -> string: s ** 2  # diagnostic: type-mismatch
+fn f(s: string) -> string:
+    s ** 2 # diagnostic: type-mismatch
 pub fn main() -> void:
     pass

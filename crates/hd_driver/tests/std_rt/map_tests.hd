@@ -73,7 +73,7 @@ tests:
             assert(pages() == start, "the groups' lists and labels are reused")
 
     it("removal keeps the survivors' order and their values"):
-        let mut m: Map[string, i32] = {"a": +1, "b": 2, "c": 3, "a": 4}
+        let mut m: Map[string, i32] = { "a": +1, "b": 2, "c": 3, "a": 4 }
         assert(m.len() == 3 && m["a"] == 4, "a later equal key replaces the value")
         assert(m.remove("b") == .Some(2), "the removed value")
         assert(m.remove("b") == .None, "removed once")
@@ -99,19 +99,19 @@ tests:
             assert(pages() == start, "rebuilds reuse the tables")
 
     it("a copy shares its table until either side changes"):
-        let mut a: Map[string, i32] = {"x": +1, "y": 2}
+        let mut a: Map[string, i32] = { "x": +1, "y": 2 }
         let mut b = a
         b["x"] = 10
         _ := a.remove("y")
         assert(a.len() == 1 && b.len() == 2, "the removal changed a only")
         assert(a["x"] == 1 && b["x"] == 10, "the store changed b only")
-        let mut g: Map[i32, List[i32]] = {+1: [+1]}
+        let mut g: Map[i32, List[i32]] = { +1: [+1] }
         let mut h = g
         h[1].push(2)
         assert(g[1].len() == 1 && h[1].len() == 2, "the inner lists are apart")
 
     it("a for loop iterates the map as it was"):
-        let mut m: Map[string, i32] = {"a": +1, "b": 2}
+        let mut m: Map[string, i32] = { "a": +1, "b": 2 }
         let seen = +0
         for (k, v) in m:
             m[k + "!"] = v

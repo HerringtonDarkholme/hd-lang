@@ -4,5 +4,5 @@ fn identity[T](value: T) -> T:
     value
 
 fn keep() -> void:
-    _same := identity  # diagnostic: cannot-infer-type
+    _same := identity # diagnostic: cannot-infer-type
     pass

@@ -5,7 +5,8 @@ use std.error.Error
 type Message(string)
 
 impl Display for Message:
-    fn to_string(self) -> string: string(self)
+    fn to_string(self) -> string:
+        string(self)
 
 impl Error for Message
 
@@ -13,7 +14,8 @@ enum Code:
     Busy
 
 impl Display for Code:
-    fn to_string(self) -> string: "busy"
+    fn to_string(self) -> string:
+        "busy"
 
 impl Error for Code
 

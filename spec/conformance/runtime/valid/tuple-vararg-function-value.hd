@@ -1,6 +1,7 @@
 # test: a tuple-typed vararg is one ordinary input of its function's type, which takes the collected tuple
 # expect: test
-fn label(parts...: (i32, string)) -> string: "${parts._0}${parts._1}"
+fn label(parts...: (i32, string)) -> string:
+    "${parts._0}${parts._1}"
 
 tests:
     use std.testing.assert_equal

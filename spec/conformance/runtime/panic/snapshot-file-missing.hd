@@ -6,4 +6,4 @@ tests:
     use std.testing.snapshot_file
 
     it("has no recorded snapshot file"):
-        snapshot_file("hello, Ada")  # panic: assertion-failed
+        snapshot_file("hello, Ada") # panic: assertion-failed

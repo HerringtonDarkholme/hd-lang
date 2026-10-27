@@ -2,4 +2,4 @@
 # Spec 11 Driving A Stored Suspension: req.drive.block-on.println.
 fn run() -> void $ Console:
     defer:
-        println("done")  # diagnostic: suspension-forbidden-context
+        println("done") # diagnostic: suspension-forbidden-context

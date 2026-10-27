@@ -17,9 +17,32 @@ tests:
         let mut http = ScriptedHttp::new()
         http.reply("https://example.com/", .Ok(Response::status(.Ok)))
         $.with(Http=http):
-            assert_equal(get!("https://example.com/missing"), .Err(HttpError.Connect("ScriptedHttp has no response for https://example.com/missing")), reason="names the URL")
-            assert_equal(ping!("https://example.com/other"), "the browser refused the request", reason="a Connect error")
-        assert_equal(http.received(), [Request::get(Url::parse("https://example.com/missing").expect("fixture URL")), Request::get(Url::parse("https://example.com/other").expect("fixture URL"))], reason="unanswered requests count")
+            assert_equal(
+                get!("https://example.com/missing"),
+                .Err(
+                    HttpError.Connect(
+                        "ScriptedHttp has no response for https://example.com/missing",
+                    ),
+                ),
+                reason="names the URL",
+            )
+            assert_equal(
+                ping!("https://example.com/other"),
+                "the browser refused the request",
+                reason="a Connect error",
+            )
+        assert_equal(
+            http.received(),
+            [
+                Request::get(Url::parse("https://example.com/missing").expect("fixture URL")),
+                Request::get(Url::parse("https://example.com/other").expect("fixture URL")),
+            ],
+            reason="unanswered requests count",
+        )
 
     it("a refused host names the host"):
-        assert_equal(HttpError.NotGranted("api.example.com").to_string(), "http access to api.example.com is not granted", reason="plain denial without host-specific advice")
+        assert_equal(
+            HttpError.NotGranted("api.example.com").to_string(),
+            "http access to api.example.com is not granted",
+            reason="plain denial without host-specific advice",
+        )

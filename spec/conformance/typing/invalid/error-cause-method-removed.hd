@@ -3,4 +3,4 @@
 use std.error.Error
 
 pub fn old_name(error: &dyn Error) -> void:
-    _ := error.cause()  # diagnostic: unknown-method
+    _ := error.cause() # diagnostic: unknown-method

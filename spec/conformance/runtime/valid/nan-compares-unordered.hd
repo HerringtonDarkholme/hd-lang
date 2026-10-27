@@ -1,6 +1,7 @@
 # test: NaN compares as IEEE 754 says: unequal to itself and unordered
 # Spec 04 Numeric Display: types.display.nan-compare.
-fn ratio(a: f64, b: f64) -> f64: a / b
+fn ratio(a: f64, b: f64) -> f64:
+    a / b
 
 tests:
     use std.testing.assert_equal

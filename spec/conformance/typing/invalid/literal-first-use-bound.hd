@@ -7,5 +7,5 @@ fn negate[T < Neg[Out = T]](value: T) -> T:
 
 fn run(items: List[string]) -> bool:
     let i = 1
-    let flipped = negate(i)  # diagnostic: unsatisfied-trait-bound
+    let flipped = negate(i) # diagnostic: unsatisfied-trait-bound
     i < items.len()

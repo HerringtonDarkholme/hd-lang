@@ -1,3 +1,4 @@
 # test: arithmetic on bool operands is a type mismatch
 
-fn sum(a: bool, b: bool) -> bool: a + b  # diagnostic: type-mismatch
+fn sum(a: bool, b: bool) -> bool:
+    a + b # diagnostic: type-mismatch

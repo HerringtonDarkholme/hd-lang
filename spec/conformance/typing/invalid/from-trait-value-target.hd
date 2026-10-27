@@ -6,6 +6,6 @@ use std.error.Error
 enum FsError:
     NotFound(path: string)
 
-impl From[FsError] for dyn Error:  # diagnostic: trait-value-impl-target
+impl From[FsError] for dyn Error: # diagnostic: trait-value-impl-target
     fn from(value: FsError) -> Self:
         panic("unreachable")

@@ -9,7 +9,7 @@ pub struct Token:
     secret: i64
 
 pub trait Vault:
-    fn keep(self, token: Token) -> Token  # diagnostic: boundary-private-field
+    fn keep(self, token: Token) -> Token # diagnostic: boundary-private-field
 
 pub fn main() -> void $ Vault:
     _ := $.use(Vault).keep(Token { owner: "ada", secret: 42 })

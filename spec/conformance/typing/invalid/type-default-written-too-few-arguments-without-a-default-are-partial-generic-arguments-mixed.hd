@@ -8,5 +8,5 @@ struct Mixed[A, B, C = A]:
     b: B
     c: C
 
-
-fn two(mixed: Mixed[string]) -> i32: 0  # diagnostic: partial-generic-arguments
+fn two(mixed: Mixed[string]) -> i32: # diagnostic: partial-generic-arguments
+    0

@@ -4,7 +4,8 @@ struct User:
     name: string
 
 impl Display for User:
-    fn to_string(self) -> string: self.name
+    fn to_string(self) -> string:
+        self.name
 
 tests:
     use std.testing.assert_equal

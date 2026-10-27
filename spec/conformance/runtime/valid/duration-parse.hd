@@ -36,19 +36,58 @@ tests:
         assert_equal(timeout_of("0"), .Ok(0s), reason="bare zero")
         assert_equal(timeout_of("+0"), .Ok(0s), reason="plus zero")
         assert_equal(timeout_of("0s"), .Ok(0s), reason="zero with a unit")
-        assert_equal(timeout_of("00"), .Err(ParseTimeError.MissingUnit(2)), reason="only the text 0")
+        assert_equal(
+            timeout_of("00"),
+            .Err(ParseTimeError.MissingUnit(2)),
+            reason="only the text 0",
+        )
 
     it("the whole range of Duration parses"):
         assert_equal(millis_of("9223372036854775807ms"), 9223372036854775807, reason="the largest")
-        assert_equal(timeout_of("2562047788015h12min55.807s"), .Ok(Duration::milliseconds(9223372036854775807)), reason="its Display text")
+        assert_equal(
+            timeout_of("2562047788015h12min55.807s"),
+            .Ok(Duration::milliseconds(9223372036854775807)),
+            reason="its Display text",
+        )
 
     it("a minus sign is an error, as no duration is negative"):
-        assert_equal(timeout_of("-5s"), .Err(ParseTimeError.InvalidCharacter(0)), reason="a negative duration")
-        assert_equal(timeout_of("-0"), .Err(ParseTimeError.InvalidCharacter(0)), reason="negative zero")
-        assert_equal(timeout_of("-1.5h"), .Err(ParseTimeError.InvalidCharacter(0)), reason="a negative fraction")
+        assert_equal(
+            timeout_of("-5s"),
+            .Err(ParseTimeError.InvalidCharacter(0)),
+            reason="a negative duration",
+        )
+        assert_equal(
+            timeout_of("-0"),
+            .Err(ParseTimeError.InvalidCharacter(0)),
+            reason="negative zero",
+        )
+        assert_equal(
+            timeout_of("-1.5h"),
+            .Err(ParseTimeError.InvalidCharacter(0)),
+            reason="a negative fraction",
+        )
 
     it("the text of a duration parses back"):
-        let values: List[i64] = [0, 1, 500, 999, 1000, 1005, 1050, 59999, 60000, 3600000, 3605000, 3723500, 90000, 9223372036854775807]
+        let values: List[i64] = [
+            0,
+            1,
+            500,
+            999,
+            1000,
+            1005,
+            1050,
+            59999,
+            60000,
+            3600000,
+            3605000,
+            3723500,
+            90000,
+            9223372036854775807,
+        ]
         for value in values:
             duration := Duration::milliseconds(value)
-            assert_equal(duration.to_string().parse::[Duration](), .Ok(duration), reason="round trip of ${duration}")
+            assert_equal(
+                duration.to_string().parse::[Duration](),
+                .Ok(duration),
+                reason="round trip of ${duration}",
+            )

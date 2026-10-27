@@ -5,6 +5,6 @@ use std.ops.num_suffix
 struct Pixels:
     count: i32
 
-@num_suffix  # diagnostic: unsatisfied-trait-bound
+@num_suffix # diagnostic: unsatisfied-trait-bound
 fn em(label: string) -> Pixels:
     Pixels { count: 0 }

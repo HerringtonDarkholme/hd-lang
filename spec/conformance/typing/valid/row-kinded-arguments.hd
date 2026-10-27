@@ -4,5 +4,7 @@ use std.function.Fn
 trait Logger
 trait Clock
 
-fn pure(job: Fn[(), void, $()]) -> void: pass
-fn observed(job: Fn[(), void, $ Logger + Clock]) -> void: pass
+fn pure(job: Fn[(), void, $ ()]) -> void:
+    pass
+fn observed(job: Fn[(), void, $ Logger + Clock]) -> void:
+    pass

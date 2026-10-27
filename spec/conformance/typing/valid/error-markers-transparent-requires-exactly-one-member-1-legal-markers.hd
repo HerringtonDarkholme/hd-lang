@@ -11,13 +11,19 @@ struct Single:
 @error
 enum Good:
     @error(transparent)
-    Wrapped(@from error: Leaf)
+    Wrapped(
+        @from
+        error: Leaf,
+    )
     @error("empty")
     Empty
     @error("pair")
     Pair(a: i32, b: i32)
     @error("source")
-    Report(@source error: Leaf)
+    Report(
+        @source
+        error: Leaf,
+    )
 
 @error("data")
 struct OneSource:

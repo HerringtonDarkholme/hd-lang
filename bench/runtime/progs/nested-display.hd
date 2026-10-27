@@ -9,10 +9,7 @@ impl Display for Money:
     fn to_string(self) -> string:
         whole := self.cents / 100
         fraction := self.cents % 100
-        if fraction < 10:
-            "$whole.0$fraction"
-        else:
-            "$whole.$fraction"
+        if fraction < 10: "$whole.0$fraction" else: "$whole.$fraction"
 
 struct Line:
     sku: usize

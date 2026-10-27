@@ -2,7 +2,7 @@
 
 fn main() -> i32:
     let mut values: List[i32] = [1, 2]
-    let mut scores: Map[string, i32] = {"x": 1}
+    let mut scores: Map[string, i32] = { "x": 1 }
     values[0] = 40
     scores["x"] = 2
     score := match scores.get("x"):

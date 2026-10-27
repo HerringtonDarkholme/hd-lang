@@ -3,4 +3,5 @@
 trait Shape:
     fn area(self) -> i32
 
-fn consume(value: dyn Shape) -> void: pass  # diagnostic: trait-used-as-type
+fn consume(value: dyn Shape) -> void: # diagnostic: trait-used-as-type
+    pass

@@ -1,6 +1,7 @@
 # test: a local function's name is not visible before its declaration
 # Spec 03 Local Functions: names.local-fn.not-visible.
 fn run() -> i32:
-    _ := helper(+1)  # diagnostic: unknown-name
-    fn helper(x: i32) -> i32: x
+    _ := helper(+1) # diagnostic: unknown-name
+    fn helper(x: i32) -> i32:
+        x
     +0

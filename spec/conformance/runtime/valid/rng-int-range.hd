@@ -37,7 +37,11 @@ tests:
         plain := Rng::new(7)
         let low: i64 = -4611686018427387904
         let high: i64 = 4611686018427387904
-        assert_equal(dice.int(low..=high), -3400294446221666352, reason="two draws rejected, the third kept")
+        assert_equal(
+            dice.int(low..=high),
+            -3400294446221666352,
+            reason="two draws rejected, the third kept",
+        )
         _ := plain.next_u64()
         _ := plain.next_u64()
         _ := plain.next_u64()

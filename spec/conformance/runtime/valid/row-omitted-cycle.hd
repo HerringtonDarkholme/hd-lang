@@ -8,7 +8,8 @@ struct FixedTag:
     value: string
 
 impl Tag for FixedTag:
-    fn name(self) -> string: self.value
+    fn name(self) -> string:
+        self.value
 
 fn even(n: i32) -> string:
     if n == 0: $.use(Tag).name() else: odd(n - 1)

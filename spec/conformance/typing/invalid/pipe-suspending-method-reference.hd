@@ -9,4 +9,4 @@ impl Store:
         Store { name: name }
 
 fn opened!(name: string) -> Store:
-    name |> Store::open  # diagnostic: suspending-pipe-step
+    name |> Store::open # diagnostic: suspending-pipe-step

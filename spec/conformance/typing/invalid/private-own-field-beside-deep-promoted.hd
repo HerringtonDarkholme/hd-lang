@@ -7,4 +7,4 @@ struct Middle:
 
 struct Record:
     Middle
-    id: string  # diagnostic: ambiguous-promoted-member
+    id: string # diagnostic: ambiguous-promoted-member

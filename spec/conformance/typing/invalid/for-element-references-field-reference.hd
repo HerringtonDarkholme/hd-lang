@@ -7,6 +7,6 @@ fn demo() -> i32:
     let mut points = [Point { x: 1 }, Point { x: 2 }]
     let total = +0
     for point in &mut points:
-        x := &point.x  # diagnostic: element-reference-outlives-call
+        x := &point.x # diagnostic: element-reference-outlives-call
         total += *x
     total

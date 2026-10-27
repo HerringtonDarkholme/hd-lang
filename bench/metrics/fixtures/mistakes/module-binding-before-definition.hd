@@ -3,6 +3,6 @@
 # expect: binding-not-yet-visible
 
 fn count() -> usize:
-    names.len()  # diagnostic: binding-not-yet-visible
+    names.len() # diagnostic: binding-not-yet-visible
 
 let names: List[string] = ["ada"]

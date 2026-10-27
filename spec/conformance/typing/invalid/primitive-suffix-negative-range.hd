@@ -1,3 +1,3 @@
 # test: a negative primitive-suffixed literal is range-checked as a unit
 fn value() -> i8:
-    -129i8  # diagnostic: integer-literal-range
+    -129i8 # diagnostic: integer-literal-range

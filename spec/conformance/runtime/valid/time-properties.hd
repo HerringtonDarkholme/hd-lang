@@ -37,7 +37,15 @@ fn month_length(year: i32, month: i32) -> i32:
 fn calendar(c: &mut Choices) -> Calendar:
     let year: i32 = c.int(0..=9999)
     let month: i32 = c.int(1..=12)
-    Calendar { year: year, month: month, day: c.int(1..=month_length(year, month)), hour: c.int(0..=23), minute: c.int(0..=59), second: c.int(0..=59), millis: c.int(0..=999) }
+    Calendar {
+        year: year,
+        month: month,
+        day: c.int(1..=month_length(year, month)),
+        hour: c.int(0..=23),
+        minute: c.int(0..=59),
+        second: c.int(0..=59),
+        millis: c.int(0..=999),
+    }
 
 # Count complete years from year zero, including year zero's leap day.
 # The epoch is 719528 days after 0000-01-01. This does not call time code.
@@ -49,7 +57,13 @@ fn model_millis(value: Calendar) -> i64:
         days += i64(month_length(value.year, month))
         month += 1
     days += i64(value.day - 1)
-    days * 86400000 + i64(value.hour) * 3600000 + i64(value.minute) * 60000 + i64(value.second) * 1000 + i64(value.millis)
+    (
+        days * 86400000
+        + i64(value.hour) * 3600000
+        + i64(value.minute) * 60000
+        + i64(value.second) * 1000
+        + i64(value.millis)
+    )
 
 fn padded(value: i32, width: usize) -> string:
     let text = "$value"
@@ -64,62 +78,163 @@ fn model_text(value: Calendar) -> string:
     text + "Z"
 
 tests:
-    it_prop_with("Duration Display and Parse preserve milliseconds", gen=duration_count, cases=100, examples=[0i64, 1, 999, 1000, 60000, 3600000, 9223372036854775807], prop=fn!(millis: i64):
-        duration := Duration::milliseconds(millis)
-        assert_equal(duration.to_string().parse::[Duration](), .Ok(duration), reason="Display text reads back to the same duration")
-        assert_equal("${millis}ms".parse::[Duration](), .Ok(duration), reason="the independent millisecond representation names the same value")
+    it_prop_with(
+        "Duration Display and Parse preserve milliseconds",
+        gen=duration_count,
+        cases=100,
+        examples=[0i64, 1, 999, 1000, 60000, 3600000, 9223372036854775807],
+        prop=fn!(millis: i64):
+            duration := Duration::milliseconds(millis)
+            assert_equal(
+                duration.to_string().parse::[Duration](),
+                .Ok(duration),
+                reason="Display text reads back to the same duration",
+            )
+            assert_equal(
+                "${millis}ms".parse::[Duration](),
+                .Ok(duration),
+                reason="the independent millisecond representation names the same value",
+            )
+        ,
     )
 
-    it_prop_with("Duration addition is associative inside i64 bounds", gen=bounded_sum, cases=100, examples=[(0i64, 0i64, 0i64), (9223372036854775807i64, 0i64, 0i64), (9223372036854775806i64, 1i64, 0i64), (3074457345618258602i64, 3074457345618258602i64, 3074457345618258603i64)], prop=fn!(parts: (i64, i64, i64)):
-        a := Duration::milliseconds(parts._0)
-        b := Duration::milliseconds(parts._1)
-        c := Duration::milliseconds(parts._2)
-        expected := parts._0 + parts._1 + parts._2
-        assert_equal(((a + b) + c).as_milliseconds(), expected, reason="left grouping matches integer addition")
-        assert_equal((a + (b + c)).as_milliseconds(), expected, reason="right grouping matches the same bounded sum")
+    it_prop_with(
+        "Duration addition is associative inside i64 bounds",
+        gen=bounded_sum,
+        cases=100,
+        examples=[
+            (0i64, 0i64, 0i64),
+            (9223372036854775807i64, 0i64, 0i64),
+            (9223372036854775806i64, 1i64, 0i64),
+            (3074457345618258602i64, 3074457345618258602i64, 3074457345618258603i64),
+        ],
+        prop=fn!(parts: (i64, i64, i64)):
+            a := Duration::milliseconds(parts._0)
+            b := Duration::milliseconds(parts._1)
+            c := Duration::milliseconds(parts._2)
+            expected := parts._0 + parts._1 + parts._2
+            assert_equal(
+                ((a + b) + c).as_milliseconds(),
+                expected,
+                reason="left grouping matches integer addition",
+            )
+            assert_equal(
+                (a + (b + c)).as_milliseconds(),
+                expected,
+                reason="right grouping matches the same bounded sum",
+            )
+        ,
     )
 
-    it_prop_with("Timestamp text matches an independent Gregorian calendar", gen=calendar, cases=100, prop=fn!(value: Calendar):
-        millis := model_millis(value)
-        expected := model_text(value)
-        stamp := Timestamp::from_unix_milliseconds(millis)
-        assert_equal(stamp.to_string(), expected, reason="UTC Display matches the independently counted day and time")
-        assert_equal(expected.parse::[Timestamp](), .Ok(stamp), reason="Parse agrees with the independent epoch arithmetic")
-        assert_equal(stamp.to_string().parse::[Timestamp](), .Ok(stamp), reason="the round-trip domain is years 0000 through 9999")
+    it_prop_with(
+        "Timestamp text matches an independent Gregorian calendar",
+        gen=calendar,
+        cases=100,
+        prop=fn!(value: Calendar):
+            millis := model_millis(value)
+            expected := model_text(value)
+            stamp := Timestamp::from_unix_milliseconds(millis)
+            assert_equal(
+                stamp.to_string(),
+                expected,
+                reason="UTC Display matches the independently counted day and time",
+            )
+            assert_equal(
+                expected.parse::[Timestamp](),
+                .Ok(stamp),
+                reason="Parse agrees with the independent epoch arithmetic",
+            )
+            assert_equal(
+                stamp.to_string().parse::[Timestamp](),
+                .Ok(stamp),
+                reason="the round-trip domain is years 0000 through 9999",
+            )
+        ,
     )
 
-    it_each("zero unit boundaries and maximum durations", [
-        (0i64, "0s"), (1i64, "1ms"), (999i64, "999ms"), (1000i64, "1s"),
-        (1005i64, "1.005s"), (60000i64, "1min0s"), (3600000i64, "1h0min0s"),
-        (9223372036854775807i64, "2562047788015h12min55.807s"),
-    ], body=fn!(row: (i64, string)):
-        duration := Duration::milliseconds(row._0)
-        assert_equal(duration.to_string(), row._1, reason="fixed canonical duration text")
-        assert_equal(row._1.parse::[Duration](), .Ok(duration), reason="the boundary text is in range")
+    it_each(
+        "zero unit boundaries and maximum durations",
+        [
+            (0i64, "0s"),
+            (1i64, "1ms"),
+            (999i64, "999ms"),
+            (1000i64, "1s"),
+            (1005i64, "1.005s"),
+            (60000i64, "1min0s"),
+            (3600000i64, "1h0min0s"),
+            (9223372036854775807i64, "2562047788015h12min55.807s"),
+        ],
+        body=fn!(row: (i64, string)):
+            duration := Duration::milliseconds(row._0)
+            assert_equal(duration.to_string(), row._1, reason="fixed canonical duration text")
+            assert_equal(
+                row._1.parse::[Duration](),
+                .Ok(duration),
+                reason="the boundary text is in range",
+            )
+        ,
     )
 
-    it_each("negative epochs leap days and calendar limits", [
-        (-62167219200000i64, "0000-01-01T00:00:00Z", +0, +1, +1),
-        (-62135596800000i64, "0001-01-01T00:00:00Z", +1, +1, +1),
-        (-86400000i64, "1969-12-31T00:00:00Z", +1969, +12, +31),
-        (-1000i64, "1969-12-31T23:59:59Z", +1969, +12, +31),
-        (-1i64, "1969-12-31T23:59:59.999Z", +1969, +12, +31),
-        (0i64, "1970-01-01T00:00:00Z", +1970, +1, +1),
-        (-2203891200000i64, "1900-03-01T00:00:00Z", +1900, +3, +1),
-        (951782400000i64, "2000-02-29T00:00:00Z", +2000, +2, +29),
-        (1709164800000i64, "2024-02-29T00:00:00Z", +2024, +2, +29),
-        (253402300799999i64, "9999-12-31T23:59:59.999Z", +9999, +12, +31),
-    ], body=fn!(row: (i64, string, i32, i32, i32)):
-        stamp := Timestamp::from_unix_milliseconds(row._0)
-        assert_equal(stamp.to_string(), row._1, reason="the fixed epoch vector has canonical text")
-        assert_equal(row._1.parse::[Timestamp](), .Ok(stamp), reason="the fixed calendar vector has the expected milliseconds")
-        assert_equal(stamp.date(), Date { year: row._2, month: row._3, day: row._4 }, reason="the day is in the proleptic Gregorian calendar")
+    it_each(
+        "negative epochs leap days and calendar limits",
+        [
+            (-62167219200000i64, "0000-01-01T00:00:00Z", +0, +1, +1),
+            (-62135596800000i64, "0001-01-01T00:00:00Z", +1, +1, +1),
+            (-86400000i64, "1969-12-31T00:00:00Z", +1969, +12, +31),
+            (-1000i64, "1969-12-31T23:59:59Z", +1969, +12, +31),
+            (-1i64, "1969-12-31T23:59:59.999Z", +1969, +12, +31),
+            (0i64, "1970-01-01T00:00:00Z", +1970, +1, +1),
+            (-2203891200000i64, "1900-03-01T00:00:00Z", +1900, +3, +1),
+            (951782400000i64, "2000-02-29T00:00:00Z", +2000, +2, +29),
+            (1709164800000i64, "2024-02-29T00:00:00Z", +2024, +2, +29),
+            (253402300799999i64, "9999-12-31T23:59:59.999Z", +9999, +12, +31),
+        ],
+        body=fn!(row: (i64, string, i32, i32, i32)):
+            stamp := Timestamp::from_unix_milliseconds(row._0)
+            assert_equal(
+                stamp.to_string(),
+                row._1,
+                reason="the fixed epoch vector has canonical text",
+            )
+            assert_equal(
+                row._1.parse::[Timestamp](),
+                .Ok(stamp),
+                reason="the fixed calendar vector has the expected milliseconds",
+            )
+            assert_equal(
+                stamp.date(),
+                Date { year: row._2, month: row._3, day: row._4 },
+                reason="the day is in the proleptic Gregorian calendar",
+            )
+        ,
     )
 
-    it_each("invalid leap days", ["1900-02-29T00:00:00Z", "2001-02-29T00:00:00Z", "2100-02-29T00:00:00Z", "2000-02-30T00:00:00Z", "2024-02-30T00:00:00Z"], body=fn!(text: string):
-        assert_equal(text.parse::[Timestamp](), .Err(ParseTimeError.OutOfRange(8)), reason="the day does not exist in that month and year")
+    it_each(
+        "invalid leap days",
+        [
+            "1900-02-29T00:00:00Z",
+            "2001-02-29T00:00:00Z",
+            "2100-02-29T00:00:00Z",
+            "2000-02-30T00:00:00Z",
+            "2024-02-30T00:00:00Z",
+        ],
+        body=fn!(text: string):
+            assert_equal(
+                text.parse::[Timestamp](),
+                .Err(ParseTimeError.OutOfRange(8)),
+                reason="the day does not exist in that month and year",
+            )
+        ,
     )
 
-    it_each("duration text past i64 maximum", ["9223372036854775808ms", "9223372036854775807ms1ms"], body=fn!(text: string):
-        assert_equal(text.parse::[Duration]().is_err(), true, reason="parsing cannot construct an overflowing duration")
+    it_each(
+        "duration text past i64 maximum",
+        ["9223372036854775808ms", "9223372036854775807ms1ms"],
+        body=fn!(text: string):
+            assert_equal(
+                text.parse::[Duration]().is_err(),
+                true,
+                reason="parsing cannot construct an overflowing duration",
+            )
+        ,
     )

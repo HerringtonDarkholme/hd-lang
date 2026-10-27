@@ -2,7 +2,7 @@
 # Spec 02 Row Type Arguments: grammar.type.row-argument.bare.
 trait Db
 
-type Job[$R] = fn() -> void $ R
+type Job[$ R] = fn() -> void $ R
 
-fn schedule(job: Job[*dyn Db]) -> void:  # diagnostic: generic-kind-mismatch
+fn schedule(job: Job[*dyn Db]) -> void: # diagnostic: generic-kind-mismatch
     pass

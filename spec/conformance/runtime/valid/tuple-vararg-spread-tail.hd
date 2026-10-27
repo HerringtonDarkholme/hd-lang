@@ -2,12 +2,14 @@
 # expect: test
 # Spec 07 Varargs: fn.vararg.collect.tuple-expr (owner decision Q4, batch 34, 2026-10-01).
 use std.function.{Fn, Tuple}
-fn g(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
+fn g(a: usize, b: usize, xs...: List[i32]) -> usize:
+    a + b + xs.len()
 
-fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
+fn call[Args < Tuple, O, $ R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)
 
-fn label(parts...: (string, List[i32]...)) -> string: "${parts._0}${parts._1.len()}"
+fn label(parts...: (string, List[i32]...)) -> string:
+    "${parts._0}${parts._1.len()}"
 
 tests:
     use std.testing.assert_equal
@@ -18,4 +20,8 @@ tests:
 
     it("separate arguments then a list spread fill a tuple-typed vararg"):
         xs := [+7, 8]
-        assert_equal(label("a", xs...), "a2", reason="collected as the tuple expression of the arguments")
+        assert_equal(
+            label("a", xs...),
+            "a2",
+            reason="collected as the tuple expression of the arguments",
+        )

@@ -1,5 +1,6 @@
 # Spec 08 Shared Parameter Defaults: data.shared.default.
-fn default_phrase() -> string: "unknown"
+fn default_phrase() -> string:
+    "unknown"
 
 enum HttpStatus(code: i32, phrase: string = default_phrase(), retryable: bool = false):
     Ok -> HttpStatus(200, phrase="OK")

@@ -8,4 +8,4 @@ trait Plain:
 struct Point:
     x: i64
 
-impl Plain for Point by Structure  # diagnostic: underivable-trait
+impl Plain for Point by Structure # diagnostic: underivable-trait

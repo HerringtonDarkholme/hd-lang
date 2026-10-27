@@ -9,23 +9,25 @@ struct FixedTag:
     value: string
 
 impl Tag for FixedTag:
-    fn name(self) -> string: self.value
+    fn name(self) -> string:
+        self.value
 
-type WithTag[$R] = $ R + Tag
+type WithTag[$ R] = $ R + Tag
 
 struct Runner: pass
 
 impl Runner:
-    fn call[$R](self, job: fn() -> string $ R) -> string $ R:
+    fn call[$ R](self, job: fn() -> string $ R) -> string $ R:
         job()
 
 trait Describe:
     fn describe(self) -> string
 
-impl[$R] Describe for Fn[(), string, $ R]:
-    fn describe(self) -> string: "job"
+impl[$ R] Describe for Fn[(), string, $ R]:
+    fn describe(self) -> string:
+        "job"
 
-fn named() -> string $ WithTag[$()]:
+fn named() -> string $ WithTag[$ ()]:
     $.use(Tag).name()
 
 fn describe_named() -> string:

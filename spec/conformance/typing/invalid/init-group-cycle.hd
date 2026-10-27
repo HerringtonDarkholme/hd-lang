@@ -3,7 +3,7 @@
 # fixture-package-tree: init-cycle/src/shop/a.hd
 use pkg.shop.b.{read_b}
 
-let a = read_b()  # diagnostic: top-level-read-before-initialization
+let a = read_b() # diagnostic: top-level-read-before-initialization
 
 pub fn read_a() -> i32:
     a

@@ -4,5 +4,5 @@
 trait Factory:
     fn create() -> Self
 
-fn register(entry: (i32, Factory?)) -> void:  # diagnostic: trait-used-as-type
+fn register(entry: (i32, Factory?)) -> void: # diagnostic: trait-used-as-type
     pass

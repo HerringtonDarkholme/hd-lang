@@ -15,7 +15,7 @@ impl[S] Describer[S] for Count:
         self.n = self.n + 1
         .Ok(())
 
-impl[T] Debug for T by Structure:  # diagnostic: misplaced-derivation
+impl[T] Debug for T by Structure: # diagnostic: misplaced-derivation
     fn debug(self) -> string:
         let mut d = Count { n: 0 }
         _ := T::describe(&mut d)

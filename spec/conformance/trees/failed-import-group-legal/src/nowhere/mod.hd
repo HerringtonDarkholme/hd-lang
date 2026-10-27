@@ -4,7 +4,8 @@ pub struct Value:
     pub g: i32
 
 impl Value:
-    pub fn h(self, n: i32) -> i32: n
+    pub fn h(self, n: i32) -> i32:
+        n
 
 pub fn f(n: i32 = 0) -> Value:
     Value { g: n }

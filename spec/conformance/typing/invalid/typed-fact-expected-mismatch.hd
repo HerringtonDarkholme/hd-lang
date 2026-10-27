@@ -16,5 +16,5 @@ fn missing_list[T]() -> List[T]?:
 struct Profile:
     @fallback(missing_list)
     tags: List[string]
-    @fallback(missing_list)  # diagnostic: type-mismatch
+    @fallback(missing_list) # diagnostic: type-mismatch
     name: string

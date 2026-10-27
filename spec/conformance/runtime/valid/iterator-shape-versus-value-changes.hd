@@ -4,7 +4,7 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("replacing a later map value during for is not seen by the loop"):
-        let mut values: Map[string, i32] = {"a": 1, "b": 2, "c": 3}
+        let mut values: Map[string, i32] = { "a": 1, "b": 2, "c": 3 }
         let mut seen: List[i32] = []
         let first = true
         for (name, value) in values:
@@ -28,7 +28,7 @@ tests:
         assert_equal(values[2], 30, reason="the replacement reached the list")
 
     it("an iterator created after removal and reinsertion sees both keys"):
-        let mut values: Map[string, i32] = {"a": 1, "b": 2}
+        let mut values: Map[string, i32] = { "a": 1, "b": 2 }
         _ := values.remove("a")
         values["a"] = 3
         let mut names: List[string] = []
@@ -40,7 +40,7 @@ tests:
         assert_equal(total, 5, reason="the reinserted value replaced the old one")
 
     it("an iterator created after removal is valid"):
-        let mut values: Map[string, i32] = {"a": 1, "b": 2}
+        let mut values: Map[string, i32] = { "a": 1, "b": 2 }
         _ := values.remove("a")
         let mut iterator = values.iter()
         let expected: (string, i32)? = ("b", 2)

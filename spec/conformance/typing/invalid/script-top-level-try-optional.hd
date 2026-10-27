@@ -3,5 +3,5 @@
 fn first_box() -> i32?:
     .Some(3)
 
-boxes := first_box()?  # diagnostic: invalid-result-propagation
+boxes := first_box()? # diagnostic: invalid-result-propagation
 println("${boxes}")

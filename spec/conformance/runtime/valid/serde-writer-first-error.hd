@@ -83,14 +83,26 @@ tests:
     use std.testing.assert_equal
 
     it("a write with room for every call succeeds"):
-        assert_equal(write(["pen", "ink"], +4), (.Ok(()), "list:2 text:pen text:ink end-list"), reason="four calls")
+        assert_equal(
+            write(["pen", "ink"], +4),
+            (.Ok(()), "list:2 text:pen text:ink end-list"),
+            reason="four calls",
+        )
 
     it("a list stops at the first failed item"):
-        assert_equal(write(["pen", "ink", "pad"], +2), (.Err("full at text:ink"), "list:3 text:pen"), reason="no later item, no end_list")
+        assert_equal(
+            write(["pen", "ink", "pad"], +2),
+            (.Err("full at text:ink"), "list:3 text:pen"),
+            reason="no later item, no end_list",
+        )
 
     it("a map stops at a failed key"):
         let stock: Map[string, u32] = { "pen": 4, "ink": 0 }
-        assert_equal(write(stock, +3), (.Err("full at key:ink"), "map:2 key:pen uint:4"), reason="no value after the key")
+        assert_equal(
+            write(stock, +3),
+            (.Err("full at key:ink"), "map:2 key:pen uint:4"),
+            reason="no value after the key",
+        )
 
     it("an optional passes its payload's error on"):
         let note: string? = .Some("gift")
@@ -100,5 +112,16 @@ tests:
 
     it("a derived serialize stops inside a nested member"):
         event := Event.Added(Line { sku: "PEN-01", qty: 3 })
-        assert_equal(write(event, +4), (.Err("full at text:PEN-01"), "variant:Added member:line variant:Line member:sku"), reason="no end_variant")
-        assert_equal(write(event, +7), (.Err("full at end-variant"), "variant:Added member:line variant:Line member:sku text:PEN-01 member:qty uint:3"), reason="the outer end_variant is not called")
+        assert_equal(
+            write(event, +4),
+            (.Err("full at text:PEN-01"), "variant:Added member:line variant:Line member:sku"),
+            reason="no end_variant",
+        )
+        assert_equal(
+            write(event, +7),
+            (
+                .Err("full at end-variant"),
+                "variant:Added member:line variant:Line member:sku text:PEN-01 member:qty uint:3",
+            ),
+            reason="the outer end_variant is not called",
+        )

@@ -13,7 +13,8 @@ trait Zero:
     fn zero() -> Self
 
 impl Zero for i32:
-    fn zero() -> i32: 0
+    fn zero() -> i32:
+        0
 
 impl[T] Zero for T by Structure:
     fn zero() -> T:
@@ -47,7 +48,7 @@ impl[S] Source[S] for Zeroes[S]:
 
 struct Cached: pass
 
-@derive(Zero)  # diagnostic: omitted-member-without-default
+@derive(Zero) # diagnostic: omitted-member-without-default
 struct Record:
     count: i32
     @skip()

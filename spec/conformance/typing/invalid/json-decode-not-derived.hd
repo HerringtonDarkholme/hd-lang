@@ -6,4 +6,4 @@ struct Plain:
     id: i32
 
 fn load(text: string) -> Result[Plain, JsonError]:
-    decode::[Plain](text)  # diagnostic: unsatisfied-trait-bound
+    decode::[Plain](text) # diagnostic: unsatisfied-trait-bound

@@ -10,7 +10,10 @@ pub fn main!() -> void $ Console + Http + Process + Clock:
     result := apply!(timeout(100ms)):
         Request::get(Url::parse("http://127.0.0.1:$port/").expect("fixture URL")).send!()
     # Only a timeout passes; a refused or failed request must not.
-    println(match result:
-        .Err(HttpError.Timeout) => "timed out"
-        .Err(other) => "other error: $other"
-        .Ok(response) => "answered ${response.status.code()}")
+    println(
+        match result:
+            .Err(HttpError.Timeout) => "timed out"
+            .Err(other) => "other error: $other"
+            .Ok(response) => "answered ${response.status.code()}"
+        ,
+    )

@@ -6,4 +6,4 @@ fn join(a: string, b: string) -> string:
 
 pub fn main() -> void $ Console:
     s := "a".repeat(3)
-    println(join(s, panic("no second part")))  # panic: explicit-panic
+    println(join(s, panic("no second part"))) # panic: explicit-panic

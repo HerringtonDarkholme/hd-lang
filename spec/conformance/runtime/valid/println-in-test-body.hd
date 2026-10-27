@@ -22,4 +22,8 @@ tests:
         $.with(Console=&mut console):
             greet("Ada")
         assert_equal(console.lines.len(), 2, reason="text and newline are separate writes")
-        assert_equal(console.lines, ["hello, Ada", "\n"], reason="the provider received both chunks")
+        assert_equal(
+            console.lines,
+            ["hello, Ada", "\n"],
+            reason="the provider received both chunks",
+        )

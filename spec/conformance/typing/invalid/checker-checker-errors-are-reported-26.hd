@@ -1,4 +1,4 @@
 # test: checker checker errors are reported
 pub fn main() -> void $ Console:
     x := 1
-    println(x.nope())  # diagnostic: unknown-method
+    println(x.nope()) # diagnostic: unknown-method

@@ -4,5 +4,5 @@ struct Box[+T]:
     value: T
 
 impl[T] Box[T]:
-    pub fn echo[T](self, value: T) -> T:  # diagnostic: duplicate-binding
+    pub fn echo[T](self, value: T) -> T: # diagnostic: duplicate-binding
         value

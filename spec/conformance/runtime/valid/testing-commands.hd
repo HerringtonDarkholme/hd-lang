@@ -74,57 +74,103 @@ fn structured(c: &mut Choices) -> List[usize]:
     commands(c, max=8, initial=Model { count: 5 }, next=next_structured, advance=advance_structured)
 
 tests:
-    it_prop_with("counter follows its model", gen=counts, prop=fn!(history: List[usize]):
-        assert(history.len() <= 4, reason="None stops the history")
-        let system: usize = 0
-        for expected in history:
-            system += 1
-            assert_equal(system, expected, reason="the command's expected count")
-    )
-
-    it_prop_with("counter follows the direct recipe", gen=increments, prop=fn!(history: List[usize]):
-        let system: usize = 0
-        for expected in history:
-            system += 1
-            assert_equal(system, expected, reason="the command's expected count")
-    )
-
-    it_prop_with("every command remains valid", gen=changes, prop=fn!(history: List[Change]):
-        assert(history.len() <= 20, reason="the requested bound")
-        let model: usize = 0
-        for command in history:
-            match command:
-                .Increase => model += 1
-                .Decrease =>
-                    assert(model > 0, reason="no decrease of an empty counter")
-                    model -= 1
-    )
-
-    it_prop_with("a zero maximum calls neither callback", gen=empty, cases=4, prop=fn!(history: List[usize]):
-        assert(history.is_empty(), reason="no commands requested")
-    )
-
-    it_prop_with("None does not advance the model", gen=stopped, cases=4, prop=fn!(history: List[usize]):
-        assert(history.is_empty(), reason="next stopped immediately")
-    )
-
-    it_prop_with("a spent draw budget returns an empty history", gen=spent, cases=4, prop=fn!(history: List[usize]):
-        assert(history.is_empty(), reason="the simplest target length is zero")
-    )
-
-    it_prop_with("model and command types are independent", gen=structured, prop=fn!(history: List[usize]):
-        assert(history.len() <= 3, reason="the initial model starts at five")
-        let expected: usize = 5
-        for value in history:
-            expected += 1
-            assert_equal(value, expected, reason="the preceding transition supplied the next model")
-    )
-
-    it_prop_with("each case creates a fresh MemoryFs", gen=counts, cases=12, prop=fn!(history: List[usize]):
-        files := MemoryFs::new()
-        $.with(FsRead=files, FsWrite=files):
-            assert(read_text!(Path("count")).is_err(), reason="no preceding case's file survives")
+    it_prop_with(
+        "counter follows its model",
+        gen=counts,
+        prop=fn!(history: List[usize]):
+            assert(history.len() <= 4, reason="None stops the history")
+            let system: usize = 0
             for expected in history:
-                write_text!(Path("count"), "$expected").expect("write the command's result")
-                assert_equal(read_text!(Path("count")).expect("read the command's result"), "$expected", reason="the scripted command's result")
+                system += 1
+                assert_equal(system, expected, reason="the command's expected count")
+        ,
+    )
+
+    it_prop_with(
+        "counter follows the direct recipe",
+        gen=increments,
+        prop=fn!(history: List[usize]):
+            let system: usize = 0
+            for expected in history:
+                system += 1
+                assert_equal(system, expected, reason="the command's expected count")
+        ,
+    )
+
+    it_prop_with(
+        "every command remains valid",
+        gen=changes,
+        prop=fn!(history: List[Change]):
+            assert(history.len() <= 20, reason="the requested bound")
+            let model: usize = 0
+            for command in history:
+                match command:
+                    .Increase => model += 1
+                    .Decrease =>
+                        assert(model > 0, reason="no decrease of an empty counter")
+                        model -= 1
+        ,
+    )
+
+    it_prop_with(
+        "a zero maximum calls neither callback",
+        gen=empty,
+        cases=4,
+        prop=fn!(history: List[usize]): assert(history.is_empty(), reason="no commands requested")
+        ,
+    )
+
+    it_prop_with(
+        "None does not advance the model",
+        gen=stopped,
+        cases=4,
+        prop=fn!(history: List[usize]):
+            assert(history.is_empty(), reason="next stopped immediately")
+        ,
+    )
+
+    it_prop_with(
+        "a spent draw budget returns an empty history",
+        gen=spent,
+        cases=4,
+        prop=fn!(history: List[usize]):
+            assert(history.is_empty(), reason="the simplest target length is zero")
+        ,
+    )
+
+    it_prop_with(
+        "model and command types are independent",
+        gen=structured,
+        prop=fn!(history: List[usize]):
+            assert(history.len() <= 3, reason="the initial model starts at five")
+            let expected: usize = 5
+            for value in history:
+                expected += 1
+                assert_equal(
+                    value,
+                    expected,
+                    reason="the preceding transition supplied the next model",
+                )
+        ,
+    )
+
+    it_prop_with(
+        "each case creates a fresh MemoryFs",
+        gen=counts,
+        cases=12,
+        prop=fn!(history: List[usize]):
+            files := MemoryFs::new()
+            $.with(FsRead=files, FsWrite=files):
+                assert(
+                    read_text!(Path("count")).is_err(),
+                    reason="no preceding case's file survives",
+                )
+                for expected in history:
+                    write_text!(Path("count"), "$expected").expect("write the command's result")
+                    assert_equal(
+                        read_text!(Path("count")).expect("read the command's result"),
+                        "$expected",
+                        reason="the scripted command's result",
+                    )
+        ,
     )

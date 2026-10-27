@@ -7,7 +7,7 @@ fn initial(name: string) -> u8:
     name[0]
 
 fn size(name: string) -> usize:
-    name.len()  # 6 for "héllo"
+    name.len() # 6 for "héllo"
 
 fn wide_index(name: string, at: u64) -> u8:
     name[at]

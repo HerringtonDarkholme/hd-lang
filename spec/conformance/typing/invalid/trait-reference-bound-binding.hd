@@ -3,6 +3,7 @@
 trait Source:
     type Item
     fn get(&self) -> Self::Item
-fn needs_text[T < Source[Item = string]](_value: T) -> void: pass
+fn needs_text[T < Source[Item = string]](_value: T) -> void:
+    pass
 fn rejected(value: &dyn Source[Item = i32]) -> void:
-    needs_text(value)  # diagnostic: unsatisfied-trait-bound
+    needs_text(value) # diagnostic: unsatisfied-trait-bound

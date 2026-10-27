@@ -2,5 +2,6 @@
 # fixture-package-role: library
 use dep.members.{Inner, Tagged}
 
-impl Tagged for Inner:  # diagnostic: orphan-impl
-    fn tag(self) -> string: "inner"
+impl Tagged for Inner: # diagnostic: orphan-impl
+    fn tag(self) -> string:
+        "inner"

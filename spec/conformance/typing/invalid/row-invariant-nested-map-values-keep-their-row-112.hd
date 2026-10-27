@@ -22,4 +22,4 @@ fn serve_all(routes: Map[string, fn() -> void $ Db + Clock]) -> void:
     pass
 
 fn wire(routes: Map[string, fn() -> void $ Db]) -> void:
-    serve_all(routes)  # diagnostic: type-mismatch
+    serve_all(routes) # diagnostic: type-mismatch

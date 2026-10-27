@@ -4,13 +4,13 @@ trait Logger:
 struct SilentLogger: pass
 
 impl Logger for SilentLogger:
-    fn write(self, message: string) -> void: pass
+    fn write(self, message: string) -> void:
+        pass
 
 fn make_log() -> fn(string) -> void:
     $.with(Logger=SilentLogger {}):
         let logger: *dyn Logger = $.use(Logger)
-        fn(message: string) -> void:
-            logger.write(message)
+        fn(message: string) -> void: logger.write(message)
 
 fn use_log() -> void:
     log := make_log()

@@ -5,4 +5,4 @@ fn bump(score: &mut i32) -> void:
 
 fn invalid() -> void:
     xs := [+1, 2]
-    bump(&mut xs[0])  # diagnostic: not-writable
+    bump(&mut xs[0]) # diagnostic: not-writable

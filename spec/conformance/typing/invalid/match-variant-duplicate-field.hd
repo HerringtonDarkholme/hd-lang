@@ -6,5 +6,5 @@ enum Shape:
 
 fn width(shape: Shape) -> i32:
     match shape:
-        .Rect(w, w=1) => w  # diagnostic: duplicate-data-pattern-field
+        .Rect(w, w = 1) => w # diagnostic: duplicate-data-pattern-field
         _ => 0

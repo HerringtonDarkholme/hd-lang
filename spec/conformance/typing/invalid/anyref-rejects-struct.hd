@@ -7,4 +7,4 @@ fn keep[T < AnyRef](value: T) -> T:
     value
 
 fn check() -> void:
-    _ := keep(Point { x: 1 })  # diagnostic: unsatisfied-trait-bound
+    _ := keep(Point { x: 1 }) # diagnostic: unsatisfied-trait-bound

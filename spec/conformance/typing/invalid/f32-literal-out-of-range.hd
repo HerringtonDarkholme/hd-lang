@@ -1,3 +1,3 @@
 # test: f32 literals that round to infinity are rejected after direct conversion
 # Spec 04 Floating-Point Literals: types.literal.float-finite.
-let positive: f32 = 3.4028235677973367e38  # diagnostic: float-literal-range
+let positive: f32 = 3.4028235677973367e38 # diagnostic: float-literal-range

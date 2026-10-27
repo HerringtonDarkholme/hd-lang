@@ -3,4 +3,4 @@
 
 pub fn main() -> void $ Console:
     name := "hd".repeat(2)
-    println("${name} ${panic("no part")}")  # panic: explicit-panic
+    println("${name} ${panic("no part")}") # panic: explicit-panic

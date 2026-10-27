@@ -1,5 +1,7 @@
 # test: a named argument that names no parameter is an error
 # Spec 07 Positional And Named Arguments: fn.arg.unknown-name.
-fn resize(width: i32, height: i32) -> i32: width * height
+fn resize(width: i32, height: i32) -> i32:
+    width * height
 
-fn area() -> i32: resize(+640, depth=+480)  # diagnostic: unknown-named-argument
+fn area() -> i32:
+    resize(+640, depth=+480) # diagnostic: unknown-named-argument

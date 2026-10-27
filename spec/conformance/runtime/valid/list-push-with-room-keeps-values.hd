@@ -38,4 +38,6 @@ pub fn main() -> void $ Console:
     bag.items.push(2)
     bag.items.push(9)
     let w = words.join(" ")
-    println("${xs[0]} ${xs[1]} ${xs[2]} ${xs[3]} ${xs[4]}; copy ${copy.len()}; pushed ${pushed[0]} ${pushed[1]} of ${calls}; words ${w}; rows ${rows[0].len()} ${rows[1].len()} ${rows[2].len()}; boxes ${bag.items[0]} ${bag.items[1]}")
+    println(
+        "${xs[0]} ${xs[1]} ${xs[2]} ${xs[3]} ${xs[4]}; copy ${copy.len()}; pushed ${pushed[0]} ${pushed[1]} of ${calls}; words ${w}; rows ${rows[0].len()} ${rows[1].len()} ${rows[2].len()}; boxes ${bag.items[0]} ${bag.items[1]}",
+    )

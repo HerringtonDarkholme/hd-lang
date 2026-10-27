@@ -11,7 +11,8 @@ struct Pair[A, B]:
     first: A
     second: B
 
-fn keep[T](box: Box[T]) -> Box[T]: box
+fn keep[T](box: Box[T]) -> Box[T]:
+    box
 
 fn main() -> Pair[Box[i32], string]:
     box := Box { value: +40 }

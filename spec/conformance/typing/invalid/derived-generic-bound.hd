@@ -3,4 +3,4 @@ struct Box[T]:
     value: T
 
 fn same(left: Box[fn() -> void], right: Box[fn() -> void]) -> bool:
-    left == right  # diagnostic: missing-derived-bound
+    left == right # diagnostic: missing-derived-bound

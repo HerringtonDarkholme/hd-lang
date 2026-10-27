@@ -1,5 +1,5 @@
 # test: a tuple annotation written with mut is an error
 # Spec 04 Value Types: types.value.no-mut.written.
 fn invalid() -> i32:
-    let p: mut (i32, i32) = (1, 2)  # diagnostic: mut-on-struct
+    let p: mut (i32, i32) = (1, 2) # diagnostic: mut-on-struct
     p._0

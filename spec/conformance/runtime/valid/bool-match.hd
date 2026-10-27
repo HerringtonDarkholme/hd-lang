@@ -5,7 +5,8 @@ fn choose(flag: bool) -> i32:
         true => 42
         false => 0
 
-fn main() -> i32: choose(true) + choose(false)
+fn main() -> i32:
+    choose(true) + choose(false)
 
 tests:
     use std.testing.assert_equal

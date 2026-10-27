@@ -1,5 +1,7 @@
 struct User: pass
 
 impl User:
-    fn name(self) -> string: "first"
-    fn name(self) -> string: "second"  # diagnostic: duplicate-inherent-member
+    fn name(self) -> string:
+        "first"
+    fn name(self) -> string: # diagnostic: duplicate-inherent-member
+        "second"

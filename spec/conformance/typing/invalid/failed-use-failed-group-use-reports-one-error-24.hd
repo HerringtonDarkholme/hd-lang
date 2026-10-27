@@ -1,6 +1,6 @@
 # test: failed group use reports one error
 # fixture-package-tree: failed-import-24/src/main.hd
-use pkg.nowhere.{f, T}  # diagnostic: unknown-module
+use pkg.nowhere.{f, T} # diagnostic: unknown-module
 
 fn run(x: T) -> void:
     f()

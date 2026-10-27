@@ -2,4 +2,4 @@
 
 let maybe: i32? = .Some(1)
 let .Some(_m) = maybe else:
-    return  # diagnostic: return-outside-function
+    return # diagnostic: return-outside-function

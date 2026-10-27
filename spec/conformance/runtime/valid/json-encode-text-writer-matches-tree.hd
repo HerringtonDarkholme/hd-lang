@@ -10,7 +10,8 @@ use std.testing.{assert_equal, Choices, it_prop_with}
 fn old_render(value: Json, out: &mut List[u8], spaced: bool, depth: usize) -> void:
     match value:
         .Null => old_push(out, "null")
-        .Bool(flag) => old_push(out, if flag: "true" else: "false")
+        .Bool(flag) =>
+            old_push(out, if flag: "true" else: "false")
         .Number(number) => old_push(out, "$number")
         .Text(text) => old_quoted(out, text)
         .Array(items) =>
@@ -155,8 +156,29 @@ struct Item:
 
 # Every escape class, the characters next to them, and non-ASCII text.
 PIECES := [
-    "\"", "\\", "/", "\u{8}", "\u{c}", "\n", "\u{d}", "\t", "\0", "\u{1}", "\u{1f}", "\u{1b}",
-    " ", "\u{7f}", "a", "Z", "key", "é", "\u{2028}", "\u{20ac}", "\u{1f600}", "\u{10ffff}", "",
+    "\"",
+    "\\",
+    "/",
+    "\u{8}",
+    "\u{c}",
+    "\n",
+    "\u{d}",
+    "\t",
+    "\0",
+    "\u{1}",
+    "\u{1f}",
+    "\u{1b}",
+    " ",
+    "\u{7f}",
+    "a",
+    "Z",
+    "key",
+    "é",
+    "\u{2028}",
+    "\u{20ac}",
+    "\u{1f600}",
+    "\u{10ffff}",
+    "",
 ]
 
 fn text_gen(c: &mut Choices) -> string:
@@ -167,18 +189,49 @@ fn float_gen(c: &mut Choices) -> f64:
     if c.int(0..=2) == 0:
         return c.float(-1000000.0..=1000000.0)
     zero := 0.0
-    c.choose([0.0, -0.0, 0.5, -2.25, 1.0 / 3.0, 1e21, 1e-7, 123456789.125, 1.7976931348623157e308, 5e-324, zero / zero, 1.0 / zero, -1.0 / zero])
+    c.choose(
+        [
+            0.0,
+            -0.0,
+            0.5,
+            -2.25,
+            1.0 / 3.0,
+            1e21,
+            1e-7,
+            123456789.125,
+            1.7976931348623157e308,
+            5e-324,
+            zero / zero,
+            1.0 / zero,
+            -1.0 / zero,
+        ],
+    )
 
 fn numbers_gen(c: &mut Choices) -> *Numbers:
     &mut Numbers {
         small: c.int(i8(-128)..=i8(127)),
         short: c.int(i16(-32768)..=i16(32767)),
         medium: c.int(-2147483648..=2147483647),
-        wide: c.choose([-9223372036854775807 - 1, 9223372036854775807, 0, -1, c.int(-1000000000000..=1000000000000)]),
+        wide: c.choose(
+            [
+                -9223372036854775807 - 1,
+                9223372036854775807,
+                0,
+                -1,
+                c.int(-1000000000000..=1000000000000),
+            ],
+        ),
         byte: c.int(u8(0)..=u8(255)),
         ushort: c.int(u16(0)..=u16(65535)),
         umedium: c.int(u32(0)..=u32(4294967295)),
-        uwide: c.choose([u64(0), u64(18446744073709551615), u64(9223372036854775808), c.int(u64(0)..=u64(1000000000000))]),
+        uwide: c.choose(
+            [
+                u64(0),
+                u64(18446744073709551615),
+                u64(9223372036854775808),
+                c.int(u64(0)..=u64(1000000000000)),
+            ],
+        ),
         size: c.int(usize(0)..=usize(4294967295)),
         single: f32(float_gen(c)),
         double: float_gen(c),
@@ -264,10 +317,26 @@ struct Script:
     steps: *List[Step]
 
 fn member_named(name: string) -> Member:
-    Member { name: name, position: +0, facts: Facts { items: [] }, doc: .None, embedded: false, positional: false, self_ref: SelfRef.Absent }
+    Member {
+        name: name,
+        position: +0,
+        facts: Facts { items: [] },
+        doc: .None,
+        embedded: false,
+        positional: false,
+        self_ref: SelfRef.Absent,
+    }
 
 fn variant_named(name: string, of_data: bool) -> VariantInfo:
-    VariantInfo { name: name, index: +0, facts: Facts { items: [] }, doc: .None, of_data: of_data, shared: [], self_ref: SelfRef.Absent }
+    VariantInfo {
+        name: name,
+        index: +0,
+        facts: Facts { items: [] },
+        doc: .None,
+        of_data: of_data,
+        shared: [],
+        self_ref: SelfRef.Absent,
+    }
 
 impl Serialize for Script:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
@@ -280,7 +349,8 @@ impl Serialize for Script:
                 .Field(name) => out.member(&member_named(name))
                 .BeginList => out.begin_list(0)
                 .BeginMap => out.begin_map(0)
-                .BeginVariant(name, of_data) => out.begin_variant(Facts { items: [] }, &variant_named(name, of_data))
+                .BeginVariant(name, of_data) =>
+                    out.begin_variant(Facts { items: [] }, &variant_named(name, of_data))
                 .EndList => out.end_list()
                 .EndMap => out.end_map()
                 .EndVariant => out.end_variant()
@@ -345,13 +415,28 @@ fn steps(list: List[Step]) -> *Script:
 
 tests:
     it("the shapes of the spec encode as before"):
-        for shape in [Shape.Empty, Shape.Circle(7), Shape.Rect(2, 3), Shape.Point(4, 5), Shape.Labeled("x", .Some(&Shape.Empty)), Shape.Labeled("", .None)]:
+        for shape in [
+            Shape.Empty,
+            Shape.Circle(7),
+            Shape.Rect(2, 3),
+            Shape.Point(4, 5),
+            Shape.Labeled("x", .Some(&Shape.Empty)),
+            Shape.Labeled("", .None),
+        ]:
             assert_equal(disagreement(shape), "", reason=debug(shape))
-        assert_equal(encode(Shape.Labeled("q\"", .Some(&Shape.Empty))), "{\"Labeled\":{\"label\":\"q\\\"\",\"inner\":\"Empty\"}}", reason="nested variant")
+        assert_equal(
+            encode(Shape.Labeled("q\"", .Some(&Shape.Empty))),
+            "{\"Labeled\":{\"label\":\"q\\\"\",\"inner\":\"Empty\"}}",
+            reason="nested variant",
+        )
 
     it("standard values encode as before"):
         assert_equal(disagreement(""), "", reason="empty string")
-        assert_equal(disagreement("\"\\/\u{8}\u{c}\n\u{d}\t\0\u{1f}\u{7f}é\u{1f600}"), "", reason="every escape class")
+        assert_equal(
+            disagreement("\"\\/\u{8}\u{c}\n\u{d}\t\0\u{1f}\u{7f}é\u{1f600}"),
+            "",
+            reason="every escape class",
+        )
         assert_equal(encode("\u{1}a\u{1f}"), "\"\\u0001a\\u001f\"", reason="lowercase hex")
         let empty: List[i32] = []
         assert_equal(disagreement(empty), "", reason="empty list")
@@ -360,34 +445,121 @@ tests:
         let none: string? = .None
         assert_equal(disagreement(none), "", reason="none")
         zero := 0.0
-        assert_equal(encode([zero / zero, 1.0 / zero, -0.0, 0.1]), "[null,null,-0.0,0.1]", reason="floats")
-        assert_equal(disagreement([zero / zero, 1.0 / zero, -0.0, 0.1]), "", reason="floats against the tree")
+        assert_equal(
+            encode([zero / zero, 1.0 / zero, -0.0, 0.1]),
+            "[null,null,-0.0,0.1]",
+            reason="floats",
+        )
+        assert_equal(
+            disagreement([zero / zero, 1.0 / zero, -0.0, 0.1]),
+            "",
+            reason="floats against the tree",
+        )
         assert_equal(disagreement(Json.Null), "", reason="a Json")
 
     it("a map past 16 keys encodes as before, with and without a repeated key"):
-        assert_equal(disagreement(&mut Wide { count: 40, repeat_at: 40, back: 0 }), "", reason="40 distinct keys")
-        assert_equal(disagreement(&mut Wide { count: 40, repeat_at: 30, back: 30 }), "", reason="a repeat of one of the first 16 keys")
-        assert_equal(disagreement(&mut Wide { count: 40, repeat_at: 25, back: 5 }), "", reason="a repeat of a key added after the 16th")
-        assert_equal(disagreement(&mut Wide { count: 12, repeat_at: 8, back: 8 }), "", reason="a repeat among the first 16")
-        assert_equal(disagreement(&mut Wide { count: 17, repeat_at: 16, back: 16 }), "", reason="the 17th key repeats the first")
-        assert_equal(encode(&mut Wide { count: 3, repeat_at: 2, back: 2 }), "{\"k0\":2,\"k1\":1}", reason="the last value at the first place")
+        assert_equal(
+            disagreement(&mut Wide { count: 40, repeat_at: 40, back: 0 }),
+            "",
+            reason="40 distinct keys",
+        )
+        assert_equal(
+            disagreement(&mut Wide { count: 40, repeat_at: 30, back: 30 }),
+            "",
+            reason="a repeat of one of the first 16 keys",
+        )
+        assert_equal(
+            disagreement(&mut Wide { count: 40, repeat_at: 25, back: 5 }),
+            "",
+            reason="a repeat of a key added after the 16th",
+        )
+        assert_equal(
+            disagreement(&mut Wide { count: 12, repeat_at: 8, back: 8 }),
+            "",
+            reason="a repeat among the first 16",
+        )
+        assert_equal(
+            disagreement(&mut Wide { count: 17, repeat_at: 16, back: 16 }),
+            "",
+            reason="the 17th key repeats the first",
+        )
+        assert_equal(
+            encode(&mut Wide { count: 3, repeat_at: 2, back: 2 }),
+            "{\"k0\":2,\"k1\":1}",
+            reason="the last value at the first place",
+        )
 
     it("walks that derived code never makes encode as the tree defines them"):
-        assert_equal(encode(steps([Step.Field("loose"), Step.Int(7)])), "7", reason="a member outside a container still follows the tree fallback")
+        assert_equal(
+            encode(steps([Step.Field("loose"), Step.Int(7)])),
+            "7",
+            reason="a member outside a container still follows the tree fallback",
+        )
         assert_equal(encode(steps([])), "null", reason="no value")
-        assert_equal(encode(steps([Step.Int(1), Step.Int(2)])), "2", reason="the last top-level value")
-        assert_equal(encode(steps([Step.BeginMap, Step.Key("a"), Step.Int(1), Step.Int(2), Step.EndMap])), "{\"a\":2}", reason="a stale key")
-        assert_equal(encode(steps([Step.BeginMap, Step.Key("a"), Step.Key("b"), Step.Int(1), Step.EndMap])), "{\"b\":1}", reason="two keys, one value")
-        assert_equal(encode(steps([Step.BeginList, Step.Key("a"), Step.Int(1), Step.EndList])), "[1]", reason="a key in a list")
-        assert_equal(encode(steps([Step.BeginList, Step.Int(1), Step.Int(2), Step.EndMap])), "{\"\":2}", reason="a list ended as a map")
-        assert_equal(encode(steps([Step.BeginList, Step.Int(1)])), "null", reason="a frame left open")
-        assert_equal(encode(steps([Step.BeginVariant("V", false), Step.Field("a"), Step.Int(1), Step.Field("a"), Step.Int(2), Step.EndVariant])), "{\"V\":{\"a\":2}}", reason="a repeated member")
-        assert_equal(encode(steps([Step.BeginVariant("V", false), Step.EndVariant])), "\"V\"", reason="a unit variant")
+        assert_equal(
+            encode(steps([Step.Int(1), Step.Int(2)])),
+            "2",
+            reason="the last top-level value",
+        )
+        assert_equal(
+            encode(steps([Step.BeginMap, Step.Key("a"), Step.Int(1), Step.Int(2), Step.EndMap])),
+            "{\"a\":2}",
+            reason="a stale key",
+        )
+        assert_equal(
+            encode(steps([Step.BeginMap, Step.Key("a"), Step.Key("b"), Step.Int(1), Step.EndMap])),
+            "{\"b\":1}",
+            reason="two keys, one value",
+        )
+        assert_equal(
+            encode(steps([Step.BeginList, Step.Key("a"), Step.Int(1), Step.EndList])),
+            "[1]",
+            reason="a key in a list",
+        )
+        assert_equal(
+            encode(steps([Step.BeginList, Step.Int(1), Step.Int(2), Step.EndMap])),
+            "{\"\":2}",
+            reason="a list ended as a map",
+        )
+        assert_equal(
+            encode(steps([Step.BeginList, Step.Int(1)])),
+            "null",
+            reason="a frame left open",
+        )
+        assert_equal(
+            encode(
+                steps(
+                    [
+                        Step.BeginVariant("V", false),
+                        Step.Field("a"),
+                        Step.Int(1),
+                        Step.Field("a"),
+                        Step.Int(2),
+                        Step.EndVariant,
+                    ],
+                ),
+            ),
+            "{\"V\":{\"a\":2}}",
+            reason="a repeated member",
+        )
+        assert_equal(
+            encode(steps([Step.BeginVariant("V", false), Step.EndVariant])),
+            "\"V\"",
+            reason="a unit variant",
+        )
 
-    it_prop_with("random items encode as before", gen=fn(c: &mut Choices) -> *Item: item_gen(c, 0), cases=200, prop=fn!(item: &Item):
-        assert_equal(disagreement(item), "", reason="item")
+    it_prop_with(
+        "random items encode as before",
+        gen=fn(c: &mut Choices) -> *Item: item_gen(c, 0),
+        cases=200,
+        prop=fn!(item: &Item): assert_equal(disagreement(item), "", reason="item")
+        ,
     )
 
-    it_prop_with("random scripts encode as the tree defines them", gen=script_gen, cases=300, prop=fn!(script: &Script):
-        assert_equal(disagreement(script), "", reason="script")
+    it_prop_with(
+        "random scripts encode as the tree defines them",
+        gen=script_gen,
+        cases=300,
+        prop=fn!(script: &Script): assert_equal(disagreement(script), "", reason="script")
+        ,
     )

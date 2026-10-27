@@ -3,8 +3,9 @@
 use std.ops.num_suffix
 
 @num_suffix
-fn secs(count: i64) -> i64: count * 1000
+fn secs(count: i64) -> i64:
+    count * 1000
 
 fn retry_after(secs: i32) -> i32:
-    limit := 5secs  # the module'secs suffix function secs, not the parameter
+    limit := 5secs # the module'secs suffix function secs, not the parameter
     secs

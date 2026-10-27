@@ -377,7 +377,14 @@ impl BucketHasher:
     # The lanes after one full message word, with the word emptied.
     fn absorb(self, m: u64) -> BucketHasher:
         lanes := sip_round(self.v0, self.v1, self.v2, self.v3 ^ m)
-        BucketHasher { v0: lanes._0 ^ m, v1: lanes._1, v2: lanes._2, v3: lanes._3, word: 0, count: self.count }
+        BucketHasher {
+            v0: lanes._0 ^ m,
+            v1: lanes._1,
+            v2: lanes._2,
+            v3: lanes._3,
+            word: 0,
+            count: self.count,
+        }
 
     # The last word, then the three finishing rounds.
     fn finish(self) -> u32:
@@ -509,7 +516,12 @@ fn string_bucket_hash(key: string) -> u32:
     while !last:
         let m: u64 = 0
         if i + 4 <= n:
-            m = u64(bytes_at(key, i)) | (u64(bytes_at(key, i + 1)) << 8) | (u64(bytes_at(key, i + 2)) << 16) | (u64(bytes_at(key, i + 3)) << 24)
+            m = (
+                u64(bytes_at(key, i))
+                | (u64(bytes_at(key, i + 1)) << 8)
+                | (u64(bytes_at(key, i + 2)) << 16)
+                | (u64(bytes_at(key, i + 3)) << 24)
+            )
             i = i + 4
         else:
             m = u64(n & 255) << 24

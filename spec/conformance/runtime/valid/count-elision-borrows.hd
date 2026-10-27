@@ -45,7 +45,7 @@ fn snapshot_elements(n: i32) -> void:
     assert_equal(result, ["first $n", "second $n"], reason="the loop owns an unchanged snapshot")
 
 fn map_elements(n: i32) -> void:
-    words := {"a$n": "first $n", "b$n": "second $n"}
+    words := { "a$n": "first $n", "b$n": "second $n" }
     let matches: usize = 0
     for (key, value) in words:
         if (key == "a$n" && value == "first $n") || (key == "b$n" && value == "second $n"):
@@ -59,12 +59,15 @@ fn deferred_fields(n: i32, log: &mut List[string]) -> void:
         log.push(before)
     assert_equal(p.right, "right $n", reason="the source may end before deferred use")
 
-
 fn saved_fields!(p: Pair) -> void $ Console:
     before := p.left
     console := $.use(Console)
     _ := console.write!("pause\n")
-    assert_equal(before, "left 9", reason="a saved borrowed field remains owned by the frame's source")
+    assert_equal(
+        before,
+        "left 9",
+        reason="a saved borrowed field remains owned by the frame's source",
+    )
     assert_equal(p.right, "right 9", reason="the source survives the suspension")
 
 pub fn main!() -> void $ Console:

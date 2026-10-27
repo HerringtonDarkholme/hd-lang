@@ -50,7 +50,7 @@ tests:
         assert(shorter != longer, reason="lists of different lengths are unequal")
 
     it("map and string equality agree with length checks"):
-        entries := {"ada": 1, "grace": 2}
+        entries := { "ada": 1, "grace": 2 }
         assert(entries.len() == 2, reason="the map has two entries")
         assert_equal(entries.len(), 2, reason="assert_equal agrees on the length")
         assert("ada".len() == 3, reason="the string has three bytes")

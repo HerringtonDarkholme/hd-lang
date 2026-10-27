@@ -10,5 +10,5 @@ impl[T] Source[T] for Fixed[T]:
     fn take(self) -> T:
         self.value
 
-fn read[S < Source[U] = Fixed[U], U = string](source: S) -> U:  # diagnostic: binding-not-yet-visible
+fn read[S < Source[U] = Fixed[U], U = string](source: S) -> U: # diagnostic: binding-not-yet-visible
     source.take()

@@ -14,4 +14,4 @@ fn ring(a: i32, b: i32) -> *mut Node:
 pub fn main() -> void:
     x := ring(+1, +2)
     y := ring(+1, +2)
-    _ := *x == *y  # panic: stack-exhausted
+    _ := *x == *y # panic: stack-exhausted

@@ -10,7 +10,8 @@ first := "${x} ${true}"
 later := +5
 
 impl Display for Tag:
-    fn to_string(self) -> string: "tag ${later}"
+    fn to_string(self) -> string:
+        "tag ${later}"
 
 pub fn main() -> void $ Console:
     println(first)

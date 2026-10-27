@@ -3,5 +3,5 @@
 # fixture-package-tree: word-joiner/src/main.hd
 use pkg.words
 
-fn headline(draft: words.Draft) -> string:  # diagnostic: private-import
+fn headline(draft: words.Draft) -> string: # diagnostic: private-import
     "draft"

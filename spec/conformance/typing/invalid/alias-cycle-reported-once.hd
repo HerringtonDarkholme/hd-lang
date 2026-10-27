@@ -1,6 +1,6 @@
 # test: an alias cycle is reported once, on its first declaration in the source
 # Spec 04 Transparent Aliases And Newtypes: types.alias.cycle.reported.
-type First = List[Second]  # diagnostic: alias-cycle
+type First = List[Second] # diagnostic: alias-cycle
 
 type Second = Third?
 

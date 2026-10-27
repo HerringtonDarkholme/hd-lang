@@ -3,4 +3,4 @@ enum Choice:
 
 fn ordered(choice: Choice) -> i32:
     match choice:
-        Choice.Pair(then_value=left, else_value=right) => left - right
+        Choice.Pair(then_value = left, else_value = right) => left - right

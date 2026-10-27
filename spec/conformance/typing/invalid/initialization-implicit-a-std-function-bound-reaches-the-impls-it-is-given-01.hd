@@ -9,13 +9,16 @@ first := min(Tag { n: 1 }, Tag { n: 2 }).n # diagnostic: top-level-read-before-i
 later := +5
 
 impl Eq for Tag:
-    fn eq(self, other: Tag) -> bool: self.n + later == other.n
+    fn eq(self, other: Tag) -> bool:
+        self.n + later == other.n
 
 impl PartialOrd for Tag:
-    fn partial_cmp(self, other: Tag) -> Ordering?: (self.n + later).partial_cmp(other.n)
+    fn partial_cmp(self, other: Tag) -> Ordering?:
+        (self.n + later).partial_cmp(other.n)
 
 impl Ord for Tag:
-    fn cmp(self, other: Tag) -> Ordering: (self.n + later).cmp(other.n)
+    fn cmp(self, other: Tag) -> Ordering:
+        (self.n + later).cmp(other.n)
 
 pub fn main() -> void $ Console:
     println(first)

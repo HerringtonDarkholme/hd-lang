@@ -13,8 +13,20 @@ tests:
     use std.testing.assert_equal
 
     it("initializes shared data before main reads the trace"):
-        assert_equal(main(), ["dependency", "base", "tax", "handling"], reason="dependency and shared data initialized before main")
-        assert_equal(Shipping.Standard.base, 10, reason="the explicit argument initialized the variant")
+        assert_equal(
+            main(),
+            ["dependency", "base", "tax", "handling"],
+            reason="dependency and shared data initialized before main",
+        )
+        assert_equal(
+            Shipping.Standard.base,
+            10,
+            reason="the explicit argument initialized the variant",
+        )
         assert_equal(Shipping.Standard.tax, 5, reason="the first omitted default followed it")
         assert_equal(Shipping.Standard.handling, 2, reason="the second omitted default followed it")
-        assert_equal(main(), ["dependency", "base", "tax", "handling"], reason="reads do not repeat initialization")
+        assert_equal(
+            main(),
+            ["dependency", "base", "tax", "handling"],
+            reason="reads do not repeat initialization",
+        )

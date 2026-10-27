@@ -19,7 +19,7 @@ impl[S] Walker[S] for SameWalker[S]:
         .Ok(())
 
     fn member[F < Same](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        other := h.get(self.other)  # panic: structure-variant-mismatch
+        other := h.get(self.other) # panic: structure-variant-mismatch
         self.equal = self.equal && value.same(other)
         .Ok(())
 

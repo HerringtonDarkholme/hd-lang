@@ -6,4 +6,8 @@ tests:
 
     it("a tie takes the even last digit"):
         let tie: f64 = 2.9802322387695312e-8
-        assert_equal("$tie", "2.9802322387695312e-8", reason="2 to the -25 sits halfway between two 17-digit strings")
+        assert_equal(
+            "$tie",
+            "2.9802322387695312e-8",
+            reason="2 to the -25 sits halfway between two 17-digit strings",
+        )

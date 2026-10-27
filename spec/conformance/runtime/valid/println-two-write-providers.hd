@@ -68,13 +68,30 @@ tests:
         for abandoned in [false, true]:
             for at in [1, 2]:
                 conversions = 0
-                let mut console = CancellingConsole { attempts: [], delivered: [], cancel_at: at, gate: stopped(abandoned) }
+                let mut console = CancellingConsole {
+                    attempts: [],
+                    delivered: [],
+                    cancel_at: at,
+                    gate: stopped(abandoned),
+                }
                 $.with(Console=&mut console):
                     println(Label { text: "hello" })
                 assert_equal(conversions, 1, reason="cancellation does not repeat Display")
                 if at == 1:
-                    assert_equal(console.attempts, ["hello"], reason="no newline is attempted after a cancelled text write")
+                    assert_equal(
+                        console.attempts,
+                        ["hello"],
+                        reason="no newline is attempted after a cancelled text write",
+                    )
                     assert_equal(console.delivered, [], reason="the text write was cancelled")
                 else:
-                    assert_equal(console.attempts, ["hello", "\n"], reason="the newline is attempted once")
-                    assert_equal(console.delivered, ["hello"], reason="cancelling the newline cannot retract text")
+                    assert_equal(
+                        console.attempts,
+                        ["hello", "\n"],
+                        reason="the newline is attempted once",
+                    )
+                    assert_equal(
+                        console.delivered,
+                        ["hello"],
+                        reason="cancelling the newline cannot retract text",
+                    )

@@ -10,7 +10,8 @@ later := +5
 
 impl Neg for Tag:
     type Out = i32
-    fn neg(self) -> i32: later - self.n
+    fn neg(self) -> i32:
+        later - self.n
 
 first := -Tag { n: 1 }
 

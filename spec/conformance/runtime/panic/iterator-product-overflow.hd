@@ -1,5 +1,5 @@
 # test: a numeric iterator product checks multiplication overflow
 # Spec std/iter Numeric Aggregation: std-iter.product.numeric-overflow.
 pub fn main() -> void:
-    let total: i8 = [127i8, 2i8].iter().product()  # panic: integer-overflow
+    let total: i8 = [127i8, 2i8].iter().product() # panic: integer-overflow
     _ := total

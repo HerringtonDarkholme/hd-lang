@@ -16,4 +16,4 @@ impl Combine[i64] for Money:
         "i64"
 
 fn run(price: Money) -> string:
-    price.combine(5)  # diagnostic: type-mismatch
+    price.combine(5) # diagnostic: type-mismatch

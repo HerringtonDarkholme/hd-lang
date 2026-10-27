@@ -4,4 +4,8 @@ tests:
     use std.testing.assert_equal
 
     it("empty input with a nonempty separator"):
-        assert_equal("".split(","), [""], reason="one empty piece, as for any input without the separator")
+        assert_equal(
+            "".split(","),
+            [""],
+            reason="one empty piece, as for any input without the separator",
+        )

@@ -1,5 +1,6 @@
 # test: duration literals have a fixed import free type
-fn delay() -> i64: 500ms  # diagnostic: type-mismatch
+fn delay() -> i64:
+    500ms # diagnostic: type-mismatch
 
 pub fn main() -> void:
     pass

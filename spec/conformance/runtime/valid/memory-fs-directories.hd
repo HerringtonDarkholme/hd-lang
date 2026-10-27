@@ -46,9 +46,15 @@ tests:
         assert(files.write_text!(Path("notes/deep/c.txt"), "c").is_ok(), reason="c")
         entries := listed!(files, "notes")
         assert_equal(entries.len(), 3, reason="two files and a directory")
-        assert(entries[0].path == Path("notes/a.txt") && entries[0].kind == EntryKind.File, reason="byte order, first")
+        assert(
+            entries[0].path == Path("notes/a.txt") && entries[0].kind == EntryKind.File,
+            reason="byte order, first",
+        )
         assert_equal(entries[1].size, 2, reason="b.txt holds two bytes")
-        assert(entries[2].path == Path("notes/deep") && entries[2].kind == EntryKind.Directory, reason="a directory entry")
+        assert(
+            entries[2].path == Path("notes/deep") && entries[2].kind == EntryKind.Directory,
+            reason="a directory entry",
+        )
         assert_equal(entries[2].size, 0, reason="a directory's size")
 
     it("create_dir_all! keeps every directory it made"):
@@ -63,7 +69,10 @@ tests:
         let mut files = MemoryFs::new()
         assert(files.write_text!(Path("notes/a.txt"), "a").is_ok(), reason="seeded")
         assert(files.rename!(Path("notes"), Path("docs")).is_ok(), reason="moved")
-        assert(files.read_text!(Path("docs/a.txt")).unwrap_or("") == "a", reason="the file moved too")
+        assert(
+            files.read_text!(Path("docs/a.txt")).unwrap_or("") == "a",
+            reason="the file moved too",
+        )
         assert(kind_is!(files, "docs", EntryKind.Directory), reason="docs is a directory")
         assert(files.stat!(Path("notes")).unwrap_or(.None).is_none(), reason="nothing left behind")
 
@@ -71,8 +80,35 @@ tests:
         let mut files = MemoryFs::new()
         assert(files.write_text!(Path("a.txt"), "x").is_ok(), reason="a file")
         assert(files.create_dir_all!(Path("dir")).is_ok(), reason="a directory")
-        assert(is_error(failure(files.remove!(Path("gone"))), FsError.NotFound(path=Path("gone"))), reason="nothing there")
-        assert(is_error(failure(files.write_text!(Path("dir"), "y")), FsError.IsADirectory(path=Path("dir"))), reason="a directory as a file")
-        assert(is_error(failure(files.write_text!(Path("a.txt/b"), "y")), FsError.NotADirectory(path=Path("a.txt/b"))), reason="a file as a directory")
-        assert(is_error(failure(files.create_dir_all!(Path("a.txt"))), FsError.NotADirectory(path=Path("a.txt"))), reason="a directory at a file's path")
-        assert(is_error(failure(files.rename!(Path("dir"), Path("a.txt"))), FsError.NotADirectory(path=Path("a.txt"))), reason="a directory onto a file")
+        assert(
+            is_error(failure(files.remove!(Path("gone"))), FsError.NotFound(path=Path("gone"))),
+            reason="nothing there",
+        )
+        assert(
+            is_error(
+                failure(files.write_text!(Path("dir"), "y")),
+                FsError.IsADirectory(path=Path("dir")),
+            ),
+            reason="a directory as a file",
+        )
+        assert(
+            is_error(
+                failure(files.write_text!(Path("a.txt/b"), "y")),
+                FsError.NotADirectory(path=Path("a.txt/b")),
+            ),
+            reason="a file as a directory",
+        )
+        assert(
+            is_error(
+                failure(files.create_dir_all!(Path("a.txt"))),
+                FsError.NotADirectory(path=Path("a.txt")),
+            ),
+            reason="a directory at a file's path",
+        )
+        assert(
+            is_error(
+                failure(files.rename!(Path("dir"), Path("a.txt"))),
+                FsError.NotADirectory(path=Path("a.txt")),
+            ),
+            reason="a directory onto a file",
+        )

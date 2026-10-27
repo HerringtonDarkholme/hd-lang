@@ -22,9 +22,15 @@ fn same[T < Deserialize & Eq & Debug](text: string) -> void:
 
 tests:
     it("wide, small, empty and nested objects may reuse the same depth"):
-        same::[List[Item]]("[{\"a0\":0,\"a1\":1,\"a2\":2,\"a3\":3,\"a4\":4,\"a5\":5,\"a6\":6,\"a7\":7,\"a8\":8,\"a9\":9,\"a10\":10,\"a11\":11,\"a12\":12,\"a13\":13,\"a14\":14,\"a15\":15,\"name\":\"first\",\"count\":2,\"name\":\"last\"},{\"name\":\"small\"},{\"na\\u006de\":\"escaped\",\"count\":3}]")
-        same::[List[Group]]("[{\"items\":[{\"name\":\"one\",\"count\":1},{\"count\":2,\"name\":\"two\"}],\"note\":\"first\"},{\"items\":[],\"note\":null},{\"items\":[{\"name\":\"three\"}]}]")
+        same::[List[Item]](
+            "[{\"a0\":0,\"a1\":1,\"a2\":2,\"a3\":3,\"a4\":4,\"a5\":5,\"a6\":6,\"a7\":7,\"a8\":8,\"a9\":9,\"a10\":10,\"a11\":11,\"a12\":12,\"a13\":13,\"a14\":14,\"a15\":15,\"name\":\"first\",\"count\":2,\"name\":\"last\"},{\"name\":\"small\"},{\"na\\u006de\":\"escaped\",\"count\":3}]",
+        )
+        same::[List[Group]](
+            "[{\"items\":[{\"name\":\"one\",\"count\":1},{\"count\":2,\"name\":\"two\"}],\"note\":\"first\"},{\"items\":[],\"note\":null},{\"items\":[{\"name\":\"three\"}]}]",
+        )
         same::[List[Item]]("[{\"name\":\"one\",\"count\":1},{}]")
 
     it("maps preserve key order and duplicate-last values across frame reuse"):
-        same::[List[Map[string, usize]]]("[{\"a\":1,\"b\":2,\"a\":3},{},{\"b\":4},{\"c\":5,\"b\":6,\"c\":7}]")
+        same::[List[Map[string, usize]]](
+            "[{\"a\":1,\"b\":2,\"a\":3},{},{\"b\":4},{\"c\":5,\"b\":6,\"c\":7}]",
+        )

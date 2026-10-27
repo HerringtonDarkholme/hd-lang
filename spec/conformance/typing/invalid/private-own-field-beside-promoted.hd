@@ -4,4 +4,4 @@ struct Base:
 
 struct Record:
     Base
-    id: string  # diagnostic: ambiguous-promoted-member
+    id: string # diagnostic: ambiguous-promoted-member

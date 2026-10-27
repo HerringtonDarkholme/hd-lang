@@ -10,7 +10,8 @@
 # expect-stdout: 15 15 15
 # expect-stdout: 255
 # expect-stdout: 64
-fn byte_of(value: u8) -> u8: value
+fn byte_of(value: u8) -> u8:
+    value
 
 pub fn main() -> void $ Console:
     println(255)

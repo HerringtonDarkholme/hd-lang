@@ -7,7 +7,15 @@ use std.http.{Request, Url}
 use std.regex.Regex
 
 fn member(name: string, facts: Facts) -> Member:
-    Member { name: name, position: 0, facts: facts, doc: .None, embedded: false, positional: false, self_ref: .Absent }
+    Member {
+        name: name,
+        position: 0,
+        facts: facts,
+        doc: .None,
+        embedded: false,
+        positional: false,
+        self_ref: .Absent,
+    }
 
 fn naming(style: RenameCase) -> Facts:
     Facts { items: [&rename_all(style)] }
@@ -68,52 +76,129 @@ tests:
     use std.testing.assert_equal
 
     it("the shared helper converts every style from snake_case fields"):
-        for (style, expected) in [(RenameCase.Lowercase, "order_id"), (RenameCase.Uppercase, "ORDER_ID"), (RenameCase.PascalCase, "OrderId"), (RenameCase.CamelCase, "orderId"), (RenameCase.SnakeCase, "order_id"), (RenameCase.ScreamingSnakeCase, "ORDER_ID"), (RenameCase.KebabCase, "order-id"), (RenameCase.ScreamingKebabCase, "ORDER-ID")]:
+        for (style, expected) in [
+            (RenameCase.Lowercase, "order_id"),
+            (RenameCase.Uppercase, "ORDER_ID"),
+            (RenameCase.PascalCase, "OrderId"),
+            (RenameCase.CamelCase, "orderId"),
+            (RenameCase.SnakeCase, "order_id"),
+            (RenameCase.ScreamingSnakeCase, "ORDER_ID"),
+            (RenameCase.KebabCase, "order-id"),
+            (RenameCase.ScreamingKebabCase, "ORDER-ID"),
+        ]:
             info := member("order_id", Facts { items: [] })
             assert_equal(member_name(&info, naming(style)), expected, reason="field case style")
             assert_equal(info.name, "order_id", reason="source metadata unchanged")
-        assert_equal(member_name(&member("café_id", Facts { items: [] }), naming(.Uppercase)), "CAFé_ID", reason="case conversion is ASCII and preserves UTF-8")
-        assert_equal(member_name(&member("__order__id_", Facts { items: [] }), naming(.CamelCase)), "orderId", reason="joined styles remove underscores")
-        assert_equal(member_name(&member("_", Facts { items: [] }), naming(.PascalCase)), "", reason="empty joined name is valid")
+        assert_equal(
+            member_name(&member("café_id", Facts { items: [] }), naming(.Uppercase)),
+            "CAFé_ID",
+            reason="case conversion is ASCII and preserves UTF-8",
+        )
+        assert_equal(
+            member_name(&member("__order__id_", Facts { items: [] }), naming(.CamelCase)),
+            "orderId",
+            reason="joined styles remove underscores",
+        )
+        assert_equal(
+            member_name(&member("_", Facts { items: [] }), naming(.PascalCase)),
+            "",
+            reason="empty joined name is valid",
+        )
 
     it("member rename wins over the container including an empty explicit name"):
         info := member("order_id", Facts { items: [&rename("")] })
-        assert_equal(member_name(&info, naming(.CamelCase)), "", reason="empty override is still an override")
-        assert_equal(member_name(&member("source_name", Facts { items: [] }), Facts { items: [] }), "source_name", reason="no facts preserves source name")
+        assert_equal(
+            member_name(&info, naming(.CamelCase)),
+            "",
+            reason="empty override is still an override",
+        )
+        assert_equal(
+            member_name(&member("source_name", Facts { items: [] }), Facts { items: [] }),
+            "source_name",
+            reason="no facts preserves source name",
+        )
 
     it("all JSON paths read and write the camelCase record"):
         text := "{\"orderId\":\"o-7\",\"totalCents\":1299}"
         value := OrderPaid { order_id: "o-7", total_cents: 1299 }
         assert_equal(encode(value), text, reason="text writer")
         assert_equal(to_json(value), parse(text).expect("JSON"), reason="tree writer")
-        assert_equal(decode::[OrderPaid](text).expect("direct reader").order_id, "o-7", reason="direct reader")
-        assert_equal(from_json::[OrderPaid](parse(text).expect("JSON")).expect("tree reader").total_cents, 1299, reason="tree reader")
-        assert_equal(decode::[OrderPaid](encode_pretty(value)).map(fn(back): encode(back)), .Ok(text), reason="pretty writer")
+        assert_equal(
+            decode::[OrderPaid](text).expect("direct reader").order_id,
+            "o-7",
+            reason="direct reader",
+        )
+        assert_equal(
+            from_json::[OrderPaid](parse(text).expect("JSON")).expect("tree reader").total_cents,
+            1299,
+            reason="tree reader",
+        )
+        assert_equal(
+            decode::[OrderPaid](encode_pretty(value)).map(fn(back): encode(back)),
+            .Ok(text),
+            reason="pretty writer",
+        )
 
     it("nested JSON frames restore their container naming rules"):
         text := "{\"firstName\":\"a\",\"childValue\":{\"ChildId\":7},\"fixed\":\"z\",\"lookupById\":{\"raw_key\":1}}"
-        value := Parent { first_name: "a", child_value: Child { child_id: 7 }, after_name: "z", lookup_by_id: {"raw_key": 1} }
+        value := Parent {
+            first_name: "a",
+            child_value: Child { child_id: 7 },
+            after_name: "z",
+            lookup_by_id: { "raw_key": 1 },
+        }
         assert_equal(encode(value), text, reason="streaming frame rules and raw map key")
         assert_equal(to_json(value), parse(text).expect("JSON"), reason="tree frame rules")
-        assert_equal(decode::[Parent](text).map(fn(back): encode(back)), .Ok(text), reason="direct reader restores parent facts")
-        assert_equal(from_json::[Parent](parse(text).expect("JSON")).map(fn(back): encode(back)), .Ok(text), reason="tree reader restores parent facts")
+        assert_equal(
+            decode::[Parent](text).map(fn(back): encode(back)),
+            .Ok(text),
+            reason="direct reader restores parent facts",
+        )
+        assert_equal(
+            from_json::[Parent](parse(text).expect("JSON")).map(fn(back): encode(back)),
+            .Ok(text),
+            reason="tree reader restores parent facts",
+        )
 
     it("form and regex roots keep their facts while processing a unit enum"):
         value := Form { before_name: "a", some_mode: .Read, after_name: "z" }
-        assert_equal(Request::post(Url::parse("https://example.test/").expect("fixture URL")).set_form(value).bytes().expect("form bytes"), "beforeName=a&someMode=Read&afterName=z".to_utf8(), reason="unit enum does not replace root form facts")
+        assert_equal(
+            Request::post(Url::parse("https://example.test/").expect("fixture URL"))
+                .set_form(value)
+                .bytes()
+                .expect("form bytes"),
+            "beforeName=a&someMode=Read&afterName=z".to_utf8(),
+            reason="unit enum does not replace root form facts",
+        )
         pattern := Regex::new("^(?P<someMode>.*) (?P<otherId>.*)$").expect("regex")
         capture := pattern.decode::[Capture]("Read 7").expect("capture")
         assert_equal(capture.some_mode, Mode.Read, reason="enum capture")
         assert_equal(capture.other_id, 7, reason="following field still uses root facts")
 
     it("per-derivation container facts are used in both directions"):
-        assert_equal(encode(PerView { field_name: 9 }), "{\"FIELD-NAME\":9}", reason="Serialize facts")
-        assert_equal(decode::[PerView]("{\"FIELD-NAME\":9}").expect("Deserialize facts").field_name, +9, reason="Deserialize facts")
+        assert_equal(
+            encode(PerView { field_name: 9 }),
+            "{\"FIELD-NAME\":9}",
+            reason="Serialize facts",
+        )
+        assert_equal(
+            decode::[PerView]("{\"FIELD-NAME\":9}").expect("Deserialize facts").field_name,
+            +9,
+            reason="Deserialize facts",
+        )
 
     it("enum payload members use their enum container facts"):
         text := "{\"Value\":{\"innerValue\":3}}"
         value := Envelope.Value(3)
         assert_equal(encode(value), text, reason="text enum frame")
         assert_equal(to_json(value), parse(text).expect("JSON"), reason="tree enum frame")
-        assert_equal(decode::[Envelope](text).map(fn(back): encode(back)), .Ok(text), reason="direct enum frame")
-        assert_equal(from_json::[Envelope](parse(text).expect("JSON")).map(fn(back): encode(back)), .Ok(text), reason="tree enum frame")
+        assert_equal(
+            decode::[Envelope](text).map(fn(back): encode(back)),
+            .Ok(text),
+            reason="direct enum frame",
+        )
+        assert_equal(
+            from_json::[Envelope](parse(text).expect("JSON")).map(fn(back): encode(back)),
+            .Ok(text),
+            reason="tree enum frame",
+        )

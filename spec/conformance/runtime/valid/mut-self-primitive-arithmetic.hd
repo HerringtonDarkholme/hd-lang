@@ -6,7 +6,8 @@ trait Step:
     fn next(mut self) -> i32
 
 impl Step for i32:
-    fn next(mut self) -> i32: self + 1
+    fn next(mut self) -> i32:
+        self + 1
 
 fn advance(start: i32) -> i32:
     start.next()

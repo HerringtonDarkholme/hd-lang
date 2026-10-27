@@ -42,7 +42,7 @@ impl Serializer for Count:
     fn end_map(&mut self) -> Result[void, never]:
         .Ok(())
 
-    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:  # diagnostic: trait-method-signature
+    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]: # diagnostic: trait-method-signature
         .Ok(())
 
     fn member(&mut self, m: &Member) -> Result[void, never]:

@@ -8,5 +8,5 @@ struct Config:
     port: i32
 
 fn inspect(config: Config) -> i32:
-    debug(config)  # warning: unused-debug-text
+    debug(config) # warning: unused-debug-text
     config.port

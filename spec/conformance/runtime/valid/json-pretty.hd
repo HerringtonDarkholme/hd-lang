@@ -21,7 +21,11 @@ tests:
 
     it("each item and each member gets its own line, two spaces deeper"):
         assert_equal(read("[1,2]").pretty(), "[\n  1,\n  2\n]", reason="array")
-        assert_equal(read("{\"a\":1,\"b\":[true]}").pretty(), "{\n  \"a\": 1,\n  \"b\": [\n    true\n  ]\n}", reason="object")
+        assert_equal(
+            read("{\"a\":1,\"b\":[true]}").pretty(),
+            "{\n  \"a\": 1,\n  \"b\": [\n    true\n  ]\n}",
+            reason="object",
+        )
 
     it("pretty text parses back to an equal value"):
         value := read("{\"a\":[1,{\"b\":null}],\"c\":\"d\",\"e\":{}}")
@@ -29,4 +33,8 @@ tests:
 
     it("pretty has no trailing space or final newline"):
         assert_equal(read("{\"a\":[]}").pretty().ends_with("}"), true, reason="ends at the brace")
-        assert_equal(read("{\"a\":[1]}").pretty().contains(" \n"), false, reason="no trailing space")
+        assert_equal(
+            read("{\"a\":[1]}").pretty().contains(" \n"),
+            false,
+            reason="no trailing space",
+        )

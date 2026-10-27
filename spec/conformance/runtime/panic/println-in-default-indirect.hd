@@ -13,7 +13,7 @@ impl Console for QuietConsole:
 fn announce() -> i32:
     let mut console: QuietConsole = QuietConsole {}
     $.with(Console=&mut console):
-        println("default")  # panic: suspension-forbidden-context
+        println("default") # panic: suspension-forbidden-context
     1
 
 fn count(start: i32 = announce()) -> i32:

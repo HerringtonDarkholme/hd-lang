@@ -9,4 +9,4 @@ fn take_i8(value: i8) -> i8:
 fn run() -> i8:
     let i = +1
     let m = i.neg()
-    take_i8(m)  # diagnostic: implicit-narrowing
+    take_i8(m) # diagnostic: implicit-narrowing

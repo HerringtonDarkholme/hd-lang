@@ -7,4 +7,4 @@ fn logged(t: Template[string]) -> string $ Console:
     "logged"
 
 pub fn render() -> string:
-    logged"x"  # diagnostic: missing-requirement
+    logged"x" # diagnostic: missing-requirement

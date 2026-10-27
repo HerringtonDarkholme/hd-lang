@@ -7,7 +7,7 @@ pub fn sum_loop() -> i64:
         values.push(i64(i))
     let total: i64 = 0
     let round: i64 = 0
-    while round < 100:  # param: rounds
+    while round < 100: # param: rounds
         let j: usize = 0
         while j < values.len():
             total = total + values[j] * 3 - round

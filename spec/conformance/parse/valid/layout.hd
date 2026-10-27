@@ -1,18 +1,15 @@
 # Blocks use indentation and may have same-line bodies.
 
 fn greet(name: string) -> string:
-    if name == "":
-        "anonymous"
-    else:
-        "hello, " + name
+    if name == "": "anonymous" else: "hello, " + name
 
-fn one_line() -> void: pass
+fn one_line() -> void:
+    pass
 
-fn test() -> void $ Console: println("hi")
+fn test() -> void $ Console:
+    println("hi")
 
-value := greet(
-    "Ada",
-)
+value := greet("Ada")
 
 greeting := "你好"
 pattern := r"\d+\s+\w+"

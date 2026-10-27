@@ -6,10 +6,12 @@ trait Parse[T]:
 struct Item: pass
 
 impl Parse[i32] for Item:
-    fn parse(raw: i32) -> i32: raw
+    fn parse(raw: i32) -> i32:
+        raw
 
 impl Parse[string] for Item:
-    fn parse(raw: string) -> i32: 0
+    fn parse(raw: string) -> i32:
+        0
 
 pub fn main() -> void:
     text := "7"

@@ -3,4 +3,4 @@
 fn ping() -> string:
     "pong"
 
-ping_facts := facts_of(ping)  # diagnostic: unknown-name
+ping_facts := facts_of(ping) # diagnostic: unknown-name

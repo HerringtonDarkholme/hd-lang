@@ -3,4 +3,4 @@
 # expect: missing-requirement
 
 pub fn main() -> void:
-    println("ready")  # diagnostic: missing-requirement
+    println("ready") # diagnostic: missing-requirement

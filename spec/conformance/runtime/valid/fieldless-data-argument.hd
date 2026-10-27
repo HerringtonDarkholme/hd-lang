@@ -3,8 +3,10 @@
 
 struct Unit: pass
 
-fn consume(value: Unit) -> i32: 42
-fn main() -> i32: consume(Unit {})
+fn consume(value: Unit) -> i32:
+    42
+fn main() -> i32:
+    consume(Unit {})
 
 tests:
     use std.testing.assert_equal

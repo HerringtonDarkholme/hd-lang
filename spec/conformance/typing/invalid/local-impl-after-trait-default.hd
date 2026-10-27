@@ -10,10 +10,12 @@ fn render_page() -> string:
         fn render(self) -> string
 
     trait Layout:
-        fn title(self, heading: Heading) -> string: heading.render()  # diagnostic: unknown-method
+        fn title(self, heading: Heading) -> string:
+            heading.render() # diagnostic: unknown-method
 
     impl Render for Heading:
-        fn render(self) -> string: "# " + self.text
+        fn render(self) -> string:
+            "# " + self.text
 
     impl Layout for Page
 

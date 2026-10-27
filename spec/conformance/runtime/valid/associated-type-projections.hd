@@ -11,7 +11,8 @@ struct Box[T]:
 impl[T] Source for Box[T]:
     type Item = T
 
-    fn get(self) -> T: self.value
+    fn get(self) -> T:
+        self.value
 
 fn projected_value() -> i32:
     Box::[i32] { value: 42 }.get()
@@ -21,7 +22,8 @@ struct FixedSource: pass
 impl Source for FixedSource:
     type Item = i32
 
-    fn get(self) -> i32: 42
+    fn get(self) -> i32:
+        42
 
 fn concrete_projected_value() -> i32:
     FixedSource {}.get()
@@ -39,13 +41,29 @@ tests:
     use std.testing.assert_equal
 
     it("projected_value returns 42"):
-        assert_equal(projected_value(), 42, reason="associated types specialize Self projections in generic implementations")
+        assert_equal(
+            projected_value(),
+            42,
+            reason="associated types specialize Self projections in generic implementations",
+        )
 
     it("concrete_projected_value returns 42"):
-        assert_equal(concrete_projected_value(), 42, reason="associated types specialize Self projections in generic implementations")
+        assert_equal(
+            concrete_projected_value(),
+            42,
+            reason="associated types specialize Self projections in generic implementations",
+        )
 
     it("bounded_projected_value returns 42"):
-        assert_equal(bounded_projected_value(), 42, reason="associated types specialize Self projections in generic implementations")
+        assert_equal(
+            bounded_projected_value(),
+            42,
+            reason="associated types specialize Self projections in generic implementations",
+        )
 
     it("generic_bounded_projected_value returns 42"):
-        assert_equal(generic_bounded_projected_value(), 42, reason="associated types specialize Self projections in generic implementations")
+        assert_equal(
+            generic_bounded_projected_value(),
+            42,
+            reason="associated types specialize Self projections in generic implementations",
+        )

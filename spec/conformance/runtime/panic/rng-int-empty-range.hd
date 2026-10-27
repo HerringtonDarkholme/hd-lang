@@ -4,7 +4,7 @@ use std.random.Rng
 
 fn pick(start: i64) -> i64:
     dice := Rng::new(1)
-    dice.int(start..start)  # panic: explicit-panic
+    dice.int(start..start) # panic: explicit-panic
 
 tests:
     it("rejects an empty range"):

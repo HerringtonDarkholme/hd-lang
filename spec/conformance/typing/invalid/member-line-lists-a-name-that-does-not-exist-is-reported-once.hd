@@ -52,4 +52,4 @@ struct Point:
     a: i64
 
 impl Point by Structure:
-    a = nowhere  # diagnostic: unknown-name
+    a = nowhere # diagnostic: unknown-name

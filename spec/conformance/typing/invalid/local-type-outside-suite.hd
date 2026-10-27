@@ -5,5 +5,5 @@ fn make() -> i32:
         value: i32
     Box { value: +1 }.value
 
-fn other(box: Box) -> i32:  # diagnostic: unknown-type
+fn other(box: Box) -> i32: # diagnostic: unknown-type
     +0

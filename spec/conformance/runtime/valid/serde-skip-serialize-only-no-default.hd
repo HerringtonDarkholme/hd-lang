@@ -16,4 +16,8 @@ tests:
     use std.testing.assert_equal
 
     it("the skipped member is not written"):
-        assert_equal(encode(Record { name: "a", cached: Cached { hits: 5 } }), "{\"name\":\"a\"}", reason="only the kept member is written")
+        assert_equal(
+            encode(Record { name: "a", cached: Cached { hits: 5 } }),
+            "{\"name\":\"a\"}",
+            reason="only the kept member is written",
+        )

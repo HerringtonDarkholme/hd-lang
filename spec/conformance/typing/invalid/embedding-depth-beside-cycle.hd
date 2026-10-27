@@ -7,7 +7,7 @@ struct Page:
     Block
 
 struct Block:
-    Inner  # diagnostic: embedding-cycle
+    Inner # diagnostic: embedding-cycle
 
 struct Inner:
     Block

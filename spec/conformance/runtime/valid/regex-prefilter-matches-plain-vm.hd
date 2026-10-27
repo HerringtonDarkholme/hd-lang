@@ -168,7 +168,20 @@ fn run(program: List[Inst], hay: &Haystack, from: usize, slot_count: usize) -> L
     let mut stack: List[*Frame] = []
     let current: &mut List[usize] = &mut []
     scratch[0] = .Some(from)
-    add_thread(program, &mut marks, &mut stack, from, current, &mut table, half(from, size, slot_count), &mut scratch, slot_count, 0, from, count)
+    add_thread(
+        program,
+        &mut marks,
+        &mut stack,
+        from,
+        current,
+        &mut table,
+        half(from, size, slot_count),
+        &mut scratch,
+        slot_count,
+        0,
+        from,
+        count,
+    )
     let mut found: List[usize?] = []
     let index = from
     while true:
@@ -193,7 +206,20 @@ fn run(program: List[Inst], hay: &Haystack, from: usize, slot_count: usize) -> L
                 while slot < slot_count:
                     scratch[slot] = table[here + pc * slot_count + slot]
                     slot = slot + 1
-                add_thread(program, &mut marks, &mut stack, next_index, &mut next, &mut table, there, &mut scratch, slot_count, pc + 1, next_index, count)
+                add_thread(
+                    program,
+                    &mut marks,
+                    &mut stack,
+                    next_index,
+                    &mut next,
+                    &mut table,
+                    there,
+                    &mut scratch,
+                    slot_count,
+                    pc + 1,
+                    next_index,
+                    count,
+                )
         if index >= count:
             break
         index = next_index
@@ -203,7 +229,20 @@ fn run(program: List[Inst], hay: &Haystack, from: usize, slot_count: usize) -> L
                 scratch[slot] = .None
                 slot = slot + 1
             scratch[0] = .Some(index)
-            add_thread(program, &mut marks, &mut stack, index, &mut next, &mut table, there, &mut scratch, slot_count, 0, index, count)
+            add_thread(
+                program,
+                &mut marks,
+                &mut stack,
+                index,
+                &mut next,
+                &mut table,
+                there,
+                &mut scratch,
+                slot_count,
+                0,
+                index,
+                count,
+            )
         else:
             if next.len() == 0:
                 break
@@ -227,7 +266,20 @@ fn inst_accepts(inst: Inst, c: char) -> bool:
         .Class(items, negated) => class_matches(items, negated, c)
         _ => false
 
-fn add_thread(program: List[Inst], marks: &mut List[usize?], stack: &mut List[*Frame], generation: usize, list: &mut List[usize], table: &mut List[usize?], base: usize, scratch: &mut List[usize?], slot_count: usize, pc: usize, at: usize, count: usize) -> void:
+fn add_thread(
+    program: List[Inst],
+    marks: &mut List[usize?],
+    stack: &mut List[*Frame],
+    generation: usize,
+    list: &mut List[usize],
+    table: &mut List[usize?],
+    base: usize,
+    scratch: &mut List[usize?],
+    slot_count: usize,
+    pc: usize,
+    at: usize,
+    count: usize,
+) -> void:
     let top: usize = 0
     top = push_frame(stack, top, &mut Frame { pc: pc, slot: .None, value: .None })
     while top > 0:
@@ -247,21 +299,34 @@ fn add_thread(program: List[Inst], marks: &mut List[usize?], stack: &mut List[*F
             continue
         marks[here] = .Some(generation)
         match program[here]:
-            .Jump(target) => top = push_frame(stack, top, &mut Frame { pc: target, slot: .None, value: .None })
+            .Jump(target) =>
+                top = push_frame(stack, top, &mut Frame { pc: target, slot: .None, value: .None })
             .Split(first, second) =>
                 top = push_frame(stack, top, &mut Frame { pc: second, slot: .None, value: .None })
                 top = push_frame(stack, top, &mut Frame { pc: first, slot: .None, value: .None })
             .Save(slot) =>
                 if slot < slot_count:
-                    top = push_frame(stack, top, &mut Frame { pc: 0, slot: .Some(slot), value: scratch[slot] })
+                    top = push_frame(
+                        stack,
+                        top,
+                        &mut Frame { pc: 0, slot: .Some(slot), value: scratch[slot] },
+                    )
                     scratch[slot] = .Some(at)
                 top = push_frame(stack, top, &mut Frame { pc: here + 1, slot: .None, value: .None })
             .Begin =>
                 if at == 0:
-                    top = push_frame(stack, top, &mut Frame { pc: here + 1, slot: .None, value: .None })
+                    top = push_frame(
+                        stack,
+                        top,
+                        &mut Frame { pc: here + 1, slot: .None, value: .None },
+                    )
             .End =>
                 if at == count:
-                    top = push_frame(stack, top, &mut Frame { pc: here + 1, slot: .None, value: .None })
+                    top = push_frame(
+                        stack,
+                        top,
+                        &mut Frame { pc: here + 1, slot: .None, value: .None },
+                    )
             _ =>
                 list.push(here)
                 let slot: usize = 0
@@ -347,18 +412,36 @@ fn gen_repeat(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built
     # A literal run is wrapped so the quantifier repeats all of it.
     text := "(?:" + atom.text + ")"
     if kind == 6:
-        return &mut Built { node: Node.Repeat(&atom.node, 0, .None, greedy), text: text + "*" + lazy }
+        return &mut Built {
+            node: Node.Repeat(&atom.node, 0, .None, greedy),
+            text: text + "*" + lazy,
+        }
     if kind == 7:
-        return &mut Built { node: Node.Repeat(&atom.node, 1, .None, greedy), text: text + "+" + lazy }
+        return &mut Built {
+            node: Node.Repeat(&atom.node, 1, .None, greedy),
+            text: text + "+" + lazy,
+        }
     if kind == 8:
-        return &mut Built { node: Node.Repeat(&atom.node, 0, .Some(1), greedy), text: text + "?" + lazy }
+        return &mut Built {
+            node: Node.Repeat(&atom.node, 0, .Some(1), greedy),
+            text: text + "?" + lazy,
+        }
     low := c.int(0..=3)
     if kind == 9:
-        return &mut Built { node: Node.Repeat(&atom.node, low, .Some(low), greedy), text: text + "{$low}" + lazy }
+        return &mut Built {
+            node: Node.Repeat(&atom.node, low, .Some(low), greedy),
+            text: text + "{$low}" + lazy,
+        }
     if kind == 10:
-        return &mut Built { node: Node.Repeat(&atom.node, low, .None, greedy), text: text + "{$low,}" + lazy }
+        return &mut Built {
+            node: Node.Repeat(&atom.node, low, .None, greedy),
+            text: text + "{$low,}" + lazy,
+        }
     high := low + c.int(0..=2)
-    &mut Built { node: Node.Repeat(&atom.node, low, .Some(high), greedy), text: text + "{$low,$high}" + lazy }
+    &mut Built {
+        node: Node.Repeat(&atom.node, low, .Some(high), greedy),
+        text: text + "{$low,$high}" + lazy,
+    }
 
 fn gen_atom(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built:
     kind := c.int(0..=(if depth >= 2: 8 else: 11))
@@ -411,7 +494,19 @@ fn gen_class(c: &mut Choices) -> *Built:
     let mut items: List[ClassItem] = []
     let text = if negated: "[^" else: "["
     while items.len() < count:
-        range := c.choose([('a', 'b'), ('b', 'b'), ('a', 'é'), ('é', '😀'), ('-', '-'), ('😀', '😀'), ('\n', '\n'), ('€', '€'), ('é', '€')])
+        range := c.choose(
+            [
+                ('a', 'b'),
+                ('b', 'b'),
+                ('a', 'é'),
+                ('é', '😀'),
+                ('-', '-'),
+                ('😀', '😀'),
+                ('\n', '\n'),
+                ('€', '€'),
+                ('é', '€'),
+            ],
+        )
         items.push(ClassItem.Range(range._0, range._1))
         low := if range._0 == '\n': "\\n" else: "${range._0}"
         text = text + low
@@ -460,7 +555,12 @@ fn case_gen(c: &mut Choices) -> *Case:
     built := gen_alternation(c, 0, &mut names)
     text := c.list(16, fn(inner: &mut Choices) -> string: inner.choose(text_pieces())).join("")
     pieces := c.list(3, fn(inner: &mut Choices) -> Piece: gen_piece(inner, names.len()))
-    &mut Case { pattern: built.text, text: text, template: template_text(pieces), expected: old_summary(built.node, names, text, pieces) }
+    &mut Case {
+        pattern: built.text,
+        text: text,
+        template: template_text(pieces),
+        expected: old_summary(built.node, names, text, pieces),
+    }
 
 # A long text of `count` pieces from a seeded generator, so its length does
 # not spend the draw limit.
@@ -478,7 +578,12 @@ fn long_case_gen(c: &mut Choices) -> *Case:
     built := gen_alternation(c, 0, &mut names)
     text := long_text(c.int(u64(0)..=u64(1000000000)), c.int(100..=400))
     pieces := c.list(2, fn(inner: &mut Choices) -> Piece: gen_piece(inner, names.len()))
-    &mut Case { pattern: built.text, text: text, template: template_text(pieces), expected: old_summary(built.node, names, text, pieces) }
+    &mut Case {
+        pattern: built.text,
+        text: text,
+        template: template_text(pieces),
+        expected: old_summary(built.node, names, text, pieces),
+    }
 
 # What the old engine reports for one pattern and text, one line for each
 # method. Each search runs with every slot; the slots do not change which
@@ -499,7 +604,18 @@ fn old_summary(node: Node, names: List[string], text: string, pieces: List[Piece
             lines.push("captures " + old_groups(hay, slots))
             start := hay.offsets[matched(slots, 0)]
             end := hay.offsets[matched(slots, 1)]
-            lines.push("replace " + debug(text.slice(0, start) + old_expand(hay, slots, names, pieces) + text.slice(end, text.len())))
+            lines.push(
+                (
+                    "replace "
+                    + debug(
+                        (
+                            text.slice(0, start)
+                            + old_expand(hay, slots, names, pieces)
+                            + text.slice(end, text.len())
+                        ),
+                    )
+                ),
+            )
         .None =>
             lines.push("find none")
             lines.push("captures none")
@@ -553,7 +669,12 @@ fn old_text(hay: &Haystack, slots: List[usize?], group: usize) -> string:
         .Some(span) => hay.text.slice(span._0, span._1)
         .None => ""
 
-fn old_expand(hay: &Haystack, slots: List[usize?], names: List[string], pieces: List[Piece]) -> string:
+fn old_expand(
+    hay: &Haystack,
+    slots: List[usize?],
+    names: List[string],
+    pieces: List[Piece],
+) -> string:
     let mut parts: List[string] = []
     for piece in pieces:
         parts.push(old_piece(hay, slots, names, piece))
@@ -616,7 +737,12 @@ fn new_groups(groups: Captures) -> string:
 # A case from a pattern's tree, for the hand-picked shapes below.
 fn fixed(node: Node, pattern: string, names: List[string], text: string) -> *Case:
     pieces := [Piece.Literal("<"), Piece.Index(1), Piece.Literal(">")]
-    &mut Case { pattern: pattern, text: text, template: "<\${1}>", expected: old_summary(node, names, text, pieces) }
+    &mut Case {
+        pattern: pattern,
+        text: text,
+        template: "<\${1}>",
+        expected: old_summary(node, names, text, pieces),
+    }
 
 fn lit(text: string) -> Node:
     let mut items: List[Node] = []
@@ -668,35 +794,137 @@ tests:
             fixed(rep(range('é', '€'), 1, .None), "[é-€]+", n, "a€é b😀 ߿ࠀ"),
             fixed(rep(range('߿', '𐀀'), 1, .None), "[߿-𐀀]+", n, "a߿ ࠀ€ \u{ffff}𐀀𐀁"),
             fixed(lit("a\nb"), "a\\nb", n, "ab a\nb\na\n\nb"),
-            fixed(cat([Node.Literal('a'), rep(Node.AnyChar, 0, .Some(3)), lit("zz")]), "a.{0,3}zz", n, many("a", 40, "é😀zz a\nzz abczz abcdzz")),
-            fixed(cat([rep(Node.AnyChar, 1, .Some(2)), lit("zz")]), ".{1,2}zz", n, "é😀zz😀😀zzézz zzzz"),
-            fixed(cat([rep(range('a', 'z'), 1, .None), lit("zzz")]), "[a-z]+zzz", n, many("ab ", 100, "abzzz zz")),
-            fixed(cat([rep(range('a', 'z'), 1, .None), lit("zzz")]), "[a-z]+zzz", n, many("abz ", 100, "")),
-            fixed(cat([group(alt([lit("foo"), lit("foobar")])), lit("baz")]), "(foo|foobar)baz", g, "foobaz foobarbaz foobarba foo fooba"),
-            fixed(cat([alt([lit("ab"), lit("cd")]), lit("ef")]), "(?:ab|cd)ef", n, "abcdabefcdcdef"),
+            fixed(
+                cat([Node.Literal('a'), rep(Node.AnyChar, 0, .Some(3)), lit("zz")]),
+                "a.{0,3}zz",
+                n,
+                many("a", 40, "é😀zz a\nzz abczz abcdzz"),
+            ),
+            fixed(
+                cat([rep(Node.AnyChar, 1, .Some(2)), lit("zz")]),
+                ".{1,2}zz",
+                n,
+                "é😀zz😀😀zzézz zzzz",
+            ),
+            fixed(
+                cat([rep(range('a', 'z'), 1, .None), lit("zzz")]),
+                "[a-z]+zzz",
+                n,
+                many("ab ", 100, "abzzz zz"),
+            ),
+            fixed(
+                cat([rep(range('a', 'z'), 1, .None), lit("zzz")]),
+                "[a-z]+zzz",
+                n,
+                many("abz ", 100, ""),
+            ),
+            fixed(
+                cat([group(alt([lit("foo"), lit("foobar")])), lit("baz")]),
+                "(foo|foobar)baz",
+                g,
+                "foobaz foobarbaz foobarba foo fooba",
+            ),
+            fixed(
+                cat([alt([lit("ab"), lit("cd")]), lit("ef")]),
+                "(?:ab|cd)ef",
+                n,
+                "abcdabefcdcdef",
+            ),
             fixed(cat([Node.Begin, lit("abc")]), "^abc", n, "abcabc"),
             fixed(cat([Node.Begin, lit("abc")]), "^abc", n, "xabcabc"),
             fixed(cat([lit("abc"), Node.End]), "abc\$", n, "abcabc"),
             fixed(cat([rep(Node.Literal('x'), 0, .None), lit("abc")]), "x*abc", n, "xxabcxabc ab"),
             fixed(rep(group(lit("abc")), 0, .Some(1)), "(abc)?", g, "abcab"),
             fixed(alt([rep(Node.Literal('a'), 0, .None), Node.Literal('b')]), "a*|b", n, "bbaab"),
-            fixed(cat([rep(range('é', '😀'), 1, .None), Node.Literal('a')]), "[é-😀]+a", n, "éé😀a😀b éa a"),
-            fixed(cat([Node.Class([ClassItem.Range('a', 'a')], true), Node.Literal('b')]), "[^a]b", n, "éb😀bab\nb bb"),
-            fixed(cat([rep(digits(), 1, .None), Node.Literal('.'), rep(digits(), 1, .None)]), "\\d+\\.\\d+", n, "1.2 3. .4 55.66 7..8"),
-            fixed(cat([rep(Node.Literal('a'), 3, .Some(3)), Node.Literal('b')]), "a{3}b", n, "aaab aab aaaab"),
-            fixed(cat([rep(lit("ab"), 2, .None), Node.Literal('c')]), "(?:ab){2,}c", n, "ababc abababc abc ababab"),
+            fixed(
+                cat([rep(range('é', '😀'), 1, .None), Node.Literal('a')]),
+                "[é-😀]+a",
+                n,
+                "éé😀a😀b éa a",
+            ),
+            fixed(
+                cat([Node.Class([ClassItem.Range('a', 'a')], true), Node.Literal('b')]),
+                "[^a]b",
+                n,
+                "éb😀bab\nb bb",
+            ),
+            fixed(
+                cat([rep(digits(), 1, .None), Node.Literal('.'), rep(digits(), 1, .None)]),
+                "\\d+\\.\\d+",
+                n,
+                "1.2 3. .4 55.66 7..8",
+            ),
+            fixed(
+                cat([rep(Node.Literal('a'), 3, .Some(3)), Node.Literal('b')]),
+                "a{3}b",
+                n,
+                "aaab aab aaaab",
+            ),
+            fixed(
+                cat([rep(lit("ab"), 2, .None), Node.Literal('c')]),
+                "(?:ab){2,}c",
+                n,
+                "ababc abababc abc ababab",
+            ),
             fixed(alt([Node.Literal('a'), lit("ab"), lit("abc")]), "a|ab|abc", n, "xabcab"),
-            fixed(cat([rep(word(), 1, .Some(4)), lit("-99")]), "\\w{1,4}-99", n, "word-1 word-99 w-99 abcdef-99 -99"),
-            fixed(cat([group(alt([Node.Literal('a'), Node.Literal('b')])), Node.Literal('c')]), "(a|b)c", g, "acbcccac"),
+            fixed(
+                cat([rep(word(), 1, .Some(4)), lit("-99")]),
+                "\\w{1,4}-99",
+                n,
+                "word-1 word-99 w-99 abcdef-99 -99",
+            ),
+            fixed(
+                cat([group(alt([Node.Literal('a'), Node.Literal('b')])), Node.Literal('c')]),
+                "(a|b)c",
+                g,
+                "acbcccac",
+            ),
             fixed(Node.Empty, "", n, "aé"),
             fixed(Node.Begin, "^", n, "ab"),
             fixed(Node.End, "\$", n, "ab"),
             fixed(cat([Node.Literal('a'), Node.End]), "a\$", n, "aaa"),
-            fixed(cat([lit("ab"), rep(Node.AnyChar, 0, .None), lit("cd")]), "ab.*cd", n, "ab ab\ncd abxcd cd"),
-            fixed(cat([Node.Literal('-'), rep(cat([lit("ab"), Node.AnyChar]), 0, .Some(1))]), "-(?:ab.)?", n, "- -ab -abx"),
-            fixed(cat([Node.Literal('-'), rep(alt([lit("ab"), cat([lit("abc"), Node.AnyChar])]), 0, .None)]), "-(?:ab|abc.)*", n, "--x -abc -abcd"),
-            fixed(cat([rep(Node.Literal('x'), 0, .Some(2)), lit("ab")]), "x{0,2}ab", n, "xxxxxxab xab"),
-            fixed(cat([rep(Node.AnyChar, 0, .Some(1)), Node.Literal('a'), Node.Literal('b'), alt([Node.Literal('c'), Node.Literal('d')])]), ".?ab(?:c|d)", n, "xabc xabd ab abe"),
+            fixed(
+                cat([lit("ab"), rep(Node.AnyChar, 0, .None), lit("cd")]),
+                "ab.*cd",
+                n,
+                "ab ab\ncd abxcd cd",
+            ),
+            fixed(
+                cat([Node.Literal('-'), rep(cat([lit("ab"), Node.AnyChar]), 0, .Some(1))]),
+                "-(?:ab.)?",
+                n,
+                "- -ab -abx",
+            ),
+            fixed(
+                cat(
+                    [
+                        Node.Literal('-'),
+                        rep(alt([lit("ab"), cat([lit("abc"), Node.AnyChar])]), 0, .None),
+                    ],
+                ),
+                "-(?:ab|abc.)*",
+                n,
+                "--x -abc -abcd",
+            ),
+            fixed(
+                cat([rep(Node.Literal('x'), 0, .Some(2)), lit("ab")]),
+                "x{0,2}ab",
+                n,
+                "xxxxxxab xab",
+            ),
+            fixed(
+                cat(
+                    [
+                        rep(Node.AnyChar, 0, .Some(1)),
+                        Node.Literal('a'),
+                        Node.Literal('b'),
+                        alt([Node.Literal('c'), Node.Literal('d')]),
+                    ],
+                ),
+                ".?ab(?:c|d)",
+                n,
+                "xabc xabd ab abe",
+            ),
         ]
         # A literal far ahead lets the search jump to `hi` bytes before
         # it, which may land inside a scalar, at every alignment.
@@ -708,10 +936,18 @@ tests:
         for case in cases:
             assert_equal(new_summary(case), case.expected, reason=case.pattern)
 
-    it_prop_with("random literal patterns on short texts agree with the plain VM", gen=case_gen, cases=400, prop=fn!(case: &Case):
-        assert_equal(new_summary(case), case.expected, reason=case.pattern)
+    it_prop_with(
+        "random literal patterns on short texts agree with the plain VM",
+        gen=case_gen,
+        cases=400,
+        prop=fn!(case: &Case): assert_equal(new_summary(case), case.expected, reason=case.pattern)
+        ,
     )
 
-    it_prop_with("random literal patterns on long texts agree with the plain VM", gen=long_case_gen, cases=40, prop=fn!(case: &Case):
-        assert_equal(new_summary(case), case.expected, reason=case.pattern)
+    it_prop_with(
+        "random literal patterns on long texts agree with the plain VM",
+        gen=long_case_gen,
+        cases=40,
+        prop=fn!(case: &Case): assert_equal(new_summary(case), case.expected, reason=case.pattern)
+        ,
     )

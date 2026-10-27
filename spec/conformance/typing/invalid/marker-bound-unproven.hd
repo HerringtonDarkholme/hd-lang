@@ -13,6 +13,8 @@ impl[T < Marker] Marker for Box[T]
 fn need[T < Marker](value: T) -> void:
     pass
 
-fn good(value: Box[i32]) -> void: need(value)
+fn good(value: Box[i32]) -> void:
+    need(value)
 
-fn bad(value: Box[string]) -> void: need(value)  # diagnostic: unsatisfied-trait-bound
+fn bad(value: Box[string]) -> void:
+    need(value) # diagnostic: unsatisfied-trait-bound

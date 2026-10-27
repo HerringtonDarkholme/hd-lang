@@ -7,12 +7,9 @@ struct NewlineFails:
 impl Console for NewlineFails:
     fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.calls = self.calls + 1
-        if self.calls == 1:
-            .Ok(())
-        else:
-            .Err(ConsoleError.Closed)
+        if self.calls == 1: .Ok(()) else: .Err(ConsoleError.Closed)
 
 pub fn main() -> void:
     let mut console = NewlineFails { calls: 0 }
     $.with(Console=&mut console):
-        println("hello")  # panic: explicit-panic
+        println("hello") # panic: explicit-panic

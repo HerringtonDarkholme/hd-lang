@@ -1,1 +1,2 @@
-pub fn main() -> void: pass
+pub fn main() -> void:
+    pass

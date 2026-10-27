@@ -20,21 +20,29 @@ tests:
 
     it("and_then calls the step only for Some"):
         assert_equal(quarter_of_first_even([3, 8, 5]), 2, reason="8 is even and a multiple of 4")
-        assert_equal(quarter_of_first_even([3, 6, 8]), 0, reason="6 is the first even, and quarter gives None")
+        assert_equal(
+            quarter_of_first_even([3, 6, 8]),
+            0,
+            reason="6 is the first even, and quarter gives None",
+        )
         assert_equal(quarter_of_first_even([1, 3]), 0, reason="no even value")
 
     it("and_then calls the step at most once"):
         let calls = 0
         let present: i32? = .Some(4)
         let absent: i32? = .None
-        result := present.and_then(fn(value: i32) -> i32?:
-            calls = calls + 1
-            quarter(value)
+        result := present.and_then(
+            fn(value: i32) -> i32?:
+                calls = calls + 1
+                quarter(value)
+            ,
         )
         assert_equal(result, .Some(1), reason="the step's result")
-        _ := absent.and_then(fn(value: i32) -> i32?:
-            calls = calls + 1
-            quarter(value)
+        _ := absent.and_then(
+            fn(value: i32) -> i32?:
+                calls = calls + 1
+                quarter(value)
+            ,
         )
         assert_equal(calls, 1, reason="once for Some, never for None")
 

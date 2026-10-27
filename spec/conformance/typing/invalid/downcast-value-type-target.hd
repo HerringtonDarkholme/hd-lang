@@ -4,6 +4,6 @@
 use std.inspect.Inspectable
 
 fn number(value: &dyn Inspectable) -> i32:
-    match value.downcast_ref::[fn() -> i32]():  # diagnostic: unsatisfied-trait-bound
+    match value.downcast_ref::[fn() -> i32](): # diagnostic: unsatisfied-trait-bound
         .Some(_) => 0
         .None => 0

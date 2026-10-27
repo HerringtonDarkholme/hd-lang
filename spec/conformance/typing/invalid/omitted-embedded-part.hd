@@ -36,4 +36,4 @@ struct Account:
     id: i64
 
 impl Show for Account by Structure:
-    Audit = pass  # diagnostic: omitted-member-without-default
+    Audit = pass # diagnostic: omitted-member-without-default

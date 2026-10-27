@@ -6,8 +6,16 @@ tests:
 
     it("reports a required option and accepts its short form"):
         parser := ArgParser::new("tool").arg(Arg { name: "out", short: 'o', required: true })
-        assert_equal(parser.parse([]), .Err(CliError.MissingArgument("--out")), reason="usage spelling")
-        assert_equal(parser.parse(["-o", "done"]).expect("parse").value("out"), .Some("done"), reason="short lookup")
+        assert_equal(
+            parser.parse([]),
+            .Err(CliError.MissingArgument("--out")),
+            reason="usage spelling",
+        )
+        assert_equal(
+            parser.parse(["-o", "done"]).expect("parse").value("out"),
+            .Some("done"),
+            reason="short lookup",
+        )
 
     it("looks up a thousand declared options"):
         parser := ArgParser::new("many")
@@ -23,8 +31,16 @@ tests:
     it("positionals can be optional and are also read by name"):
         parser := ArgParser::new("tool").arg(Arg { name: "file", kind: .Positional })
         assert_equal(parser.parse([]).expect("parse").value("file"), .None, reason="optional")
-        assert_equal(parser.parse(["a"]).expect("parse").value("file"), .Some("a"), reason="named value")
+        assert_equal(
+            parser.parse(["a"]).expect("parse").value("file"),
+            .Some("a"),
+            reason="named value",
+        )
 
     it("ArgKind flags take no value"):
         parser := ArgParser::new("tool").arg(Arg { name: "verbose", kind: ArgKind.Flag })
-        assert_equal(parser.parse(["--verbose"]).expect("flag").flag("verbose"), true, reason="flag kind")
+        assert_equal(
+            parser.parse(["--verbose"]).expect("flag").flag("verbose"),
+            true,
+            reason="flag kind",
+        )

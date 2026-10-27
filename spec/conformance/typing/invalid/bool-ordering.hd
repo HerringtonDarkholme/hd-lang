@@ -1,3 +1,4 @@
 # test: bool has no PartialOrd implementation, so bool < bool is rejected
 
-fn main() -> bool: true < false  # diagnostic: type-mismatch
+fn main() -> bool:
+    true < false # diagnostic: type-mismatch

@@ -21,4 +21,4 @@ impl From[HttpError] for SyncError:
         SyncError.Http(value)
 
 fn convert(path: string) -> SyncError:
-    SyncError::from(path)  # diagnostic: type-mismatch
+    SyncError::from(path) # diagnostic: type-mismatch

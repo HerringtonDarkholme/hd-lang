@@ -9,5 +9,9 @@ tests:
     use std.testing.assert_equal
 
     it("ring.one's statements run before ring.two's"):
-        assert_equal(recorded(), ["one first", "one second", "two"], reason="ring.one orders before ring.two")
+        assert_equal(
+            recorded(),
+            ["one first", "one second", "two"],
+            reason="ring.one orders before ring.two",
+        )
         assert_equal(two(), "2", reason="the group is in use")

@@ -1,7 +1,8 @@
 # test: a spread follows fixed arguments
 # expect-stdout: 127
 # expect-stdout: 312
-fn tagged(tag: i32, values...: List[i32]) -> i32: tag * 100 + i32(values.len()) * 10 + values[0]
+fn tagged(tag: i32, values...: List[i32]) -> i32:
+    tag * 100 + i32(values.len()) * 10 + values[0]
 
 pub fn main() -> void $ Console:
     xs := [+7, 8]

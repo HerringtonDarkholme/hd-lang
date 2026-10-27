@@ -11,4 +11,4 @@ fn store(callback: fn() -> void $ Db) -> void $ Db:
     callback()
 
 fn run() -> void $ Db + Metrics:
-    store(record)  # diagnostic: type-mismatch
+    store(record) # diagnostic: type-mismatch

@@ -1,2 +1,1 @@
-
-let values: Map[f64, string] = {}  # diagnostic: unsatisfied-trait-bound
+let values: Map[f64, string] = {} # diagnostic: unsatisfied-trait-bound

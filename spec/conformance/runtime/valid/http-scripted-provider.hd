@@ -7,7 +7,8 @@ fn status!(url: string) -> u16 $ Http:
         .Err(_) => 0
 
 fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
-    response := Request::get(Url::parse("https://api.github.com/repos/${repo}/releases/latest")?).send!()?
+    response := Request::get(Url::parse("https://api.github.com/repos/${repo}/releases/latest")?)
+        .send!()?
     if response.status != .Ok:
         return .Err(.Other("status ${response.status.code()}"))
     .Ok(response.text()?)
@@ -24,14 +25,22 @@ tests:
 
     it("a 404 is an ordinary send response"):
         http := ScriptedHttp::new()
-        http.reply("https://api.github.com/repos/hd/hd/releases/latest", .Ok(Response::status(.NotFound)))
+        http.reply(
+            "https://api.github.com/repos/hd/hd/releases/latest",
+            .Ok(Response::status(.NotFound)),
+        )
         $.with(Http=http):
-            assert_equal(latest_release!("hd/hd"), .Err(HttpError.Other("status 404")), reason="status is data")
+            assert_equal(
+                latest_release!("hd/hd"),
+                .Err(HttpError.Other("status 404")),
+                reason="status is data",
+            )
 
     it("answers every method and records independently readable request bodies"):
         http := ScriptedHttp::new()
         http.reply("https://example.com/", .Ok(Response::status(.Ok).set_text("hi")))
-        posted := Request::post(Url::parse("https://example.com/").expect("fixture URL")).set_bytes([1])
+        posted := Request::post(Url::parse("https://example.com/").expect("fixture URL"))
+            .set_bytes([1])
         $.with(Http=http):
             match posted.send!():
                 .Ok(response) => assert_equal(response.text(), .Ok("hi"), reason="scripted body")

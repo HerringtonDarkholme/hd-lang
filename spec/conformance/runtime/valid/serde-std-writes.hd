@@ -119,18 +119,32 @@ tests:
         let empty: List[i64] = []
         assert_equal(calls(empty), "list:0 end-list", reason="no item")
         let boxes: List[List[i32]] = [[+1], []]
-        assert_equal(calls(boxes), "list:2 list:1 int:1 end-list list:0 end-list end-list", reason="nested")
+        assert_equal(
+            calls(boxes),
+            "list:2 list:1 int:1 end-list list:0 end-list end-list",
+            reason="nested",
+        )
 
     it("a map writes its length, then a key and a value per entry, in the map's order"):
         let stock: Map[string, u32] = { "pen": 4 }
         assert_equal(calls(stock), "map:1 key:pen uint:4 end-map", reason="one entry")
         let pair: Map[string, u32] = { "pen": 4, "ink": 0 }
         written := calls(pair)
-        assert(written == "map:2 key:pen uint:4 key:ink uint:0 end-map" || written == "map:2 key:ink uint:0 key:pen uint:4 end-map", reason="both entries, in the map's order")
+        assert(
+            (
+                written == "map:2 key:pen uint:4 key:ink uint:0 end-map"
+                || written == "map:2 key:ink uint:0 key:pen uint:4 end-map"
+            ),
+            reason="both entries, in the map's order",
+        )
         let none: Map[string, bool] = {}
         assert_equal(calls(none), "map:0 end-map", reason="no entry")
 
     it("a derived newtype writes its base value"):
         assert_equal(calls(Sku("PEN-01")), "text:PEN-01", reason="string base")
         assert_equal(calls(Cents(1999)), "int:1999", reason="i64 base")
-        assert_equal(calls([Cents(5), Cents(-5)]), "list:2 int:5 int:-5 end-list", reason="inside a list")
+        assert_equal(
+            calls([Cents(5), Cents(-5)]),
+            "list:2 int:5 int:-5 end-list",
+            reason="inside a list",
+        )

@@ -6,9 +6,11 @@
 # expect-stdout: 1 2
 use std.task.{all, race}
 
-fn one!() -> i32: 1
+fn one!() -> i32:
+    1
 
-fn two!() -> i32: 2
+fn two!() -> i32:
+    2
 
 pub fn main!() -> void $ Console:
     println(race!(one(), two()))

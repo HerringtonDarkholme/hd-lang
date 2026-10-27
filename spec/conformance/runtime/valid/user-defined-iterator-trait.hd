@@ -35,7 +35,11 @@ tests:
 
     it("supports generic iterator bounds and mutable-reference forwarding"):
         let mut cursor = Countdown { remaining: +3 }
-        assert_equal(drain(&mut cursor), [+2, 1, 0], reason="a mutable cursor reference forwards next")
+        assert_equal(
+            drain(&mut cursor),
+            [+2, 1, 0],
+            reason="a mutable cursor reference forwards next",
+        )
         assert_equal(cursor.next(), .None, reason="the forwarded cursor shares its progress")
 
     it("erases a concrete cursor to a mutable iterator reference"):
@@ -58,13 +62,21 @@ tests:
             values.push(value)
         assert_equal(values, [+2, 1, 0], reason="a readonly value can supply a cursor")
         assert_equal(cursor.remaining, +3, reason="the loop owns its cursor copy")
-        assert_equal([for value in cursor => value], [+2, 1, 0], reason="comprehensions also copy cursor values")
+        assert_equal(
+            [for value in cursor => value],
+            [+2, 1, 0],
+            reason="comprehensions also copy cursor values",
+        )
         assert_equal(cursor.remaining, +3, reason="a comprehension preserves the source value")
 
     it("copies a writable cursor at its current position"):
         let mut cursor = Countdown { remaining: +4 }
         assert_equal(cursor.next(), .Some(+3), reason="advance before copying")
-        assert_equal([for value in cursor => value], [+2, 1, 0], reason="the copy starts at the current position")
+        assert_equal(
+            [for value in cursor => value],
+            [+2, 1, 0],
+            reason="the copy starts at the current position",
+        )
         assert_equal(cursor.next(), .Some(+2), reason="the original keeps its position")
 
     it("evaluates a cursor expression once"):
@@ -84,4 +96,8 @@ tests:
         for value in &mut cursor:
             assert_equal(value, +2, reason="the reference starts at the original position")
             break
-        assert_equal(cursor.next(), .Some(+1), reason="breaking a borrowed loop keeps partial progress")
+        assert_equal(
+            cursor.next(),
+            .Some(+1),
+            reason="breaking a borrowed loop keeps partial progress",
+        )

@@ -5,4 +5,4 @@ trait Factory:
     fn create() -> Self
 
 fn pick() -> void:
-    let factory: Factory = panic("no factory configured")  # diagnostic: trait-used-as-type
+    let factory: Factory = panic("no factory configured") # diagnostic: trait-used-as-type

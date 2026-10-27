@@ -3,9 +3,20 @@ use std.host.Args
 use std.process.ExitCode
 
 pub fn main() -> ExitCode $ Args + Console:
-    build := ArgParser::new("notes build", "Convert the notes to HTML.").arg(Arg { name: "file", kind: .Positional, required: true, help: "input" })
+    build := ArgParser::new("notes build", "Convert the notes to HTML.")
+        .arg(Arg { name: "file", kind: .Positional, required: true, help: "input" })
     clean := ArgParser::new("notes clean", "Remove the output directory.")
-    parser := ArgParser::new("notes", "Build a static site from Markdown notes.").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "Print each file as it is converted." }).command("build", *build).command("clean", *clean)
+    parser := ArgParser::new("notes", "Build a static site from Markdown notes.")
+        .arg(
+            Arg {
+                name: "verbose",
+                kind: .Flag,
+                short: 'v',
+                help: "Print each file as it is converted.",
+            },
+        )
+        .command("build", *build)
+        .command("clean", *clean)
     match parser.parse_args():
         .Err(error) => error.exit()
         .Ok(_) => ExitCode(0)

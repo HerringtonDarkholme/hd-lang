@@ -1,4 +1,4 @@
 # test: `is` between references to different types is incompatible-identity-operands
 # Spec 13 Identity: ref.identity.incompatible.
 fn same(a: &i32, b: &i64) -> bool:
-    a is b  # diagnostic: incompatible-identity-operands
+    a is b # diagnostic: incompatible-identity-operands

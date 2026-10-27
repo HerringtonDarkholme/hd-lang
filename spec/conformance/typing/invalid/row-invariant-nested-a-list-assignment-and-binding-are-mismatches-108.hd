@@ -22,5 +22,5 @@ fn serve_all(handlers: List[fn() -> void $ Db + Clock]) -> void:
     pass
 
 fn wire(handlers: List[fn() -> void $ Db]) -> void:
-    let wide: List[fn() -> void $ Db + Clock] = handlers  # diagnostic: type-mismatch
+    let wide: List[fn() -> void $ Db + Clock] = handlers # diagnostic: type-mismatch
     serve_all(wide)

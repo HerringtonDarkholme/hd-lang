@@ -39,4 +39,4 @@ struct Pair:
 
 impl Show for Pair by Structure:
     left += [rename("l")]
-    left += [rename("first")]  # diagnostic: duplicate-fact
+    left += [rename("first")] # diagnostic: duplicate-fact

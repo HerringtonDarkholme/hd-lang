@@ -2,6 +2,6 @@
 # Spec std/task Retry: std-task.policy.retry.clock.
 use std.task.{Backoff, retry, apply}
 fn connect!() -> Result[void, string] $ Console:
-    apply!(retry(Backoff { initial: 0ms })):  # diagnostic: missing-requirement
+    apply!(retry(Backoff { initial: 0ms })): # diagnostic: missing-requirement
         let attempt: Result[void, string] = .Ok(())
         attempt

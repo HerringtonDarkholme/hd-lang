@@ -4,4 +4,4 @@ enum HttpStatus(code: i32, phrase: string):
     Ok -> HttpStatus(200, phrase="OK")
 
 fn bump(status: &mut HttpStatus) -> void:
-    status.code += 1  # diagnostic: invalid-assignment-target
+    status.code += 1 # diagnostic: invalid-assignment-target

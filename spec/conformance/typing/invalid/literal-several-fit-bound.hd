@@ -16,4 +16,4 @@ fn grow[T < Scale](x: T) -> T:
     x.scale()
 
 fn run() -> void:
-    let n = grow(5)  # diagnostic: unsatisfied-trait-bound
+    let n = grow(5) # diagnostic: unsatisfied-trait-bound

@@ -29,5 +29,9 @@ tests:
             println("y\n")
             println("")
             eprintln("warning")
-        assert_equal(console.output(), ["a", "12", "x", "\n", "y\n", "\n", "", "\n"], reason="two chunks per println, one per print")
+        assert_equal(
+            console.output(),
+            ["a", "12", "x", "\n", "y\n", "\n", "", "\n"],
+            reason="two chunks per println, one per print",
+        )
         assert_equal(console.error_output(), ["warning\n"], reason="one stderr chunk")

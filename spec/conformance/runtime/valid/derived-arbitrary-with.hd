@@ -14,10 +14,15 @@ struct Item:
     price: i32
 
 tests:
-    it_prop("prices come from cents", prop=fn!(item: Item):
-        assert(item.price == 7, reason="cents always draws 7")
+    it_prop(
+        "prices come from cents",
+        prop=fn!(item: Item): assert(item.price == 7, reason="cents always draws 7")
+        ,
     )
 
-    it_prop("prices are never negative", examples=[Item { name: "", price: 0 }], prop=fn!(item: Item):
-        assert(item.price >= 0, reason="cents draws 7, and the example has 0")
+    it_prop(
+        "prices are never negative",
+        examples=[Item { name: "", price: 0 }],
+        prop=fn!(item: Item): assert(item.price >= 0, reason="cents draws 7, and the example has 0")
+        ,
     )

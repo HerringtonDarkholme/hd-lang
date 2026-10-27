@@ -5,4 +5,4 @@ use std.structure.Structure
 struct Point:
     x: i64
 
-impl Eq for Point by Structure  # diagnostic: underivable-trait
+impl Eq for Point by Structure # diagnostic: underivable-trait

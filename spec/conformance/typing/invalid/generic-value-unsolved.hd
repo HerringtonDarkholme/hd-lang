@@ -7,4 +7,4 @@ fn call_with_nothing[A, B](f: fn(A) -> B) -> void:
     pass
 
 fn run() -> void:
-    call_with_nothing(identity)  # diagnostic: cannot-infer-type
+    call_with_nothing(identity) # diagnostic: cannot-infer-type

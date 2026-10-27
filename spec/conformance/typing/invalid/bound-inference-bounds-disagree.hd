@@ -22,4 +22,4 @@ fn joined[U, A < Source[U], B < Source[U]](first: A, second: B) -> List[U]:
     [first.take(), second.take()]
 
 fn mixed(label: Label, count: Count) -> void:
-    items := joined(label, count)  # diagnostic: cannot-infer-type
+    items := joined(label, count) # diagnostic: cannot-infer-type

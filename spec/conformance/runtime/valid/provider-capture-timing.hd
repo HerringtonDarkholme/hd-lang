@@ -32,7 +32,11 @@ tests:
             fn() -> string: current()
         seen := $.with(Tag=FixedTag { value: "caller" }):
             reader()
-        assert_equal(seen, "caller", reason="the enclosing scope does not satisfy the closure's row")
+        assert_equal(
+            seen,
+            "caller",
+            reason="the enclosing scope does not satisfy the closure's row",
+        )
 
     it("closure without a provider in scope uses the caller's provider"):
         reader := fn() -> string: current()

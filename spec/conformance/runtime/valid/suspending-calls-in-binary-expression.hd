@@ -1,6 +1,7 @@
 # test: suspending calls in binary expression
 
-fn value!(input: i32) -> i32: input
+fn value!(input: i32) -> i32:
+    input
 
 fn main!() -> i32:
     value!(20) + value!(22)

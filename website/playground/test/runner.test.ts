@@ -603,11 +603,11 @@ test("Test passes and fails the cases hd test passes and fails", async () => {
   );
   // hd test's report of the same file, without its frames and repro lines.
   assert.deepEqual(result.stdout, [
-    "PANIC src/main.hd:18: joins with a dash",
+    "PANIC src/main.hd:22: joins with a dash",
     '    panic: assertion-failed: joined: actual "a-b", expected "a_b"',
-    "PANIC src/main.hd:21: keeps each word[1]",
+    "PANIC src/main.hd:25: keeps each word[1]",
     '    panic: assertion-failed: unchanged: actual "hd", expected "Hd"',
-    "PANIC src/main.hd:29: a number stays small",
+    "PANIC src/main.hd:33: a number stays small",
     "    panic: assertion-failed: small",
     "    input: 100",
   ]);

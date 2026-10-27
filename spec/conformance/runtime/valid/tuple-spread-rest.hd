@@ -1,7 +1,9 @@
 # test: a tuple spread must have the callee's inputs tuple, so a rest tuple spreads into a vararg function and a plain tuple into a List parameter
 # expect: test
-fn g(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
-fn h(a: usize, b: usize, xs: List[i32]) -> usize: a + b + xs.len()
+fn g(a: usize, b: usize, xs...: List[i32]) -> usize:
+    a + b + xs.len()
+fn h(a: usize, b: usize, xs: List[i32]) -> usize:
+    a + b + xs.len()
 
 tests:
     use std.testing.assert_equal
@@ -12,4 +14,8 @@ tests:
         let rest: (usize, List[i32]...) = (1, 5)
         assert_equal(g(t...), 5, reason="the rest element fills the vararg")
         assert_equal(h(u...), 5, reason="the plain list fills the List parameter")
-        assert_equal(g(10, rest...), 12, reason="a spread fills the remaining inputs, the rest included")
+        assert_equal(
+            g(10, rest...),
+            12,
+            reason="a spread fills the remaining inputs, the rest included",
+        )

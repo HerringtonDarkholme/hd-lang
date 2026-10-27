@@ -6,7 +6,8 @@ fn sum(values...: List[i32]) -> i32:
     for v in values:
         total = total + v
     total
-fn label(parts...: (i32, string)) -> string: "${parts._0}${parts._1}"
+fn label(parts...: (i32, string)) -> string:
+    "${parts._0}${parts._1}"
 
 pub fn main() -> void $ Console:
     println(sum(values=[1, 2]))

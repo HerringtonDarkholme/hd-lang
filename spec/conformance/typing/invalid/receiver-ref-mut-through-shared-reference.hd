@@ -8,4 +8,4 @@ impl Point:
         self.x += dx
 
 fn nudge(r: &Point) -> void:
-    r.shift(1)  # diagnostic: not-writable
+    r.shift(1) # diagnostic: not-writable

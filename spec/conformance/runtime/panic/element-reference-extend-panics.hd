@@ -1,7 +1,7 @@
 # test: a std extend that adds elements through a &mut parameter during an element reference's call panics with collection-pinned
 # std Collections, List And Map Values: std-collections.value.pinned-length.
 fn change(list: &mut List[i32], first: &i32) -> i32:
-    list.extend([+3])  # panic: collection-pinned
+    list.extend([+3]) # panic: collection-pinned
     *first
 
 fn through(list: &mut List[i32]) -> i32:

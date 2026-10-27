@@ -4,7 +4,7 @@ use std.ops.Add
 
 use pkg.alpha.Money
 
-impl Add[Money] for i32:  # diagnostic: nonlocal-impl
+impl Add[Money] for i32: # diagnostic: nonlocal-impl
     type Out = Money
     fn add(self, rhs: Money) -> Money:
         rhs

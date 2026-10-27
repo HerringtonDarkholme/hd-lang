@@ -33,15 +33,13 @@ fn inline_if_call_condition() -> i32:
 # match arm after inline if.
 fn match_arm_after_inline_if(value: i32?) -> i32?:
     match value:
-        .Some(item) => if item > +0: .Some(item) else: .None
+        .Some(item) =>
+            if item > +0: .Some(item) else: .None
         .None => .None
 
 # negative literal line.
 fn negative_literal_line(ok: bool) -> i32:
-    if ok:
-        zero()
-    else:
-        -1
+    if ok: zero() else: -1
 
 # qualified generic call if header.
 fn qualified_generic_call_if_header(value: i32) -> bool:

@@ -8,7 +8,8 @@ struct FixedTag:
     value: string
 
 impl Tag for FixedTag:
-    fn name(self) -> string: self.value
+    fn name(self) -> string:
+        self.value
 
 trait Log:
     fn prefix(self) -> string
@@ -16,7 +17,8 @@ trait Log:
 struct QuietLog: pass
 
 impl Log for QuietLog:
-    fn prefix(self) -> string: ""
+    fn prefix(self) -> string:
+        ""
 
 fn run_all(jobs: List[fn() -> string $ Tag + Log]) -> string $ Tag + Log:
     let text = ""
@@ -29,4 +31,8 @@ tests:
 
     it("an empty-row closure and a Tag closure share a Tag + Log list"):
         $.with(Tag=FixedTag { value: "t" }, Log=QuietLog {}):
-            assert_equal(run_all([fn() -> string: "-", fn() -> string: $.use(Tag).name()]), "-t", reason="each closure keeps its own row")
+            assert_equal(
+                run_all([fn() -> string: "-", fn() -> string: $.use(Tag).name()]),
+                "-t",
+                reason="each closure keeps its own row",
+            )

@@ -9,4 +9,5 @@ fn fib(n: i32) -> i32:
     if n < 2: n else: fib(n - 1) + fib(n - 2)
 
 pub fn main() -> void:
-    if fib(20) != 6765: panic("wrong")
+    if fib(20) != 6765:
+        panic("wrong")

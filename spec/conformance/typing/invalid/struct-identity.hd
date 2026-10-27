@@ -4,4 +4,4 @@ struct Point:
     y: i32
 
 fn same(a: Point, b: Point) -> bool:
-    a is b  # diagnostic: identity-requires-references
+    a is b # diagnostic: identity-requires-references

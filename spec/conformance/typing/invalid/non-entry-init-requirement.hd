@@ -4,9 +4,10 @@
 # fixture-package-tree: lib-root/src/catalog.hd
 trait Clock
 
-fn read() -> i32 $ Clock: 1
+fn read() -> i32 $ Clock:
+    1
 
-total := read()  # diagnostic: missing-requirement
+total := read() # diagnostic: missing-requirement
 
 pub fn item_count() -> i32:
     total

@@ -5,24 +5,20 @@
 # Spec 07 Multiple Inline Closures: "Multiple multiline closures may be passed by parenthesizing each
 # closure expression and separating the arguments with commas".
 fn choice(flag: bool, on_true: fn(i32) -> i32, on_false: fn(i32) -> i32) -> i32:
-    if flag:
-        on_true(10)
-    else:
-        on_false(10)
+    if flag: on_true(10) else: on_false(10)
 
 fn pick(flag: bool) -> i32:
     choice(
         flag,
-        (
-            fn(a):
-                doubled := a * 2
-                doubled + 22
+        (fn(a):
+            doubled := a * 2
+            doubled + 22
         ),
-        (
-            fn(b):
-                halved := b / 2
-                halved - 5
-        ),
+        (fn(b):
+            halved := b / 2
+            halved - 5
+        )
+        ,
     )
 
 tests:

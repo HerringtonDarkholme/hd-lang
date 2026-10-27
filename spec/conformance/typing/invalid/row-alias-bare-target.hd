@@ -5,4 +5,4 @@ trait Db
 
 trait Cache
 
-type AppRow = Db + Cache  # diagnostic: generic-kind-mismatch
+type AppRow = Db + Cache # diagnostic: generic-kind-mismatch

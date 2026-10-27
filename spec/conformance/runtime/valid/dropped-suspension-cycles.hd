@@ -37,7 +37,6 @@ fn resumed!(ring: &mut Ring) -> string $ Console:
     _ := console.write!("resume $text\n")
     text
 
-
 pub fn main!() -> void $ Console:
     let n = +0
     while n < 20000:

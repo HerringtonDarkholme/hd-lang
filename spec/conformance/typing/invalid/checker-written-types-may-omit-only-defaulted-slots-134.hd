@@ -7,7 +7,8 @@ trait Same[Other = Self]:
 trait Repo[T]:
     fn find(self, id: string) -> T?
 
-fn f(r: &dyn Repo) -> void: pass  # diagnostic: partial-generic-arguments
+fn f(r: &dyn Repo) -> void: # diagnostic: partial-generic-arguments
+    pass
 
 pub fn main() -> void:
     pass

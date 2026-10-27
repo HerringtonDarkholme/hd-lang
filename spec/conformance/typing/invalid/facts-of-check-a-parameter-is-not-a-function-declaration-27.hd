@@ -9,6 +9,6 @@ fn plain() -> void:
     pass
 
 fn read(handler: fn() -> void) -> void:
-    _ := facts_of(handler)  # diagnostic: invalid-facts-of-target
+    _ := facts_of(handler) # diagnostic: invalid-facts-of-target
 pub fn main() -> void:
     pass

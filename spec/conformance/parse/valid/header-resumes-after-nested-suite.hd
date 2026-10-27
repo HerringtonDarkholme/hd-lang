@@ -2,9 +2,10 @@
 # Spec 01 Headers After A Nested Suite: lex.header.resume-closure.
 # expect: parse
 
-fn check(predicate: fn(i32) -> bool) -> bool: predicate(1)
+fn check(predicate: fn(i32) -> bool) -> bool:
+    predicate(1)
 
 fn run() -> void:
-    (if check(fn(x: i32) -> bool:
-        x > 0
-    ): pass)
+    (if check(fn(x: i32) -> bool: x > 0):
+        pass
+    )

@@ -3,5 +3,5 @@
 use std.process.Command
 use std.testing.hd_run
 
-fn greeting!() -> string $():
-    hd_run!(*Command::new("hello")).stdout  # diagnostic: missing-requirement
+fn greeting!() -> string $ ():
+    hd_run!(*Command::new("hello")).stdout # diagnostic: missing-requirement

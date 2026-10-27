@@ -3,7 +3,7 @@
 use std.text.StringBuilder
 
 fn add(out: *mut StringBuilder, byte: u8) -> void:
-    _ := out.push_ascii(byte)  # panic: explicit-panic
+    _ := out.push_ascii(byte) # panic: explicit-panic
 
 tests:
     it("rejects byte 128"):

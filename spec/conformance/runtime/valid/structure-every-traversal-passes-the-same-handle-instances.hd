@@ -67,9 +67,15 @@ pub fn main() -> void $ Console:
     println(encode(Order { id: 2, customer: "Bo" }))
     second := Order { id: 3, customer: "Cy" }.seen()
     listed := Order::listed()
-    println("${first.variants[0].name == second.variants[0].name} ${first.members[0].name == second.members[0].name} ${first.members[1].position == second.members[1].position}")
-    println("${first.variants[0].name == listed.variants[0].name} ${first.members[1].name == listed.members[1].name} ${first.members[0].name == first.members[1].name}")
+    println(
+        "${first.variants[0].name == second.variants[0].name} ${first.members[0].name == second.members[0].name} ${first.members[1].position == second.members[1].position}",
+    )
+    println(
+        "${first.variants[0].name == listed.variants[0].name} ${first.members[1].name == listed.members[1].name} ${first.members[0].name == first.members[1].name}",
+    )
     go := Step.Go(1).seen()
     again := Step.Go(2).seen()
     halt := Step.Halt(3).seen()
-    println("${go.variants[0].index == again.variants[0].index} ${go.members[0].name == again.members[0].name} ${go.variants[0].index == halt.variants[0].index}")
+    println(
+        "${go.variants[0].index == again.variants[0].index} ${go.members[0].name == again.members[0].name} ${go.variants[0].index == halt.variants[0].index}",
+    )

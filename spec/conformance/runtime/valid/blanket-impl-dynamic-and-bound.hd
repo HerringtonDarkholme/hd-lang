@@ -8,7 +8,8 @@ struct Box[T]:
     item: T
 
 impl[T] Value[T] for Box[T]:
-    fn value(self) -> T: self.item
+    fn value(self) -> T:
+        self.item
 
 fn blanket_dynamic() -> i32:
     let dynamic: &dyn Value[i32] = &Box::[i32] { item: 42 }
@@ -26,7 +27,8 @@ trait Accept[T]:
 struct Receiver: pass
 
 impl[T] Accept[T] for Receiver:
-    fn accept(self, value: T) -> i32: 42
+    fn accept(self, value: T) -> i32:
+        42
 
 fn trait_argument_only_blanket() -> i32:
     let dynamic: &dyn Accept[string] = &Receiver {}

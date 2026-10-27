@@ -8,7 +8,7 @@ struct Token:
 fn describe(`in`: Token, `match`: bool) -> string:
     if `match`: `in`.`type` else: `in`.text
 
-label := describe(Token { `type`: "word", text: "hi" }, `match` = true)
+label := describe(Token { `type`: "word", text: "hi" }, `match`=true)
 
 fn keywords() -> i32:
     `for` := +1

@@ -12,6 +12,6 @@ struct Holder:
     action: fn() -> void
 
 fn read(holder: Holder) -> void:
-    _ := facts_of(holder.action)  # diagnostic: invalid-facts-of-target
+    _ := facts_of(holder.action) # diagnostic: invalid-facts-of-target
 pub fn main() -> void:
     pass

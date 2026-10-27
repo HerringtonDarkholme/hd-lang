@@ -2,7 +2,8 @@
 # Spec std/testing Test Timeout: a call that returns a Duration is a timeout value.
 use std.time.{Duration, s}
 
-fn budget() -> Duration: 30s
+fn budget() -> Duration:
+    30s
 
 tests:
     it("loads the archive", timeout=budget()):

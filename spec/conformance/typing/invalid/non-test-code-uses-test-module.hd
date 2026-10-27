@@ -2,7 +2,7 @@
 # Spec 10 Test Modules: module.test.non-test-use.test-module, module.test.code. The tree's
 # src/billing_test.hd is a test module with a pub function.
 # fixture-package-tree: test-only/src/report.hd
-use pkg.billing_test.{overdue_days}  # diagnostic: test-only-use
+use pkg.billing_test.{overdue_days} # diagnostic: test-only-use
 
 pub fn overdue_report() -> string:
     "overdue"

@@ -4,6 +4,6 @@ struct Point:
     y: i32
 
 fn copy_x(mut dst: Point, src: Point) -> Point:
-    src.x = 1  # diagnostic: non-reassignable-parameter-binding
+    src.x = 1 # diagnostic: non-reassignable-parameter-binding
     dst.x = src.x
     dst

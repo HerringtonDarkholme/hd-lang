@@ -10,4 +10,4 @@ fn find_order(id: OrderId) -> i64:
     id.value
 
 fn lookup(customer: CustomerId) -> i64:
-    find_order(customer)  # diagnostic: type-mismatch
+    find_order(customer) # diagnostic: type-mismatch

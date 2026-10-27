@@ -5,4 +5,4 @@ fn save() -> Result[i32, string]:
 
 fn maybe_save(ready: bool) -> void:
     if ready:
-        save()  # diagnostic: discarded-must-use-value
+        save() # diagnostic: discarded-must-use-value

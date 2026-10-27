@@ -13,4 +13,5 @@ trait Describe:
 struct Describer: pass
 
 impl Describe for Describer:
-    fn describe[T < Show](self, value: T) -> string: value.show()  # diagnostic: trait-method-signature
+    fn describe[T < Show](self, value: T) -> string: # diagnostic: trait-method-signature
+        value.show()

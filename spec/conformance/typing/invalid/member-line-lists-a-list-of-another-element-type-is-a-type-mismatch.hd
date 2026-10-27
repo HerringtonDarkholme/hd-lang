@@ -59,4 +59,4 @@ struct Point:
     a: i64
 
 impl Point by Structure:
-    a = names  # diagnostic: type-mismatch
+    a = names # diagnostic: type-mismatch

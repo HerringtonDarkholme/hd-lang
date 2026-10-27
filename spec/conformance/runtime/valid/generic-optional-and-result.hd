@@ -3,9 +3,11 @@
 struct Failure:
     code: i32
 
-fn keep_optional[T](value: T?) -> T?: value
+fn keep_optional[T](value: T?) -> T?:
+    value
 
-fn keep_result[T, E](value: Result[T, E]) -> Result[T, E]: value
+fn keep_result[T, E](value: Result[T, E]) -> Result[T, E]:
+    value
 
 fn inspect_optional(value: i32?) -> i32:
     match value:

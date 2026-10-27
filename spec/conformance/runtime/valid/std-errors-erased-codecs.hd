@@ -13,7 +13,9 @@ fn pattern(text: string) -> Result[Regex, *dyn Error]:
     .Ok(value)
 
 fn verbose(arguments: List[string]) -> Result[bool, *dyn Error]:
-    parsed := ArgParser::new("tool").arg(Arg { name: "verbose", kind: .Flag, short: .None, help: "say more" }).parse(arguments)?
+    parsed := ArgParser::new("tool")
+        .arg(Arg { name: "verbose", kind: .Flag, short: .None, help: "say more" })
+        .parse(arguments)?
     .Ok(parsed.flag("verbose"))
 
 tests:

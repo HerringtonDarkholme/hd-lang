@@ -74,7 +74,7 @@ fn hd(root: &Path, args: &[&str]) -> Output {
 }
 
 fn text(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
+    crate::normalize_std_lines(&String::from_utf8_lossy(b))
 }
 
 /// A helper's failed assertion lists std's `assert`, the helper, then the
@@ -89,7 +89,7 @@ fn a_panic_lists_its_frames_panic_site_first() {
         "\
 PANIC src/lib.hd:20: sums prices
     panic: assertion-failed: total is 10
-    <std>/testing.hd:626 std.testing.assert
+    <std>/testing.hd:LINE std.testing.assert
     src/lib.hd:7 shop.total
     src/lib.hd:21 test \"sums prices\"
     repro: hd test src/lib.hd --filter \"sums prices\"
@@ -100,7 +100,7 @@ PANIC src/lib.hd:23: runs out
     repro: hd test src/lib.hd --filter \"runs out\"
 PANIC src/lib.hd:26: drops past the end
     panic: index-out-of-bounds: list remove_at index 5 out of bounds for length 2
-    <std>/collections.hd:53 std.collections.List.remove_at
+    <std>/collections.hd:LINE std.collections.List.remove_at
     src/lib.hd:14 shop.drop_far
     src/lib.hd:28 test \"drops past the end\"
     repro: hd test src/lib.hd --filter \"drops past the end\"

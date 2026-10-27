@@ -4,5 +4,5 @@ struct User:
 
 user := User {
     name: "Ada",
-    name: "Grace",  # diagnostic: duplicate-field
+    name: "Grace", # diagnostic: duplicate-field
 }

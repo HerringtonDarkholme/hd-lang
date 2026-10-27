@@ -21,7 +21,8 @@ fn label(parts...: (string, List[i32]...)) -> string:
     let (s, xs...) = parts
     "${s}${xs.len()}"
 
-fn vararg(a: usize, xs...: List[i32]) -> usize: a + xs.len()
+fn vararg(a: usize, xs...: List[i32]) -> usize:
+    a + xs.len()
 
 pub fn main() -> void $ Console:
     let t: (usize, usize, List[i32]...) = (1, 2, 3, 4, 5)
@@ -36,6 +37,18 @@ pub fn main() -> void $ Console:
     println(label("c", tail...))
     let pair: (usize, List[i32]...) = (1, 5, 6)
     println(vararg(pair...))
-    let wide: (usize, usize, usize, usize, usize, usize, usize, usize, usize, List[usize]...) = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
+    let wide: (usize, usize, usize, usize, usize, usize, usize, usize, usize, List[usize]...) = (
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+    )
     let (a, b, c, d, e, f, g, h, i, xs...) = wide
     println(a + b + c + d + e + f + g + h + i + xs.len())

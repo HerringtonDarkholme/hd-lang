@@ -7,5 +7,5 @@ trait Feed:
 trait NamedFeed < Feed:
     fn name(self) -> string
 
-fn drain[T, F < Feed[Item = T] & NamedFeed[Item = T]](feed: &mut F) -> T?:  # diagnostic: duplicate-associated-binding
+fn drain[T, F < Feed[Item = T] & NamedFeed[Item = T]](feed: &mut F) -> T?: # diagnostic: duplicate-associated-binding
     feed.next()

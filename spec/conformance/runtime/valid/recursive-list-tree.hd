@@ -26,7 +26,13 @@ fn leaves(tree: Tree) -> i64:
             sum
 
 pub fn main() -> void $ Console:
-    root := Node { value: 1, children: [Node { value: 2, children: [] }, Node { value: 3, children: [Node { value: 4, children: [] }] }] }
+    root := Node {
+        value: 1,
+        children: [
+            Node { value: 2, children: [] },
+            Node { value: 3, children: [Node { value: 4, children: [] }] },
+        ],
+    }
     println("${total(root)}")
     tree := Tree.Branch([Tree.Leaf(1), Tree.Branch([Tree.Leaf(2), Tree.Leaf(3)])])
     println("${leaves(tree)}")

@@ -20,4 +20,4 @@ fn code() -> Result[i32, Code]:
     .Err(Code.Fail)
 
 fn report() -> Result[i32, Report]:
-    .Ok(code()?)  # diagnostic: invalid-result-propagation
+    .Ok(code()?) # diagnostic: invalid-result-propagation

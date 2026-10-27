@@ -19,12 +19,28 @@ tests:
         assert("a\u{1F600}" < "a\u{1F601}", reason="later scalar decides")
 
     it("split with an empty separator yields one-scalar strings"):
-        assert_equal("a\u{1F600}b".split(""), ["a", "\u{1F600}", "b"], reason="astral scalar stays whole")
+        assert_equal(
+            "a\u{1F600}b".split(""),
+            ["a", "\u{1F600}", "b"],
+            reason="astral scalar stays whole",
+        )
         assert_equal("e\u{301}".split(""), ["e", "\u{301}"], reason="scalars, not graphemes")
 
     it("multibyte separators and replacements"):
-        assert_equal("a\u{1F600}b\u{1F600}".split("\u{1F600}"), ["a", "b", ""], reason="astral separator")
-        assert_equal("a\u{1F600}a".replace("a", "\u{E9}"), "\u{E9}\u{1F600}\u{E9}", reason="replace keeps the astral scalar")
+        assert_equal(
+            "a\u{1F600}b\u{1F600}".split("\u{1F600}"),
+            ["a", "b", ""],
+            reason="astral separator",
+        )
+        assert_equal(
+            "a\u{1F600}a".replace("a", "\u{E9}"),
+            "\u{E9}\u{1F600}\u{E9}",
+            reason="replace keeps the astral scalar",
+        )
         assert("\u{1F600}x".starts_with("\u{1F600}"), reason="astral prefix")
         assert_equal("\u{C0}B".lower(), "\u{E0}b", reason="lowercasing non-ASCII")
-        assert_equal("\u{130}".lower(), "i\u{307}", reason="full mapping for capital I with dot above")
+        assert_equal(
+            "\u{130}".lower(),
+            "i\u{307}",
+            reason="full mapping for capital I with dot above",
+        )

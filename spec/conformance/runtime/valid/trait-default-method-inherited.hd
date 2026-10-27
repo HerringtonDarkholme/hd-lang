@@ -10,7 +10,8 @@ struct Number:
     value: i32
 
 impl Named for Number:
-    fn name(self) -> i32: self.value
+    fn name(self) -> i32:
+        self.value
 
 fn show(value: &dyn Named) -> i32:
     value.label()

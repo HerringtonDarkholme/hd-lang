@@ -7,7 +7,8 @@ struct Labeled:
     x: i32
     label: string
 
-fn left(point: Point) -> i32: point.x
+fn left(point: Point) -> i32:
+    point.x
 
 fn use_labeled(value: Labeled) -> i32:
-    left(value)  # diagnostic: type-mismatch
+    left(value) # diagnostic: type-mismatch

@@ -7,4 +7,4 @@ struct Tagged[T < Hash, H < Hash = T]:
     hash: H
 
 struct Holder:
-    inner: Tagged[Plain]  # diagnostic: unsatisfied-trait-bound
+    inner: Tagged[Plain] # diagnostic: unsatisfied-trait-bound

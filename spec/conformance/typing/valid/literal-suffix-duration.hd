@@ -3,7 +3,7 @@
 use std.time.{Duration, ms, s}
 
 fn delay() -> Duration:
-    250ms  # ms(250): Duration
+    250ms # ms(250): Duration
 
 fn remaining(limit: Duration, used: Duration) -> Duration:
     limit.saturating_sub(used)

@@ -1,14 +1,13 @@
 # test: suspending calls in branches
 
-fn value!(input: i32) -> i32: input
+fn value!(input: i32) -> i32:
+    input
 
 fn choose!(flag: bool) -> i32:
-    if flag && value!(1) == 1:
-        value!(20) + value!(22)
-    else:
-        value!(99)
+    if flag && value!(1) == 1: value!(20) + value!(22) else: value!(99)
 
-fn main!() -> i32: choose!(true)
+fn main!() -> i32:
+    choose!(true)
 
 tests:
     use std.testing.assert_equal

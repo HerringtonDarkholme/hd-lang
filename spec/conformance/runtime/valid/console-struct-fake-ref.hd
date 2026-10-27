@@ -27,7 +27,11 @@ tests:
         let mut fake = Numbered { lines: [], next: 0 }
         $.with(Console=&mut fake):
             greet("Ada")
-        assert_equal(fake.lines, ["1: hello, Ada", "2: \n", "3: error: greeted Ada\n"], reason="three chunks, in order, numbered by the struct")
+        assert_equal(
+            fake.lines,
+            ["1: hello, Ada", "2: \n", "3: error: greeted Ada\n"],
+            reason="three chunks, in order, numbered by the struct",
+        )
         copy := fake
         fake.lines.clear()
         assert_equal(copy.next, 3, reason="a copy keeps the count")
@@ -40,6 +44,10 @@ tests:
             greet("Bo")
         $.with(Console=same):
             println("again")
-        assert_equal(console.output(), ["hello, Bo", "\n", "again", "\n"], reason="both scopes wrote to the one object")
+        assert_equal(
+            console.output(),
+            ["hello, Bo", "\n", "again", "\n"],
+            reason="both scopes wrote to the one object",
+        )
         assert_equal(same.error_output(), ["greeted Bo\n"], reason="error lines apart")
         assert_equal(console is same, true, reason="one place")

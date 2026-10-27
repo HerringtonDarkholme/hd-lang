@@ -21,7 +21,8 @@ fn text(value: string) -> i32:
         "hd" => 5
         _ => 0
 
-fn main() -> i32: integer(42) + floating(-1.5) + character('😀') + text("hd") + integer(0)
+fn main() -> i32:
+    integer(42) + floating(-1.5) + character('😀') + text("hd") + integer(0)
 
 tests:
     use std.testing.assert_equal

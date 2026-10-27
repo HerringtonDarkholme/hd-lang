@@ -27,7 +27,11 @@ fn check_bits[N < Integer](low: N, high: N, width: u32) -> void:
     let trailing: u32 = zero.trailing_zeros()
     assert_equal(trailing, width, reason="zero has the declared number of trailing zeros")
     assert_equal(one.trailing_zeros(), 0, reason="one has no trailing zeros")
-    assert_equal(low.trailing_zeros(), if low == zero: width else: width - 1, reason="the minimum is zero or the sign bit")
+    assert_equal(
+        low.trailing_zeros(),
+        if low == zero: width else: width - 1,
+        reason="the minimum is zero or the sign bit",
+    )
     assert_equal(high.trailing_zeros(), 0, reason="every maximum is odd")
     assert_equal(top.trailing_zeros(), width - 1, reason="only the top bit is set")
     assert_equal(all_ones.trailing_zeros(), 0, reason="all ones include the low bit")

@@ -48,7 +48,10 @@ pub fn main() -> void $ Console:
     let (gauge, items) = adjust(Gauge { level: 0 }, [+1, +2])
     println("${items[0]} ${items[1]}")
     println("${gauge.level} ${gauge.level / 2 - 1}")
-    post := restamp(Post { Timestamps: Timestamps { created: +1, updated: +1 }, id: "p" }, Timestamps { created: +20, updated: +3 })
+    post := restamp(
+        Post { Timestamps: Timestamps { created: +1, updated: +1 }, id: "p" },
+        Timestamps { created: +20, updated: +3 },
+    )
     println("${post.created} ${post.updated}")
     println(first_over([+1, +2, +4, +5], +3))
     println(first_over([+1], +3))

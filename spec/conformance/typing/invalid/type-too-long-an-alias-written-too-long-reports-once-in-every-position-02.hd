@@ -18,4 +18,4 @@ enum Choice[T]:
 type Wrap[T](T)
 
 struct Holder:
-    both: Both[i32, string, bool]  # diagnostic: argument-count
+    both: Both[i32, string, bool] # diagnostic: argument-count

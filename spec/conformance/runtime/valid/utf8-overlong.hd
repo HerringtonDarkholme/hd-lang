@@ -12,16 +12,44 @@ tests:
 
     it("overlong forms of /"):
         assert_equal(failure([192, 175]), .Some(Utf8Error.InvalidSequence(0)), reason="two bytes")
-        assert_equal(failure([224, 128, 175]), .Some(Utf8Error.InvalidSequence(0)), reason="three bytes")
-        assert_equal(failure([240, 128, 128, 175]), .Some(Utf8Error.InvalidSequence(0)), reason="four bytes")
+        assert_equal(
+            failure([224, 128, 175]),
+            .Some(Utf8Error.InvalidSequence(0)),
+            reason="three bytes",
+        )
+        assert_equal(
+            failure([240, 128, 128, 175]),
+            .Some(Utf8Error.InvalidSequence(0)),
+            reason="four bytes",
+        )
 
     it("overlong forms of U+0000 and at each boundary"):
-        assert_equal(failure([97, 192, 128]), .Some(Utf8Error.InvalidSequence(1)), reason="U+0000 in two bytes, after a letter")
-        assert_equal(failure([193, 191]), .Some(Utf8Error.InvalidSequence(0)), reason="U+007F in two bytes")
-        assert_equal(failure([224, 159, 191]), .Some(Utf8Error.InvalidSequence(0)), reason="U+07FF in three bytes")
-        assert_equal(failure([240, 143, 191, 191]), .Some(Utf8Error.InvalidSequence(0)), reason="U+FFFF in four bytes")
+        assert_equal(
+            failure([97, 192, 128]),
+            .Some(Utf8Error.InvalidSequence(1)),
+            reason="U+0000 in two bytes, after a letter",
+        )
+        assert_equal(
+            failure([193, 191]),
+            .Some(Utf8Error.InvalidSequence(0)),
+            reason="U+007F in two bytes",
+        )
+        assert_equal(
+            failure([224, 159, 191]),
+            .Some(Utf8Error.InvalidSequence(0)),
+            reason="U+07FF in three bytes",
+        )
+        assert_equal(
+            failure([240, 143, 191, 191]),
+            .Some(Utf8Error.InvalidSequence(0)),
+            reason="U+FFFF in four bytes",
+        )
 
     it("the shortest forms are accepted"):
         assert_equal(failure([194, 128]), .None, reason="U+0080, the first two-byte scalar")
         assert_equal(failure([224, 160, 128]), .None, reason="U+0800, the first three-byte scalar")
-        assert_equal(failure([240, 144, 128, 128]), .None, reason="U+10000, the first four-byte scalar")
+        assert_equal(
+            failure([240, 144, 128, 128]),
+            .None,
+            reason="U+10000, the first four-byte scalar",
+        )

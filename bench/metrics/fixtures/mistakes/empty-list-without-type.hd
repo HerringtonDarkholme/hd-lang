@@ -4,5 +4,5 @@
 # fixed:     let pieces: List[string] = []
 
 fn words() -> usize:
-    pieces := []  # diagnostic: cannot-infer-type
+    pieces := [] # diagnostic: cannot-infer-type
     pieces.len()

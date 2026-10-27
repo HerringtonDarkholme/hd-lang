@@ -6,9 +6,9 @@ fn serve() -> void $ Web + Db:
     pass
 
 fn run() -> void $ Log + Db:
-    serve()  # diagnostic: missing-requirement
+    serve() # diagnostic: missing-requirement
 
-fn logged[$R](job: fn() -> void $ R) -> void $ WithLog[$ R]:
+fn logged[$ R](job: fn() -> void $ R) -> void $ WithLog[$ R]:
     job()
 
 fn quiet() -> void $ Db:

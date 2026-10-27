@@ -17,4 +17,4 @@ impl Describe for Page:
         "page " + self.Base.name
 
 fn invalid(page: Page) -> string:
-    page.describe()  # diagnostic: ambiguous-method
+    page.describe() # diagnostic: ambiguous-method

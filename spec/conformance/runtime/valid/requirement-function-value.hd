@@ -7,7 +7,8 @@ fn read() -> i32 $ Clock:
 fn invoke(callback: fn() -> i32 $ Clock) -> i32 $ Clock:
     callback()
 
-fn run() -> i32 $ Clock: invoke(read)
+fn run() -> i32 $ Clock:
+    invoke(read)
 
 trait Clock
 

@@ -13,7 +13,13 @@ struct Record:
     tags: List[string]
 
 pub fn main() -> void $ Console:
-    records := [for i in 0..N => Record { id: i64(i), name: "user$i", active: i % 3 == 0, score: i64(i * 37 % 1000), tags: ["t${i % 10}", "g${i % 7}"] }]
+    records := [for i in 0..N => Record {
+        id: i64(i),
+        name: "user$i",
+        active: i % 3 == 0,
+        score: i64(i * 37 % 1000),
+        tags: ["t${i % 10}", "g${i % 7}"],
+    }]
     text := encode(records)
     back := match decode::[List[Record]](text):
         .Ok(list) => list

@@ -8,9 +8,12 @@ tests:
     it("a closure reads and updates the locals around it"):
         rate := +20
         let calls = 0
-        sale := apply_all([1000, 400], fn(cents) -> i32:  # ← sees `rate`
-            calls = calls + 1  # ← changes `calls`
-            cents - cents * rate / 100
+        sale := apply_all(
+            [1000, 400],
+            fn(cents) -> i32: # ← sees `rate`
+                calls = calls + 1 # ← changes `calls`
+                cents - cents * rate / 100
+            ,
         )
         assert_equal(sale, [800, 320], reason="20% off")
         assert_equal(calls, 2, reason="once per price")

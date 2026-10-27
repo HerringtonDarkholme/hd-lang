@@ -6,10 +6,16 @@ struct User:
     name: string
 
 impl Named for User:
-    fn name(self) -> string: self.name
-    fn clone_name(self) -> Self: self
+    fn name(self) -> string:
+        self.name
+    fn clone_name(self) -> Self:
+        self
 
-fn map_list() -> void: pass
-fn test() -> void: pass
-fn derive() -> void: pass
-fn pack() -> void: pass
+fn map_list() -> void:
+    pass
+fn test() -> void:
+    pass
+fn derive() -> void:
+    pass
+fn pack() -> void:
+    pass

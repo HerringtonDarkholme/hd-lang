@@ -129,7 +129,9 @@ pub fn released() -> u64:
 pub fn audit(expected: usize) -> void:
     if held > expected:
         first := first_live()
-        fail("${held - expected} blocks leaked: allocated and never freed; the lowest at ${first} holds count ${load_u32(first)} and descriptor word ${load_u32(first + 4)} in ${block_bytes(first)} bytes")
+        fail(
+            "${held - expected} blocks leaked: allocated and never freed; the lowest at ${first} holds count ${load_u32(first)} and descriptor word ${load_u32(first + 4)} in ${block_bytes(first)} bytes",
+        )
     if held < expected:
         fail("${expected - held} more blocks freed than the audit expected")
 

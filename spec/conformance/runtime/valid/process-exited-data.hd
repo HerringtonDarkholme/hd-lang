@@ -8,10 +8,40 @@ tests:
     use std.testing.assert_equal
 
     it("Exited compares by complete output and prints its fields"):
-        assert_equal(ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" }) == ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" }), true, reason="same")
-        assert_equal(ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" }) == ProcessError.Exited(ProcessOutput { status: 2, stderr: "a", program: "git" }), false, reason="other status")
-        assert_equal(ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" }) == ProcessError.Exited(ProcessOutput { status: 1, stderr: "b", program: "git" }), false, reason="other stderr")
-        assert_equal(debug(ProcessError.Exited(ProcessOutput { status: 2, stderr: "boom", program: "git" })), "ProcessError.Exited(output=ProcessOutput { stdout: \"\", stderr: \"boom\", status: 2, program: \"git\" })", reason="Debug")
+        assert_equal(
+            (
+                ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" })
+                == ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" })
+            ),
+            true,
+            reason="same",
+        )
+        assert_equal(
+            (
+                ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" })
+                == ProcessError.Exited(ProcessOutput { status: 2, stderr: "a", program: "git" })
+            ),
+            false,
+            reason="other status",
+        )
+        assert_equal(
+            (
+                ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" })
+                == ProcessError.Exited(ProcessOutput { status: 1, stderr: "b", program: "git" })
+            ),
+            false,
+            reason="other stderr",
+        )
+        assert_equal(
+            debug(ProcessError.Exited(ProcessOutput { status: 2, stderr: "boom", program: "git" })),
+            "ProcessError.Exited(output=ProcessOutput { stdout: \"\", stderr: \"boom\", status: 2, program: \"git\" })",
+            reason="Debug",
+        )
 
     it("Exited shows the status and the standard error"):
-        assert_equal(ProcessError.Exited(ProcessOutput { status: 2, stderr: "boom", program: "git" }).to_string(), "program git exited with status 2: boom", reason="Display")
+        assert_equal(
+            ProcessError.Exited(ProcessOutput { status: 2, stderr: "boom", program: "git" })
+                .to_string(),
+            "program git exited with status 2: boom",
+            reason="Display",
+        )

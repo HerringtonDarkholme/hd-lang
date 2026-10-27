@@ -12,5 +12,5 @@ impl Plugin for Exporter:
     fn name(self) -> string:
         "export " + self.format
 
-    fn runtime_type(self) -> TypeId:  # diagnostic: sealed-trait-implementation
+    fn runtime_type(self) -> TypeId: # diagnostic: sealed-trait-implementation
         TypeId::of::[string]()

@@ -6,4 +6,4 @@ pub trait Gauge:
     fn level(self) -> u8
 
 pub fn main() -> void $ Gauge:
-    _ := $.use(Gauge).level()  # panic: host-contract
+    _ := $.use(Gauge).level() # panic: host-contract

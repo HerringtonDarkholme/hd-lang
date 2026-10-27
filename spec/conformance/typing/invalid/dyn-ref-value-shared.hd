@@ -14,4 +14,4 @@ fn show(shape: &dyn Shape) -> f64:
 
 fn demo() -> f64:
     square := Square { side: 2.0 }
-    show(square)  # diagnostic: type-mismatch
+    show(square) # diagnostic: type-mismatch

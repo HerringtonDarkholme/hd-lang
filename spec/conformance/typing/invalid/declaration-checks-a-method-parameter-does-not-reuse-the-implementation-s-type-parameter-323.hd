@@ -3,5 +3,5 @@ struct Box[+T]:
     value: T
 
 impl[T] Box[T]:
-    pub fn get(self, T: i32) -> i32:  # diagnostic: duplicate-binding
+    pub fn get(self, T: i32) -> i32: # diagnostic: duplicate-binding
         T

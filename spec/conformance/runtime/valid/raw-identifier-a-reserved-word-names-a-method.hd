@@ -7,7 +7,8 @@ struct Token:
     text: string
 
 impl Token:
-    fn `match`(self, other: string) -> bool: self.text == other
+    fn `match`(self, other: string) -> bool:
+        self.text == other
 
 pub fn main() -> void $ Console:
     token := Token { text: "a" }

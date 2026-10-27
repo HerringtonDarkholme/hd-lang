@@ -125,12 +125,36 @@ impl ScriptedStream:
     ## Returns a stream that returns the chunks of `reads` in order, one per `read!`.
     ## See [std-net.scripted.new-ref](../../spec/std/net.md#r-std-net.scripted.new-ref).
     pub fn new(reads: List[List[u8]]) -> *mut ScriptedStream:
-        &mut ScriptedStream { reads: reads, next: 0, offset: 0, ended: false, error: .None, failed: false, bytes: [], bound: .None, nodelay_on: false, keepalive_idle: .None, closed: false }
+        &mut ScriptedStream {
+            reads: reads,
+            next: 0,
+            offset: 0,
+            ended: false,
+            error: .None,
+            failed: false,
+            bytes: [],
+            bound: .None,
+            nodelay_on: false,
+            keepalive_idle: .None,
+            closed: false,
+        }
 
     ## Returns a stream that returns the chunks of `reads`, then fails every `read!` and `write!` with `error`.
     ## See [std-net.scripted.failing](../../spec/std/net.md#r-std-net.scripted.failing).
     pub fn failing(reads: List[List[u8]], error: NetError) -> *mut ScriptedStream:
-        &mut ScriptedStream { reads: reads, next: 0, offset: 0, ended: false, error: .Some(error), failed: false, bytes: [], bound: .None, nodelay_on: false, keepalive_idle: .None, closed: false }
+        &mut ScriptedStream {
+            reads: reads,
+            next: 0,
+            offset: 0,
+            ended: false,
+            error: .Some(error),
+            failed: false,
+            bytes: [],
+            bound: .None,
+            nodelay_on: false,
+            keepalive_idle: .None,
+            closed: false,
+        }
 
     ## Every byte written to the stream, in order.
     ## See [std-net.scripted.write](../../spec/std/net.md#r-std-net.scripted.write).
@@ -242,12 +266,29 @@ impl ScriptedListener:
     ## Returns a listener that accepts the streams of `connections` in order.
     ## See [std-net.scripted.new-ref](../../spec/std/net.md#r-std-net.scripted.new-ref).
     pub fn new(connections: List[*mut ScriptedStream]) -> *mut ScriptedListener:
-        &mut ScriptedListener { connections: connections, next: 0, error: .None, bound: .None, address: .None, closed: false }
+        &mut ScriptedListener {
+            connections: connections,
+            next: 0,
+            error: .None,
+            bound: .None,
+            address: .None,
+            closed: false,
+        }
 
     ## Returns a listener that accepts the streams of `connections`, then fails every `accept!` with `error`.
     ## A test scripts an `accept!` that times out with `NetError.Timeout`.
-    pub fn failing(connections: List[*mut ScriptedStream], error: NetError) -> *mut ScriptedListener:
-        &mut ScriptedListener { connections: connections, next: 0, error: .Some(error), bound: .None, address: .None, closed: false }
+    pub fn failing(
+        connections: List[*mut ScriptedStream],
+        error: NetError,
+    ) -> *mut ScriptedListener:
+        &mut ScriptedListener {
+            connections: connections,
+            next: 0,
+            error: .Some(error),
+            bound: .None,
+            address: .None,
+            closed: false,
+        }
 
     ## The timeout that `set_timeout` stored last, or `.None` before any call.
     ## See [std-net.scripted.timeout](../../spec/std/net.md#r-std-net.scripted.timeout).
@@ -316,12 +357,28 @@ impl ScriptedUdp:
     ## Returns a socket that receives the datagrams of `incoming` in order.
     ## See [std-net.scripted.new-ref](../../spec/std/net.md#r-std-net.scripted.new-ref).
     pub fn new(incoming: List[Datagram]) -> *mut ScriptedUdp:
-        &mut ScriptedUdp { incoming: incoming, next: 0, error: .None, outgoing: [], bound: .None, address: .None, closed: false }
+        &mut ScriptedUdp {
+            incoming: incoming,
+            next: 0,
+            error: .None,
+            outgoing: [],
+            bound: .None,
+            address: .None,
+            closed: false,
+        }
 
     ## Returns a socket that receives the datagrams of `incoming`, then fails every `receive!` with `error`; `send_to!` still works.
     ## A test scripts a `receive!` that times out with `NetError.Timeout`.
     pub fn failing(incoming: List[Datagram], error: NetError) -> *mut ScriptedUdp:
-        &mut ScriptedUdp { incoming: incoming, next: 0, error: .Some(error), outgoing: [], bound: .None, address: .None, closed: false }
+        &mut ScriptedUdp {
+            incoming: incoming,
+            next: 0,
+            error: .Some(error),
+            outgoing: [],
+            bound: .None,
+            address: .None,
+            closed: false,
+        }
 
     ## The timeout that `set_timeout` stored last, or `.None` before any call.
     ## See [std-net.scripted.timeout](../../spec/std/net.md#r-std-net.scripted.timeout).
@@ -484,17 +541,28 @@ impl Net for ScriptedNet:
 # Keep handwritten Debug: label bytes as written and omit pending read state.
 impl Debug for ScriptedStream:
     fn debug(self, out: *mut DebugWriter) -> void:
-        out.debug_struct("ScriptedStream").field("reads", self.reads).field("written", self.bytes).field("closed", self.closed).finish()
+        out.debug_struct("ScriptedStream")
+            .field("reads", self.reads)
+            .field("written", self.bytes)
+            .field("closed", self.closed)
+            .finish()
 
 # Keep handwritten Debug: omit consumed-connection bookkeeping.
 impl Debug for ScriptedListener:
     fn debug(self, out: *mut DebugWriter) -> void:
-        out.debug_struct("ScriptedListener").field("connections", self.connections).field("closed", self.closed).finish()
+        out.debug_struct("ScriptedListener")
+            .field("connections", self.connections)
+            .field("closed", self.closed)
+            .finish()
 
 # Keep handwritten Debug: label outgoing as sent and omit read bookkeeping.
 impl Debug for ScriptedUdp:
     fn debug(self, out: *mut DebugWriter) -> void:
-        out.debug_struct("ScriptedUdp").field("incoming", self.incoming).field("sent", self.outgoing).field("closed", self.closed).finish()
+        out.debug_struct("ScriptedUdp")
+            .field("incoming", self.incoming)
+            .field("sent", self.outgoing)
+            .field("closed", self.closed)
+            .finish()
 
 # Keep handwritten Debug: keep positional payloads instead of declared named fields.
 impl Debug for ScriptedConnection:
@@ -506,4 +574,10 @@ impl Debug for ScriptedConnection:
 # Keep handwritten Debug: label calls as requested and omit internal cursors.
 impl Debug for ScriptedNet:
     fn debug(self, out: *mut DebugWriter) -> void:
-        out.debug_struct("ScriptedNet").field("hosts", self.hosts).field("connections", self.connections).field("listeners", self.listeners).field("sockets", self.sockets).field("requested", self.calls).finish()
+        out.debug_struct("ScriptedNet")
+            .field("hosts", self.hosts)
+            .field("connections", self.connections)
+            .field("listeners", self.listeners)
+            .field("sockets", self.sockets)
+            .field("requested", self.calls)
+            .finish()

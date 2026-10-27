@@ -14,7 +14,9 @@ struct Batch[T]:
     label: string
 
 pub fn main() -> void $ Console:
-    let Line { start: Pair { first: at, second: name } } = Line { start: Pair { first: +7, second: "start" } }
+    let Line { start: Pair { first: at, second: name } } = Line {
+        start: Pair { first: +7, second: "start" },
+    }
     println("${at} ${name}")
     let ids: List[usize] = [4, 5, 6]
     let Batch { items, label } = Batch { items: ids, label: "ids" }

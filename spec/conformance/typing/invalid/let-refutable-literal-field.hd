@@ -5,5 +5,5 @@ struct Point:
     y: i32
 
 fn height(point: Point) -> i32:
-    let Point { x: 0, y } = point  # diagnostic: refutable-let-pattern
+    let Point { x: 0, y } = point # diagnostic: refutable-let-pattern
     y

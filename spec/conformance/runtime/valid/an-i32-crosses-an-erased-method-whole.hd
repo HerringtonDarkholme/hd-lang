@@ -10,7 +10,8 @@ struct Same:
     n: i32
 
 impl Echo for Same:
-    fn echo[T](self, x: T) -> T: x
+    fn echo[T](self, x: T) -> T:
+        x
 
 fn run(e: &dyn Echo) -> void $ Console:
     let i: i32 = 0

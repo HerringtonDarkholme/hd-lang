@@ -35,19 +35,40 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("data fields compare in declaration order"):
-        assert(Key { first: 1, second: "z" } < Key { first: 2, second: "a" }, reason="the first field decides")
-        assert(Key { first: 1, second: "a" } < Key { first: 1, second: "b" }, reason="the second field breaks a tie")
-        assert_equal(total(Key { first: 1, second: "a" }, Key { first: 1, second: "a" }), "equal", reason="Ord")
+        assert(
+            Key { first: 1, second: "z" } < Key { first: 2, second: "a" },
+            reason="the first field decides",
+        )
+        assert(
+            Key { first: 1, second: "a" } < Key { first: 1, second: "b" },
+            reason="the second field breaks a tie",
+        )
+        assert_equal(
+            total(Key { first: 1, second: "a" }, Key { first: 1, second: "a" }),
+            "equal",
+            reason="Ord",
+        )
 
     it("enum variants compare by declaration order, then payloads"):
         assert(Priority.Low(99) < Priority.High(0), reason="an earlier variant is less")
         assert(Priority.Low(2) < Priority.Low(3), reason="the same variant compares payloads")
-        assert_equal(total(Priority.Urgent, Priority.High(5)), "greater", reason="a later variant is greater")
+        assert_equal(
+            total(Priority.Urgent, Priority.High(5)),
+            "greater",
+            reason="a later variant is greater",
+        )
 
     it("a float field leaves the ordering partial"):
         assert(Measurement { value: 1.0 } < Measurement { value: 2.0 }, reason="ordered values")
-        assert(!(Measurement { value: 0.0 / 0.0 } < Measurement { value: 2.0 }), reason="NaN is unordered")
-        assert_equal(Measurement { value: 0.0 / 0.0 }.partial_cmp(Measurement { value: 2.0 }), .None, reason="partial_cmp gives .None")
+        assert(
+            !(Measurement { value: 0.0 / 0.0 } < Measurement { value: 2.0 }),
+            reason="NaN is unordered",
+        )
+        assert_equal(
+            Measurement { value: 0.0 / 0.0 }.partial_cmp(Measurement { value: 2.0 }),
+            .None,
+            reason="partial_cmp gives .None",
+        )
 
     it("empty structs and tuple comparisons keep their ordering"):
         assert_equal(Empty {}.cmp(Empty {}), .Equal, reason="zero fields")
@@ -57,6 +78,18 @@ tests:
 
     it("different variants order without comparing NaN payloads"):
         nan := 0.0 / 0.0
-        assert_equal(Mixed.Fixed(99).partial_cmp(Mixed.Floating(nan)), .Some(.Less), reason="declaration order wins")
-        assert_equal(Mixed.Floating(nan).partial_cmp(Mixed.Fixed(99)), .Some(.Greater), reason="reverse variant order")
-        assert_equal(Mixed.Floating(nan).partial_cmp(Mixed.Floating(1.0)), .None, reason="same variant compares its payload")
+        assert_equal(
+            Mixed.Fixed(99).partial_cmp(Mixed.Floating(nan)),
+            .Some(.Less),
+            reason="declaration order wins",
+        )
+        assert_equal(
+            Mixed.Floating(nan).partial_cmp(Mixed.Fixed(99)),
+            .Some(.Greater),
+            reason="reverse variant order",
+        )
+        assert_equal(
+            Mixed.Floating(nan).partial_cmp(Mixed.Floating(1.0)),
+            .None,
+            reason="same variant compares its payload",
+        )

@@ -12,11 +12,14 @@ struct D:
     n: i32
 
 impl Base for D:
-    fn id(self) -> i32: self.n
-    fn merge(self, other: D) -> D: self
+    fn id(self) -> i32:
+        self.n
+    fn merge(self, other: D) -> D:
+        self
 
 impl Sub for D:
-    fn extra(self) -> i32: 4
+    fn extra(self) -> i32:
+        4
 
 fn show(s: &dyn Sub) -> i32:
     s.id() + s.extra()

@@ -5,4 +5,5 @@ pub fn main() -> void:
     for i in 0..100_000:
         out.push("part-$i;")
     text := out.build()
-    if text.len() != 1_088_890: panic("wrong length: ${text.len()}")
+    if text.len() != 1_088_890:
+        panic("wrong length: ${text.len()}")

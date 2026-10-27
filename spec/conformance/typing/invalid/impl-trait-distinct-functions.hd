@@ -7,4 +7,4 @@ fn second() -> impl Display:
 fn bad(flag: bool) -> impl Display:
     if flag:
         return first()
-    second()  # diagnostic: type-mismatch
+    second() # diagnostic: type-mismatch

@@ -7,7 +7,7 @@ enum Fault:
 
 struct Render: pass
 
-impl[$R] Layer[fn!() -> Result[usize, Fault] $ R] for Render:
+impl[$ R] Layer[fn!() -> Result[usize, Fault] $ R] for Render:
     type Wrapped = fn!() -> string $ R
     fn wrap(self, work: fn!() -> Result[usize, Fault] $ R) -> (fn!() -> string $ R):
         fn!() -> string $ R:
@@ -15,8 +15,10 @@ impl[$R] Layer[fn!() -> Result[usize, Fault] $ R] for Render:
                 .Ok(value) => "rendered $value"
                 .Err(.Rejected) => "rejected"
 
-fn success!() -> Result[usize, Fault]: .Ok(17)
-fn failure!() -> Result[usize, Fault]: .Err(.Rejected)
+fn success!() -> Result[usize, Fault]:
+    .Ok(17)
+fn failure!() -> Result[usize, Fault]:
+    .Err(.Rejected)
 
 tests:
     use std.testing.assert_equal
@@ -28,4 +30,8 @@ tests:
         let rejected: string = apply!(policy):
             failure!()
         assert_equal(rendered, "rendered 17", reason="apply returns the changed output type")
-        assert_equal(rejected, "rejected", reason="the wrapper chooses the output for a typed error too")
+        assert_equal(
+            rejected,
+            "rejected",
+            reason="the wrapper chooses the output for a typed error too",
+        )

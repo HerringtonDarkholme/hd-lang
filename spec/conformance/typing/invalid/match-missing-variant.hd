@@ -5,5 +5,5 @@ enum Status:
     Waiting
 
 fn label(status: Status) -> string:
-    match status:  # diagnostic: nonexhaustive-match
+    match status: # diagnostic: nonexhaustive-match
         .Ready => "ready"

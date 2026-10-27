@@ -5,9 +5,25 @@ tests:
 
     it("displays tuples element by element"):
         pair := (1, "one")
-        assert_equal("$pair", "(1, one)", reason="each element's Display text, separated by a comma and a space")
-        assert_equal((true, 'c', 2.5).to_string(), "(true, c, 2.5)", reason="to_string gives the same text")
+        assert_equal(
+            "$pair",
+            "(1, one)",
+            reason="each element's Display text, separated by a comma and a space",
+        )
+        assert_equal(
+            (true, 'c', 2.5).to_string(),
+            "(true, c, 2.5)",
+            reason="to_string gives the same text",
+        )
         single := (1,)
-        assert_equal("$single", "(1,)", reason="one element ends with a comma, as its source syntax does")
+        assert_equal(
+            "$single",
+            "(1,)",
+            reason="one element ends with a comma, as its source syntax does",
+        )
         twelve := (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
-        assert_equal("$twelve", "(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)", reason="twelve elements are covered")
+        assert_equal(
+            "$twelve",
+            "(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)",
+            reason="twelve elements are covered",
+        )

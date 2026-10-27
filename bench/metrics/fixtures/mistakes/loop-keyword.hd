@@ -7,7 +7,7 @@
 
 fn first_square(limit: i32) -> i32:
     let n = +0
-    loop:  # diagnostic: unknown-name
+    loop: # diagnostic: unknown-name
         n = n + 1
         if n * n > limit:
             return n

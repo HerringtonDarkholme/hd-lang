@@ -3,4 +3,5 @@ trait Source:
 struct Value: pass
 struct NotDisplay: pass
 impl Source for Value:
-    fn hidden(&self) -> NotDisplay: NotDisplay {} # diagnostic: unsatisfied-trait-bound
+    fn hidden(&self) -> NotDisplay: # diagnostic: unsatisfied-trait-bound
+        NotDisplay {}

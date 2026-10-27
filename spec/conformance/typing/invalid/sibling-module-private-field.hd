@@ -5,4 +5,4 @@
 use pkg.cart.{Cart}
 
 fn cents(cart: Cart) -> i32:
-    cart.total  # diagnostic: private-member
+    cart.total # diagnostic: private-member

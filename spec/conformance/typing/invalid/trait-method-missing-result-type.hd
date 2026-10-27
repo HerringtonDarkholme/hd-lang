@@ -2,4 +2,4 @@
 # Spec 07 Functions: fn.decl.result-required-pub.
 
 trait Sized:
-    fn size(self)  # diagnostic: missing-result-type
+    fn size(self) # diagnostic: missing-result-type

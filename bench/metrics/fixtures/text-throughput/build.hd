@@ -5,10 +5,10 @@ use std.text.StringBuilder
 pub fn main() -> void $ Console:
     let total: usize = 0
     let bytes: usize = 0
-    let repeat: i64 = 1  # param: repeat
+    let repeat: i64 = 1 # param: repeat
     for _ in 0..repeat:
         builder := StringBuilder::new()
-        let words: i64 = 100000  # param: words
+        let words: i64 = 100000 # param: words
         for i in 0..words:
             builder.push("word-${i} ")
         text := builder.build()

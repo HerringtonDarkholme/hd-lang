@@ -1,13 +1,10 @@
 # Spec 02 Test Blocks: grammar.tests.block, grammar.tests.registration.
-fn add(a: i32, b: i32) -> i32: a + b
+fn add(a: i32, b: i32) -> i32:
+    a + b
 
 tests:
     use std.testing.{assert_equal}
 
     it("adds two values"):
         result := add(2, 3)
-        assert_equal(
-            result,
-            5,
-            reason="add should return the sum",
-        )
+        assert_equal(result, 5, reason="add should return the sum")

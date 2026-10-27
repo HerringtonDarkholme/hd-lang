@@ -37,7 +37,11 @@ tests:
         assert_equal("True".parse::[bool](), .Err(ParseBoolError.Invalid), reason="case")
         assert_equal("1".parse::[bool](), .Err(ParseBoolError.Invalid), reason="digit")
         assert_equal(" true".parse::[bool](), .Err(ParseBoolError.Invalid), reason="space")
-        assert_equal("${ParseBoolError.Invalid}", "provided string was not `true` or `false`", reason="display")
+        assert_equal(
+            "${ParseBoolError.Invalid}",
+            "provided string was not `true` or `false`",
+            reason="display",
+        )
 
     it("char reads exactly one scalar"):
         assert_equal("a".parse::[char](), .Ok('a'), reason="ascii")
@@ -46,8 +50,16 @@ tests:
         assert_equal("".parse::[char](), .Err(ParseCharError.Empty), reason="empty")
         assert_equal("ab".parse::[char](), .Err(ParseCharError.TooMany), reason="two")
         assert_equal("é ".parse::[char](), .Err(ParseCharError.TooMany), reason="no trimming")
-        assert_equal("${ParseCharError.Empty}", "cannot parse a character from empty text", reason="empty display")
-        assert_equal("${ParseCharError.TooMany}", "text has more than one character", reason="many display")
+        assert_equal(
+            "${ParseCharError.Empty}",
+            "cannot parse a character from empty text",
+            reason="empty display",
+        )
+        assert_equal(
+            "${ParseCharError.TooMany}",
+            "text has more than one character",
+            reason="many display",
+        )
 
     it("string is the identity"):
         assert_equal("ab c".parse::[string]().ok(), .Some("ab c"), reason="text")

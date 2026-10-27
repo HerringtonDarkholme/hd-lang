@@ -2,9 +2,9 @@ tests:
     use std.testing.assert
 
     it("map equality ignores insertion order"):
-        left := {"ada": 1, "grace": 2}
-        reordered := {"grace": 2, "ada": 1}
-        changed := {"ada": 1, "grace": 3}
+        left := { "ada": 1, "grace": 2 }
+        reordered := { "grace": 2, "ada": 1 }
+        changed := { "ada": 1, "grace": 3 }
         assert(left == reordered, reason="equal maps may use different insertion orders")
         assert(left != changed, reason="map values participate in equality")
 

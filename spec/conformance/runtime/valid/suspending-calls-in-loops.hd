@@ -1,6 +1,7 @@
 # test: suspending calls in loops
 
-fn step!(value: i32) -> i32: value
+fn step!(value: i32) -> i32:
+    value
 
 fn main!() -> i32:
     let index = +0

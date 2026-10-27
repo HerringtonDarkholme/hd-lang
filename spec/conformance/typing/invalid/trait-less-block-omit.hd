@@ -9,4 +9,4 @@ struct Account:
     token: Token = Token {}
 
 impl Account by Structure:
-    token = pass  # diagnostic: invalid-member-line
+    token = pass # diagnostic: invalid-member-line

@@ -12,6 +12,6 @@ tests:
     use std.testing.assert_equal
 
     it("a &mut self call changes the value where it is stored"):
-        let mut counters: Map[string, Counter] = {"hits": Counter { n: 0 }}
+        let mut counters: Map[string, Counter] = { "hits": Counter { n: 0 } }
         assert_equal(counters["hits"].bump(), 1, reason="the call returns the new count")
         assert_equal(counters["hits"].n, 1, reason="the value itself changed")

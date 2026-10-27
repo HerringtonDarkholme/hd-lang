@@ -6,7 +6,6 @@ impl Same for Money:
     fn same(self, other: Money) -> bool:
         true
 
-
 trait Same[Other = Self]:
     fn same(self, other: Other) -> bool
 

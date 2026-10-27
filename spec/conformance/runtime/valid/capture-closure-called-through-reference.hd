@@ -36,9 +36,11 @@ tests:
 
     it("a closure that captures a variable of the caller changes it through &"):
         let hits = +0
-        handler := Handler { step: fn() -> i32:
-            hits = hits + 1
-            hits
+        handler := Handler {
+            step: fn() -> i32:
+                hits = hits + 1
+                hits
+            ,
         }
         r := &handler
         assert_equal(fire(r), 1, reason="first")

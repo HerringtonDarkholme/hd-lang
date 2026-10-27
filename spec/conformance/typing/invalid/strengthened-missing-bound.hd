@@ -15,5 +15,5 @@ impl[S] Source[S] for Strict:
     fn member[F < Display](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
         panic("no input for ${h.info.name}")
 
-    fn missing[F < Display](&mut self, h: Field[S, F]) -> Result[F, never]:  # diagnostic: trait-method-signature
+    fn missing[F < Display](&mut self, h: Field[S, F]) -> Result[F, never]: # diagnostic: trait-method-signature
         panic("missing ${h.info.name}")

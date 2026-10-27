@@ -4,5 +4,5 @@ struct Counter:
     count: i32
 fn invalid(value: &dyn Inspectable) -> void:
     match value.downcast_ref::[Counter]():
-        .Some(counter) => counter.count = 0  # diagnostic: not-writable
+        .Some(counter) => counter.count = 0 # diagnostic: not-writable
         .None => pass

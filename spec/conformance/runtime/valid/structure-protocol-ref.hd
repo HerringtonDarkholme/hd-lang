@@ -19,7 +19,8 @@ trait Seed:
     fn seed(n: i32) -> Self
 
 impl Seed for i32:
-    fn seed(n: i32) -> i32: n
+    fn seed(n: i32) -> i32:
+        n
 
 trait Make:
     fn make(start: i32) -> Self

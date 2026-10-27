@@ -4,7 +4,8 @@
 fn classify(a: bool, b: bool) -> i32:
     if a: (if b: 1 else: 2) else: 3
 
-fn sign(x: i32) -> i32: (if x < 0: -1 else: 1)
+fn sign(x: i32) -> i32:
+    (if x < 0: -1 else: 1)
 
 tests:
     use std.testing.assert_equal

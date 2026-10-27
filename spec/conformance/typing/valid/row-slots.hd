@@ -7,7 +7,7 @@ trait Cache
 
 type AppRow = $ Db + Cache
 
-type Job[$R] = fn() -> void $ R
+type Job[$ R] = fn() -> void $ R
 
 fn schedule(first: Job[$ Db], second: Job[$ Db + Cache], ctx: $.Context[$ Db]) -> void:
     pass
@@ -15,5 +15,5 @@ fn schedule(first: Job[$ Db], second: Job[$ Db + Cache], ctx: $.Context[$ Db]) -
 fn wrap(callback: Fn[(), void, $ Db]) -> Job[$ Db]:
     callback
 
-fn install(ctx: $.Context[$ AppRow], job: Job[$ AppRow], empty: Job[$()]) -> void:
+fn install(ctx: $.Context[$ AppRow], job: Job[$ AppRow], empty: Job[$ ()]) -> void:
     pass

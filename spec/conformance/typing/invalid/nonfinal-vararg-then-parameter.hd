@@ -1,3 +1,4 @@
 # test: nonfinal vararg then parameter
 
-fn bad(first...: List[i32], second: i32) -> i32: second  # diagnostic: nonfinal-vararg
+fn bad(first...: List[i32], second: i32) -> i32: # diagnostic: nonfinal-vararg
+    second

@@ -7,4 +7,4 @@ trait Cache
 type AppRow = $ Db + Cache
 
 fn read() -> void $ AppRow:
-    _ := $.use(AppRow)  # diagnostic: generic-kind-mismatch
+    _ := $.use(AppRow) # diagnostic: generic-kind-mismatch

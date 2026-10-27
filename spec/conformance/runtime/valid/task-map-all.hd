@@ -36,7 +36,11 @@ tests:
     it("returns the results in item order"):
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
-            assert_equal(fetch_all!(), ["item 1", "item 2", "item 3", "item 4", "item 5"], reason="one result for each item, in order")
+            assert_equal(
+                fetch_all!(),
+                ["item 1", "item 2", "item 3", "item 4", "item 5"],
+                reason="one result for each item, in order",
+            )
 
     it("calls work once for each item, in item order"):
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))

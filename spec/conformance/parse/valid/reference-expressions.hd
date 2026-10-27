@@ -13,7 +13,7 @@ fn expressions(r: &mut Point, items: List[Point], i: i32) -> void:
     items.push(*r)
     send(&r, &mut r, *r)
     pairs := [&a, &b]
-    named := send(first = &a, second = *b)
+    named := send(first=&a, second=*b)
     if *flag:
         pass
     total := match *r:

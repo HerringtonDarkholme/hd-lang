@@ -3,4 +3,4 @@ use std.time.Clock
 use std.http.{Client, HttpError, Request, Response, Url}
 
 pub fn send!() -> Result[Response, HttpError] $ Clock:
-    Client::new().send!(&Request { url: Url::parse("https://example.test/").expect("fixture URL") })  # diagnostic: missing-requirement
+    Client::new().send!(&Request { url: Url::parse("https://example.test/").expect("fixture URL") }) # diagnostic: missing-requirement

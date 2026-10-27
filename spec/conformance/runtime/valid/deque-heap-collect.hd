@@ -72,7 +72,9 @@ tests:
         assert_equal(heap.pop(), .Some(4), reason="push after full drain")
 
     it("a Reverse heap pops smallest first"):
-        let mut heap = [+4, 1, 3, 1].iter().map(fn(n: i32) -> Reverse[i32]: Reverse { value: n }).collect::[Heap[Reverse[i32]]]()
+        let mut heap = [+4, 1, 3, 1].iter()
+            .map(fn(n: i32) -> Reverse[i32]: Reverse { value: n })
+            .collect::[Heap[Reverse[i32]]]()
         let mut popped: List[i32] = []
         while true:
             match heap.pop():
@@ -83,8 +85,16 @@ tests:
     it("heapification uses linear comparisons even for ascending inputs"):
         for size in [31, 64, 127, 1024]:
             counter := &mut Counter { comparisons: 0 }
-            values := (0..size).iter().map(fn(n: usize) -> Counted: Counted { value: i32(n), counter: counter })
+            values := (0..size).iter()
+                .map(fn(n: usize) -> Counted: Counted { value: i32(n), counter: counter })
             let mut heap = values.collect::[Heap[Counted]]()
             assert_equal(heap.len(), size, reason="all items collected")
-            assert(counter.comparisons <= 2 * size, reason="bottom-up construction, not repeated push")
-            assert_equal(heap.pop().map(fn(n: Counted) -> i32: n.value), .Some(i32(size - 1)), reason="heapified maximum")
+            assert(
+                counter.comparisons <= 2 * size,
+                reason="bottom-up construction, not repeated push",
+            )
+            assert_equal(
+                heap.pop().map(fn(n: Counted) -> i32: n.value),
+                .Some(i32(size - 1)),
+                reason="heapified maximum",
+            )

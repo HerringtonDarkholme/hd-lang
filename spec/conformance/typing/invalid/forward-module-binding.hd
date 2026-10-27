@@ -1,4 +1,4 @@
 fn read_count() -> i32:
-    count  # diagnostic: binding-not-yet-visible
+    count # diagnostic: binding-not-yet-visible
 
 let count = +0

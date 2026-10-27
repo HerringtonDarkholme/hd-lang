@@ -4,7 +4,7 @@ fn twice(n: i64) -> i64:
     n * 2
 
 fn fill(rounds: i64) -> Map[string, List[i64]]:
-    let mut m: Map[string, List[i64]] = {"k0": [], "k1": [], "k2": []}
+    let mut m: Map[string, List[i64]] = { "k0": [], "k1": [], "k2": [] }
     let n: i64 = 0
     while n < rounds:
         m["k${n % 3}"].push(twice(n))
@@ -22,7 +22,7 @@ tests:
         assert_equal(m["k2"][10], 64, reason="a push after several growths is kept")
 
     it("a copy taken before the pushes keeps its own lists"):
-        let mut m: Map[string, List[i64]] = {"k0": [7]}
+        let mut m: Map[string, List[i64]] = { "k0": [7] }
         copy := m
         let n: i64 = 0
         while n < 30:

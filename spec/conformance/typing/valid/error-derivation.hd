@@ -38,11 +38,21 @@ enum FsError:
 @error
 enum LoadError:
     @error("cannot read $path")
-    Read(path: string, @source error: FsError)
+    Read(
+        path: string,
+        @source
+        error: FsError,
+    )
     @error("bad config")
-    Yaml(@from error: YamlError)
+    Yaml(
+        @from
+        error: YamlError,
+    )
     @error(transparent)
-    Fs(@from error: FsError)
+    Fs(
+        @from
+        error: FsError,
+    )
 
 @error("config $name is missing")
 struct MissingConfig:
@@ -69,9 +79,16 @@ struct DiskError:
 @error
 enum SaveError:
     @error("cannot save $path")
-    Write(path: string, @source error: DiskError?)
+    Write(
+        path: string,
+        @source
+        error: DiskError?,
+    )
     @error("save failed")
-    Other(@source error: DiskError)
+    Other(
+        @source
+        error: DiskError,
+    )
 
 @error
 enum RepoError:
@@ -93,11 +110,18 @@ fn public_find(name: string) -> Result[string, PublicError]:
 @error
 enum TaskError[E]:
     @error("task $name failed")
-    Failed(name: string, @source error: E)
+    Failed(
+        name: string,
+        @source
+        error: E,
+    )
 
 enum Plain:
     @origin
-    Wrap(@from value: string)
+    Wrap(
+        @from
+        value: string,
+    )
 
 fn erase(value: TaskError[FsError]) -> *dyn Error:
     &value

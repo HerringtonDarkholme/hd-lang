@@ -85,8 +85,16 @@ tests:
                 tiny.push(&Tiny { value: value })
                 pairs.push(&P1 { left: Tiny { value: value }, right: Tiny { value: -value } })
             for i in 0..5000:
-                assert_equal(tiny[i].value, i64(i + round), reason="the small class keeps its contents")
-                assert_equal(pairs[i].right.value, -i64(i + round), reason="the next class keeps its contents")
+                assert_equal(
+                    tiny[i].value,
+                    i64(i + round),
+                    reason="the small class keeps its contents",
+                )
+                assert_equal(
+                    pairs[i].right.value,
+                    -i64(i + round),
+                    reason="the next class keeps its contents",
+                )
             alias := tiny[0]
             assert(alias is tiny[0], reason="a live reference preserves its identity")
             assert(!(tiny[0] is tiny[1]), reason="distinct live allocations never share a slot")
@@ -97,8 +105,16 @@ tests:
             for i in 0..40:
                 values.push(near(i64(i + round)))
             for i in 0..40:
-                assert_equal(values[i].h.value, i64(i + round), reason="the field at the end of the payload")
-                assert_equal(values[i].a.left.left.left.left.left.left.left.value, i64(i + round), reason="the field at the start of the payload")
+                assert_equal(
+                    values[i].h.value,
+                    i64(i + round),
+                    reason="the field at the end of the payload",
+                )
+                assert_equal(
+                    values[i].a.left.left.left.left.left.left.left.value,
+                    i64(i + round),
+                    reason="the field at the start of the payload",
+                )
 
     it("a fixed payload over the small limit still uses the large-run path"):
         for round in 0..3:
@@ -106,4 +122,8 @@ tests:
             for i in 0..40:
                 values.push(large(i64(i + round)))
             for i in 0..40:
-                assert_equal(values[i].right.left.left.left.left.left.left.left.value, i64(i + round + 1), reason="the second half of the large payload")
+                assert_equal(
+                    values[i].right.left.left.left.left.left.left.left.value,
+                    i64(i + round + 1),
+                    reason="the second half of the large payload",
+                )

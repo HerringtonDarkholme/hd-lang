@@ -5,5 +5,5 @@ trait Factory:
     fn create() -> Self
 
 fn collect() -> void:
-    let factories: List[Factory] = []  # diagnostic: trait-used-as-type
+    let factories: List[Factory] = [] # diagnostic: trait-used-as-type
     _ := factories

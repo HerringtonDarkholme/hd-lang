@@ -5,6 +5,6 @@ use std.ops.Default
 struct Secret:
     value: i32
 
-@derive(Default)  # diagnostic: member-not-derivable
+@derive(Default) # diagnostic: member-not-derivable
 struct Vault:
     secret: Secret

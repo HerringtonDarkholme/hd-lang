@@ -15,15 +15,27 @@ tests:
     use std.testing.assert_equal
 
     it("reads the mapped system"):
-        $.with(Sys=ScriptedSys::new({"os": "linux", "cpu_count": "8"})):
+        $.with(Sys=ScriptedSys::new({ "os": "linux", "cpu_count": "8" })):
             assert_equal(platform(), "linux", reason="the mapped os")
             assert_equal($.use(Sys).cpu_count(), .Ok(8), reason="parsed as a count")
-            assert_equal($.use(Sys).hostname(), .Err(HostError.Unsupported("hostname")), reason="not in the map")
+            assert_equal(
+                $.use(Sys).hostname(),
+                .Err(HostError.Unsupported("hostname")),
+                reason="not in the map",
+            )
 
     it("a value that is no count is Unsupported"):
-        $.with(Sys=ScriptedSys::new({"cpu_count": "many"})):
-            assert_equal($.use(Sys).cpu_count(), .Err(HostError.Unsupported("cpu_count")), reason="not a decimal u32")
+        $.with(Sys=ScriptedSys::new({ "cpu_count": "many" })):
+            assert_equal(
+                $.use(Sys).cpu_count(),
+                .Err(HostError.Unsupported("cpu_count")),
+                reason="not a decimal u32",
+            )
             assert_equal($.use(Sys).arch(), .Err(HostError.Unsupported("arch")), reason="no key")
 
     it("a refused read names the method"):
-        assert_equal(HostError.NotGranted("hostname").to_string(), "sys access to hostname is not granted", reason="plain denial without host-specific advice")
+        assert_equal(
+            HostError.NotGranted("hostname").to_string(),
+            "sys access to hostname is not granted",
+            reason="plain denial without host-specific advice",
+        )

@@ -9,7 +9,7 @@ fn style(prefix: string = "") -> Style:
 struct Loud:
     id: i64
 
-@style(prefix="db_")  # keep café
+@style(prefix="db_") # keep café
 impl Loud by Structure:
     id += ["key"]
 

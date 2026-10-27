@@ -1,4 +1,4 @@
 # test: only apply and update make a value callable
 # Spec 05 Callable Values: expr.call.apply.place.
 fn run(tags: &mut List[string]) -> void:
-    tags(0) = "x"  # diagnostic: invalid-assignment-target
+    tags(0) = "x" # diagnostic: invalid-assignment-target

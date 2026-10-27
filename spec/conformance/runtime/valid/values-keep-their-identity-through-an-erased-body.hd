@@ -15,8 +15,10 @@ struct K:
     n: i32
 
 impl Keeper for K:
-    fn keep[T](self, x: T) -> T: x
-    fn size[T](self, xs: List[T]) -> usize: xs.len() + 100
+    fn keep[T](self, x: T) -> T:
+        x
+    fn size[T](self, xs: List[T]) -> usize:
+        xs.len() + 100
 
 fn via[C < Keeper](c: C, u: &User) -> bool:
     c.keep(u) is u

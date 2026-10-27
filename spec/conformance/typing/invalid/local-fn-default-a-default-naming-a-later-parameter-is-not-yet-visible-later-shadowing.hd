@@ -1,5 +1,6 @@
 # test: a default naming a later parameter is not yet visible
 pub fn main() -> void $ Console:
     finish := 5
-    fn span(start: i32 = finish, finish: i32 = 10) -> i32: finish - start  # diagnostic: binding-not-yet-visible
+    fn span(start: i32 = finish, finish: i32 = 10) -> i32: # diagnostic: binding-not-yet-visible
+        finish - start
     println(span())

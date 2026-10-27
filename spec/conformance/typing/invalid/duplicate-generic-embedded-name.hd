@@ -4,4 +4,4 @@ struct Box[T]:
 
 struct Storage:
     Box[i32]
-    Box[string]  # diagnostic: duplicate-embedded-field
+    Box[string] # diagnostic: duplicate-embedded-field

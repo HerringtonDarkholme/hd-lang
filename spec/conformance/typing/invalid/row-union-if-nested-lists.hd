@@ -12,4 +12,4 @@ fn orders() -> string $ Db:
     "orders"
 
 fn wire(admin: bool) -> void:
-    groups := if admin: [orders] else: [health]  # diagnostic: no-common-type
+    groups := if admin: [orders] else: [health] # diagnostic: no-common-type

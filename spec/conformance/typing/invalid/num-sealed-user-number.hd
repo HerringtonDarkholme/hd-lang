@@ -15,7 +15,10 @@ impl Eq for Cents:
     fn eq(self, other: Cents) -> bool:
         self.value == other.value
 
-impl Num for Cents:  # diagnostic: sealed-trait-implementation
-    fn zero() -> Cents: Cents { value: 0 }
-    fn one() -> Cents: Cents { value: 1 }
-    fn from_i64(n: i64) -> Cents: Cents { value: n }
+impl Num for Cents: # diagnostic: sealed-trait-implementation
+    fn zero() -> Cents:
+        Cents { value: 0 }
+    fn one() -> Cents:
+        Cents { value: 1 }
+    fn from_i64(n: i64) -> Cents:
+        Cents { value: n }

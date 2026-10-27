@@ -7,4 +7,4 @@ fn r(t: Template[string]) -> string:
     t.raw_parts[0]
 
 fn escape(r: i32) -> string:
-    r"\d+"  # the module's prefix function r, not the parameter
+    r"\d+" # the module's prefix function r, not the parameter

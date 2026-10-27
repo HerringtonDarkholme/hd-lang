@@ -3,7 +3,7 @@
 use std.ops.Add
 
 fn plus[T < Add[T, Out = T]](left: T, right: T) -> T:
-    left + right  # panic: integer-overflow
+    left + right # panic: integer-overflow
 
 tests:
     it("overflows"):

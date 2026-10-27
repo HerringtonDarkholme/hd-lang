@@ -26,4 +26,4 @@ impl[T] Show for T by Structure:
         let mut w = Shower { out: "" }
         _ := Structure::walk(self, &mut w)
         w.out
-    out = []  # diagnostic: misplaced-derivation
+    out = [] # diagnostic: misplaced-derivation

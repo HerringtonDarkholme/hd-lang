@@ -25,8 +25,16 @@ tests:
     use std.testing.assert_equal
 
     it("leaves the lines out of facts_of"):
-        assert_equal(facts_of(double).find::[InlineHint]().is_some(), false, reason="inline attaches no value")
-        assert_equal(facts_of(describe).find::[Cold]().is_some(), false, reason="cold attaches no value")
+        assert_equal(
+            facts_of(double).find::[InlineHint]().is_some(),
+            false,
+            reason="inline attaches no value",
+        )
+        assert_equal(
+            facts_of(describe).find::[Cold]().is_some(),
+            false,
+            reason="cold attaches no value",
+        )
 
     it("calls the functions as written"):
         assert_equal(double(+21), +42, reason="an inline choice changes no result")

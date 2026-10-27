@@ -5,13 +5,14 @@
 
 fn main() -> i32:
     text := "${-2147483648}|${0}|${42}|${true}|${false}|${'😀'}"
-    if text == "-2147483648|0|42|true|false|😀":
-        42
-    else:
-        0
+    if text == "-2147483648|0|42|true|false|😀": 42 else: 0
 
 tests:
     use std.testing.assert_equal
 
     it("main returns 42"):
-        assert_equal(main(), 42, reason="string interpolation displays built-ins from left to right")
+        assert_equal(
+            main(),
+            42,
+            reason="string interpolation displays built-ins from left to right",
+        )

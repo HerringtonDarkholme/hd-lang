@@ -63,8 +63,10 @@ tests:
 
     it("from_fn makes a new iterator"):
         let left = +2
-        countdown := from_fn(fn() -> i32?:
-            left = left - 1
-            if left < 0: .None else: .Some(left)
+        countdown := from_fn(
+            fn() -> i32?:
+                left = left - 1
+                if left < 0: .None else: .Some(left)
+            ,
         )
         assert_equal(countdown.collect::[List[i32]](), [1, 0], reason="its items")

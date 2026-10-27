@@ -7,4 +7,5 @@ trait Identity:
 struct Picker: pass
 
 impl Identity for Picker:
-    fn select[T, U](self, value: T) -> T: value  # diagnostic: trait-method-signature
+    fn select[T, U](self, value: T) -> T: # diagnostic: trait-method-signature
+        value

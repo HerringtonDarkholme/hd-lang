@@ -6,4 +6,4 @@ fn take(n: i32) -> i32:
 
 fn run() -> i32:
     let count = 0
-    take(count)  # diagnostic: type-mismatch
+    take(count) # diagnostic: type-mismatch

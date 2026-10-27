@@ -3,4 +3,4 @@ enum Code(i32):
     Missing -> Code(404)
 
 fn f(c: &mut Code):
-    c._0 = 1  # diagnostic: invalid-assignment-target
+    c._0 = 1 # diagnostic: invalid-assignment-target

@@ -4,4 +4,4 @@ struct Secret:
     value: i32
 
 fn render(value: Secret) -> string:
-    "secret=$value"  # diagnostic: unsatisfied-trait-bound
+    "secret=$value" # diagnostic: unsatisfied-trait-bound

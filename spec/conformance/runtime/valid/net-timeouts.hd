@@ -4,7 +4,16 @@
 # std-net.scripted.failing, std-net.scripted.queue, and
 # std-net.scripted.closed-error.
 # expect: test
-use std.net.{Net, NetError, ScriptedListener, ScriptedNet, ScriptedStream, ScriptedUdp, TcpListener, UdpSocket}
+use std.net.{
+    Net,
+    NetError,
+    ScriptedListener,
+    ScriptedNet,
+    ScriptedStream,
+    ScriptedUdp,
+    TcpListener,
+    UdpSocket,
+}
 use std.task.{timeout, apply}
 use std.time.{Clock, ManualClock, Timestamp, s}
 
@@ -33,7 +42,11 @@ tests:
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Net=net, Clock=clock):
             assert_equal(banner!("mail.local", 25), .Ok("220 ready\n"), reason="banner")
-        assert_equal(clock.now().unix_milliseconds(), 0i64, reason="a ready connect leaves the deadline clock unchanged")
+        assert_equal(
+            clock.now().unix_milliseconds(),
+            0i64,
+            reason="a ready connect leaves the deadline clock unchanged",
+        )
         assert_equal(net.received(), ["mail.local:25"], reason="the connect is recorded")
         assert_equal(stream.timeout(), .Some(5s), reason="read timeout")
 
@@ -63,4 +76,8 @@ tests:
         assert_equal(socket.timeout(), .None, reason="the bound removed")
 
     it("Timeout has its own text"):
-        assert_equal(NetError.Timeout.to_string(), "the net operation timed out", reason="the Display text")
+        assert_equal(
+            NetError.Timeout.to_string(),
+            "the net operation timed out",
+            reason="the Display text",
+        )

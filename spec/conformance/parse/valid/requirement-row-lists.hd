@@ -15,27 +15,32 @@ struct Hooks:
     on_tick: fn() -> i32 $ Clock + Logger
     handlers: Map[string, fn() -> i32 $ Clock + Logger]
     pair: (fn() -> i32 $ Clock + Logger, fn() -> i32 $ Clock)
-    idle: fn() -> void $()
+    idle: fn() -> void $ ()
 
-fn single() -> i32 $ Clock: 1
+fn single() -> i32 $ Clock:
+    1
 
-fn several(id: i32) -> i32 $ Clock + Logger + Store: id
+fn several(id: i32) -> i32 $ Clock + Logger + Store:
+    id
 
-fn grouped() -> i32 $ Clock + Logger: 2
+fn grouped() -> i32 $ Clock + Logger:
+    2
 
-fn empty() -> i32 $(): 3
+fn empty() -> i32 $ ():
+    3
 
 fn wrap() -> (fn() -> i32 $ Clock + Logger) $ Clock:
     fn() -> i32 $ Clock + Logger: 4
 
-fn provide[$R](callback: fn() -> i32 $ R + Logger) -> i32 $ R:
+fn provide[$ R](callback: fn() -> i32 $ R + Logger) -> i32 $ R:
     callback()
 
 fn contexts(
     both: $.Context[$ Clock + Logger],
     one: $.Context[$ Clock],
-    none: $.Context[$()],
-) -> void: pass
+    none: $.Context[$ ()],
+) -> void:
+    pass
 
 tests:
     it("a closure header lists its keys bare"):

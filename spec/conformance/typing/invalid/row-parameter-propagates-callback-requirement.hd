@@ -5,9 +5,10 @@ trait Logger:
 struct SilentLogger: pass
 
 impl Logger for SilentLogger:
-    fn write(self, message: string) -> void: pass
+    fn write(self, message: string) -> void:
+        pass
 
-fn quiet[$R](callback: fn() -> void $ R) -> void $ R:
+fn quiet[$ R](callback: fn() -> void $ R) -> void $ R:
     $.with(Logger=SilentLogger {}):
         callback()
 
@@ -15,4 +16,4 @@ fn log_something() -> void $ Logger:
     $.use(Logger).write("hi")
 
 pub fn caller() -> void:
-    quiet(log_something)  # diagnostic: missing-requirement
+    quiet(log_something) # diagnostic: missing-requirement

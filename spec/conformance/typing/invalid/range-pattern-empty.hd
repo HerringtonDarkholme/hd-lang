@@ -2,5 +2,5 @@
 # Spec 06 Range Patterns: flow.match.range.empty (batch 49).
 fn empty(n: i32) -> string:
     match n:
-        5..5 => "never"  # diagnostic: unreachable-match-arm
+        5..5 => "never" # diagnostic: unreachable-match-arm
         _ => "other"

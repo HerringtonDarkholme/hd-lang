@@ -2,4 +2,4 @@
 use std.task.all
 
 fn spread!(tasks: List[mut Suspend[i32]]) -> void:
-    _ := all!(tasks...)  # diagnostic: type-mismatch
+    _ := all!(tasks...) # diagnostic: type-mismatch

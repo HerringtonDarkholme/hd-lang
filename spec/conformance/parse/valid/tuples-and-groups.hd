@@ -1,7 +1,8 @@
 # test: parser distinguishes grouped expressions from tuple types and literals
 # Spec 05 Tuple Expressions: expr.paren.group, expr.tuple.single.
 
-fn pair(value: (i32, string)) -> (i32,): (value._0,)
+fn pair(value: (i32, string)) -> (i32,):
+    (value._0,)
 empty := ()
 let (left, right) = (1, 2)
 let (name, score): (string, i32) = ("Ada", 10)

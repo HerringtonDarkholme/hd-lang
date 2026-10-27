@@ -10,4 +10,4 @@ fn keep(value: &mut dyn Inspectable) -> void:
     pass
 
 fn erase(counter: &Counter) -> void:
-    keep(counter)  # diagnostic: mutable-upgrade
+    keep(counter) # diagnostic: mutable-upgrade

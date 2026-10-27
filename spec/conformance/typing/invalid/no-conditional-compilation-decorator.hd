@@ -1,5 +1,5 @@
 # test: source has no conditional compilation, so a cfg decorator names nothing
 # Spec 10 Package Manifest: module.manifest.no-features.
-@cfg("debug")  # diagnostic: unknown-name
+@cfg("debug") # diagnostic: unknown-name
 fn trace() -> void:
     pass

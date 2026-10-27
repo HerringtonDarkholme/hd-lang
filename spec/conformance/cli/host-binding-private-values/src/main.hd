@@ -25,7 +25,17 @@ pub trait Server:
     fn custom(&self, value: Token) -> Token
 
 pub fn main() -> void $ Console + Server:
-    secret := $.use(Server).secret(Secret { large: 18446744073709551615, signed: -9223372036854775808, ratio: 1.0, zero: -0.0, children: ["nested"] })
-    println("${secret.large} ${secret.signed} ${secret.ratio.to_bits()} ${secret.zero.to_bits()} ${secret.children[0]}")
+    secret := $.use(Server).secret(
+        Secret {
+            large: 18446744073709551615,
+            signed: -9223372036854775808,
+            ratio: 1.0,
+            zero: -0.0,
+            children: ["nested"],
+        },
+    )
+    println(
+        "${secret.large} ${secret.signed} ${secret.ratio.to_bits()} ${secret.zero.to_bits()} ${secret.children[0]}",
+    )
     token := $.use(Server).custom(Token { hidden: "private" })
     println(token.hidden)

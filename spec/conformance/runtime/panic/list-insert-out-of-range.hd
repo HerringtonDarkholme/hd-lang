@@ -2,7 +2,7 @@
 # Spec lang/10 Built-In Methods: module.method.list-insert.range.
 
 fn grow(values: &mut List[i32]) -> void:
-    values.insert(values.len() + 1, 9)  # panic: index-out-of-bounds
+    values.insert(values.len() + 1, 9) # panic: index-out-of-bounds
 
 tests:
     it("rejects an index past len()"):

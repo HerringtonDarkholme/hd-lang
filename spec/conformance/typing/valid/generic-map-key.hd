@@ -1,3 +1,2 @@
-
 fn lookup[K < Eq & Hash](items: Map[K, i32], key: K) -> i32?:
     items.get(key)

@@ -1,4 +1,4 @@
 # test: a data type that embeds itself directly is an embedding cycle
 struct Loop:
-    Loop  # diagnostic: embedding-cycle
+    Loop # diagnostic: embedding-cycle
     id: string

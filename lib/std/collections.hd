@@ -35,7 +35,10 @@ impl[T] List[T]:
     pub fn insert(&mut self, index: usize, value: T) -> void:
         size := self.len()
         if index > size:
-            panic_with("index-out-of-bounds", "list insert index ${index} out of bounds for length ${size}")
+            panic_with(
+                "index-out-of-bounds",
+                "list insert index ${index} out of bounds for length ${size}",
+            )
         self.push(value)
         let at: usize = size
         while at > index:
@@ -50,7 +53,10 @@ impl[T] List[T]:
     pub fn remove_at(&mut self, index: usize) -> T:
         size := self.len()
         if index >= size:
-            panic_with("index-out-of-bounds", "list remove_at index ${index} out of bounds for length ${size}")
+            panic_with(
+                "index-out-of-bounds",
+                "list remove_at index ${index} out of bounds for length ${size}",
+            )
         removed := self[index]
         let at: usize = index
         while at + 1 < size:
@@ -71,7 +77,10 @@ impl[T] List[T]:
     ## See [std-collections.view](../../spec/std/collections.md#r-std-collections.view).
     pub fn view(*self, start: usize, end: usize) -> ListView[T]:
         if end > self.len() || start > end:
-            panic_with("index-out-of-bounds", "list view start ${start} end ${end} out of bounds for length ${self.len()}")
+            panic_with(
+                "index-out-of-bounds",
+                "list view start ${start} end ${end} out of bounds for length ${self.len()}",
+            )
         ListView::[T] { items: self, start: start, end: end, len: self.len() }
 
     ## Returns a new list with `transform` applied to each element, in order.
@@ -240,7 +249,10 @@ impl[T] List[T]:
         for item in self:
             keyed.push((key(item), index))
             index = index + 1
-        order := keyed.sorted_by(fn(left: (K, usize), right: (K, usize)) -> Ordering: left._0.cmp(right._0))
+        order := keyed.sorted_by(
+            fn(left: (K, usize), right: (K, usize)) -> Ordering: left._0.cmp(right._0)
+            ,
+        )
         let mut sorted: List[T] = []
         for (_, at) in order:
             sorted.push(self[at])
@@ -265,7 +277,10 @@ impl[T] List[T]:
         let mut kept: List[T] = []
         let mut rest: List[T] = []
         for item in self:
-            if keep(item): kept.push(item) else: rest.push(item)
+            if keep(item):
+                kept.push(item)
+            else:
+                rest.push(item)
         (kept, rest)
 
     # Stops at the first element that passes.
@@ -310,7 +325,8 @@ impl[T] List[T]:
         if size == 0:
             panic("windows: size must be positive")
         let mut runs: List[ListView[T]] = []
-        if size > self.len(): return runs
+        if size > self.len():
+            return runs
         last := self.len() - size
         let start: usize = 0
         while start <= last:
@@ -504,7 +520,9 @@ impl[K < Eq & Hash] Map[K, usize]:
     ## Returns the `n` pairs with the largest counts, largest first; equal counts keep the map's order.
     ## See [std-collections.map.most-common](../../spec/std/collections.md#r-std-collections.map.most-common).
     pub fn most_common(self, n: usize) -> List[(K, usize)]:
-        self.entries().sorted_by(fn(left: (K, usize), right: (K, usize)) -> Ordering: right._1.cmp(left._1)).take(n)
+        self.entries()
+            .sorted_by(fn(left: (K, usize), right: (K, usize)) -> Ordering: right._1.cmp(left._1))
+            .take(n)
 
 # A read-only window on a run of a list's elements
 # (spec/std/collections.md#views). It refers to the list's place, not a
@@ -540,7 +558,10 @@ impl[T] ListView[T]:
 
     fn check(self) -> void:
         if self.items.len() != self.len:
-            panic_with("iterator-invalidated", "the list changed length while a view of it was in use")
+            panic_with(
+                "iterator-invalidated",
+                "the list changed length while a view of it was in use",
+            )
 
 impl[T] Index[usize] for ListView[T]:
     type Out = T
@@ -548,7 +569,10 @@ impl[T] Index[usize] for ListView[T]:
         self.check()
         len := self.end - self.start
         if key >= len:
-            panic_with("index-out-of-bounds", "list view index ${key} out of bounds for length ${len}")
+            panic_with(
+                "index-out-of-bounds",
+                "list view index ${key} out of bounds for length ${len}",
+            )
         self.items[self.start + key]
 
 impl[T] Iterable[T] for ListView[T]:

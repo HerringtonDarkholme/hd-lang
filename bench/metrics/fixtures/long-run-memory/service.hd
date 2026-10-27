@@ -20,7 +20,13 @@ fn handle(sessions: &mut Map[string, i64], text: string) -> string:
     request := decode::[Request](text).expect("a request")
     seen := sessions.get(request.user).unwrap_or(0)
     sessions[request.user] = seen + 1
-    encode(Response { id: request.id, status: 200, body: "${request.path} for ${request.user}: visit ${seen + 1}" })
+    encode(
+        Response {
+            id: request.id,
+            status: 200,
+            body: "${request.path} for ${request.user}: visit ${seen + 1}",
+        },
+    )
 
 pub fn main() -> void $ Console:
     let mut sessions: Map[string, i64] = {}

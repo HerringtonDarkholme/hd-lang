@@ -11,6 +11,6 @@ enum SyncError:
     Fs(error: FsError)
 
 impl From[FsError] for SyncError:
-    fn from(value: FsError) -> SyncError $ Console:  # diagnostic: trait-method-signature
+    fn from(value: FsError) -> SyncError $ Console: # diagnostic: trait-method-signature
         println("converting")
         SyncError.Fs(value)

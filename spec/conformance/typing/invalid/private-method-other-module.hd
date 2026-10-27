@@ -5,4 +5,4 @@
 use pkg.meter.{Meter}
 
 pub fn read(meter: Meter) -> i32:
-    meter.calibrate()  # diagnostic: private-member
+    meter.calibrate() # diagnostic: private-member

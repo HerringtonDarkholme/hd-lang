@@ -4,4 +4,4 @@ use std.num.Integer
 
 type Count(i64)
 
-impl Integer for Count  # diagnostic: sealed-trait-implementation
+impl Integer for Count # diagnostic: sealed-trait-implementation

@@ -3,4 +3,4 @@ struct Score:
     value: i32
 
 fn higher(left: Score, right: Score) -> bool:
-    left > right  # diagnostic: type-mismatch
+    left > right # diagnostic: type-mismatch

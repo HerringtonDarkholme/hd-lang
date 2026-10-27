@@ -26,14 +26,18 @@ tests:
         assert(files.write_bytes!(Path("data.bin"), [104, 105]).is_ok(), reason="bytes written")
         assert(files.read_text!(Path("data.bin")).unwrap_or("") == "hi", reason="read back as text")
         assert(files.append_text!(Path("data.bin"), "!").is_ok(), reason="appended")
-        assert(files.read_text!(Path("data.bin")).unwrap_or("") == "hi!", reason="the appended text")
+        assert(
+            files.read_text!(Path("data.bin")).unwrap_or("") == "hi!",
+            reason="the appended text",
+        )
 
     it("reports a missing file"):
         let mut files = MemoryFs::new()
         assert(files.write_text!(Path("a.txt"), "x").is_ok(), reason="seeded")
         missing := Path("./missing.txt")
         match read_error!(files, missing):
-            .Some(error) => assert(error == FsError.NotFound(path=missing), reason="the supplied missing path")
+            .Some(error) =>
+                assert(error == FsError.NotFound(path=missing), reason="the supplied missing path")
             .None => assert(false, reason="the file is missing")
 
     it("appends preserve earlier byte snapshots and copied file systems"):
@@ -43,21 +47,45 @@ tests:
         let mut snapshot = *files
         _ := files.append_text!(Path("./file"), "C")
         assert_equal(bytes, [65, 66], reason="previous read is a value snapshot")
-        assert_equal(snapshot.read_text!(Path("file")), .Ok("AB"), reason="copied file system is independent")
+        assert_equal(
+            snapshot.read_text!(Path("file")),
+            .Ok("AB"),
+            reason="copied file system is independent",
+        )
         _ := snapshot.append_text!(Path("file"), "D")
-        assert_equal(files.read_text!(Path("file")), .Ok("ABC"), reason="original grows independently")
-        assert_equal(snapshot.read_text!(Path("file")), .Ok("ABD"), reason="copied file system grows independently")
+        assert_equal(
+            files.read_text!(Path("file")),
+            .Ok("ABC"),
+            reason="original grows independently",
+        )
+        assert_equal(
+            snapshot.read_text!(Path("file")),
+            .Ok("ABD"),
+            reason="copied file system grows independently",
+        )
 
     it("appends preserve copied files and renamed bytes"):
         files := MemoryFs::new()
         _ := files.write_bytes!(Path("source"), [0, 255])
         _ := files.copy!(Path("source"), Path("copy"))
         _ := files.append_text!(Path("source"), "λ")
-        assert_equal(files.read_bytes!(Path("source")), .Ok([0, 255, 206, 187]), reason="arbitrary prefix and UTF-8 suffix")
-        assert_equal(files.read_bytes!(Path("copy")), .Ok([0, 255]), reason="copied bytes are independent")
+        assert_equal(
+            files.read_bytes!(Path("source")),
+            .Ok([0, 255, 206, 187]),
+            reason="arbitrary prefix and UTF-8 suffix",
+        )
+        assert_equal(
+            files.read_bytes!(Path("copy")),
+            .Ok([0, 255]),
+            reason="copied bytes are independent",
+        )
         _ := files.rename!(Path("source"), Path("renamed"))
         _ := files.append_text!(Path("renamed"), "!")
-        assert_equal(files.read_bytes!(Path("renamed")), .Ok([0, 255, 206, 187, 33]), reason="append after rename")
+        assert_equal(
+            files.read_bytes!(Path("renamed")),
+            .Ok([0, 255, 206, 187, 33]),
+            reason="append after rename",
+        )
 
     it("repeated appends keep normalized paths and empty writes"):
         files := MemoryFs::new()
@@ -66,6 +94,14 @@ tests:
             _ := files.append_text!(Path("dir//./file"), "λ")
             index += 1
         _ := files.append_text!(Path("dir/file"), "")
-        assert_equal(files.read_text!(Path("./dir/file")), .Ok("λ".repeat(128)), reason="same normalized file")
+        assert_equal(
+            files.read_text!(Path("./dir/file")),
+            .Ok("λ".repeat(128)),
+            reason="same normalized file",
+        )
         _ := files.append_text!(Path("empty"), "")
-        assert_equal(files.read_bytes!(Path("empty")), .Ok([]), reason="empty append creates an empty file")
+        assert_equal(
+            files.read_bytes!(Path("empty")),
+            .Ok([]),
+            reason="empty append creates an empty file",
+        )

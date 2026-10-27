@@ -6,4 +6,4 @@ struct Counter:
 
 trait Marker
 
-impl Marker for mut Counter  # diagnostic: mutable-impl-target
+impl Marker for mut Counter # diagnostic: mutable-impl-target

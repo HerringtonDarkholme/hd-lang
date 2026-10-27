@@ -3,4 +3,4 @@ use std.http.{Client, Http, HttpError, Request, Response, Url}
 
 pub fn send!() -> Result[Response, HttpError] $ Http:
     let mut client = Client::new()
-    client.send!(&Request::get(Url::parse("https://example.test/").expect("fixture URL")))  # diagnostic: missing-requirement
+    client.send!(&Request::get(Url::parse("https://example.test/").expect("fixture URL"))) # diagnostic: missing-requirement

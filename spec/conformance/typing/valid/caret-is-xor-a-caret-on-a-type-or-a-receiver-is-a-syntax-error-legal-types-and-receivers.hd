@@ -2,11 +2,14 @@
 struct File:
     fd: i32
 
-fn fill(f: &mut File) -> void: pass
+fn fill(f: &mut File) -> void:
+    pass
 
 fn make(f: File) -> void:
     let v: File = f
 
 impl File:
-    fn peek(self) -> i32: 0
-    fn reset(&mut self) -> void: pass
+    fn peek(self) -> i32:
+        0
+    fn reset(&mut self) -> void:
+        pass

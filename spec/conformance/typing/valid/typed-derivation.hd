@@ -97,7 +97,11 @@ struct User:
 @style(tag="kind")
 enum Reply:
     Sent(id: i64)
-    Moved(to: string, @rename("why") reason: string)
+    Moved(
+        to: string,
+        @rename("why")
+        reason: string,
+    )
     Raw(string)
     Busy
 

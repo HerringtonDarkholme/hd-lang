@@ -5,7 +5,8 @@ trait Factory:
 struct Box[T]:
     value: T
 
-fn id[T](x: T) -> T: x
+fn id[T](x: T) -> T:
+    x
 
 fn body_8() -> void:
     let a: (&dyn Factory, i32) = panic("x")
@@ -28,5 +29,6 @@ fn body_12() -> void:
     _ := a
 
 fn body_13() -> void:
-    fn local(p: &dyn Factory) -> void: pass
+    fn local(p: &dyn Factory) -> void:
+        pass
     local(panic("x"))

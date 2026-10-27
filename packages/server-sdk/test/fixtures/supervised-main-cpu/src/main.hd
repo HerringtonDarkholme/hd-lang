@@ -1,7 +1,8 @@
 use dep.server_sdk.server.HttpServer
 
 fn spin() -> void:
-    while true: pass
+    while true:
+        pass
 
 pub fn main!() -> void $ HttpServer:
     server := $.use(HttpServer)

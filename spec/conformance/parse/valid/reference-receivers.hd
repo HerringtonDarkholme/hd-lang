@@ -9,6 +9,7 @@ struct Square:
     side: f64
 
 impl Square:
-    fn side(&self) -> f64: self.side
+    fn side(&self) -> f64:
+        self.side
     fn double(&mut self) -> void:
         self.side *= 2.0

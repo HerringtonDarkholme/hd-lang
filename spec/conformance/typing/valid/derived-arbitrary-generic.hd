@@ -6,7 +6,8 @@ use std.testing.Arbitrary
 struct Box[T]:
     value: T
 
-fn needs[T < Arbitrary](value: T) -> T: value
+fn needs[T < Arbitrary](value: T) -> T:
+    value
 
 fn check(item: Box[i32]) -> Box[i32]:
     needs(item)

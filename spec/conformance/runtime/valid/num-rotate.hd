@@ -23,7 +23,11 @@ tests:
         assert_equal(word.rotate_right(8), 0x78123456, reason="u32 right")
         assert_equal(next_state(1), 33, reason="rotate and combine")
         let wide: u64 = 1
-        assert_equal(wide.rotate_right(1), 9223372036854775808, reason="the low bit reaches the top of a u64")
+        assert_equal(
+            wide.rotate_right(1),
+            9223372036854775808,
+            reason="the low bit reaches the top of a u64",
+        )
         assert_equal(wide.rotate_left(65), 2, reason="u64 modulo the width")
         let half: u16 = 0xabcd
         assert_equal(half.rotate_left(4), 0xbcda, reason="u16")

@@ -10,7 +10,8 @@ struct State:
 struct InfiniteCleanup: pass
 impl Disposable for InfiniteCleanup:
     fn dispose!(&mut self) -> void:
-        while true: pass
+        while true:
+            pass
 
 struct WaitingCleanup:
     wait: mut Suspend[void]
@@ -27,7 +28,8 @@ impl Disposable for HttpCleanup:
         _ := wait!()
 
 fn spin() -> void:
-    while true: pass
+    while true:
+        pass
 
 fn forward!(target: string) -> Result[Response, HttpError] $ Http:
     Request::get(Url::parse(target)?).send!()

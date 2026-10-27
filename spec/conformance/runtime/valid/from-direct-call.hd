@@ -14,10 +14,12 @@ enum SyncError:
     Http(error: HttpError)
 
 impl From[FsError] for SyncError:
-    fn from(value: FsError) -> SyncError: SyncError.Fs(value)
+    fn from(value: FsError) -> SyncError:
+        SyncError.Fs(value)
 
 impl From[HttpError] for SyncError:
-    fn from(value: HttpError) -> SyncError: SyncError.Http(value)
+    fn from(value: HttpError) -> SyncError:
+        SyncError.Http(value)
 
 fn fs_path(error: FsError) -> string:
     match error:
@@ -36,7 +38,15 @@ tests:
     use std.testing.assert_equal
 
     it("a file error selects From[FsError]"):
-        assert_equal(label(SyncError::from(FsError.NotFound("a.txt"))), "fs: a.txt", reason="argument type FsError")
+        assert_equal(
+            label(SyncError::from(FsError.NotFound("a.txt"))),
+            "fs: a.txt",
+            reason="argument type FsError",
+        )
 
     it("a network error selects From[HttpError]"):
-        assert_equal(label(SyncError::from(HttpError.Timeout("x.test"))), "http: x.test", reason="argument type HttpError")
+        assert_equal(
+            label(SyncError::from(HttpError.Timeout("x.test"))),
+            "http: x.test",
+            reason="argument type HttpError",
+        )

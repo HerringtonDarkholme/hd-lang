@@ -4,7 +4,7 @@
 
 fn count_after_epoch() -> i32:
     let count = +0
-    for millis in [0, -1, 951782400000]:  # diagnostic: integer-literal-range
+    for millis in [0, -1, 951782400000]: # diagnostic: integer-literal-range
         if millis > 0:
             count = count + 1
     count

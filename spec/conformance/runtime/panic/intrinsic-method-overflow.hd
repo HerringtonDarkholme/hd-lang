@@ -4,4 +4,4 @@ use std.ops.Add
 
 tests:
     it("overflows"):
-        _ := Add::[i8]::add(i8(127), i8(1))  # panic: integer-overflow
+        _ := Add::[i8]::add(i8(127), i8(1)) # panic: integer-overflow

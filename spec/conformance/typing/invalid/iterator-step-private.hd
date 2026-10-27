@@ -3,4 +3,4 @@
 
 use std.iter.{FromFn}
 fn peek(source: FromFn[i32]) -> fn() -> i32?:
-    source.step  # diagnostic: private-member
+    source.step # diagnostic: private-member

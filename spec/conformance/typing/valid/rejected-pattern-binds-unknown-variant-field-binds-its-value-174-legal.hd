@@ -4,7 +4,7 @@ enum Choice:
 
 fn f(choice: Choice) -> i32:
     match choice:
-        Choice.Pair(left=value, right=other) => value
+        Choice.Pair(left = value, right = other) => value
 
 pub fn main() -> void $ Console:
     println(1)

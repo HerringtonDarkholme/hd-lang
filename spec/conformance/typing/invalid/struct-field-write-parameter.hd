@@ -4,4 +4,4 @@ struct Point:
     y: i32
 
 fn shift(p: Point) -> void:
-    p.x += 1  # diagnostic: non-reassignable-parameter-binding
+    p.x += 1 # diagnostic: non-reassignable-parameter-binding

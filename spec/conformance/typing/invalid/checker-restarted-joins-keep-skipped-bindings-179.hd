@@ -3,7 +3,7 @@ fn f(flag: bool, found: i32?) -> i32?:
     r := if flag && (n := 3) > 0:
         n
     else:
-        if n > 0:  # diagnostic: possibly-uninitialized-binding
+        if n > 0: # diagnostic: possibly-uninitialized-binding
             found
         else:
             found

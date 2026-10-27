@@ -14,16 +14,40 @@ tests:
     use std.testing.assert_equal
 
     it("one result type propagates system and environment failures"):
-        $.with(Env=ScriptedEnv::new({"PORT": "bad"}), Sys=ScriptedSys::new({"os": "linux"})):
-            assert_equal(port(), .Err(HostError.InvalidValue("PORT", "invalid digit at position 0")), reason="environment parse error")
-        $.with(Env=ScriptedEnv::new({"PORT": "8080"}), Sys=ScriptedSys::new({})):
-            assert_equal(port(), .Err(HostError.Unsupported("os")), reason="system error propagates through the same result")
-        $.with(Env=ScriptedEnv::new({"PORT": "8080"}), Sys=ScriptedSys::new({"os": "linux"})):
+        $.with(Env=ScriptedEnv::new({ "PORT": "bad" }), Sys=ScriptedSys::new({ "os": "linux" })):
+            assert_equal(
+                port(),
+                .Err(HostError.InvalidValue("PORT", "invalid digit at position 0")),
+                reason="environment parse error",
+            )
+        $.with(Env=ScriptedEnv::new({ "PORT": "8080" }), Sys=ScriptedSys::new({})):
+            assert_equal(
+                port(),
+                .Err(HostError.Unsupported("os")),
+                reason="system error propagates through the same result",
+            )
+        $.with(Env=ScriptedEnv::new({ "PORT": "8080" }), Sys=ScriptedSys::new({ "os": "linux" })):
             assert_equal(port(), .Ok(8080u16), reason="both reads succeed")
 
     it("all error variants implement Error and retain their messages"):
-        assert_equal(error_text(HostError.NotGranted("hostname")), "sys access to hostname is not granted", reason="denial text retained")
-        assert_equal(error_text(HostError.Unsupported("arch")), "sys access to arch is not supported", reason="unsupported text retained")
-        assert_equal(error_text(HostError.InvalidValue("PORT", "bad")), "invalid value for PORT: bad", reason="parse text retained")
-        assert_equal(error_text(HostError.Other("host read failed")), "host read failed", reason="other message unchanged")
+        assert_equal(
+            error_text(HostError.NotGranted("hostname")),
+            "sys access to hostname is not granted",
+            reason="denial text retained",
+        )
+        assert_equal(
+            error_text(HostError.Unsupported("arch")),
+            "sys access to arch is not supported",
+            reason="unsupported text retained",
+        )
+        assert_equal(
+            error_text(HostError.InvalidValue("PORT", "bad")),
+            "invalid value for PORT: bad",
+            reason="parse text retained",
+        )
+        assert_equal(
+            error_text(HostError.Other("host read failed")),
+            "host read failed",
+            reason="other message unchanged",
+        )
         assert_equal(HostError.Other("same"), HostError.Other("same"), reason="Eq")

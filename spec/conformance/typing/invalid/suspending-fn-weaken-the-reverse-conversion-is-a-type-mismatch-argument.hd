@@ -20,4 +20,4 @@ fn takes(op: fn!(i32) -> i32 $ Clock) -> void:
     _ := op
 
 pub fn main() -> void:
-    takes(ticker)  # diagnostic: type-mismatch
+    takes(ticker) # diagnostic: type-mismatch

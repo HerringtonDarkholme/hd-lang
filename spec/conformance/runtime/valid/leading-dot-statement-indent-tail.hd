@@ -4,12 +4,11 @@ struct Step:
     size: i32
 
 impl Step:
-    fn grow(self) -> Step: Step { size: self.size + 1 }
+    fn grow(self) -> Step:
+        Step { size: self.size + 1 }
 
 fn measure(start: Step) -> Result[Step, string]:
-    size := start
-        .grow()
-        .size
+    size := start.grow().size
     .Ok(Step { size: size })
 
 tests:

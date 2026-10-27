@@ -11,4 +11,4 @@ fn hidden() -> (i32, List[Secret]...):
     fresh()
 
 fn fixed() -> (Secret, List[i32]...):
-    fresh()  # diagnostic: unsatisfied-trait-bound
+    fresh() # diagnostic: unsatisfied-trait-bound

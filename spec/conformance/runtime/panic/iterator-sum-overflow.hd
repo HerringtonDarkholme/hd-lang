@@ -2,7 +2,7 @@
 # Spec std/iter More Adapters: std-iter.sum.numeric-overflow.
 
 fn total(bytes: List[i8]) -> i8:
-    bytes.iter().sum()  # panic: integer-overflow
+    bytes.iter().sum() # panic: integer-overflow
 
 tests:
     it("overflows"):

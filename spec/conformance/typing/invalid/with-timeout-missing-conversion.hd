@@ -6,4 +6,4 @@ fn work!() -> Result[i32, string]:
     .Err("offline")
 
 pub fn bad!() -> Result[i32, string] $ Clock:
-    apply!(timeout(1s), work=work)  # diagnostic: unsatisfied-trait-bound
+    apply!(timeout(1s), work=work) # diagnostic: unsatisfied-trait-bound

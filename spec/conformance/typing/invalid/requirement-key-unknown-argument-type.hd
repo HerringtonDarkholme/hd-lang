@@ -4,5 +4,5 @@
 trait Repo[T]:
     fn find(self, id: string) -> T?
 
-fn refresh() -> void $ Repo[Account]:  # diagnostic: unknown-type
+fn refresh() -> void $ Repo[Account]: # diagnostic: unknown-type
     pass

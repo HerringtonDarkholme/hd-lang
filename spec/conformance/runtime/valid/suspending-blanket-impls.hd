@@ -7,7 +7,8 @@ struct Box[T]:
     value: T
 
 impl[T] Read[T] for Box[T]:
-    fn read!(self) -> T: self.value
+    fn read!(self) -> T:
+        self.value
 
 fn read_bound![T < Read[i32]](value: T) -> i32:
     value.read!()
@@ -22,10 +23,12 @@ struct Point:
     value: i32
 
 impl Score for Point:
-    fn score(self) -> i32: self.value
+    fn score(self) -> i32:
+        self.value
 
 impl[Item < Score] AsyncScore for List[Item]:
-    fn score!(self) -> i32: self[0].score()
+    fn score!(self) -> i32:
+        self[0].score()
 
 fn score_bound![T < AsyncScore](value: T) -> i32:
     value.score!()

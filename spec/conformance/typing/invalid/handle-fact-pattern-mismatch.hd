@@ -7,6 +7,6 @@ struct MaxLen[T]:
     limit: i32
 
 fn limit_of[S](h: Field[S, i32]) -> i32:
-    match h.fact::[MaxLen]():  # diagnostic: type-mismatch
+    match h.fact::[MaxLen](): # diagnostic: type-mismatch
         .Some(fact) => fact.limit
         .None => -1

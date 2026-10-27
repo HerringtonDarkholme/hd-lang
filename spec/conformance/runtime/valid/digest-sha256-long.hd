@@ -12,4 +12,8 @@ tests:
     use std.testing.assert_equal
 
     it("sixteen blocks"):
-        assert_equal(sha256(counting(1000)).to_hex(), "a8af099bf2e878609558dbf69d8f88f4a31040a8cf84b549a0cfa912f12ffc3f", reason="Node crypto")
+        assert_equal(
+            sha256(counting(1000)).to_hex(),
+            "a8af099bf2e878609558dbf69d8f88f4a31040a8cf84b549a0cfa912f12ffc3f",
+            reason="Node crypto",
+        )

@@ -2,4 +2,4 @@
 use std.http.{HttpError, Request, Response, Url}
 
 pub fn fetch!() -> Result[Response, HttpError]:
-    Request::get(Url::parse("https://example.test/").expect("fixture URL")).send!()  # diagnostic: missing-requirement
+    Request::get(Url::parse("https://example.test/").expect("fixture URL")).send!() # diagnostic: missing-requirement

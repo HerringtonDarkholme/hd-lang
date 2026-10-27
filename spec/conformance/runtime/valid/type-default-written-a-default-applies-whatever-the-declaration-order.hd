@@ -30,7 +30,8 @@ trait Evict:
 struct Lru: pass
 
 impl Evict for Lru:
-    fn pick(self) -> i32: 7
+    fn pick(self) -> i32:
+        7
 
 fn nested(outer: Outer[string]) -> i32:
     outer.inner.value

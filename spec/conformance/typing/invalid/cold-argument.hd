@@ -2,6 +2,6 @@
 # Spec 14 Inline And Cold: annot.inline.argument.
 use std.annotation.cold
 
-@cold(1)  # diagnostic: invalid-inline-decorator
+@cold(1) # diagnostic: invalid-inline-decorator
 fn fail(code: i32) -> string:
     "failed with $code"

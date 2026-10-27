@@ -78,15 +78,36 @@ struct DocumentCase:
 
 fn document_cases() -> List[DocumentCase]:
     [
-        DocumentCase { text: "{\"name\":\"Ada\"}", expected: .Ok(Document { name: "Ada", count: 7, note: .None, cache: 7 }) },
-        DocumentCase { text: "{\"unknown\":{\"deep\":[false,null,{\"x\":1}]},\"name\":\"Ada\",\"count\":3,\"cache\":false}", expected: .Ok(Document { name: "Ada", count: 3, note: .None, cache: 7 }) },
-        DocumentCase { text: "{\"count\":0,\"name\":\"first\",\"name\":\"last\",\"count\":255}", expected: .Ok(Document { name: "last", count: 255, note: .None, cache: 7 }) },
-        DocumentCase { text: "{\"name\":\"Ada\",\"note\":null}", expected: .Ok(Document { name: "Ada", count: 7, note: .None, cache: 7 }) },
+        DocumentCase {
+            text: "{\"name\":\"Ada\"}",
+            expected: .Ok(Document { name: "Ada", count: 7, note: .None, cache: 7 }),
+        },
+        DocumentCase {
+            text: "{\"unknown\":{\"deep\":[false,null,{\"x\":1}]},\"name\":\"Ada\",\"count\":3,\"cache\":false}",
+            expected: .Ok(Document { name: "Ada", count: 3, note: .None, cache: 7 }),
+        },
+        DocumentCase {
+            text: "{\"count\":0,\"name\":\"first\",\"name\":\"last\",\"count\":255}",
+            expected: .Ok(Document { name: "last", count: 255, note: .None, cache: 7 }),
+        },
+        DocumentCase {
+            text: "{\"name\":\"Ada\",\"note\":null}",
+            expected: .Ok(Document { name: "Ada", count: 7, note: .None, cache: 7 }),
+        },
         DocumentCase { text: "{}", expected: .Err(.MissingField("$.name")) },
         DocumentCase { text: "{\"name\":null}", expected: .Err(.WrongType("$.name", "string")) },
-        DocumentCase { text: "{\"name\":\"Ada\",\"count\":256}", expected: .Err(.WrongType("$.count", "u8")) },
-        DocumentCase { text: "{\"name\":\"Ada\",\"count\":null}", expected: .Err(.WrongType("$.count", "u8")) },
-        DocumentCase { text: "{\"count\":null,\"name\":false}", expected: .Err(.WrongType("$.name", "string")) },
+        DocumentCase {
+            text: "{\"name\":\"Ada\",\"count\":256}",
+            expected: .Err(.WrongType("$.count", "u8")),
+        },
+        DocumentCase {
+            text: "{\"name\":\"Ada\",\"count\":null}",
+            expected: .Err(.WrongType("$.count", "u8")),
+        },
+        DocumentCase {
+            text: "{\"count\":null,\"name\":false}",
+            expected: .Err(.WrongType("$.name", "string")),
+        },
     ]
 
 struct EventCase:
@@ -103,12 +124,24 @@ fn event_cases() -> List[EventCase]:
         EventCase { text: "{\"Count\":0}", expected: .Err(.WrongType("$.Count", "object")) },
         EventCase { text: "{\"Count\":{}}", expected: .Err(.MissingField("$.Count.value")) },
         EventCase { text: "\"Count\"", expected: .Err(.MissingField("$.Count.value")) },
-        EventCase { text: "{\"Count\":{\"value\":\"x\"}}", expected: .Err(.WrongType("$.Count.value", "i32")) },
-        EventCase { text: "{\"Count\":{\"value\":2147483648}}", expected: .Err(.WrongType("$.Count.value", "i32")) },
-        EventCase { text: "{\"Count\":{\"value\":1},\"Empty\":{}}", expected: .Err(.WrongType("$", "variant")) },
+        EventCase {
+            text: "{\"Count\":{\"value\":\"x\"}}",
+            expected: .Err(.WrongType("$.Count.value", "i32")),
+        },
+        EventCase {
+            text: "{\"Count\":{\"value\":2147483648}}",
+            expected: .Err(.WrongType("$.Count.value", "i32")),
+        },
+        EventCase {
+            text: "{\"Count\":{\"value\":1},\"Empty\":{}}",
+            expected: .Err(.WrongType("$", "variant")),
+        },
         EventCase { text: "0", expected: .Err(.WrongType("$", "variant")) },
         EventCase { text: "null", expected: .Err(.WrongType("$", "variant")) },
-        EventCase { text: "{\"Pair\":{\"_0\":1,\"_1\":null}}", expected: .Err(.WrongType("$.Pair._1", "string")) },
+        EventCase {
+            text: "{\"Pair\":{\"_0\":1,\"_1\":null}}",
+            expected: .Err(.WrongType("$.Pair._1", "string")),
+        },
     ]
 
 @derive(Debug)
@@ -144,118 +177,257 @@ fn range_cases() -> List[RangeCase]:
     ]
 
 tests:
-    it_each("strict syntax and error byte positions", syntax_cases(), body=fn!(row: SyntaxCase):
-        assert_equal(failure(parse(row.text)), row.error, reason="tree parser error")
-        assert_equal(failure(decode::[Json](row.text)), row.error, reason="typed streaming decoder validates the same grammar")
+    it_each(
+        "strict syntax and error byte positions",
+        syntax_cases(),
+        body=fn!(row: SyntaxCase):
+            assert_equal(failure(parse(row.text)), row.error, reason="tree parser error")
+            assert_equal(
+                failure(decode::[Json](row.text)),
+                row.error,
+                reason="typed streaming decoder validates the same grammar",
+            )
+        ,
     )
 
-    it_each("valid escapes decode Unicode scalar values", [
-        ("\"\\\"\\\\\\/\\b\\f\\n\\r\\t\"", "\"\\/\u{8}\u{C}\n\r\t"),
-        ("\"\\u0000\\u001f\"", "\u{0}\u{1F}"),
-        ("\"\\ud834\\udd1e\"", "\u{1D11E}"),
-        ("\"\\uD800\\uDC00\"", "\u{10000}"),
-        ("\"\\uDBFF\\uDFFF\"", "\u{10FFFF}"),
-        ("\"éλ😀\"", "éλ😀"),
-    ], body=fn!(row: (string, string)):
-        assert_equal(decode::[string](row._0), .Ok(row._1), reason="string decoder produces the specified scalar sequence")
-        assert_equal(from_json::[string](parse(row._0).expect("valid string")), .Ok(row._1), reason="the tree representation preserves the same scalars")
+    it_each(
+        "valid escapes decode Unicode scalar values",
+        [
+            ("\"\\\"\\\\\\/\\b\\f\\n\\r\\t\"", "\"\\/\u{8}\u{C}\n\r\t"),
+            ("\"\\u0000\\u001f\"", "\u{0}\u{1F}"),
+            ("\"\\ud834\\udd1e\"", "\u{1D11E}"),
+            ("\"\\uD800\\uDC00\"", "\u{10000}"),
+            ("\"\\uDBFF\\uDFFF\"", "\u{10FFFF}"),
+            ("\"éλ😀\"", "éλ😀"),
+        ],
+        body=fn!(row: (string, string)):
+            assert_equal(
+                decode::[string](row._0),
+                .Ok(row._1),
+                reason="string decoder produces the specified scalar sequence",
+            )
+            assert_equal(
+                from_json::[string](parse(row._0).expect("valid string")),
+                .Ok(row._1),
+                reason="the tree representation preserves the same scalars",
+            )
+        ,
     )
 
-    it_each("record unknown fields defaults duplicates and paths", document_cases(), body=fn!(row: DocumentCase):
-        assert_equal(decode::[Document](row.text), row.expected, reason="direct typed result")
-        assert_equal(from_json::[Document](parse(row.text).expect("syntactically valid record")), row.expected, reason="tree reader has the same specified result")
+    it_each(
+        "record unknown fields defaults duplicates and paths",
+        document_cases(),
+        body=fn!(row: DocumentCase):
+            assert_equal(decode::[Document](row.text), row.expected, reason="direct typed result")
+            assert_equal(
+                from_json::[Document](parse(row.text).expect("syntactically valid record")),
+                row.expected,
+                reason="tree reader has the same specified result",
+            )
+        ,
     )
 
-    it_each("variant names payloads and paths", event_cases(), body=fn!(row: EventCase):
-        assert_equal(decode::[Event](row.text), row.expected, reason="direct enum result")
-        assert_equal(from_json::[Event](parse(row.text).expect("syntactically valid enum")), row.expected, reason="tree enum result")
+    it_each(
+        "variant names payloads and paths",
+        event_cases(),
+        body=fn!(row: EventCase):
+            assert_equal(decode::[Event](row.text), row.expected, reason="direct enum result")
+            assert_equal(
+                from_json::[Event](parse(row.text).expect("syntactically valid enum")),
+                row.expected,
+                reason="tree enum result",
+            )
+        ,
     )
 
-    it_each("typed numeric ranges and float categories", range_cases(), body=fn!(row: RangeCase):
-        assert_equal(range_error(row.target, row.text), row.error, reason="range and integer-kind refusal")
+    it_each(
+        "typed numeric ranges and float categories",
+        range_cases(),
+        body=fn!(row: RangeCase):
+            assert_equal(
+                range_error(row.target, row.text),
+                row.error,
+                reason="range and integer-kind refusal",
+            )
+        ,
     )
 
-    it_each("finite float values preserve IEEE category and sign", [
-        ("-0", u64(0x8000000000000000)),
-        ("-0.0", 0x8000000000000000),
-        ("1e-400", 0),
-        ("-1e-400", 0x8000000000000000),
-        ("0e400", 0),
-        ("1.5e2", 0x4062c00000000000),
-        ("18446744073709551616", 0x43f0000000000000),
-        ("-9223372036854775809", 0xc3e0000000000000),
-    ], body=fn!(row: (string, u64)):
-        assert_equal(decode::[f64](row._0).expect("finite float").to_bits(), row._1, reason="direct decoder uses the nearest finite IEEE value")
-        match parse(row._0).expect("valid number"):
-            .Number(number) =>
-                match number.as_f64():
-                    .Some(value) => assert_equal(value.to_bits(), row._1, reason="tree keeps the same floating value")
-                    .None => panic("number has no floating view")
-            _ => panic("expected Number")
+    it_each(
+        "finite float values preserve IEEE category and sign",
+        [
+            ("-0", u64(0x8000000000000000)),
+            ("-0.0", 0x8000000000000000),
+            ("1e-400", 0),
+            ("-1e-400", 0x8000000000000000),
+            ("0e400", 0),
+            ("1.5e2", 0x4062c00000000000),
+            ("18446744073709551616", 0x43f0000000000000),
+            ("-9223372036854775809", 0xc3e0000000000000),
+        ],
+        body=fn!(row: (string, u64)):
+            assert_equal(
+                decode::[f64](row._0).expect("finite float").to_bits(),
+                row._1,
+                reason="direct decoder uses the nearest finite IEEE value",
+            )
+            match parse(row._0).expect("valid number"):
+                .Number(number) =>
+                    match number.as_f64():
+                        .Some(value) =>
+                            assert_equal(
+                                value.to_bits(),
+                                row._1,
+                                reason="tree keeps the same floating value",
+                            )
+                        .None => panic("number has no floating view")
+                _ => panic("expected Number")
+        ,
     )
 
-    it_each("exact integer endpoints", [
-        ("-9223372036854775808", true),
-        ("9223372036854775807", true),
-        ("0", false),
-        ("18446744073709551615", false),
-    ], body=fn!(row: (string, bool)):
-        if row._1:
-            assert_equal(encode(decode::[i64](row._0).expect("i64 endpoint")), row._0, reason="i64 endpoint remains exact")
-        else:
-            assert_equal(encode(decode::[u64](row._0).expect("u64 endpoint")), row._0, reason="u64 endpoint remains exact")
-    )
-
-    it_each("depth boundary and ten-thousand-level input", [usize(127), 128, 129, 10000], body=fn!(depth: usize):
-        arrays := "[".repeat(depth) + "0" + "]".repeat(depth)
-        objects := "{\"a\":".repeat(depth) + "0" + "}".repeat(depth)
-        if depth <= 128:
-            assert(parse(arrays).is_ok(), reason="arrays at or below the specified depth limit")
-            assert(decode::[Json](arrays).is_ok(), reason="streaming array decoding at the limit")
-            assert(parse(objects).is_ok(), reason="objects at or below the specified depth limit")
-            assert(decode::[Json](objects).is_ok(), reason="streaming object decoding at the limit")
-        else:
-            assert_equal(failure(parse(arrays)), JsonError.NestingTooDeep(128), reason="the first excessive opening array")
-            assert_equal(failure(decode::[Json](arrays)), JsonError.NestingTooDeep(128), reason="typed validation rejects excessive array depth")
-            assert_equal(failure(parse(objects)), JsonError.NestingTooDeep(640), reason="the first excessive opening object")
-            assert_equal(failure(decode::[Json](objects)), JsonError.NestingTooDeep(640), reason="typed validation rejects excessive object depth")
-    )
-
-    it_each("unknown fields still obey complete syntax and depth validation", [usize(127), 128, 10000], body=fn!(depth: usize):
-        prefix := "{\"name\":\"Ada\",\"unknown\":"
-        for object in [false, true]:
-            opening := if object: "{\"a\":" else: "["
-            closing := if object: "}" else: "]"
-            text := prefix + opening.repeat(depth) + "0" + closing.repeat(depth) + "}"
-            if depth < 128:
-                expected := Document { name: "Ada", count: 7, note: .None, cache: 7 }
-                assert_equal(decode::[Document](text), .Ok(expected), reason="valid unknown values are ignored after validation")
+    it_each(
+        "exact integer endpoints",
+        [
+            ("-9223372036854775808", true),
+            ("9223372036854775807", true),
+            ("0", false),
+            ("18446744073709551615", false),
+        ],
+        body=fn!(row: (string, bool)):
+            if row._1:
+                assert_equal(
+                    encode(decode::[i64](row._0).expect("i64 endpoint")),
+                    row._0,
+                    reason="i64 endpoint remains exact",
+                )
             else:
-                position := prefix.len() + 127 * opening.len()
-                expected := JsonError.NestingTooDeep(position)
-                assert_equal(failure(parse(text)), expected, reason="the enclosing record already occupies one depth level")
-                assert_equal(failure(decode::[Document](text)), expected, reason="ignoring an unknown field does not bypass validation")
+                assert_equal(
+                    encode(decode::[u64](row._0).expect("u64 endpoint")),
+                    row._0,
+                    reason="u64 endpoint remains exact",
+                )
+        ,
     )
 
-    it_each("duplicate keys keep their first place with their last value", [
-        ("{\"b\":1,\"a\":2,\"b\":3}", "{\"b\":3,\"a\":2}"),
-        ("{\"a\":1,\"\\u0061\":2}", "{\"a\":2}"),
-    ], body=fn!(row: (string, string)):
-        assert_equal(parse(row._0).expect("duplicate keys are accepted").to_string(), row._1, reason="JsonObject has specified first-position/last-value semantics")
-        assert_equal(encode(decode::[Json](row._0).expect("typed Json")), row._1, reason="the typed Json path preserves that same object contract")
+    it_each(
+        "depth boundary and ten-thousand-level input",
+        [usize(127), 128, 129, 10000],
+        body=fn!(depth: usize):
+            arrays := "[".repeat(depth) + "0" + "]".repeat(depth)
+            objects := "{\"a\":".repeat(depth) + "0" + "}".repeat(depth)
+            if depth <= 128:
+                assert(parse(arrays).is_ok(), reason="arrays at or below the specified depth limit")
+                assert(
+                    decode::[Json](arrays).is_ok(),
+                    reason="streaming array decoding at the limit",
+                )
+                assert(
+                    parse(objects).is_ok(),
+                    reason="objects at or below the specified depth limit",
+                )
+                assert(
+                    decode::[Json](objects).is_ok(),
+                    reason="streaming object decoding at the limit",
+                )
+            else:
+                assert_equal(
+                    failure(parse(arrays)),
+                    JsonError.NestingTooDeep(128),
+                    reason="the first excessive opening array",
+                )
+                assert_equal(
+                    failure(decode::[Json](arrays)),
+                    JsonError.NestingTooDeep(128),
+                    reason="typed validation rejects excessive array depth",
+                )
+                assert_equal(
+                    failure(parse(objects)),
+                    JsonError.NestingTooDeep(640),
+                    reason="the first excessive opening object",
+                )
+                assert_equal(
+                    failure(decode::[Json](objects)),
+                    JsonError.NestingTooDeep(640),
+                    reason="typed validation rejects excessive object depth",
+                )
+        ,
     )
 
-    it_each("tuple lengths are checked", [
-        ("[1]", JsonError.WrongType("$", "tuple element")),
-        ("[1,\"x\",true]", JsonError.WrongType("$[2]", "end of the tuple")),
-    ], body=fn!(row: (string, JsonError)):
-        assert_equal(failure(decode::[(i32, string)](row._0)), row._1, reason="tuple arity refusal and path")
+    it_each(
+        "unknown fields still obey complete syntax and depth validation",
+        [usize(127), 128, 10000],
+        body=fn!(depth: usize):
+            prefix := "{\"name\":\"Ada\",\"unknown\":"
+            for object in [false, true]:
+                opening := if object: "{\"a\":" else: "["
+                closing := if object: "}" else: "]"
+                text := prefix + opening.repeat(depth) + "0" + closing.repeat(depth) + "}"
+                if depth < 128:
+                    expected := Document { name: "Ada", count: 7, note: .None, cache: 7 }
+                    assert_equal(
+                        decode::[Document](text),
+                        .Ok(expected),
+                        reason="valid unknown values are ignored after validation",
+                    )
+                else:
+                    position := prefix.len() + 127 * opening.len()
+                    expected := JsonError.NestingTooDeep(position)
+                    assert_equal(
+                        failure(parse(text)),
+                        expected,
+                        reason="the enclosing record already occupies one depth level",
+                    )
+                    assert_equal(
+                        failure(decode::[Document](text)),
+                        expected,
+                        reason="ignoring an unknown field does not bypass validation",
+                    )
+        ,
     )
 
-    it_each("Set decoding removes repeated list values", [
-        ("[]", "[]"),
-        ("[3,1,3,2,1]", "[3,1,2]"),
-    ], body=fn!(row: (string, string)):
-        value := decode::[Set[i32]](row._0).expect("Set list")
-        assert_equal(encode(value), row._1, reason="distinct entries keep their first occurrence")
+    it_each(
+        "duplicate keys keep their first place with their last value",
+        [
+            ("{\"b\":1,\"a\":2,\"b\":3}", "{\"b\":3,\"a\":2}"),
+            ("{\"a\":1,\"\\u0061\":2}", "{\"a\":2}"),
+        ],
+        body=fn!(row: (string, string)):
+            assert_equal(
+                parse(row._0).expect("duplicate keys are accepted").to_string(),
+                row._1,
+                reason="JsonObject has specified first-position/last-value semantics",
+            )
+            assert_equal(
+                encode(decode::[Json](row._0).expect("typed Json")),
+                row._1,
+                reason="the typed Json path preserves that same object contract",
+            )
+        ,
+    )
+
+    it_each(
+        "tuple lengths are checked",
+        [
+            ("[1]", JsonError.WrongType("$", "tuple element")),
+            ("[1,\"x\",true]", JsonError.WrongType("$[2]", "end of the tuple")),
+        ],
+        body=fn!(row: (string, JsonError)):
+            assert_equal(
+                failure(decode::[(i32, string)](row._0)),
+                row._1,
+                reason="tuple arity refusal and path",
+            )
+        ,
+    )
+
+    it_each(
+        "Set decoding removes repeated list values",
+        [("[]", "[]"), ("[3,1,3,2,1]", "[3,1,2]")],
+        body=fn!(row: (string, string)):
+            value := decode::[Set[i32]](row._0).expect("Set list")
+            assert_equal(
+                encode(value),
+                row._1,
+                reason="distinct entries keep their first occurrence",
+            )
+        ,
     )

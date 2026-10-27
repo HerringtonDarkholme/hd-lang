@@ -7,15 +7,15 @@
 # expect-stdout: 5
 fn tally(items: List[i32]) -> i32:
     # fn if else match and := => < $ " ' ` are only text here
-    let total = +0    # a trailing comment: total = total + 99
-    for item in items:    # a comment after a header colon
-        total = total + item    # /* a comment, not a block comment start */
+    let total = +0 # a trailing comment: total = total + 99
+    for item in items: # a comment after a header colon
+        total = total + item # /* a comment, not a block comment start */
     total
 
 pub fn main() -> void $ Console:
-    println("total=${tally([1, 2, 3])}")    # an unclosed " in a comment is harmless
-    println("a # b")    # a '#' inside a string literal starts no comment
-    println("/* kept */")    # block comment markers are ordinary string text
-    println('#')    # nor does a '#' character literal
+    println("total=${tally([1, 2, 3])}") # an unclosed " in a comment is harmless
+    println("a # b") # a '#' inside a string literal starts no comment
+    println("/* kept */") # block comment markers are ordinary string text
+    println('#') # nor does a '#' character literal
     # a comment line between statements ends nothing
-    println(2 + 3)    # héllo wörld 你好 😀: comment characters are any scalar values
+    println(2 + 3) # héllo wörld 你好 😀: comment characters are any scalar values

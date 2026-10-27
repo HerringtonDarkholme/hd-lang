@@ -58,7 +58,7 @@ tests:
     use std.testing.assert_equal
 
     it("copies through the helpers"):
-        reader := MapFs { files: {"notes.txt": "tea"} }
+        reader := MapFs { files: { "notes.txt": "tea" } }
         let mut writer = MapFs { files: {} }
         $.with(FsRead=reader, FsWrite=&mut writer):
             assert_equal(copy_notes!(), .Ok(()), reason="both calls succeed")
@@ -67,4 +67,8 @@ tests:
     it("reports a missing file as FsError.NotFound"):
         reader := MapFs { files: {} }
         $.with(FsRead=reader):
-            assert_equal(read_text!(Path("gone.txt")), .Err(FsError.NotFound(path=Path("gone.txt"))), reason="no such file")
+            assert_equal(
+                read_text!(Path("gone.txt")),
+                .Err(FsError.NotFound(path=Path("gone.txt"))),
+                reason="no such file",
+            )

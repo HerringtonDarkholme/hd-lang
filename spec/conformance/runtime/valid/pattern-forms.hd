@@ -47,7 +47,7 @@ fn only_x(p: Point) -> i32:
 fn name(s: Shape) -> string:
     match s:
         Shape.Circle(r) => "circle $r"
-        Shape.Rect(w, h=height) => "rect ${w}x${height}"
+        Shape.Rect(w, h = height) => "rect ${w}x${height}"
         .Empty => "empty"
 
 fn kind(c: char) -> string:
@@ -87,7 +87,9 @@ pub fn main() -> void $ Console:
     match p:
         Point { x, y } => println("$x $y")
     println(only_x(p))
-    println("${where_is(Point { x: +0, y: +0 })}|${where_is(Point { x: +0, y: +9 })}|${where_is(Point { x: +2, y: +5 })}")
+    println(
+        "${where_is(Point { x: +0, y: +0 })}|${where_is(Point { x: +0, y: +9 })}|${where_is(Point { x: +2, y: +5 })}",
+    )
     println("${name(Shape.Circle(radius = +3))}|${name(Shape.Rect(+2, +5))}|${name(Shape.Empty)}")
     println("${kind('a')}|${kind('e')}|${word("hi")}|${kind('z')}")
     println(nothing(()))

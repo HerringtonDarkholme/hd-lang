@@ -4,4 +4,4 @@
 use dep.members.{Outer}
 
 fn invalid(outer: Outer) -> string:
-    outer.mark()  # diagnostic: unknown-method
+    outer.mark() # diagnostic: unknown-method

@@ -1,4 +1,4 @@
 # test: collections / lists / heterogeneous elements
 
 fn main() -> void:
-    values := [1, true]  # diagnostic: no-common-type
+    values := [1, true] # diagnostic: no-common-type

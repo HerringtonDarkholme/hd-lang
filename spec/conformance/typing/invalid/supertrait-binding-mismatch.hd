@@ -12,4 +12,4 @@ impl Add for Money:
     fn add(self, rhs: Money) -> i64:
         self.cents + rhs.cents
 
-impl Summable for Money  # diagnostic: missing-supertrait-implementation
+impl Summable for Money # diagnostic: missing-supertrait-implementation

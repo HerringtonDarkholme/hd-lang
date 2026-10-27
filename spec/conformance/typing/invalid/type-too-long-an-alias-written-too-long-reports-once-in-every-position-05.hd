@@ -17,4 +17,5 @@ enum Choice[T]:
 
 type Wrap[T](T)
 
-fn f[T < Conv[Both[i32, string, bool]]](t: T) -> i32: 0  # diagnostic: argument-count
+fn f[T < Conv[Both[i32, string, bool]]](t: T) -> i32: # diagnostic: argument-count
+    0

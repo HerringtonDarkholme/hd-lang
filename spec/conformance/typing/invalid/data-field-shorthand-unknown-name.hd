@@ -6,4 +6,4 @@ struct Point:
     y: i32
 
 fn broken(x: i32) -> Point:
-    Point { x, y }  # diagnostic: unknown-name
+    Point { x, y } # diagnostic: unknown-name

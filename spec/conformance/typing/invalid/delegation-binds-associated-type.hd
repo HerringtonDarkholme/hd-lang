@@ -16,4 +16,4 @@ struct Feed:
     Source
 
 impl Supplier for Feed by Source:
-    type Item = i32  # diagnostic: invalid-delegation
+    type Item = i32 # diagnostic: invalid-delegation

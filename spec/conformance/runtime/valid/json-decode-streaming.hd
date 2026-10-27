@@ -82,9 +82,18 @@ tests:
         same::[User]("{\"name\":\"\\q\"}")
         same::[User]("{\"name\":\"x\",}")
         match decode::[Unread]("{bad"):
-            .Err(error) => assert_equal(error, JsonError.UnexpectedCharacter(1), reason="Deserialize is never invoked")
+            .Err(error) =>
+                assert_equal(
+                    error,
+                    JsonError.UnexpectedCharacter(1),
+                    reason="Deserialize is never invoked",
+                )
             .Ok(_) => panic("invalid JSON accepted")
 
     it("list iteration advances even when a custom reader does not consume a value"):
         values := decode::[List[Skip]]("[true,{\"x\":[1,2]},[false,null]]").expect("valid values")
-        assert_equal(values.len(), 3, reason="advance from raw offsets instead of reader side effects")
+        assert_equal(
+            values.len(),
+            3,
+            reason="advance from raw offsets instead of reader side effects",
+        )

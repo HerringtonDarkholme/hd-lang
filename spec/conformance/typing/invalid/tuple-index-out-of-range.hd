@@ -1,3 +1,4 @@
 # test: tuples / heterogeneous / index out of range
 
-fn bad(value: (i32,)) -> i32: value._1  # diagnostic: unknown-field
+fn bad(value: (i32,)) -> i32:
+    value._1 # diagnostic: unknown-field

@@ -52,4 +52,8 @@ tests:
     use std.testing.assert_equal
 
     it("keeps the declaration fact and adds the line's"):
-        assert_equal(Point { x: 1 }.probe(), "x=a/n;", reason="tag from the declaration, note from the line")
+        assert_equal(
+            Point { x: 1 }.probe(),
+            "x=a/n;",
+            reason="tag from the declaration, note from the line",
+        )

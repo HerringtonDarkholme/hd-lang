@@ -16,5 +16,5 @@ struct Page:
     title: string
 
 struct Site:
-    Page  # diagnostic: embedding-too-deep
+    Page # diagnostic: embedding-too-deep
     host: string

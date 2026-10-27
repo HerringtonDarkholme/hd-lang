@@ -13,12 +13,7 @@ fn first_large(values: List[i32]) -> i32?:
         .None
 
 fn label(score: i32) -> string:
-    if score >= 90:
-        "excellent"
-    else if score >= 70:
-        "passing"
-    else:
-        "needs work"
+    if score >= 90: "excellent" else if score >= 70: "passing" else: "needs work"
 
 fn first_prefix(names: List[string], prefix: string) -> string?:
     let index: usize = 0

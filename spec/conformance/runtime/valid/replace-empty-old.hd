@@ -7,8 +7,16 @@ tests:
     it("empty old inserts at scalar boundaries"):
         assert_equal("abc".replace("", "-"), "-a-b-c-", reason="both ends and between scalars")
         assert_equal("".replace("", "x"), "x", reason="an empty string has one boundary")
-        assert_equal("a\u{1F600}".replace("", "|"), "|a|\u{1F600}|", reason="an astral scalar is one scalar")
+        assert_equal(
+            "a\u{1F600}".replace("", "|"),
+            "|a|\u{1F600}|",
+            reason="an astral scalar is one scalar",
+        )
 
     it("a leading U+FEFF is an ordinary scalar"):
         assert_equal("\u{FEFF}A".lower().len(), 4, reason="lower keeps a leading three-byte U+FEFF")
-        assert_equal("\u{FEFF}".replace("", "-"), "-\u{FEFF}-", reason="replace keeps a leading U+FEFF")
+        assert_equal(
+            "\u{FEFF}".replace("", "-"),
+            "-\u{FEFF}-",
+            reason="replace keeps a leading U+FEFF",
+        )

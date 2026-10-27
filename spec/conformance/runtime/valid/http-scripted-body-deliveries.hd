@@ -9,24 +9,45 @@ tests:
         original := Response::status(.Created).set_text("reply bytes")
         http := ScriptedHttp::new()
         http.reply(url.to_string(), .Ok(original))
-        assert_equal(original.text(), .Ok("reply bytes"), reason="registration did not consume the caller's value")
+        assert_equal(
+            original.text(),
+            .Ok("reply bytes"),
+            reason="registration did not consume the caller's value",
+        )
         $.with(Http=http):
             for _ in 0..3:
                 response := Request::get(url).send!().expect("fresh delivery")
                 copy := response
-                assert_equal(response.text(), .Ok("reply bytes"), reason="each delivery starts unread")
-                assert_equal(copy.bytes(), .Err(BodyError.Used), reason="copies of one delivery still share consumption")
+                assert_equal(
+                    response.text(),
+                    .Ok("reply bytes"),
+                    reason="each delivery starts unread",
+                )
+                assert_equal(
+                    copy.bytes(),
+                    .Err(BodyError.Used),
+                    reason="copies of one delivery still share consumption",
+                )
 
     it("a queued status error also returns a fresh retained response body"):
         url := Url::parse("https://example.test/status").expect("fixture URL")
         original := Response::status(.BadRequest).set_text("retained error")
         http := ScriptedHttp::new()
         http.reply(url.to_string(), .Err(HttpError.Status(original)))
-        assert_equal(original.text(), .Ok("retained error"), reason="error registration did not consume the caller")
+        assert_equal(
+            original.text(),
+            .Ok("retained error"),
+            reason="error registration did not consume the caller",
+        )
         $.with(Http=http):
             for _ in 0..2:
                 match Request::get(url).send!():
-                    .Err(.Status(response)) => assert_equal(response.text(), .Ok("retained error"), reason="status delivery is independent")
+                    .Err(.Status(response)) =>
+                        assert_equal(
+                            response.text(),
+                            .Ok("retained error"),
+                            reason="status delivery is independent",
+                        )
                     _ => panic("the queued status error must be retained")
 
     it("registration rejects an already-read body", expect_panic="explicit-panic"):

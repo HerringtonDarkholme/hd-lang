@@ -3,7 +3,11 @@ use std.process.Command
 use std.testing.{assert_equal, hd_run, snapshot}
 
 it("runs a built program with command environment directory and stdin"):
-    command := Command::new("runner").arg("argument").env("HD_RUN_TAG", "tag").current_dir(Path("work")).stdin("input\n")
+    command := Command::new("runner")
+        .arg("argument")
+        .env("HD_RUN_TAG", "tag")
+        .current_dir(Path("work"))
+        .stdin("input\n")
     output := hd_run!(*command)
     snapshot(output.stdout, expect="argument\ntag\ninput\nfrom work\n")
     assert_equal(output.stderr, "", reason="no errors")

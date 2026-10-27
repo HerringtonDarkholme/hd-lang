@@ -3,5 +3,5 @@ enum Status:
     Waiting
 
 fn invalid(status: Status) -> string:
-    match status:  # diagnostic: nonexhaustive-match
+    match status: # diagnostic: nonexhaustive-match
         Status.Ready => "ready"

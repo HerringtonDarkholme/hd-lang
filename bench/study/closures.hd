@@ -6,6 +6,9 @@ pub fn main() -> void $ Console:
     let total = +0
     for round in 0..50:
         r := round
-        acc := items.iter().map(fn(x): x * 3 + r).filter(fn(y): y % 2 == 0).fold(+0, fn(a, y): (a + y) % 1_000_003)
+        acc := items.iter()
+            .map(fn(x): x * 3 + r)
+            .filter(fn(y): y % 2 == 0)
+            .fold(+0, fn(a, y): (a + y) % 1_000_003)
         total = (total + acc) % 1_000_003
     println(total)

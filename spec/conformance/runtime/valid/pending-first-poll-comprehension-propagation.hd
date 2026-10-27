@@ -46,10 +46,34 @@ fn inspect_map(value: Result[Map[i32, i32], Failure]) -> i32:
 
 pub fn main!() -> void $ Console:
     let mut state = State { count: 0 }
-    assert_equal(inspect_list(list_run!(&mut state, true)), 40, reason="the list comprehension succeeds")
-    assert_equal(inspect_list(list_run!(&mut state, false)), -7, reason="the list comprehension fails")
-    assert_equal(inspect_map(map_value_run!(&mut state, true)), 40, reason="the map value comprehension succeeds")
-    assert_equal(inspect_map(map_value_run!(&mut state, false)), -7, reason="the map value comprehension fails")
-    assert_equal(inspect_map(map_key_run!(&mut state, true)), 40, reason="the map key comprehension succeeds")
-    assert_equal(inspect_map(map_key_run!(&mut state, false)), -7, reason="the map key comprehension fails")
+    assert_equal(
+        inspect_list(list_run!(&mut state, true)),
+        40,
+        reason="the list comprehension succeeds",
+    )
+    assert_equal(
+        inspect_list(list_run!(&mut state, false)),
+        -7,
+        reason="the list comprehension fails",
+    )
+    assert_equal(
+        inspect_map(map_value_run!(&mut state, true)),
+        40,
+        reason="the map value comprehension succeeds",
+    )
+    assert_equal(
+        inspect_map(map_value_run!(&mut state, false)),
+        -7,
+        reason="the map value comprehension fails",
+    )
+    assert_equal(
+        inspect_map(map_key_run!(&mut state, true)),
+        40,
+        reason="the map key comprehension succeeds",
+    )
+    assert_equal(
+        inspect_map(map_key_run!(&mut state, false)),
+        -7,
+        reason="the map key comprehension fails",
+    )
     assert_equal(state.count, 6, reason="defer ran once per call")

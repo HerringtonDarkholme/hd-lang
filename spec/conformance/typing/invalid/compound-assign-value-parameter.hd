@@ -10,5 +10,5 @@ impl Add[Meters] for Meters:
         Meters(i64(self) + i64(rhs))
 
 fn walk(walked: Meters, step: Meters) -> Meters:
-    walked += step  # diagnostic: non-reassignable-parameter-binding
+    walked += step # diagnostic: non-reassignable-parameter-binding
     walked

@@ -4,7 +4,8 @@ fn apply(f: fn(i32) -> i32, value: i32) -> i32:
     f(value)
 
 fn run() -> i32:
-    fn triple(n: i32) -> i32: n * 3
+    fn triple(n: i32) -> i32:
+        n * 3
     apply(triple, +2)
 
 tests:

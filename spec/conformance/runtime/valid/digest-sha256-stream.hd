@@ -21,7 +21,10 @@ fn repeated(byte: u8, count: usize) -> List[u8]:
     bytes
 
 fn split_at(bytes: List[u8], cut: usize) -> bool:
-    streamed := Sha256::new().update(slice(bytes, 0, cut)).update(slice(bytes, cut, bytes.len())).finish()
+    streamed := Sha256::new()
+        .update(slice(bytes, 0, cut))
+        .update(slice(bytes, cut, bytes.len()))
+        .finish()
     streamed == sha256(bytes)
 
 fn one_at_a_time(bytes: List[u8]) -> bool:
@@ -34,19 +37,38 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("finishing an empty hasher"):
-        assert_equal(Sha256::new().finish().to_hex(), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", reason="the empty message")
-        assert(Sha256::new().update([]).finish() == sha256([]), reason="an empty update changes nothing")
+        assert_equal(
+            Sha256::new().finish().to_hex(),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            reason="the empty message",
+        )
+        assert(
+            Sha256::new().update([]).finish() == sha256([]),
+            reason="an empty update changes nothing",
+        )
 
     it("the NIST vectors in one update"):
-        assert_equal(Sha256::new().update([97, 98, 99]).finish().to_hex(), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", reason="abc")
+        assert_equal(
+            Sha256::new().update([97, 98, 99]).finish().to_hex(),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            reason="abc",
+        )
         text := "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".bytes().collect()
-        assert_equal(Sha256::new().update(text).finish().to_hex(), "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1", reason="448 bits")
+        assert_equal(
+            Sha256::new().update(text).finish().to_hex(),
+            "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
+            reason="448 bits",
+        )
 
     it("the NIST vectors one byte at a time"):
         assert(one_at_a_time([97, 98, 99]), reason="abc")
         text := "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".bytes().collect()
         assert(one_at_a_time(text), reason="448 bits")
-        assert_equal(Sha256::new().update([97, 98, 99]).finish().to_hex(), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", reason="abc again")
+        assert_equal(
+            Sha256::new().update([97, 98, 99]).finish().to_hex(),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            reason="abc again",
+        )
 
     it("a split at every offset around the block boundaries"):
         bytes := counting(130)
@@ -77,7 +99,11 @@ tests:
         first := hasher.finish()
         assert(hasher.finish() == first, reason="finishing twice")
         hasher.update([98, 99])
-        assert_equal(hasher.finish().to_hex(), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", reason="more bytes after finish")
+        assert_equal(
+            hasher.finish().to_hex(),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            reason="more bytes after finish",
+        )
 
     it("the one-shot digest is the streaming digest"):
         bytes := counting(200)

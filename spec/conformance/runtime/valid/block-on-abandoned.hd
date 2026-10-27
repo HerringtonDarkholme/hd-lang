@@ -12,14 +12,16 @@ struct Channel:
 
 impl Disposable for Channel:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("channel defer")
+        defer:
+            self.log.push("channel defer")
         self.log.push("send close")
         let mut wait = self.ack
-        wait!()                  # ack was abandoned: the dispose is cut short here
+        wait!() # ack was abandoned: the dispose is cut short here
         self.log.push("acked")
 
 fn work!(log: &mut List[string]) -> string $ Clock:
-    defer: log.push("work defer")
+    defer:
+        log.push("work defer")
     sleep!(s(60))
     "late"
 
@@ -31,8 +33,13 @@ fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
 
 # `job` turns out cancelled when `all!` polls it again, so `all!` and
 # `both` are cancelled, and the dispose of `channel` cannot finish.
-fn both!(job: mut Suspend[string], ack: mut Suspend[void], log: *mut List[string]) -> string $ Clock:
-    defer: log.push("both defer")
+fn both!(
+    job: mut Suspend[string],
+    ack: mut Suspend[void],
+    log: *mut List[string],
+) -> string $ Clock:
+    defer:
+        log.push("both defer")
     using channel = &mut Channel { log: log, ack: ack }
     let (worked, stopped) = all!(job, stop(job, log))
     "${worked} ${stopped}"

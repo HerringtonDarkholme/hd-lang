@@ -3,6 +3,6 @@
 use std.annotation.{cold, inline}
 
 @cold
-@inline(.Never)  # diagnostic: invalid-inline-decorator
+@inline(.Never) # diagnostic: invalid-inline-decorator
 fn fail(code: i32) -> string:
     "failed with $code"

@@ -2,4 +2,4 @@
 use std.http.Client
 
 pub fn main() -> void:
-    _ := Client::new().base_url("https://example.test/")  # diagnostic: unknown-method
+    _ := Client::new().base_url("https://example.test/") # diagnostic: unknown-method

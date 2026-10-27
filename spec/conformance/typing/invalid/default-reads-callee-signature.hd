@@ -6,5 +6,5 @@ trait Clock:
 fn zero() -> i32 $ Clock:
     +0
 
-fn stamp(at: i32 = zero()) -> i32:  # diagnostic: requirement-in-default
+fn stamp(at: i32 = zero()) -> i32: # diagnostic: requirement-in-default
     at

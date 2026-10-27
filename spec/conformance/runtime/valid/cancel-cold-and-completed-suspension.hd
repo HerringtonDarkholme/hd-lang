@@ -18,7 +18,10 @@ tests:
         first := pending.cancel!()
         second := pending.cancel!()
         assert_equal(log.text, "", reason="no registered suites exist before the first poll")
-        assert(first == .Finished && second == .Finished, reason="a cold suspension has no cleanup left")
+        assert(
+            first == .Finished && second == .Finished,
+            reason="a cold suspension has no cleanup left",
+        )
 
     it("cancelling a completed suspension has no further effect"):
         let mut log = &mut Log { text: "" }
@@ -26,6 +29,9 @@ tests:
         result := pending!()
         first := pending.cancel!()
         second := pending.cancel!()
-        assert(first == .Finished && second == .Finished, reason="a completed suspension has no cleanup left")
+        assert(
+            first == .Finished && second == .Finished,
+            reason="a completed suspension has no cleanup left",
+        )
         assert_equal(result, 7, reason="completion value")
         assert_equal(log.text, "body;cleanup;", reason="cleanup ran once, at completion")

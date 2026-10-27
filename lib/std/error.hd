@@ -10,7 +10,8 @@ use std.format.DebugWriter
 ## The standard error trait: a displayable, inspectable failure that may name its source.
 ## See [trait.error.module](../../spec/lang/09-traits.md#r-trait.error.module).
 pub trait Error < Display & Inspectable:
-    fn source(self) -> (*dyn Error)?: .None
+    fn source(self) -> (*dyn Error)?:
+        .None
 
 # The source-chain helpers are inherent methods of `dyn Error`
 # (spec/lang/09-traits.md#r-trait.own.dyn-inherent.form): every error value
@@ -18,11 +19,13 @@ pub trait Error < Display & Inspectable:
 impl dyn Error:
     ## Recovers the original shared error reference when its concrete type is `T`.
     @intrinsic("downcast_ref")
-    pub fn downcast_ref[T < Inspectable](&self) -> (*T)?: panic("intrinsic")
+    pub fn downcast_ref[T < Inspectable](&self) -> (*T)?:
+        panic("intrinsic")
 
     ## Recovers the original mutable error reference when its concrete type is `T`.
     @intrinsic("downcast_mut")
-    pub fn downcast_mut[T < Inspectable](&mut self) -> (*mut T)?: panic("intrinsic")
+    pub fn downcast_mut[T < Inspectable](&mut self) -> (*mut T)?:
+        panic("intrinsic")
 
     ## Returns this error first, then its `source`, then that error's source, and so on.
     ## See [std-error.chain.reference-method](../../spec/std/error.md#r-std-error.chain.reference-method).
@@ -154,4 +157,7 @@ impl[T] T?:
 # Keep handwritten Debug: display the erased source, which need not implement Debug.
 impl Debug for ContextError:
     fn debug(self, out: *mut DebugWriter) -> void:
-        out.debug_struct("ContextError").field("message", self.message).field("source", self.error.to_string()).finish()
+        out.debug_struct("ContextError")
+            .field("message", self.message)
+            .field("source", self.error.to_string())
+            .finish()

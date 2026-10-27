@@ -17,12 +17,17 @@ struct Upload:
 
 impl Disposable for Upload:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("upload closed")
+        defer:
+            self.log.push("upload closed")
         let mut ack = self.ack
-        ack!()                          # waits for the peer
+        ack!() # waits for the peer
         self.log.push("upload acknowledged")
 
-fn send!(log: *mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
+fn send!(
+    log: *mut List[string],
+    reply: mut Suspend[string],
+    ack: mut Suspend[void],
+) -> Result[string, TimedOut] $ Clock:
     apply!(timeout(5s, cleanup=1s)):
         using upload = &mut Upload { log: log, ack: ack }
         let done: Result[string, TimedOut] = .Ok(reply!())
@@ -48,7 +53,10 @@ fn attempt!(ack: mut Suspend[void]) -> void $ Console + Clock:
             .Err(error) =>
                 println(error.to_string())
                 println(log.join(", "))
-                ended := if error == TimedOut { limit: 5s, cleanup: .Abandoned }: "abandoned" else: "finished"
+                ended := if error == TimedOut { limit: 5s, cleanup: .Abandoned }:
+                    "abandoned"
+                else:
+                    "finished"
                 println("${ended} at ${clock.now().unix_milliseconds()}")
 
 pub fn main!() -> void $ Console + Clock:

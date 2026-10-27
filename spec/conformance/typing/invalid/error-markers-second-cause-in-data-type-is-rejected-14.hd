@@ -7,5 +7,5 @@ struct DiskError:
 struct D:
     @source
     a: DiskError
-    @source  # diagnostic: invalid-error-marker
+    @source # diagnostic: invalid-error-marker
     b: DiskError

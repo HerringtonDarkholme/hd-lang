@@ -6,6 +6,6 @@ struct Point:
     x: i64
 
 impl Describe for Point:
-    x = pass  # diagnostic: misplaced-derivation
+    x = pass # diagnostic: misplaced-derivation
     fn describe(self) -> string:
         "point"

@@ -23,5 +23,9 @@ tests:
 
     it("attaches the marker's result"):
         assert_equal(marked.is_some(), true, reason="the marker was called")
-        assert_equal(facts_of(plain).find::[Hidden]().is_some(), false, reason="an undecorated function holds none")
+        assert_equal(
+            facts_of(plain).find::[Hidden]().is_some(),
+            false,
+            reason="an undecorated function holds none",
+        )
         _ := hidden_factory()

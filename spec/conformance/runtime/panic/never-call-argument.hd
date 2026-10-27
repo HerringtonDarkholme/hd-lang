@@ -3,4 +3,4 @@
 
 pub fn main() -> void $ Console:
     let x: i32? = .Some(+1)
-    println("${x.unwrap_or(panic("never"))}")  # panic: explicit-panic
+    println("${x.unwrap_or(panic("never"))}") # panic: explicit-panic

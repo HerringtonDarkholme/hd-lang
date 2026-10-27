@@ -6,6 +6,6 @@ trait Summary:
 struct Report:
     title: string
 
-impl[T < Display] Summary for Report:  # diagnostic: unconstrained-impl-parameter
+impl[T < Display] Summary for Report: # diagnostic: unconstrained-impl-parameter
     fn summary(self) -> string:
         self.title

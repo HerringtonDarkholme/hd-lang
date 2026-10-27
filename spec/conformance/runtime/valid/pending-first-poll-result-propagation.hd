@@ -8,10 +8,7 @@ struct ParseError:
 fn parse!(ok: bool) -> Result[i32, ParseError] $ Console:
     let mut console = $.use(Console)
     _ := console.write!("parse\n")
-    if ok:
-        .Ok(40)
-    else:
-        .Err(ParseError { code: 7 })
+    if ok: .Ok(40) else: .Err(ParseError { code: 7 })
 
 fn lifted!(ok: bool) -> Result[i32, ParseError] $ Console:
     value := parse!(ok)?
@@ -24,4 +21,8 @@ fn inspect(value: Result[i32, ParseError]) -> i32:
 
 pub fn main!() -> void $ Console:
     assert_equal(inspect(lifted!(true)), 42, reason="success continues after the child completes")
-    assert_equal(inspect(lifted!(false)), -7, reason="the failure returns after the child completes")
+    assert_equal(
+        inspect(lifted!(false)),
+        -7,
+        reason="the failure returns after the child completes",
+    )

@@ -4,4 +4,4 @@ fn value[T < Display](x: T) -> impl Display:
 fn bad(flag: bool) -> impl Display:
     if flag:
         return value::[i32](+7)
-    value::[string]("seven")  # diagnostic: type-mismatch
+    value::[string]("seven") # diagnostic: type-mismatch

@@ -9,10 +9,12 @@ struct UserRepo: pass
 struct PostRepo: pass
 
 impl Repo[User] for UserRepo:
-    fn count(self) -> i32: 20
+    fn count(self) -> i32:
+        20
 
 impl Repo[Post] for PostRepo:
-    fn count(self) -> i32: 1
+    fn count(self) -> i32:
+        1
 
 fn keep![A, B](callback: fn() -> i32 $ Repo[A] + Repo[B]) -> (fn() -> i32 $ Repo[A] + Repo[B]):
     callback

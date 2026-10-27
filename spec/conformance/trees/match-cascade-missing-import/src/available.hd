@@ -1,1 +1,2 @@
-pub fn available() -> void: pass
+pub fn available() -> void:
+    pass

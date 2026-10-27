@@ -6,7 +6,8 @@ fn seven() -> i32:
 
 a := b := c := seven() + 1
 
-fn sum() -> i32: a + b + c
+fn sum() -> i32:
+    a + b + c
 
 pub fn main() -> void $ Console:
     println("$a $b $c ${sum()}")

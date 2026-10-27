@@ -13,5 +13,5 @@ fn describe(value: Shape) -> i32:
     match value:
         Shape.Dot(Point { x: 0, y }) => y
         Shape.Dot(Point { x: px, y: _ }) => px
-        Shape.Line(start=Point { x: 0 }, end=_) => 0
-        Shape.Line(start=_, end=_) => 1
+        Shape.Line(start = Point { x: 0 }, end = _) => 0
+        Shape.Line(start = _, end = _) => 1

@@ -34,7 +34,7 @@ fn categories() -> void:
     _ := by_value(outcome)
     _ := by_value(fn(weight: i32) -> i32: weight + 1)
     _ := by_value([1, 2])
-    _ := by_value({"a": 1})
+    _ := by_value({ "a": 1 })
     _ := by_value(Tags(["fragile"]))
     _ := as_any(Meters(1.0))
     _ := as_any(&mut Parcel { weight: 1 })

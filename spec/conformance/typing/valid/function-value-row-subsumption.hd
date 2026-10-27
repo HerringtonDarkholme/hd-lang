@@ -3,7 +3,8 @@
 trait Log:
     fn line(self, text: string) -> void
 
-fn quiet(value: i32) -> i32: value + 1
+fn quiet(value: i32) -> i32:
+    value + 1
 
 fn run(value: i32) -> i32 $ Log:
     let step: fn(i32) -> i32 $ Log = quiet

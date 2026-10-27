@@ -4,4 +4,4 @@ struct Category:
     name: string
     parent: *Category?
 
-root := Category { name: "books" }  # diagnostic: missing-required-field
+root := Category { name: "books" } # diagnostic: missing-required-field
