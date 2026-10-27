@@ -98,14 +98,19 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         Ok(r) => r,
         Err(e) => return rep.fail(&e),
     };
-    match document(&root, &o, &mut rep) {
+    match document(&root, &o, &mut rep, open) {
         Ok(()) => rep.finish(0),
         Err(code) => code,
     }
 }
 
 /// Checks the package (`cli.doc.check`), then writes its pages.
-fn document(root: &Path, o: &Options, rep: &mut Reporter) -> Result<(), ExitCode> {
+fn document(
+    root: &Path,
+    o: &Options,
+    rep: &mut Reporter,
+    opener: impl FnOnce(&Path) -> std::io::Result<bool>,
+) -> Result<(), ExitCode> {
     let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
     program.only_program("");
     let out = build_goal_with(&program, &Goal::Analyze, BuildProfile::Checked, true, rep)?;
@@ -153,7 +158,8 @@ fn document(root: &Path, o: &Options, rep: &mut Reporter) -> Result<(), ExitCode
         }
     }
     if o.open {
-        open(&dir.join("index.html"), rep);
+        let page = dir.join("index.html");
+        open_with(&page, opener).map_err(|message| rep.fail(&message))?;
     }
     Ok(())
 }
@@ -336,9 +342,8 @@ fn missing(name: &str, candidates: &[String], rep: &mut Reporter) -> ExitCode {
     ))
 }
 
-/// `cli.doc.open`: opens the entry page with the platform's default
-/// program. The pages are written already, so a failure only warns.
-fn open(page: &Path, rep: &mut Reporter) {
+/// `cli.doc.open`: opens the entry page with the platform's default program.
+fn open(page: &Path) -> std::io::Result<bool> {
     let mut command = if cfg!(target_os = "macos") {
         std::process::Command::new("open")
     } else if cfg!(windows) {
@@ -348,12 +353,121 @@ fn open(page: &Path, rep: &mut Reporter) {
     } else {
         std::process::Command::new("xdg-open")
     };
-    let status = command.arg(page).status();
-    if !status.is_ok_and(|s| s.success()) {
-        rep.diag(&Diag::new(
-            None,
-            Severity::Warning,
-            &format!("could not open {}", page.display()),
-        ));
+    command.arg(page).status().map(|status| status.success())
+}
+
+/// The opener is injected so failures can be tested without launching a browser.
+fn open_with(
+    page: &Path,
+    opener: impl FnOnce(&Path) -> std::io::Result<bool>,
+) -> Result<(), String> {
+    if opener(page).is_ok_and(|success| success) {
+        Ok(())
+    } else {
+        Err(format!("could not open {}", page.display()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+    use std::path::Path;
+    use std::process::ExitCode;
+
+    use hd_testkit::Scratch;
+
+    use super::{Options, document, open_with};
+    use crate::report::Reporter;
+
+    fn project(name: &str) -> Scratch {
+        let root = Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            name,
+        );
+        std::fs::create_dir_all(root.join("src")).expect("source directory");
+        std::fs::write(root.join("hd.toml"), "[package]\nname = \"docs\"\n").expect("manifest");
+        std::fs::write(root.join("src/lib.hd"), "pub fn answer() -> i32: +42\n").expect("source");
+        root
+    }
+
+    fn options(root: &Path, open: bool, json: bool) -> Options {
+        Options {
+            json,
+            private: false,
+            open,
+            out: Some(root.join("site")),
+            packages: Vec::new(),
+            name: None,
+        }
+    }
+
+    fn failed_open(name: &str, json: bool, spawn_error: bool) {
+        let root = project(name);
+        let options = options(&root, true, json);
+        let page = root.join("site/index.html");
+        let mut rep = Reporter::stdout(json);
+        let mut opened = false;
+        let result = document(&root, &options, &mut rep, |path| {
+            opened = true;
+            assert_eq!(path, page);
+            assert!(path.is_file(), "write the page before opening it");
+            if spawn_error {
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "mock opener absent",
+                ))
+            } else {
+                Ok(false)
+            }
+        });
+        assert!(opened, "reach the opener after a successful doc build");
+        assert_eq!(result, Err(ExitCode::from(crate::HD_FAILURE)));
+        assert_eq!((rep.errors, rep.warnings), (1, 0));
+        for file in ["index.html", "index.md", "pkg.html", "pkg.md", "llms.txt"] {
+            assert!(root.join("site").join(file).is_file(), "retain {file}");
+        }
+        // This is the exact message document passes to Reporter::fail, which
+        // writes it in the selected text/JSON format before the failure status.
+        let message = open_with(&page, |_| Ok(false)).expect_err("mock opener failure");
+        assert_eq!(message, format!("could not open {}", page.display()));
+    }
+
+    #[test]
+    fn missing_browser_command_fails_after_writing_docs() {
+        failed_open("hd-doc-open-missing", false, true);
+    }
+
+    #[test]
+    fn unsuccessful_browser_command_fails_after_writing_docs_in_json() {
+        failed_open("hd-doc-open-unsuccessful", true, false);
+    }
+
+    #[test]
+    fn successful_browser_command_keeps_success_status() {
+        let root = project("hd-doc-open-success");
+        let options = options(&root, true, false);
+        let mut rep = Reporter::stdout(false);
+        let mut opened = false;
+        let result = document(&root, &options, &mut rep, |page| {
+            opened = true;
+            assert!(page.is_file());
+            Ok(true)
+        });
+        assert!(opened);
+        assert_eq!(result, Ok(()));
+        assert_eq!((rep.errors, rep.warnings), (0, 0));
+    }
+
+    #[test]
+    fn docs_without_open_never_call_the_browser() {
+        let root = project("hd-doc-no-open");
+        let options = options(&root, false, false);
+        let mut rep = Reporter::stdout(false);
+        assert_eq!(
+            document(&root, &options, &mut rep, |_| panic!("unexpected opener")),
+            Ok(())
+        );
+        assert!(root.join("site/index.html").is_file());
+        assert_eq!((rep.errors, rep.warnings), (0, 0));
     }
 }
