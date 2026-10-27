@@ -2248,6 +2248,14 @@ pub(crate) fn walk_code(
                 walk_code(f, w, get, on);
             }
         }
+        Walk::Nullable(w) => {
+            if let Some(k) = w.single() {
+                get(f, k);
+                f.op(Instruction::If(BlockType::Empty));
+                walk_code(f, w, get, on);
+                f.op(Instruction::End);
+            }
+        }
         Walk::Switch(tag, arms) => {
             for (v, arm) in arms.iter().enumerate() {
                 let Some(arm) = arm else {

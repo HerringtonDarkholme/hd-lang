@@ -523,7 +523,10 @@ fn mem_one(
         },
         TyData::Never => Mem::EMPTY,
         TyData::Tuple { .. } => payload_mem_by(&tuple_members(pool, t), part)?.0,
-        TyData::Option(inner) => enum_mem_by(&[vec![], vec![inner]], part)?.0,
+        TyData::Option(inner) => {
+            let variants = [vec![], vec![inner]];
+            enum_mem_by(&variants, nullable(pool, env, &variants), part)?.0
+        }
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
             StdKind::List | StdKind::Map | StdKind::Buffer => Mem::address(),
@@ -531,7 +534,9 @@ fn mem_one(
                 Kind::Data(_) | Kind::Boxed | Kind::Ref { fat: false, .. } => Mem::address(),
                 Kind::Ref { fat: true, .. } => record(&[Mem::address(), Mem::address()]).0,
                 Kind::Value => match env.enum_variants(def, args) {
-                    Some(variants) => enum_mem_by(&variants, part)?.0,
+                    Some(variants) => {
+                        enum_mem_by(&variants, nullable(pool, env, &variants), part)?.0
+                    }
                     None => payload_mem_by(&value_parts(pool, env, t), part)?.0,
                 },
             },
@@ -569,6 +574,9 @@ pub enum Walk {
     /// Value `k` is an enum's tag; arm `v`, when there is one, walks
     /// variant `v`'s payload.
     Switch(u32, Vec<Option<Walk>>),
+    /// A [`nullable`] enum's address, which the inner walk counts unless
+    /// it is null.
+    Nullable(Box<Walk>),
 }
 
 impl Walk {
@@ -585,6 +593,7 @@ impl Walk {
                     .map(|a| a.as_ref().map(|w| w.remap(to)))
                     .collect(),
             ),
+            Walk::Nullable(w) => Walk::Nullable(Box::new(w.remap(to))),
         }
     }
 
@@ -602,6 +611,7 @@ impl Walk {
                     .map(|a| a.as_ref().and_then(|w| w.without(skip)))
                     .collect(),
             )),
+            Walk::Nullable(w) => w.without(skip).map(|w| Walk::Nullable(Box::new(w))),
         }
     }
 
@@ -611,7 +621,7 @@ impl Walk {
     pub fn single(&self) -> Option<u32> {
         match self {
             Walk::Ref(k) | Walk::Known(k) => Some(*k),
-            Walk::Seq(_) | Walk::Switch(..) => None,
+            Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
         }
     }
 
@@ -800,6 +810,10 @@ fn switch_walk_by(
     variants: &[Vec<Ty>],
     part: &dyn Fn(Ty) -> Option<Walk>,
 ) -> Option<Walk> {
+    if nullable(pool, env, variants) {
+        // The address is value 0, null for variant 0.
+        return part(variants[1][0]).map(|w| Walk::Nullable(Box::new(w)));
+    }
     let (_, positions) = enum_mem(pool, env, variants).ok()?;
     let arms: Vec<Option<Walk>> = variants
         .iter()
@@ -891,22 +905,39 @@ const SLOT_ORDER: [Val; 4] = [Val::I32, Val::F32, Val::I64, Val::F64];
 /// the enum's values.
 pub type Positions = Vec<Vec<Vec<usize>>>;
 
+/// Whether an enum of `variants` is a nullable address
+/// (`types.option.repr`): variant 0 has no payload and variant 1 one thin
+/// reference, never null. Its one value is that address, null for variant
+/// 0; it has no tag.
+pub fn nullable(pool: &InternPool, env: &dyn ProgramEnv, variants: &[Vec<Ty>]) -> bool {
+    matches!(variants, [none, some] if none.is_empty()
+        && some.len() == 1
+        && matches!(kind(pool, env, some[0]), Kind::Ref { fat: false, .. }))
+}
+
 /// An enum's layout from its variants' payload types: the tag, 1, 2 or 4
 /// bytes by the variant count, then the shared slots, each 4 or 8 bytes
-/// wide; and where each payload field's values lie.
+/// wide; and where each payload field's values lie. A [`nullable`] enum
+/// is its payload's address alone.
 pub fn enum_mem(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     variants: &[Vec<Ty>],
 ) -> StageResult<(Mem, Positions)> {
-    enum_mem_by(variants, &|f| mem(pool, env, f))
+    enum_mem_by(variants, nullable(pool, env, variants), &|f| {
+        mem(pool, env, f)
+    })
 }
 
 /// [`enum_mem`], with each payload field's layout read by `part`.
 fn enum_mem_by(
     variants: &[Vec<Ty>],
+    nullable: bool,
     part: &dyn Fn(Ty) -> StageResult<Mem>,
 ) -> StageResult<(Mem, Positions)> {
+    if nullable {
+        return Ok((Mem::address(), vec![vec![], vec![vec![0]]]));
+    }
     let mut payloads = Vec::new();
     let mut slots = [0usize; 4];
     for fields in variants {

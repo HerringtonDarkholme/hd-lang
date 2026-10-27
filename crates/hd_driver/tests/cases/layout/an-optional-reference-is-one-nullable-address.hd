@@ -1,0 +1,7 @@
+# @dump: layout
+# Actual inline memory layouts; counted offsets are bytes from the value's base.
+# An optional reference is its address alone, null for .None: no tag.
+# subject
+struct Node:
+    left: (*Node)?
+    right: (*Node)?

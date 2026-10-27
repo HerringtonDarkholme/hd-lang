@@ -9,21 +9,15 @@
       i32.eqz
       if (result i32)
     ;; 13 |         &Node { left: .None, right: .None }
-        i32.const 16
+        i32.const 8
         i32.const -2147483646
         call $rt:new/class-2
         local.tee $depth
         i32.const 0
-        i32.store8 $heap
+        i32.store $heap
         local.get $depth
         i32.const 0
         i32.store $heap offset=4
-        local.get $depth
-        i32.const 0
-        i32.store8 $heap offset=8
-        local.get $depth
-        i32.const 0
-        i32.store $heap offset=12
         local.get $depth
     ;; 12 |     if depth == 0:
       else
@@ -32,27 +26,21 @@
         i32.const 1
         i32.sub
         call $make
-        local.set $t0
         local.get $depth
         i32.const 1
         i32.sub
         call $make
+        local.set $t0
         local.set $depth
-        i32.const 16
+        i32.const 8
         i32.const -2147483646
         call $rt:new/class-2
         local.tee $t1
-        i32.const 1
-        i32.store8 $heap
+        local.get $depth
+        i32.store $heap
         local.get $t1
         local.get $t0
         i32.store $heap offset=4
-        local.get $t1
-        i32.const 1
-        i32.store8 $heap offset=8
-        local.get $t1
-        local.get $depth
-        i32.store $heap offset=12
         local.get $t1
     ;; 12 |     if depth == 0:
       end

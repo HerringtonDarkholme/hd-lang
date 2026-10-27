@@ -1893,13 +1893,24 @@ impl Em<'_, '_, '_> {
                 }
                 if let Some(&Target::Open(k)) = self.calls.get(&i) {
                     self.open_call(i, k)?;
-                } else if self.b.tags[i as usize] == Tag::SwitchTag {
-                    self.tag(a)?;
-                } else {
+                    self.f.u32(case);
+                    self.f.op(Instruction::I32Eq);
+                } else if self.b.tags[i as usize] == Tag::SwitchTag && self.nullable(self.ty_of(a))
+                {
+                    // Variant 1 is a non-null address.
                     self.comp(a, 0)?;
+                    if case == 0 {
+                        self.f.op(Instruction::I32Eqz);
+                    }
+                } else {
+                    if self.b.tags[i as usize] == Tag::SwitchTag {
+                        self.tag(a)?;
+                    } else {
+                        self.comp(a, 0)?;
+                    }
+                    self.f.u32(case);
+                    self.f.op(Instruction::I32Eq);
                 }
-                self.f.u32(case);
-                self.f.op(Instruction::I32Eq);
                 self.resume_branch(i, then);
                 self.f.op(Instruction::If(BlockType::Empty));
                 self.ctl.push(Ctl::Plain);

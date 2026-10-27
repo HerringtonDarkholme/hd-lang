@@ -5,21 +5,15 @@
   (func $leaf (result i32) (local $t0 i32)
     ;; 14 |     &Node { left: .None, right: .None }
     block
-      i32.const 16
+      i32.const 8
       i32.const -2147483646
       call $rt:new/class-2
       local.tee $t0
       i32.const 0
-      i32.store8 $heap
+      i32.store $heap
       local.get $t0
       i32.const 0
       i32.store $heap offset=4
-      local.get $t0
-      i32.const 0
-      i32.store8 $heap offset=8
-      local.get $t0
-      i32.const 0
-      i32.store $heap offset=12
     end
     local.get $t0
   )

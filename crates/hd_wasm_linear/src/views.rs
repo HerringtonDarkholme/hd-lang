@@ -57,6 +57,7 @@ fn counted(
                 }
                 out
             }
+            Walk::Nullable(w) => walk(w).into_keys().map(|k| (k, true)).collect(),
             Walk::Switch(_, arms) => {
                 let arms: Vec<_> = arms
                     .iter()
