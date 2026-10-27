@@ -1975,6 +1975,9 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
                     _ => false,
                 }
             }
+            // A known count is the general one without the page-table
+            // search: both change the same block's count.
+            (Count::Ref | Count::KnownRef, Count::Ref | Count::KnownRef) => true,
             _ => a == b,
         }
     }
