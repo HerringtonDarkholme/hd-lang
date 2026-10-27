@@ -637,11 +637,13 @@ impl<'a, 'n> Gen<'a, 'n> {
         let s = self.target;
         let key_def = self.std("KeyRecord");
         let key_t = self.record_ref(key_def, &[s]);
+        // One read of each handle's information serves its entry and its
+        // key, and one capture-free closure serves every key.
+        let any = self.closure(&[s], Ty::BOOL, |g, _| Ok(g.bool_(true)))?;
         for m in v.members.iter().filter(|m| !m.omitted) {
             let handle = self.field_handle(v, m, m.ty);
-            infos.push(self.handle_info(handle, member_t)?);
             let info = self.handle_info(handle, member_t)?;
-            let any = self.closure(&[s], Ty::BOOL, |g, _| Ok(g.bool_(true)))?;
+            infos.push(info);
             let key = self.new_data(key_def, &[s], &[("info", info), ("hd_type", any)])?;
             keys.push(self.static_ref(key, key_t));
         }
