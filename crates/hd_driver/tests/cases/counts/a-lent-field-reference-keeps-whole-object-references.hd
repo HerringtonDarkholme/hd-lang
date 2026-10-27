@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: v8 release
+# `self.items.pop()` lends a reference to a field of what `self` refers
+# to. It takes no count and no count reads it, so it leaves `*mut
+# List[i64]` a payload start in release: `rt:retain_known` (#909).
+struct Stack:
+    depth: i64
+    items: List[i64]
+
+impl Stack:
+    fn drop_top(&mut self) -> void:
+        _ := self.items.pop()
+
+fn both(r: *mut List[i64]) -> (*mut List[i64], *mut List[i64]):
+    # subject
+    (r, r)

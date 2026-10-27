@@ -1898,6 +1898,15 @@ physical or erased references without a block-start proof.
   open-world builds keep the page-table path for every reference.
   binary_trees goes from 3,222,220 `block_of` calls to 30, json from
   1,176,031 to 468,040, the rest mostly string slices.
+- **Lent references** (#909). The scan skips a body instance's `Ref`
+  that the borrow pass marks lent (`ref_word::LENT`, a field of what a
+  lent parameter refers to, every use lending): it takes no count, and
+  its value's only release is of the new object a view's projection
+  makes. A `&mut self` method's `self.items.pop()` no longer makes
+  `List[T]` interior. On json, `JsonWriter.close` did that for
+  `List[string]`, so `TextWriter.parts`, a `*mut List[string]`, took
+  156,003 page-table counts per run; `block_of` calls drop from 468,015
+  to 312,012, all left on strings.
 - **Checked proofs.** Checked mode verifies that every claimed payload
   start agrees with `block_of`, then performs the existing audited count
   update. An incorrect proof fails even when the ordinary count would

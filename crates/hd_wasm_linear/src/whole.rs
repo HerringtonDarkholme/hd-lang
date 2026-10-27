@@ -18,6 +18,9 @@
 //!   a nonzero offset, a top-level binding's static slot (no header), a
 //!   frame or pointer root, or anything the scan cannot name.
 //!
+//! A `Ref` the borrow pass marks lent (`ref_word::LENT`) makes no counted
+//! address, so a body instance's lent `Ref` is skipped (issue #909).
+//!
 //! An interior reference to an open target, which an erased body makes
 //! for any type, turns the fact off for the whole program. A coercion
 //! between reference types carries the fact as a dereference does. Dev
@@ -25,7 +28,7 @@
 
 use hd_base::{DefId, HashSet};
 use hd_mono::{ProgramEnv, Sub, is_open, subst};
-use hd_tir::ir::{Body, Place, PlaceRoot, Proj, Ref, Tag};
+use hd_tir::ir::{Body, Place, PlaceRoot, Proj, Ref, Tag, ref_word};
 use hd_types::{InternPool, Ty, TyData, TyList};
 
 use crate::Input;
@@ -57,6 +60,7 @@ pub(crate) fn interior_targets(input: &Input<'_>) -> Option<HashSet<Ty>> {
             item,
             args,
             b,
+            lent: matches!(table.sub[id.idx()], Sub::Body(_)),
         };
         for i in 0..b.len() {
             s.inst(i, &mut interior, &mut edges)?;
@@ -90,6 +94,9 @@ struct Scan<'a> {
     item: DefId,
     args: TyList,
     b: &'a Body,
+    /// Whether a lent `Ref` here is a loan: in a body instance, where no
+    /// type is open and no thunk makes the address.
+    lent: bool,
 }
 
 impl Scan<'_> {
@@ -127,6 +134,11 @@ impl Scan<'_> {
         };
         let open = is_open(self.pool, target);
         let start = match b.tags[i] {
+            // A `Ref` into what a lent parameter refers to takes no count,
+            // and its value's only release is of the new object a view's
+            // projection makes (`Em::prepare_own_loans`), so no count
+            // reads its address.
+            Tag::Ref if self.lent && b.data[i][1] & ref_word::LENT != 0 => return Some(()),
             Tag::Ref => b
                 .decode_place(b.data[i][0])
                 .map_or(Start::Interior, |p| self.start(&p)),
