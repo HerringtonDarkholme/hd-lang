@@ -346,7 +346,6 @@ fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     for i in 0..b.len() {
         let w = b.data[i][1];
         match b.tags[i] {
-            Tag::CallDyn if w != NONE => return Err("`CallDyn`".into()),
             Tag::Call | Tag::Await if w != NONE => {
                 if let Some(&kind @ 3..) = b.record(w).iter().rev().nth(2) {
                     return Err(format!("call providers of kind {kind}"));

@@ -69,6 +69,10 @@ enum Layout {
     /// (0), `(key, value)` pairs in an `extra` range (1), or a context
     /// value (2).
     Call,
+    /// A dynamic call's record: method, type arguments, evidence count,
+    /// evidence operands, arguments, then the same three provider words as
+    /// [`Layout::Call`].
+    DynCall,
     /// A record of `(key, value)` pairs.
     Pairs(Word),
     /// A switch's record: `(key, Block)` cases, then a default or `NONE`.
@@ -97,6 +101,7 @@ fn layout(tag: Tag) -> [Layout; 2] {
         Tag::Store | Tag::Break => [a, L::One(consume)],
         Tag::Return => [L::One(consume), b],
         Tag::Call | Tag::Await => [a, L::Call],
+        Tag::CallDyn => [a, L::DynCall],
         Tag::CallValue => [a, L::Args],
         Tag::NewStruct | Tag::NewVariant | Tag::NewMap | Tag::NewList => [a, L::Each(consume)],
         Tag::NewTuple => [L::One(consume), L::Each(consume)],
@@ -161,6 +166,24 @@ pub fn slots(b: &Body, i: usize, mut f: impl FnMut(Loc, u32, Word)) {
                     put(rec + x, Word::Value(role));
                 }
             }
+            L::DynCall => {
+                // `[method, type arguments, evidence count, evidence...,
+                // arguments, providers]`.
+                let evidence = at(rec + 2).min(n.saturating_sub(6));
+                (0..evidence).for_each(|x| put(rec + 3 + x, Word::Value(Role::Lend)));
+                let args = n.saturating_sub(6 + evidence);
+                (0..args).for_each(|x| {
+                    put(rec + 3 + evidence + x, Word::Value(Role::Arg(x)));
+                });
+                let p = rec + n.saturating_sub(3);
+                match at(p) {
+                    1 => (1..at(p + 2))
+                        .step_by(2)
+                        .for_each(|y| put(at(p + 1) + y, Word::Provider)),
+                    2 => put(p + 1, Word::Provider),
+                    _ => {}
+                }
+            }
             L::Args | L::Call => {
                 let args = if layouts[k] == L::Call {
                     n.saturating_sub(3)
@@ -218,5 +241,38 @@ fn place_words(b: &Body, at: u32, mut f: impl FnMut(u32, Loc)) {
         } else {
             x += 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hd_base::DefId;
+    use hd_types::Ty;
+
+    use super::{Role, Word, slots};
+    use crate::ir::{Body, BodyKind, Tag};
+
+    #[test]
+    fn dynamic_call_exposes_evidence_arguments_and_providers() {
+        let mut body = Body::new(DefId::from_raw(1), BodyKind::Fn);
+        // `[method, type arguments, evidence count, evidence, arguments...,
+        // provider kind, provider value, provider length]`.
+        body.extra = vec![9, 10, 20, 1, 2, 3, 4, 2, 5, 0];
+        body.tags.push(Tag::CallDyn);
+        body.data.push([1, 0]);
+        body.ty.push(Ty::VOID);
+        body.syn.push(hd_base::NodeIdx::NONE);
+        let mut found = Vec::new();
+        slots(&body, 0, |_, value, word| found.push((value, word)));
+        assert_eq!(
+            found,
+            [
+                (1, Word::Value(Role::Lend)),
+                (2, Word::Value(Role::Lend)),
+                (3, Word::Value(Role::Arg(0))),
+                (4, Word::Value(Role::Arg(1))),
+                (5, Word::Provider),
+            ]
+        );
     }
 }

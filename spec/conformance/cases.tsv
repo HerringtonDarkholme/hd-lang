@@ -2207,6 +2207,14 @@ typing/invalid/derive-before-trait.hd	type	reject:decorator-not-annotator	lang/1
 typing/invalid/duplicate-function-fact.hd	type	reject:duplicate-fact	lang/14-annotations.md#r-annot.decorator.duplicate
 runtime/valid/bare-marker-decorator.hd	runtime	accept	lang/14-annotations.md#r-annot.decorator.bare-call-defaults
 typing/valid/inline-and-cold.hd	type	accept	lang/14-annotations.md#r-annot.inline.argument
+typing/valid/inline-auto-reference.hd	type	accept	lang/14-annotations.md#r-annot.inline.auto
+typing/valid/inline-always-reference.hd	type	accept	lang/14-annotations.md#r-annot.inline.always
+typing/invalid/inline-always-suspends.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable
+typing/invalid/inline-always-defer.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable
+typing/invalid/inline-always-closure.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable
+typing/invalid/inline-always-requirement.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable
+typing/invalid/inline-always-with.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable
+typing/invalid/inline-always-cycle.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable
 typing/invalid/inline-on-requirement.hd	type	reject:invalid-inline-decorator	lang/14-annotations.md#r-annot.inline.targets
 typing/invalid/inline-unknown-argument.hd	type	reject:invalid-inline-decorator	lang/14-annotations.md#r-annot.inline.argument
 typing/invalid/cold-argument.hd	type	reject:invalid-inline-decorator	lang/14-annotations.md#r-annot.inline.argument

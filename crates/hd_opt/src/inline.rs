@@ -22,6 +22,24 @@ use hd_types::{InternPool, Ty, TyData, TyList};
 /// the inliner off.
 pub const INLINE_LIMIT: usize = 16;
 
+/// The most instructions a function marked `@inline` or
+/// `@inline(.Auto)` may have and still be copied.
+pub const AUTO_INLINE_LIMIT: usize = 64;
+
+/// A declaration's inlining choice, decoded by the driver.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum InlineHint {
+    /// No decorator: use the compiler's ordinary profile-dependent rule.
+    #[default]
+    Default,
+    /// Prefer a copy in every build, up to [`AUTO_INLINE_LIMIT`].
+    Auto,
+    /// Require a copy at every statically known call.
+    Always,
+    /// Keep every call as a call.
+    Never,
+}
+
 /// What the inliner reads of the program beyond collection's view: the
 /// driver's tables, its decoded bodies and the backend's layout facts.
 pub trait InlineEnv: ProgramEnv {
@@ -32,12 +50,12 @@ pub trait InlineEnv: ProgramEnv {
     fn memo(&self) -> Option<&Memo>;
     /// The path of the module that declares `def`.
     fn module_text(&self, def: DefId) -> Cow<'_, str>;
-    /// Whether `def` is marked `@inline(.Never)` or `@cold`
-    /// (`annot.inline.never`).
-    fn inline_never(&self, def: DefId) -> bool;
-    /// The declared parameter types of `def`, as written, and whether it
-    /// suspends; `None` for a body without a signature (a module's init).
-    fn signature(&self, def: DefId) -> Option<(Vec<Ty>, bool)>;
+    /// The declaration's inlining choice (`annot.inline.*`).
+    fn inline_hint(&self, def: DefId) -> InlineHint;
+    /// The declared parameter types of `def`, as written, whether it
+    /// suspends, and whether it has a requirement row; `None` for a body
+    /// without a signature (a module's init).
+    fn signature(&self, def: DefId) -> Option<(Vec<Ty>, bool, bool)>;
     /// The checker's body of `def`, decoded once per run, and its hash.
     fn checked_body(&self, def: DefId) -> Option<&(Body, Hash128)>;
     /// A fresh decoding of the checker's body of `def`, as
@@ -100,13 +118,18 @@ impl dyn InlineEnv + '_ {
         let (mut sites, mut hashes) = (Vec::new(), Vec::new());
         for c in (0..body.len()).rev() {
             let Some((def, targs)) =
-                hd_tir::inline::plain_call(body, c).and_then(|callee| match callee {
+                hd_tir::inline::known_call(body, c).and_then(|callee| match callee {
                     Callee::Item { def, targs } => Some((def, targs)),
                     Callee::TraitMethod { .. } => self.impl_target(&callee),
                 })
             else {
                 continue;
             };
+            if self.inline_hint(def) == InlineHint::Default
+                && hd_tir::inline::plain_call(body, c).is_none()
+            {
+                continue;
+            }
             if let Some(at) = stack.iter().position(|&d| d == def) {
                 self.found_cycle(&stack[at..]);
                 continue;
@@ -156,11 +179,23 @@ impl dyn InlineEnv + '_ {
         }
     }
 
-    /// Records `members`, a run of calls that reaches its first member
-    /// again, as recursive, in a release build: none of them is copied.
+    /// Records where `members`, a run of calls that reaches its first
+    /// member again, must break in a release build. An all-`.Always`
+    /// cycle is rejected by the package check and none is copied. A mixed
+    /// cycle breaks at every function not marked `.Always`, so `.Always`
+    /// calls on either side can still be copied.
     fn found_cycle(&self, members: &[DefId]) {
         if let Some(memo) = self.memo() {
-            lock(&memo.recursive).extend(members);
+            let breaks: Vec<_> = members
+                .iter()
+                .copied()
+                .filter(|def| self.inline_hint(*def) != InlineHint::Always)
+                .collect();
+            lock(&memo.recursive).extend(if breaks.is_empty() {
+                members.to_vec()
+            } else {
+                breaks
+            });
         }
     }
 
@@ -168,7 +203,7 @@ impl dyn InlineEnv + '_ {
     /// impl.
     fn calls(&self, body: &Body, def: DefId) -> bool {
         (0..body.len()).any(|c| {
-            hd_tir::inline::plain_call(body, c)
+            hd_tir::inline::known_call(body, c)
                 .and_then(|callee| match callee {
                     Callee::Item { def, .. } => Some(def),
                     Callee::TraitMethod { .. } => self.impl_target(&callee).map(|(d, _)| d),
@@ -178,13 +213,15 @@ impl dyn InlineEnv + '_ {
     }
 
     /// The copy a call of `def` at `targs` inlines, at the call's types,
-    /// and its hash (`inline_callee`). A release build inlines bottom-up:
+    /// and its hash (`inline_callee`). A memoized build inlines bottom-up:
     /// the instance's own calls are copied first, as far as their callees
     /// allow, and the limit applies to the result, so a function that only
     /// wraps a call of a leaf is a leaf itself once that call is a copy. A
     /// copy that outgrows the limit that way is the instance as written,
     /// when that fits. A function on a cycle of calls the walk finds stays
-    /// a call. Each instance is made once per run.
+    /// a call. Each instance is made once per run. Dev builds memoize only
+    /// explicitly decorated user functions; release builds also consider
+    /// ordinary user functions.
     fn callee_copy(
         &self,
         def: DefId,
@@ -263,38 +300,57 @@ impl dyn InlineEnv + '_ {
     }
 
     /// Whether `copy`, the body of `def` at `targs`, may inline:
-    /// [`hd_tir::inline::inlinable`] at [`INLINE_LIMIT`], taking no
-    /// reference (`takes_reference`). The rule is one for std and user
-    /// callees; only which callees a build considers differs
-    /// (`inline_callee`).
+    /// The rule selected by `def`'s [`InlineHint`]: ordinary calls use
+    /// [`INLINE_LIMIT`] and refuse reference parameters, `.Auto` uses
+    /// [`AUTO_INLINE_LIMIT`] and accepts them, and `.Always` has neither
+    /// limit. The checker has already rejected uncopyable `.Always`
+    /// bodies.
     fn fits(&self, def: DefId, targs: TyList, copy: &Body) -> bool {
-        hd_tir::inline::inlinable(copy, INLINE_LIMIT) && !self.takes_reference(def, targs)
+        match self.inline_hint(def) {
+            InlineHint::Default => {
+                hd_tir::inline::inlinable(copy, INLINE_LIMIT) && !self.takes_reference(def, targs)
+            }
+            InlineHint::Auto => hd_tir::inline::inlinable(copy, AUTO_INLINE_LIMIT),
+            InlineHint::Always => hd_tir::inline::copyable(copy),
+            InlineHint::Never => false,
+        }
     }
 
     /// A fresh decoding of the checker's body of `def`, for the caller to
     /// change, and its hash, when a call of it may inline: a function
     /// outside `std.rt`, with a body of its own, not marked
-    /// `@inline(.Never)` or `@cold` (`annot.inline.never`), that does not
-    /// suspend or call itself, in std or in a release build (a dev build
-    /// leaves user code as written, for stepping, stack traces and `dbg`),
-    /// and that [`hd_tir::inline::inlinable`] allows at [`INLINE_LIMIT`]
-    /// (`fits`), which copying its calls only grows.
+    /// `@inline(.Never)` or `@cold` (`annot.inline.never`), and that does
+    /// not suspend or call itself. Dev builds consider std functions and
+    /// explicitly decorated user functions; release builds consider all
+    /// user functions. `fits` applies the selected hint's size and
+    /// reference policy.
     fn inline_callee(&self, def: DefId) -> Option<(Body, Hash128)> {
         let module = self.module_text(def);
         let std = module.starts_with("std.");
         let rt = module == "std.rt" || module.starts_with("std.rt.");
         let release = self.memo().is_some();
-        if INLINE_LIMIT == 0 || rt || !(std || release) || self.intrinsic(def).is_some() {
+        let hint = self.inline_hint(def);
+        let decorated = matches!(hint, InlineHint::Auto | InlineHint::Always);
+        if (hint == InlineHint::Default && INLINE_LIMIT == 0)
+            || rt
+            || !(std || release || decorated)
+            || self.intrinsic(def).is_some()
+            || hint == InlineHint::Never
+        {
             return None;
         }
-        if self.inline_never(def) {
-            return None;
-        }
-        if self.signature(def)?.1 {
+        let (_, suspends, has_row) = self.signature(def)?;
+        if suspends || has_row {
             return None;
         }
         let (body, hash) = self.checked_body(def)?;
-        if !hd_tir::inline::inlinable(body, INLINE_LIMIT) || self.calls(body, def) {
+        let body_fits = match hint {
+            InlineHint::Default => hd_tir::inline::inlinable(body, INLINE_LIMIT),
+            InlineHint::Auto => hd_tir::inline::inlinable(body, AUTO_INLINE_LIMIT),
+            InlineHint::Always => hd_tir::inline::copyable(body),
+            InlineHint::Never => false,
+        };
+        if !body_fits || self.calls(body, def) {
             return None;
         }
         Some((self.fresh_body(def)?, *hash))
@@ -307,7 +363,7 @@ impl dyn InlineEnv + '_ {
     /// one stays a call (#856: copying `StringBuilder.push` into a loop
     /// made `string_build` 40% slower).
     fn takes_reference(&self, def: DefId, targs: TyList) -> bool {
-        let Some((params, _)) = self.signature(def) else {
+        let Some((params, _, _)) = self.signature(def) else {
             return true;
         };
         let pool = self.pool();

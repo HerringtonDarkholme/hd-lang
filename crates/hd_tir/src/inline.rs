@@ -17,22 +17,36 @@ use crate::ir::{
 };
 use crate::own::splice::{permute_columns, renumber_through};
 
-/// The callee of call `i` when it may inline: a `Call` with no providers
-/// and no omitted argument.
+/// The statically known callee of call `i` when its requirement context
+/// needs no copying: a `Call` with no providers. Its argument record may
+/// still contain an omitted argument's `DefaultCall`.
 #[must_use]
-pub fn plain_call(b: &Body, i: usize) -> Option<Callee> {
+pub fn known_call(b: &Body, i: usize) -> Option<Callee> {
     if b.tags[i] != Tag::Call {
         return None;
     }
     let r = b.record(b.data[i][1]);
-    let (args, prov) = r.split_at(r.len().checked_sub(3)?);
-    let default = args
-        .iter()
-        .any(|&a| b.tags.get(a as usize) == Some(&Tag::DefaultCall));
-    if prov[0] != 0 || default {
+    let (_, prov) = r.split_at(r.len().checked_sub(3)?);
+    if prov[0] != 0 {
         return None;
     }
     Callee::from_words(b.record(b.data[i][0]))
+}
+
+/// The callee of call `i` under the ordinary inlining rule: a
+/// [`known_call`] with no omitted argument.
+#[must_use]
+pub fn plain_call(b: &Body, i: usize) -> Option<Callee> {
+    let callee = known_call(b, i)?;
+    let r = b.record(b.data[i][1]);
+    let args = &r[..r.len().checked_sub(3)?];
+    let default = args
+        .iter()
+        .any(|&a| b.tags.get(a as usize) == Some(&Tag::DefaultCall));
+    if default {
+        return None;
+    }
+    Some(callee)
 }
 
 /// Chooses each `Bound` trait call of `k` again as an `Impl` call of the
@@ -58,11 +72,11 @@ pub fn rechoose(k: &mut Body, pick: &dyn Fn(DefId, Ty, TyList) -> Option<DefId>)
     }
 }
 
-/// Whether `c` may be copied: a function of one sub-body, its root block
-/// last, of at most `limit` instructions, with no suspension, `defer`,
-/// closure, provider or ownership statement, and no call with providers.
+/// Whether `c` may be copied structurally: a function of one sub-body, its
+/// root block last, with no suspension, `defer`, closure, provider or
+/// ownership statement, and no call with providers.
 #[must_use]
-pub fn inlinable(c: &Body, limit: usize) -> bool {
+pub fn copyable(c: &Body) -> bool {
     let n = c.len();
     let refused = |i: usize| match c.tags[i] {
         Tag::Call => c.record(c.data[i][1]).iter().rev().nth(2) != Some(&0),
@@ -79,11 +93,6 @@ pub fn inlinable(c: &Body, limit: usize) -> bool {
                 | Tag::ContextFor
                 | Tag::ContextNew
                 | Tag::With
-                | Tag::CallDyn
-                | Tag::CallHost
-                | Tag::SwitchInt
-                | Tag::SwitchChar
-                | Tag::SwitchStr
                 | Tag::Hole
                 | Tag::Poison
                 | Tag::Drop
@@ -94,12 +103,18 @@ pub fn inlinable(c: &Body, limit: usize) -> bool {
         ),
     };
     c.kind == BodyKind::Fn
-        && (1..=limit).contains(&n)
+        && n >= 1
         && c.sub_root == [u32_of(n - 1)]
         && c.susp.is_empty()
         && c.cap_local.is_empty()
         && c.label.is_empty()
         && !(0..n).any(refused)
+}
+
+/// Whether `c` is [`copyable`] and fits the caller's instruction limit.
+#[must_use]
+pub fn inlinable(c: &Body, limit: usize) -> bool {
+    c.len() <= limit && copyable(c)
 }
 
 /// Whether `c` calls nothing, not even a function value, so that its copy
@@ -142,8 +157,8 @@ struct Ready {
 /// A site is skipped, the rest still copied, when its callee's parameters
 /// do not match the call's arguments, or the call is in no block. A caller
 /// the renumbering
-/// refuses (a `CallDyn`, a call's providers of an unknown kind) copies
-/// none and is unchanged.
+/// refuses (a call's providers of an unknown kind) copies none and is
+/// unchanged.
 ///
 /// # Errors
 /// Only if the renumbering refuses what that check let through.
@@ -151,8 +166,7 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
     let mut copied = vec![false; sites.len()];
     let refused = |i: usize| {
         let kind = || b.record(b.data[i][1]).iter().rev().nth(2).copied();
-        b.tags[i] == Tag::CallDyn
-            || (matches!(b.tags[i], Tag::Call | Tag::Await) && kind().is_some_and(|p| p > 2))
+        matches!(b.tags[i], Tag::Call | Tag::Await) && kind().is_some_and(|p| p > 2)
     };
     if sites.is_empty() || (0..b.len()).any(refused) {
         return Ok(copied);
@@ -407,7 +421,10 @@ mod tests {
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::{Ty, TyList};
 
-    use super::{Site, inlinable, inline_calls, leaf, plain_call, rechoose, u32_of};
+    use super::{
+        Site, copyable, inlinable, inline_calls, known_call, leaf, plain_call, push_record,
+        rechoose, u32_of,
+    };
     use crate::ir::{
         Body, BodyKind, Callee, ChoiceKind, IntrinsicOp, Op, Place, PlaceRoot, Proj, Providers,
         ReadMode, Ref, Tag, TirBuilder, TirSink, local_flags, map_body_types, verify, verify_owned,
@@ -804,5 +821,90 @@ mod tests {
         assert_eq!(choice(0), (ChoiceKind::Impl, 7));
         assert_eq!(choice(1), (ChoiceKind::Bound, 0));
         assert_eq!(verify(&b), []);
+    }
+
+    #[test]
+    fn switches_dynamic_calls_and_host_calls_are_copyable() {
+        let make = |tag, data, extra| {
+            let mut body = Body::new(DefId::from_raw(1), BodyKind::Fn);
+            body.tags = vec![tag, Tag::Block];
+            body.data = vec![data, [crate::ir::NONE, crate::ir::NONE]];
+            body.ty = vec![Ty::VOID, Ty::VOID];
+            body.syn = vec![N, N];
+            body.extra = extra;
+            body.sub_root = vec![1];
+            body
+        };
+        let switch = make(Tag::SwitchInt, [0, 0], vec![1, 1]);
+        let dynamic = make(Tag::CallDyn, [0, 0], vec![6, 10, 20, 0, 0, 0, 0]);
+        let host = make(Tag::CallHost, [0, 0], vec![0]);
+        assert!(copyable(&switch));
+        assert!(copyable(&dynamic));
+        assert!(copyable(&host));
+    }
+
+    #[test]
+    fn copies_switch_dynamic_and_host_callees() {
+        let copies = |copy: Body, tag| {
+            let mut body = caller();
+            inline_call(&mut body, 1, copy).expect("inlines");
+            assert!(body.tags.contains(&tag));
+            body.anchors.clear();
+            assert_eq!(verify(&body), []);
+        };
+
+        let mut switch = callee();
+        let at = switch
+            .tags
+            .iter()
+            .position(|tag| *tag == Tag::If)
+            .expect("callee has an if");
+        let arms = switch.record(switch.data[at][1]);
+        let (yes, no) = (arms[0], arms[1]);
+        let cases = push_record(&mut switch, &[1, yes, no]);
+        switch.tags[at] = Tag::SwitchInt;
+        switch.data[at][1] = cases;
+        copies(switch, Tag::SwitchInt);
+
+        let mut dynamic = callee();
+        let record = push_record(&mut dynamic, &[8, 0, 0, Ref::konst(0).0, 0, 0, 0]);
+        dynamic.tags[0] = Tag::CallDyn;
+        dynamic.data[0] = [Ref::konst(0).0, record];
+        copies(dynamic, Tag::CallDyn);
+
+        let mut host = callee();
+        let record = push_record(&mut host, &[Ref::konst(0).0]);
+        host.tags[0] = Tag::CallHost;
+        host.data[0] = [Ref::konst(0).0, record];
+        copies(host, Tag::CallHost);
+    }
+
+    #[test]
+    fn a_dynamic_call_in_the_caller_does_not_block_a_copy() {
+        let mut body = caller();
+        let receiver = body.record(body.data[0][1])[0];
+        let record = u32_of(body.extra.len());
+        body.extra.extend([6, 8, 0, 0, 0, 0, 0]);
+        body.tags[0] = Tag::CallDyn;
+        body.data[0] = [receiver, record];
+        assert_eq!(
+            inline_calls(
+                &mut body,
+                vec![Site {
+                    call: 1,
+                    copy: callee()
+                }]
+            ),
+            Ok(vec![true])
+        );
+    }
+
+    #[test]
+    fn a_decorated_call_can_copy_an_omitted_default_argument() {
+        let mut body = caller();
+        body.tags[0] = Tag::DefaultCall;
+        assert_eq!(known_call(&body, 1), Some(item(3)));
+        assert_eq!(plain_call(&body, 1), None);
+        inline_call(&mut body, 1, callee()).expect("decorated call inlines");
     }
 }

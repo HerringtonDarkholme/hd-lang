@@ -1,0 +1,10 @@
+# test: inline Always cannot contain with
+# Spec 14 Inline And Cold: annot.inline.always-copyable.
+use std.annotation.inline
+use std.console.MemoryConsole
+
+@inline(.Always) # diagnostic: inline-always-uncopyable
+fn write() -> void:
+    console := MemoryConsole::new()
+    $.with(Console=console):
+        println("x")

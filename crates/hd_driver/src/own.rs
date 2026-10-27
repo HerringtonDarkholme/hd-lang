@@ -15,7 +15,7 @@ use std::fmt::Write as _;
 use hd_base::HashMap;
 use hd_base::{DefId, Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use hd_mono::ProgramEnv;
-use hd_opt::inline::InlineEnv;
+use hd_opt::inline::{InlineEnv, InlineHint};
 use hd_tir::ir::{Body, Callee, ChoiceKind};
 use hd_tir::own::{OwnCx, OwnScratch, Pass, Summary, Tri};
 use hd_types::solver::{
@@ -437,18 +437,25 @@ impl InlineEnv for Env<'_> {
         self.run.item_module_text(def)
     }
 
-    fn inline_never(&self, def: DefId) -> bool {
-        self.p.items.get(def).is_some_and(|i| {
-            matches!(
-                i.inline,
-                hd_resolve::iface::INLINE_NEVER | hd_resolve::iface::COLD
-            )
-        })
+    fn inline_hint(&self, def: DefId) -> InlineHint {
+        self.p
+            .items
+            .get(def)
+            .map_or(InlineHint::Default, |i| match i.inline {
+                hd_resolve::iface::INLINE_AUTO => InlineHint::Auto,
+                hd_resolve::iface::INLINE_ALWAYS => InlineHint::Always,
+                hd_resolve::iface::INLINE_NEVER | hd_resolve::iface::COLD => InlineHint::Never,
+                _ => InlineHint::Default,
+            })
     }
 
-    fn signature(&self, def: DefId) -> Option<(Vec<Ty>, bool)> {
+    fn signature(&self, def: DefId) -> Option<(Vec<Ty>, bool, bool)> {
         let sig = self.sig(def)?;
-        Some((sig.params.iter().map(|&(_, t)| t).collect(), sig.suspends))
+        Some((
+            sig.params.iter().map(|&(_, t)| t).collect(),
+            sig.suspends,
+            sig.row != hd_types::RowId::EMPTY,
+        ))
     }
 
     fn checked_body(&self, def: DefId) -> Option<&(Body, Hash128)> {

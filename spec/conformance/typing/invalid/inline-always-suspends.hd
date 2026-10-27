@@ -1,0 +1,7 @@
+# test: inline Always cannot mark a suspending function
+# Spec 14 Inline And Cold: annot.inline.always-copyable.
+use std.annotation.inline
+
+@inline(.Always) # diagnostic: inline-always-uncopyable
+fn wait!() -> void:
+    pass

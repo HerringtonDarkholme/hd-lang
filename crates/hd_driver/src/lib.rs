@@ -7829,6 +7829,170 @@ impl Run<'_> {
         }));
     }
 
+    /// The written `@inline(.Always)` on `def`, including private items
+    /// whose declarations are not part of a folder interface.
+    fn inline_always_span(&self, def: DefId) -> Span {
+        let Some(module) = self.item_module(def) else {
+            return self.item_span(def, 0);
+        };
+        let src = self.src(module.idx());
+        let names = self.names();
+        let module_text = &self.table.modules[module.idx()].path;
+        let heads = hd_resolve::heads(&names, &src, module_text, self.role(module.idx()) == "test");
+        let Some(head) = heads.iter().find(|head| head.def == def) else {
+            return self.item_span(def, 0);
+        };
+        head.node
+            .children()
+            .filter(|child| child.kind() == hd_syntax::SyntaxKind::Decorator)
+            .find(|decorator| {
+                let mut inline = false;
+                let mut always = false;
+                for token in src.tokens(*decorator) {
+                    inline |= src.text(token) == "inline";
+                    always |= src.text(token) == "Always";
+                }
+                inline && always
+            })
+            .map_or_else(|| src.span(head.node), |decorator| src.span(decorator))
+    }
+
+    /// Checks the promises of `@inline(.Always)` after every module body is
+    /// available, including cache hits. Local body restrictions and cycles
+    /// are package facts rather than inputs to a module's cached check.
+    fn check_inline_always(&self) {
+        let mut items: HashMap<DefId, Item> = HashMap::default();
+        let mut bodies: HashMap<DefId, Body> = HashMap::default();
+        for checked in &self.check {
+            let Some(Some(checked)) = checked.get() else {
+                continue;
+            };
+            if checked.has_errors {
+                continue;
+            }
+            let Some(sections) = split_sections(&checked.entry) else {
+                continue;
+            };
+            if let Some(decoded) = sections
+                .get(2)
+                .and_then(|bytes| hd_resolve::decode_items(&self.names(), bytes))
+            {
+                items.extend(
+                    decoded
+                        .0
+                        .into_iter()
+                        .filter(|item| item.inline == hd_resolve::iface::INLINE_ALWAYS)
+                        .map(|item| (item.def, item)),
+                );
+            }
+            let Some(index) = body_index(&checked.entry) else {
+                continue;
+            };
+            for (_, at) in index {
+                if let Some(body) =
+                    hd_tir::wire::read_body(&checked.entry[at], &self.pool, &self.paths, &self.syms)
+                {
+                    bodies.insert(body.item, body);
+                }
+            }
+        }
+
+        let mut defs: Vec<DefId> = items.keys().copied().collect();
+        defs.sort_stable_by_key(|def| def.raw());
+        let mut findings: Vec<(DefId, String)> = Vec::new();
+        let mut bad: HashSet<DefId> = HashSet::default();
+        for &def in &defs {
+            let Some(item) = items.get(&def) else {
+                continue;
+            };
+            let Some(sig) = item.sig() else {
+                continue;
+            };
+            let body = bodies.get(&def);
+            let module = self.item_module_text(def);
+            let runtime = module == "std.rt" || module.starts_with("std.rt.");
+            let reason = if sig.suspends {
+                Some("it suspends")
+            } else if sig.row != hd_types::RowId::EMPTY {
+                Some("it has a requirement row")
+            } else if runtime {
+                Some("it belongs to `std.rt`")
+            } else if body.is_some_and(|body| body.tags.contains(&hd_tir::Tag::Defer)) {
+                Some("it contains `defer`")
+            } else if body.is_some_and(|body| body.tags.contains(&hd_tir::Tag::Closure)) {
+                Some("it makes a closure")
+            } else if body.is_some_and(|body| body.tags.contains(&hd_tir::Tag::With)) {
+                Some("it contains `with`")
+            } else {
+                None
+            };
+            if let Some(reason) = reason {
+                bad.insert(def);
+                findings.push((
+                    def,
+                    format!("`@inline(.Always)` cannot copy this function because {reason}"),
+                ));
+            }
+        }
+
+        let always: HashSet<DefId> = defs.iter().copied().collect();
+        let mut edges: HashMap<DefId, Vec<DefId>> = HashMap::default();
+        for &def in &defs {
+            let Some(body) = bodies.get(&def) else {
+                continue;
+            };
+            let mut out = Vec::new();
+            for i in 0..body.len() {
+                let callee = hd_tir::inline::known_call(body, i).and_then(|callee| match callee {
+                    hd_tir::Callee::Item { def, .. } => Some(def),
+                    hd_tir::Callee::TraitMethod {
+                        choice: (hd_tir::ChoiceKind::Impl, def),
+                        ..
+                    } => Some(DefId::from_raw(def)),
+                    hd_tir::Callee::TraitMethod { .. } => None,
+                });
+                if let Some(callee) = callee.filter(|callee| always.contains(callee)) {
+                    out.push(callee);
+                }
+            }
+            out.sort_stable_by_key(|callee| callee.raw());
+            out.dedup();
+            edges.insert(def, out);
+        }
+        let done = std::cell::RefCell::new(HashSet::default());
+        for &root in &defs {
+            hd_opt::inline::bottom_up(
+                root,
+                &|def| done.borrow().contains(&def),
+                &mut |def| edges.get(&def).cloned().unwrap_or_default(),
+                &mut |members, recursive| {
+                    done.borrow_mut().extend(members.iter().copied());
+                    if recursive {
+                        members.sort_stable_by_key(|def| def.raw());
+                        for &def in members.iter().filter(|def| !bad.contains(def)) {
+                            findings.push((
+                                def,
+                                "`@inline(.Always)` functions cannot form a call cycle".into(),
+                            ));
+                        }
+                    }
+                },
+            );
+        }
+        findings.sort_stable_by_key(|(def, _)| {
+            let span = self.inline_always_span(*def);
+            (span.file.raw(), span.lo, def.raw())
+        });
+        let mut diags = lock(&self.diags);
+        for (def, message) in findings {
+            diags.error(
+                Code::InlineAlwaysUncopyable,
+                self.inline_always_span(def),
+                &message,
+            );
+        }
+    }
+
     /// Recompute hidden-type equations after module checks, including cache
     /// hits, without adding body dependencies to any caller's check key.
     fn check_opaque_cycles(&self) {
@@ -7917,6 +8081,7 @@ impl Run<'_> {
 
     fn package_result(&self, sp: &dyn Spawn) {
         lock(&self.report).ok(Stage::PackageResult);
+        self.check_inline_always();
         self.check_opaque_cycles();
         // Recompute the folder graph from current module summaries, including
         // cache hits. Its verdict is never cached under one module's key.

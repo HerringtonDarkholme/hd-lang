@@ -223,6 +223,9 @@ fn first(input: &List[u8]) -> u8:
 9. r[annot.inline.cold] In every build, each direct call of a `@cold` function is a call through the function table.
 10. r[annot.inline.instances] A choice holds for every instance of a generic function, and for a method wherever a call resolves to its body. A call through `&dyn` or a function value is a call as before.
 11. r[annot.inline.meaning] None of these lines changes a program's output, its panics, or its panic frames.
+12. r[annot.inline.auto] In every build and package, `@inline` or `@inline(.Auto)` copies each statically known call whose body has at most 64 TIR instructions and is copyable. Reference parameters are allowed. A body that is too large or cannot be copied remains a call without a diagnostic.
+13. r[annot.inline.always] In every build and package, `@inline(.Always)` copies every statically known call. The body's size and reference parameters do not limit the copy.
+14. r[annot.inline.always-copyable] A function marked `@inline(.Always)` must not suspend, contain a `defer`, make a closure, have a requirement row, contain `with`, or belong to `std.rt`. Functions marked `@inline(.Always)` must not form a cycle consisting only of such functions. Error: `inline-always-uncopyable`.
 
 ```text
 use std.annotation.{cold, inline}

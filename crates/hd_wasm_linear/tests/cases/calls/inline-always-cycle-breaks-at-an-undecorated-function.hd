@@ -1,0 +1,20 @@
+# @dump: wat
+# @build: v8 release
+# A cycle through an undecorated function breaks at that function; the
+# `@inline(.Always)` call still copies.
+use std.annotation.inline
+
+@inline(.Always)
+fn always(n: i32) -> i32:
+    if n == 0:
+        return +0
+    ordinary(n - 1)
+
+fn ordinary(n: i32) -> i32:
+    if n == 0:
+        return +0
+    always(n - 1)
+
+fn run(n: i32) -> i32:
+    always(n)
+    #^^^^^^^^^
