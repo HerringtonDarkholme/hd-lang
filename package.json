@@ -13,7 +13,7 @@
     "test": "node --test --experimental-strip-types 'host/*.test.mjs' 'bench/metrics/*.test.ts' 'spec/tools/*.test.ts'",
     "test:all": "pnpm test && pnpm run test:ui",
     "test:ui": "node --test --experimental-strip-types 'website/test/*.test.ts' 'website/playground/test/**/*.test.ts'",
-    "fuzz:smoke": "node --experimental-strip-types spec/tools/fuzz/fuzz.ts --fuzzer parse,contract,phase --fail-on phase --seed smoke --cases 100",
+    "fuzz:smoke": "node --experimental-strip-types spec/tools/fuzz/fuzz.ts --fuzzer parse,contract,phase,fmt --fail-on phase,fmt --seed smoke --cases 100",
     "metrics": "node --experimental-strip-types bench/metrics/run.ts",
     "test:web-compiler": "pnpm run -s build:web-compiler && node scripts/test-web-compiler.js",
     "spec": "node --experimental-strip-types spec/tools/spec.ts",

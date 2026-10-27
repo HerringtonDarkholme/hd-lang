@@ -44,6 +44,7 @@ hd_syntax = { path = "../hd_syntax" }
 workspace = true
 
 [dev-dependencies]
+hd_fmt = { path = "../hd_fmt" }
 hd_run = { path = "../hd_run" }
 hd_testkit = { path = "../hd_testkit" }
 # Session-module tests (`f1c55020:future-work/compiler/repl-plan.md` C2) validate the modules a session

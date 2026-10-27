@@ -16,7 +16,7 @@ contract.
 - The fuzzer runs every command from the repository root, so relative command
   paths resolve there. The contract itself does not fix the working
   directory.
-- The fuzzer uses `parse`, `check`, and `test` as the contract defines them.
+- The fuzzer uses `parse`, `check`, `fmt`, and `test` as the contract defines them.
   It also runs `FILE` with no action, the contract's run step, and reports
   it as `run`; `run` is judged like `test`. The optional Wasm adapter also
   uses `build FILE`, with FILE copied into a fresh package, because
@@ -32,6 +32,7 @@ contract.
 | ------------ | ------------------------ | -------------------------------------------------------------------------------- |
 | `parse FILE` | exit 0                   | exit 101, at least one located diagnostic                                        |
 | `check FILE` | exit 0, warnings allowed | exit 101, at least one located diagnostic with a code from the spec inventory     |
+| `fmt FILE`   | exit 0, file rewritten   | exit 101, at least one located syntax diagnostic                                 |
 | `FILE` (`run`) | exit 0                 | exit 101, a located diagnostic with an inventoried code; or exit 1, a chapter-06 panic code |
 | `test FILE`  | exit 0                   | same as `run`                                                                    |
 | `build FILE` | exit 0, module emitted   | exit 101, located diagnostic (Wasm adapter only)                                 |
@@ -58,6 +59,9 @@ one.
 - Phase inconsistency (the `phase` fuzzer): `check` accepts while `parse`
   rejects the same file, or `run` or `test` succeeds (exits 0 or panics) while
   `check` rejects it.
+- Formatter inconsistency (the `fmt` fuzzer): `fmt` rejects a parse-accepted
+  file, its output does not parse, its second pass differs, or its `check`
+  outcome class and first code differ from the original file.
 
 ## Outcome class
 

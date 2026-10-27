@@ -734,6 +734,7 @@ dependencies = [
  "hd_cache",
  "hd_check",
  "hd_diag",
+ "hd_fmt",
  "hd_host_abi",
  "hd_intern",
  "hd_mono",

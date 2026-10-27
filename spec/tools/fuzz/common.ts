@@ -15,7 +15,7 @@ export const defaultCompiler: readonly string[] = [join(repoRoot, "scripts", "hd
  * `run` is the contract's `IMPL FILE`, which runs FILE as a single file; every
  * other action is invoked as `IMPL ACTION FILE`.
  */
-export type Action = "build" | "check" | "parse" | "run" | "test";
+export type Action = "build" | "check" | "fmt" | "parse" | "run" | "test";
 
 export interface CommandResult {
   readonly code: number | null;

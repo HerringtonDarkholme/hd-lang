@@ -45,6 +45,12 @@ run: hd fmt --check inputs/protected.input
 stdout-json: []
 run: hd fmt inputs/protected.input
 same-text: inputs/protected.input want/protected.hd
+run: hd fmt inputs/unicode.input
+same-text: inputs/unicode.input want/unicode.expected
+run: hd fmt --check inputs/unicode.input
+stdout-json: []
+run: hd fmt inputs/unicode.input
+same-text: inputs/unicode.input want/unicode.expected
 run: hd fmt --check inputs/records.input
 exit: 1
 run: hd fmt inputs/records.input

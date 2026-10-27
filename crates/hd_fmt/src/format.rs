@@ -2,8 +2,9 @@
 
 use hd_base::{NodeIdx, SliceSort as _};
 use hd_syntax::{NodeRef, Parse, SyntaxKind as S, TokenBuf, TokenKind as T};
+use std::ops::Range;
 
-use crate::document::{Command as C, Document, MAX_COLUMNS, PrintStats};
+use crate::document::{Command as C, Document, PrintStats};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 enum Gap {
@@ -16,10 +17,12 @@ enum Gap {
     Blank,
 }
 
+const HAS_ELSE: u8 = 1;
+const CONTAINS_SUITE: u8 = 1 << 1;
+const IN_PIPE: u8 = 1 << 2;
+const FORCE_FLAT: u8 = 1 << 3;
+
 pub(crate) fn format(source: &str, parsed: &Parse) -> (String, PrintStats) {
-    if parsed.tokens.is_empty() {
-        return (String::new(), PrintStats::default());
-    }
     let analysis = Analysis::new(source, parsed);
     Builder::new(source, parsed, analysis).build()
 }
@@ -31,32 +34,83 @@ struct Analysis<'s, 'p> {
     gaps: Vec<Gap>,
     indent_starts: Vec<usize>,
     indent_ends: Vec<usize>,
-    comments: Vec<Vec<usize>>,
+    suite_indent_end_heads: Vec<Option<NodeIdx>>,
+    suite_indent_end_next: Vec<Option<NodeIdx>>,
+    comment_first: Vec<u32>,
+    comment_end: Vec<u32>,
+    comment_owners: Vec<NodeIdx>,
+    comment_inline: Vec<bool>,
+    token_owners: Vec<NodeIdx>,
     optional_commas: Vec<bool>,
     added_group_commas: Vec<bool>,
     standalone_group_commas: Vec<bool>,
     suppressed_commas: Vec<bool>,
     chain_indents: Vec<bool>,
     pipe_indents: Vec<bool>,
+    node_flags: Vec<u8>,
 }
 
 impl<'s, 'p> Analysis<'s, 'p> {
     fn new(source: &'s str, parsed: &'p Parse) -> Self {
         let token_count = parsed.tokens.len();
+        let parents = parsed.tree.parent_links();
+        let mut node_flags = vec![0; parsed.tree.len()];
+        let nodes: Vec<_> = parsed.tree.root().descendants().collect();
+        let mut token_owners = vec![parsed.tree.root().index(); token_count];
+        for node in &nodes {
+            for token in node.direct_tokens() {
+                token_owners[token.idx()] = node.index();
+            }
+            let index = node.index().idx();
+            if node.kind() == S::IfExpr
+                && node
+                    .children()
+                    .any(|child| matches!(child.kind(), S::ElseClause | S::ElseIfClause))
+            {
+                node_flags[index] |= HAS_ELSE;
+            }
+            if let Some(parent_index) = parents[index].get() {
+                let parent = parsed.tree.node(parent_index);
+                if parent.kind() == S::PipeExpr
+                    || parent.kind() != S::ClosureExpr
+                        && node_flags[parent_index.idx()] & IN_PIPE != 0
+                {
+                    node_flags[index] |= IN_PIPE;
+                }
+            }
+        }
+        for node in nodes.iter().rev() {
+            let index = node.index().idx();
+            if matches!(node.kind(), S::ClosureExpr | S::IfExpr | S::MatchExpr) {
+                node_flags[index] |= CONTAINS_SUITE;
+            }
+            if node_flags[index] & CONTAINS_SUITE != 0
+                && let Some(parent) = parents[index].get()
+            {
+                node_flags[parent.idx()] |= CONTAINS_SUITE;
+            }
+        }
         let mut this = Self {
             source,
             parsed,
-            parents: parsed.tree.parent_links(),
+            parents,
             gaps: vec![Gap::Auto; token_count + 1],
             indent_starts: vec![0; token_count + 1],
             indent_ends: vec![0; token_count + 1],
-            comments: vec![Vec::new(); token_count + 1],
+            suite_indent_end_heads: vec![None; token_count + 1],
+            suite_indent_end_next: vec![None; parsed.tree.len()],
+            comment_first: vec![u32::MAX; token_count + 1],
+            comment_end: vec![0; token_count + 1],
+            comment_owners: vec![parsed.tree.root().index(); parsed.tokens.com_start.len()],
+            comment_inline: vec![false; parsed.tokens.com_start.len()],
+            token_owners,
             optional_commas: vec![false; token_count],
             added_group_commas: vec![false; parsed.tree.len()],
             standalone_group_commas: vec![false; parsed.tree.len()],
             suppressed_commas: vec![false; token_count],
             chain_indents: vec![false; parsed.tree.len()],
             pipe_indents: vec![false; parsed.tree.len()],
+            node_flags,
         };
         this.attach_comments();
         this.visit(parsed.tree.root());
@@ -65,9 +119,144 @@ impl<'s, 'p> Analysis<'s, 'p> {
 
     fn attach_comments(&mut self) {
         let tokens = &self.parsed.tokens;
-        for (comment, &start) in tokens.com_start.iter().enumerate() {
+        for (comment_index, &start) in tokens.com_start.iter().enumerate() {
+            let comment =
+                u32::try_from(comment_index).expect("formatter comment count fits in u32");
             let boundary = tokens.end.partition_point(|&end| end <= start);
-            self.comments[boundary].push(comment);
+            if self.comment_first[boundary] == u32::MAX {
+                self.comment_first[boundary] = comment;
+            }
+            self.comment_end[boundary] = comment + 1;
+            let previous_end = boundary
+                .checked_sub(1)
+                .map_or(0, |index| tokens.end[index] as usize);
+            let inline = boundary > 0 && !self.source[previous_end..start as usize].contains('\n');
+            self.comment_inline[comment_index] = inline;
+            self.comment_owners[comment_index] =
+                self.comment_owner(boundary, start as usize, inline);
+        }
+    }
+
+    fn comment_range(&self, boundary: usize) -> Range<usize> {
+        let first = self.comment_first[boundary];
+        if first == u32::MAX {
+            0..0
+        } else {
+            first as usize..self.comment_end[boundary] as usize
+        }
+    }
+
+    fn comment_owner(&self, boundary: usize, start: usize, inline: bool) -> NodeIdx {
+        if self.parsed.tokens.is_empty() {
+            return self.parsed.tree.root().index();
+        }
+        let token = if boundary > 0 {
+            boundary - 1
+        } else {
+            boundary.min(self.parsed.tokens.len() - 1)
+        };
+        let node = self.parsed.tree.node(self.token_owners[token]);
+        if inline {
+            return node.index();
+        }
+        let comment_column = column(self.source, start);
+        let previous = boundary
+            .checked_sub(1)
+            .map(|token| self.token_owners[token]);
+        let next = (boundary < self.parsed.tokens.len()).then(|| self.token_owners[boundary]);
+        let mut owner = match (previous, next) {
+            (Some(left), Some(right)) => self.common_ancestor(left, right),
+            _ => self.parsed.tree.root().index(),
+        };
+        while !matches!(self.parsed.tree.node(owner).kind(), S::Root | S::Block) {
+            let Some(parent) = self.parents[owner.idx()].get() else {
+                break;
+            };
+            owner = parent;
+        }
+
+        if let Some(previous) = previous
+            && let Some(deeper) = self.deepest_comment_block(previous, owner, comment_column)
+        {
+            return deeper;
+        }
+        if boundary > 0
+            && self.parsed.tokens.kind[boundary - 1] == T::Colon
+            && let Some(next) = next
+            && let Some(deeper) = self.deepest_comment_block(next, owner, comment_column)
+        {
+            return deeper;
+        }
+        owner
+    }
+
+    fn common_ancestor(&self, mut left: NodeIdx, mut right: NodeIdx) -> NodeIdx {
+        let mut left_depth = self.node_depth(left);
+        let mut right_depth = self.node_depth(right);
+        while left_depth > right_depth {
+            left = self.parents[left.idx()]
+                .get()
+                .expect("non-root node has a parent");
+            left_depth -= 1;
+        }
+        while right_depth > left_depth {
+            right = self.parents[right.idx()]
+                .get()
+                .expect("non-root node has a parent");
+            right_depth -= 1;
+        }
+        while left != right {
+            left = self.parents[left.idx()]
+                .get()
+                .expect("non-root node has a parent");
+            right = self.parents[right.idx()]
+                .get()
+                .expect("non-root node has a parent");
+        }
+        left
+    }
+
+    fn node_depth(&self, mut node: NodeIdx) -> usize {
+        let mut depth = 0;
+        while let Some(parent) = self.parents[node.idx()].get() {
+            node = parent;
+            depth += 1;
+        }
+        depth
+    }
+
+    fn deepest_comment_block(
+        &self,
+        mut candidate: NodeIdx,
+        floor: NodeIdx,
+        comment_column: usize,
+    ) -> Option<NodeIdx> {
+        loop {
+            let node = self.parsed.tree.node(candidate);
+            if node.kind() == S::Block
+                && let Some(first) = node.first_token().get()
+                && column(self.source, self.parsed.tokens.start[first.idx()] as usize)
+                    <= comment_column
+            {
+                return Some(candidate);
+            }
+            if candidate == floor {
+                return None;
+            }
+            let parent = self.parents[candidate.idx()].get()?;
+            candidate = parent;
+        }
+    }
+
+    fn contains_node(&self, ancestor: NodeIdx, mut node: NodeIdx) -> bool {
+        loop {
+            if node == ancestor {
+                return true;
+            }
+            let Some(parent) = self.parents[node.idx()].get() else {
+                return false;
+            };
+            node = parent;
         }
     }
 
@@ -77,10 +266,17 @@ impl<'s, 'p> Analysis<'s, 'p> {
             S::Block => self.mark_block(node),
             kind if comma_group(kind, node, &self.parsed.tokens) => self.mark_comma_group(node),
             kind if binary(kind) => self.mark_binary(node),
-            S::AssignmentStmt | S::BindingExpr | S::DefaultValue | S::TypeDefault => {
+            S::AssignmentStmt
+            | S::BindingExpr
+            | S::DefaultValue
+            | S::TypeDefault
+            | S::AssociatedTypeBinding
+            | S::ContextEntry => {
                 self.mark_assignment(node);
             }
             S::NamedArgument => self.mark_named_argument(node),
+            S::BoundList | S::RequirementRow | S::ImplDecl => self.mark_type_spacing(node),
+            S::VariantExpr | S::VariantPattern => self.mark_variant(node),
             S::Decorator => {
                 if let Some((_, last)) = token_bounds(node) {
                     self.set_gap(last + 1, Gap::Hard);
@@ -102,7 +298,10 @@ impl<'s, 'p> Analysis<'s, 'p> {
     }
 
     fn mark_sibling_lines(&mut self, node: NodeRef<'_>) {
-        if !matches!(node.kind(), S::Root | S::Block | S::MatchExpr) {
+        if !matches!(
+            node.kind(),
+            S::Root | S::Block | S::MatchExpr | S::ComprehensionExpr
+        ) {
             return;
         }
         let mut children = node
@@ -112,6 +311,12 @@ impl<'s, 'p> Analysis<'s, 'p> {
             return;
         };
         for child in children {
+            if node.kind() == S::ComprehensionExpr
+                && self.node_flags[previous.index().idx()] & CONTAINS_SUITE == 0
+            {
+                previous = child;
+                continue;
+            }
             let boundary = child.first_token().idx();
             let previous_end = self.parsed.tokens.end[previous.last_token().idx()] as usize;
             let next_start = self.parsed.tokens.start[boundary] as usize;
@@ -131,9 +336,15 @@ impl<'s, 'p> Analysis<'s, 'p> {
         };
         self.indent_starts[first] += 1;
         self.indent_ends[last + 1] += 1;
+        self.suite_indent_end_next[node.index().idx()] = self.suite_indent_end_heads[last + 1];
+        self.suite_indent_end_heads[last + 1] = Some(node.index());
         let inline_pass = self.block_is_inline_pass(node);
-        let inline = inline_pass || self.block_may_inline(node);
-        let gap = if inline_pass {
+        let force_flat = self.block_in_pipe_step(node) && self.block_can_inline(node);
+        if force_flat {
+            self.node_flags[node.index().idx()] |= FORCE_FLAT;
+        }
+        let inline = inline_pass || force_flat || self.block_may_inline(node);
+        let gap = if inline_pass || force_flat {
             Gap::Space
         } else if inline {
             Gap::Soft(" ")
@@ -175,17 +386,10 @@ impl<'s, 'p> Analysis<'s, 'p> {
         }) else {
             return false;
         };
-        let one_statement = node
-            .children()
-            .filter(|child| child.first_token().get().is_some())
-            .count()
-            == 1;
+        let one_statement = Self::block_has_one_statement(node);
         match parent.kind() {
             S::ClosureExpr | S::MatchArm => {
-                one_statement
-                    && !node
-                        .descendants()
-                        .any(|descendant| matches!(descendant.kind(), S::IfExpr | S::MatchExpr))
+                one_statement && self.node_flags[node.index().idx()] & CONTAINS_SUITE == 0
             }
             S::IfExpr | S::ElseClause | S::ElseIfClause => {
                 let owner = if parent.kind() == S::IfExpr {
@@ -201,11 +405,24 @@ impl<'s, 'p> Analysis<'s, 'p> {
         }
     }
 
+    fn block_has_one_statement(node: NodeRef<'_>) -> bool {
+        node.children()
+            .filter(|child| child.first_token().get().is_some())
+            .count()
+            == 1
+    }
+
+    fn block_can_inline(&self, node: NodeRef<'_>) -> bool {
+        let Some(first) = node.first_token().get() else {
+            return false;
+        };
+        Self::block_has_one_statement(node)
+            && self.node_flags[node.index().idx()] & CONTAINS_SUITE == 0
+            && self.comment_range(first.idx()).is_empty()
+    }
+
     fn if_is_value(&self, node: NodeRef<'_>) -> bool {
-        if !node
-            .descendants()
-            .any(|descendant| descendant.kind() == S::ElseClause)
-        {
+        if self.node_flags[node.index().idx()] & HAS_ELSE == 0 {
             return false;
         }
         let mut current = node;
@@ -213,6 +430,9 @@ impl<'s, 'p> Analysis<'s, 'p> {
             match parent.kind() {
                 S::ParenExpr
                 | S::BindingExpr
+                | S::LetStmt
+                | S::DiscardStmt
+                | S::AssignmentStmt
                 | S::RangeExpr
                 | S::LogicalOrExpr
                 | S::LogicalAndExpr
@@ -314,11 +534,15 @@ impl<'s, 'p> Analysis<'s, 'p> {
         }
         let open = open.idx();
         let close = close.idx();
+        if matches!(node.kind(), S::DataExpr | S::DataPattern) {
+            self.set_gap(open, Gap::Space);
+        }
         if close > open + 1 {
             self.indent_starts[open + 1] += 1;
             self.indent_ends[close] += 1;
         }
-        let padded = matches!(node.kind(), S::DataExpr | S::MapExpr) && close > open + 1;
+        let padded =
+            matches!(node.kind(), S::DataExpr | S::DataPattern | S::MapExpr) && close > open + 1;
         self.force_gap(open + 1, Gap::Soft(if padded { " " } else { "" }));
         for comma in node
             .direct_tokens()
@@ -345,7 +569,7 @@ impl<'s, 'p> Analysis<'s, 'p> {
                     .is_some_and(|token| token.idx() < close)
             })
             .last()
-            .is_some_and(contains_suite);
+            .is_some_and(|child| self.node_flags[child.index().idx()] & CONTAINS_SUITE != 0);
         self.standalone_group_commas[node.index().idx()] = suite_final;
         if trailing {
             let comma_count = node
@@ -370,6 +594,7 @@ impl<'s, 'p> Analysis<'s, 'p> {
 
     fn mark_binary(&mut self, node: NodeRef<'_>) {
         let tokens = &self.parsed.tokens;
+        let breakable = self.binary_breakable(node);
         for operator in node
             .direct_tokens()
             .filter(|&token| binary_operator(tokens.kind(token)))
@@ -377,7 +602,13 @@ impl<'s, 'p> Analysis<'s, 'p> {
             let range = matches!(tokens.kind(operator), T::DotDot | T::DotDotEq);
             self.set_gap(
                 operator.idx(),
-                if range { Gap::None } else { Gap::Soft(" ") },
+                if range {
+                    Gap::None
+                } else if breakable {
+                    Gap::Soft(" ")
+                } else {
+                    Gap::Space
+                },
             );
             self.set_gap(
                 operator.idx() + 1,
@@ -393,7 +624,24 @@ impl<'s, 'p> Analysis<'s, 'p> {
         {
             self.indent_starts[pipe] += 1;
             self.pipe_indents[node.index().idx()] = true;
+            for child in node.children() {
+                if self.pipe_step_can_flatten(child) {
+                    self.node_flags[child.index().idx()] |= FORCE_FLAT;
+                }
+            }
         }
+    }
+
+    fn binary_breakable(&self, node: NodeRef<'_>) -> bool {
+        let mut outer = node;
+        while let Some(parent) = self.parent(outer) {
+            if !binary(parent.kind()) {
+                break;
+            }
+            outer = parent;
+        }
+        node.kind() == outer.kind()
+            && (outer.kind() == S::PipeExpr || self.needs_continuation_wrapper(outer))
     }
 
     fn mark_assignment(&mut self, node: NodeRef<'_>) {
@@ -418,6 +666,45 @@ impl<'s, 'p> Analysis<'s, 'p> {
         }
     }
 
+    fn mark_type_spacing(&mut self, node: NodeRef<'_>) {
+        let tokens = &self.parsed.tokens;
+        let Some((first, last)) = token_bounds(node) else {
+            return;
+        };
+        let header_end = if node.kind() == S::ImplDecl {
+            (first..=last)
+                .find(|&index| tokens.kind[index] == T::Colon)
+                .unwrap_or(last)
+        } else {
+            last
+        };
+        for index in first..=header_end {
+            let kind = tokens.kind[index];
+            let spaced = match node.kind() {
+                S::BoundList => matches!(kind, T::Lt | T::Amp),
+                S::RequirementRow => kind == T::Plus,
+                S::ImplDecl => kind == T::KwFor,
+                _ => false,
+            };
+            if spaced {
+                self.set_gap(index, Gap::Space);
+                self.set_gap(index + 1, Gap::Space);
+            }
+            if node.kind() == S::ImplDecl && kind == T::LBracket {
+                self.force_gap(index, Gap::None);
+            }
+        }
+    }
+
+    fn mark_variant(&mut self, node: NodeRef<'_>) {
+        let Some(first) = node.first_token().get() else {
+            return;
+        };
+        if self.parsed.tokens.kind(first) == T::Dot && first.idx() > 0 {
+            self.set_gap(first.idx(), Gap::Space);
+        }
+    }
+
     fn mark_prefix(&mut self, node: NodeRef<'_>) {
         let Some(first) = node.first_token().get() else {
             return;
@@ -430,9 +717,15 @@ impl<'s, 'p> Analysis<'s, 'p> {
         }
         let glued_amp = self.parsed.tokens.kind(first) == T::Amp
             && self.parsed.tokens.kind.get(first.idx() + 1) == Some(&T::Amp);
+        let separate_stars = self.parsed.tokens.kind(first) == T::Star
+            && self.parsed.tokens.kind.get(first.idx() + 1) == Some(&T::Star);
         self.set_gap(
             first.idx() + 1,
-            if glued_amp { Gap::Space } else { Gap::None },
+            if glued_amp || separate_stars {
+                Gap::Space
+            } else {
+                Gap::None
+            },
         );
     }
 
@@ -499,8 +792,27 @@ impl<'s, 'p> Analysis<'s, 'p> {
     }
 
     fn is_pipe_operand(&self, node: NodeRef<'_>) -> bool {
-        self.ancestors(node)
-            .any(|ancestor| ancestor.kind() == S::PipeExpr)
+        self.node_flags[node.index().idx()] & IN_PIPE != 0
+    }
+
+    fn block_in_pipe_step(&self, node: NodeRef<'_>) -> bool {
+        let Some(owner) = self.parent(node) else {
+            return false;
+        };
+        owner.kind() == S::ClosureExpr && self.node_flags[owner.index().idx()] & IN_PIPE != 0
+    }
+
+    fn pipe_step_can_flatten(&self, node: NodeRef<'_>) -> bool {
+        let mut saw_suite = false;
+        for descendant in node.descendants() {
+            if descendant.kind() == S::Block {
+                saw_suite = true;
+                if !self.block_can_inline(descendant) {
+                    return false;
+                }
+            }
+        }
+        saw_suite
     }
 
     fn is_suite_header(&self, node: NodeRef<'_>) -> bool {
@@ -508,7 +820,7 @@ impl<'s, 'p> Analysis<'s, 'p> {
         self.ancestors(node).any(|ancestor| {
             matches!(
                 ancestor.kind(),
-                S::IfExpr | S::ForExpr | S::WhileExpr | S::MatchExpr
+                S::IfExpr | S::ElseIfClause | S::ForExpr | S::WhileExpr | S::MatchExpr
             ) && ancestor
                 .direct_tokens()
                 .find(|&token| self.parsed.tokens.kind(token) == T::Colon)
@@ -528,12 +840,15 @@ impl<'s, 'p> Analysis<'s, 'p> {
         if !matches!(
             parent.kind(),
             S::BindingExpr
+                | S::LetStmt
+                | S::DiscardStmt
                 | S::AssignmentStmt
                 | S::ReturnStmt
                 | S::ExprStmt
                 | S::Argument
                 | S::NamedArgument
                 | S::IfExpr
+                | S::ElseIfClause
                 | S::ForExpr
                 | S::WhileExpr
                 | S::MatchExpr
@@ -543,51 +858,12 @@ impl<'s, 'p> Analysis<'s, 'p> {
         let (first, last) = token_bounds(node)?;
         let lo = self.parsed.tokens.end[first] as usize;
         let hi = self.parsed.tokens.start[last] as usize;
-        let comment_free = !self
-            .parsed
-            .tokens
-            .com_start
-            .iter()
-            .any(|&start| (start as usize) >= lo && (start as usize) < hi);
-        let start = self.parsed.tokens.start[first] as usize;
-        (comment_free && self.flat_node_fits(child, column(self.source, start))).then_some(child)
-    }
-
-    fn flat_node_fits(&self, node: NodeRef<'_>, mut width: usize) -> bool {
-        let Some((first, last)) = token_bounds(node) else {
-            return true;
-        };
-        for index in first..=last {
-            if index > first {
-                if !self.comments[index].is_empty() {
-                    return false;
-                }
-                let gap = match self.gaps[index] {
-                    Gap::Auto => self.default_gap(index),
-                    gap => gap,
-                };
-                width += match gap {
-                    Gap::Auto | Gap::None => 0,
-                    Gap::Space => 1,
-                    Gap::Soft(flat) => flat.chars().count(),
-                    Gap::Hard | Gap::Blank => return false,
-                };
-            }
-            if self.optional_commas[index] || self.suppressed_commas[index] {
-                continue;
-            }
-            let start = self.parsed.tokens.start[index] as usize;
-            let end = self.parsed.tokens.end[index] as usize;
-            let token = &self.source[start..end];
-            if token.contains('\n') {
-                return false;
-            }
-            width += token.chars().count();
-            if width > MAX_COLUMNS {
-                return false;
-            }
-        }
-        true
+        let comments = &self.parsed.tokens.com_start;
+        let first_comment = comments.partition_point(|&start| (start as usize) < lo);
+        let comment_free = comments
+            .get(first_comment)
+            .is_none_or(|&start| start as usize >= hi);
+        comment_free.then_some(child)
     }
 
     fn parent(&self, node: NodeRef<'_>) -> Option<NodeRef<'_>> {
@@ -602,6 +878,29 @@ impl<'s, 'p> Analysis<'s, 'p> {
         })
     }
 
+    fn needs_continuation_wrapper(&self, node: NodeRef<'_>) -> bool {
+        let Some(mut parent) = self.parent(node) else {
+            return false;
+        };
+        if parent.kind() == S::ParenExpr
+            && self.removable_paren(parent).is_some()
+            && let Some(grandparent) = self.parent(parent)
+        {
+            parent = grandparent;
+        }
+        matches!(
+            parent.kind(),
+            S::BindingExpr
+                | S::LetStmt
+                | S::DiscardStmt
+                | S::AssignmentStmt
+                | S::ReturnStmt
+                | S::ExprStmt
+                | S::Argument
+                | S::NamedArgument
+        ) || self.is_suite_header(node)
+    }
+
     fn ancestors(&self, node: NodeRef<'_>) -> impl Iterator<Item = NodeRef<'_>> + '_ {
         let mut next = self.parent(node);
         std::iter::from_fn(move || {
@@ -609,10 +908,6 @@ impl<'s, 'p> Analysis<'s, 'p> {
             next = self.parent(current);
             Some(current)
         })
-    }
-
-    fn default_gap(&self, boundary: usize) -> Gap {
-        canonical_gap(&self.parsed.tokens, boundary)
     }
 
     fn set_gap(&mut self, boundary: usize, gap: Gap) {
@@ -647,8 +942,10 @@ impl<'s, 'p> Builder<'s, 'p> {
 
     fn build(mut self) -> (String, PrintStats) {
         self.emit_gap(0);
-        self.emit_node(self.parsed.tree.root());
-        self.emit_gap(self.parsed.tokens.len());
+        if !self.parsed.tokens.is_empty() {
+            self.emit_node(self.parsed.tree.root());
+            self.emit_gap(self.parsed.tokens.len());
+        }
         self.document.print()
     }
 
@@ -674,7 +971,8 @@ impl<'s, 'p> Builder<'s, 'p> {
             && !self
                 .analysis
                 .parent(node)
-                .is_some_and(|parent| parent.kind() == node.kind());
+                .is_some_and(|parent| binary(parent.kind()))
+            && self.analysis.needs_continuation_wrapper(node);
         let pipe = node.kind() == S::PipeExpr
             && !self
                 .analysis
@@ -685,6 +983,11 @@ impl<'s, 'p> Builder<'s, 'p> {
         let grouped = comma_group(node.kind(), node, &self.parsed.tokens)
             || matches!(node.kind(), S::IfExpr | S::ClosureExpr | S::MatchArm)
             || chain_group;
+        let force_flat = self.analysis.node_flags[node.index().idx()] & FORCE_FLAT != 0;
+
+        if force_flat {
+            self.document.commands.push(C::StartFlat);
+        }
 
         if regular_binary || wrapped_chain {
             self.document.commands.push(C::StartGroup);
@@ -723,6 +1026,9 @@ impl<'s, 'p> Builder<'s, 'p> {
             self.document.commands.push(C::EndGroup);
         } else if pipe || grouped {
             self.document.commands.push(C::EndGroup);
+        }
+        if force_flat {
+            self.document.commands.push(C::EndFlat);
         }
     }
 
@@ -788,27 +1094,31 @@ impl<'s, 'p> Builder<'s, 'p> {
     }
 
     fn emit_gap(&mut self, boundary: usize) {
-        let comments = self.analysis.comments[boundary].clone();
-        let delay_ends = self.delay_indent_end(boundary, &comments);
-        if !delay_ends {
-            self.emit_indent_ends(boundary);
+        let comments = self.analysis.comment_range(boundary);
+        let mut suite_ends = Vec::new();
+        let mut suite = self.analysis.suite_indent_end_heads[boundary];
+        while let Some(block) = suite {
+            suite_ends.push(block);
+            suite = self.analysis.suite_indent_end_next[block.idx()];
         }
+        suite_ends.reverse();
+        let immediate_ends = self.analysis.indent_ends[boundary] - suite_ends.len();
+        self.emit_indent_ends(immediate_ends);
         for _ in 0..self.analysis.indent_starts[boundary] {
             self.document.commands.push(C::StartIndent);
         }
 
-        if comments.is_empty() {
+        let delayed_suite_ends = if comments.is_empty() {
             self.emit_gap_kind(boundary);
+            suite_ends.len()
         } else {
-            self.emit_comments(boundary, &comments);
-        }
-        if delay_ends {
-            self.emit_indent_ends(boundary);
-        }
+            self.emit_comments(boundary, comments, &suite_ends)
+        };
+        self.emit_indent_ends(delayed_suite_ends);
     }
 
-    fn emit_indent_ends(&mut self, boundary: usize) {
-        for _ in 0..self.analysis.indent_ends[boundary] {
+    fn emit_indent_ends(&mut self, count: usize) {
+        for _ in 0..count {
             self.document.commands.push(C::EndIndent);
         }
     }
@@ -827,7 +1137,12 @@ impl<'s, 'p> Builder<'s, 'p> {
         }
     }
 
-    fn emit_comments(&mut self, boundary: usize, comments: &[usize]) {
+    fn emit_comments(
+        &mut self,
+        boundary: usize,
+        comments: Range<usize>,
+        suite_ends: &[NodeIdx],
+    ) -> usize {
         let tokens = &self.parsed.tokens;
         let previous_end = boundary
             .checked_sub(1)
@@ -837,50 +1152,47 @@ impl<'s, 'p> Builder<'s, 'p> {
             .get(boundary)
             .map_or(self.source.len(), |&start| start as usize);
         let mut cursor = previous_end;
-        for (position, &comment) in comments.iter().enumerate() {
+        let mut remaining_suite_ends = suite_ends.len();
+        for (position, comment) in comments.clone().enumerate() {
             let start = tokens.com_start[comment] as usize;
             let end = tokens.com_end[comment] as usize;
-            let inline =
-                boundary > 0 && position == 0 && !self.source[cursor..start].contains('\n');
+            let inline = position == 0 && self.analysis.comment_inline[comment];
             if inline {
-                self.document.commands.push(C::Atom(" "));
-                self.document.commands.push(C::LineSuffix(start..end));
+                self.document.commands.push(C::LineSuffix {
+                    span: start..end,
+                    leading_space: true,
+                });
             } else {
+                let owner = self.analysis.comment_owners[comment];
+                while remaining_suite_ends > 0
+                    && !self
+                        .analysis
+                        .contains_node(suite_ends[remaining_suite_ends - 1], owner)
+                {
+                    self.document.commands.push(C::EndIndent);
+                    remaining_suite_ends -= 1;
+                }
                 let blank = self.source[cursor..start].matches('\n').count() > 1;
                 self.document
                     .commands
                     .push(if blank { C::BlankLine } else { C::HardLine });
-                self.document.commands.push(C::LineSuffix(start..end));
+                self.document.commands.push(C::LineSuffix {
+                    span: start..end,
+                    leading_space: false,
+                });
             }
             cursor = end;
-            let following = comments
-                .get(position + 1)
-                .map_or(next_start, |&next| tokens.com_start[next] as usize);
+            let following = if comment + 1 < comments.end {
+                tokens.com_start[comment + 1] as usize
+            } else {
+                next_start
+            };
             let blank = self.source[cursor..following].matches('\n').count() > 1;
             self.document
                 .commands
                 .push(if blank { C::BlankLine } else { C::HardLine });
         }
-    }
-
-    fn delay_indent_end(&self, boundary: usize, comments: &[usize]) -> bool {
-        if self.analysis.indent_ends[boundary] == 0 || comments.is_empty() {
-            return false;
-        }
-        let tokens = &self.parsed.tokens;
-        let previous_end = boundary
-            .checked_sub(1)
-            .map_or(0, |index| tokens.end[index] as usize);
-        let first = tokens.com_start[comments[0]] as usize;
-        if !self.source[previous_end..first].contains('\n') {
-            return false;
-        }
-        let comment_column = column(self.source, first);
-        let next_column = tokens
-            .start
-            .get(boundary)
-            .map_or(0, |&start| column(self.source, start as usize));
-        comment_column > next_column
+        remaining_suite_ends
     }
 
     fn default_gap(&self, boundary: usize) -> Gap {
@@ -899,7 +1211,9 @@ fn canonical_gap(tokens: &TokenBuf, boundary: usize) -> Gap {
         || assignment_operator(next)
         || space_around(previous)
         || space_around(next)
-        || previous.is_keyword() && (next == T::Dot || next == T::LParen && previous != T::KwFn)
+        || previous == T::Star && next == T::Star
+        || previous.is_keyword()
+            && (next == T::LBracket || next == T::LParen && previous != T::KwFn)
     {
         Gap::Space
     } else if no_space_after(previous, next) || no_space_before(next) {
@@ -921,13 +1235,6 @@ fn token_bounds(node: NodeRef<'_>) -> Option<(usize, usize)> {
         node.first_token().get()?.idx(),
         node.last_token().get()?.idx(),
     ))
-}
-
-fn contains_suite(node: NodeRef<'_>) -> bool {
-    matches!(node.kind(), S::ClosureExpr | S::IfExpr | S::MatchExpr)
-        || node.descendants().any(|descendant| {
-            matches!(descendant.kind(), S::ClosureExpr | S::IfExpr | S::MatchExpr)
-        })
 }
 
 fn column(source: &str, offset: usize) -> usize {
@@ -1068,10 +1375,216 @@ fn no_space_after(previous: T, next: T) -> bool {
         previous,
         T::LParen | T::LBracket | T::LBrace | T::Dot | T::At | T::ColonColon | T::Ellipsis
     ) || previous == T::Dollar && next == T::Dot
-        || word(previous) && matches!(next, T::LParen | T::LBracket)
+        || identifier(previous) && matches!(next, T::LParen | T::LBracket)
         || matches!(previous, T::Question | T::Bang) && next == T::LParen
+}
+
+fn identifier(kind: T) -> bool {
+    matches!(kind, T::Ident | T::RawIdent | T::Placeholder)
 }
 
 fn space_around(kind: T) -> bool {
     matches!(kind, T::Arrow | T::FatArrow)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fmt::Write as _;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
+    use hd_base::SliceSort as _;
+    use hd_syntax::{NodeRef, Parse, SyntaxKind as S, TokenKind as T};
+
+    use super::{Analysis, format};
+
+    fn sources(directory: &Path, output: &mut Vec<PathBuf>) {
+        for entry in fs::read_dir(directory).expect("source directory") {
+            let path = entry.expect("source entry").path();
+            if path.is_dir() {
+                sources(&path, output);
+            } else if path.extension().is_some_and(|extension| extension == "hd") {
+                output.push(path);
+            }
+        }
+    }
+
+    fn fingerprint_node(
+        node: NodeRef<'_>,
+        source: &str,
+        parsed: &Parse,
+        analysis: &Analysis<'_, '_>,
+        output: &mut String,
+    ) {
+        if let Some(child) = analysis.removable_paren(node) {
+            fingerprint_node(child, source, parsed, analysis, output);
+            return;
+        }
+        let _ = write!(output, "{:?}", node.kind());
+        for token in node.direct_tokens() {
+            if parsed.tokens.kind(token) == T::Comma {
+                continue;
+            }
+            let start = parsed.tokens.start[token.idx()] as usize;
+            let end = parsed.tokens.end[token.idx()] as usize;
+            let _ = write!(
+                output,
+                " [{:?}:{}]",
+                parsed.tokens.kind(token),
+                &source[start..end]
+            );
+        }
+        output.push('\n');
+        for child in node.children() {
+            fingerprint_node(child, source, parsed, analysis, output);
+        }
+    }
+
+    fn fingerprint(source: &str, parsed: &Parse, analysis: &Analysis<'_, '_>) -> String {
+        let mut output = String::new();
+        fingerprint_node(parsed.tree.root(), source, parsed, analysis, &mut output);
+        output
+    }
+
+    fn normalized_snippets(
+        node: NodeRef<'_>,
+        source: &str,
+        parsed: &Parse,
+        analysis: &Analysis<'_, '_>,
+        output: &mut Vec<String>,
+    ) {
+        if let Some(child) = analysis.removable_paren(node) {
+            normalized_snippets(child, source, parsed, analysis, output);
+            return;
+        }
+        let snippet = if node.first_token().get().is_some() {
+            let lo = parsed.tokens.start[node.first_token().idx()] as usize;
+            let hi = parsed.tokens.end[node.last_token().idx()] as usize;
+            source[lo..hi].lines().next().unwrap_or_default().to_owned()
+        } else {
+            String::new()
+        };
+        output.push(snippet);
+        for child in node.children() {
+            normalized_snippets(child, source, parsed, analysis, output);
+        }
+    }
+
+    fn owner_path(node: NodeRef<'_>, analysis: &Analysis<'_, '_>) -> Vec<S> {
+        let mut path = Vec::new();
+        let mut index = node.index();
+        loop {
+            let node = analysis.parsed.tree.node(index);
+            if node.kind() != S::ParenExpr || analysis.removable_paren(node).is_none() {
+                path.push(node.kind());
+            }
+            let Some(parent) = analysis.parents[index.idx()].get() else {
+                break;
+            };
+            index = parent;
+        }
+        path.reverse();
+        path
+    }
+
+    fn comments(
+        source: &str,
+        parsed: &Parse,
+        analysis: &Analysis<'_, '_>,
+    ) -> Vec<(String, bool, Vec<S>)> {
+        parsed
+            .tokens
+            .com_start
+            .iter()
+            .enumerate()
+            .map(|(comment, &start)| {
+                let end = parsed.tokens.com_end[comment] as usize;
+                let owner = parsed.tree.node(analysis.comment_owners[comment]);
+                (
+                    source[start as usize..end].to_owned(),
+                    analysis.comment_inline[comment],
+                    owner_path(owner, analysis),
+                )
+            })
+            .collect()
+    }
+
+    fn verify_corpus(directory: &Path) {
+        let mut files = Vec::new();
+        sources(directory, &mut files);
+        files.sort_stable();
+        for file in files {
+            let source = fs::read_to_string(&file).expect("source text");
+            let parsed = hd_syntax::parse(source.as_bytes());
+            if !parsed.is_ok() {
+                continue;
+            }
+            let before = Analysis::new(&source, &parsed);
+            let (formatted, _) = format(&source, &parsed);
+            let reparsed = hd_syntax::parse(formatted.as_bytes());
+            assert!(
+                reparsed.is_ok(),
+                "{}: {:?}",
+                file.display(),
+                reparsed.diagnostics
+            );
+            let after = Analysis::new(&formatted, &reparsed);
+            let original_tree = fingerprint(&source, &parsed, &before);
+            let formatted_tree = fingerprint(&formatted, &reparsed, &after);
+            if formatted_tree != original_tree {
+                let mismatch = original_tree
+                    .lines()
+                    .zip(formatted_tree.lines())
+                    .position(|(left, right)| left != right)
+                    .unwrap_or_else(|| {
+                        original_tree
+                            .lines()
+                            .count()
+                            .min(formatted_tree.lines().count())
+                    });
+                let mut before_snippets = Vec::new();
+                normalized_snippets(
+                    parsed.tree.root(),
+                    &source,
+                    &parsed,
+                    &before,
+                    &mut before_snippets,
+                );
+                let mut after_snippets = Vec::new();
+                normalized_snippets(
+                    reparsed.tree.root(),
+                    &formatted,
+                    &reparsed,
+                    &after,
+                    &mut after_snippets,
+                );
+                panic!(
+                    "{} changed its normalized syntax tree at node {}\nbefore: {}\n  {}\nafter: {}\n  {}",
+                    file.display(),
+                    mismatch + 1,
+                    original_tree.lines().nth(mismatch).unwrap_or("<end>"),
+                    before_snippets
+                        .get(mismatch)
+                        .map_or("<end>", String::as_str),
+                    formatted_tree.lines().nth(mismatch).unwrap_or("<end>"),
+                    after_snippets.get(mismatch).map_or("<end>", String::as_str)
+                );
+            }
+            assert_eq!(
+                comments(&formatted, &reparsed, &after),
+                comments(&source, &parsed, &before),
+                "{} changed comment bytes, roles, or owners",
+                file.display()
+            );
+            let (twice, _) = format(&formatted, &reparsed);
+            assert_eq!(twice, formatted, "{} is not idempotent", file.display());
+        }
+    }
+
+    #[test]
+    fn std_and_parseable_conformance_preserve_tree_comments_and_fixed_point() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        verify_corpus(&root.join("lib/std"));
+        verify_corpus(&root.join("spec/conformance"));
+    }
 }

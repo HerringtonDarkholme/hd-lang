@@ -24,10 +24,15 @@ pub(crate) enum Command {
     EndIndent,
     StartConditionalIndent,
     EndConditionalIndent,
+    StartFlat,
+    EndFlat,
     SoftLine(&'static str),
     HardLine,
     BlankLine,
-    LineSuffix(Range<usize>),
+    LineSuffix {
+        span: Range<usize>,
+        leading_space: bool,
+    },
     ModeText {
         flat: &'static str,
         broken: &'static str,
@@ -57,9 +62,8 @@ struct Printer<'s> {
     commands: Vec<Command>,
     group_end: Vec<usize>,
     next_flat: Vec<usize>,
-    next_break: Vec<usize>,
-    flat_width: Vec<usize>,
-    cannot_flatten: Vec<bool>,
+    next_broken: Vec<usize>,
+    flat_measure: Vec<u8>,
     output: String,
     column: usize,
     indent: usize,
@@ -85,41 +89,69 @@ impl<'s> Printer<'s> {
             }
         }
         debug_assert!(open.is_empty(), "formatter document groups are balanced");
+        #[cfg(debug_assertions)]
+        {
+            let mut content = Vec::with_capacity(commands.len() + 1);
+            content.push(0_usize);
+            for command in &commands {
+                let present = match command {
+                    Command::Text(span) => !span.is_empty(),
+                    Command::Atom(text) | Command::SoftLine(text) => !text.is_empty(),
+                    Command::HardLine | Command::BlankLine | Command::LineSuffix { .. } => true,
+                    Command::ModeText { flat, broken } => !flat.is_empty() || !broken.is_empty(),
+                    _ => false,
+                };
+                content.push(content.last().copied().unwrap_or(0) + usize::from(present));
+            }
+            for (start, &end) in group_end.iter().enumerate() {
+                if end != usize::MAX {
+                    debug_assert!(
+                        content[end] > content[start + 1],
+                        "formatter document contains an empty group at command {start}"
+                    );
+                }
+            }
+        }
         let len = commands.len();
         let mut next_flat = vec![len; len + 1];
-        let mut next_break = vec![len; len + 1];
-        let mut flat_width = vec![0; len];
-        let mut cannot_flatten = vec![false; len];
+        let mut next_broken = vec![len; len + 1];
+        let mut flat_measure = vec![0; len];
         let mut following_flat = len;
-        let mut following_break = len;
+        let mut following_broken = len;
         for index in (0..len).rev() {
-            let (width, newline) = match &commands[index] {
-                Command::Text(span) => capped_width(&source[span.clone()]),
-                Command::Atom(text) | Command::SoftLine(text) => capped_width(text),
-                Command::ModeText { flat, .. } => capped_width(flat),
-                _ => (0, false),
+            let ((width, newline), (expanded_width, expanded_newline)) = match &commands[index] {
+                Command::Text(span) => {
+                    let measured = capped_width(&source[span.clone()]);
+                    (measured, measured)
+                }
+                Command::Atom(text) => {
+                    let measured = capped_width(text);
+                    (measured, measured)
+                }
+                Command::SoftLine(text) => (capped_width(text), (0, true)),
+                Command::ModeText { flat, broken } => (capped_width(flat), capped_width(broken)),
+                Command::HardLine | Command::BlankLine => ((0, true), (0, true)),
+                _ => ((0, false), (0, false)),
             };
-            flat_width[index] = width;
-            cannot_flatten[index] = newline;
+            let width = u8::try_from(width).expect("capped formatter width fits in one byte");
+            flat_measure[index] = width | u8::from(newline) << 7;
             let hard_break = matches!(commands[index], Command::HardLine | Command::BlankLine);
-            let soft_break = matches!(commands[index], Command::SoftLine(_));
             if width > 0 || newline || hard_break {
                 following_flat = index;
             }
-            if soft_break || hard_break {
-                following_break = index;
+            if expanded_width > 0 || expanded_newline || hard_break {
+                following_broken = index;
             }
             next_flat[index] = following_flat;
-            next_break[index] = following_break;
+            next_broken[index] = following_broken;
         }
         Self {
             source,
             commands,
             group_end,
             next_flat,
-            next_break,
-            flat_width,
-            cannot_flatten,
+            next_broken,
+            flat_measure,
             output: String::with_capacity(source.len()),
             column: 0,
             indent: 0,
@@ -165,6 +197,10 @@ impl<'s> Printer<'s> {
                         self.indent = self.indent.saturating_sub(4);
                     }
                 }
+                Command::StartFlat => self.modes.push(true),
+                Command::EndFlat => {
+                    self.modes.pop();
+                }
                 Command::SoftLine(flat) => {
                     if self.modes.last().copied().unwrap_or(false) {
                         self.write(flat);
@@ -174,7 +210,13 @@ impl<'s> Printer<'s> {
                 }
                 Command::HardLine => self.newline(false),
                 Command::BlankLine => self.newline(true),
-                Command::LineSuffix(span) => {
+                Command::LineSuffix {
+                    span,
+                    leading_space,
+                } => {
+                    if leading_space {
+                        self.write(" ");
+                    }
                     self.write(&self.source[span]);
                     self.preserve_line_end = true;
                 }
@@ -195,14 +237,30 @@ impl<'s> Printer<'s> {
         if !self.output.is_empty() {
             self.output.push('\n');
         }
+        debug_assert!(
+            self.modes.is_empty(),
+            "formatter document modes are balanced"
+        );
         (self.output, self.stats)
     }
 
     /// Scan at most the width plus one positive-width events. Zero-width
     /// structure is skipped without recursion, so nesting cannot make a fit
     /// probe unbounded.
-    fn fits(&mut self, mut index: usize, end: usize) -> bool {
+    fn fits(&mut self, index: usize, end: usize) -> bool {
         self.stats.fit_calls += 1;
+        #[cfg(test)]
+        let reference = self.fits_reference(index, end);
+        let result = self.fits_optimized(index, end);
+        #[cfg(test)]
+        assert_eq!(
+            result, reference,
+            "optimized fit diverged at {index}..{end}"
+        );
+        result
+    }
+
+    fn fits_optimized(&mut self, mut index: usize, end: usize) -> bool {
         let column = if self.line_start {
             self.indent
         } else {
@@ -211,8 +269,12 @@ impl<'s> Printer<'s> {
         let mut remaining = MAX_COLUMNS.saturating_sub(column);
         let mut positive = 0;
         while index < self.commands.len() {
-            let continuation_break = self.next_break[index.max(end)];
-            index = self.next_flat[index].min(continuation_break);
+            if index < end {
+                let next = self.next_flat[index];
+                index = if next < end { next } else { end };
+            } else {
+                index = self.next_broken[index];
+            }
             self.stats.fit_jumps += 1;
             if index >= self.commands.len() {
                 return true;
@@ -220,10 +282,10 @@ impl<'s> Printer<'s> {
             let continuation = index >= end;
             match &self.commands[index] {
                 Command::Text(_) => {
-                    if self.cannot_flatten[index] {
+                    if self.flat_measure[index] & 0x80 != 0 {
                         return false;
                     }
-                    let width = self.flat_width[index];
+                    let width = usize::from(self.flat_measure[index] & 0x7f);
                     if width > 0 {
                         positive += 1;
                         self.stats.fits_events += 1;
@@ -235,7 +297,7 @@ impl<'s> Printer<'s> {
                 }
                 Command::SoftLine(_) if continuation => return true,
                 Command::Atom(_) | Command::SoftLine(_) => {
-                    let width = self.flat_width[index];
+                    let width = usize::from(self.flat_measure[index] & 0x7f);
                     if width > 0 {
                         positive += 1;
                         self.stats.fits_events += 1;
@@ -246,7 +308,14 @@ impl<'s> Printer<'s> {
                     remaining -= width;
                 }
                 Command::ModeText { .. } => {
-                    let width = self.flat_width[index];
+                    let width = if continuation {
+                        match &self.commands[index] {
+                            Command::ModeText { broken, .. } => capped_width(broken).0,
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        usize::from(self.flat_measure[index] & 0x7f)
+                    };
                     if width > 0 {
                         positive += 1;
                         self.stats.fits_events += 1;
@@ -257,16 +326,64 @@ impl<'s> Printer<'s> {
                     remaining -= width;
                 }
                 Command::HardLine | Command::BlankLine => return continuation,
-                Command::LineSuffix(_) => {}
+                Command::LineSuffix { .. } => {}
                 Command::StartGroup
                 | Command::EndGroup
                 | Command::StartIndent
                 | Command::EndIndent
                 | Command::StartConditionalIndent
-                | Command::EndConditionalIndent => {}
+                | Command::EndConditionalIndent
+                | Command::StartFlat
+                | Command::EndFlat => {}
             }
             if positive > MAX_COLUMNS + 1 {
                 return false;
+            }
+            index += 1;
+        }
+        true
+    }
+
+    #[cfg(test)]
+    fn fits_reference(&self, mut index: usize, end: usize) -> bool {
+        let column = if self.line_start {
+            self.indent
+        } else {
+            self.column
+        };
+        let mut remaining = MAX_COLUMNS.saturating_sub(column);
+        let mut positive = 0;
+        while index < self.commands.len() {
+            let continuation = index >= end;
+            let width = match &self.commands[index] {
+                Command::Text(_) => {
+                    if self.flat_measure[index] & 0x80 != 0 {
+                        return false;
+                    }
+                    usize::from(self.flat_measure[index] & 0x7f)
+                }
+                Command::Atom(_) => usize::from(self.flat_measure[index] & 0x7f),
+                Command::SoftLine(_) if continuation => return true,
+                Command::SoftLine(_) => usize::from(self.flat_measure[index] & 0x7f),
+                Command::ModeText { broken, .. } if continuation => capped_width(broken).0,
+                Command::ModeText { .. } => usize::from(self.flat_measure[index] & 0x7f),
+                Command::HardLine | Command::BlankLine => return continuation,
+                Command::LineSuffix { .. }
+                | Command::StartGroup
+                | Command::EndGroup
+                | Command::StartIndent
+                | Command::EndIndent
+                | Command::StartConditionalIndent
+                | Command::EndConditionalIndent
+                | Command::StartFlat
+                | Command::EndFlat => 0,
+            };
+            if width > 0 {
+                positive += 1;
+                if width > remaining || positive > MAX_COLUMNS + 1 {
+                    return false;
+                }
+                remaining -= width;
             }
             index += 1;
         }
@@ -278,16 +395,18 @@ impl<'s> Printer<'s> {
             return;
         }
         if self.line_start {
-            self.output.push_str(&" ".repeat(self.indent));
+            for _ in 0..self.indent {
+                self.output.push(' ');
+            }
             self.column = self.indent;
             self.line_start = false;
         }
         self.output.push_str(text);
         if let Some(last) = text.rsplit_once('\n') {
-            self.column = last.1.chars().count();
+            self.column = scalar_width(last.1);
             self.line_start = text.ends_with('\n');
         } else {
-            self.column += text.chars().count();
+            self.column += scalar_width(text);
         }
     }
 
@@ -317,27 +436,25 @@ impl<'s> Printer<'s> {
 fn capped_width(text: &str) -> (usize, bool) {
     let mut width = 0;
     let mut newline = false;
-    for character in text.chars() {
-        newline |= character == '\n';
-        width = (width + 1).min(MAX_COLUMNS + 1);
+    for &byte in text.as_bytes() {
+        newline |= byte == b'\n';
+        if byte & 0xc0 != 0x80 {
+            width = (width + 1).min(MAX_COLUMNS + 1);
+        }
     }
     (width, newline)
 }
 
+fn scalar_width(text: &str) -> usize {
+    text.as_bytes()
+        .iter()
+        .filter(|&&byte| byte & 0xc0 != 0x80)
+        .count()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Command as C, Document, MAX_COLUMNS, Printer};
-
-    fn reference_print(source: &str, commands: Vec<C>) -> String {
-        let mut printer = Printer::new(source, commands);
-        for (index, next) in printer.next_flat.iter_mut().enumerate() {
-            *next = index;
-        }
-        for (index, next) in printer.next_break.iter_mut().enumerate() {
-            *next = index;
-        }
-        printer.print().0
-    }
+    use super::{Command as C, Document, MAX_COLUMNS};
 
     #[test]
     fn groups_choose_one_flat_or_broken_layout() {
@@ -398,7 +515,10 @@ mod tests {
                 C::EndIndent,
                 C::EndGroup,
                 C::Atom(","),
-                C::LineSuffix(MAX_COLUMNS + 4..source.len()),
+                C::LineSuffix {
+                    span: MAX_COLUMNS + 4..source.len(),
+                    leading_space: false,
+                },
                 C::SoftLine(" "),
                 C::Atom("next"),
             ],
@@ -420,8 +540,10 @@ mod tests {
             ],
         ] {
             let mut document = Document::new(&source);
-            document.commands = commands.clone();
-            assert_eq!(document.print().0, reference_print(&source, commands));
+            document.commands = commands;
+            // Every group probe compares the jump-table result with the
+            // command-by-command reference inside `Printer::fits`.
+            document.print();
         }
     }
 }

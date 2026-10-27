@@ -118,6 +118,59 @@ struct Fixture {
     package: &'static str,
 }
 
+fn formatted_sources(sources: &MemorySources) -> MemorySources {
+    let mut formatted = MemorySources::default();
+    for entry in hd_project::SourceSet::list(sources) {
+        let bytes = hd_project::SourceSet::read(sources, &entry.path).expect("fixture source");
+        let text = String::from_utf8_lossy(&bytes);
+        let output = if Path::new(&entry.path)
+            .extension()
+            .is_some_and(|extension| extension == "hd")
+        {
+            hd_fmt::format(&text).unwrap_or_else(|_| text.into_owned())
+        } else {
+            text.into_owned()
+        };
+        formatted.insert(&entry.path, &output);
+    }
+    formatted
+}
+
+fn formatted_fixture(fixture: &Fixture) -> Fixture {
+    let sources = formatted_sources(&fixture.sources);
+    let text = hd_project::SourceSet::read(&sources, &fixture.primary).map_or_else(
+        || fixture.text.clone(),
+        |bytes| String::from_utf8_lossy(&bytes).into_owned(),
+    );
+    Fixture {
+        sources,
+        primary: fixture.primary.clone(),
+        text,
+        tree: fixture.tree,
+        deps: fixture
+            .deps
+            .iter()
+            .map(|(name, sources)| (name.clone(), formatted_sources(sources)))
+            .collect(),
+        checked: fixture.checked,
+        package: fixture.package,
+    }
+}
+
+fn diagnostic_signature(output: &Output) -> Vec<(Severity, String)> {
+    output
+        .diags
+        .content_order()
+        .into_iter()
+        .map(|index| {
+            (
+                output.diags.severity[index],
+                output.diags.code[index].as_str().to_owned(),
+            )
+        })
+        .collect()
+}
+
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
@@ -2342,6 +2395,27 @@ fn specification_conformance_passes_except_known_failures() {
         "conformance cases break the KNOWN_FAILURES.tsv rule:\n{}",
         errors.join("\n")
     );
+}
+
+#[test]
+fn formatter_preserves_every_parseable_conformance_check_verdict_and_code() {
+    let store = MemoryStore::default();
+    for case in cases() {
+        let fixture = fixture(&case)
+            .unwrap_or_else(|reason| panic!("{} could not be loaded: {reason}", case.path));
+        if !parse(fixture.text.as_bytes()).is_ok() {
+            continue;
+        }
+        let formatted = formatted_fixture(&fixture);
+        let before = check_fixture(&fixture, &store);
+        let after = check_fixture(&formatted, &store);
+        assert_eq!(
+            diagnostic_signature(&after),
+            diagnostic_signature(&before),
+            "{} changed its check verdict or diagnostic codes after formatting",
+            case.path
+        );
+    }
 }
 
 /// Every `typing/invalid` fixture, checked: none reaches an internal error
