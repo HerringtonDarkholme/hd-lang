@@ -194,11 +194,10 @@ impl DebugWriter:
             self.write(self.margin())
         self.write(closing)
 
-    # Starts writing `value`, a data value with fields, a list or a map: the
-    # values that have identity and can change, so every cycle passes one.
-    # A value that is already being written is part of a cycle: this writes
-    # `<cycle>` and returns false (spec/lang/10-modules.md#r-module.dbg.cycle.reference).
-    # Enum values are never passed here: they have no identity.
+    # Starts writing the value a reference refers to: every cycle passes
+    # through a reference. A value that is already being written is part of
+    # a cycle: this writes `<cycle>` and returns false
+    # (spec/lang/10-modules.md#r-module.dbg.cycle.reference).
     fn enter(&mut self, value: *dyn Any) -> bool:
         for seen in self.active:
             if seen is value:
@@ -821,23 +820,21 @@ fn dbg_result[A, B](
                 out.end_item()
                 out.tuple_close(1, false)
 
-# A list can change after it is built, so a cycle may pass through it
-# (r-module.dbg.cycle.reference).
+# A list is a value, not tracked for cycles (r-module.dbg.cycle.untracked); a
+# cycle passes through a reference, which `dbg_ref_printer` tracks.
 fn dbg_list[E](
     value: List[E],
     out: *mut DebugWriter,
     show: fn(E, *mut DebugWriter) -> void,
 ) -> void:
-    if out.enter(&value):
-        if out.open():
-            let count: usize = 0
-            for item in value:
-                if out.entry_item(count, "["):
-                    show(item, out)
-                    out.end_item()
-                count = count + 1
-            out.entry_close(count, "[", "]")
-        out.leave()
+    if out.open():
+        let count: usize = 0
+        for item in value:
+            if out.entry_item(count, "["):
+                show(item, out)
+                out.end_item()
+            count = count + 1
+        out.entry_close(count, "[", "]")
 
 fn dbg_map[K < Eq & Hash, V](
     value: Map[K, V],
@@ -845,18 +842,16 @@ fn dbg_map[K < Eq & Hash, V](
     show_key: fn(K, *mut DebugWriter) -> void,
     show_value: fn(V, *mut DebugWriter) -> void,
 ) -> void:
-    if out.enter(&value):
-        if out.open():
-            let count: usize = 0
-            for (key, item) in value:
-                if out.entry_item(count, "{"):
-                    show_key(key, out)
-                    out.write(": ")
-                    show_value(item, out)
-                    out.end_item()
-                count = count + 1
-            out.entry_close(count, "{", "}")
-        out.leave()
+    if out.open():
+        let count: usize = 0
+        for (key, item) in value:
+            if out.entry_item(count, "{"):
+                show_key(key, out)
+                out.write(": ")
+                show_value(item, out)
+                out.end_item()
+            count = count + 1
+        out.entry_close(count, "{", "}")
 
 # The REPL's forms of `dbg_one` and `dbg_shown`.
 fn dbg_render[T](width: usize, value: T, show: fn(T, *mut DebugWriter) -> void) -> string:
