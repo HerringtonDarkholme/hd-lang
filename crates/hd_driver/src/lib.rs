@@ -9657,6 +9657,11 @@ impl Run<'_> {
             );
             return;
         }
+        let direct_json_encoders = env.direct_json_encoders(&c.collected, &body);
+        let json_fallbacks = [
+            names.item("std.json", "encode_fallback"),
+            names.item("std.json", "encode_pretty_fallback"),
+        ];
         let package_trait = |d| self.package_trait_identity(d);
         let package_host = |d| self.package_host_identity(d);
         let package_trait = |d| package_trait(d).map(|(_, identity)| identity);
@@ -9679,6 +9684,8 @@ impl Run<'_> {
             collected: &c.collected,
             order: &c.order,
             body: &body,
+            direct_json_encoders: &direct_json_encoders,
+            json_fallbacks,
             entry,
             release: self.build_profile == BuildProfile::Release,
             optimized: self.level == OptLevel::Optimized,
@@ -10913,6 +10920,181 @@ impl Env<'_> {
         }
         let names = self.run.names();
         hd_mono::key_order(pool, &|d| names.path_hash(d), keys)
+    }
+
+    /// The concrete compact and pretty JSON encoders whose selected
+    /// `Serialize` implementation can only make a regular writer walk.
+    /// Their private tree-fallback call is removed during emission, before
+    /// the backend's final reachability pass.
+    fn direct_json_encoders<'a>(
+        &self,
+        collected: &Collected,
+        body: &dyn Fn(hd_base::InstId) -> Option<&'a Body>,
+    ) -> HashSet<Hash128> {
+        let names = self.run.names();
+        let encoders = [
+            self.run.known.json_encode,
+            names.item("std.json", "encode_pretty"),
+        ];
+        let by_key: HashMap<Hash128, hd_base::InstId> = collected
+            .table
+            .key
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(i, key)| (key, hd_base::InstId::from_raw(u32_of(i))))
+            .collect();
+        let mut out = HashSet::default();
+        for (i, &item) in collected.table.item.iter().enumerate() {
+            if !encoders.contains(&item) || collected.table.sub[i] != hd_mono::Sub::Body(0) {
+                continue;
+            }
+            let selected: Vec<Hash128> = collected.calls[i]
+                .values()
+                .filter_map(|target| match target {
+                    hd_mono::Target::Call(call)
+                        if call.kind == hd_mono::TargetKind::Instance
+                            && self.serialize_method(call.item) =>
+                    {
+                        Some(call.key)
+                    }
+                    _ => None,
+                })
+                .collect();
+            if let [serialize] = selected.as_slice()
+                && self.regular_json_walk(collected, body, &by_key, *serialize)
+            {
+                out.insert(collected.table.key[i]);
+            }
+        }
+        out
+    }
+
+    /// Whether `item` is a concrete implementation of
+    /// `std.serde.Serialize.serialize`.
+    fn serialize_method(&self, item: DefId) -> bool {
+        let Some(ItemData::Method { owner, .. }) = self.p.items.get(item).map(|i| &i.data) else {
+            return false;
+        };
+        matches!(
+            self.p.items.get(*owner).map(|i| &i.data),
+            Some(ItemData::Impl { trait_, .. }) if *trait_ == self.run.known.serialize
+        )
+    }
+
+    /// A closed call graph is regular when it has no user-written
+    /// `Serialize` method, dynamic dispatch, or user facts that can rename
+    /// two derived members to the same JSON key. Standard serializers and
+    /// compiler-generated derivations otherwise obey the writer protocol.
+    fn regular_json_walk<'a>(
+        &self,
+        collected: &Collected,
+        body: &dyn Fn(hd_base::InstId) -> Option<&'a Body>,
+        by_key: &HashMap<Hash128, hd_base::InstId>,
+        root: Hash128,
+    ) -> bool {
+        let mut stack = vec![root];
+        let mut seen = HashSet::default();
+        while let Some(key) = stack.pop() {
+            if !seen.insert(key) {
+                continue;
+            }
+            let Some(&id) = by_key.get(&key) else {
+                return false;
+            };
+            let item = collected.table.item[id.idx()];
+            if self.user_written_serialize(item) {
+                return false;
+            }
+            let Some(instance) = body(id) else {
+                return false;
+            };
+            if !self.std_item(item)
+                && instance.kind == hd_tir::BodyKind::Fact
+                && !empty_fact_body(instance)
+            {
+                return false;
+            }
+            for target in collected.calls[id.idx()].values() {
+                if !push_json_targets(target, &mut stack) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    fn user_written_serialize(&self, item: DefId) -> bool {
+        let Some(ItemData::Method { owner, .. }) = self.p.items.get(item).map(|i| &i.data) else {
+            return false;
+        };
+        matches!(
+            self.p.items.get(*owner).map(|i| &i.data),
+            Some(ItemData::Impl {
+                trait_,
+                kind: hd_resolve::ImplKind::Written,
+                ..
+            }) if *trait_ == self.run.known.serialize && !self.std_item(item)
+        )
+    }
+
+    fn std_item(&self, item: DefId) -> bool {
+        let module = self.run.item_module_text(item);
+        module == "std" || module.starts_with("std.")
+    }
+}
+
+/// Whether a generated facts body constructs only `Facts { items: [] }`.
+/// Any actual fact is conservatively treated as enough to keep JSON's tree
+/// fallback: serde's rename facts can make two generated member keys collide.
+fn empty_fact_body(body: &Body) -> bool {
+    let mut lists = body
+        .tags
+        .iter()
+        .enumerate()
+        .filter_map(|(i, tag)| (*tag == hd_tir::Tag::NewList).then_some(i));
+    let Some(i) = lists.next() else {
+        return false;
+    };
+    lists.next().is_none()
+        && body.data[i][0] == hd_tir::ir::NONE
+        && body.record(body.data[i][1]).is_empty()
+}
+
+/// Adds every concrete instance a collected target may call. A dynamic or
+/// erased call is not a closed graph and therefore cannot prove a regular
+/// JSON walk.
+fn push_json_targets(target: &hd_mono::Target, out: &mut Vec<Hash128>) -> bool {
+    match target {
+        hd_mono::Target::Call(target) => push_json_call(target, out),
+        hd_mono::Target::Default { call: target, .. } => push_json_call(target, out),
+        hd_mono::Target::VTable(table) => push_json_vtable(table, out),
+        hd_mono::Target::Closure(key) | hd_mono::Target::KnownClosure(key) => out.push(*key),
+        hd_mono::Target::MapKey { hash, eq } => {
+            push_json_call(hash, out);
+            push_json_call(eq, out);
+        }
+        hd_mono::Target::MapInline(target) => push_json_call(target, out),
+        hd_mono::Target::Dyn | hd_mono::Target::Open(_) => return false,
+        hd_mono::Target::ConstDefault(_)
+        | hd_mono::Target::Erased { .. }
+        | hd_mono::Target::Thunk { .. } => {}
+    }
+    true
+}
+
+fn push_json_call(target: &hd_mono::CallTarget, out: &mut Vec<Hash128>) {
+    if target.kind == hd_mono::TargetKind::Instance {
+        out.push(target.key);
+    }
+}
+
+fn push_json_vtable(table: &hd_mono::VTable, out: &mut Vec<Hash128>) {
+    for slot in &table.slots {
+        push_json_call(slot, out);
+    }
+    for parent in &table.parents {
+        push_json_vtable(parent, out);
     }
 }
 

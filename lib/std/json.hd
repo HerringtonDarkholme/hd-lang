@@ -1228,7 +1228,7 @@ pub fn encode[T < Serialize](value: T) -> string:
     _ := value.serialize(writer)
     match writer.finish():
         .Some(text) => text
-        .None => "${to_json(value)}"
+        .None => encode_fallback(value)
 
 # The pretty text of a value's `Json` (r-std-json.encode-pretty), written
 # by `TextWriter` in its spaced layout, or through the tree as `encode`
@@ -1240,7 +1240,7 @@ pub fn encode_pretty[T < Serialize](value: T) -> string:
     _ := value.serialize(writer)
     match writer.finish():
         .Some(text) => text
-        .None => to_json(value).pretty()
+        .None => encode_pretty_fallback(value)
 
 # Read validated text directly through the typed deserializer (r-std-json.decode.direct).
 ## Reads a typed value directly from validated JSON text.
@@ -2707,3 +2707,12 @@ fn bytes_index(text: string, from: usize, byte: u8) -> usize:
             return index
         index = index + 1
     size
+
+# Kept as one call so a closed program whose concrete serializer is known
+# to make a regular walk can leave the whole tree path unlinked. These stay
+# last so adding the private link boundary changes no existing item ID.
+fn encode_fallback[T < Serialize](value: T) -> string:
+    "${to_json(value)}"
+
+fn encode_pretty_fallback[T < Serialize](value: T) -> string:
+    to_json(value).pretty()

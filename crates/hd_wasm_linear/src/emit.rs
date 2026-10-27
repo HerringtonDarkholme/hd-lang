@@ -117,7 +117,8 @@ fn body_func<'a>(
     };
     let roots = ref_roots(input, b, item, args, suspending);
     let cells = closure::cell_locals(b, &roots);
-    let mut em = Em::new(input, m, b, (item, args), targets, cells);
+    let direct_json = input.direct_json_encoders.contains(&own.key);
+    let mut em = Em::new(input, m, b, (item, args), targets, cells, direct_json);
     // A local only local references lend lives in the frame (§23.38): a
     // plain function's own, at a runtime that counts.
     if sub == 0 && !suspending && erased.is_none() && own.cold.is_none() && input.runtime.is_some()
@@ -940,6 +941,7 @@ struct Em<'i, 'a, 'm> {
     /// This final body's instruction types at the instance's arguments.
     inst_ty: Vec<Ty>,
     item: DefId,
+    direct_json: bool,
     origin_root: u32,
     args: TyList,
     calls: &'i HashMap<u32, Target>,
@@ -1107,6 +1109,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
         (item, args): (DefId, TyList),
         calls: &'i HashMap<u32, Target>,
         shared: HashMap<usize, u32>,
+        direct_json: bool,
     ) -> Self {
         let f = m.func("", vec![], vec![]);
         let mut em = Em {
@@ -1115,6 +1118,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             b,
             inst_ty: hd_mono::instruction_types(input.pool, input.env, item, args, b),
             item,
+            direct_json,
             origin_root: b.sub_root[0],
             args,
             calls,
@@ -2241,6 +2245,10 @@ impl Em<'_, '_, '_> {
         match self.calls.get(&i).cloned() {
             Some(Target::Call(ct)) => match &ct.kind {
                 TargetKind::Instance => {
+                    if self.direct_json && self.input.json_fallbacks.contains(&ct.item) {
+                        self.f.op(Instruction::Unreachable);
+                        return self.call_results(i, ct.ret);
+                    }
                     let params = self.param_tys(ct.key, ct.item, ct.args);
                     let lends = self.env().lends(ct.item);
                     self.push_args(&args, params.as_deref(), lends)?;

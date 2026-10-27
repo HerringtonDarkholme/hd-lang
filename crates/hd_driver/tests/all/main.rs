@@ -60,6 +60,7 @@ mod intrinsic_methods;
 mod item_names;
 mod item_too_complex;
 mod join_once;
+mod json_encode_linking;
 mod lazy_ifaces;
 mod least_common_type_run;
 mod let_mut_module_level;
