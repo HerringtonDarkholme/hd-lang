@@ -15,4 +15,4 @@ run: hd check --format json valid.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json trait-control.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-method","file":"trait-control.hd","line":6,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-method","file":"trait-control.hd","line":7,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]

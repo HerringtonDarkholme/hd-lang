@@ -1,11 +1,10 @@
 # café keeps all edit offsets in UTF-8 bytes.
 let LIMIT: i32 = 10
 
-fn limit() -> i32:
-    LIMIT
+fn limit() -> i32: LIMIT
 
 fn narrow(number: i32) -> u8:
-    u8(number)
+    (u8(number))
 
 enum Cell[T]:
     Full(value: T)
@@ -16,9 +15,6 @@ fn read(cell: Cell[i32]) -> i32:
         Cell.Full(item) => item
         Cell.Empty => 0
 
-fn const(value: i32) -> i32:
-    value
-fn as(value: i32) -> i32:
-    value
-fn named() -> i32:
-    const(as(+1))
+fn const(value: i32) -> i32: value
+fn as(value: i32) -> i32: value
+fn named() -> i32: const(as(+1))
