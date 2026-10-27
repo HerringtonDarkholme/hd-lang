@@ -20,8 +20,9 @@ const fail = (error) => {
   parentPort.close();
 };
 try {
-  const [runtime, bindings, application] = await Promise.all([
+  const [runtime, packageRuntime, bindings, application] = await Promise.all([
     import(program.runtimeURL),
+    import(program.packageRuntimeURL ?? program.runtimeURL),
     import(program.bindingsURL),
     import(program.applicationURL),
   ]);
@@ -33,6 +34,7 @@ try {
     module: program.module,
     bindings,
     createCoreHost: runtime.createCoreHost,
+    createPackageRuntime: packageRuntime.createPackageRuntime,
     grants: program.grants,
     log: (record) => post("log", { record, request: record.lease ? (active?.id ?? null) : null }),
     onReady: ready,

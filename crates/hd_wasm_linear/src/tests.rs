@@ -1015,7 +1015,7 @@ fn session_host_restores_checkpoint_and_active_tail_without_effects() {
         r"
 import assert from 'node:assert/strict';
 import {{pathToFileURL}} from 'node:url';
-const {{createSession}} = await import(pathToFileURL({host:?}));
+const {{createSession}} = await import(new URL('session.mjs', pathToFileURL({host:?})));
 const modules = {modules:?}.map(bytes => new Uint8Array(bytes));
 const cancelled = new Uint8Array({cancelled:?});
 for (const cap of [1, 300, 100000]) {{

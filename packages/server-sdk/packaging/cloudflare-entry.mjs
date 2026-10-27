@@ -24,6 +24,7 @@ export function entrySource(names) {
   return `import module from './app.wasm';
 import * as bindings from './bindings.mjs';
 import { createCoreHost } from './runtime/core.mjs';
+import { createPackageRuntime } from './runtime/package-providers.mjs';
 import { createApplication } from './sdk/application.mjs';
 import { createFetchHandler } from './sdk/fetch.mjs';
 import grants from './grants.json';
@@ -46,7 +47,7 @@ export default {fetch(request,bindingsEnv){
    return result;
   };
   const sink={out:text=>console.log(text),err:text=>console.error(text)};
-  const app=createApplication({module,bindings,createCoreHost:portableCore,grants,sink,
+  const app=createApplication({module,bindings,createCoreHost:portableCore,createPackageRuntime,grants,sink,
    log:record=>(record.stream==='err'?console.error:console.log)(JSON.stringify(record))});
   app.start();handler=createFetchHandler(app,{sink});
  }

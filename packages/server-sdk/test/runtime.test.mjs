@@ -115,6 +115,7 @@ import { createApplication } from ${url(join(sdk, "adapters/application.mjs"))};
 import * as bindings from ${url(join(build, binding))};
 const runtime = await emitPortableRuntime(${JSON.stringify(join(directory, "emitted-runtime"))});
 const { createCoreHost } = await import(runtime.coreURL);
+const { createPackageRuntime } = await import(runtime.packageProvidersURL);
 const module = new WebAssembly.Module(await readFile(${JSON.stringify(join(build, "server_api.wasm"))}));
 const sections = WebAssembly.Module.customSections(module, "hd.capabilities");
 assert.equal(sections.length, 1);
@@ -123,7 +124,7 @@ assert.deepEqual(new Uint8Array(sections[0]), bindings.contract);
 const output = [], errors = [], counts = [];
 let stopped;
 const completion = new Promise((resolve) => { stopped = resolve; });
-const application = createApplication({ module, bindings, createCoreHost,
+const application = createApplication({ module, bindings, createCoreHost, createPackageRuntime,
   grants: await readProductionGrants(${JSON.stringify(app)}),
   sink: { out: (text) => output.push(text), err: (text) => errors.push(text) }, onStopped: stopped });
 for (const message of ["one", "two", "three"]) {

@@ -25,8 +25,12 @@ const SESSION: &str = include_str!("../../../host/session.mjs");
 const CHECKED_REPORT: &str = include_str!("../../../host/checked-report.mjs");
 /// The JS host's Node layer: the providers that touch the machine.
 const NODE: &str = include_str!("../../../host/node.mjs");
+/// The Node-only REPL glue loaded by `node.mjs` on demand.
+const NODE_SESSION: &str = include_str!("../../../host/node-session.mjs");
 /// `hd run`: one instance, `hd.init` then `hd.poll`.
 const RUN: &str = include_str!("../../../host/run.mjs");
+/// Selects the panic-only startup host before the full Node host.
+const STARTUP: &str = include_str!("../../../host/startup.mjs");
 /// `hd test`: runs the test program's cases and writes their results.
 const TEST: &str = include_str!("../../../host/test.mjs");
 /// The worker thread the cases run in, and its supervisor.
@@ -53,8 +57,12 @@ const WORKER_CONTROL: &str = include_str!("../../../host/worker-control.mjs");
 const FLOAT: &str = include_str!("../../../host/float.mjs");
 /// A REPL session's journal of host calls (`core.mjs` imports it).
 const JOURNAL: &str = include_str!("../../../host/journal.mjs");
+/// Dependency-free entry-driver constants and cancellation helpers.
+const RUN_SUPPORT: &str = include_str!("../../../host/run-support.mjs");
 /// The exchange-buffer encoding the hosts' codecs are built on.
 const WIRE: &str = include_str!("../../../host/wire.mjs");
+/// The lightweight decoder for a package-host custom section.
+const PACKAGE_CONTRACT: &str = include_str!("../../../host/package-contract.mjs");
 /// The checked helpers called by generated package host bindings.
 const PACKAGE_PROVIDERS: &str = include_str!("../../../host/package-providers.mjs");
 /// The codecs and method descriptors generated from the ABI model.
@@ -246,7 +254,9 @@ impl Scratch {
             ("session.mjs", SESSION),
             ("checked-report.mjs", CHECKED_REPORT),
             ("node.mjs", NODE),
+            ("node-session.mjs", NODE_SESSION),
             ("run.mjs", RUN),
+            ("startup.mjs", STARTUP),
             ("test.mjs", TEST),
             ("test-run.mjs", TEST_RUN),
             ("cases.mjs", CASES),
@@ -260,7 +270,9 @@ impl Scratch {
             ("worker-control.mjs", WORKER_CONTROL),
             ("float.mjs", FLOAT),
             ("journal.mjs", JOURNAL),
+            ("run-support.mjs", RUN_SUPPORT),
             ("wire.mjs", WIRE),
+            ("package-contract.mjs", PACKAGE_CONTRACT),
             ("package-providers.mjs", PACKAGE_PROVIDERS),
             ("gen/abi.mjs", ABI),
         ] {

@@ -1,6 +1,6 @@
 // Initialized REPL sessions, checkpoint images and historical replay.
-// The core injects host creation and pending-operation cleanup, avoiding
-// a circular dependency between this module and core.mjs.
+// Kept outside core.mjs so ordinary programs do not load the journal.
+import { clearOperations, createCoreHost } from "./core.mjs";
 import { METHODS } from "./gen/abi.mjs";
 import { HostContract } from "./wire.mjs";
 import {
@@ -703,6 +703,13 @@ class ReplSession {
   }
 }
 
-export function createSession(sink, env, layer, options, createCoreHost, clearOperations) {
-  return new ReplSession(sink, env, layer, options, createCoreHost, clearOperations).interface();
+export function createSession(sink, env = {}, layer = null, options = {}) {
+  return new ReplSession(
+    sink,
+    { ...env, isReplayDivergence: (error) => error instanceof Diverged },
+    layer,
+    options,
+    createCoreHost,
+    clearOperations,
+  ).interface();
 }

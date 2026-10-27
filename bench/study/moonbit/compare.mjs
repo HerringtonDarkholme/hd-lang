@@ -95,9 +95,14 @@ async function child(kind, file) {
   const out = [];
   let ms;
   if (kind === "hd") {
-    const { createHost } = await import(join(REPO, "host", "node.mjs"));
-    const host = createHost({ out: (t) => out.push(t), err: (t) => out.push(t) }, {});
-    const { instance } = await WebAssembly.instantiate(bytes, host.imports);
+    const { createStartupHost } = await import(join(REPO, "host", "startup.mjs"));
+    const module = await WebAssembly.compile(bytes);
+    const host = await createStartupHost(
+      module,
+      { out: (t) => out.push(t), err: (t) => out.push(t) },
+      {},
+    );
+    const instance = new WebAssembly.Instance(module, host.imports);
     const t = performance.now();
     const { status } = await host.run(instance, "hd.init", "hd.poll");
     ms = performance.now() - t;

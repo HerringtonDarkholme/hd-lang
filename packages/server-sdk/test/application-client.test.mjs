@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { after, before, test } from "node:test";
 import { createCoreHost } from "../../../host/core.mjs";
+import { createPackageRuntime } from "../../../host/package-providers.mjs";
 import { createApplication } from "../adapters/application.mjs";
 import { readProductionGrants } from "../packaging/grants.mjs";
 
@@ -64,6 +65,7 @@ async function setup(Http, handler, grants) {
     ambientClock = 0;
   const app = createApplication({
     module,
+    createPackageRuntime,
     bindings: {
       ...bindings,
       bind(runtime, providers) {
@@ -372,7 +374,10 @@ test(
       );
       const grants = await readProductionGrants(rootDirectory);
       assert.equal(grants[selector], false);
-      assert.throws(() => createApplication({ module, bindings, createCoreHost, grants }), /grant/);
+      assert.throws(
+        () => createApplication({ module, bindings, createCoreHost, createPackageRuntime, grants }),
+        /grant/,
+      );
     } finally {
       writeFileSync(manifest, original);
     }

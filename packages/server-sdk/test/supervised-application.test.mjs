@@ -89,6 +89,7 @@ async function setup({
       module,
       bindingsURL,
       runtimeURL: new URL("../../../host/core.mjs", import.meta.url).href,
+      packageRuntimeURL: new URL("../../../host/package-providers.mjs", import.meta.url).href,
       applicationURL: new URL(
         cleanupClock
           ? "./fixtures/logical-cleanup-application.mjs" + (cleanupClock.hold ? "?hold" : "")

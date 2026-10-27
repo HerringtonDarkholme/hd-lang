@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync, cpSync, rmSync, readdirSync }
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createCoreHost } from "../../../host/core.mjs";
+import { createPackageRuntime } from "../../../host/package-providers.mjs";
 import { createApplication } from "../adapters/application.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -60,6 +61,7 @@ function application() {
     module,
     bindings,
     createCoreHost,
+    createPackageRuntime,
     grants: { [source.selectors[0]]: true, Console: true, Clock: true },
     sink: {
       out(text) {

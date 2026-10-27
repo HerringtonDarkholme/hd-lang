@@ -42,13 +42,17 @@
 //   in one growing set of instances, records a journal of its host calls
 //   at the import call sites, and rebuilds itself from a journal
 //   (journal.mjs), as `hd_run_wasmtime`'s session does.
-import { cycleReport } from "./checked-report.mjs";
 import { shortest, fixed, lower, upper, parse } from "./float.mjs";
 import { WireHttpError as HttpError, METHODS } from "./gen/abi.mjs";
-import { Diverged } from "./journal.mjs";
-import { createSession as createReplSession } from "./session.mjs";
 import { Dec, decodeUtf8, Enc, Err, HostContract, Ok, str, variant } from "./wire.mjs";
-import { createPackageRuntime, readPackageContract } from "./package-providers.mjs";
+export {
+  CANCEL_STATUS,
+  entryCancel,
+  factHead,
+  PROGRAM_TIME_LIMIT,
+  reportIn,
+} from "./run-support.mjs";
+import { CANCEL_STATUS, factHead, PROGRAM_TIME_LIMIT, reportIn } from "./run-support.mjs";
 
 export { HostContract };
 
@@ -83,65 +87,18 @@ const wasmFrames = (e) =>
 export const timeLimitReport = (ms) =>
   `panic: time-limit: the test case ran longer than its timeout of ${ms}ms\n`;
 
-// The panic report of a program that ran past its `--time-limit`.
-export const PROGRAM_TIME_LIMIT = "panic: time-limit: the program exceeded its time limit\n";
-
 // What `hd.poll` returns for a root that ended cancelled, its cleanup run
 // to its end, and one less when a part of it was cut short (rt.rs
 // `CANCELLED_END`, req.entry.cancelled).
 const CANCELLED_END = -2;
-
-// The status of a run whose entry ended cancelled, and of one a Ctrl-C
-// stopped while it computed: 128 plus SIGINT's number, as a shell reports a
-// process that SIGINT ended (cli.cancel.status).
-export const CANCEL_STATUS = 130;
-
-// A host's cancellation of the entry (req.entry.cancel, cli.cancel.ctrl-c):
-// `request()` asks for it, as a Ctrl-C does. `run` cancels the entry at the
-// first request that finds it waiting on the host, and abandons it at the
-// next one, or once `boundMs` milliseconds have passed since that cancel,
-// its cleanup bound (cli.cancel.bound). `wait(ms)` is a host wait that a
-// request ends at once; `onWait(true)` and `onWait(false)` hear each such
-// wait start and end, so a platform can listen for its interrupt only
-// while the program waits. `run` reads `requests()`, the count so far.
-export function entryCancel(boundMs, onWait = null) {
-  let requests = 0;
-  let wake = null;
-  return {
-    boundMs,
-    request: () => {
-      requests += 1;
-      wake?.();
-    },
-    requests: () => requests,
-    wait: (ms) =>
-      new Promise((resolve) => {
-        const done = () => {
-          clearTimeout(timer);
-          wake = null;
-          onWait?.(false);
-          resolve();
-        };
-        const timer = setTimeout(done, ms);
-        wake = done;
-        onWait?.(true);
-      }),
-  };
-}
 
 // The start of every panic report after its `panic: `, the instance's
 // and the host's own, while the facts labeled `fact` are evaluated, or ""
 // when none are (`fact` null): a panic while a facts body runs is
 // `fact-evaluation-failed`, naming its facts before the original category
 // (annot.fact.eval.panic-runtime).
-export const factHead = (fact) =>
-  fact == null ? "" : `fact-evaluation-failed: the facts of \`${fact}\` panicked with `;
-
 // The host's own panic report `report`, `panic: CATEGORY: MESSAGE` and a
 // newline, as it is written while the facts labeled `fact` are evaluated.
-export const reportIn = (fact, report) =>
-  `panic: ${factHead(fact)}${report.slice("panic: ".length)}`;
-
 // The category and message of a recorded panic report, the text after
 // `panic: `: `CATEGORY: MESSAGE` and a newline, or `CATEGORY` alone. The
 // category is the compiler's or the host's, never program text, so the
@@ -359,7 +316,7 @@ function abortOperation(st, h) {
   st.ops.delete(h);
   operation?.abort?.();
 }
-function clearOperations(st) {
+export function clearOperations(st) {
   for (const h of st.ops.keys()) abortOperation(st, h);
 }
 
@@ -670,6 +627,15 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // below: the exchange memory, trap reporting, the test timeout, case
   // files, pending operations, output, and noticed names.
   const st = initialState(env, layer);
+  const reportsCycles =
+    env.module instanceof WebAssembly.Module &&
+    WebAssembly.Module.customSections(env.module, "hd.cycles").length === 1;
+  const writeCycleReport = async (instance) => {
+    if (!reportsCycles) return;
+    const { cycleReport } = await import("./checked-report.mjs");
+    const report = cycleReport(env.module, instance);
+    if (report !== null) sink.err(report);
+  };
   const view = (len) => new Uint8Array(st.memory.buffer, 0, len);
   const text = (len) => decodeUtf8(view(len));
   // Writes an encoded result (or its bytes) at offset 0, growing the
@@ -815,7 +781,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
       writtenHost,
     });
     const console = Object.freeze({ allows: () => grant.allows("Console") });
-    packageRuntime = createPackageRuntime({ ...io, http, console }, env);
+    if (typeof env.createPackageRuntime !== "function")
+      throw new HostContract("package host runtime was not supplied");
+    packageRuntime = env.createPackageRuntime({ ...io, http, console }, env);
     try {
       Object.assign(imports, env.packageBindings(packageRuntime));
     } catch (error) {
@@ -828,7 +796,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
       const sections = WebAssembly.Module.customSections(env.module, "hd.capabilities");
       if (sections.length > 1) throw new HostContract("duplicate package host contracts");
       if (sections.length) {
-        const required = readPackageContract(new Uint8Array(sections[0]));
+        if (typeof env.readPackageContract !== "function")
+          throw new HostContract("package host contract reader was not supplied");
+        const required = env.readPackageContract(new Uint8Array(sections[0]));
         const i = required.find((i) => !i.handle) ?? required[0];
         if (i)
           throw new HostContract(
@@ -873,13 +843,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // else waits for it instead of deadlocking. A root that ends cancelled,
   // whoever cancelled it, ends the run with `cancelled` on standard error
   // and status 130 (cli.cancel.end).
-  const run = async (instance, init, poll, driver = null, cancel = null) => {
-    if (st.drivingMode === "sync")
-      throw new HostContract("the host already has a synchronous driver");
-    st.drivingMode = "async";
-    prime(instance);
-    const ex = instance.exports;
-    let status = 0;
+  const continueRun = async (instance, ex, poll, status, driver, cancel, firstError = null) => {
     let trapped = false;
     let ended = false;
     let limited = false;
@@ -893,9 +857,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
     let cleanupBy = null;
     let abandoned = false;
     try {
-      ex[init]();
-      driver?.poll();
-      status = ex[poll](0);
+      if (firstError !== null) throw firstError;
       while (status === -1) {
         let n;
         if (driver?.replaying()) n = driver.served();
@@ -951,8 +913,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
     } catch (e) {
       flush();
       if (e instanceof EndCase) {
-        const report = cycleReport(env.module, instance);
-        if (report !== null) sink.err(report);
+        await writeCycleReport(instance);
         return { status: 0, trapped: false, ended: true };
       }
       if (e instanceof HostContract) {
@@ -970,7 +931,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
         frames = wasmFrames(e);
       } else if (e instanceof WebAssembly.RuntimeError) {
         frames = wasmFrames(e);
-      } else if (e instanceof Diverged) {
+      } else if (env.isReplayDivergence?.(e)) {
         st.reported = true;
       } else if (!(e instanceof Deadlock)) {
         throw e;
@@ -991,9 +952,50 @@ export function createCoreHost(sink, env = {}, layer = null) {
     }
     // A trap's panic as the host recorded it, or null.
     const panic = trapped && st.panic !== null ? panicOfReport(st.panic) : null;
-    const report = cycleReport(env.module, instance);
-    if (report !== null) sink.err(report);
+    await writeCycleReport(instance);
     return { status, trapped, ended, frames, panic, cancelled: cancelled && !trapped };
+  };
+
+  // Keep the common no-suspension path apart from the full async driver:
+  // a fresh Node process can compile this small wrapper without compiling
+  // cancellation, waits, traps and wake delivery that it never reaches.
+  const run = (instance, init, poll, driver = null, cancel = null) => {
+    if (st.drivingMode === "sync")
+      return Promise.reject(new HostContract("the host already has a synchronous driver"));
+    st.drivingMode = "async";
+    try {
+      prime(instance);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const ex = instance.exports;
+    let status;
+    try {
+      ex[init]();
+      driver?.poll();
+      status = ex[poll](0);
+    } catch (error) {
+      return continueRun(instance, ex, poll, 0, driver, cancel, error);
+    }
+    if (status === -1 || status === CANCELLED_END || status === CANCELLED_END - 1)
+      return continueRun(instance, ex, poll, status, driver, cancel);
+    try {
+      flush();
+      if (overran()) return continueRun(instance, ex, poll, status, driver, cancel);
+      const result = {
+        status,
+        trapped: false,
+        ended: false,
+        frames: [],
+        panic: null,
+        cancelled: false,
+      };
+      return reportsCycles
+        ? writeCycleReport(instance).then(() => result)
+        : Promise.resolve(result);
+    } catch (error) {
+      return Promise.reject(error);
+    }
   };
 
   // Releases what the platform layer holds (its client threads, its
@@ -1033,10 +1035,4 @@ export function createCoreHost(sink, env = {}, layer = null) {
     tempDir: platform?.tempDir,
     core,
   };
-}
-
-// Keeps the public host entry point stable; named session lifecycle
-// helpers live in session.mjs.
-export function createSession(sink, env = {}, layer = null, options = {}) {
-  return createReplSession(sink, env, layer, options, createCoreHost, clearOperations);
 }

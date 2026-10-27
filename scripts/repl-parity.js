@@ -21,7 +21,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { recorded } from "../host/journal.mjs";
-import { createNodeSession } from "../host/node.mjs";
+import { createNodeSession } from "../host/node-session.mjs";
 
 const dir = process.argv[2];
 const read = (name) => readFileSync(join(dir, name), "utf8");

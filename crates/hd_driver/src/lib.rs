@@ -12592,7 +12592,11 @@ fn run_package_host_javascript(out: &Output, body: &str) {
         "\
 import assert from 'node:assert/strict';
 import {{ pathToFileURL }} from 'node:url';
-const {{ createCoreHost }} = await import(pathToFileURL({:?}));
+const coreURL = pathToFileURL({:?});
+const {{ createCoreHost: createBaseHost }} = await import(coreURL);
+const {{ createPackageRuntime, readPackageContract }} = await import(new URL('package-providers.mjs', coreURL));
+const createCoreHost = (sink, env, layer) =>
+  createBaseHost(sink, {{ ...env, createPackageRuntime, readPackageContract }}, layer);
 const glue = await import('data:text/javascript,' + encodeURIComponent({glue:?}));
 const module = await WebAssembly.compile(new Uint8Array({:?}));
 const output = [], errors = [];

@@ -12,6 +12,7 @@ export function createApplication({
   module,
   bindings,
   createCoreHost,
+  createPackageRuntime,
   grants,
   sink,
   log = (record) => sink?.[record.stream]?.(record.text),
@@ -147,6 +148,7 @@ export function createApplication({
           {
             module,
             grants,
+            createPackageRuntime,
             packageBindings: (runtime) =>
               bindings.bind(runtime, new Map([[source.module, provider]])),
           },

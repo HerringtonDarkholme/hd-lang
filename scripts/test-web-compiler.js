@@ -29,7 +29,7 @@ import {
 } from "../website/playground/src/compiler-wire.ts";
 import { COMPILER_WASM, WAT_WASM, formatBytes, sizes } from "./build-web-compiler.js";
 import { createWatPrinter } from "../website/playground/src/wat-printer.ts";
-import { createNodeSession } from "../host/node.mjs";
+import { createNodeSession } from "../host/node-session.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-console-stdout.hd");

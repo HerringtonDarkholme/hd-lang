@@ -37,6 +37,7 @@ async function contractReader(snapshot) {
     ]);
     return {
       readPackageContract: providers.readPackageContract,
+      createPackageRuntime: providers.createPackageRuntime,
       createCoreHost: core.createCoreHost,
     };
   } finally {
@@ -81,7 +82,8 @@ export async function deploymentInputs({
   )
     throw bad("module and SDK package-host ABI do not match");
   const contract = new Uint8Array(sections[0]);
-  const { readPackageContract, createCoreHost } = await contractReader(runtime);
+  const { readPackageContract, createPackageRuntime, createCoreHost } =
+    await contractReader(runtime);
   const interfaces = readPackageContract(contract);
   const source = validateServerContract(interfaces, expectedSDKIdentity, schema.schema);
   if (
@@ -111,6 +113,7 @@ export async function deploymentInputs({
     {
       module,
       grants,
+      createPackageRuntime,
       packageBindings: (runtime) =>
         bindings.bind(runtime, new Map([[source.module, implementation]])),
     },

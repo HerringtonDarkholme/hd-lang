@@ -30,6 +30,8 @@ export function createSupervisor({
     throw new TypeError("compiled module required");
   for (const key of ["runtimeURL", "bindingsURL", "applicationURL"])
     if (typeof program[key] !== "string") throw new TypeError(`explicit ${key} required`);
+  if (program.packageRuntimeURL !== undefined && typeof program.packageRuntimeURL !== "string")
+    throw new TypeError("packageRuntimeURL must be a string");
   for (const key of [
     "workers",
     "startupMs",

@@ -1205,7 +1205,9 @@ async function heldLookupHost(t) {
     "checked-report.mjs",
     "float.mjs",
     "journal.mjs",
+    "run-support.mjs",
     "wire.mjs",
+    "package-contract.mjs",
     "package-providers.mjs",
     "gen/abi.mjs",
   ]) {
