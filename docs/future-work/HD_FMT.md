@@ -28,7 +28,11 @@ not its tabs or its particular line-breaking rules.
 
 1. Approve the fixed style and parse/build/print architecture below? Recommendation: yes.
 2. Keep formatting outside the web compiler until a Format feature is approved? Recommendation: yes; zero added download now.
-3. Keep function and statement suites on their own lines, joining only match arms, closures and parenthesized conditionals? Recommendation: yes. The review estimates joining all fitting suites would move about 1,400 of std’s 4,100 indented bodies onto headers.
+
+The owner has settled suite layout: function and statement bodies stay on their
+own lines. Match arms, closures and inline `if` expressions use one line when
+they fit and break otherwise. Joining every fitting suite would move about
+1,400 of std's 4,100 indented bodies onto headers, so it is excluded.
 
 ## Problems it solves
 
@@ -71,7 +75,7 @@ cutoff alone does **not** bound other zero-width tags: Appendix E specifies
 jump tables and operation-count gates. The bound is O(input + 100 × groups +
 output), with O(input) auxiliary storage; emitted indentation counts as output.
 
-The recommended style keeps function and statement-suite bodies on their own
+The fixed style keeps function and statement-suite bodies on their own
 lines, even when short. Match arms, closures and parenthesized conditionals may
 group flat only where hd's inline grammar permits; a complete flat body stays
 flat. An eligible parenthesized conditional joins **all** branches on one line when the whole expression
