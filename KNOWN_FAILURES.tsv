@@ -3,4 +3,3 @@ cli/lint-manifest-precedence	#855		Approved lint migration and operational error
 cli/lint-private-entry	#855		Approved lint migration and operational errors await the producer/CLI implementation slices.
 cli/lint-site-allow	#855		Approved lint migration and operational errors await the producer/CLI implementation slices.
 cli/manifest-unknown-key	#855		Approved lint migration and operational errors await the producer/CLI implementation slices.
-typing/valid/a-try-hint-solves-a-parameter-named-only-in-bounds.hd	#882		A ? hint solves T but the bounds-only E stays unsolved (cannot-infer-type).

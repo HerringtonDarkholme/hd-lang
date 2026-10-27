@@ -1986,6 +1986,34 @@ impl Ck<'_, '_> {
                     let snap = self.infer.snapshot();
                     if self.infer.unify(pool, ret, w).is_err() {
                         self.infer.rollback(snap);
+                        // An expected result still guides each result
+                        // argument that fits when another one does not. In
+                        // particular, the operand of `?` may return a
+                        // different error type that `From` converts while
+                        // its success type solves a callee parameter
+                        // (`expr.try.expected.result`).
+                        if let (
+                            TyData::Adt {
+                                def: ret_def,
+                                args: ret_args,
+                            },
+                            TyData::Adt {
+                                def: want_def,
+                                args: want_args,
+                            },
+                        ) = (pool.get(ret), pool.get(w))
+                            && ret_def == want_def
+                            && ret_def == self.cx.names.known.result
+                        {
+                            let ret_args = pool.list_items(ret_args).to_vec();
+                            let want_args = pool.list_items(want_args).to_vec();
+                            for (ret_arg, want_arg) in ret_args.into_iter().zip(want_args) {
+                                let snap = self.infer.snapshot();
+                                if self.infer.unify(pool, ret_arg, want_arg).is_err() {
+                                    self.infer.rollback(snap);
+                                }
+                            }
+                        }
                     }
                 }
                 self.default_owner = Some((def, pool.list(&vars), vec![]));
