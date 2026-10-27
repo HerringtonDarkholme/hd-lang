@@ -153,6 +153,13 @@ miss. Don't build first and measure after.
 3. **Build.** Only now write the real change, with fixtures and the
    gates, one cause per commit. Then report it with the table below.
 
+The 3% bar decides whether a change is worth *building*. It doesn't block
+*merging*. A change that is already built, small, sound, and slows no tier
+and no program (a pure win, even if under 3%) merges. Example: moving the
+collector-due check to the slow path, -1.8% default and -7.8% Liftoff.
+Don't merge a change that adds real complexity for a sub-3% gain: #893 was
+92 bytes of hello for about 200 lines.
+
 Known measured misses not to retry without new evidence: inlining count
 fast paths on V8 (#644, #910), removing inline targets to shrink TurboFan
 graphs (#884, #920), a flag bit or fat views for strings (#901), returns
