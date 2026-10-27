@@ -29,11 +29,11 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
-- [Inline And Cold Decorators](INLINE_AND_COLD.md): proposed `@inline(.Always)`, `@inline(.Never)` and `@cold` compiler decorators over the release inliner and table calls; owner review (#873, #874, #884).
+- [Inline And Cold Decorators](INLINE_AND_COLD.md): `@inline(.Always)`, `@inline(.Never)` and `@cold` compiler decorators over the release inliner and table calls; accepted, phases 1-3 implemented, the std rare paths (#884) measured a miss, `.Always` open (#873).
 
 ### Tooling
 
-- [hd lint](HD_LINT.md): proposed command, shared diagnostics, package allow/deny policy, and a first lint for lost temporary-receiver writes (#651).
+- [hd lint](HD_LINT.md): the `hd lint` command and warning migration (#855, in part); its architecture is being redesigned (#908).
 - [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes; every version is compared with the last stable release (#28).
 - [Live Execution](live-execution.md): the built REPL, journal, replay and session rebuilds (#17).
 
@@ -41,7 +41,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
-- [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1. Part 3 is its first cut, local references: step 1 is applied (#834); step 2 (#704) is parked, and later steps need approval.
+- [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1. Part 3 is its first cut, local references: step 1 is applied (#834); step 2 is not adopted (#704 shipped as a release-only fact instead), and later steps need approval.
 - [Refcount Runtime](REFCOUNT_RUNTIME.md): the linear-memory runtime of reference counting with cycle detection, priced on Wasm; it is the only backend (#426).
 - [Performance Roadmap](PERFORMANCE_ROADMAP.md): where time and memory go from the measurements on record, fixes by mechanism, and ranked hour-sized steps (#426).
 - [Release-Only Interprocedural Optimization](RELEASE_INTERPROC.md): built 2026-10-25 in the optimized pipeline only: per-function summaries over SCCs (slices 2-5: kept parameters, writes, lent parameters). Slices 6-9 measured no gain and were not merged (#681 closed); results on #165.

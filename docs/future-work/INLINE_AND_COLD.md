@@ -1,6 +1,6 @@
 # Inline And Cold Decorators
 
-Status: accepted by the owner, 2026-10-26; domain: language feature; not implemented.
+Status: accepted by the owner, 2026-10-26; domain: language feature. Phases 1-3 are implemented; phase 4, the std rare paths, measured a miss (#884, closed); phases 5-6 remain (#873).
 Issues: [#873](https://github.com/HerringtonDarkholme/hd-lang/issues/873)
 (`@inline`), [#874](https://github.com/HerringtonDarkholme/hd-lang/issues/874)
 (`@cold`), payoff measured in
@@ -71,7 +71,7 @@ answers were approved with the design on 2026-10-26.
 4. Does the choice follow generic instances and trait impls? **Yes**, every instance, impl method and default body; calls through `&dyn` or a function value stay calls, with no diagnostic.
 5. What does `@cold` change? **Inlining and call lowering**, not branch layout: V8 ignores branch hints by default.
 6. Does `@cold` imply `.Never`? **Yes**; `@cold` with any `@inline` is an error, `invalid-inline-decorator`.
-7. Is `panic` marked `@cold` in std? **No**: it is an intrinsic the emitter already lowers cold. std marks the #884 rare paths, each with a perf report.
+7. Is `panic` marked `@cold` in std? **No**: it is an intrinsic the emitter already lowers cold. std marks no rare paths: the #884 experiment measured a miss.
 8. Values or compiler decorators? **Compiler decorators**, like `annotate` and `num_suffix`: they attach no value, so `facts_of` leaves them out.
 9. Where do the names live? **`std.annotation`, imported**, like `annotate` and `facts_of`; not in the prelude.
 10. How far does `.Auto` lift the default rule? **To 64 instructions, with reference parameters allowed**, measured on the 19 programs before it lands; a bound keeps a hint from bloating code the way `.Always` may.
@@ -432,8 +432,8 @@ Phases, each about an hour with its test:
 1. `std.annotation` declarations; the resolver reads both; `invalid-inline-decorator`; spec rules and fixtures.
 2. Inliner: `.Never` and `@cold` refused. Test: a `tir` stage case keeps the call.
 3. Emitter: `@cold` calls through the table. Test: a `wat` stage case shows `call_indirect`.
-4. std: the #884 rare paths marked, `push`'s growth split. Test: the compiler-tests perf and size report over the 19 programs (closes #884).
+4. std: the #884 rare paths marked, `push`'s growth split. Measured a miss; #884 closed, attempt on `park/884-cold-rt`.
 5. `.Always`: past the limit and the reference rule; `inline-always-uncopyable`; cycles. Test: stage cases and fixtures.
 6. The copier takes integer, char and string switches, `&dyn` calls and host calls. Starts with a size estimate; stops at 1.5x.
 
-Phases 1 to 4 deliver #884 without `.Always`.
+Phases 1 to 3 are implemented; phase 4 measured a miss.

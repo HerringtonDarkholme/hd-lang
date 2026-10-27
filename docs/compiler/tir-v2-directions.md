@@ -363,12 +363,10 @@ defects with harder alias reasoning.
    form saves a load for the length but triples the size of every list
    field. Recommended: the buffer address, with length, capacity and pin
    count in the buffer.
-5. **When to decide #704's tag for interior references?** With places,
-   a function knows statically whether an address is a whole object or
-   interior; only `&T` parameters and fields are unknown. The tag would
-   give those the fast count path at one mask per interior dereference.
-   Recommended: decide after the per-body borrow pass lands and the
-   binary_trees counts are measured again.
+5. **#704's tag for interior references: not adopted** (2026-10-26). An
+   experiment measured the masks at 6-8% on dyn_iter. #704 shipped instead
+   as a release-only whole-program fact per reference target
+   (`crates/hd_wasm_linear/src/whole.rs`), with no tag and no masks.
 
 ## Sources
 

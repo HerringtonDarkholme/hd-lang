@@ -1,5 +1,7 @@
 # hd lint
 
+Its architecture is being redesigned in [#908](https://github.com/HerringtonDarkholme/hd-lang/issues/908); the registry and data flow in "Architecture" below were never built.
+
 Accepted command boundary and migration plan, owner 2026-10-26,
 [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855).
 The earlier review is in [#651](https://github.com/HerringtonDarkholme/hd-lang/issues/651).

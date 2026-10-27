@@ -398,7 +398,7 @@ steps for them.
 | 1 | Re-run pillar 3 on HEAD; profile JSON encode, decode and text build on V8; run the review's cases on wasmtime. A new metrics record, no code | #426 | the whole pillar 3 table; GC share per profile |
 | 4 | Find why `sum` is 4.77x | - | ns per iteration on V8 with and without Liftoff, on wasmtime, and for a hand-written loop; the WAT of the hot loop |
 | 8 | SipHash-1-3 on native adds for string bucket hashes | #353 follow-up | 1M short keys insert and lookup (63 / 52-57 ms), 200k 63-byte keys (19 / 17 ms), the colliding-key tests (stay near 0) |
-| 12 | `Display.write` into a builder | #426 sub-item, after #858, #861, #862, #863 | `debug` of a record 100k (78 ms), `Display` of a three-level nested value, text build |
+| 12 | `Display.write` into a builder | #426 sub-item, after #858, #861, #862 | `debug` of a record 100k (78 ms), `Display` of a three-level nested value, text build |
 | 16 | Time types as newtypes | #426 | the `Duration` shape's bytes per iteration, `to_rfc3339` 10⁵ times |
 | 25 | Property runner: one import object per test, synchronous instantiation | #426 | cases per second (28k) |
 | 26 | One `realpath` per host file call, in both hosts | #426 | `list_dir!` (41 µs), `read_text!` (32 µs) |
