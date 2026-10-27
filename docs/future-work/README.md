@@ -33,7 +33,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Tooling
 
-- [hd lint](HD_LINT.md): proposed command, shared diagnostics, package allow/deny policy, and a first lint for lost temporary-receiver writes (#651).
+- [hd lint](HD_LINT.md): proposed shared lint architecture (#908).
 - [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes; every version is compared with the last stable release (#28).
 - [Live Execution](live-execution.md): the built REPL, journal, replay and session rebuilds (#17).
 
