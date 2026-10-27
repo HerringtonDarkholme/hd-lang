@@ -1,0 +1,18 @@
+fn choose( a:i32,b :i32 )->i32:
+        pair := Item{first:a,second:b}
+
+
+
+        consume(
+            pair,
+        )
+        answer := if a>b:
+            a
+        else:
+            b
+        if a>b:consume(answer)
+        answer
+fn terminal(flag: bool) -> void:
+    if flag:finish() else:fail()
+fn partial(flag: bool):
+    if flag:finish()

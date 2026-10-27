@@ -101,7 +101,7 @@ fn comments_and_literal_contents_remain_exact_even_when_long() {
     assert!(formatted.contains(&format!("# {long}  \n")), "{formatted}");
     assert!(formatted.contains(&format!("\"{long}  \"")), "{formatted}");
     assert!(
-        formatted.contains(&format!("    short()  # {long}  \n")),
+        formatted.contains(&format!("    short() # {long}  \n")),
         "{formatted}"
     );
     assert!(formatted.ends_with("# markdown  \n"), "{formatted}");
@@ -131,7 +131,7 @@ fn trailing_commas_generic_arguments_and_use_groups_stay_valid() {
     let formatted = narrow(&source);
     assert!(formatted.contains("use pkg.module.{\n"), "{formatted}");
     assert!(formatted.contains("consume::[\n"), "{formatted}");
-    assert!(formatted.contains("](+1,)"), "{formatted}");
+    assert!(formatted.contains("](+1)"), "{formatted}");
 }
 
 #[test]
@@ -160,17 +160,13 @@ fn exactly_one_hundred_columns_stay_on_one_line() {
 }
 
 #[test]
-fn an_existing_multiline_call_moves_closure_bodies_with_their_headers() {
+fn an_existing_multiline_closure_joins_and_its_separator_dedents() {
     let source = format!(
         "fn f():\n    consume({FIRST}, {SECOND}, {THIRD}, fn(value):\n        use_value(value)\n    )\n"
     );
     let formatted = narrow(&source);
     assert!(
-        formatted.contains("        fn(value):\n            use_value(value)"),
-        "{formatted}"
-    );
-    assert!(
-        formatted.contains("            use_value(value)\n        ,\n    )"),
+        formatted.contains("        fn(value): use_value(value)\n    ,\n    )"),
         "{formatted}"
     );
 }
@@ -207,83 +203,34 @@ fn a_short_broken_group_gets_its_last_comma_before_the_inline_comment() {
 }
 
 #[test]
-fn every_comma_group_keeps_a_trailing_comma_when_broken() {
-    use hd_syntax::{SyntaxKind as S, TokenKind as T};
-    for (kind, source) in [
-        (S::ParameterList, "fn f(\n    value: i64\n):\n    pass\n"),
+fn short_groups_join_and_remove_optional_trailing_commas() {
+    for (source, expected) in [
         (
-            S::ArgumentList,
-            "fn f():\n    consume(\n        value\n    )\n",
+            "fn f(\n    value: i64,\n):\n    pass\n",
+            "fn f(value: i64):\n    pass\n",
         ),
         (
-            S::DataExpr,
-            "fn f():\n    Item {\n        value: +1\n    }\n",
-        ),
-        (S::ListExpr, "fn f():\n    [\n        +1\n    ]\n"),
-        (S::UseGroup, "use pkg.{\n    first\n}\n"),
-        (S::GenericParameterList, "fn f[\n    T\n]():\n    pass\n"),
-        (
-            S::TypeArgumentList,
-            "fn f():\n    consume::[\n        T\n    ]()\n",
+            "fn f():\n    consume(\n        value,\n    )\n",
+            "fn f():\n    consume(value)\n",
         ),
         (
-            S::TupleExpr,
-            "fn f():\n    (\n        +1,\n        +2\n    )\n",
-        ),
-        (S::MapExpr, "fn f():\n    {\n        +1: +2\n    }\n"),
-        (
-            S::PatternArgumentList,
-            "fn f(value: Item):\n    match value:\n        .Some(\n            found\n        ) => pass\n",
-        ),
-        (
-            S::TupleType,
-            "fn f(value: (\n    i64,\n    i64\n)):\n    pass\n",
-        ),
-        (
-            S::TuplePattern,
-            "fn f(pair: Pair):\n    let (\n        first,\n        second\n    ) = pair\n",
-        ),
-        (
-            S::DataPattern,
-            "fn f(value: Item):\n    match value:\n        Item {\n            field: found\n        } => pass\n",
-        ),
-        (
-            S::ArgumentList,
-            "fn f():\n    $.with(\n        Console=provider\n    ):\n        pass\n",
-        ),
-        (
-            S::ContextExpr,
-            "fn f():\n    $.use(\n        Console\n    )\n",
+            "fn f():\n    Item {\n        value: +1,\n    }\n",
+            "fn f():\n    Item { value: +1 }\n",
         ),
     ] {
-        let before = hd_syntax::parse(source.as_bytes());
-        assert!(before.is_ok(), "{kind:?}: {:?}", before.diagnostics);
-        assert!(before.tree.root().descendants().any(|n| n.kind() == kind));
-        let formatted = narrow(source);
-        let after = hd_syntax::parse(formatted.as_bytes());
-        let node = after
-            .tree
-            .root()
-            .descendants()
-            .find(|n| n.kind() == kind)
-            .unwrap();
-        assert_eq!(
-            after.tokens.kind[node.last_token().idx() - 1],
-            T::Comma,
-            "{kind:?}: {formatted}"
-        );
+        assert_eq!(wrapped(source), expected);
     }
 }
 
 #[test]
 fn a_parenthesized_value_and_single_context_argument_never_become_tuples() {
     let source = "fn f():\n    (\n        +1\n    )\n";
-    assert_eq!(wrapped(source), source);
+    assert_eq!(wrapped(source), "fn f():\n    (+1)\n");
     let source = "fn f(ctx: $.Context[\n    $ Console\n]):\n    pass\n";
     let formatted = wrapped(source);
     assert!(!formatted.contains("Console,"), "{formatted}");
     let source = "fn f():\n    $.Context[\n        $ Console\n    ]\n";
-    assert_eq!(wrapped(source), source);
+    assert_eq!(wrapped(source), "fn f():\n    $.Context[$ Console]\n");
 }
 
 #[test]
@@ -299,4 +246,148 @@ fn a_required_comma_keeps_an_unsplittable_literal_exact_at_the_width_boundary() 
         formatted.lines().nth(2).unwrap().chars().count(),
         MAX_COLUMNS + 1
     );
+}
+
+#[test]
+fn canonical_spacing_and_short_groups_ignore_authored_layout() {
+    let source = "fn sum( a:i32,b :i32 )->i32:\n    pair := Item{first:a,second:b}\n    consume(\n        pair,\n    )\n    a+b\n";
+    assert_eq!(
+        wrapped(source),
+        "fn sum(a: i32, b: i32) -> i32:\n    pair := Item { first: a, second: b }\n    consume(pair)\n    a + b\n"
+    );
+}
+
+#[test]
+fn value_if_may_join_but_statement_if_stays_vertical() {
+    let source = "fn choose(value: bool) -> i32:\n    answer := if value:\n        +1\n    else:\n        +2\n    if value: consume(answer)\n    answer\n";
+    assert_eq!(
+        wrapped(source),
+        "fn choose(value: bool) -> i32:\n    answer := if value: +1 else: +2\n    if value:\n        consume(answer)\n    answer\n"
+    );
+}
+
+#[test]
+fn tail_if_classification_is_syntax_only() {
+    let source = "fn inferred(flag: bool):\n    if flag:\n        +1\n    else:\n        +2\nfn explicit(flag: bool) -> void:\n    if flag: finish() else: fail()\nfn incomplete(flag: bool):\n    if flag: finish()\n";
+    assert_eq!(
+        wrapped(source),
+        "fn inferred(flag: bool):\n    if flag: +1 else: +2\nfn explicit(flag: bool) -> void:\n    if flag:\n        finish()\n    else:\n        fail()\nfn incomplete(flag: bool):\n    if flag:\n        finish()\n"
+    );
+}
+
+#[test]
+fn inline_grammar_boundaries_stay_parseable() {
+    let recursive = "fn sum_to(limit: i32) -> i32:\n    sum := fn(n: i32) -> i32:\n        if n == 0: 0\n        else: n + sum(n - 1)\n    sum(limit)\n";
+    assert_eq!(
+        wrapped(recursive),
+        "fn sum_to(limit: i32) -> i32:\n    sum := fn(n: i32) -> i32:\n        if n == 0: 0 else: n + sum(n - 1)\n    sum(limit)\n"
+    );
+
+    let let_else = "fn read(value: i32?) -> i32?:\n    let .Some(found) = value else: return .None\n    .Some(found)\n";
+    assert_eq!(
+        wrapped(let_else),
+        "fn read(value: i32?) -> i32?:\n    let .Some(found) = value else:\n        return .None\n    .Some(found)\n"
+    );
+
+    let comprehension = "fn doubled(xs: List[i32]):\n    [for x in xs:\n        x * 2\n    ]\n";
+    assert_eq!(
+        wrapped(comprehension),
+        "fn doubled(xs: List[i32]):\n    [\n        for x in xs:\n            x * 2\n    ]\n"
+    );
+}
+
+#[test]
+fn lexical_separation_and_named_argument_spacing_are_canonical() {
+    let source = "fn f(a: i32):\n    left := & &a\n    assert_equal(left, &a, reason = \"same\")\n";
+    assert_eq!(
+        wrapped(source),
+        "fn f(a: i32):\n    left := & &a\n    assert_equal(left, &a, reason=\"same\")\n"
+    );
+}
+
+#[test]
+fn parenthesized_multiline_closures_keep_delimiter_lines() {
+    let source = "fn pick(flag: bool):\n    choice(\n        flag,\n        (\n            fn(a):\n                doubled := a * 2\n                doubled + 22\n        ),\n        (\n            fn(b):\n                halved := b / 2\n                halved - 5\n        ),\n    )\n";
+    let formatted = wrapped(source);
+    assert!(
+        formatted.contains("doubled + 22\n        ),"),
+        "{formatted}"
+    );
+    assert!(
+        formatted.contains("halved - 5\n        )\n    ,\n    )"),
+        "{formatted}"
+    );
+}
+
+#[test]
+fn broken_value_if_argument_dedents_before_its_comma() {
+    let source =
+        format!("fn f():\n    consume(if ready: {FIRST} + {SECOND} else: {SECOND} + {THIRD})\n");
+    let formatted = narrow(&source);
+    assert!(
+        formatted.contains(&format!(
+            "        if ready:\n            {FIRST} + {SECOND}\n        else:\n            {SECOND} + {THIRD}\n    ,\n    )"
+        )),
+        "{formatted}"
+    );
+}
+
+#[test]
+fn obsolete_continuation_parens_leave_but_call_target_parens_stay() {
+    let source = "fn f(a: i32, b: i32, handler: Handler, event: Event):\n    sum := (a + b)\n    other := (\n        handler\n        .value\n        + a\n    )\n    (handler.callback)(event)\n";
+    assert_eq!(
+        wrapped(source),
+        "fn f(a: i32, b: i32, handler: Handler, event: Event):\n    sum := a + b\n    other := handler.value + a\n    (handler.callback)(event)\n"
+    );
+}
+
+#[test]
+fn long_suite_header_chain_gets_one_complete_wrapper() {
+    let source = "fn f(source: Source):\n    if source.configuration_for_the_current_authenticated_application().has_valid_authorization_for_the_selected_request():\n        pass\n";
+    assert_eq!(
+        narrow(source),
+        "fn f(source: Source):\n    if (\n        source.configuration_for_the_current_authenticated_application()\n            .has_valid_authorization_for_the_selected_request()\n    ):\n        pass\n"
+    );
+}
+
+#[test]
+fn long_pipe_chain_breaks_before_each_pipe() {
+    let source = "fn pipeline() -> i32:\n    +1 |> double_the_current_authenticated_request_count |> increment_the_current_authenticated_request_count\n";
+    assert_eq!(
+        narrow(source),
+        "fn pipeline() -> i32:\n    +1\n        |> double_the_current_authenticated_request_count\n        |> increment_the_current_authenticated_request_count\n"
+    );
+}
+
+#[test]
+fn comment_bytes_roles_and_suite_ownership_stay_exact() {
+    let source = "## module doc  \r\nfn f():\r\n    if ready:\r\n        consume(value)  # suffix  \r\n    # after inner suite  \r\n    finish()\r\n# root tail  \r\n\r\nfn g():\r\n    pass\r\n    # function tail  \r\n";
+    assert_eq!(
+        wrapped(source),
+        "## module doc  \nfn f():\n    if ready:\n        consume(value) # suffix  \n    # after inner suite  \n    finish()\n# root tail  \n\nfn g():\n    pass\n    # function tail  \n"
+    );
+}
+
+#[test]
+fn pass_suite_keeps_its_syntax_owned_inline_or_vertical_shape() {
+    let inline = "struct Empty: pass\n";
+    let vertical = "struct Empty:\n    pass\n";
+    assert_eq!(format(inline).expect("inline pass parses"), inline);
+    assert_eq!(format(vertical).expect("vertical pass parses"), vertical);
+}
+
+#[test]
+fn authored_blank_lines_are_bounded_and_generated_indent_is_spaces() {
+    let source = "fn f():\n        first()\n\n\n\n        second()\n\n\nfn g():\n        pass\n";
+    assert_eq!(
+        wrapped(source),
+        "fn f():\n    first()\n\n    second()\n\nfn g():\n    pass\n"
+    );
+}
+
+#[test]
+fn unicode_scalars_not_utf8_bytes_set_the_width_boundary() {
+    let head = "界".repeat(43);
+    let source = format!("fn f():\n    consume(\"{head}\", +1)\n");
+    assert_eq!(wrapped(&source), source);
 }

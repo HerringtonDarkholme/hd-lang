@@ -1,0 +1,7 @@
+## module doc  
+fn f():
+    if ready:
+        consume(value)  # suffix  
+    # after inner suite  
+    finish()
+# root tail  

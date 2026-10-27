@@ -1,13 +1,11 @@
 #![forbid(unsafe_code)]
-//! `hd_fmt`: source layout over the green tree. Width groups use the existing
-//! bracket-continuation rules; parsed structure, tokens, strings and comments
-//! are preserved (`cli.fmt.meaning`), and formatting is a fixed point
-//! (`cli.fmt.idempotent`). `round_trip` is its lossless base.
+//! `hd_fmt`: one opinionated source layout over the green tree. The source is
+//! parsed once, converted to a compact document, and printed once.
 
-mod width;
-pub use width::MAX_COLUMNS;
+mod document;
+mod format;
+pub use document::MAX_COLUMNS;
 
-use hd_base::SliceSort as _;
 use hd_diag::Diagnostic;
 
 /// The green tree reproduces its source byte for byte (syntax slice 1).
@@ -24,51 +22,7 @@ pub fn format(source: &str) -> Result<String, Vec<Diagnostic>> {
     if !p.is_ok() {
         return Err(p.diagnostics);
     }
-    let t = &p.tokens;
-    // Byte ranges whose text stays as written: tokens (a string may hold
-    // a line break) and comments (a doc comment's trailing spaces may be
-    // Markdown).
-    let mut kept: Vec<(usize, usize)> = t
-        .start
-        .iter()
-        .zip(&t.end)
-        .chain(t.com_start.iter().zip(&t.com_end))
-        .map(|(&s, &e)| (s as usize, e as usize))
-        .filter(|(s, e)| e > s)
-        .collect();
-    kept.sort_stable();
-    let inside = |at: usize| {
-        let i = kept.partition_point(|&(s, _)| s <= at);
-        i > 0 && at < kept[i - 1].1
-    };
-    let bytes = source.as_bytes();
-    let mut out = String::with_capacity(source.len());
-    let mut line_start = 0;
-    for (i, &b) in bytes.iter().enumerate() {
-        if b != b'\n' {
-            continue;
-        }
-        let mut end = i;
-        while end > line_start && matches!(bytes[end - 1], b' ' | b'\t' | b'\r') && !inside(end - 1)
-        {
-            end -= 1;
-        }
-        out.push_str(&source[line_start..end]);
-        out.push('\n');
-        line_start = i + 1;
-    }
-    let mut end = source.len();
-    while end > line_start && matches!(bytes[end - 1], b' ' | b'\t' | b'\r') && !inside(end - 1) {
-        end -= 1;
-    }
-    out.push_str(&source[line_start..end]);
-    // Blank physical lines are layout; spaces within a final comment are not.
-    let body_end = out.trim_end_matches('\n').len();
-    if body_end > 0 {
-        out.truncate(body_end);
-        out.push('\n');
-    }
-    Ok(width::layout(out))
+    Ok(format::format(source, &p).0)
 }
 
 #[cfg(test)]

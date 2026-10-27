@@ -1,0 +1,6 @@
+fn pipeline(source: Source, handler: Handler, event: Event):
+    short := (source.current())
+    (handler.callback)(event)
+    if source.configuration_for_the_current_authenticated_application().has_valid_authorization_for_the_selected_request():
+        pass
+    +1 |> double_the_current_authenticated_request_count |> increment_the_current_authenticated_request_count

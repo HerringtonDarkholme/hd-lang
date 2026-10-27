@@ -59,5 +59,29 @@ run: hd fmt inputs/already-broken.input
 same-text: inputs/already-broken.input want/already-broken.hd
 run: hd fmt --check inputs/already-broken.input
 stdout-json: []
+run: hd fmt --check inputs/canonical.input
+exit: 1
+run: hd fmt inputs/canonical.input
+same-text: inputs/canonical.input want/canonical.hd
+run: hd fmt --check inputs/canonical.input
+stdout-json: []
+run: hd fmt inputs/canonical.input
+same-text: inputs/canonical.input want/canonical.hd
+run: hd fmt --check inputs/chains.input
+exit: 1
+run: hd fmt inputs/chains.input
+same-text: inputs/chains.input want/chains.hd
+run: hd fmt --check inputs/chains.input
+stdout-json: []
+run: hd fmt inputs/chains.input
+same-text: inputs/chains.input want/chains.hd
+run: hd fmt --check inputs/comments.input
+exit: 1
+run: hd fmt inputs/comments.input
+same-text: inputs/comments.input want/comments.hd
+run: hd fmt --check inputs/comments.input
+stdout-json: []
+run: hd fmt inputs/comments.input
+same-text: inputs/comments.input want/comments.hd
 run: hd fmt inputs/already-broken.input
 same-text: inputs/already-broken.input want/already-broken.hd

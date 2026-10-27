@@ -28,12 +28,56 @@ fn std_projection_is_idempotent_and_every_breakable_code_line_fits() {
         let original = fs::read_to_string(&file).expect("std source");
         let formatted =
             format(&original).unwrap_or_else(|diags| panic!("{}: {diags:?}", file.display()));
-        assert_eq!(
-            format(&formatted).expect("formatted std parses"),
-            formatted,
-            "{}",
-            file.display()
-        );
+        let twice = format(&formatted).unwrap_or_else(|diags| {
+            let offset = diags.first().map_or(0, |diag| diag.primary.lo as usize);
+            let line = formatted[..offset].matches('\n').count();
+            let excerpt = formatted
+                .lines()
+                .enumerate()
+                .skip(line.saturating_sub(2))
+                .take(8)
+                .map(|(index, text)| {
+                    let indent = text.len() - text.trim_start().len();
+                    format!("{} [{indent}]: {text}", index + 1)
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            panic!("{}: {diags:?}\n{excerpt}", file.display())
+        });
+        if twice != formatted {
+            let line = formatted
+                .lines()
+                .zip(twice.lines())
+                .position(|(left, right)| left != right)
+                .unwrap_or_else(|| formatted.lines().count().min(twice.lines().count()));
+            panic!(
+                "{} is not idempotent at line {}:\nfirst:\n{}\nsecond:\n{}",
+                file.display(),
+                line + 1,
+                formatted
+                    .lines()
+                    .enumerate()
+                    .skip(line.saturating_sub(2))
+                    .take(8)
+                    .map(|(index, text)| {
+                        let indent = text.len() - text.trim_start().len();
+                        format!("{} [{indent}]: {text}", index + 1)
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                twice
+                    .lines()
+                    .enumerate()
+                    .skip(line.saturating_sub(2))
+                    .take(8)
+                    .map(|(index, text)| {
+                        let indent = text.len() - text.trim_start().len();
+                        format!("{} [{indent}]: {text}", index + 1)
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+        }
         let parsed = hd_syntax::parse(formatted.as_bytes());
         let literals: Vec<_> = parsed
             .tree
