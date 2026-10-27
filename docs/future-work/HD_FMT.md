@@ -1,6 +1,6 @@
 # hd fmt
 
-Proposal, 2026-10-26; domain: formatter internals and CLI layout; not accepted.
+Proposal, revised 2026-10-27; domain: formatter internals and CLI layout; not accepted.
 For [#906](https://github.com/HerringtonDarkholme/hd-lang/issues/906).
 No formatter implementation or bulk reformat is part of this PR.
 
@@ -14,8 +14,7 @@ the same layout; other input spacing and wrapping have no effect.
 Keep literal spelling, comments and meaningful blank-line boundaries.
 
 ```text
-fn total(xs: List[i32]) -> i32:
-    combine(xs, +1)
+fn total(xs: List[i32]) -> i32: combine(xs, +1)
 ```
 
 Both `combine( xs,+1 )` and an unnecessarily vertical `combine` call become
@@ -40,64 +39,83 @@ not its tabs or its particular line-breaking rules.
 
 ## How it works
 
-Keep `hd_fmt::format` and lossless `round_trip`. Add a borrowed parsed entry
-so editors and lint can reuse the existing syntax tree. Proposed Rust signatures:
+Keep `format(&str) -> Result<String, Vec<Diagnostic>>` as the sole formatting
+entry point. Parsing, comment attachment and layout stay private to `hd_fmt`;
+there is no new public parsed-input or comment API without a second caller.
+The existing lossless `round_trip` helper remains. Syntax errors return before layout.
 
-```rust
-pub fn format(source: &str) -> Result<String, Vec<Diagnostic>>;
-pub fn format_parsed(input: FormatInput<'_>) -> Result<String, Vec<Diagnostic>>;
-fn attach_comments(view: SourceView<'_>) -> CommentMap;
-fn build<'s>(input: &FormatInput<'s>) -> Document<'s>;
-fn print(document: &Document<'_>) -> String;
+A syntax rule turns `consume(a, b)` into this small document:
+
+```plain
+Group
+├─ "consume("
+├─ Indent(SoftLine, "a,", SoftLineOrSpace, "b", CommaIfBroken)
+├─ SoftLine
+└─ ")"
 ```
 
-`format` parses once; syntax errors return before layout. `FormatInput` binds
-one source/parse snapshot and its optional comment map. `Document` borrows that
-source; no caller can print spans against another file. Cached-parse adapters
-require matching source provenance, not equal lengths. Node IDs survive only
-within that exact tree. Exhaustive per-kind rules cover every valid syntax kind.
+Try the group flat together with the rest of its physical line through the
+first break; if the code fits 100 columns, print it flat, otherwise break it.
+Flat soft lines disappear or become a space; broken ones become indented lines.
+This call therefore prints `consume(a, b)` or one argument per line with its
+closer on a separate line. There is no reparse or speculative source edit.
 
-The document uses a safe `Vec` arena and integer IDs, borrowing source text.
-It has groups, concatenation, indentation, soft/hard lines, verbatim leaves,
-suffix comments and conditional punctuation. Each group chooses flat or broken
-once using cached, width-saturated summaries and mandatory suffix reservations.
-Soft lines flatten or break; suites always use hard lines. Appendix E defines
-the summaries; arbitrary `best_fitting`, backtracking and reparse loops are absent.
-The bound is O(input + output), O(input) storage, with iterative traversal.
-Output size matters when nested same-line suites expand into indentation text.
+The private document uses a safe indexed `Vec` arena, borrowed source spans,
+indentation, groups, soft/hard lines, verbatim text and suffix comments.
+An iterative `fits` walk follows the same commands as printing, including
+following punctuation. A flat parent makes its children flat without more fits.
+Width cutoff alone does **not** bound zero-width tags: Appendix E specifies
+jump tables and operation-count gates. The bound is O(input + 100 × groups +
+output), with O(input) auxiliary storage; emitted indentation counts as output.
 
-Attach leading/trailing/dangling comments in one source-ordered pass over existing
-spans. Preserve authored inline/standalone roles, opener comments, doc ownership,
-module-doc classification and exact comment bytes. Parent punctuation precedes
-suffix-comment flushes. Multiline strings/interpolations are verbatim; their
-interior comments are already emitted. Attachment checks are independent of printing.
+A one-statement **executable** suite is a group: flat `: body` or `=> body`,
+broken header plus an indented body. The complete flat body must remain flat.
+Offer flat form only where hd's inline grammar permits that statement; direct
+`if`/`match` in an inline function body is forbidden, for example. Multistatement,
+comment-forced and inherently multiline bodies break. Existing short match arms,
+parenthesized inline conditionals and closure arguments stay compact.
 
-The fixed style normalizes operator/assignment/keyword spacing, comma/colon
-spacing, and delimiter interiors. Nonempty flat struct/map braces have one
-interior space. Four-space suites are vertical; no neighbouring-column alignment.
-Preserve unary signs, references, bang calls, spread/range tokens and required
-lexical separation. Width counts Unicode scalars, matching today.
+Attach comments once, recording leading/trailing/dangling roles and boundary
+slots. Before assigning a comment after a suite, use its source indentation:
+shallower climbs to a parent, equal stays, deeper descends into the last child
+suite where possible. Process intervening comments before popping completed
+suites for the next token. A final indented comment therefore stays inside its
+function, including at EOF. Preserve doc ownership/module-doc classification.
 
-Join fitting groups; input wrapping or optional commas never force expansion.
-Emit optional trailing commas only in broken groups; preserve singleton tuples.
-Normalize redundant expression parentheses before layout using precedence and
-associativity; retain delimiters needed for comments. Generated continuation
-parentheses therefore do not accumulate on the second pass.
+Preserve comment bytes and authored inline/standalone roles. Emit punctuation
+before suffix comments; flush before later code. End-of-line comment text is
+**excluded** from the 100-column code width, so a long trailing note alone never
+expands `call(a, b)`. A comment between arguments can still force a break before
+the next argument. Multiline literal/interpolation bytes are verbatim, including
+interior comments; no duplicated attachment or injected indentation.
 
-Preserve literal/numeric spelling and item order. Keep at most one authored
-blank line between siblings, none at suite boundaries, except where doc ownership
-requires it. Generated layout uses LF and one final newline; blank files become
-empty. Literal/comment bytes retain their original line endings and whitespace.
+Normalize operator/assignment/keyword and comma/colon spacing. Nonempty flat
+struct/map braces have one interior space; indentation is four spaces and width
+counts Unicode scalars. Preserve unary/reference/bang/spread/range spelling and
+required lexical separation. Optional trailing commas occur only in broken
+groups; a singleton tuple retains its required comma. Old wrapping never forces
+expansion. Keep at most one authored sibling blank line, except doc ownership.
+Generated layout uses LF and one final newline; empty/blank files become empty.
+Literal/comment bytes retain original whitespace and line endings.
 
-Broken binary chains use continuation parentheses and leading operators.
-An indented argument suite ends before its standalone separator comma, emitted
-at the argument-header level; its closer starts another line. Indivisible tokens,
-unbreakable syntax runs and unavoidable indentation may exceed 100 columns.
+**Preserve every authored parenthesis in the first implementation.** The removal
+whitelist is empty, especially around call targets: `(handler.callback)(event)`
+must never become `handler.callback(event)`. Binary continuation may add a wrapper
+only in listed legal expression positions; reuse an existing wrapper next time.
+Neither the tree oracle nor a future optimization may erase call-target groups.
 
-Share the tree, tokens and an **optional neutral source/comment view** in
-`hd_syntax` with `hd_lint`; never share the printer or request types for formatting.
-No attachment allocation or traversal occurs when neither tool requests it.
-#908 separately designs lint's checked-body view; it does not enter this pipeline.
+Long postfix chains use leading-dot lines four spaces beyond their statement.
+Keep the first complete call as the head, then put each remaining dot segment
+on its own line; a dot-only chain starts from its root receiver. Argument groups
+can also break. Parenthesized call targets remain opaque heads. Emit a suite-final
+argument's comma after dedenting out of its body, with the closer on another line.
+Indivisible tokens/unbreakable syntax and unavoidable indentation may exceed 100.
+
+Share the **existing tree and tokens** with lint. Comment attachment stays
+private until a real second consumer needs ownership; then extract only the
+common neutral data. Formatting never requests semantic/type facts or links
+`hd_lint`. CLI integration formats independent files in parallel using existing
+`--jobs` scheduling, with deterministic path ordering and one writer per file.
 
 ## Cost
 
@@ -116,17 +134,159 @@ new timing, allocation counts and added Wasm size are unmeasured, not claimed wi
 The frozen web control is from the same base, measured with Node gzip level 9;
 it remains below the 2 MB compressed budget before any formatting feature.
 After approval compare the same frozen inputs, compiler profile and host,
-including every std file and doubled adversarial inputs. Publish per-file and
-corpus times, allocations, maximum memory, and raw/gzip sizes before rollout.
+including every std file and doubled adversarial inputs. The serial dev-profile
+budget is **at most 3× the same-run parser-only median** for all 42 std files:
+about **43.5 ms** against today's 14.492 ms parse. Fix/print visit counts must
+obey Appendix E's linear bounds; repeated-unit doubling must not add superlinear
+work. Missing either gate requires redesign before the bulk reformat.
+Publish corpus times, allocations, maximum memory and raw/gzip deltas.
+
 
 ## A. Stress test
 
-Two library excerpts are translated into hd syntax for layout only; they are
-not ports or type-checked packages. Both input and proposed output are parsed
-with hd's existing parser. The new layout is hand-specified, not executed.
+The excerpts below are parser-checked inputs and hand-specified output, not an
+implemented formatter. They establish syntax/structure only; implementation
+idempotence, comment ownership and typing/verdict gates remain mandatory.
 
-[Go's request constructor](https://github.com/golang/go/blob/6c49ac311e5642fa5399b46c736295a9dc4eeec9/src/net/http/request.go#L919)
-exercises a long record with nested expressions. Before:
+Short match arms, from `lib/std/encoding.hd:150`. The enclosing function
+cannot flatten its direct `match`; each arm stays compact.
+
+Before and proposed output are identical:
+
+```text
+impl Base64:
+    fn padded(self) -> bool:
+        match self:
+            .Standard => true
+            .StandardNoPad => false
+            .Url => true
+            .UrlNoPad => false
+```
+
+Parenthesized conditional, from `encoding.hd:176`. Outer branches may flatten;
+the parentheses and short inner branches remain.
+
+Before:
+
+```text
+impl Base64:
+    fn value(self, code: u8) -> i32:
+        if code >= 65 && code <= 90:
+            i32(code) - 65
+        else if code >= 97 && code <= 122:
+            i32(code) - 71
+        else if code >= 48 && code <= 57:
+            i32(code) + 4
+        else if code == (if self.is_url(): 45 else: 43):
+            62
+        else if code == (if self.is_url(): 95 else: 47):
+            63
+        else:
+            -1
+```
+
+Proposed:
+
+```text
+impl Base64:
+    fn value(self, code: u8) -> i32:
+        if code >= 65 && code <= 90: i32(code) - 65
+        else if code >= 97 && code <= 122: i32(code) - 71
+        else if code >= 48 && code <= 57: i32(code) + 4
+        else if code == (if self.is_url(): 45 else: 43): 62
+        else if code == (if self.is_url(): 95 else: 47): 63
+        else: -1
+```
+
+Closure argument, from `http.hd:449`. A short closure stays flat; its containing
+function is too wide to join.
+
+Before and proposed output are identical:
+
+```text
+impl Headers:
+    pub fn remove(&mut self, name: HeaderName) -> void:
+        self.pairs = self.pairs.filter(fn(pair): pair._0 != name)
+```
+
+Comment after an inner suite, verbatim `encoding.hd:23`. Its source column
+keeps it in the containing function.
+
+Before and proposed output are identical:
+
+```text
+pub fn hex_encode(bytes: List[u8]) -> string:
+    let mut codes: List[u8] = zeroes(bytes.len() * 2)
+    let index: usize = 0
+    while index < bytes.len():
+        byte := bytes[index]
+        codes[index * 2] = hex_symbol(byte >> 4)
+        codes[index * 2 + 1] = hex_symbol(byte & 15)
+        index += 1
+    # Every written byte is an ASCII hex digit.
+    string_from_bytes(codes)
+```
+
+Suite-tail adversary **derived from** that std excerpt: move the same comment
+after the final expression. This exact order is not claimed to occur in std.
+The note must remain in the function at EOF.
+
+Before and proposed output are identical:
+
+```text
+pub fn hex_encode(bytes: List[u8]) -> string:
+    let mut codes: List[u8] = zeroes(bytes.len() * 2)
+    let index: usize = 0
+    while index < bytes.len():
+        byte := bytes[index]
+        codes[index * 2] = hex_symbol(byte >> 4)
+        codes[index * 2 + 1] = hex_symbol(byte & 15)
+        index += 1
+    string_from_bytes(codes)
+    # Every written byte is an ASCII hex digit.
+```
+
+Builder chain, from `error.hd:155`; the first complete call stays the head.
+
+Before:
+
+```text
+impl Debug for ContextError:
+    fn debug(self, out: *mut DebugWriter) -> void:
+        out.debug_struct("ContextError").field("message", self.message).field("source", self.error.to_string()).finish()
+```
+
+Proposed:
+
+```text
+impl Debug for ContextError:
+    fn debug(self, out: *mut DebugWriter) -> void:
+        out.debug_struct("ContextError")
+            .field("message", self.message)
+            .field("source", self.error.to_string())
+            .finish()
+```
+
+Function-valued field call, from `iter.hd:224`; never turn it into a method call.
+
+Before:
+
+```text
+impl[T] Iterator[T] for FromFn[T]:
+    fn next(&mut self) -> T?:
+        (self.step)()
+```
+
+Proposed:
+
+```text
+impl[T] Iterator[T] for FromFn[T]:
+    fn next(&mut self) -> T?: (self.step)()
+```
+
+A Go [request-construction excerpt](https://github.com/golang/go/blob/6c49ac311e5642fa5399b46c736295a9dc4eeec9/src/net/http/request.go#L919)
+translated into hd syntax still exercises ordinary long-record layout; this is
+not a type-checked port. Before:
 
 ```text
 fn request(method: string, url: Url, body: Body):
@@ -149,33 +309,7 @@ fn request(method: string, url: Url, body: Body):
     }
 ```
 
-[CPython's encoder setup](https://github.com/python/cpython/blob/0e353134844fd50628f3730b9f704c3de1710e20/Lib/json/encoder.py#L258)
-exercises a long call whose argument order must survive. Before:
-
-```text
-fn encoder():
-    make_iterencode(markers, default, encoder, indent, floatstr, key_separator, item_separator, sort_keys, skipkeys, one_shot)
-```
-
-Proposed:
-
-```text
-fn encoder():
-    make_iterencode(
-        markers,
-        default,
-        encoder,
-        indent,
-        floatstr,
-        key_separator,
-        item_separator,
-        sort_keys,
-        skipkeys,
-        one_shot,
-    )
-```
-
-The shorter counterpart must join back, regardless of its input comma:
+A previously vertical short group must join, including its containing suite:
 
 ```text
 fn compact():
@@ -185,36 +319,21 @@ fn compact():
 ```
 
 ```text
-fn compact():
-    consume(value)
+fn compact(): consume(value)
 ```
 
-An indented closure exposed a grammar constraint: the separator must be
-outside its body. This proposed output is accepted by today's parser:
-
-```text
-fn nested():
-    consume( # opening marker
-        fn(value):
-            use_value(value)
-        ,
-    )
-```
-
-| Adversarial case | Finding and required handling |
+| Adversary | Required handling |
 | --- | --- |
-| 16–256 independent overlong calls | Existing elapsed time grows much faster than input; instrument bounded document visits, not just a timeout. |
-| `consume(value # note` followed by `)` | Adding a comma after flushing the comment swallows it; punctuation precedes suffix flush. |
-| Nested calls followed by `)?`, `:` or a postfix | Child fit alone can overflow; reserve mandatory suffixes through the next legal break. |
-| Same-line nested `if`/`else`, match arms and function bodies | Whitespace changes can change suite ownership; print structural suites and compare trees. |
-| `(value)` versus `(value,)`, and mixed-precedence operators | Dropping punctuation indiscriminately changes meaning; tuple/precedence checks are mandatory. |
-| Module docs, item docs and blank lines | Doc ownership can change without token changes; preserve attachment separately. |
-| Multiline/interpolated strings containing comments | Treat the whole literal as verbatim; do not emit interior comments twice. |
-| Long identifiers, Unicode and deeply nested suites | Define scalar columns and unavoidable overflow; traversal is iterative and cost includes output size. |
+| An inline function containing a direct if/match | No flat suite offered; obey existing inline/continued grammar. |
+| Deeply nested/EOF tail comments, including the gap before else | Source-column container plus ordered boundary slot; never drift to the next declaration. |
+| `(handler.callback)(event)` versus `handler.callback(event)` | Preserve authored callee parentheses in both printing and tree comparison. |
+| Zero-width groups before one long token | Jump over zero runs; failed fits must obey operation bounds. |
+| `consume(value # note` followed by `)` | Put a generated comma before the suffix flush. |
+| Multiline/interpolated strings with comments | Copy opaque bytes once, including interior comments. |
+| Singleton tuple, mixed operators, 100-column token plus punctuation | Preserve grammar/precedence; recognize unavoidable overflow. |
 
-Parse log: all 8 `text` blocks accepted by `scripts/hd-conformance.sh parse` on the recorded base. Syntax acceptance alone does not establish
-idempotence or tree preservation by the proposed formatter; those are rollout gates.
-
+Parse log: all 15 `text` blocks parse cleanly with the frozen current parser. No type-check or runtime equivalence is
+claimed by these parser probes; source-owner and verdict checks are separate gates.
 
 ## B. Prior art, with code
 
@@ -242,7 +361,8 @@ write!(
 Sources: [AST-in entry](https://github.com/oxc-project/oxc/blob/8e00068a158ec8cc17a9b4ad8b7189714d36a887/crates/oxc_formatter/src/lib.rs#L242),
 [array rule](https://github.com/oxc-project/oxc/blob/8e00068a158ec8cc17a9b4ad8b7189714d36a887/crates/oxc_formatter/src/print/array_expression.rs#L24),
 [generated adapters](https://github.com/oxc-project/oxc/blob/8e00068a158ec8cc17a9b4ad8b7189714d36a887/crates/oxc_formatter/src/ast_nodes/generated/format.rs#L809).
-Take parser reuse and node-specific rules: no second AST, no parser in the printer.
+Take parser reuse and node-specific rules internally. Defer a public AST-in API
+until another consumer exists; no second AST or parser in the printer.
 
 The core is now `oxc_formatter_core`, not only `oxc_formatter`.
 It has arena-backed elements, borrowed text and cached text widths, groups,
@@ -309,7 +429,7 @@ attachment and exactly-once checks, adding hd's opener/doc/suite boundaries.
 | Trailing comma | Ruff can force expansion from an existing optional comma. Reject that hidden layout override: short groups must join. [Builder](https://github.com/astral-sh/ruff/blob/ba65abf8ba7bfbcc059f7fb9712be5ba9cab6abc/crates/ruff_python_formatter/src/builders.rs#L229). |
 | Reliability | Ruff fixtures hard-fail parse, idempotence and normalized-AST changes. Oxc asserts a lossless fingerprint but can snapshot known second-pass differences. Take snapshots/corpora; hd idempotence stays a hard failure. [Ruff harness](https://github.com/astral-sh/ruff/blob/ba65abf8ba7bfbcc059f7fb9712be5ba9cab6abc/crates/ruff_python_formatter/tests/fixtures.rs#L378), [oxc harness](https://github.com/oxc-project/oxc/blob/8e00068a158ec8cc17a9b4ad8b7189714d36a887/crates/oxc_formatter_tests/src/harness.rs#L230). |
 | Fuzzing | Adopt arbitrary-input idempotence plus valid-grammar/tree/comment checks; no Python-specific normalizer exceptions. [Ruff target](https://github.com/astral-sh/ruff/blob/ba65abf8ba7bfbcc059f7fb9712be5ba9cab6abc/fuzz/fuzz_targets/ruff_formatter_idempotency.rs#L11). |
-| Measurements | Both formatter microbenchmarks parse outside timing. Report hd text-in and AST-in costs separately, never compare unlike scopes. [Oxc benchmark](https://github.com/oxc-project/oxc/blob/8e00068a158ec8cc17a9b4ad8b7189714d36a887/tasks/benchmark/benches/formatter.rs#L8), [Ruff benchmark](https://github.com/astral-sh/ruff/blob/ba65abf8ba7bfbcc059f7fb9712be5ba9cab6abc/crates/ruff_benchmark/benches/formatter.rs#L42). |
+| Measurements | Both formatter microbenchmarks parse outside timing. Report hd text-in total and private parse/build/print costs separately, never compare unlike scopes. [Oxc benchmark](https://github.com/oxc-project/oxc/blob/8e00068a158ec8cc17a9b4ad8b7189714d36a887/tasks/benchmark/benches/formatter.rs#L8), [Ruff benchmark](https://github.com/astral-sh/ruff/blob/ba65abf8ba7bfbcc059f7fb9712be5ba9cab6abc/crates/ruff_benchmark/benches/formatter.rs#L42). |
 | Shared front | Reuse parser/source/token views, not semantic analysis for formatting. Ruff's normal formatter builds syntax/trivia; oxc's semantic dependency is optional code-removal detection. hd keeps type facts in lint's separate request. [Ruff context](https://github.com/astral-sh/ruff/blob/ba65abf8ba7bfbcc059f7fb9712be5ba9cab6abc/crates/ruff_python_formatter/src/lib.rs#L157), [oxc dependencies](https://github.com/oxc-project/oxc/blob/8e00068a158ec8cc17a9b4ad8b7189714d36a887/crates/oxc_formatter/Cargo.toml#L19). |
 
 ### Other prior art
@@ -396,50 +516,14 @@ includes CSV row emission. Load went 5.34 → 4.82; unrelated work was present,
 so these establish scale and shape, not a promised speedup. Scratch preserves
 all raw rows, hashes, tool versions and process snapshots.
 
-| File | Bytes | Current median ms |
+| Slowest file | Bytes | Current median ms |
 | --- | ---: | ---: |
-| `annotation.hd` | 3,954 | 0.077 |
-| `cli.hd` | 33,335 | 67.319 |
-| `cmp.hd` | 25,564 | 4.778 |
-| `collections.hd` | 42,147 | 13.075 |
-| `console.hd` | 9,664 | 0.269 |
-| `convert.hd` | 488 | 0.012 |
-| `digest.hd` | 9,143 | 4.024 |
-| `encoding.hd` | 8,473 | 0.878 |
-| `error.hd` | 7,613 | 0.433 |
-| `format.hd` | 42,662 | 15.130 |
-| `fs.hd` | 26,086 | 18.276 |
-| `function.hd` | 888 | 0.012 |
-| `hash.hd` | 22,641 | 3.237 |
-| `host.hd` | 11,244 | 1.526 |
 | `http.hd` | 76,489 | 332.015 |
-| `http_wire.hd` | 994 | 0.060 |
-| `inspect.hd` | 2,365 | 0.061 |
-| `iter.hd` | 17,046 | 2.036 |
 | `json.hd` | 100,250 | 199.148 |
-| `net.hd` | 23,242 | 18.480 |
-| `num.hd` | 37,764 | 6.543 |
-| `ops.hd` | 28,846 | 30.327 |
-| `option.hd` | 2,788 | 0.112 |
-| `path.hd` | 5,411 | 0.207 |
-| `prelude/testing.hd` | 456 | 0.009 |
-| `prelude.hd` | 1,857 | 0.183 |
-| `process.hd` | 10,879 | 0.314 |
-| `random.hd` | 9,369 | 0.380 |
 | `regex.hd` | 69,822 | 121.078 |
-| `result.hd` | 2,782 | 0.116 |
-| `rt/alloc.hd` | 18,557 | 0.856 |
-| `rt/checked.hd` | 6,241 | 0.503 |
-| `rt/checked_report.hd` | 1,201 | 0.149 |
-| `rt/cycle.hd` | 14,554 | 1.269 |
-| `rt/memory.hd` | 6,669 | 0.178 |
-| `serde.hd` | 28,688 | 10.607 |
-| `structure.hd` | 14,022 | 0.317 |
-| `task.hd` | 21,538 | 9.678 |
-| `testing/arbitrary.hd` | 1,346 | 0.031 |
-| `testing.hd` | 34,916 | 36.132 |
-| `text.hd` | 63,252 | 26.630 |
-| `time.hd` | 34,176 | 9.732 |
+
+The full 42-file raw CSV and source hashes remain in scratch; the initial PR
+revision also records the complete per-file table. The corpus total is 935.072 ms.
 
 Five samples per generated file, each with independent long calls and no
 comments; no filesystem work was timed:
@@ -475,7 +559,7 @@ The nine current [width rules](../../spec/cli/command-line.md#formatting) map as
 
 | Current ID suffix (`cli.fmt.width.`) | Document rule / accounting at implementation |
 | --- | --- |
-| `wrap` | Replace with a new ID specifying canonical fit, column units and unavoidable overflow. |
+| `wrap` | Replace with a new ID specifying canonical fit, scalar columns, excluded trailing-comment text and unavoidable overflow. |
 | `elements` | Preserve: broken literal/call/parameter/list groups use element lines. |
 | `comma-groups` | Preserve: share the same comma-group constructor across syntax families. |
 | `indent` | Preserve: structural containing-line indent plus four. |
@@ -486,7 +570,7 @@ The nine current [width rules](../../spec/cli/command-line.md#formatting) map as
 | `trailing-comma` | Preserve for broken groups; add a distinct new rule for removal of optional flat commas. |
 
 New CLI IDs will also specify canonical spacing, joining short groups, suite
-layout, redundant-parenthesis normalization and blank-line policy. Retire only
+layout, preserved call-target parentheses, chain breaks and blank-line policy. Retire only
 changed-meaning IDs in the implementing commit, with fixtures; this design
 retires none. Preserve `cli.fmt.meaning`, `.idempotent`, `.syntax-error`, `.no-check`
 and the existing command contract.
@@ -496,70 +580,110 @@ Proposed private IR sketch (Rust; not an implemented API):
 ```rust
 struct Document<'s> {
     source: &'s str,
-    nodes: Vec<Element>,
-    edges: Vec<DocId>,
-    summaries: Vec<Summary>,
-    root: DocId,
+    tape: Vec<Command>,
+    groups: Vec<GroupInfo>, // matching ends, exact flat widths, cannot_flatten
+    next_flat: Vec<TapeIdx>,
+    next_expanded: Vec<TapeIdx>,
 }
-enum Element {
+enum Command {
     Text(Span), Verbatim(Span), Atom(&'static str),
-    Concat(EdgeRange), Indent(DocId), Group(DocId),
+    StartGroup(GroupId), EndGroup, StartIndent, EndIndent,
     SoftLine(FlatSpace), HardLine, LineSuffix(CommentId),
     ModeText { flat: &'static str, broken: &'static str },
 }
 ```
 
-`ModeText` has only static punctuation, never two alternative body documents.
-For each mode, `Summary` caches flat width capped at 101, first/last unbreakable
-widths and break flags. Hard lines, multiline verbatim leaves and mandatory
-suffix-comment flushes prevent flattening. Concatenation sums flat widths; a prefix stops where a
-child can break, otherwise it extends into the next child's prefix. Suffixes
-compose symmetrically. Parent and child builders declare legal boundaries,
-including suffix-comment flushes; no generic scan tries to discover them.
-A reverse sequence pass computes every suffix reservation once: reserve mandatory
-punctuation/unbreakable prefixes only through the next independent legal break,
-not the flat widths of all following groups. A flat parent forces descendants
-flat; a broken parent lets nested groups choose at their actual columns.
-Every node/edge has bounded visits and each output byte is written once.
-No hidden recursive fit scan may substitute for these summaries.
-Verbatim leaves update the column from their final physical line, without
-injecting indentation. A suffix queue flushes after punctuation and before
-further code; it marks the relevant group unflattenable. Embedded interpolation
-comments are excluded from attachment, rather than emitted twice.
-A nonleaf `DocId` has exactly one parent, enforced by the builder and an
-invariant test; shared zero-output DAGs cannot cause exponential visits.
-Standalone comments attach before the next source node within their container,
-including argument/element nodes; with no following node they dangle there.
+The printer and fitter consume this balanced tape with matching group-end
+indices and one parent per nonleaf. `ModeText` has static punctuation only;
+there are no arbitrary alternatives, cross-group conditions or shared nonleaf DAGs.
+Cache each emitted text leaf's width once (capped at 101), plus literal first-line
+width/newline information. Derive exact flat widths and non-flattenable flags
+from those same leaves, not a separate syntax-level width prediction.
 
+A candidate with an internal required newline cannot flatten. Otherwise fit it
+flat, then measure its actual line continuation: enclosing broken groups retain
+their mode, unselected later groups are provisionally expanded, and measurement
+stops at the first effective break. Ignore suffix-comment bytes, but include
+punctuation before their flush. A trailing suffix outside the group does not
+force its body to break. Multiline verbatim is copied without reindentation.
 
+Precompute per-mode next-effective-event jumps over zero-width tags/runs and
+matching ends. Each fit jumps to a positive-width event, break, rejection or end;
+it never clones a queue/stack or rescans literal bytes. Any mode transition
+required by a jump is encoded there, not replayed through skipped tags. At width 100 it consumes
+at most 101 positive-width events plus constant jump work. Fit each group at
+most once; inherit flat mode under a verified flat parent. This yields
+O(N + 100G + output) work and O(N) space, subject to the actual implementation
+meeting these invariants. A cutoff **without** zero-run jumps is insufficient:
+`Group(empty)` repeated before one overlong token otherwise causes quadratic
+failed fits. Compare optimized fits against a simple reference measurer in tests.
 
+Instrument preprocessing/printing visits ≤ fixed constants × N, fit calls ≤ G,
+and effective fit events ≤ 101 × fit calls plus fixed setup. Charge output
+bytes separately. Exercise failed-fit zero groups, deep hard-line groups, cached
+long tokens, 100/101 boundaries and long ignored comments; doubling alone is
+not a substitute for these absolute bounds.
+
+The parenthesis-removal whitelist is initially empty. Adding binary continuation
+wrappers is permitted only for a binding value, return value, expression statement,
+argument, condition or binary operand where grammar allows it—never a callee.
+A context-aware paired-tree comparison permits just those additions; it matches
+all authored `ParenExpr` nodes, required precedence and tuples. Reuse an existing
+parenthesized chain rather than wrapping it twice. Future removal needs an explicit
+operand-position whitelist with a fixture per position and separate approval.
+
+Standalone comment placement uses the innermost compatible suite/container and
+source-ordered slot, including before `else`, after its last statement and EOF.
+Compare columns before canonical indentation changes; do not make indentation a
+setting or blindly send every comment to the next statement. The pinned Ruff
+[branch-tail algorithm](https://github.com/astral-sh/ruff/blob/ba65abf8ba7bfbcc059f7fb9712be5ba9cab6abc/crates/ruff_python_formatter/src/comments/placement.rs#L701)
+informs this, without copying Python-specific branches. Syntax-node rules must
+check hd's inline/continued contexts before offering a flat suite. A flat suite
+never permits a nested group's hard break; preserve closure separator dedents.
 
 Implementation slices are about one hour each, each reviewed and tested:
 
-1. Source/comment view and node-coverage inventory; round-trip and doc ownership tests.
-2. Small document/printer kernel; exact snapshots, fixed-width boundary tests, node-visit counters.
-3. Expression/comma-group rules; normalize whitespace variants to identical output and test precedence.
-4. Suites, declarations, patterns and comments; complete syntax coverage, then all std files.
-5. CLI integration and approved spec/fixtures; compare old/new cost and publish before any bulk reformat.
+1. Private source/comment ownership and node-coverage inventory; round-trip and doc/tail-comment tests.
+2. Document/printer/fits kernel; reference equivalence, width boundaries, zero-tag adversaries and visit counters.
+3. Expression/comma/chain rules; whitespace variants, preserved call targets and approved continuation wrappers.
+4. Grammar-eligible suite groups and comments; all std and every parseable fixture in memory.
+5. Parallel CLI integration using existing --jobs; spec/fixtures, fuzz fmt contract and hard cost budgets.
 6. A separately approved #899 source-only reformat, preserving excluded raw/stage inputs and refreshing SDK provenance.
 
 Reuse the parser's existing size/nesting limits; bound arena entries per syntax
 node and use checked IDs. There are no new user budget knobs.
 Each slice retains failed inputs. Gate idempotence and normalized-tree equality
-as errors, not known differences. Tree comparison ignores positions, layout,
-optional separator commas and demonstrably transparent continuation parentheses;
-it preserves statement nesting, expression/operator structure and literal bytes.
+as errors, not known differences. Tree comparison ignores positions/layout
+and optional separator commas,
+and permits only the listed added continuation wrappers. It preserves authored
+parentheses, statement nesting, expression/operator structure and literal bytes.
 Separately compare every comment's bytes, order, kind and semantic owner.
 Test every production, empty/singleton/multiline group, Unicode, tabs/CRLF,
 comments at every boundary, incomplete syntax, and nesting/size limits.
-Grammar-generated fuzz cases and whitespace variants must keep these properties.
+Format **every indexed conformance input that parses** in memory, preserving
+its package/tree/test environment. Require the same check verdict and diagnostic
+codes before/after, in addition to tree/comment equality and idempotence. Do not
+rewrite fixture sources or checked baselines for this gate. Current parse-error
+inputs stay untouched. Verdict checks supplement the tree oracle.
+
+Extend the existing `spec/tools/fuzz` command adapter with a proposed `fmt FILE`
+action: copy to an owned same-role input, run existing `hd fmt` on the copy and
+return its bytes. This introduces no public stdout/style option. For accepted
+parses, format → reparse → format again; compare exact second-pass text, tree,
+comment ownership and original/formatted check verdict/codes. Keep type-invalid
+inputs too; formatter syntax-only behavior must preserve their rejection codes.
+This adapter/step is future implementation work, not an already-run gate.
+
 Add deterministic operation-count bounds as well as timing; doubling input must
 not hide quadratic work behind a small corpus. Never bless unrelated stage baselines.
 
 `hd fmt FILE`, package selection, text/JSON diagnostics, error statuses and
 `--check` remain as specified. Syntax errors leave that file untouched while
 other files format. `--check` writes nothing; no settings or manifest keys are added.
-There is no semantic cache invalidation or import sorting. Independent-file
-parallelism can follow measured need; the initial per-file engine stays serial.
+There is no semantic cache invalidation or import sorting. The library's per-file
+engine stays serial; CLI package formatting uses existing
+bounded --jobs execution from its integration slice, including --jobs 1 for the
+serial cost budget. Deduplicate selected paths; buffer reporting and sort by path
+so scheduling changes neither bytes, statuses nor diagnostic ordering.
 Keep the old formatter until the complete replacement's gates pass, then remove
 it; do not ship two selectable styles. The bulk reformat waits for that boundary.
