@@ -3,7 +3,7 @@
 Architecture approved 2026-10-27; [#908](https://github.com/HerringtonDarkholme/hd-lang/issues/908).
 The accepted command/policy rules remain in [the CLI spec](../../spec/cli/command-line.md#linting).
 This replaces the earlier implementation plan, not those decisions.
-Implementation proceeds in reviewed slices under [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855); slice 0 (#916) is done.
+Implementation proceeds in reviewed slices under [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855); slices 0 and 1 (checked callee identity, then the registry and indexed policy) are done.
 
 ## Approved design
 
@@ -85,11 +85,12 @@ fn user_call() -> void:
     Logger {}.debug(+1)
 ```
 
-Today `hd check` incorrectly accepts it and lint mistakes the method for prelude
-`debug`. [#916](https://github.com/HerringtonDarkholme/hd-lang/issues/916) is a
-checker soundness prerequisite: call checking records the selected declaration,
-the void-tail rule reports `type-mismatch`, and lint emits nothing for a failed
-prerequisite. The architecture must consume that identity, not reproduce the bug.
+Before slice 0, `hd check` incorrectly accepted it and lint mistook the method
+for prelude `debug`. [#916](https://github.com/HerringtonDarkholme/hd-lang/issues/916)
+fixed that checker prerequisite: call checking records the selected declaration,
+the void-tail rule reports `type-mismatch`, and lint emits nothing for the failed
+prerequisite. The architecture consumes that identity rather than reproducing
+the old bug.
 
 ## Architecture
 
@@ -184,10 +185,10 @@ and cold/warm receipts against the same source hashes and profile.
 
 ## A. Stress test
 
-Real-code translations use local references and are checked with the current
-compiler, not an implementation of the proposed views. The current compiler
-accepts all six inputs; the sixth acceptance is the #916 soundness bug. Current
-lint outcomes are recorded below.
+Real-code translations use local references and were checked with the compiler
+used for the design, before the proposed views existed. That compiler accepted
+all six inputs; the sixth acceptance exposed the #916 soundness bug. Slice 0 now
+rejects that invalid control. The original lint outcomes are recorded below.
 
 [Rust Vec::is_empty](https://github.com/rust-lang/rust/blob/8bab26f4f68e0e26f0bb7960be334d5b520ea452/library/alloc/src/vec/mod.rs)
 uses a zero equality. Its hd translation stays quiet: this is not an ordering
@@ -246,8 +247,8 @@ The implicit discard resolves to the canonical prelude function; emit
 `unused-debug-text`. Preserve current argument-shape/fix conditions. No full
 lexical-scope snapshot is required to establish the unshadowable bare `dbg` name.
 
-The adversarial method lookalike exposes a **current bug**, not an accepted
-warning or a fix in this PR:
+The adversarial method lookalike exposed the **#916 bug**, not an accepted
+warning or a fix in the design PR:
 
 ```text
 struct Logger: pass
@@ -259,12 +260,11 @@ fn user_call() -> void:
     Logger {}.debug(+1)
 ```
 
-Current `hd check` incorrectly accepts this non-void tail and `hd lint` also
-emits `unused-debug-text`; [#916](https://github.com/HerringtonDarkholme/hd-lang/issues/916)
-records the soundness bug. The path-based classifier drops a constructor
-receiver. Fix #916 first by recording the checked call's selected declaration;
-both the void-tail exception and lint then consume that identity. Preserve valid
-prelude-call behavior without enshrining this false positive in the new API.
+The pre-slice compiler incorrectly accepted this non-void tail and `hd lint`
+also emitted `unused-debug-text`; [#916](https://github.com/HerringtonDarkholme/hd-lang/issues/916)
+records the fixed soundness bug. Its path-based classifier dropped a constructor
+receiver. Slice 0 records the checked call's selected declaration, which both
+the void-tail exception and lint consume, while preserving valid prelude calls.
 
 | Adversary | Required result/invariant |
 | --- | --- |
@@ -276,9 +276,9 @@ prelude-call behavior without enshrining this false positive in the new API.
 | All levels Allow plus an unknown suppression name | Configuration error, with no typed lint recheck. |
 | Workspace member failure, warm Check/interface hits, changed source | Preserve per-build prerequisite scope, collect missing required views, no stale findings. |
 
-Parse log: all three main `hd` programs and all six `text` blocks parse; the
-current compiler accepts all nine fences, including the duplicated deliberately
-invalid #916 control.
+Parse log: all three main `hd` programs and all six `text` blocks parse. The
+design-time compiler accepted all nine fences; the current checker rejects the
+duplicated deliberately invalid #916 control.
 The three positive lint controls each report their expected code
 for each of the three examples; the method case's false positive is explicitly
 tracked. No idempotence, fix correctness or new-view performance is inferred
@@ -462,12 +462,11 @@ no hd trait/type answers. None is the recommended first implementation.
 
 ## D. Today in hd
 
-The current registry is ten constants plus ten optional `Policy` fields
-(`hd_lint/src/lib.rs:22–80`). CLI invokes four analyzers after its error gate
-(`hd_cli/src/check_cmd.rs:268–301`). The driver has **two** collection switches,
-not four: derivation facts share `collect_source_facts`. Three result channels
-use separate backing (`hd_driver/src/lib.rs:602,1399`). New rule names have
-repeated those integration sites.
+Slice 1 replaced the ten optional `Policy` fields with one stable registry and
+indexed levels. CLI still invokes four analyzers after its error gate. The
+driver has **two** collection switches, not four: derivation facts share
+`collect_source_facts`. Three result channels still use separate backing, and
+the checks still repeat integration sites until the analysis-walk slices land.
 
 The existing tables are intentionally narrow: primitive comparison types,
 binding use/mutability, variant field names, reachability and debug identities.
@@ -602,8 +601,11 @@ valid without a CallExpr-only filter.
 | Compile/runtime | No guest runtime changes; same-profile normal compile controls must show no meaningful regression. |
 | Web compiler | Leave the driver/checker `analysis` feature off and keep no hd_lint dependency; frozen source-equivalent baseline 5,103,008 B raw / 1,707,892 B gzip level 9, below 2 MB gzip. |
 
-The web control was built at `3b0e4cb4b`; its protected compiler sources match
-`f4ddc82ee`. New registry, row-storage and web-size deltas remain unmeasured.
+The original web control was built at `3b0e4cb4b`; its protected compiler
+sources match `f4ddc82ee`. Slice 1 left the web compiler byte-identical at
+5,111,005 B raw / 1,710,856 B gzip and measured a +0.25% cold-JSON point
+estimate. Row-storage and analysis-walk costs remain to be measured by their
+own slices.
 
 Implementation slices, each about an hour and independently reviewed:
 
