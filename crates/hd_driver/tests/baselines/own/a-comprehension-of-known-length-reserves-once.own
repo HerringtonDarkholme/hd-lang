@@ -59,59 +59,51 @@ fn doubled(xs: List[i32]) -> List[i32]:
 > app/main/doubled
 >   local $0 xs: List[i32] [param read]
 >   local $1 $acc: mut List[i32] [assigned]
->   local $2 $orig: List[i32] [assigned]
->   local $3 $coll: List[i32] [assigned]
->   local $4 $len: usize [assigned]
->   local $5 $pos: usize [assigned]
->   local $6 $end: usize [assigned]
->   local $7 x: i32 [read assigned]
+>   local $2 $coll: List[i32] [assigned]
+>   local $3 $len: usize [assigned]
+>   local $4 $pos: usize [assigned]
+>   local $5 $end: usize [assigned]
+>   local $6 x: i32 [read assigned]
 >   %0 = NewList - [] : mut List[i32]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$0] : List[i32]
 >   %3 = Store [$2] %2 : ()
 >   %4 = Read borrow [$2] : List[i32]
->   %5 = Intrinsic SnapBegin [%4] : List[i32]
+>   %5 = Intrinsic ListLen [%4] : usize
 >   %6 = Store [$3] %5 : ()
->   %7 = Read borrow [$3] : List[i32]
->   %8 = Intrinsic ListLen [%7] : usize
->   %9 = Store [$4] %8 : ()
->   %10 = Read copy [$4] : usize
->   %11 = IsUnique [$1] : ()
->   %12 = Read borrow [$1] : mut List[i32]
->   %13 = Intrinsic ListReserve [%12 %10] : ()
+>   %7 = Read copy [$3] : usize
+>   %8 = IsUnique [$1] : ()
+>   %9 = Read borrow [$1] : mut List[i32]
+>   %10 = Intrinsic ListReserve [%9 %7] : ()
+>   %11 = Read copy [$3] : usize
+>   %12 = Store [$5] %11 : ()
+>   %13 = Store [$4] 0:usize : ()
 >   %14 = Read copy [$4] : usize
->   %15 = Store [$6] %14 : ()
->   %16 = Store [$5] 0:usize : ()
->   %17 = Read copy [$5] : usize
->   %18 = Read copy [$6] : usize
->   %19 = Prim Lt [%17 %18] : bool
->   %20 = Read copy [$5] : usize
->   %21 = Read copy [$3 [%20]] : i32
->   %22 = Read copy [$5] : usize
->   %23 = Prim Add [%22 1:usize] : usize
->   %24 = Store [$5] %23 : ()
->   %25 = Read copy [$7] : i32
->   %26 = Prim Mul [%25 2:i32] : i32
->   %27 = IsUnique [$1] : ()
->   %28 = Read borrow [$1] : mut List[i32]
->   %29 = Intrinsic ListPush [%28 %26] : ()
->   %30 = Block - : ()
->   %31 = Store [$7] %21 : ()
->   %33 = Block - : never
->   %34 = Match %21 [%33 %30] : ()
->   %35 = Block - : ()
->   %36 = Break L0 - : never
->   %37 = Block - : ()
->   %38 = If %19 [%35 %37] : ()
->   %39 = Block - : ()
->   %40 = Loop %39 - : ()
->   %41 = Read move [$2] : List[i32]
->   %42 = Read move [$3] : List[i32]
->   %43 = Intrinsic SnapEnd [%41 %42] : ()
->   %44 = Drop [%42] : ()
->   %45 = Drop [%41] : ()
->   %46 = Read move [$1] : mut List[i32]
->   %47 = Coerce %46 [Weaken -] : List[i32]
->   %48 = Block %47 : List[i32]
+>   %15 = Read copy [$5] : usize
+>   %16 = Prim Lt [%14 %15] : bool
+>   %17 = Read copy [$4] : usize
+>   %18 = Read copy [$2 [%17]] : i32
+>   %19 = Read copy [$4] : usize
+>   %20 = Prim Add [%19 1:usize] : usize
+>   %21 = Store [$4] %20 : ()
+>   %22 = Read copy [$6] : i32
+>   %23 = Prim Mul [%22 2:i32] : i32
+>   %24 = IsUnique [$1] : ()
+>   %25 = Read borrow [$1] : mut List[i32]
+>   %26 = Intrinsic ListPush [%25 %23] : ()
+>   %27 = Block - : ()
+>   %28 = Store [$6] %18 : ()
+>   %30 = Block - : never
+>   %31 = Match %18 [%30 %27] : ()
+>   %32 = Block - : ()
+>   %33 = Break L0 - : never
+>   %34 = Block - : ()
+>   %35 = If %16 [%32 %34] : ()
+>   %36 = Block - : ()
+>   %37 = Loop %36 - : ()
+>   %38 = Drop [$2] : ()
+>   %39 = Read move [$1] : mut List[i32]
+>   %40 = Coerce %39 [Weaken -] : List[i32]
+>   %41 = Block %40 : List[i32]
 >   exit sub 0 drops [$0]
->   loop %40 keeps [$3]
+>   loop %37 keeps [$2]

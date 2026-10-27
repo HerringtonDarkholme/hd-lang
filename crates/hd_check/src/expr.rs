@@ -3349,12 +3349,10 @@ impl Ck<'_, '_> {
     /// A `for` over a built-in `List` or `Map` as a counted loop
     /// (lowering-catalog "Loops"): no iterator value. The loop iterates a
     /// snapshot of the collection as it was when the loop began
-    /// (`flow.for.snapshot`): `SnapBegin` shares its buffer, which a change
-    /// to the collection during the loop copies first, and `SnapEnd`
-    /// releases it when the loop ends. A fresh source value needs no
-    /// snapshot: the loop owns that value and ordinary local lifetime
-    /// handling releases it. Each round reads the next element or live
-    /// entry, advances, and binds it.
+    /// (`flow.for.snapshot`): `$coll` holds the source value, a copy of a
+    /// place's collection sharing its buffer, which a change to the place
+    /// during the loop copies first. Each round reads the next element or
+    /// live entry, advances, and binds it.
     fn collection_loop(
         &mut self,
         pat: NodeRef<'_>,
@@ -3378,24 +3376,11 @@ impl Ck<'_, '_> {
             sym(self, "$pos"),
             sym(self, "$end"),
         );
-        // A value the source expression made has no other place the body
-        // can change. Let the loop own it directly, as an ordinary stored
-        // value does; only a source read out of a place needs a snapshot.
-        let orig_l = if self.is_fresh(sr) {
-            None
-        } else {
-            let l = self.b.local(st, sym(self, "$orig"), ASSIGNED, at);
-            self.set_local(l, sr, at);
-            Some(l)
-        };
+        // An ordinary stored value: the ownership passes lend it when
+        // nothing in the loop can change the place, and move it at the
+        // place's last use.
         let src_l = self.b.local(st, src_s, ASSIGNED, at);
-        let source = if let Some(orig_l) = orig_l {
-            let o = self.b.get(orig_l, st, at);
-            intr(self, IntrinsicOp::SnapBegin, &[o], st)
-        } else {
-            sr
-        };
-        self.set_local(src_l, source, at);
+        self.set_local(src_l, sr, at);
         let len_l = self.b.local(us, len_s, ASSIGNED, at);
         let pos_l = self.b.local(us, pos_s, ASSIGNED, at);
         let end_l = self.b.local(us, end_s, ASSIGNED, at);
@@ -3482,10 +3467,6 @@ impl Ck<'_, '_> {
         let lbody = self.b.close_block(lb, None, Ty::VOID, at);
         let ty = result.unwrap_or(Ty::VOID);
         let lr = self.b.close_loop(lp, lbody, ty, at);
-        if let Some(orig_l) = orig_l {
-            let (o, c) = (self.b.get(orig_l, st, at), self.b.get(src_l, st, at));
-            intr(self, IntrinsicOp::SnapEnd, &[o, c], Ty::VOID);
-        }
         Ok((lr, ty))
     }
 

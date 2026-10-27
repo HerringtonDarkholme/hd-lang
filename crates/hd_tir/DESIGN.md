@@ -919,7 +919,7 @@ is a run ID.
 | `e?` | `SwitchTag` on the `Result` or `Option`; the failing leaf converts the error with the resolved `From` call and `Return`s |
 | `while c: body` | `Loop` whose body is `If c then body else Break` |
 | `for` over a std numeric range | a counting `Loop` with cursor/end/inclusive locals and ordinary tests and assignments; the cursor advances before the body, and the inclusive endpoint clears its flag instead of overflowing |
-| `for` over a built-in list or map | a counted `Loop` over element reads (`Read [%s [%p]]`) or the live-entry intrinsic; `SnapBegin`/`SnapEnd` keep a snapshot of a borrowed source, while a fresh source is owned by the loop |
+| `for` over a built-in list or map | a counted `Loop` over element reads (`Read [%s [%p]]`) or the live-entry intrinsic, of the source value stored in `$coll`: a copy of a place's collection is the snapshot, which the ownership passes lend when nothing in the loop changes the place |
 | any other `for` | a `Block`: the `iter` `Call`, then a `Loop` around the `next` `Call` and a `Match` on its `Option` |
 | `let p = e else: ...`, `x is p` | `Match` with two arms |
 | `x := e`, `let p = e` | a new local and a `Store` of it, or a `Match` for a pattern |

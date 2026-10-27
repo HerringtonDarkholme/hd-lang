@@ -270,13 +270,6 @@ pub enum IntrinsicOp {
     MapSlotNext,
     /// `(map, slot) -> (K, V)`: the entry in a live slot.
     MapSlotEntry,
-    /// `(collection) -> collection`: the snapshot a counted `for` over a
-    /// list or a map iterates (`flow.for.snapshot`): it shares the
-    /// collection's buffer, which a change during the loop copies first.
-    SnapBegin,
-    /// `(collection, snapshot)`: the loop over `snapshot` has ended; a
-    /// collection the loop did not change stops copying for it.
-    SnapEnd,
     /// `(map, key) -> usize`: the number of the key's entry, a panic
     /// `index-out-of-bounds` when the map holds no equal key. A map value
     /// is a place, `[%m [%e]]` at that number (`ref.elem.map`,
@@ -293,7 +286,7 @@ pub enum IntrinsicOp {
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 17] = [
+    pub const ALL: [IntrinsicOp; 15] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::MapLen,
@@ -307,8 +300,6 @@ impl IntrinsicOp {
         IntrinsicOp::MapSlots,
         IntrinsicOp::MapSlotNext,
         IntrinsicOp::MapSlotEntry,
-        IntrinsicOp::SnapBegin,
-        IntrinsicOp::SnapEnd,
         IntrinsicOp::MapEntry,
         IntrinsicOp::ListReserve,
     ];

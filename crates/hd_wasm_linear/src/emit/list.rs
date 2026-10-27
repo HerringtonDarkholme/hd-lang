@@ -1282,38 +1282,6 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// `SnapBegin`: the list a counted `for` iterates, a copy of the
-    /// collection, so that a change during the loop copies its buffer
-    /// first (`flow.for.snapshot`).
-    pub(super) fn snap_begin(&mut self, i: u32, coll: u32) -> StageResult<()> {
-        if self.input.runtime.is_none() {
-            return unsupported("collections without std's allocator");
-        }
-        self.comp(coll, 0)?;
-        self.f.helper(Helper::CollCopy);
-        self.store_owned(i)
-    }
-
-    /// `SnapEnd`: the loop over `snap` ended, so the snapshot gives up its
-    /// buffer at once, and the collection's next change copies only if
-    /// something else still shares it. A snapshot read with a count gives
-    /// it up as any operand does; one only borrowed from its local leaves
-    /// the static empty buffer there.
-    pub(super) fn snap_end(&mut self, snap: u32) -> StageResult<()> {
-        if !self.b.is_borrow(snap) {
-            return Ok(());
-        }
-        let b = self.buffer(snap)?;
-        let empty = self.f.local(Val::I32);
-        let at = empty_buffer(self.m);
-        self.f.static_addr(at);
-        self.f.set(empty);
-        self.put_back(snap, empty)?;
-        self.f.get(b);
-        self.f.helper(Helper::ReleaseRef);
-        Ok(())
-    }
-
     /// Gives the buffer in local `b` of a list or a map of type `t` its
     /// owner word: the function-table slot of the collection's clone glue
     /// plus one, with bit 31 when its elements hold collections (§23.20).

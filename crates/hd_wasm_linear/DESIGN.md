@@ -738,7 +738,7 @@ changes preserve collection value semantics (§23.7).
   one static empty
   buffer, whose count word is 0, a static object's, so no count changes it and a change always copies it first. A
   tuple's rest list is its last member.
-- **Copies.** Every count of a list or a map, and `SnapBegin`, counts
+- **Copies.** Every count of a list or a map counts
   one more holder of the same buffer, or clones a pinned or exposed one
   (`rt:coll_copy`), and the result replaces the value in the copy: a
   count of a struct copies each list among its fields at any depth
@@ -805,9 +805,9 @@ changes preserve collection value semantics (§23.7).
 - **Release.** A buffer's release glue (`rt:drop_elems`) releases each element's counted references up to the
   length. A list of strings or of structs holding lists frees everything
   at its last release.
-- **Loops.** `SnapEnd` gives the snapshot's buffer back at once, so after
-  the loop the list's next change copies only when something else still
-  shares the buffer.
+- **Loops.** A `for` loop's copy of its list is an ordinary value: its
+  drop after the loop gives the buffer back, so the list's next change
+  copies only when something else still shares the buffer.
 - **Pins.** The passes' `Pin` gives the buffer its owner word while
   element references hold counts of the buffer, and a `push` into a
   pinned list panics `collection-pinned`. Element
@@ -872,7 +872,7 @@ Each operation implements collection value semantics (§15.2;
   count: probes pass it, iteration skips it, and the survivors keep
   their order. The result takes its own count of the value before the
   table releases the entry's key and value.
-- **Copies and changes.** Copies, `SnapBegin` and `SnapEnd` are the
+- **Copies and changes.** Copies are the
   list ones (§23.17), with the owner word where a list's is. `m[k] = v`,
   `remove` and a change through a value place first make the table the
   map's own (`rt:map_unique`): a shared table is copied whole, each live entry

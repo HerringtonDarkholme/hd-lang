@@ -37,8 +37,8 @@
 //! never addressed or captured, with one leading dereference at most and
 //! fields; its header is read nowhere in the body with a use that keeps
 //! that very header (a store, an owned argument, a block's value, a
-//! coercion, a pin; a copy or a snapshot outside the loop has a header of
-//! its own, which the hoisted check separates from `p`'s), no
+//! coercion, a pin; a copy outside the loop has a header of its own,
+//! which the hoisted check separates from `p`'s), no
 //! `borrow` of it lives across the loop's entry, and its type names no
 //! type parameter. When the loop hoists `p`, every other `IsUnique` of `p`
 //! in it, at any depth, goes too; one behind a dereference stays, marked
@@ -53,7 +53,7 @@
 //!
 //! Why it is sound: a buffer made unique before the loop stays unique,
 //! since nothing in the loop can make a second owner of it (rule 2: no
-//! copy, snapshot or reference of the header, which is held nowhere
+//! copy or reference of the header, which is held nowhere
 //! else) and nothing outside the body can reach the place while the loop
 //! runs (rule 3). An empty loop runs no `IsUnique`, and uniqueness is never
 //! observable but through its cost. One taken from an inner loop costs a
@@ -282,7 +282,7 @@ pub(crate) fn writes(b: &Body, cx: &dyn OwnCx, x: usize) -> bool {
     }
 }
 
-/// An intrinsic that changes, copies, pins or snapshots its collection,
+/// An intrinsic that changes, copies or pins its collection,
 /// or calls std code that may.
 fn changes(op: Option<IntrinsicOp>) -> bool {
     !matches!(
@@ -352,8 +352,8 @@ impl Tables {
     }
 
     /// Whether a read's value is kept by a use (rule 2's copy): stored,
-    /// passed owned or as an argument, a block's value, coerced, or copied
-    /// or snapshot by an intrinsic.
+    /// passed owned or as an argument, a block's value, coerced, or
+    /// copied by an intrinsic.
     fn kept(&self, b: &Body, r: u32) -> bool {
         self.uses(r).iter().any(|&(u, role)| keeps(b, u, role))
     }
@@ -365,24 +365,7 @@ pub(crate) fn keeps(b: &Body, user: u32, role: Role) -> bool {
     !matches!(role, Role::Lend | Role::Dropped)
         || b.tags[user as usize] == Tag::Coerce
         || (b.tags[user as usize] == Tag::Intrinsic
-            && matches!(
-                IntrinsicOp::from_u32(b.data[user as usize][0]),
-                Some(IntrinsicOp::SnapBegin | IntrinsicOp::SnapEnd | IntrinsicOp::Item)
-            ))
-}
-
-/// Whether a use by `user` in role `role` makes another holder of the
-/// very header it uses (a store, an owned argument, a block's value, a
-/// coercion), or hands it to std code: then the header may be
-/// reached from outside the loop. A copy or a snapshot makes a header of
-/// its own, which matters only inside the loop ([`keeps`]).
-fn aliases(b: &Body, user: u32, role: Role) -> bool {
-    keeps(b, user, role)
-        && !(b.tags[user as usize] == Tag::Intrinsic
-            && matches!(
-                IntrinsicOp::from_u32(b.data[user as usize][0]),
-                Some(IntrinsicOp::SnapBegin | IntrinsicOp::SnapEnd)
-            ))
+            && IntrinsicOp::from_u32(b.data[user as usize][0]) == Some(IntrinsicOp::Item))
 }
 
 /// Runs hoisting over `b`, as the pending edits leave it, adding its own.
@@ -499,6 +482,11 @@ fn facts(b: &Body, t: &mut Tables) {
                     while Ref(v).as_inst().is_some() && b.same_value_coercion(v as usize) {
                         v = b.data[v as usize][0];
                     }
+                    // A copy read is one more count of the buffer, which a
+                    // change elsewhere copies first. A borrow read makes
+                    // the local a binding local (`borrow.rs`): its place
+                    // changes nowhere while the local lives, the loop
+                    // included.
                     let fresh = Ref(v).as_inst().is_none_or(|_| {
                         matches!(
                             b.tags.get(v as usize),
@@ -510,10 +498,10 @@ fn facts(b: &Body, t: &mut Tables) {
                                     | Tag::NewList
                                     | Tag::NewMap
                             )
-                        ) || (b.tags.get(v as usize) == Some(&Tag::Intrinsic)
+                        ) || (b.tags.get(v as usize) == Some(&Tag::Read)
                             && matches!(
-                                IntrinsicOp::from_u32(b.data[v as usize][0]),
-                                Some(IntrinsicOp::SnapBegin)
+                                b.data[v as usize][1],
+                                m if m == ReadMode::Copy as u32 || m == ReadMode::Borrow as u32
                             ))
                     });
                     // A move out of another local is fresh when that
@@ -533,10 +521,7 @@ fn facts(b: &Body, t: &mut Tables) {
                 if l == NONE || steps.contains(&ELEM) {
                     continue;
                 }
-                if t.uses(u32_of(i))
-                    .iter()
-                    .any(|&(u, role)| aliases(b, u, role))
-                {
+                if t.uses(u32_of(i)).iter().any(|&(u, role)| keeps(b, u, role)) {
                     t.escapes[l as usize] = true;
                 }
                 if w == ReadMode::Borrow as u32 {

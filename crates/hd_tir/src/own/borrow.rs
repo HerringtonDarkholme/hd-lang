@@ -37,7 +37,7 @@
 //!    local needs the local unaddressed and unshared with a closure; then
 //!    only the body's own instructions change it, calls included, and so
 //!    the buffer of a list it holds, when every value stored into it is a
-//!    fresh one (a call's result, a copy or snapshot, a literal) and so
+//!    fresh one (a call's result, a copy, a literal) and so
 //!    shares its header with no other place. Any other place (behind a
 //!    dereference, in a top-level binding, or in the buffer of a shared or
 //!    unknown header) is the **heap**: no write that reaches the heap, and
@@ -495,7 +495,11 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 if let Some(l) = b.local_in_place(a) {
                     let li = l.idx();
                     t.stores[li] += 1;
-                    // A fresh value shares its header with no place.
+                    // A fresh value shares its header with no place: a
+                    // read is a copy, one more count of the buffer that a
+                    // change elsewhere copies first, unless it borrows,
+                    // and then the local is a binding local, which a
+                    // chain follows to the place it borrows.
                     let fresh = Ref(w).as_inst().is_none_or(|_| {
                         matches!(
                             b.tags.get(w as usize),
@@ -506,12 +510,9 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                                     | Tag::DefaultCall
                                     | Tag::NewList
                                     | Tag::NewMap
+                                    | Tag::Read
                             )
-                        ) || (b.tags.get(w as usize) == Some(&Tag::Intrinsic)
-                            && matches!(
-                                IntrinsicOp::from_u32(b.data[w as usize][0]),
-                                Some(IntrinsicOp::SnapBegin)
-                            ))
+                        )
                     });
                     t.fresh[li] &= fresh;
                 }
