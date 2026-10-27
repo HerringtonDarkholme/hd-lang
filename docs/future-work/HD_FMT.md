@@ -29,11 +29,6 @@ not its tabs or its particular line-breaking rules.
 1. Approve the fixed style and parse/build/print architecture below? Recommendation: yes.
 2. Keep formatting outside the web compiler until a Format feature is approved? Recommendation: yes; zero added download now.
 
-The owner has settled suite layout: function and statement bodies stay on their
-own lines. Match arms, closures and inline `if` expressions use one line when
-they fit and break otherwise. Joining every fitting suite would move about
-1,400 of std's 4,100 indented bodies onto headers, so it is excluded.
-
 ## Problems it solves
 
 | Input today | Proposed result |
@@ -75,13 +70,16 @@ cutoff alone does **not** bound other zero-width tags: Appendix E specifies
 jump tables and operation-count gates. The bound is O(input + 100 × groups +
 output), with O(input) auxiliary storage; emitted indentation counts as output.
 
-The fixed style keeps function and statement-suite bodies on their own
-lines, even when short. Match arms, closures and parenthesized conditionals may
-group flat only where hd's inline grammar permits; a complete flat body stays
-flat. An eligible parenthesized conditional joins **all** branches on one line when the whole expression
-fits; otherwise every branch starts a separate line, with indented bodies for
-statement suites. Other conditionals use one branch per line. Comments or
-multiline bodies force the group to break.
+The fixed style keeps function and statement-suite bodies on their own lines,
+even when short. Match arms and closures group flat only where hd's inline
+grammar permits; a complete flat body stays flat.
+
+An `if` expression in any value position may group flat. Value positions are a
+binding or assignment value, return including a function tail, argument,
+operand, match-arm body, or parentheses. Join **all** branches when the whole
+expression fits; otherwise put every branch on its own line. A statement-position
+`if` that yields nothing keeps one branch per line. Comments or multiline bodies
+force either group to break.
 
 Attach comments once, recording leading/trailing/dangling roles and boundary
 slots. Before assigning a comment after a suite, use its source indentation:
@@ -206,6 +204,28 @@ Before and proposed output are identical:
 impl Headers:
     pub fn remove(&mut self, name: HeaderName) -> void:
         self.pairs = self.pairs.filter(fn(pair): pair._0 != name)
+```
+
+Value-position function tail, from `encoding.hd:190`. The complete `if`
+expression fits, so it remains one line inside the vertical function body.
+
+Before and proposed output are identical:
+
+```text
+fn hex_symbol(value: u8) -> u8:
+    if value < 10: 48 + value else: 87 + value
+```
+
+Statement-position conditional, from `json.hd:392`. It yields nothing, so its
+suite remains vertical even though the condition and body are short.
+
+Before and proposed output are identical:
+
+```text
+fn line_break(parts: &mut List[string], spaced: bool, depth: usize) -> void:
+    if !spaced:
+        return
+    parts.push("\n")
 ```
 
 Comment after an inner suite, verbatim `encoding.hd:23`. Its source column
@@ -417,7 +437,7 @@ fn sum(a: i32, b: i32) -> i32:
 | Multiline/interpolated strings with comments | Copy opaque bytes once, including interior comments. |
 | Singleton tuple, mixed operators, 100-column token plus punctuation | Preserve grammar/precedence; recognize unavoidable overflow. |
 
-Parse log: all 20 `text` blocks parse cleanly with the frozen current parser. No type-check or runtime equivalence is
+Parse log: all 22 `text` blocks parse cleanly with the frozen current parser. No type-check or runtime equivalence is
 claimed by these parser probes; source-owner and verdict checks are separate gates.
 
 ## B. Prior art, with code
@@ -720,7 +740,7 @@ not a substitute for these absolute bounds.
 
 The wrapper whitelist is exactly a `ParenExpr` directly enclosing a binary,
 postfix or pipe chain, in a binding RHS, return, expression statement, argument,
-binary operand or suite-header condition/iterable/matchee. Removal also requires
+or suite-header condition/iterable/matchee. Removal also requires
 precedence/associativity and comment ownership to remain unchanged. Callees,
 standalone names/literals, tuples and every other parenthesis position are out.
 Compute canonical width without this optional wrapper: keep/add one only when
