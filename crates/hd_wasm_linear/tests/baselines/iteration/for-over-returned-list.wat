@@ -42,11 +42,11 @@
             end
     ;; 8 |         count = count + word.len()
             local.get $word.0
-            local.get $word.1
-            local.set $word.0
             drop
             block
               block
+                local.get $word.1
+                local.set $word.0
                 br 0
               end
             end

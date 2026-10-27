@@ -42,11 +42,9 @@
       local.get $t2
       i32.const 8
       i32.add
-      local.tee $t1
+      local.tee $bodies
       local.get $t0
       i32.store $heap
-      local.get $t1
-      local.set $bodies
     ;; 22 |     for _ in 0..steps:
       block
         loop

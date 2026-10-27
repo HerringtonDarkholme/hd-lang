@@ -26,11 +26,9 @@
   (func $use_generic (param $m.infos i32) (param $m.tag i32) (param $i i32) (result i32)
     block
     ;; 23 |     m.position_at(i)
-      local.get $i
-      local.set $m.tag
       block
         block
-          local.get $m.tag
+          local.get $i
           local.get $m.infos
           i32.load $heap offset=4
           i32.ge_u
@@ -39,7 +37,7 @@
             unreachable
           end
           local.get $m.infos
-          local.get $m.tag
+          local.get $i
           i32.const 12
           i32.mul
           i32.add
