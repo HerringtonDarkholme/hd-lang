@@ -1245,7 +1245,7 @@ impl Em<'_, '_, '_> {
         let rest = |em: &mut Self| -> StageResult<()> {
             if key == "bytes_append" {
                 em.comp(args[1], 0)?;
-                em.comp(args[1], 1)
+                em.str_len(args[1])
             } else {
                 em.push(args[1])
             }

@@ -2752,7 +2752,7 @@ impl Em<'_, '_, '_> {
             // std's map cursor step closure (`emit/iter.rs`).
             "map_steps" => self.map_iter(i, args[0]),
             "bytes_len" => {
-                self.comp(args[0], 1)?;
+                self.str_len(args[0])?;
                 self.store(i)
             }
             "bytes_at" => self.str_at(i, args[0], args[1]),
@@ -2761,14 +2761,14 @@ impl Em<'_, '_, '_> {
             // A SIMD128 scan in place of the hd reference body (#428).
             "bytes_index_json" => {
                 self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
+                self.str_len(args[0])?;
                 self.comp(args[1], 0)?;
                 self.f.helper(Helper::BytesIndexJson);
                 self.store(i)
             }
             "bytes_index_pair" => {
                 self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
+                self.str_len(args[0])?;
                 for arg in &args[1..5] {
                     self.comp(*arg, 0)?;
                 }
@@ -2777,7 +2777,7 @@ impl Em<'_, '_, '_> {
             }
             "bytes_index" => {
                 self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
+                self.str_len(args[0])?;
                 self.comp(args[1], 0)?;
                 self.comp(args[2], 0)?;
                 self.f.helper(Helper::BytesIndex);
@@ -2785,9 +2785,9 @@ impl Em<'_, '_, '_> {
             }
             "bytes_mismatch" => {
                 self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
+                self.str_len(args[0])?;
                 self.comp(args[1], 0)?;
-                self.comp(args[1], 1)?;
+                self.str_len(args[1])?;
                 self.f.helper(Helper::BytesMismatch);
                 self.store(i)
             }
@@ -2824,7 +2824,7 @@ impl Em<'_, '_, '_> {
             "string_to_bytes" => {
                 let (_, elem) = self.elem(self.ty(i))?;
                 self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
+                self.str_len(args[0])?;
                 self.f.helper(Helper::StrToBytes { elem });
                 self.store_owned(i)
             }

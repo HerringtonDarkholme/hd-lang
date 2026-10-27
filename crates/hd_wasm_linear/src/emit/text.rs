@@ -11,7 +11,7 @@ use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
 use super::Em;
-use crate::module::{EMPTY, HEAP, Val, mem};
+use crate::module::{EMPTY, HEAP, LEN, Val, WHOLE, mem};
 use crate::rt::{Helper, PrimArg};
 use crate::unsupported;
 
@@ -19,6 +19,15 @@ impl Em<'_, '_, '_> {
     /// Whether `t` is `string`, through newtypes and `mut`.
     fn is_string(&self, t: Ty) -> bool {
         crate::layout::strip(self.pool(), self.env(), t) == Ty::STRING
+    }
+
+    /// Pushes string `text`'s length: its length word without the
+    /// [`WHOLE`] bit (§23.7).
+    pub(super) fn str_len(&mut self, text: u32) -> StageResult<()> {
+        self.comp(text, 1)?;
+        self.f.u32(LEN);
+        self.f.op(I::I32And);
+        Ok(())
     }
 
     /// An interpolation or a concatenation of string parts: one part is
@@ -49,7 +58,7 @@ impl Em<'_, '_, '_> {
         );
         self.f.i32(0);
         for p in parts {
-            self.comp(*p, 1)?;
+            self.str_len(*p)?;
             self.f.op(I::I32Add);
         }
         self.f.set(len);
@@ -67,19 +76,26 @@ impl Em<'_, '_, '_> {
         for p in parts {
             self.f.get(to);
             self.comp(*p, 0)?;
-            self.comp(*p, 1)?;
+            self.str_len(*p)?;
             self.f.op(I::MemoryCopy {
                 src_mem: HEAP,
                 dst_mem: HEAP,
             });
             self.f.get(to);
-            self.comp(*p, 1)?;
+            self.str_len(*p)?;
             self.f.op(I::I32Add);
             self.f.set(to);
         }
         self.f.get(at);
+        // A new buffer arrives with its count, and is a whole buffer
+        // unless it is the empty value.
         self.f.get(len);
-        // A new buffer arrives with its count.
+        if self.fixed_len(parts) > 0 {
+            self.f.u32(WHOLE);
+            self.f.op(I::I32Or);
+        } else {
+            self.whole_unless_empty();
+        }
         self.store_owned(i)
     }
 
@@ -120,6 +136,19 @@ impl Em<'_, '_, '_> {
         self.f.set(at);
     }
 
+    /// Marks the length on the stack [`WHOLE`] unless it is 0, the empty
+    /// value's.
+    fn whole_unless_empty(&mut self) {
+        let n = self.f.local(Val::I32);
+        self.f.op(I::LocalTee(n));
+        self.f.get(n);
+        self.f.op(I::I32Eqz);
+        self.f.op(I::I32Eqz);
+        self.f.i32(31);
+        self.f.op(I::I32Shl);
+        self.f.op(I::I32Or);
+    }
+
     /// `s[i]` (`StrIndex`, `bytes_at`): the byte at `index`, which must be
     /// below the length.
     pub(super) fn str_at(&mut self, i: u32, text: u32, index: u32) -> StageResult<()> {
@@ -127,7 +156,7 @@ impl Em<'_, '_, '_> {
         self.comp(index, 0)?;
         self.f.set(ix);
         self.f.get(ix);
-        self.comp(text, 1)?;
+        self.str_len(text)?;
         self.f.op(I::I32GeU);
         self.f.op(I::If(BlockType::Empty));
         self.panic("index-out-of-bounds: string index out of bounds");
@@ -151,7 +180,7 @@ impl Em<'_, '_, '_> {
         self.f.get(hi);
         self.f.op(I::I32GtU);
         self.f.get(hi);
-        self.comp(text, 1)?;
+        self.str_len(text)?;
         self.f.op(I::I32GtU);
         self.f.op(I::I32Or);
         self.f.op(I::If(BlockType::Empty));

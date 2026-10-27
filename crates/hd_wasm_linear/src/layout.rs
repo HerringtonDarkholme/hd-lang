@@ -553,6 +553,11 @@ pub enum Walk {
     /// release link's whole-object reference ([`block_start`]); counting
     /// reads the header at `k - 8` (§23.30).
     Known(u32),
+    /// A string: value `k` is its address and value `l` its length word,
+    /// whose [`WHOLE`](crate::module::WHOLE) bit marks an address that is a counted buffer's
+    /// payload start, counted as [`Walk::Known`]; without the bit the
+    /// address is counted as [`Walk::Ref`] (§23.7).
+    Text(u32, u32),
     /// Each part in turn.
     Seq(Vec<Walk>),
     /// Value `k` is an enum's tag; arm `v`, when there is one, walks
@@ -567,6 +572,7 @@ impl Walk {
         match self {
             Walk::Ref(k) => Walk::Ref(to(*k)),
             Walk::Known(k) => Walk::Known(to(*k)),
+            Walk::Text(k, l) => Walk::Text(to(*k), to(*l)),
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
             Walk::Switch(k, arms) => Walk::Switch(
                 to(*k),
@@ -584,6 +590,7 @@ impl Walk {
         match self {
             Walk::Ref(k) => (!skip.contains(k)).then_some(Walk::Ref(*k)),
             Walk::Known(k) => (!skip.contains(k)).then_some(Walk::Known(*k)),
+            Walk::Text(k, l) => (!skip.contains(k)).then_some(Walk::Text(*k, *l)),
             Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(|w| w.without(skip)).collect()),
             Walk::Switch(k, arms) => Some(Walk::Switch(
                 *k,
@@ -600,6 +607,16 @@ impl Walk {
     pub fn single(&self) -> Option<u32> {
         match self {
             Walk::Ref(k) | Walk::Known(k) => Some(*k),
+            Walk::Text(..) | Walk::Seq(_) | Walk::Switch(..) => None,
+        }
+    }
+
+    /// The value index of the walk's one counted address, a string's
+    /// included.
+    #[must_use]
+    pub fn address(&self) -> Option<u32> {
+        match self {
+            Walk::Ref(k) | Walk::Known(k) | Walk::Text(k, _) => Some(*k),
             Walk::Seq(_) | Walk::Switch(..) => None,
         }
     }
@@ -634,7 +651,7 @@ fn walk_one(
         return Some(Walk::Ref(0));
     }
     match pool.get(t) {
-        TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
+        TyData::Prim(Prim::String) => Some(Walk::Text(0, 1)),
         TyData::Fn { .. } => Some(Walk::Known(1)),
         TyData::TraitValue { .. } => Some(Walk::Ref(0)),
         TyData::Context(_) => Some(Walk::Known(0)),

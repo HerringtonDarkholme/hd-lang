@@ -45,7 +45,7 @@ fn counted(
     fn walk(w: &Walk) -> std::collections::BTreeMap<u32, bool> {
         use std::collections::BTreeMap;
         match w {
-            Walk::Ref(k) | Walk::Known(k) => BTreeMap::from([(*k, false)]),
+            Walk::Ref(k) | Walk::Known(k) | Walk::Text(k, _) => BTreeMap::from([(*k, false)]),
             Walk::Seq(ws) => {
                 let mut out = BTreeMap::new();
                 for w in ws {
@@ -189,6 +189,7 @@ pub(crate) fn count_action(
         Sym::Helper(
             Helper::Retain { .. }
             | Helper::RetainKnown
+            | Helper::RetainText
             | Helper::RetainFields { .. }
             | Helper::RetainAny,
         ) => Some(Retain),
@@ -196,6 +197,7 @@ pub(crate) fn count_action(
             Helper::Release { .. }
             | Helper::ReleaseRef
             | Helper::ReleaseKnown
+            | Helper::ReleaseText
             | Helper::DropFields { .. }
             | Helper::CycleRelease,
         ) => Some(Release),

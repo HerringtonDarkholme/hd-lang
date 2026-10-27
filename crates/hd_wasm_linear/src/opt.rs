@@ -1938,6 +1938,7 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
     enum Count {
         Ref,
         KnownRef,
+        Text,
         Value(SymId),
     }
     fn count(ins: &Ins, retain: Hash128, symbols: &Symbols) -> Option<(bool, Count, usize)> {
@@ -1949,6 +1950,8 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
             Sym::Helper(Helper::ReleaseRef) => Some((false, Count::Ref, 1)),
             Sym::Helper(Helper::RetainKnown) => Some((true, Count::KnownRef, 1)),
             Sym::Helper(Helper::ReleaseKnown) => Some((false, Count::KnownRef, 1)),
+            Sym::Helper(Helper::RetainText) => Some((true, Count::Text, 2)),
+            Sym::Helper(Helper::ReleaseText) => Some((false, Count::Text, 2)),
             Sym::Helper(Helper::Retain { vals, .. }) => Some((true, Count::Value(*id), vals.len())),
             Sym::Helper(Helper::Release { vals, .. }) => {
                 Some((false, Count::Value(*id), vals.len()))

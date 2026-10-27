@@ -44,6 +44,14 @@ pub const STATIC_BASE: u32 = 16;
 /// is this view, whose bytes are never read.
 pub const EMPTY: u32 = STATIC_BASE;
 
+/// The bit of a string's length word that marks a whole buffer: its
+/// address is a counted buffer's payload start, so its counts read the
+/// header without the page table (§23.7).
+pub const WHOLE: u32 = 1 << 31;
+
+/// The bits of a string's length word that hold its length.
+pub const LEN: u32 = WHOLE - 1;
+
 /// The size of a counted object's header, before its payload (§23.4).
 pub const HEADER: u32 = 8;
 /// The bytes of the collector word at the end of a block that takes part

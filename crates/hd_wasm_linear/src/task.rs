@@ -1220,6 +1220,7 @@ fn leaf_drop(area: &Elem) -> Option<Sym> {
 fn walk_indices(w: &Walk, out: &mut Vec<u32>) {
     match w {
         Walk::Ref(k) | Walk::Known(k) => out.push(*k),
+        Walk::Text(k, l) => out.extend([*k, *l]),
         Walk::Seq(ws) => ws.iter().for_each(|w| walk_indices(w, out)),
         Walk::Switch(k, arms) => {
             out.push(*k);
@@ -1307,7 +1308,11 @@ fn init_host_leaf(f: &mut Func, m: &Module, fr: u32, leaf: &HostLeaf<'_>, blocki
         f.i32(1);
         f.helper(Helper::CopyElems { elem: area.clone() });
     } else if let Some(w) = &area.walk {
-        crate::rt::walk_code(f, w, &|f, k| f.get(k + 1), &|f, _| {
+        crate::rt::walk_code(f, w, &|f, k| f.get(k + 1), &|f, at| {
+            // RetainAny finds any address's block, a string's too.
+            if at == crate::rt::At::Text {
+                f.op(Instruction::Drop);
+            }
             f.call(Sym::Helper(Helper::RetainAny));
         });
     }

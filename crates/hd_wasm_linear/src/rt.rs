@@ -12,7 +12,8 @@ use wasm_encoder::BlockType;
 use crate::layout::{Leaf, Walk};
 use crate::map::{self, KeyOps};
 use crate::module::{
-    BUF, CYCLIC, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, Module, Sym, Val, mem,
+    BUF, CYCLIC, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, LEN, Module, Sym, Val,
+    WHOLE, mem,
 };
 use crate::{Entry, Input, unsupported};
 
@@ -260,6 +261,11 @@ pub enum Helper {
     /// Count a statically known payload start without a block lookup.
     RetainKnown,
     ReleaseKnown,
+    /// `(address, length word)`: one count more or less on a string, read
+    /// at its header when the word is [`WHOLE`], else found through the
+    /// page table (§23.7).
+    RetainText,
+    ReleaseText,
     /// `(payload)`: the release glue of an object whose payload is laid
     /// out as `leaves`: one count less on each counted reference in it.
     DropFields {
@@ -1050,7 +1056,14 @@ fn teardown(m: &Module) -> Func {
         }
         if let Some(k) = s.walk.single() {
             f.get(ls[k as usize]);
-            release_call(&mut f, matches!(s.walk, Walk::Known(_)));
+            release_call(
+                &mut f,
+                if matches!(s.walk, Walk::Known(_)) {
+                    At::Known
+                } else {
+                    At::Ref
+                },
+            );
         } else {
             for l in &ls {
                 f.get(*l);
@@ -1348,6 +1361,15 @@ fn write_lit(f: &mut Func, m: &mut Module, text: &str) {
 }
 
 /// Writes the string in locals `s` and `s + 1` to standard error.
+/// Clears the [`WHOLE`] bit of the string length word in local `l`, so
+/// that it holds the length (§23.7).
+pub(crate) fn mask_len(f: &mut Func, l: u32) {
+    f.get(l);
+    f.u32(LEN);
+    f.op(Instruction::I32And);
+    f.set(l);
+}
+
 fn write_str(f: &mut Func, s: u32) {
     f.get(s);
     f.get(s + 1);
@@ -1614,6 +1636,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::PanicWith => {
             let mut f = m.func("rt:panic_with", vec![Val::I32; 4], vec![]);
+            mask_len(&mut f, 3);
             f.call(rt_import("panic", &[], &[]));
             write_str(&mut f, 0);
             f.get(3);
@@ -1627,6 +1650,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::ToBuf => {
             let mut f = m.func("rt:to_buf", vec![Val::I32, Val::I32], vec![Val::I32]);
+            mask_len(&mut f, 1);
             // Grow the buffer by the pages the text needs beyond its size.
             f.get(1);
             f.op(Instruction::MemorySize(BUF));
@@ -1675,6 +1699,18 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::FreeClass => free_class(m),
         Helper::Str => {
             let mut f = m.func("rt:str", vec![Val::I32], vec![Val::I32]);
+            // A length must leave the length word's WHOLE bit clear (§23.7).
+            f.get(0);
+            f.u32(LEN);
+            f.op(Instruction::I32GtU);
+            f.op(Instruction::If(BlockType::Empty));
+            f.cold_helper(
+                Helper::Panic("heap-exhausted: a string of 2 GiB or more".into()),
+                vec![],
+                vec![],
+            );
+            f.op(Instruction::Unreachable);
+            f.op(Instruction::End);
             f.get(0);
             f.i32(0);
             f.helper(Helper::New);
@@ -1691,8 +1727,10 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             walk_code(&mut f, walk, &|f, k| f.get(k), &release_call);
             f
         }
-        Helper::ReleaseRef => release_ref(m, false),
-        Helper::ReleaseKnown => release_ref(m, true),
+        Helper::ReleaseRef => release_ref(m, At::Ref),
+        Helper::ReleaseKnown => release_ref(m, At::Known),
+        Helper::ReleaseText => release_ref(m, At::Text),
+        Helper::RetainText => retain_text(m),
         Helper::ReleaseDrain => release_drain(m),
         Helper::RetainKnown => {
             let mut f = m.func("rt:retain_known", vec![Val::I32], vec![]);
@@ -1915,27 +1953,22 @@ fn alloc(m: &Module) -> Func {
     f
 }
 
-/// [`Helper::FmtInt`]: the digits go backward into a 20-byte buffer,
-/// the most a `u64` or a signed `i64` needs; the string is its tail.
+/// [`Helper::FmtInt`]: the digits go backward into a buffer of their count,
+/// the sign first; the string is the whole buffer.
 fn fmt_int(m: &Module, signed: bool) -> Func {
     let mut f = m.func(
         if signed { "rt:fmt_i64" } else { "rt:fmt_u64" },
         vec![Val::I64],
         vec![Val::I32, Val::I32],
     );
-    let (buf, at, neg, v) = (
+    let (buf, at, neg, v, len, p) = (
         f.local(Val::I32),
         f.local(Val::I32),
         f.local(Val::I32),
         f.local(Val::I64),
+        f.local(Val::I32),
+        f.local(Val::I64),
     );
-    f.i32(20);
-    f.helper(Helper::Str);
-    f.set(buf);
-    f.get(buf);
-    f.i32(20);
-    f.op(Instruction::I32Add);
-    f.set(at);
     f.get(0);
     f.set(v);
     if signed {
@@ -1953,6 +1986,45 @@ fn fmt_int(m: &Module, signed: bool) -> Func {
         f.set(v);
         f.op(Instruction::End);
     }
+    // The digits' count first, so that the string is its whole buffer
+    // (§23.7): at most 20, the `u64` maximum's.
+    f.i32(1);
+    f.set(len);
+    f.op(Instruction::I64Const(10));
+    f.set(p);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(len);
+    f.i32(20);
+    f.op(Instruction::I32GeU);
+    f.get(v);
+    f.get(p);
+    f.op(Instruction::I64LtU);
+    f.op(Instruction::I32Or);
+    f.op(Instruction::BrIf(1));
+    f.get(len);
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.set(len);
+    f.get(p);
+    f.op(Instruction::I64Const(10));
+    f.op(Instruction::I64Mul);
+    f.set(p);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    if signed {
+        f.get(len);
+        f.get(neg);
+        f.op(Instruction::I32Add);
+        f.set(len);
+    }
+    f.get(len);
+    f.helper(Helper::Str);
+    f.op(Instruction::LocalTee(buf));
+    f.get(len);
+    f.op(Instruction::I32Add);
+    f.set(at);
     f.op(Instruction::Loop(BlockType::Empty));
     f.get(at);
     f.i32(1);
@@ -1987,18 +2059,18 @@ fn fmt_int(m: &Module, signed: bool) -> Func {
         f.op(Instruction::I32Store8(mem(HEAP, 0, 0)));
         f.op(Instruction::End);
     }
-    f.get(at);
     f.get(buf);
-    f.i32(20);
-    f.op(Instruction::I32Add);
-    f.get(at);
-    f.op(Instruction::I32Sub);
+    f.get(len);
+    f.u32(WHOLE);
+    f.op(Instruction::I32Or);
     f
 }
 
 /// [`Helper::StrEq`]: equal lengths, then no mismatch before the end.
 fn str_eq(m: &Module) -> Func {
     let mut f = m.func("rt:str_eq", vec![Val::I32; 4], vec![Val::I32]);
+    mask_len(&mut f, 1);
+    mask_len(&mut f, 3);
     f.get(1);
     f.get(3);
     f.op(Instruction::I32Ne);
@@ -2020,6 +2092,8 @@ fn str_eq(m: &Module) -> Func {
 fn str_cmp(m: &Module) -> Func {
     let mut f = m.func("rt:str_cmp", vec![Val::I32; 4], vec![Val::I32]);
     let (k, x, y) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    mask_len(&mut f, 1);
+    mask_len(&mut f, 3);
     // The sign of `x - y` as -1, 0 or 1, for two values in locals.
     let sign = |f: &mut Func, x: u32, y: u32| {
         f.get(x);
@@ -2194,45 +2268,74 @@ pub(crate) fn own_arg(f: &mut Func, vals: &[Val], walk: Option<&Walk>, get: &dyn
     }
 }
 
-/// What retains the address on the stack, given whether it is a known
-/// payload start: std's `retain`, `retain_known` for a known start, or
-/// nothing when the program counts nothing.
-pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func, bool) {
+/// How a walk hands one counted reference to its count: an address on
+/// the stack, found through the page table ([`Walk::Ref`]) or a known
+/// payload start ([`Walk::Known`]), or a string's address and length word
+/// ([`Walk::Text`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum At {
+    Ref,
+    Known,
+    Text,
+}
+
+/// What retains the reference on the stack, as `At` hands it: std's
+/// `retain`, `retain_known` for a known start, the string count for a
+/// string, or nothing when the program counts nothing.
+pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func, At) {
     let retain = m.runtime.map(|r| r.retain);
-    move |f: &mut Func, known: bool| match retain {
-        Some(_) if known => f.helper(Helper::RetainKnown),
-        Some(k) => f.call(Sym::Inst(k)),
-        None => f.op(Instruction::Drop),
+    move |f: &mut Func, at: At| match (retain, at) {
+        (Some(_), At::Known) => f.helper(Helper::RetainKnown),
+        (Some(_), At::Text) => f.helper(Helper::RetainText),
+        (Some(k), At::Ref) => f.call(Sym::Inst(k)),
+        (None, At::Text) => {
+            f.op(Instruction::Drop);
+            f.op(Instruction::Drop);
+        }
+        (None, _) => f.op(Instruction::Drop),
     }
 }
 
-/// The release of one counted address on the stack, without finding its
-/// block when it is a `known` payload start.
-pub(crate) fn release_call(f: &mut Func, known: bool) {
-    f.helper(if known {
-        Helper::ReleaseKnown
+/// A retain or a release of the reference on the stack, as `At` hands it.
+pub(crate) fn count_at(m: &Module, f: &mut Func, retain: bool, at: At) {
+    if retain {
+        retain_call(m)(f, at);
     } else {
-        Helper::ReleaseRef
+        release_call(f, at);
+    }
+}
+
+/// The release of the reference on the stack, as `At` hands it.
+pub(crate) fn release_call(f: &mut Func, at: At) {
+    f.helper(match at {
+        At::Ref => Helper::ReleaseRef,
+        At::Known => Helper::ReleaseKnown,
+        At::Text => Helper::ReleaseText,
     });
 }
 
 /// Emits `walk` over the values that `get(k)` pushes, running `on` with
-/// each counted address on the stack, and whether it is a known payload
-/// start ([`Walk::Known`]): an enum's arms by its tag.
+/// each counted reference on the stack as [`At`] hands it: an enum's arms
+/// by its tag.
 pub(crate) fn walk_code(
     f: &mut Func,
     walk: &Walk,
     get: &dyn Fn(&mut Func, u32),
-    on: &dyn Fn(&mut Func, bool),
+    on: &dyn Fn(&mut Func, At),
 ) {
     match walk {
         Walk::Ref(k) => {
             get(f, *k);
-            on(f, false);
+            on(f, At::Ref);
         }
         Walk::Known(k) => {
             get(f, *k);
-            on(f, true);
+            on(f, At::Known);
+        }
+        Walk::Text(k, l) => {
+            get(f, *k);
+            get(f, *l);
+            on(f, At::Text);
         }
         Walk::Seq(ws) => {
             for w in ws {
@@ -2262,7 +2365,7 @@ fn fields_glue(
     name: &str,
     leaves: &[Leaf],
     walk: &Walk,
-    on: &dyn Fn(&mut Func, bool),
+    on: &dyn Fn(&mut Func, At),
 ) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
     let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
@@ -2613,6 +2716,39 @@ fn collect(m: &Module) -> Func {
     f
 }
 
+/// [`Helper::RetainText`]: a whole string's buffer gets one more count in
+/// its header, any other string's through std's `retain` (§23.7).
+fn retain_text(m: &Module) -> Func {
+    let mut f = m.func("rt:retain_text", vec![Val::I32; 2], vec![]);
+    let Some(r) = m.runtime else {
+        return f;
+    };
+    f.get(1);
+    f.u32(WHOLE);
+    f.op(Instruction::I32And);
+    f.op(Instruction::If(BlockType::Empty));
+    if r.checked.is_some() {
+        f.get(0);
+        f.call(Sym::Inst(r.retain_known));
+    } else {
+        let block = f.local(Val::I32);
+        f.get(0);
+        f.u32(HEADER);
+        f.op(Instruction::I32Sub);
+        f.op(Instruction::LocalTee(block));
+        f.get(block);
+        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.i32(1);
+        f.op(Instruction::I32Add);
+        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    }
+    f.op(Instruction::Else);
+    f.get(0);
+    f.call(Sym::Inst(r.retain));
+    f.op(Instruction::End);
+    f
+}
+
 /// [`Helper::ReleaseRef`]: std identifies a block's final count before it
 /// enters this allocation-free worklist. Its count word then links pending
 /// blocks; its payload and descriptor stay intact until its turn. A nested
@@ -2622,12 +2758,49 @@ fn collect(m: &Module) -> Func {
 /// collector traces an object (`Tracing`), the reference goes to its
 /// `visit` instead, checked here so that `visit` is called only during a
 /// collection (§23.28).
-fn release_ref(m: &Module, known: bool) -> Func {
-    let mut f = m.func("rt:release_ref", vec![Val::I32], vec![]);
+fn release_ref(m: &Module, at: At) -> Func {
+    let text = at == At::Text;
+    let mut f = if text {
+        m.func("rt:release_text", vec![Val::I32; 2], vec![])
+    } else {
+        m.func("rt:release_ref", vec![Val::I32], vec![])
+    };
     let Some(r) = m.runtime else {
         return f;
     };
     let block = f.local(Val::I32);
+    if text && r.checked.is_none() {
+        // A whole string's buffer above its last count, while the
+        // collector does not trace: one less in its header. A string
+        // buffer never takes part in cycle collection.
+        let count = f.local(Val::I32);
+        f.get(1);
+        f.u32(WHOLE);
+        f.op(Instruction::I32And);
+        if !m.acyclic {
+            f.global_get(Global::Tracing);
+            f.op(Instruction::I32Eqz);
+            f.op(Instruction::I32And);
+        }
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(0);
+        f.u32(HEADER);
+        f.op(Instruction::I32Sub);
+        f.op(Instruction::LocalTee(block));
+        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.op(Instruction::LocalTee(count));
+        f.i32(1);
+        f.op(Instruction::I32GtU);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(block);
+        f.get(count);
+        f.i32(1);
+        f.op(Instruction::I32Sub);
+        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+        f.op(Instruction::Return);
+        f.op(Instruction::End);
+        f.op(Instruction::End);
+    }
     if !m.acyclic {
         f.global_get(Global::Tracing);
         f.op(Instruction::If(BlockType::Empty));
@@ -2641,8 +2814,27 @@ fn release_ref(m: &Module, known: bool) -> Func {
         f.op(Instruction::End);
         f.op(Instruction::End);
     }
-    f.get(0);
-    f.call(Sym::Inst(if known { r.release_known } else { r.release }));
+    if text {
+        f.get(1);
+        f.u32(WHOLE);
+        f.op(Instruction::I32And);
+        f.op(Instruction::If(BlockType::Result(
+            wasm_encoder::ValType::I32,
+        )));
+        f.get(0);
+        f.call(Sym::Inst(r.release_known));
+        f.op(Instruction::Else);
+        f.get(0);
+        f.call(Sym::Inst(r.release));
+        f.op(Instruction::End);
+    } else {
+        f.get(0);
+        f.call(Sym::Inst(if at == At::Known {
+            r.release_known
+        } else {
+            r.release
+        }));
+    }
     f.set(block);
     f.get(block);
     f.op(Instruction::I32Eqz);
@@ -3506,6 +3698,10 @@ fn str_from_bytes(m: &Module) -> Func {
         f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
         f.op(Instruction::I32Eqz);
         f.op(Instruction::I32And);
+        f.get(n);
+        f.u32(LEN);
+        f.op(Instruction::I32LeU);
+        f.op(Instruction::I32And);
         f.op(Instruction::If(BlockType::Empty));
         f.get(b);
         f.u32(LIST_ELEMS);
@@ -3526,6 +3722,11 @@ fn str_from_bytes(m: &Module) -> Func {
         src_mem: HEAP,
         dst_mem: HEAP,
     });
+    // A copy is a whole buffer (§23.7).
+    f.get(n);
+    f.u32(WHOLE);
+    f.op(Instruction::I32Or);
+    f.set(n);
     f.op(Instruction::Else);
     f.u32(EMPTY);
     f.set(s);
@@ -3588,6 +3789,8 @@ fn concat_all(m: &Module) -> Func {
         f.get(total);
         f.get(at);
         f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+        f.u32(LEN);
+        f.op(Instruction::I32And);
         f.op(Instruction::I32Add);
         f.set(total);
     });
@@ -3607,6 +3810,8 @@ fn concat_all(m: &Module) -> Func {
         f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
         f.get(at);
         f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+        f.u32(LEN);
+        f.op(Instruction::I32And);
         f.op(Instruction::MemoryCopy {
             src_mem: HEAP,
             dst_mem: HEAP,
@@ -3614,9 +3819,16 @@ fn concat_all(m: &Module) -> Func {
         f.get(to);
         f.get(at);
         f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+        f.u32(LEN);
+        f.op(Instruction::I32And);
         f.op(Instruction::I32Add);
         f.set(to);
     });
+    // A new buffer is a whole one (§23.7).
+    f.get(total);
+    f.u32(WHOLE);
+    f.op(Instruction::I32Or);
+    f.set(total);
     f.op(Instruction::End);
     f.get(s);
     f.get(total);

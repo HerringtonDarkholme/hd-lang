@@ -1544,6 +1544,7 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
             f.set(0);
         }
         LTy::Str | LTy::DiscardStr => {
+            crate::rt::mask_len(&mut f, 2);
             put(&mut f, 0, |f| {
                 f.get(2);
                 f.op(I::I64ExtendI32U);

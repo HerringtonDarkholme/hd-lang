@@ -251,6 +251,12 @@ impl Em<'_, '_, '_> {
                 None => return Ok(()),
             }
         }
+        if let Walk::Text(k, l) = w {
+            self.f.get(ls[k as usize]);
+            self.f.get(ls[l as usize]);
+            crate::rt::count_at(self.m, &mut self.f, retain, crate::rt::At::Text);
+            return Ok(());
+        }
         if let Some(k) = w.single() {
             self.f.get(ls[k as usize]);
             if matches!(w, Walk::Known(_)) {
