@@ -71,9 +71,8 @@ pub fn rename_all(style: RenameCase) -> RenameAll:
 ## Resolves a wire name: member rename, then container rename_all, then source name.
 ## See [std-serde.member-name.precedence](../../spec/std/serde.md#r-std-serde.member-name.precedence).
 pub fn member_name(member: &Member, container: Facts) -> string:
-    # Read metadata lengths in place: is_empty passes its list by value.
     # Most members and containers have no facts, so the searches are skipped.
-    if member.facts.items.len() != 0:
+    if !member.facts.items.is_empty():
         match member.facts.find::[Rename]():
             .Some(fact) => return fact.name
             .None => pass
@@ -232,7 +231,7 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
 
     fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
         # A member with no facts has neither `Skip` nor `SkipNone`.
-        if h.info.facts.items.len() != 0:
+        if !h.info.facts.items.is_empty():
             if h.fact::[Skip]().is_some():
                 return .Ok(())
             match h.fact::[SkipNone[F]]():
@@ -283,7 +282,7 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
         while self.at < members.infos.len():
             at := self.at
             self.at += 1
-            if members.infos[at].facts.items.len() == 0 || members.infos[at].facts.find::[Skip]().is_none():
+            if members.infos[at].facts.items.is_empty() || members.infos[at].facts.find::[Skip]().is_none():
                 position := members.infos[at].position
                 return .Ok(members.at(position))
         .Ok(.None)
