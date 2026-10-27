@@ -156,7 +156,9 @@ miss. Don't build first and measure after.
 Known measured misses not to retry without new evidence: inlining count
 fast paths on V8 (#644, #910), removing inline targets to shrink TurboFan
 graphs (#884, #920), a flag bit or fat views for strings (#901), returns
-into a caller slot (#876).
+into a caller slot (#876), removing local shuffles for TurboFan time
+(#926: `local.get/set/tee` build no TurboFan nodes, so they cost bytes
+only).
 
 ## Perf And Size Report
 
