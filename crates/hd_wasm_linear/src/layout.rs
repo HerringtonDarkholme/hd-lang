@@ -441,13 +441,24 @@ fn whole_ref(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
 /// [`walk`] compute each type once, so a long chain of types held by
 /// value costs its length, not its square, at every use.
 pub fn cached<R>(link: impl FnOnce() -> R) -> R {
-    let outer = (MEMS.take(), WALKS.take());
+    struct Reset {
+        mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
+        walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
+    }
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            MEMS.set(self.mems.take());
+            WALKS.set(self.walks.take());
+        }
+    }
+
+    let _reset = Reset {
+        mems: MEMS.take(),
+        walks: WALKS.take(),
+    };
     MEMS.set(Some(hd_base::HashMap::default()));
     WALKS.set(Some(hd_base::HashMap::default()));
-    let r = link();
-    MEMS.set(outer.0);
-    WALKS.set(outer.1);
-    r
+    link()
 }
 
 /// [`cached`], unless a cache is in place already, which `link` then
@@ -1002,5 +1013,126 @@ pub fn num(pool: &InternPool, t: Ty) -> (u8, bool, bool) {
         },
         TyData::Mut(inner) => num(pool, inner),
         _ => (32, false, false),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
+    use super::*;
+
+    fn caches_are_absent() -> bool {
+        MEMS.with(|m| m.borrow().is_none()) && WALKS.with(|w| w.borrow().is_none())
+    }
+
+    #[test]
+    fn a_panicking_cache_scope_restores_absent_caches() {
+        assert!(caches_are_absent());
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            cached(|| panic!("cache scope test"));
+        }));
+        assert!(result.is_err());
+        assert!(caches_are_absent());
+    }
+
+    #[test]
+    fn a_panicking_nested_cache_scope_restores_both_outer_caches() {
+        cached(|| {
+            MEMS.with(|m| {
+                m.borrow_mut()
+                    .as_mut()
+                    .expect("outer layout cache")
+                    .insert(Ty::VOID, Ok(Mem::EMPTY));
+            });
+            WALKS.with(|w| {
+                w.borrow_mut()
+                    .as_mut()
+                    .expect("outer walk cache")
+                    .insert(Ty::VOID, Some(Walk::Ref(7)));
+            });
+
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                cached(|| {
+                    MEMS.with(|m| {
+                        assert!(m.borrow().as_ref().is_some_and(hd_base::HashMap::is_empty));
+                    });
+                    WALKS.with(|w| {
+                        assert!(w.borrow().as_ref().is_some_and(hd_base::HashMap::is_empty));
+                    });
+                    panic!("nested cache scope test");
+                });
+            }));
+            assert!(result.is_err());
+
+            MEMS.with(|m| {
+                let m = m.borrow();
+                let saved = m
+                    .as_ref()
+                    .and_then(|m| m.get(&Ty::VOID))
+                    .expect("restored outer layout");
+                assert!(saved.as_ref().is_ok_and(|m| *m == Mem::EMPTY));
+            });
+            WALKS.with(|w| {
+                let w = w.borrow();
+                assert_eq!(
+                    w.as_ref().and_then(|w| w.get(&Ty::VOID)),
+                    Some(&Some(Walk::Ref(7)))
+                );
+            });
+        });
+        assert!(caches_are_absent());
+    }
+
+    fn tuple_mem(pool: &InternPool, ty: Ty) -> StageResult<Mem> {
+        if let Some(saved) = MEMS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&ty)).cloned()) {
+            return saved;
+        }
+        let TyData::Tuple { elems, .. } = pool.get(ty) else {
+            panic!("test tuple");
+        };
+        let item = pool.list_items(elems)[0];
+        let computed = match pool.get(item) {
+            TyData::Prim(Prim::I64) => Mem::one(Val::I64, 8, false),
+            TyData::Prim(Prim::String) => record(&[Mem::address(), Mem::address()]).0,
+            _ => panic!("test tuple item"),
+        };
+        MEMS.with(|m| {
+            m.borrow_mut()
+                .as_mut()
+                .expect("layout cache")
+                .insert(ty, Ok(computed.clone()));
+        });
+        Ok(computed)
+    }
+
+    #[test]
+    fn a_later_layout_from_a_different_pool_matches_a_clean_cache() {
+        let earlier = InternPool::default();
+        let earlier_ty = earlier.intern_ty(&TyData::Tuple {
+            elems: earlier.list(&[Ty::prim(Prim::I64)]),
+            rest: None,
+        });
+        let later = InternPool::default();
+        let later_ty = later.intern_ty(&TyData::Tuple {
+            elems: later.list(&[Ty::STRING]),
+            rest: None,
+        });
+        assert_eq!(earlier_ty, later_ty, "the pools reuse the same type index");
+        let clean = cached(|| tuple_mem(&later, later_ty)).expect("clean layout");
+
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            cached(|| {
+                assert_eq!(
+                    tuple_mem(&earlier, earlier_ty).expect("earlier layout"),
+                    Mem::one(Val::I64, 8, false)
+                );
+                panic!("caught compiler panic");
+            });
+        }));
+        assert!(result.is_err());
+
+        let after = cached_here(|| tuple_mem(&later, later_ty)).expect("later layout");
+        assert_eq!(after, clean);
     }
 }
