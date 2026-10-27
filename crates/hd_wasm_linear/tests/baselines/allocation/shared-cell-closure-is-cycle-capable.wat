@@ -26,9 +26,7 @@
     ;; 8 |     read := fn() -> i32: count
       i32.const 1
       i32.const 4
-      i32.const 2
-      i32.const -2147483647
-      i32.add
+      i32.const -2147483645
       call $rt:new/class-1
       local.tee $t0
       local.get $seed

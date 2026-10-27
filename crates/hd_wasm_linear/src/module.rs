@@ -1776,7 +1776,13 @@ impl Module {
             let mut at = None;
             let mut rows: Vec<(u32, u32)> = Vec::new();
             let (mut map, mut kept) = (vec![None; f.inlined.len()], Vec::new());
+            // Instructions already folded into an earlier one's constant.
+            let mut folded = 0;
             for (position, i) in f.body.iter().enumerate() {
+                if folded > 0 {
+                    folded -= 1;
+                    continue;
+                }
                 if self.track_origins && !matches!(i, Ins::Anchor(_)) {
                     mapped_instructions.push(crate::InstructionOrigin {
                         offset: u32::try_from(body.byte_len()).expect("offset"),
@@ -1902,7 +1908,21 @@ impl Module {
                                 "a function table exceeding the descriptor glue field",
                             );
                         }
-                        body.instruction(&WasmInstruction::I32Const(k.cast_signed()))
+                        // A constant added to the slot, a descriptor's
+                        // flags, folds into one constant.
+                        let plus = match (f.body.get(position + 1), f.body.get(position + 2)) {
+                            (
+                                Some(Ins::Op(Instruction::I32Const(c))),
+                                Some(Ins::Op(Instruction::I32Add)),
+                            ) => {
+                                folded = 2;
+                                c.cast_unsigned()
+                            }
+                            _ => 0,
+                        };
+                        body.instruction(&WasmInstruction::I32Const(
+                            k.wrapping_add(plus).cast_signed(),
+                        ))
                     }
                     Ins::CallIndirect(id) => {
                         let signature = self.symbols.signature(*id);
