@@ -786,6 +786,7 @@ dependencies = [
  "hd_diag",
  "hd_driver",
  "hd_project",
+ "hd_resolve",
  "hd_sched",
  "hd_syntax",
  "hd_testkit",

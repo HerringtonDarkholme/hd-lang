@@ -1,0 +1,21 @@
+use std.structure.Structure
+
+struct Style:
+    prefix: string = ""
+
+fn style(prefix: string = "") -> Style:
+    Style { prefix: prefix }
+
+struct Loud:
+    id: i64
+
+@style(prefix="db_")  # keep café
+impl Loud by Structure:
+    id += ["key"]
+
+struct Quiet:
+    id: i64
+
+@"internal"
+impl Quiet by Structure:
+    id += ["key"]

@@ -1,4 +1,4 @@
-# test: a derivation block with a member line beside a @derive of another trait of the same package gets a warning
+# test: a configured block beside a same-package @derive remains legal in ordinary checks
 # Spec 14 Line Drift: annot.line.drift.lint.derive.
 use std.structure.{Structure, Field, Variant, Walker}
 struct Tag:
@@ -55,5 +55,5 @@ struct Session:
     id: i64
     cache: i64 = 0
 
-impl Probe for Session by Structure:  # warning: derivation-line-drift
+impl Probe for Session by Structure:
     cache = pass

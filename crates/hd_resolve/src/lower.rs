@@ -1641,6 +1641,7 @@ struct Lower<'a, 'r, 'x> {
     /// For a local declaration: the type parameters (and `Self`) of the
     /// declarations around it.
     outer: Vec<String>,
+    derivation_facts: Option<&'a mut crate::facts::DerivationFacts>,
 }
 
 impl Lower<'_, '_, '_> {
@@ -4681,6 +4682,7 @@ fn lower_aliases(
                 locals: &locals[mi],
                 at: mods[mi].src.span(h.node).lo,
                 outer: Vec::new(),
+                derivation_facts: None,
             };
             let scan = match h.kind {
                 HeadKind::Alias => Some(h.node),
@@ -4743,6 +4745,7 @@ fn lower_aliases(
                 locals: &locals[mi],
                 at: 0,
                 outer: Vec::new(),
+                derivation_facts: None,
             };
             if alias {
                 low.alias_item(h, cyclic, &mut out[mi]);
@@ -5792,6 +5795,18 @@ pub fn build_folder(
     stage: Stage,
     diags: &mut DiagBuf,
 ) -> StageResult<FolderOut> {
+    build_folder_with_facts(cx, mods, frozen, stage, diags, None)
+}
+
+/// Header lowering with optional, uncached declaration metadata for tooling.
+pub fn build_folder_with_facts(
+    cx: &Cx<'_>,
+    mods: &[ModIn<'_>],
+    frozen: Option<Arc<FolderIface>>,
+    stage: Stage,
+    diags: &mut DiagBuf,
+    mut facts: Option<&mut crate::facts::DerivationFacts>,
+) -> StageResult<FolderOut> {
     let names = &cx.names;
     let all_heads: Vec<Vec<Head<'_>>> = mods
         .iter()
@@ -5871,6 +5886,7 @@ pub fn build_folder(
                     locals: &locals,
                     at: 0,
                     outer: Vec::new(),
+                    derivation_facts: None,
                 };
                 // The aliases are lowered already (`lower_aliases`).
                 for h in hs
@@ -5950,13 +5966,19 @@ pub fn build_folder(
     drop_extra_methods(&r, &mut out.modules);
     delegations(&r, &mut out.modules);
     if r.frozen.is_none() {
-        let items: HashMap<DefId, &Item> = out
-            .modules
+        supertrait_cycles(&r, mods, &all_heads, diags);
+    }
+    if r.frozen.is_none() || facts.is_some() {
+        // A lint pass may lower one module against a cached folder. Its
+        // decorators still see sibling derive identities from that folder,
+        // exactly as the original whole-folder declaration pass did.
+        let items: HashMap<DefId, &Item> = r
+            .frozen
             .iter()
-            .flat_map(|m| m.items.iter())
+            .flat_map(|iface| iface.items.iter())
+            .chain(out.modules.iter().flat_map(|m| m.items.iter()))
             .map(|i| (i.def, i))
             .collect();
-        supertrait_cycles(&r, mods, &all_heads, diags);
         for (m, o) in mods.iter().zip(&out.modules) {
             let mut low = Lower {
                 r: &r,
@@ -5972,9 +5994,13 @@ pub fn build_folder(
                 locals: &[],
                 at: 0,
                 outer: Vec::new(),
+                derivation_facts: None,
             };
+            low.derivation_facts = facts.as_deref_mut();
             low.check_module_decorators(&items, &o.blocks);
         }
+    }
+    if r.frozen.is_none() {
         decls::check(&r, mods, &all_heads, &out.modules, diags);
         let mut seen = HashSet::default();
         for (m, us) in mods.iter().zip(&all_uses) {
@@ -6104,6 +6130,7 @@ fn own_trait_generics(
                 locals: &locals,
                 at: m.src.span(h.node).lo,
                 outer: Vec::new(),
+                derivation_facts: None,
             };
             let (_, _, generics) = low.trait_generics(h);
             out.entry(h.def).or_insert(generics);
@@ -6370,6 +6397,7 @@ fn own_trait_supers(
                 locals: &locals,
                 at: m.src.span(h.node).lo,
                 outer: Vec::new(),
+                derivation_facts: None,
             };
             let (self_ty, gn, _) = low.trait_generics(h);
             let supers = low.supers(h.node, &gn, self_ty);

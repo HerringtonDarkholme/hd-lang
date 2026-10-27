@@ -1,5 +1,5 @@
 //! The unused-derivation-fact warning (spec 14 `annot.fact.unused-block-decorator`):
-//! a decorator before a derivation block warns on the decorator, whatever its
+//! a decorator before a derivation block is legal and ordinary checks stay quiet, whatever its
 //! value. A decorator before a data declaration is a type-level fact and stays
 //! clean, and a decorator that is already an error does not also warn.
 
@@ -45,11 +45,6 @@ fn errors(out: &Output) -> Vec<Code> {
         .collect()
 }
 
-fn offset_of(src: &str, needle: &str) -> u32 {
-    let at = src.find(needle).expect("needle in source");
-    u32::try_from(at).expect("offset fits")
-}
-
 const STYLE: &str = "struct Style:
     prefix: string = \"\"
 
@@ -58,7 +53,7 @@ fn style(prefix: string = \"\") -> Style:
 ";
 
 #[test]
-fn decorator_before_derivation_block_warns_once_on_the_decorator() {
+fn decorator_before_derivation_block_is_quiet_in_ordinary_check() {
     let src = format!(
         "use std.structure.Structure
 
@@ -73,22 +68,12 @@ impl Loud by Structure:
     );
     let out = analyze(&src);
     assert!(errors(&out).is_empty(), "{}", out.render());
-    assert_eq!(
-        warnings(&out),
-        vec![(
-            Code::UnusedDerivationFact,
-            offset_of(&src, "@style(prefix=\"l_\")")
-        )],
-        "{}",
-        out.render()
-    );
+    assert!(warnings(&out).is_empty(), "{}", out.render());
 }
 
 #[test]
-fn cached_rebuild_keeps_the_warning() {
-    // A cache hit re-emitted the folder's stage-A diagnostics as errors,
-    // so a second `hd check` failed; the warning must survive a rebuild
-    // on a warm store.
+fn cached_rebuild_stays_quiet() {
+    // Ordinary cold and warm checks do not retain lint-only advice.
     let src = format!(
         "use std.structure.Structure
 
@@ -107,20 +92,12 @@ impl Loud by Structure:
     for _ in 0..2 {
         let out = build_with(&sources, &store);
         assert!(errors(&out).is_empty(), "{}", out.render());
-        assert_eq!(
-            warnings(&out),
-            vec![(
-                Code::UnusedDerivationFact,
-                offset_of(&src, "@style(prefix=\"l_\")")
-            )],
-            "{}",
-            out.render()
-        );
+        assert!(warnings(&out).is_empty(), "{}", out.render());
     }
 }
 
 #[test]
-fn standard_value_before_derivation_block_warns_too() {
+fn standard_value_before_derivation_block_is_quiet_too() {
     let src = "use std.structure.Structure
 
 struct Hidden:
@@ -132,16 +109,11 @@ impl Hidden by Structure:
 ";
     let out = analyze(src);
     assert!(errors(&out).is_empty(), "{}", out.render());
-    assert_eq!(
-        warnings(&out),
-        vec![(Code::UnusedDerivationFact, offset_of(src, "@\"internal\""))],
-        "{}",
-        out.render()
-    );
+    assert!(warnings(&out).is_empty(), "{}", out.render());
 }
 
 #[test]
-fn decorator_before_trait_derivation_block_warns() {
+fn decorator_before_trait_derivation_block_is_quiet() {
     let src = format!(
         "use std.structure.Structure
 
@@ -156,15 +128,7 @@ impl Debug for Loud by Structure:
     );
     let out = analyze(&src);
     assert!(errors(&out).is_empty(), "{}", out.render());
-    assert_eq!(
-        warnings(&out),
-        vec![(
-            Code::UnusedDerivationFact,
-            offset_of(&src, "@style(prefix=\"x\")")
-        )],
-        "{}",
-        out.render()
-    );
+    assert!(warnings(&out).is_empty(), "{}", out.render());
 }
 
 #[test]

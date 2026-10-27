@@ -602,6 +602,8 @@ pub struct Output {
     pub source_facts: hd_check::comparison::SourceFacts,
     /// Requested public-main sites in the selected root modules, without advice.
     pub main_sites: Vec<hd_project::MainSite>,
+    /// Optional resolved declaration metadata; never serialized advice.
+    pub derivation_facts: hd_resolve::facts::DerivationFacts,
     /// Checked entry rows, including capabilities unused by the linked code.
     pub entry_capabilities: Vec<EntryCapability>,
     pub wasm: Option<Vec<u8>>,
@@ -1398,6 +1400,7 @@ struct Run<'a> {
     collect_main_sites: bool,
     source_facts: Mutex<hd_check::comparison::SourceFacts>,
     main_sites: OnceLock<Vec<hd_project::MainSite>>,
+    derivation_facts: Mutex<hd_resolve::facts::DerivationFacts>,
     host: &'a Host<'a>,
     package: String,
     /// Whether the root package is a single-file program
@@ -2152,6 +2155,7 @@ pub fn build_packages(
         collect_main_sites: packages.collect_main_sites,
         source_facts: Mutex::default(),
         main_sites: OnceLock::new(),
+        derivation_facts: Mutex::default(),
         host,
         package: package.to_owned(),
         single_file: packages.single_file,
@@ -2459,6 +2463,7 @@ pub fn build_packages(
     let mut output = Output {
         source_facts: lock(&run.source_facts).clone(),
         main_sites: run.main_sites.get().cloned().unwrap_or_default(),
+        derivation_facts: lock(&run.derivation_facts).clone(),
         entry_capabilities,
         tests: cases,
         wasm,
@@ -4017,7 +4022,7 @@ impl Run<'_> {
             &apis,
             self.roots_hash(fi),
         );
-        let mut key = hd_base::StableHasher::new("iface-own-docs-v1");
+        let mut key = hd_base::StableHasher::new("iface-own-derivation-facts-v1");
         key.hash(semantic);
         for m in &folder.modules {
             key.hash(self.doc_hash(m.idx()));
@@ -4481,6 +4486,16 @@ impl Run<'_> {
         stage: Stage,
         diags: &mut DiagBuf,
     ) -> StageResult<Option<ModOut>> {
+        self.lower_module_with_facts(m, stage, diags, None)
+    }
+
+    fn lower_module_with_facts(
+        &self,
+        m: usize,
+        stage: Stage,
+        diags: &mut DiagBuf,
+        facts: Option<&mut hd_resolve::facts::DerivationFacts>,
+    ) -> StageResult<Option<ModOut>> {
         let module = &self.table.modules[m];
         let Some(own) = self.iface_of(module.folder) else {
             return Ok(None);
@@ -4495,7 +4510,8 @@ impl Run<'_> {
             tests: self.role(m) == "test",
             ..self.mod_in(m)
         }];
-        let out = hd_resolve::build_folder(&cx, &mods, Some(own), stage, diags)?;
+        let out =
+            hd_resolve::lower::build_folder_with_facts(&cx, &mods, Some(own), stage, diags, facts)?;
         Ok(out.modules.into_iter().next())
     }
 
@@ -5394,9 +5410,9 @@ impl Run<'_> {
             role.push_str("+fuel=");
             role.push_str(&fuel.to_string());
         }
-        // Keep fixed-callee generic summaries and invalidate checks from before
-        // the public-main advice migration; lint facts remain off-band.
-        let mut key = hd_base::StableHasher::new("check-module-main-facts-v1");
+        // Keep fixed-callee summaries and invalidate serialized main and
+        // derivation advice. Ephemeral lint facts remain off-band.
+        let mut key = hd_base::StableHasher::new("check-main-derivation-facts-v1");
         key.hash(check_key(
             self.toolchain,
             package,
@@ -5562,9 +5578,19 @@ impl Run<'_> {
             return None;
         }
         let mut scratch = DiagBuf::default();
+        let mut facts = hd_resolve::facts::DerivationFacts::default();
+        let collect = self.collect_source_facts && self.table.modules[mi].package == 0;
         let items = self
-            .lower_module(mi, Stage::ModulePrep, &mut scratch)
+            .lower_module_with_facts(
+                mi,
+                Stage::ModulePrep,
+                &mut scratch,
+                collect.then_some(&mut facts),
+            )
             .map(|o| o.map(|o| o.items));
+        if collect {
+            lock(&self.derivation_facts).extend(facts);
+        }
         let Some(Some(items)) = self.stage(Stage::ModulePrep, items) else {
             self.blocked(Stage::Body);
             self.blocked(Stage::ModuleFinish);
@@ -6288,7 +6314,6 @@ impl Run<'_> {
         for h in &heads {
             hd_check::check_duplicate_facts(&cx, &heads, h, &mut diags);
             self.foreign_repeats(m, (&cx, &heads, &impls), h, &mut diags);
-            self.foreign_drift(m, (&cx, &heads, &impls), h, &mut diags);
         }
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
@@ -6984,108 +7009,6 @@ impl Run<'_> {
             prior = layered;
         }
         hd_check::layer_types(cx, h, &prior, Some(diags));
-    }
-
-    /// `annot.line.drift` across the REPL session: the block `h` of input
-    /// `m` for a trait of one package on a type warns when its member
-    /// lines differ from the first block for that package and type, which
-    /// an earlier module of the session holds, as within one module. The
-    /// blocks of `m` itself are compared by lowering, so a block that is
-    /// not `m`'s first for the package and type, and already differs from
-    /// that first, is not reported twice.
-    fn foreign_drift<'t>(
-        &self,
-        m: usize,
-        (cx, heads, impls): (&BodyCx<'t>, &[hd_resolve::Head<'t>], &ImplView<'_>),
-        h: &hd_resolve::Head<'t>,
-        diags: &mut DiagBuf,
-    ) {
-        let names = self.names();
-        let pool = cx.names.pool;
-        let block_of = |it: &Item| match &it.data {
-            ItemData::Impl {
-                trait_,
-                by: Some(_),
-                self_ty,
-                ..
-            } if *trait_ != DefId::NONE => match pool.get(*self_ty) {
-                TyData::Adt { def, .. } => Some((*trait_, def)),
-                _ => None,
-            },
-            _ => None,
-        };
-        let Some((trait_, data)) = cx.lookup.item(h.def).and_then(block_of) else {
-            return;
-        };
-        let package = |d: DefId| names.package_node(d);
-        let same = |it: &Item| {
-            block_of(it).is_some_and(|(t, d)| d == data && package(t) == package(trait_))
-        };
-        // The earlier modules' blocks, grouped by module.
-        let mut earlier: Vec<(usize, Vec<DefId>)> = Vec::new();
-        for it in cx
-            .lookup
-            .own
-            .iter()
-            .chain(cx.lookup.ifaces.iter().flat_map(|f| &f.items))
-            .filter(|it| same(it) && cx.session.contains(&names.module_node(it.def)))
-        {
-            let Some(bm) = self.item_module(it.def).map(hd_base::ModuleId::idx) else {
-                continue;
-            };
-            if bm == m {
-                continue;
-            }
-            match earlier.iter_mut().find(|(k, _)| *k == bm) {
-                Some((_, defs)) => defs.push(it.def),
-                None => earlier.push((bm, vec![it.def])),
-            }
-        }
-        let Some((fm, defs)) = earlier
-            .into_iter()
-            .min_by_key(|(k, _)| self.repl_number(*k))
-        else {
-            return;
-        };
-        let Some((first_trait, first)) = self
-            .in_module(m, fm, (&[], impls.own), |fcx, fheads| {
-                let fh = fheads.iter().find(|x| defs.contains(&x.def))?;
-                let (t, _) = fcx.lookup.item(fh.def).and_then(block_of)?;
-                Some((t, drift_signature(&fcx.src, fh.node)))
-            })
-            .flatten()
-        else {
-            return;
-        };
-        let mine = drift_signature(&cx.src, h.node);
-        if mine == first {
-            return;
-        }
-        // Within `m`, a later block that differs from `m`'s first block is
-        // already reported by lowering.
-        let own_first = heads
-            .iter()
-            .find(|x| cx.lookup.item(x.def).is_some_and(same));
-        if let Some(of) = own_first
-            && of.def != h.def
-            && drift_signature(&cx.src, of.node) != mine
-        {
-            return;
-        }
-        let last = |d: DefId| names.path(d).rsplit('/').next().unwrap_or("").to_owned();
-        let msg = format!(
-            "`{}` configures different member lines for `{}` than `{}` does",
-            last(trait_),
-            last(data),
-            last(first_trait)
-        );
-        diags.push(
-            Code::DerivationLineDrift,
-            Severity::Warning,
-            cx.src.span(h.node),
-            &msg,
-            None,
-        );
     }
 
     /// The declaration facts bodies of `data`, which another module of
@@ -11532,24 +11455,6 @@ fn traitless<'t>(
 }
 
 /// Whether `it` is a derivation block with no trait for `data`.
-/// A derivation block's member lines as `annot.line.drift` compares them:
-/// each member, whether it extends, and its right side's tokens.
-fn drift_signature(
-    src: &hd_resolve::Src<'_>,
-    block: hd_syntax::NodeRef<'_>,
-) -> Vec<(String, bool, Vec<String>)> {
-    hd_check::derive::member_lines(src, block)
-        .into_iter()
-        .map(|l| {
-            let rhs = l.list.map_or_else(
-                || vec!["pass".to_owned()],
-                |v| src.tokens(v).map(|t| src.text(t).to_owned()).collect(),
-            );
-            (l.name.to_owned(), l.extend, rhs)
-        })
-        .collect()
-}
-
 fn traitless_for(pool: &InternPool, it: &Item, data: DefId) -> bool {
     matches!(&it.data, ItemData::Impl { trait_, by: Some(_), self_ty, .. }
         if *trait_ == DefId::NONE

@@ -1,4 +1,4 @@
-# test: blocks for traits of one package with different member lines get a warning
+# test: differing derivation member lines remain legal in ordinary checks; lint reports the advice
 use std.structure.{Structure, Field, Variant, Walker, Describer}
 
 trait Show:
@@ -56,5 +56,5 @@ struct Session:
 impl Show for Session by Structure:
     cache = pass
 
-impl Count for Session by Structure:  # warning: derivation-line-drift
+impl Count for Session by Structure:
     id = []

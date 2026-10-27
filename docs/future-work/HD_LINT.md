@@ -1300,6 +1300,11 @@ scope estimate, rather than silently widening compiler work.
 | 8 | Add lost-temporary-write's successful-call provenance, finalized formals, classifier and exclusions. Check trial rollback, inferred-result paths, recursive/fuel limits and the complete stress matrix. |
 | 9 | Add the opt-in concatenation report with no edits; then measure normal-build exact bytes, selected-body lint overhead and web gzip. Public export/plugins/fixes remain separate. |
 
+The resolver migration moves `unused-derivation-fact` and
+`derivation-line-drift` into `hd_lint`. The resolver exposes uncached
+occurrences, nominal targets and member-line tokens only when lint requests
+them; ordinary compilation does not collect this advice metadata.
+
 The slices form a staged migration, not an immediate claim that all ordinary commands are already warning-free.
 A slice moves its named producer and its tests; the final errors-only check/build/test contract is verified after the inventory is exhausted.
 Do not hide unmigrated warnings with a global severity filter.

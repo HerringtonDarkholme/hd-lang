@@ -60,6 +60,7 @@ dep-outside-package	cli.dep.package-only
 exe-main-unlisted	cli.exe.main-unlisted,cli.json.diagnostic.fields
 task-name-clash	cli.task.name-clash,cli.exe.default-name.clash,cli.name.task
 lint-default-and-policy	cli.lint.exact-names,cli.lint.levels,cli.lint.cli-conflict,cli.lint.unknown-name,cli.lint.status-warning,cli.lint.status-error
+lint-derivation-advice	cli.lint.stable-messages,cli.lint.default,cli.lint.levels,cli.lint.ordinary-errors
 lint-errors-unsuppressible	cli.lint.prerequisites,cli.lint.errors-unsuppressible
 lint-manifest-precedence	cli.lint.manifest,cli.lint.cli-override
 lint-ordinary-commands-quiet	cli.lint.ordinary-errors

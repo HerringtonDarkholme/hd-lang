@@ -1,9 +1,11 @@
 #![forbid(unsafe_code)]
 //! Read-only advice over checked source facts. Normal compiler clients do not depend on this crate.
 
+mod derivation;
 mod modules;
 mod syntax;
 
+pub use derivation::analyze_derivations;
 pub use modules::analyze_modules;
 pub use syntax::analyze_sources;
 
@@ -17,6 +19,8 @@ use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_syntax::TokenKind;
 use hd_types::Prim;
 
+pub const DERIVATION_DRIFT: &str = "derivation-line-drift";
+pub const UNUSED_DERIVATION: &str = "unused-derivation-fact";
 pub const MIXED_SCRIPT: &str = "mixed-script-identifier";
 pub const UNSELECTED_MAIN: &str = "unselected-main";
 pub const UNREACHABLE: &str = "unreachable-code";
@@ -44,6 +48,8 @@ pub struct Policy {
     variant: Option<Level>,
     mixed_script: Option<Level>,
     unselected_main: Option<Level>,
+    derivation_drift: Option<Level>,
+    unused_derivation: Option<Level>,
 }
 
 impl Policy {
@@ -51,6 +57,8 @@ impl Policy {
         let slot = match name {
             MIXED_SCRIPT => &mut self.mixed_script,
             UNSELECTED_MAIN => &mut self.unselected_main,
+            DERIVATION_DRIFT => &mut self.derivation_drift,
+            UNUSED_DERIVATION => &mut self.unused_derivation,
             UNSIGNED_COMPARISON => &mut self.unsigned,
             UNREACHABLE => &mut self.unreachable,
             UNUSED_DEBUG => &mut self.debug,

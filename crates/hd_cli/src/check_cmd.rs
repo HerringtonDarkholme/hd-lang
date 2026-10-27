@@ -276,6 +276,8 @@ fn check_role(
     if let Some(policy) = lint
         && !shown(&out, t, docs).iter().any(Diag::is_error)
     {
+        let derivations = hd_lint::analyze_derivations(&out.derivation_facts, &out.texts, policy);
+        out.diags.append(&derivations);
         let findings = hd_lint::analyze(&out.source_facts, &out.texts, policy);
         out.diags.append(&findings);
         out.diags

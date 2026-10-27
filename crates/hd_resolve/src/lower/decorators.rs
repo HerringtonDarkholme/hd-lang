@@ -8,7 +8,7 @@
 use hd_base::HashMap;
 
 use hd_base::{DefId, PathId, Span};
-use hd_diag::{Code, DiagMark, FixSafety, Severity};
+use hd_diag::{Code, DiagMark};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_types::{Ty, TyData};
 
@@ -46,20 +46,6 @@ fn kind_bit(name: &str) -> Option<u16> {
         _ => return None,
     })
 }
-
-/// One decorator line: the called or named function and its form.
-/// A `by` derivation block for the drift check (`annot.line.drift`):
-/// its target, its trait's package, the trait and target names as written,
-/// its member lines, and the impl's span.
-type DriftBlock = (
-    DefId,
-    PathId,
-    DefId,
-    String,
-    String,
-    Vec<(String, bool, Vec<String>)>,
-    Span,
-);
 
 struct Deco<'t> {
     name: String,
@@ -333,7 +319,7 @@ impl Lower<'_, '_, '_> {
             let span = self.src.span(d);
             let mark = self.diags.mark();
             let Some(deco) = self.deco(d) else {
-                self.unused_block_fact(place, None, n, d, mark);
+                self.record_block_decorator(place, None, n, d, mark);
                 continue;
             };
             let k = place.kind;
@@ -435,15 +421,13 @@ impl Lower<'_, '_, '_> {
                     }
                 }
             }
-            self.unused_block_fact(place, Some(deco.name.as_str()), n, d, mark);
+            self.record_block_decorator(place, Some(deco.name.as_str()), n, d, mark);
         }
         cause
     }
 
-    /// Warns on a decorator before a derivation block, since no derivation
-    /// reads its value (`annot.fact.unused-block-decorator`). A decorator
-    /// already reported as an error (since `mark`), or a marker, is skipped.
-    fn unused_block_fact(
+    /// Records the resolved occurrence; tooling decides whether to advise on it.
+    fn record_block_decorator(
         &mut self,
         place: Place,
         name: Option<&str>,
@@ -451,60 +435,21 @@ impl Lower<'_, '_, '_> {
         decorator: NodeRef<'_>,
         mark: DiagMark,
     ) {
-        let marker = matches!(name, Some("intrinsic" | "from" | "source"));
-        if !place.block || marker || self.diags.errors_since(mark) > 0 {
+        if !place.block {
             return;
         }
-        let msg = "no derivation reads this value; write it in the block as `Self += [...]`";
-        self.diags.push(
-            Code::UnusedDerivationFact,
-            Severity::Warning,
-            self.src.span(decorator),
-            msg,
-            None,
-        );
-        let Some(value) = decorator.children().next() else {
+        let Some(facts) = self.derivation_facts.as_deref_mut() else {
             return;
         };
-        let Some(first) = Src::child(target, SyntaxKind::Block).and_then(|b| b.children().next())
-        else {
-            return;
-        };
-        let text = self.src.text;
-        let value = self.src.span(value);
-        let start = self.src.span(decorator).lo as usize;
-        let start = text[..start].rfind('\n').map_or(0, |i| i + 1);
-        let end = value.hi as usize;
-        let line_end = text[end..].find('\n').map_or(text.len(), |i| end + i);
-        let newline = if text[..line_end].ends_with('\r') {
-            "\r\n"
-        } else {
-            "\n"
-        };
-        let suffix = text[end..line_end].trim_end_matches('\r');
-        let first = self.src.span(first).lo as usize;
-        let at = text[..first].rfind('\n').map_or(0, |i| i + 1);
-        let indent = &text[at..first];
-        if !indent.bytes().all(|b| matches!(b, b' ' | b'\t')) {
-            return;
-        }
-        let value = &text[value.lo as usize..value.hi as usize];
-        let member = format!("{indent}Self += [{value}]{suffix}{newline}");
-        let delete = Span {
-            file: self.src.file,
-            lo: u32::try_from(start).expect("source offset"),
-            hi: u32::try_from((line_end + 1).min(text.len())).expect("source offset"),
-        };
-        let insert = Span {
-            file: self.src.file,
-            lo: u32::try_from(at).expect("source offset"),
-            hi: u32::try_from(at).expect("source offset"),
-        };
-        self.diags.add_fix(
-            "move the fact into the derivation block as `Self += [...]`",
-            FixSafety::Exact,
-            &[(delete, ""), (insert, &member)],
-        );
+        facts.decorators.push(crate::facts::BlockDecorator {
+            span: self.src.span(decorator),
+            value: decorator.children().next().map(|n| self.src.span(n)),
+            first: Src::child(target, SyntaxKind::Block)
+                .and_then(|b| b.children().next())
+                .map(|n| self.src.span(n)),
+            marker: matches!(name, Some("intrinsic" | "from" | "source")),
+            valid: self.diags.errors_since(mark) == 0,
+        });
     }
 
     /// Reports a second cause member of one variant or data type
@@ -747,7 +692,7 @@ impl Lower<'_, '_, '_> {
         tys: &[NodeRef<'_>],
         target: Option<(DefId, HeadKind)>,
         items: &HashMap<DefId, &Item>,
-        out: &mut Vec<DriftBlock>,
+        out: &mut Vec<crate::facts::DerivationBlock>,
     ) {
         let Some((target_def, hk)) = target else {
             return;
@@ -772,15 +717,16 @@ impl Lower<'_, '_, '_> {
         if !matches!(item.data, ItemData::Trait(_)) {
             return;
         }
-        out.push((
-            target_def,
-            self.package_of(trait_def),
-            trait_def,
-            trait_name.clone(),
-            target_name.clone(),
-            self.drift_lines(n),
-            self.src.span(n),
-        ));
+        out.push(crate::facts::DerivationBlock {
+            folder: self.r.cx.folder,
+            target: target_def,
+            package: self.package_of(trait_def),
+            trait_: trait_def,
+            trait_name: trait_name.clone(),
+            target_name: target_name.clone(),
+            lines: self.drift_lines(n),
+            span: self.src.span(n),
+        });
     }
 
     /// The form of a member line (`annot.line.right.error`,
@@ -942,7 +888,7 @@ impl Lower<'_, '_, '_> {
         blocks: &[hd_base::NodeIdx],
     ) {
         let src = self.src;
-        let mut drift_blocks: Vec<DriftBlock> = Vec::new();
+        let mut drift_blocks = Vec::new();
         for n in src.root().children() {
             let top = |k: u16| Place {
                 kind: k,
@@ -1079,65 +1025,43 @@ impl Lower<'_, '_, '_> {
                             _ => {}
                         }
                     }
-                    if by && !traitless {
+                    if by && !traitless && self.derivation_facts.is_some() {
                         self.collect_drift_block(n, &tys, target, items, &mut drift_blocks);
                     }
                 }
                 _ => {}
             }
         }
-        // `annot.line.drift`: derivation blocks for traits of one package
-        // on one type whose member lines differ warn on the later block.
-        // `annot.line.drift.derive`: a block with a member line beside a
-        // `@derive` of another trait of its package warns too.
-        // Different lines stay legal: only the warning is new.
-        for (i, block) in drift_blocks.iter().enumerate() {
-            let (target, package, trait_def, trait_name, target_name, lines, span) = block;
-            let first = drift_blocks[..i]
-                .iter()
-                .find(|(t, p, _, _, _, _, _)| t == target && p == package);
-            let drifted = match first {
-                Some((_, _, _, first_trait, _, first_lines, _)) if first_lines != lines => {
-                    Some(format!(
-                        "`{trait_name}` configures different member lines for `{target_name}` than `{first_trait}` does"
-                    ))
-                }
-                _ => None,
-            };
-            let msg = drifted.or_else(|| {
-                if lines.is_empty() {
-                    return None;
-                }
-                let derived = items
-                    .values()
-                    .filter_map(|it| match &it.data {
-                        ItemData::Impl {
-                            trait_,
-                            self_ty,
-                            kind: ImplKind::Derived,
-                            ..
-                        } if trait_ != trait_def
-                            && matches!(self.names.pool.get(*self_ty), TyData::Adt { def, .. } if def == *target)
-                            && self.package_of(*trait_) == *package =>
-                        {
-                            Some(self.names.display_name(*trait_))
-                        }
-                        _ => None,
-                    })
-                    .min()?;
-                Some(format!(
-                    "`{trait_name}` configures member lines for `{target_name}` that its `@derive({derived})` does not"
-                ))
-            });
-            if let Some(msg) = msg {
-                self.diags.push(
-                    Code::DerivationLineDrift,
-                    Severity::Warning,
-                    *span,
-                    &msg,
-                    None,
-                );
-            }
+        let derived = if self.derivation_facts.is_some() {
+            items
+                .values()
+                .filter_map(|it| match &it.data {
+                    ItemData::Impl {
+                        trait_,
+                        self_ty,
+                        kind: ImplKind::Derived,
+                        ..
+                    } => {
+                        let TyData::Adt { def, .. } = self.names.pool.get(*self_ty) else {
+                            return None;
+                        };
+                        Some(crate::facts::Derived {
+                            folder: self.r.cx.folder,
+                            target: def,
+                            package: self.package_of(*trait_),
+                            trait_: *trait_,
+                            name: self.names.display_name(*trait_).to_owned(),
+                        })
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        if let Some(facts) = self.derivation_facts.as_deref_mut() {
+            facts.blocks.extend(drift_blocks);
+            facts.derived.extend(derived);
         }
     }
 

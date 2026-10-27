@@ -2043,8 +2043,8 @@ typing/invalid/derive-member-not-derivable.hd	type	reject:member-not-derivable	l
 typing/invalid/generic-member-call.hd	type	reject:generic-member-call	lang/14-annotations.md#r-annot.walker.generic-member-call
 typing/invalid/newtype-derivation-self.hd	type	reject:newtype-derivation-self	lang/09-traits.md#r-trait.derive.newtype.self-error
 typing/invalid/newtype-derive-a-position-a-newtype-cannot-forward-is-an-error-at-the-derive-02.hd	type	reject:newtype-derivation-self	lang/09-traits.md#r-trait.derive.newtype.self-error
-typing/warnings/derivation-line-drift.hd	type	warn:derivation-line-drift	lang/14-annotations.md#r-annot.line.drift.lint
-typing/warnings/derivation-line-drift-beside-derive.hd	type	warn:derivation-line-drift	lang/14-annotations.md#r-annot.line.drift.lint.derive
+typing/warnings/derivation-line-drift.hd	type	accept	lang/14-annotations.md#r-annot.line.drift.lint
+typing/warnings/derivation-line-drift-beside-derive.hd	type	accept	lang/14-annotations.md#r-annot.line.drift.lint.derive
 typing/valid/type-level-fact-without-template.hd	type	accept	lang/14-annotations.md#r-annot.fact.type-level-decorator
 runtime/panic/structure-variant-mismatch.hd	runtime	panic:structure-variant-mismatch	lang/14-annotations.md#r-annot.handle.get.variant
 parse/valid/derivation-member-lines.hd	parse	accept	lang/02-grammar.md#r-grammar.impl.derivation-line
@@ -2435,7 +2435,7 @@ runtime/valid/operator-string-add.hd	runtime	accept	lang/05-expressions.md#r-exp
 runtime/valid/compound-assign-index.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.index-read-write
 typing/invalid/compound-assign-index-no-read.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.assign.compound.index-read-write
 typing/invalid/use-through-pub-use-loop.hd	type	reject:re-export-loop	lang/10-modules.md#r-module.pub-use.chain.loop-use
-typing/warnings/derivation-block-decorator.hd	type	warn:unused-derivation-fact	lang/14-annotations.md#r-annot.fact.unused-block-decorator.lint
+typing/warnings/derivation-block-decorator.hd	type	accept	lang/14-annotations.md#r-annot.fact.unused-block-decorator.lint
 typing/invalid/only-apply-and-update-make-a-value-callable-store.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#callable-values
 typing/invalid/operator-function-left-exact.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.left-dispatch.exact-function
 typing/invalid/row-parameter-on-newtype.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.no-newtype
@@ -2518,7 +2518,7 @@ typing/warnings/let-mut-primitive-annotation-unused.hd	type	accept	lang/04-type-
 typing/valid/let-mut-optional.hd	type	accept	lang/13-values-and-references.md#r-ref.write.field
 runtime/valid/compound-assign-map-run.hd	runtime	accept	lang/05-expressions.md#r-expr.index.map.read-value
 runtime/panic/compound-assign-map-missing-key.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.map.read-value
-typing/warnings/derivation-block-decorator-std.hd	type	warn:unused-derivation-fact	lang/14-annotations.md#r-annot.fact.unused-block-decorator.any-type
+typing/warnings/derivation-block-decorator-std.hd	type	accept	lang/14-annotations.md#r-annot.fact.unused-block-decorator.any-type
 typing/valid/operator-rhs-default.hd	type	accept	lang/05-expressions.md#r-expr.op.trait.rhs-self
 typing/invalid/operator-rhs-default-mismatch.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.trait.rhs-self
 typing/invalid/type-argument-list-too-long.hd	type	reject:argument-count	lang/07-functions.md#r-fn.generic.explicit.too-long-count
