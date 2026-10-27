@@ -15,7 +15,7 @@ Every build knows its target engine.
 | Crate | Owns | Never |
 | --- | --- | --- |
 | `hd_mono` | Collection: the worklist, instance keys (`known_key` included), selection, vtables, witnesses, `Collected`. `hd_mono::plan` holds what collection reads: `BodyPlan`, `Source` and the `Planner` trait (§2.2). Applying a plan is generic | Deciding *whether* to specialize or devirtualize; pass names; size or depth policy beyond its own instantiation limits |
-| `hd_opt` | The pass manager (`passes.rs`: `PassSpec`, `FactId`, gates, `DEV`, `OPTIMIZED`, `pipeline`, `validate`), the body passes, `ValueFlow` (`value_flow.rs`), and `PipelinePlanner` (`planner.rs`), which implements `Planner` | Creating instances, emitting Wasm, choosing layouts |
+| `hd_opt` | The pass manager (`passes.rs`: `PassSpec`, `FactId`, gates, `DEV`, `OPTIMIZED`, `pipeline`, `validate`), the body passes, `ValueFlow` (`value_flow.rs`), `PipelinePlanner` (`planner.rs`), which implements `Planner`, and the inliner (`inline.rs`), which reads the program through `InlineEnv` | Creating instances, emitting Wasm, choosing layouts |
 | `hd_wasm_linear` | Emission and link with shared scalar lowering (§4). It reads `Collected` targets (`KnownClosure` and the rest) | Reading pass names or the pipeline |
 | `hd_run_wasmtime` | Engine options per level: `EngineConfig::pipeline(level)` gives Cranelift `None` or `Speed` | Code keys |
 | `hd_driver` | Wiring: it picks (target, level), builds the planner, hashes pass content into the `pipeline` key part (`hd_driver::pipeline`), and passes the planner to collection | Policy |
@@ -69,8 +69,9 @@ runs once per body, not once per instance.
 Planned, not built: instance-unit passes. `use_counts`, `inline_plan`,
 `escape` and `scalar_replace` are declared and report `Skipped`;
 `summaries` is declared, and the driver does that work: it owns bodies
-callees first and records their release summaries
-(docs/future-work/RELEASE_INTERPROC.md);
+callees first, in `inline::bottom_up`'s order, and records their release
+summaries (docs/future-work/RELEASE_INTERPROC.md); the inliner
+(`inline.rs`) runs before the ownership passes, outside the pass table;
 `liveness` is declared, and suspension lowering does that work. No build
 runs an instance pass.
 

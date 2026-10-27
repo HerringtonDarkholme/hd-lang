@@ -10,6 +10,7 @@ description = "The pass manager: pass declarations, body-unit passes, pipelines 
 hd_base = { path = "../hd_base" }
 hd_mono = { path = "../hd_mono" }
 hd_tir = { path = "../hd_tir" }
+hd_types = { path = "../hd_types" }
 
 [lints]
 workspace = true

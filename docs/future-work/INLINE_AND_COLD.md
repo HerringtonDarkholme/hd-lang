@@ -199,7 +199,7 @@ The rules, for [Prefix Decorators](../../spec/lang/14-annotations.md#prefix-deco
 The compiler changes: the resolver reads both lines as it reads
 `annotate`'s (`crates/hd_resolve/src/lower/decorators.rs`). `inline_callee`
 refuses `.Never` and `@cold` callees and lets `.Always` past `INLINE_LIMIT`
-and `takes_reference` (`crates/hd_driver/src/own.rs`). The emitter lowers a
+and `takes_reference` (`crates/hd_opt/src/inline.rs`). The emitter lowers a
 direct call of a `@cold` function as `Func::cold_helper` lowers a helper's
 (`crates/hd_wasm_linear/src/module.rs`), from any function symbol.
 
@@ -369,8 +369,8 @@ on. Branch hints (`metadata.code.branch_hint`) are standard, but
 
 ## Appendix D. Today In hd
 
-- **The inliner.** `inline_callee` and `Env::callee_copy` in
-  `crates/hd_driver/src/own.rs` copy a callee of at most `INLINE_LIMIT` =
+- **The inliner.** `inline_callee` and `callee_copy` in
+  `crates/hd_opt/src/inline.rs` copy a callee of at most `INLINE_LIMIT` =
   16 instructions that takes no reference and is not on a cycle of calls.
   Release copies bottom-up. A dev build copies std only. `std.rt`, intrinsics
   and suspending functions are never copied. `hd_tir::inline::inlinable`

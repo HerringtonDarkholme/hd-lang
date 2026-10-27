@@ -810,6 +810,7 @@ dependencies = [
  "hd_base",
  "hd_mono",
  "hd_tir",
+ "hd_types",
 ]
 
 [[package]]
