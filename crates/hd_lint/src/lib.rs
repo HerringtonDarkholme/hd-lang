@@ -5,9 +5,9 @@ mod derivation;
 mod modules;
 mod syntax;
 
-pub use derivation::analyze_derivations;
-pub use modules::analyze_modules;
-pub use syntax::analyze_sources;
+pub use derivation::{analyze_derivations, collect_derivations};
+pub use modules::{analyze_modules, collect_modules};
+pub use syntax::{analyze_sources, collect_sources};
 
 use std::sync::Arc;
 
@@ -19,16 +19,59 @@ use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_syntax::TokenKind;
 use hd_types::Prim;
 
-pub const DERIVATION_DRIFT: &str = "derivation-line-drift";
-pub const UNUSED_DERIVATION: &str = "unused-derivation-fact";
-pub const MIXED_SCRIPT: &str = "mixed-script-identifier";
-pub const UNSELECTED_MAIN: &str = "unselected-main";
-pub const UNREACHABLE: &str = "unreachable-code";
-pub const UNUSED_DEBUG: &str = "unused-debug-text";
-pub const REDUNDANT_MUT: &str = "redundant-let-mut";
-pub const VARIANT_BINDING: &str = "variant-binding-name-mismatch";
-pub const UNUSED_BINDING: &str = "unused-local-binding";
-pub const UNSIGNED_COMPARISON: &str = "unsigned-comparison-always";
+pub const DERIVATION_DRIFT: &str = Code::DerivationLineDrift.as_str();
+pub const UNUSED_DERIVATION: &str = Code::UnusedDerivationFact.as_str();
+pub const MIXED_SCRIPT: &str = Code::MixedScriptIdentifier.as_str();
+pub const UNSELECTED_MAIN: &str = Code::UnselectedMain.as_str();
+pub const UNREACHABLE: &str = Code::UnreachableCode.as_str();
+pub const UNUSED_DEBUG: &str = Code::UnusedDebugText.as_str();
+pub const REDUNDANT_MUT: &str = Code::RedundantLetMut.as_str();
+pub const VARIANT_BINDING: &str = Code::VariantBindingNameMismatch.as_str();
+pub const UNUSED_BINDING: &str = Code::UnusedLocalBinding.as_str();
+pub const UNSIGNED_COMPARISON: &str = Code::UnsignedComparisonAlways.as_str();
+
+/// One stable lint entry. Checks move behind this registry in a later
+/// architecture slice; policy already uses the registry as its sole index.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rule {
+    code: Code,
+    default: Level,
+}
+
+impl Rule {
+    const fn new(code: Code, default: Level) -> Self {
+        Self { code, default }
+    }
+
+    #[must_use]
+    pub const fn code(self) -> Code {
+        self.code
+    }
+
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        self.code.as_str()
+    }
+
+    #[must_use]
+    pub const fn default_level(self) -> Level {
+        self.default
+    }
+}
+
+/// The complete migrated lint surface, in stable registry order.
+pub const RULES: &[Rule] = &[
+    Rule::new(Code::DerivationLineDrift, Level::Warn),
+    Rule::new(Code::MixedScriptIdentifier, Level::Warn),
+    Rule::new(Code::RedundantLetMut, Level::Warn),
+    Rule::new(Code::UnreachableCode, Level::Warn),
+    Rule::new(Code::UnselectedMain, Level::Warn),
+    Rule::new(Code::UnsignedComparisonAlways, Level::Warn),
+    Rule::new(Code::UnusedDebugText, Level::Warn),
+    Rule::new(Code::UnusedDerivationFact, Level::Warn),
+    Rule::new(Code::UnusedLocalBinding, Level::Warn),
+    Rule::new(Code::VariantBindingNameMismatch, Level::Warn),
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Level {
@@ -37,36 +80,18 @@ pub enum Level {
     Deny,
 }
 
-/// Exact-name command policy. More producers join the registry in later slices.
+/// Exact-name command policy, indexed by [`RULES`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Policy {
-    unsigned: Option<Level>,
-    unreachable: Option<Level>,
-    debug: Option<Level>,
-    unused: Option<Level>,
-    redundant: Option<Level>,
-    variant: Option<Level>,
-    mixed_script: Option<Level>,
-    unselected_main: Option<Level>,
-    derivation_drift: Option<Level>,
-    unused_derivation: Option<Level>,
+    levels: [Option<Level>; RULES.len()],
 }
 
 impl Policy {
     pub fn set(&mut self, name: &str, level: Level) -> Result<(), String> {
-        let slot = match name {
-            MIXED_SCRIPT => &mut self.mixed_script,
-            UNSELECTED_MAIN => &mut self.unselected_main,
-            DERIVATION_DRIFT => &mut self.derivation_drift,
-            UNUSED_DERIVATION => &mut self.unused_derivation,
-            UNSIGNED_COMPARISON => &mut self.unsigned,
-            UNREACHABLE => &mut self.unreachable,
-            UNUSED_DEBUG => &mut self.debug,
-            UNUSED_BINDING => &mut self.unused,
-            REDUNDANT_MUT => &mut self.redundant,
-            VARIANT_BINDING => &mut self.variant,
-            _ => return Err(format!("unknown lint `{name}`")),
+        let Some(index) = RULES.iter().position(|rule| rule.name() == name) else {
+            return Err(format!("unknown lint `{name}`"));
         };
+        let slot = &mut self.levels[index];
         if slot.is_some_and(|old| old != level) {
             return Err(format!("conflicting levels for lint `{name}`"));
         }
@@ -74,31 +99,49 @@ impl Policy {
         Ok(())
     }
 
+    fn level(self, code: Code) -> Level {
+        let index = RULES
+            .iter()
+            .position(|rule| rule.code == code)
+            .expect("lint finding is absent from the registry");
+        self.levels[index].unwrap_or(RULES[index].default)
+    }
+
+    /// Apply command policy after analysis has built a policy-free buffer.
     #[must_use]
-    pub fn unsigned_level(self) -> Level {
-        self.unsigned.unwrap_or(Level::Warn)
+    pub fn apply(self, findings: &DiagBuf) -> DiagBuf {
+        let mut selected = DiagBuf::default();
+        selected.append_if(findings, &|code| self.level(code) != Level::Allow);
+        for (code, severity) in selected.code.iter().zip(&mut selected.severity) {
+            *severity = match self.level(*code) {
+                Level::Deny => Severity::Error,
+                Level::Warn | Level::Allow => Severity::Warning,
+            };
+        }
+        selected
     }
 }
 
 /// Preserves the existing literal-zero predicate, exact message, and comparison span.
 #[must_use]
 pub fn analyze(facts: &SourceFacts, texts: &[Arc<str>], policy: Policy) -> DiagBuf {
-    let mut diags = comparisons(&facts.comparisons, texts, policy);
-    bindings(&mut diags, &facts.bindings, texts, policy);
-    mutability(&mut diags, &facts.bindings, policy);
-    patterns(&mut diags, &facts.patterns, policy);
-    statements(&mut diags, &facts.statements, policy);
-    discarded(&mut diags, &facts.discarded, texts, policy);
+    policy.apply(&collect(facts, texts))
+}
+
+/// Build all checked-source findings without command policy.
+#[must_use]
+pub fn collect(facts: &SourceFacts, texts: &[Arc<str>]) -> DiagBuf {
+    let mut diags = comparisons(&facts.comparisons, texts);
+    bindings(&mut diags, &facts.bindings, texts);
+    mutability(&mut diags, &facts.bindings);
+    patterns(&mut diags, &facts.patterns);
+    statements(&mut diags, &facts.statements);
+    discarded(&mut diags, &facts.discarded, texts);
     diags
 }
 
-fn comparisons(facts: &[Comparison], texts: &[Arc<str>], policy: Policy) -> DiagBuf {
+fn comparisons(facts: &[Comparison], texts: &[Arc<str>]) -> DiagBuf {
     let mut diags = DiagBuf::default();
-    let severity = match policy.unsigned_level() {
-        Level::Allow => return diags,
-        Level::Warn => Severity::Warning,
-        Level::Deny => Severity::Error,
-    };
     let mut facts: Vec<_> = facts.iter().collect();
     facts.sort_stable_by(|a, b| {
         (a.span.file.raw(), a.span.lo, a.span.hi).cmp(&(b.span.file.raw(), b.span.lo, b.span.hi))
@@ -135,7 +178,7 @@ fn comparisons(facts: &[Comparison], texts: &[Arc<str>], policy: Policy) -> Diag
         }
         diags.push(
             Code::UnsignedComparisonAlways,
-            severity,
+            Severity::Warning,
             fact.span,
             &message,
             None,
@@ -145,12 +188,7 @@ fn comparisons(facts: &[Comparison], texts: &[Arc<str>], policy: Policy) -> Diag
 }
 
 /// Preserve the original first unread binding per source line, independently per body.
-fn bindings(diags: &mut DiagBuf, facts: &[Binding], texts: &[Arc<str>], policy: Policy) {
-    let severity = match policy.unused.unwrap_or(Level::Warn) {
-        Level::Allow => return,
-        Level::Warn => Severity::Warning,
-        Level::Deny => Severity::Error,
-    };
+fn bindings(diags: &mut DiagBuf, facts: &[Binding], texts: &[Arc<str>]) {
     let mut facts: Vec<_> = facts.iter().collect();
     facts.sort_stable_by(|a, b| {
         (a.span.file.raw(), a.body.raw(), a.local.raw()).cmp(&(
@@ -174,7 +212,7 @@ fn bindings(diags: &mut DiagBuf, facts: &[Binding], texts: &[Arc<str>], policy: 
         let name = &fact.name;
         diags.push(
             Code::UnusedLocalBinding,
-            severity,
+            Severity::Warning,
             fact.span,
             &format!("`{name}` is never read; name it `_{name}` to keep it"),
             None,
@@ -182,18 +220,7 @@ fn bindings(diags: &mut DiagBuf, facts: &[Binding], texts: &[Arc<str>], policy: 
     }
 }
 
-fn severity(level: Option<Level>) -> Option<Severity> {
-    match level.unwrap_or(Level::Warn) {
-        Level::Allow => None,
-        Level::Warn => Some(Severity::Warning),
-        Level::Deny => Some(Severity::Error),
-    }
-}
-
-fn mutability(diags: &mut DiagBuf, facts: &[Binding], policy: Policy) {
-    let Some(severity) = severity(policy.redundant) else {
-        return;
-    };
+fn mutability(diags: &mut DiagBuf, facts: &[Binding]) {
     for binding in facts {
         let Some(fact) = &binding.mutability else {
             continue;
@@ -208,17 +235,20 @@ fn mutability(diags: &mut DiagBuf, facts: &[Binding], policy: Policy) {
         } else {
             continue;
         };
-        diags.push(Code::RedundantLetMut, severity, binding.span, message, None);
+        diags.push(
+            Code::RedundantLetMut,
+            Severity::Warning,
+            binding.span,
+            message,
+            None,
+        );
         if let Some(span) = fact.token {
             diags.add_fix("remove `mut`", FixSafety::Exact, &[(span, "")]);
         }
     }
 }
 
-fn patterns(diags: &mut DiagBuf, facts: &[VariantPattern], policy: Policy) {
-    let Some(severity) = severity(policy.variant) else {
-        return;
-    };
+fn patterns(diags: &mut DiagBuf, facts: &[VariantPattern]) {
     for pattern in facts {
         for binding in &pattern.bindings {
             let Some(field) = pattern.fields.get(binding.position) else {
@@ -236,7 +266,7 @@ fn patterns(diags: &mut DiagBuf, facts: &[VariantPattern], policy: Policy) {
             }
             diags.push(
                 Code::VariantBindingNameMismatch,
-                severity,
+                Severity::Warning,
                 binding.span,
                 &format!(
                     "`{}` is also a field of `{}`; the field in this position is `{field}`",
@@ -248,15 +278,12 @@ fn patterns(diags: &mut DiagBuf, facts: &[VariantPattern], policy: Policy) {
     }
 }
 
-fn statements(diags: &mut DiagBuf, facts: &[Statement], policy: Policy) {
-    let Some(severity) = severity(policy.unreachable) else {
-        return;
-    };
+fn statements(diags: &mut DiagBuf, facts: &[Statement]) {
     for fact in facts {
         if !fact.reachable {
             diags.push(
                 Code::UnreachableCode,
-                severity,
+                Severity::Warning,
                 fact.span,
                 "this statement is unreachable",
                 None,
@@ -265,22 +292,14 @@ fn statements(diags: &mut DiagBuf, facts: &[Statement], policy: Policy) {
     }
 }
 
-fn discarded(
-    diags: &mut DiagBuf,
-    facts: &[DiscardedExpression],
-    texts: &[Arc<str>],
-    policy: Policy,
-) {
-    let Some(severity) = severity(policy.debug) else {
-        return;
-    };
+fn discarded(diags: &mut DiagBuf, facts: &[DiscardedExpression], texts: &[Arc<str>]) {
     for fact in facts {
         if !fact.prelude_debug {
             continue;
         }
         diags.push(
             Code::UnusedDebugText,
-            severity,
+            Severity::Warning,
             fact.span,
             "a `debug(...)` statement discards its text; use `dbg(...)` to print it",
             None,

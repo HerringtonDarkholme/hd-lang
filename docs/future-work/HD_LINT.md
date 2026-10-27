@@ -1,10 +1,11 @@
 # hd lint
 
-Architecture approved 2026-10-27; [#908](https://github.com/HerringtonDarkholme/hd-lang/issues/908). Slice 0 (#916) is done; the #855 migration follows the slices below.
+Architecture approved 2026-10-27; [#908](https://github.com/HerringtonDarkholme/hd-lang/issues/908).
 The accepted command/policy rules remain in [the CLI spec](../../spec/cli/command-line.md#linting).
-This replaces the implementation plan, not those decisions.
+This replaces the earlier implementation plan, not those decisions.
+Implementation proceeds in reviewed slices under [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855); slice 0 (#916) is done.
 
-## The proposal
+## Approved design
 
 Register each lint once: stable code, default level, event kinds and check.
 Event kinds derive their compiler-view needs. On a lint-cache miss, run every

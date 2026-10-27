@@ -4,7 +4,7 @@ use hd_base::{FileId, Span};
 use hd_diag::{Code, DiagBuf};
 use hd_syntax::{TokenKind, lex};
 
-use crate::{Policy, severity};
+use crate::Policy;
 
 /// Inspect the selected package/file/test scope using its original diagnostic file IDs.
 /// Callers keep prerequisite errors in the compiler; this pass reports advice only.
@@ -13,10 +13,13 @@ pub fn analyze_sources<'a>(
     sources: impl IntoIterator<Item = (FileId, &'a str)>,
     policy: Policy,
 ) -> DiagBuf {
+    policy.apply(&collect_sources(sources))
+}
+
+/// Build source-token findings without command policy.
+#[must_use]
+pub fn collect_sources<'a>(sources: impl IntoIterator<Item = (FileId, &'a str)>) -> DiagBuf {
     let mut diags = DiagBuf::default();
-    let Some(severity) = severity(policy.mixed_script) else {
-        return diags;
-    };
     for (file, source) in sources {
         if source.is_ascii() {
             continue;
@@ -39,7 +42,7 @@ pub fn analyze_sources<'a>(
             if scripts.len() > 1 {
                 diags.push(
                     Code::MixedScriptIdentifier,
-                    severity,
+                    hd_diag::Severity::Warning,
                     Span { file, lo, hi },
                     &format!(
                         "identifier '{text}' mixes {} scripts",

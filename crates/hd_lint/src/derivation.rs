@@ -3,36 +3,37 @@
 use std::sync::Arc;
 
 use hd_base::{SliceSort as _, Span};
-use hd_diag::{Code, DiagBuf, FixSafety};
+use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_resolve::facts::{BlockDecorator, DerivationFacts};
 
-use crate::{Policy, severity};
+use crate::Policy;
 
 /// The existing block-decorator and member-line advice, with independent policy.
 #[must_use]
 pub fn analyze_derivations(facts: &DerivationFacts, texts: &[Arc<str>], policy: Policy) -> DiagBuf {
+    policy.apply(&collect_derivations(facts, texts))
+}
+
+/// Build derivation findings without command policy.
+#[must_use]
+pub fn collect_derivations(facts: &DerivationFacts, texts: &[Arc<str>]) -> DiagBuf {
     let mut diags = DiagBuf::default();
-    if let Some(severity) = severity(policy.unused_derivation) {
-        let mut decorators: Vec<_> = facts.decorators.iter().collect();
-        decorators.sort_stable_by_key(|d| (d.span.file.raw(), d.span.lo, d.span.hi));
-        decorators.dedup();
-        for decorator in decorators {
-            if decorator.marker || !decorator.valid {
-                continue;
-            }
-            diags.push(
-                Code::UnusedDerivationFact,
-                severity,
-                decorator.span,
-                "no derivation reads this value; write it in the block as `Self += [...]`",
-                None,
-            );
-            move_fix(&mut diags, decorator, texts);
+    let mut decorators: Vec<_> = facts.decorators.iter().collect();
+    decorators.sort_stable_by_key(|d| (d.span.file.raw(), d.span.lo, d.span.hi));
+    decorators.dedup();
+    for decorator in decorators {
+        if decorator.marker || !decorator.valid {
+            continue;
         }
+        diags.push(
+            Code::UnusedDerivationFact,
+            Severity::Warning,
+            decorator.span,
+            "no derivation reads this value; write it in the block as `Self += [...]`",
+            None,
+        );
+        move_fix(&mut diags, decorator, texts);
     }
-    let Some(severity) = severity(policy.derivation_drift) else {
-        return diags;
-    };
     let mut blocks: Vec<_> = facts.blocks.iter().collect();
     blocks.sort_stable_by_key(|b| (b.span.file.raw(), b.span.lo, b.span.hi));
     blocks.dedup();
@@ -75,7 +76,7 @@ pub fn analyze_derivations(facts: &DerivationFacts, texts: &[Arc<str>], policy: 
         if let Some(message) = message {
             diags.push(
                 Code::DerivationLineDrift,
-                severity,
+                Severity::Warning,
                 block.span,
                 &message,
                 None,
