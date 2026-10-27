@@ -398,7 +398,7 @@ type Memo<T> = std::cell::RefCell<Option<hd_base::HashMap<Ty, T>>>;
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
-    /// The link's whole-object fact (`whole.rs`): the reference targets
+    /// The link's whole-object fact (`hd_opt::whole`): the reference targets
     /// some counted reference may point inside an object of, or `None`
     /// when the link has no fact and every reference may.
     static INTERIOR: std::cell::RefCell<Option<hd_base::HashSet<Ty>>> =
@@ -980,6 +980,45 @@ fn enum_mem_by(
         },
         positions,
     ))
+}
+
+/// Field `f` of struct, tuple or newtype `t`: its type and offset, as
+/// `Em::path_step` lays it out (the whole-object scan's
+/// `hd_opt::whole::ObjectLayout::field`).
+pub fn field_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<(Ty, u32)> {
+    let unmut = match pool.get(t) {
+        TyData::Mut(inner) => inner,
+        _ => t,
+    };
+    if let TyData::Adt { def, args } = pool.get(unmut)
+        && env.newtype_base(def).is_some()
+    {
+        let base = *env.data_fields(def)?.first()?;
+        return Some((subst(pool, env, def, args, base), 0));
+    }
+    let (_, parts) = struct_mem(pool, env, t).ok()?;
+    let s = strip(pool, env, t);
+    let fields = match pool.get(s) {
+        TyData::Tuple { .. } => tuple_members(pool, s),
+        TyData::Adt { def, args } => env
+            .data_fields(def)?
+            .into_iter()
+            .map(|f| subst(pool, env, def, args, f))
+            .collect(),
+        _ => return None,
+    };
+    Some((*fields.get(f as usize)?, parts.get(f as usize)?.offset))
+}
+
+/// The offset of field `f` in a data object's payload of `fields`.
+pub fn payload_offset(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    fields: &[Ty],
+    f: usize,
+) -> Option<u32> {
+    let (_, parts) = payload_mem(pool, env, fields).ok()?;
+    parts.get(f).map(|part| part.offset)
 }
 
 /// The variants' payload types of an enum or optional type, `None` for

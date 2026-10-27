@@ -24,29 +24,68 @@
 //! An interior reference to an open target, which an erased body makes
 //! for any type, turns the fact off for the whole program. A coercion
 //! between reference types carries the fact as a dereference does. Dev
-//! builds, REPL sessions and open-world builds never compute it.
+//! builds, REPL sessions and open-world builds never compute it. The scan
+//! reads the backend's layout through [`ObjectLayout`], and the backend
+//! consumes its result.
 
-use hd_base::{DefId, HashSet};
-use hd_mono::{ProgramEnv, Sub, is_open, subst};
+use hd_base::{DefId, HashSet, InstId};
+use hd_mono::{InstanceTable, ProgramEnv, Sub, is_open, subst};
 use hd_tir::ir::{Body, Place, PlaceRoot, Proj, Ref, Tag, ref_word};
 use hd_types::{InternPool, Ty, TyData, TyList};
 
-use crate::Input;
-use crate::layout::{Kind, kind, payload_mem, strip, struct_mem, tuple_members, variants};
+/// What a concrete type is to the backend's layout, as far as the scan
+/// reads it.
+pub enum Shape {
+    /// A reference to a place of type `target`, once stripped: the
+    /// place's address, or, when `fat`, a trait value.
+    Ref { target: Ty, fat: bool },
+    /// A data value: the address of an object whose payload holds these
+    /// fields.
+    Data(Vec<Ty>),
+    /// Any other type.
+    Other,
+}
+
+/// What the scan reads of the backend's type layout.
+pub trait ObjectLayout {
+    /// What `t` is ([`Shape`]).
+    fn shape(&self, t: Ty) -> Shape;
+    /// `t` with newtypes erased and `mut` dropped: what its layout reads.
+    fn strip(&self, t: Ty) -> Ty;
+    /// The offset of field `f` in a data object's payload of `fields`.
+    fn payload_offset(&self, fields: &[Ty], f: usize) -> Option<u32>;
+    /// Field `f` of struct, tuple or newtype `t`: its type and offset.
+    fn field(&self, t: Ty, f: u32) -> Option<(Ty, u32)>;
+    /// The variants' payload types of an enum or optional type.
+    fn variants(&self, t: Ty) -> Option<Vec<Vec<Ty>>>;
+}
+
+/// The program's instances as the backend emits them: collection's table,
+/// the content order, and each instance's TIR body.
+pub struct Instances<'a> {
+    pub table: &'a InstanceTable,
+    pub order: &'a [InstId],
+    pub body: &'a dyn Fn(InstId) -> Option<&'a Body>,
+}
 
 /// The reference targets some counted reference may point inside an
 /// object of, or `None` when the program may point inside any.
-pub(crate) fn interior_targets(input: &Input<'_>) -> Option<HashSet<Ty>> {
-    let table = &input.collected.table;
+pub fn interior_targets(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    layout: &dyn ObjectLayout,
+    instances: &Instances<'_>,
+) -> Option<HashSet<Ty>> {
+    let table = instances.table;
     let mut interior = HashSet::default();
     let mut edges = Vec::new();
     let mut seen = HashSet::default();
-    for id in input.order {
+    for id in instances.order {
         // An adapter forwards to one call and makes no address.
         if matches!(table.sub[id.idx()], Sub::Adapter) {
             continue;
         }
-        let Some(b) = (input.body)(*id) else {
+        let Some(b) = (instances.body)(*id) else {
             continue;
         };
         let (item, args) = (table.item[id.idx()], table.args[id.idx()]);
@@ -55,8 +94,9 @@ pub(crate) fn interior_targets(input: &Input<'_>) -> Option<HashSet<Ty>> {
             continue;
         }
         let s = Scan {
-            pool: input.pool,
-            env: input.env,
+            pool,
+            env,
+            layout,
             item,
             args,
             b,
@@ -91,6 +131,7 @@ enum Start {
 struct Scan<'a> {
     pool: &'a InternPool,
     env: &'a dyn ProgramEnv,
+    layout: &'a dyn ObjectLayout,
     item: DefId,
     args: TyList,
     b: &'a Body,
@@ -119,8 +160,8 @@ impl Scan<'_> {
 
     /// A thin reference type's stripped target.
     fn thin_target(&self, t: Ty) -> Option<Ty> {
-        match kind(self.pool, self.env, t) {
-            Kind::Ref { target, fat: false } => Some(target),
+        match self.layout.shape(t) {
+            Shape::Ref { target, fat: false } => Some(target),
             _ => None,
         }
     }
@@ -196,21 +237,19 @@ impl Scan<'_> {
         let Some(before) = self.walk_ty(root, &p.proj[..d]) else {
             return Start::Interior;
         };
-        match kind(self.pool, self.env, before) {
-            Kind::Ref { target, fat: false } => {
+        match self.layout.shape(before) {
+            Shape::Ref { target, fat: false } => {
                 self.at_zero(target, &p.proj[d + 1..], Start::Source(target))
             }
-            Kind::Data(tys) => {
+            Shape::Data(tys) => {
                 let Some(&Proj::Field(f)) = p.proj.get(d + 1) else {
                     return Start::Interior;
                 };
-                let Ok((_, parts)) = payload_mem(self.pool, self.env, &tys) else {
-                    return Start::Interior;
-                };
-                match (parts.get(f as usize), tys.get(f as usize)) {
-                    (Some(part), Some(&ft)) if part.offset == 0 => {
-                        self.at_zero(ft, &p.proj[d + 2..], Start::Whole)
-                    }
+                match (
+                    self.layout.payload_offset(&tys, f as usize),
+                    tys.get(f as usize),
+                ) {
+                    (Some(0), Some(&ft)) => self.at_zero(ft, &p.proj[d + 2..], Start::Whole),
                     _ => Start::Interior,
                 }
             }
@@ -224,7 +263,7 @@ impl Scan<'_> {
             let Proj::Field(f) = *s else {
                 return Start::Interior;
             };
-            match self.field(t, f) {
+            match self.layout.field(t, f) {
                 Some((ft, 0)) => t = ft,
                 _ => return Start::Interior,
             }
@@ -232,43 +271,15 @@ impl Scan<'_> {
         then
     }
 
-    /// Field `f` of struct, tuple or newtype `t`: its type and offset, as
-    /// `Em::path_step` lays it out.
-    fn field(&self, t: Ty, f: u32) -> Option<(Ty, u32)> {
-        let (pool, env) = (self.pool, self.env);
-        let unmut = match pool.get(t) {
-            TyData::Mut(inner) => inner,
-            _ => t,
-        };
-        if let TyData::Adt { def, args } = pool.get(unmut)
-            && env.newtype_base(def).is_some()
-        {
-            let base = *env.data_fields(def)?.first()?;
-            return Some((subst(pool, env, def, args, base), 0));
-        }
-        let (_, parts) = struct_mem(pool, env, t).ok()?;
-        let s = strip(pool, env, t);
-        let fields = match pool.get(s) {
-            TyData::Tuple { .. } => tuple_members(pool, s),
-            TyData::Adt { def, args } => env
-                .data_fields(def)?
-                .into_iter()
-                .map(|f| subst(pool, env, def, args, f))
-                .collect(),
-            _ => return None,
-        };
-        Some((*fields.get(f as usize)?, parts.get(f as usize)?.offset))
-    }
-
     /// The type `steps` reach from `t`, as `Em::walk_ty` reads it.
     fn walk_ty(&self, mut t: Ty, steps: &[Proj]) -> Option<Ty> {
-        let (pool, env) = (self.pool, self.env);
+        let (pool, env, layout) = (self.pool, self.env, self.layout);
         let mut k = 0;
         while k < steps.len() {
             match steps[k] {
-                Proj::Field(f) => t = self.field(t, f)?.0,
+                Proj::Field(f) => t = layout.field(t, f)?.0,
                 Proj::Elem(_) => {
-                    let TyData::Adt { def, args } = pool.get(strip(pool, env, t)) else {
+                    let TyData::Adt { def, args } = pool.get(layout.strip(t)) else {
                         return None;
                     };
                     let items = pool.list_items(args);
@@ -278,22 +289,22 @@ impl Scan<'_> {
                         _ => return None,
                     };
                 }
-                Proj::Deref => match kind(pool, env, t) {
-                    Kind::Ref { target, .. } => t = target,
-                    Kind::Data(tys) => {
+                Proj::Deref => match layout.shape(t) {
+                    Shape::Ref { target, .. } => t = target,
+                    Shape::Data(tys) => {
                         let Some(&Proj::Field(f)) = steps.get(k + 1) else {
                             return None;
                         };
                         t = *tys.get(f as usize)?;
                         k += 1;
                     }
-                    _ => return None,
+                    Shape::Other => return None,
                 },
                 Proj::Variant(v) => {
                     let Some(&Proj::Field(f)) = steps.get(k + 1) else {
                         return None;
                     };
-                    t = *variants(pool, env, t)?.get(v as usize)?.get(f as usize)?;
+                    t = *layout.variants(t)?.get(v as usize)?.get(f as usize)?;
                     k += 1;
                 }
             }

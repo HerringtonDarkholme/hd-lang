@@ -366,7 +366,7 @@ defects with harder alias reasoning.
 5. **#704's tag for interior references: not adopted** (2026-10-26). An
    experiment measured the masks at 6-8% on dyn_iter. #704 shipped instead
    as a release-only whole-program fact per reference target
-   (`crates/hd_wasm_linear/src/whole.rs`), with no tag and no masks.
+   (`crates/hd_opt/src/whole.rs`), with no tag and no masks.
 
 ## Sources
 

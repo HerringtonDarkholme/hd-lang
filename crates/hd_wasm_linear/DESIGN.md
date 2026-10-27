@@ -1887,7 +1887,7 @@ physical or erased references without a block-start proof.
   unchanged.
 - **Whole-object references** (#704), release only. The optimized
   pipeline's closed-world link scans every instance's TIR before
-  emission (`whole.rs`) for the reference targets that some `Ref` may
+  emission (`hd_opt::whole`, through the driver) for the reference targets that some `Ref` may
   give an interior address: an element (`&xs[i]`, `&map[k]`), a field at
   a nonzero offset, a top-level binding's static slot, or a coercion or
   zero-offset dereference of such a target's reference. Every other

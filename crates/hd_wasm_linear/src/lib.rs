@@ -26,7 +26,6 @@ mod rt;
 mod scan;
 mod task;
 pub mod views;
-mod whole;
 mod wide;
 
 use hd_base::{DefId, Hash128, InstId, NotImplemented, Stage, StageResult};
@@ -61,6 +60,12 @@ pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
 /// its length, not its square, at every query.
 pub fn with_layout_cache<R>(f: impl FnOnce() -> R) -> R {
     layout::cached_here(f)
+}
+
+/// The layout queries of the whole-object scan (`hd_opt::whole`), which
+/// the driver answers its `ObjectLayout` with.
+pub mod object_layout {
+    pub use crate::layout::{Kind, field_at, kind, payload_offset, strip, variants};
 }
 
 /// Whether `ty` is a reference (`&T`, `&mut T`, a trait value
@@ -285,6 +290,10 @@ pub struct Input<'a> {
     /// (`docs/compiler/tir-v2.md`, "Stage 2"); from these facts it learns
     /// which use consumes each value (`hd_tir::own::consumers`).
     pub own_cx: &'a dyn hd_tir::own::OwnCx,
+    /// The whole-object scan (`hd_opt::whole::interior_targets`): the
+    /// reference targets some counted reference may point inside, or
+    /// `None` when any may. Called only when the link uses the fact.
+    pub interior_targets: &'a dyn Fn() -> Option<hd_base::HashSet<Ty>>,
 }
 
 /// The std module whose functions emitted code calls by key, and their
@@ -588,7 +597,7 @@ fn link(
     // counted addresses are payload starts, for every walk from here on.
     let _whole = layout::whole_refs(
         (input.optimized && !m.open_world && input.runtime.is_some())
-            .then(|| whole::interior_targets(input))
+            .then(|| (input.interior_targets)())
             .flatten(),
     );
     address_globals(input, &mut m, session.is_some(), previous)?;

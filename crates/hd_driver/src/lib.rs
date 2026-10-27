@@ -9590,6 +9590,14 @@ impl Run<'_> {
         let package_host = |d| self.package_host_identity(d);
         let package_trait = |d| package_trait(d).map(|(_, identity)| identity);
         let package_selectors = |d| self.package_host_selectors(d);
+        let interior_targets = || {
+            let instances = hd_opt::whole::Instances {
+                table: &c.collected.table,
+                order: &c.order,
+                body: &body,
+            };
+            hd_opt::whole::interior_targets(&self.pool, &env, &env, &instances)
+        };
         let input = hd_wasm_linear::Input {
             pool: &self.pool,
             env: &env,
@@ -9607,6 +9615,7 @@ impl Run<'_> {
             inline_counts: self.inline_counts,
             host_refs: &c.host_refs,
             own_cx: &env,
+            interior_targets: &interior_targets,
         };
         let linked = self.session.and_then(|s| s.linked.as_ref());
         let built = if let Some(previous) = linked {
@@ -10624,6 +10633,32 @@ impl LayoutEnv for Env<'_> {
             ItemData::Newtype(inner) => Some(self.low(*inner)),
             _ => None,
         }
+    }
+}
+
+/// The backend's layout as the whole-object scan reads it
+/// (`hd_opt::whole`).
+impl hd_opt::whole::ObjectLayout for Env<'_> {
+    fn shape(&self, t: Ty) -> hd_opt::whole::Shape {
+        use hd_opt::whole::Shape;
+        use hd_wasm_linear::object_layout::{Kind, kind};
+        match kind(&self.run.pool, self, t) {
+            Kind::Ref { target, fat } => Shape::Ref { target, fat },
+            Kind::Data(fields) => Shape::Data(fields),
+            Kind::Value | Kind::Boxed => Shape::Other,
+        }
+    }
+    fn strip(&self, t: Ty) -> Ty {
+        hd_wasm_linear::object_layout::strip(&self.run.pool, self, t)
+    }
+    fn payload_offset(&self, fields: &[Ty], f: usize) -> Option<u32> {
+        hd_wasm_linear::object_layout::payload_offset(&self.run.pool, self, fields, f)
+    }
+    fn field(&self, t: Ty, f: u32) -> Option<(Ty, u32)> {
+        hd_wasm_linear::object_layout::field_at(&self.run.pool, self, t, f)
+    }
+    fn variants(&self, t: Ty) -> Option<Vec<Vec<Ty>>> {
+        hd_wasm_linear::object_layout::variants(&self.run.pool, self, t)
     }
 }
 
