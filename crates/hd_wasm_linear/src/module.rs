@@ -1884,9 +1884,20 @@ impl Module {
                             );
                         #[cfg(feature = "checked-report")]
                         let k = if descriptor {
+                            // A list buffer's descriptor is pushed by the
+                            // caller of the shared `rt:list_buf`: its
+                            // glue names the kind.
+                            let kind = if matches!(
+                                &*self.symbols.get(*t),
+                                Sym::Helper(crate::rt::Helper::DropElems { .. })
+                            ) {
+                                5
+                            } else {
+                                0
+                            };
                             descriptor_slot(
                                 *t,
-                                0,
+                                kind,
                                 table_start,
                                 &index,
                                 &mut slots,

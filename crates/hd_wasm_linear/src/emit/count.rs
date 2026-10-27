@@ -821,7 +821,7 @@ impl Em<'_, '_, '_> {
             self.f.helper(Helper::MapUnique { entry: e });
         } else {
             let (_, e) = self.elem(t)?;
-            self.f.helper(Helper::ListUnique { elem: e });
+            self.f.call_list_unique(&e);
         }
         let Some(at) = at else {
             self.f.set(h);

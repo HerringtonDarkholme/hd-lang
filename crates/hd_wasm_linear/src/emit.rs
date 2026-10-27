@@ -2856,7 +2856,7 @@ impl Em<'_, '_, '_> {
             "mem_buffer" => {
                 let (_, elem) = self.elem(self.ty(i))?;
                 self.push(args[0])?;
-                self.f.helper(Helper::ListBuf { elem });
+                self.f.call_list_buf(&elem);
                 return self.store_owned(i);
             }
             "mem_string_bytes" => {

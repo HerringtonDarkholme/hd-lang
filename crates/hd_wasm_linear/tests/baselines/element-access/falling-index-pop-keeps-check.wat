@@ -2,7 +2,7 @@
 (module
   (import "fixture" "impl [ T ] List [ T ].pop[i32]" (func $"impl [ T ] List [ T ].pop[i32]" (param i32) (result i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
+  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $shift (param $items i32) (param $start i32) (local $t0 i32) (local $t1 i32)
     block
@@ -46,6 +46,9 @@
           local.get $items
           local.get $items
           i32.load $heap
+          i32.const 4
+          i32.const 0
+          i32.const 0
           call $rt:list_unique
           i32.store $heap
     ;; 11 |         items[j] = items[j - 1]

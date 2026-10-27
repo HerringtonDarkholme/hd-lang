@@ -2158,7 +2158,7 @@ fn all_cold(m: &Module, elem: &Elem) -> Func {
     f.helper(Helper::RetainAny);
     f.get(at);
     f.get(n);
-    f.helper(Helper::ListBuf { elem: elem.clone() });
+    f.call_list_buf(elem);
     f.op(Instruction::I32Store(mem(HEAP, ALL_RESULTS, 2)));
     // Build leaf metadata, then successive parent levels. Children at each
     // level are contiguous, so ctz traversal preserves input order.
@@ -3468,12 +3468,10 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
         let mut f = m.func("test:tasks", vec![Val::I32], vec![Val::I32]);
         let buffer = f.local(Val::I32);
         f.get(0);
-        f.helper(Helper::ListBuf {
-            elem: Elem {
-                walk: Some(Walk::Ref(0)),
-                cyclic: true,
-                ..elem.clone()
-            },
+        f.call_list_buf(&Elem {
+            walk: Some(Walk::Ref(0)),
+            cyclic: true,
+            ..elem.clone()
         });
         f.set(buffer);
         f.get(buffer);

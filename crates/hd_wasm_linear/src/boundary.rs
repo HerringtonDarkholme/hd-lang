@@ -1788,7 +1788,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.set(n);
             check_room(&mut f, 0, n);
             f.get(n);
-            f.helper(Helper::ListBuf { elem: byte_elem() });
+            f.call_list_buf(&byte_elem());
             f.set(buf);
             f.get(buf);
             f.get(n);
@@ -1812,9 +1812,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             // Every element takes at least one byte.
             check_room(&mut f, 0, n);
             f.get(n);
-            f.helper(Helper::ListBuf {
-                elem: l.elem.clone(),
-            });
+            f.call_list_buf(&l.elem);
             f.set(buf);
             f.get(buf);
             f.u32(LIST_ELEMS);

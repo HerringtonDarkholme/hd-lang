@@ -391,10 +391,10 @@ fn cold_paths_are_no_direct_calls() {
     let mut f = m.func("main", vec![], vec![]);
     let l = f.local(Val::I32);
     f.get(l);
-    f.helper(Helper::ListUnique { elem: elem.clone() });
+    f.call_list_unique(&elem);
     f.op(crate::op::Op::Drop);
     f.get(l);
-    f.cold_helper(Helper::ListGrow { elem }, vec![Val::I32], vec![Val::I32]);
+    f.call_list_grow(&elem);
     f.op(crate::op::Op::Drop);
     f.helper(Helper::Panic("index-out-of-bounds: x".into()));
     for _ in 0..4 {

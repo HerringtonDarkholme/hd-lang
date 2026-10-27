@@ -1065,7 +1065,7 @@ impl Em<'_, '_, '_> {
             }
             let b = self.f.local(Val::I32);
             self.f.get(n);
-            self.f.helper(Helper::ListBuf { elem: e.clone() });
+            self.f.call_list_buf(&e);
             self.f.set(b);
             self.f.get(b);
             self.f.get(n);
@@ -1175,11 +1175,7 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Or);
         self.f.op(I::If(BlockType::Empty));
         self.f.get(b);
-        self.f.cold_helper(
-            Helper::ListGrow { elem: e.clone() },
-            vec![Val::I32],
-            vec![Val::I32],
-        );
+        self.f.call_list_grow(&e);
         self.f.set(b);
         self.put_back(args[0], b)?;
         self.f.op(I::End);
