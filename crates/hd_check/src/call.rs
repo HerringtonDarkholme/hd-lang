@@ -2182,13 +2182,13 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `req.drive.block-on.direct`, `req.drive.block-on.println`: a call of
-    /// `block_on` or `println` written directly in a `defer` suite, a
-    /// default or fact expression, or a non-entry module's initialization.
+    /// `req.drive.block-on.direct`: a call of `block_on` written directly
+    /// in a `defer` suite, a default or fact expression, or a non-entry
+    /// module's initialization.
     /// A closure or local function declared there is not direct.
     pub(crate) fn check_forbidden_call(&mut self, def: DefId, name: &str, n: NodeRef<'_>) {
         let known = self.cx.names.known;
-        if def != known.block_on && def != known.println {
+        if def != known.block_on {
             return;
         }
         let context = if self.defer_base.is_some() && self.subs.len() == self.defer_subs {

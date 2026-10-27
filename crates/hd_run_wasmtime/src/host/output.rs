@@ -1,5 +1,5 @@
-//! One ordered writer owns both output streams. A full pipe cannot stop a
-//! timer or another host operation. Barriers at run boundaries drain
+//! One ordered writer owns both output streams. A console write blocks
+//! until its stream has taken every byte. Barriers at run boundaries drain
 //! accepted bytes, including output preceding a panic.
 //!
 //! While the writer thread has nothing queued, a write goes straight to
@@ -12,13 +12,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use crate::runtime::reactor::{OutputWait, Stream};
-
-type Completion = (OutputWait, Box<dyn FnOnce() + Send>);
+use crate::runtime::reactor::Stream;
 
 type Streams = (Box<dyn Write + Send>, Box<dyn Write + Send>);
 enum Message {
-    Write(Stream, Vec<u8>, Option<Completion>),
+    Write(Stream, Vec<u8>),
     Drain(Sender<()>),
 }
 
@@ -76,16 +74,11 @@ impl Output {
         Some(if at == 0 { bytes } else { bytes[at..].to_vec() })
     }
 
-    /// Queues `bytes` for `to` after everything already accepted. A write
-    /// with no completion goes straight to the stream when it can
-    /// ([`Output::write_now`]); one with a completion waits for its start.
-    pub(super) fn write(&mut self, to: Stream, bytes: Vec<u8>, done: Option<Completion>) {
-        let bytes = match done {
-            None => match self.write_now(to, bytes) {
-                None => return,
-                Some(rest) => rest,
-            },
-            Some(_) => bytes,
+    /// Queues `bytes` for `to` after everything already accepted. It goes
+    /// straight to the stream when it can ([`Output::write_now`]).
+    pub(super) fn write(&mut self, to: Stream, bytes: Vec<u8>) {
+        let Some(bytes) = self.write_now(to, bytes) else {
+            return;
         };
         if self.sender.is_none() {
             let streams = Arc::clone(&self.streams);
@@ -94,20 +87,15 @@ impl Output {
             self.thread = Some(std::thread::spawn(move || {
                 while let Ok(message) = recv.recv() {
                     match message {
-                        Message::Write(to, bytes, done) => {
-                            if let Some((wait, _)) = &done {
-                                wait.wait();
-                            }
+                        Message::Write(to, bytes) => {
                             let mut streams =
                                 streams.lock().unwrap_or_else(PoisonError::into_inner);
                             let stream = match to {
                                 Stream::Out => &mut streams.0,
                                 Stream::Err => &mut streams.1,
                             };
-                            let cancelled =
-                                || done.as_ref().is_some_and(|(wait, _)| wait.cancelled());
                             let mut rest = bytes.as_slice();
-                            while !rest.is_empty() && !cancelled() {
+                            while !rest.is_empty() {
                                 match stream.write(&rest[..rest.len().min(CHUNK)]) {
                                     Ok(0) => break,
                                     Ok(n) => rest = &rest[n..],
@@ -122,9 +110,6 @@ impl Output {
                             let _ = stream.flush();
                             drop(streams);
                             queued.fetch_sub(1, Ordering::SeqCst);
-                            if let Some((_, done)) = done {
-                                done();
-                            }
                         }
                         Message::Drain(done) => {
                             let _ = done.send(());
@@ -135,16 +120,23 @@ impl Output {
             self.sender = Some(send);
         }
         self.queued.fetch_add(1, Ordering::SeqCst);
-        if let Err(error) = self
+        if self
             .sender
             .as_ref()
             .unwrap()
-            .send(Message::Write(to, bytes, done))
+            .send(Message::Write(to, bytes))
+            .is_err()
         {
             self.queued.fetch_sub(1, Ordering::SeqCst);
-            if let Message::Write(_, _, Some((_, done))) = error.0 {
-                done();
-            }
+        }
+    }
+
+    /// Writes `bytes` to `to` after everything already accepted, and returns
+    /// once the stream has taken every byte: the caller's thread may block.
+    pub(super) fn write_blocking(&mut self, to: Stream, bytes: Vec<u8>) {
+        self.write(to, bytes);
+        if self.queued.load(Ordering::SeqCst) != 0 {
+            self.drain();
         }
     }
 
@@ -218,25 +210,17 @@ pub(super) fn process_stderr() -> Box<dyn Write + Send> {
 mod tests {
     use super::*;
     use std::sync::{Arc, Mutex};
-    use std::time::Duration;
 
+    /// A stream that is full for its first `full` writes.
     struct Writer {
         bytes: Arc<Mutex<Vec<u8>>>,
-        held: Option<std::sync::mpsc::Receiver<()>>,
-        partial: Option<Sender<()>>,
+        full: usize,
     }
     impl Write for Writer {
         fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            if let Some(signal) = self.partial.take() {
-                self.bytes.lock().unwrap().extend_from_slice(&bytes[..3]);
-                signal.send(()).unwrap();
-                return Ok(3);
-            }
-            if let Some(held) = &self.held {
-                if held.try_recv().is_err() {
-                    return Err(std::io::ErrorKind::WouldBlock.into());
-                }
-                self.held = None;
+            if self.full > 0 {
+                self.full -= 1;
+                return Err(std::io::ErrorKind::WouldBlock.into());
             }
             self.bytes.lock().unwrap().extend_from_slice(bytes);
             Ok(bytes.len())
@@ -247,84 +231,18 @@ mod tests {
     }
 
     #[test]
-    fn blocked_writer_keeps_timer_ready_and_drops_a_cancelled_queued_chunk() {
+    fn a_blocking_write_to_a_full_stream_returns_once_every_byte_is_written() {
         let bytes = Arc::new(Mutex::new(Vec::new()));
-        let (release, held) = channel();
-        let mut output = Output::new(
+        let writer = |full| {
             Box::new(Writer {
                 bytes: bytes.clone(),
-                held: Some(held),
-                partial: None,
-            }),
-            Box::new(Writer {
-                bytes: bytes.clone(),
-                held: None,
-                partial: None,
-            }),
-        );
-        let mut reactor = crate::runtime::reactor::Reactor::new(None);
-        output.write(Stream::Out, b"before".to_vec(), None);
-        let (handle, wait, done) = reactor.output();
-        output.write(
-            Stream::Out,
-            b"must-not-be-written".to_vec(),
-            Some((wait, Box::new(done))),
-        );
-        let timer = reactor.sleep(0);
-        assert_eq!(reactor.due(), [timer]);
-        reactor.remove(handle);
-        output.write(Stream::Err, b"panic".to_vec(), None);
-        assert!(bytes.lock().unwrap().is_empty());
-        release.send(()).unwrap();
-        output.drain();
-        assert_eq!(*bytes.lock().unwrap(), b"beforepanic");
-        assert!(
-            reactor.due().is_empty(),
-            "an aborted write cannot wake a new operation"
-        );
-    }
-
-    #[test]
-    fn immediate_abort_writes_nothing_and_partial_abort_drops_the_suffix() {
-        for polled in [false, true] {
-            let bytes = Arc::new(Mutex::new(Vec::new()));
-            let (first, entered) = channel();
-            let (_release, held) = channel();
-            let mut output = Output::new(
-                Box::new(Writer {
-                    bytes: bytes.clone(),
-                    held: Some(held),
-                    partial: Some(first),
-                }),
-                Box::new(Writer {
-                    bytes: bytes.clone(),
-                    held: None,
-                    partial: None,
-                }),
-            );
-            let mut reactor = crate::runtime::reactor::Reactor::new(None);
-            let (handle, wait, done) = reactor.output();
-            output.write(
-                Stream::Out,
-                b"abc-must-not-be-written".to_vec(),
-                Some((wait, Box::new(done))),
-            );
-            if polled {
-                reactor.due();
-                entered.recv_timeout(Duration::from_secs(5)).unwrap();
-            }
-            reactor.remove(handle);
-            output.write(Stream::Err, b"after".to_vec(), None);
-            output.drain();
-            assert_eq!(
-                *bytes.lock().unwrap(),
-                if polled {
-                    b"abcafter".as_slice()
-                } else {
-                    b"after"
-                }
-            );
-            assert!(reactor.due().is_empty());
-        }
+                full,
+            })
+        };
+        let mut output = Output::new(writer(3), writer(0));
+        output.write_blocking(Stream::Out, b"first ".to_vec());
+        assert_eq!(*bytes.lock().unwrap(), b"first ");
+        output.write_blocking(Stream::Err, b"second".to_vec());
+        assert_eq!(*bytes.lock().unwrap(), b"first second");
     }
 }

@@ -917,8 +917,8 @@ impl Wire for WireResponse {
 /// A host method of the ABI model, by its trait key and name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Id {
-    ConsoleWrite,
-    ConsoleWriteError,
+    ConsoleWriteSync,
+    ConsoleWriteErrorSync,
     ConsoleInputReadLine,
     ConsoleInputReadAll,
     ClockNow,
@@ -997,19 +997,19 @@ pub struct HostMethod {
 /// Each host method by import module and name.
 pub static METHODS: &[HostMethod] = &[
     HostMethod {
-        id: Id::ConsoleWrite,
+        id: Id::ConsoleWriteSync,
         module: "hd:Console",
-        name: "write",
-        wait: Wait::May,
+        name: "write_sync",
+        wait: Wait::Never,
         resource: None,
         params: &[Codec::Buffer("string")],
         result: Codec::Buffer("Result[void, ConsoleError]"),
     },
     HostMethod {
-        id: Id::ConsoleWriteError,
+        id: Id::ConsoleWriteErrorSync,
         module: "hd:Console",
-        name: "write_error",
-        wait: Wait::May,
+        name: "write_error_sync",
+        wait: Wait::Never,
         resource: None,
         params: &[Codec::Buffer("string")],
         result: Codec::Buffer("Result[void, ConsoleError]"),

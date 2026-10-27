@@ -488,11 +488,10 @@ fn a_dependency_diagnostic_is_located_in_its_file() {
 }
 
 /// A `println` written directly in a non-entry module's initialization
-/// reports both `missing-requirement` (`module.init.requirement-free.non-script`) and
-/// `suspension-forbidden-context` (`module.console.println-block-on.forbidden-direct`).
-/// A conformance case holds one error, so this is the check of the pair.
+/// reports only `missing-requirement` (`module.init.requirement-free.non-script`):
+/// it drives nothing, so no forbidden context applies (`module.console.println-no-drive`).
 #[test]
-fn println_in_non_entry_module_init_reports_both_errors() {
+fn println_in_non_entry_module_init_reports_only_missing_requirement() {
     let out = program_of(&[
         (
             "main.hd",
@@ -505,12 +504,7 @@ fn println_in_non_entry_module_init_reports_both_errors() {
     ]);
     let mut found = codes(&out);
     found.sort_stable_by_key(|c| c.as_str());
-    assert_eq!(
-        found,
-        [Code::MissingRequirement, Code::SuspensionForbiddenContext],
-        "{}",
-        out.render()
-    );
+    assert_eq!(found, [Code::MissingRequirement], "{}", out.render());
 }
 
 /// Sibling bodies share interface methods, but retain their own private traits.

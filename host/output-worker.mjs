@@ -27,7 +27,6 @@ if (workerData?.output) {
   let active = false;
   const pump = () => {
     if (active || !queue.length) return;
-    if (!queue[0].started && !queue[0].cancelled) return;
     active = true;
     const state = queue[0];
     const finish = (error = null) => {
@@ -75,15 +74,13 @@ if (workerData?.output) {
           break;
         case "enqueue":
         case "wait_start": {
-          // `bytes`, when given, is the unwritten rest of a direct write,
-          // `started` whether it was already polled.
+          // `bytes`, when given, is the unwritten rest of a direct write.
           const operation = nextOperation++;
           const state = {
             fd: request.fd,
             bytes: request.bytes ?? Buffer.from(request.text),
             offset: 0,
             result: null,
-            started: request.op === "enqueue" || request.started === true,
             cancelled: false,
           };
           if (request.op === "wait_start") {
@@ -97,19 +94,8 @@ if (workerData?.output) {
         }
         case "wait_poll": {
           const state = operations.get(request.operation);
-          if (state) state.started = true;
-          pump();
           result = state?.result;
           result = result === null ? { pending: true } : { result };
-          break;
-        }
-        case "wait_abort": {
-          const state = operations.get(request.operation);
-          if (state) state.cancelled = true;
-          owned.delete(request.operation);
-          operations.delete(request.operation);
-          pump();
-          result = { ok: null };
           break;
         }
         case "wait_finish":

@@ -2325,14 +2325,11 @@ in one (`drive.rs`).
   and the module one table entry and one function per drive slot. The
   host slot still links the leaf frame for a pending call, so the module
   does not shrink.
-- **Hosts.** Both hosts answer a `Console.write` ready at its `.start`
-  when the write went straight to the stream in full (`host/output.mjs`,
-  `hd_run_wasmtime/src/host/output.rs`). Only a write a full pipe
-  leaves, or one queued behind the writer thread, is pending. So
-  `println` makes no frame unless the pipe is full.
+- **Hosts.** A host answers a may-wait call ready at its `.start` when
+  it completed there. Console output no longer waits at all: since
+  #936 `Console.write_sync` is one import that may block, so `println`
+  makes no frame.
 - **Yielding.** A ready drive continues at once, as a bang call of an
-  hd provider that never waits does. So a print loop under `all!` no
-  longer gives its siblings a turn at each write; no fixture depends on
-  that turn (the `pending-write` profile still answers each write
-  pending). Yielding when a sibling could run is not built: the guest
-  has no run queue to read, and due timers are known only to the host.
+  hd provider that never waits does. Yielding when a sibling could run
+  is not built: the guest has no run queue to read, and due timers are
+  known only to the host.

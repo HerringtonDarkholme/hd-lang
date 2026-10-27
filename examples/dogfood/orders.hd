@@ -89,12 +89,12 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
         Inventory=&mut fresh_inventory(),
         Clock=ManualClock::new(Timestamp::from_unix_milliseconds(1000)),
     ):
-        console.write!(
+        console.write_sync(
             report!(1, [Line { sku: "apple", qty: 3 }, Line { sku: "pear", qty: 1 }]) + "\n",
         )?
-        console.write!(report!(2, [Line { sku: "pear", qty: 2 }]) + "\n")?
-        console.write!(report!(3, [Line { sku: "kiwi", qty: 1 }]) + "\n")?
-        console.write!(report!(4, []) + "\n")?
+        console.write_sync(report!(2, [Line { sku: "pear", qty: 2 }]) + "\n")?
+        console.write_sync(report!(3, [Line { sku: "kiwi", qty: 1 }]) + "\n")?
+        console.write_sync(report!(4, []) + "\n")?
     .Ok(())
 
 tests:

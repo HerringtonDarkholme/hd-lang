@@ -1389,10 +1389,11 @@ fn a_saved_provider_supports_later_blocking_async_and_stored_calls() {
         let dir = Scratch::new(SCRATCH, &format!("repl-retained-drive-{}", unique()));
         let script = Script::of(&[
             "use std.task.block_on",
-            "let console: *mut dyn Console = if true:\n    let provider: *mut dyn Console = $.use(Console)\n    _ := block_on(provider.write(\"first\\n\"))\n    provider\nelse:\n    $.use(Console)",
-            "_ := console.write!(\"second\\n\")",
-            "let pending: mut Suspend[Result[void, ConsoleError]] = console.write(\"third\\n\")",
-            "_ := block_on(pending)",
+            "use std.time.{Clock, ms}",
+            "let clock: *mut dyn Clock = if true:\n    let provider: *mut dyn Clock = $.use(Clock)\n    _ := block_on(provider.sleep(ms(1)))\n    println(\"first\")\n    provider\nelse:\n    $.use(Clock)",
+            "clock.sleep!(ms(1))\nprintln(\"second\")",
+            "let pending: mut Suspend[void] = clock.sleep(ms(1))",
+            "_ := block_on(pending)\nprintln(\"third\")",
         ]);
         let t = session_on(engine, &dir, script, |_| {}, None, Bounds::default(), None);
         assert_eq!(t.out, "first\nsecond\nthird\n");

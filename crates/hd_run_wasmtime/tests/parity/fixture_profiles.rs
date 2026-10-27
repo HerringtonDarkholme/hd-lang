@@ -37,7 +37,8 @@ fn profile_names_are_explicit_and_unknown_profiles_are_errors() {
         ("misbehaving-host", RuntimeProfile::MisbehavingHost),
         ("special-float-host", RuntimeProfile::SpecialFloatHost),
         ("serde-vault", RuntimeProfile::SerdeVault),
-        ("pending-write", RuntimeProfile::PendingWrite),
+        ("tick", RuntimeProfile::Tick),
+        ("pending-tick", RuntimeProfile::PendingTick),
         ("disposed-file", RuntimeProfile::DisposedFile),
         ("pending-gate", RuntimeProfile::PendingGate),
     ] {
@@ -58,7 +59,8 @@ fn default_and_unrelated_profiles_reject_fixture_imports_at_load() {
         RuntimeProfile::MisbehavingHost,
         RuntimeProfile::SpecialFloatHost,
         RuntimeProfile::SerdeVault,
-        RuntimeProfile::PendingWrite,
+        RuntimeProfile::Tick,
+        RuntimeProfile::PendingTick,
         RuntimeProfile::DisposedFile,
         RuntimeProfile::PendingGate,
     ]
@@ -265,29 +267,25 @@ fn vault_returns_malformed_lengths_unchanged_and_does_not_touch_memory() {
 }
 
 #[test]
-fn pending_write_uses_the_standard_pending_console_provider() {
-    let mut program = Program::new();
-    let start = program.import(
-        "hd:Console",
-        "write.start",
-        &[ValType::I32],
-        &[ValType::I32, ValType::I32],
-    );
-    let abort = program.import("hd:rt", "abort", &[ValType::I32], &[]);
-    program.load_args(b"must-not-be-written");
-    program.instructions(&[
-        I::I32Const(19),
-        I::Call(start),
-        I::LocalSet(1),
-        I::I32Const(1),
-        I::I32Ne,
-        I::If(BlockType::Empty),
-        I::Unreachable,
-        I::End,
-        I::LocalGet(1),
-        I::Call(abort),
-    ]);
-    assert_profile(program, RuntimeProfile::PendingWrite);
+fn tick_completes_at_its_start_and_pending_tick_is_pending() {
+    for (profile, status) in [(RuntimeProfile::Tick, 0), (RuntimeProfile::PendingTick, 1)] {
+        let mut program = Program::new();
+        let start = program.import("hd:Tick", "tick.start", &[], &[ValType::I32, ValType::I32]);
+        let abort = program.import("hd:rt", "abort", &[ValType::I32], &[]);
+        program.instructions(&[
+            I::Call(start),
+            I::LocalSet(1),
+            I::I32Const(status),
+            I::I32Ne,
+            I::If(BlockType::Empty),
+            I::Unreachable,
+            I::End,
+        ]);
+        if status == 1 {
+            program.instructions(&[I::LocalGet(1), I::Call(abort)]);
+        }
+        assert_profile(program, profile);
+    }
 }
 
 /// Asserts the top of the stack equals 1, trapping otherwise.
@@ -372,7 +370,8 @@ fn waiting_fixture_imports_are_profile_gated() {
         RuntimeProfile::MisbehavingHost,
         RuntimeProfile::SpecialFloatHost,
         RuntimeProfile::SerdeVault,
-        RuntimeProfile::PendingWrite,
+        RuntimeProfile::Tick,
+        RuntimeProfile::PendingTick,
         RuntimeProfile::DisposedFile,
         RuntimeProfile::PendingGate,
     ]

@@ -103,34 +103,47 @@ fn linked_slots(
 
 #[test]
 fn only_immediate_blocking_host_calls_omit_the_normal_cold_slot() {
-    let immediate = "pub fn main() -> void $ Console:\n    println(\"hello, world\")\n";
-    let stored = r#"
+    let immediate = r"
 use std.task.block_on
-fn cold(text: string) -> mut Suspend[Result[void, ConsoleError]] $ Console:
-    let console: *mut dyn Console = $.use(Console)
-    console.write(text)
-pub fn main() -> void $ Console:
-    _ := block_on(cold("stored"))
-"#;
+use std.time.{Clock, ms}
+pub fn main() -> void $ Clock:
+    let clock: &mut dyn Clock = $.use(Clock)
+    _ := block_on(clock.sleep(ms(1)))
+";
+    let stored = r"
+use std.task.block_on
+use std.time.{Clock, ms}
+fn cold() -> mut Suspend[void] $ Clock:
+    let clock: *mut dyn Clock = $.use(Clock)
+    clock.sleep(ms(1))
+pub fn main() -> void $ Clock:
+    _ := block_on(cold())
+";
     // An await may need the normal slot in a shielded dispose suite. Retain
     // asynchronous methods conservatively, even beside a blocking drive.
-    let asynchronous = r#"
-pub fn main!() -> void $ Console:
-    println("blocking")
-    let console: &mut dyn Console = $.use(Console)
-    _ := console.write!("asynchronous")
-"#;
+    let asynchronous = r"
+use std.task.block_on
+use std.time.{Clock, ms}
+pub fn main!() -> void $ Clock:
+    let clock: &mut dyn Clock = $.use(Clock)
+    _ := block_on(clock.sleep(ms(1)))
+    clock.sleep!(ms(1))
+";
     let callable = r#"
 use std.host.Sys
+use std.task.block_on
+use std.time.{Clock, ms}
 fn invoke(change: fn(i32) -> i32, count: i32) -> i32:
     if count == 0: change(+0)
     else: invoke(change, count - 1)
-pub fn main() -> void $ Console + Sys:
+pub fn main() -> void $ Console + Sys + Clock:
     let system: &dyn Sys = $.use(Sys)
     let change: fn(i32) -> i32 = if system.os().expect("os").len() == 0:
         fn(value: i32) -> i32: value + 1
     else:
         fn(value: i32) -> i32: value + 2
+    let clock: &mut dyn Clock = $.use(Clock)
+    _ := block_on(clock.sleep(ms(1)))
     println("${invoke(change, +1)}")
 "#;
     // No trait-method adapter occurs here: the unresolved recursive callback
@@ -138,25 +151,51 @@ pub fn main() -> void $ Console + Sys:
     let raw_constructor = r#"
 use std.host.Sys
 use std.task.block_on
+use std.time.{Clock, ms}
 fn first!() -> i32: 1
 fn second!() -> i32: 2
 fn invoke(make: fn() -> mut Suspend[i32], count: i32) -> mut Suspend[i32]:
     if count == 0: make()
     else: invoke(make, count - 1)
-pub fn main() -> void $ Console + Sys:
+pub fn main() -> void $ Sys + Clock:
     let system: &dyn Sys = $.use(Sys)
     let make: fn() -> mut Suspend[i32] = if system.os().expect("os").len() == 0:
         first
     else:
         second
-    println("blocking")
+    let clock: &mut dyn Clock = $.use(Clock)
+    _ := block_on(clock.sleep(ms(1)))
     _ := block_on(invoke(make, +1))
 "#;
-    let cold_callable =
-        include_str!("../../../../spec/conformance/runtime/valid/host-drive-slot-method-values.hd");
-    let shielded = include_str!(
-        "../../../../spec/conformance/runtime/valid/host-drive-slot-shielded-await.hd"
-    );
+    let cold_callable = r"
+use std.task.block_on
+use std.time.{Clock, Duration, ms}
+fn invoke(pause: fn(Duration) -> mut Suspend[void], d: Duration, count: i32) -> mut Suspend[void]:
+    if count == 0: pause(d) else: invoke(pause, d, count - 1)
+pub fn main!() -> void $ Clock:
+    let clock: *mut dyn Clock = $.use(Clock)
+    _ := block_on(clock.sleep(ms(1)))
+    let pause: fn(Duration) -> mut Suspend[void] = clock::sleep
+    let saved: mut Suspend[void] = invoke(pause, ms(1), +1)
+    _ := block_on(saved)
+    let bang: fn!(Duration) -> void = clock::sleep
+    bang!(ms(1))
+";
+    let shielded = r"
+use std.ops.Disposable
+use std.task.block_on
+use std.time.{Clock, Duration, ms}
+struct Pause:
+    clock: *mut dyn Clock
+impl Disposable for Pause:
+    fn dispose!(&mut self) -> void:
+        let pause: fn!(Duration) -> void = self.clock::sleep
+        pause!(ms(1))
+pub fn main!() -> void $ Clock:
+    let clock: &mut dyn Clock = $.use(Clock)
+    _ := block_on(clock.sleep(ms(1)))
+    using pause = &mut Pause { clock: $.use(Clock) }
+";
     for target in [EngineTarget::V8, EngineTarget::Wasmtime] {
         for (profile, level) in [
             (BuildProfile::Checked, OptLevel::Dev),
@@ -176,7 +215,7 @@ pub fn main() -> void $ Console + Sys:
                 assert_eq!(
                     names
                         .iter()
-                        .any(|(name, in_table)| name == "rt:hd:Console/write" && *in_table),
+                        .any(|(name, in_table)| name == "rt:hd:Clock/sleep" && *in_table),
                     expected,
                     "{target:?}/{profile:?}/{level:?}: {names:?}"
                 );
@@ -184,8 +223,8 @@ pub fn main() -> void $ Console + Sys:
                     assert!(
                         names
                             .iter()
-                            .any(|(name, _)| name == "rt:hd:Console/write.drive"
-                                || name == "rt:hd:Console/write.block_drive")
+                            .any(|(name, _)| name == "rt:hd:Clock/sleep.drive"
+                                || name == "rt:hd:Clock/sleep.block_drive")
                     );
                 }
             }

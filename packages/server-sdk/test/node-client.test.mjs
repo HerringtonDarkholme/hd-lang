@@ -122,8 +122,8 @@ test(
             /Console policy service/,
           );
           const start = records.length;
-          const out = console.write("native stdout\n"),
-            err = console.write_error("native stderr\n");
+          const out = console.write_sync("native stdout\n"),
+            err = console.write_error_sync("native stderr\n");
           assert.equal(out.ok, allowed);
           assert.equal(err.ok, allowed);
           if (!allowed) {
@@ -143,7 +143,7 @@ test(
             assert.ok(own.every(({ record }) => record.lease.generation === String(id.generation)));
             assert.ok(own.every(({ record }) => record.lease.sequence === String(id.sequence)));
           }
-          assert.throws(() => console.write("late"), /expired request lease/);
+          assert.throws(() => console.write_sync("late"), /expired request lease/);
           assert.throws(() => provider.console(id, f.context), /expired request lease/);
         } finally {
           await f.close();

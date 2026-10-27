@@ -19,12 +19,12 @@ test("Console captures immutable identity and delivers in its owner after anothe
   });
   id.sequence = 999n;
   owner.run("B's guest turn", () => {
-    assert.equal(console.write("first\n").ok, true);
-    assert.equal(console.write_error("λ\n").ok, true);
+    assert.equal(console.write_sync("first\n").ok, true);
+    assert.equal(console.write_error_sync("λ\n").ok, true);
   });
   assert.deepEqual(records, [], "capture itself performs no native logging effect");
   lease.cancel("Disconnected");
-  assert.equal(console.write("cleanup\n").ok, true);
+  assert.equal(console.write_sync("cleanup\n").ok, true);
   lease.finish(false);
   await owner.run("A", () => lease.run());
   assert.deepEqual(
@@ -37,8 +37,8 @@ test("Console captures immutable identity and delivers in its owner after anothe
   );
   assert.ok(records.every(([, record]) => record.version === 1 && Object.isFrozen(record)));
   assert.ok(records.every(([, record]) => Object.isFrozen(record.lease)));
-  assert.throws(() => console.write("late"), /expired request lease/);
-  assert.throws(() => console.write_error("late"), /expired request lease/);
+  assert.throws(() => console.write_sync("late"), /expired request lease/);
+  assert.throws(() => console.write_error_sync("late"), /expired request lease/);
   assert.equal(dispatcher.active(), 0);
 });
 
@@ -51,8 +51,8 @@ test("denied Console captures no record and returns each stream's NotGranted", a
     write: (record) => records.push(record),
   });
   for (const [method, subject] of [
-    ["write", "stdout"],
-    ["write_error", "stderr"],
+    ["write_sync", "stdout"],
+    ["write_error_sync", "stderr"],
   ])
     assert.deepEqual(console[method]("private"), {
       ok: false,
@@ -75,9 +75,9 @@ test("a throwing log observer does not prevent later delivery or lease completio
     },
   });
   assert.throws(() => lease.effect(null), /must be a function/);
-  assert.throws(() => console.write({ secret: "not text" }), /needs text/);
-  console.write_error("first");
-  console.write("second");
+  assert.throws(() => console.write_sync({ secret: "not text" }), /needs text/);
+  console.write_error_sync("first");
+  console.write_sync("second");
   lease.finish(true);
   assert.equal((await lease.run()).abandoned, true);
   assert.deepEqual(delivered, ["first", "second"]);

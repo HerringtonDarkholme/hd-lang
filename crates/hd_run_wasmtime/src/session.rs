@@ -318,7 +318,6 @@ impl WasmtimeEngine {
             setup.grants.clone(),
             setup.limits.wall_ms,
         );
-        host.pending_writes = self.profile == RuntimeProfile::PendingWrite;
         let flag = Arc::new(AtomicBool::new(false));
         host.interrupt = Some(Arc::clone(&flag));
         let execution = crate::sys::random(16)

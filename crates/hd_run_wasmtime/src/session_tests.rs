@@ -699,13 +699,8 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
         }
         assert_eq!(repl.input(inputs[4]), Outcome::Exit(3));
         assert_eq!(text(&io.out), "hi\n");
-        // A write that completes at start is ready; Windows keeps every
-        // write on the writer thread, so there it blocks and finishes.
-        let write: &[&str] = if cfg!(windows) {
-            &["call hd:Console write.start", "block", "finish"]
-        } else {
-            &["call hd:Console write.start"]
-        };
+        // A console write is one call that never suspends.
+        let write: &[&str] = &["call hd:Console write_sync"];
         let mut want = vec![
             "header",
             "input 1",

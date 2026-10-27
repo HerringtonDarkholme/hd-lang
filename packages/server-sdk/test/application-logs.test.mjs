@@ -100,7 +100,7 @@ test("actual concurrent HD handler and cleanup logs retain their lease and corou
         ],
       );
       assert.ok(own.every(({ record }) => record.lease.generation === String(id.generation)));
-      assert.throws(() => ports[index].value.write("late"), /expired request lease/);
+      assert.throws(() => ports[index].value.write_sync("late"), /expired request lease/);
     }
     assert.equal(records.length, 7);
     assert.equal(app.active(), 0);

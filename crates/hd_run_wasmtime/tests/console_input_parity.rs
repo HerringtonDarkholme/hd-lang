@@ -21,32 +21,12 @@ fn write(p: &mut Program, line: &[u8]) {
     let mut text = line.to_vec();
     text.push(b'\n');
     let line = text.as_slice();
-    let start = p.import(
-        "hd:Console",
-        "write.start",
-        &[ValType::I32],
-        &[ValType::I32, ValType::I32],
-    );
-    let block = p.import("hd:rt", "block", &[], &[ValType::I32]);
-    let finish = p.import(
-        "hd:Console",
-        "write.finish",
-        &[ValType::I32],
-        &[ValType::I32],
-    );
+    let write = p.import("hd:Console", "write_sync", &[ValType::I32], &[ValType::I32]);
     p.load_args(line);
     p.instructions(&[
         I::I32Const(i32::try_from(line.len()).unwrap()),
-        I::Call(start),
-        I::LocalSet(0),
-        // A write that went straight to the stream is ready at its start.
-        I::If(wasm_encoder::BlockType::Empty),
-        I::Call(block),
+        I::Call(write),
         I::Drop,
-        I::LocalGet(0),
-        I::Call(finish),
-        I::Drop,
-        I::End,
     ]);
 }
 

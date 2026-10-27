@@ -175,10 +175,7 @@ fn an_uncalled_host_method_is_not_imported() {
     let Some(wasm) = out.wasm.as_deref() else {
         panic!("{}", out.render());
     };
-    assert_eq!(
-        profile_imports(wasm),
-        ["hd:Console write.finish", "hd:Console write.start"]
-    );
+    assert_eq!(profile_imports(wasm), ["hd:Console write_sync"]);
     let out = build(
         "use std.console.eprintln\n\npub fn main() -> void $ Console:\n    eprintln(\"oops\")\n",
         &[],
@@ -186,13 +183,7 @@ fn an_uncalled_host_method_is_not_imported() {
     let Some(wasm) = out.wasm.as_deref() else {
         panic!("{}", out.render());
     };
-    assert_eq!(
-        profile_imports(wasm),
-        [
-            "hd:Console write_error.finish",
-            "hd:Console write_error.start"
-        ]
-    );
+    assert_eq!(profile_imports(wasm), ["hd:Console write_error_sync"]);
 }
 
 /// Identical result schemas need different codecs when one method discards its

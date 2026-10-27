@@ -1,6 +1,7 @@
 // One writer orders stdout, stderr and session frames. Control messages
-// never wait on a full pipe. Aborting a pending write drops its unwritten
-// suffix; bytes already passed to the stream cannot be undone.
+// never wait on a full pipe. A console write (`write`) returns once the
+// stream has taken every byte, so it may block the calling thread
+// (module.console.write-sync.never-suspends).
 //
 // While nothing is queued, a write goes straight to its nonblocking
 // descriptor on the calling thread. A short write or `EAGAIN` starts the
@@ -11,7 +12,6 @@
 // supervisor) always uses the thread, and so does Windows, where a pipe
 // write would block.
 import { receiveReply } from "./worker-control.mjs";
-import { pendingOperation } from "./core.mjs";
 import { failed, full } from "./output-worker.mjs";
 import { Ok } from "./wire.mjs";
 
@@ -22,6 +22,9 @@ const { MessageChannel, Worker } = process.getBuiltinModule("node:worker_threads
 
 const DIRECT = process.platform !== "win32";
 
+// What a blocking write sleeps on between polls of the writer thread.
+const nap = new Int32Array(new SharedArrayBuffer(4));
+
 export function createOutput(connection = null) {
   let client = connection;
   let worker = null;
@@ -30,10 +33,9 @@ export function createOutput(connection = null) {
   // Writes go through the thread while `remote`; `pinned` keeps them there.
   let pinned = connection !== null || !DIRECT;
   let remote = pinned;
-  // The direct queue, in order: `{ fd, bytes, offset, wait, started,
-  // result, remote }`. Its head is written once started; entries behind an
-  // unpolled pending write wait for it. `remote` is the thread's operation
-  // once the entry was handed over.
+  // The direct queue, in order: `{ fd, bytes, offset, wait, result,
+  // remote }`. `wait` marks a write whose caller waits for its result;
+  // `remote` is the thread's operation once the entry was handed over.
   const local = [];
   let prepared = false;
   // Construct the main thread's pipe handles before any write uses their
@@ -81,13 +83,13 @@ export function createOutput(connection = null) {
     for (const e of local.splice(0)) {
       const bytes = new Uint8Array(e.bytes.subarray(e.offset));
       const op = e.wait ? "wait_start" : "enqueue";
-      e.remote = call({ op, fd: e.fd, bytes, started: e.started }, [bytes.buffer]).ok;
+      e.remote = call({ op, fd: e.fd, bytes }, [bytes.buffer]).ok;
     }
   };
-  // Writes the started head entries directly, until the queue is empty, its
-  // head waits for a poll, or a descriptor is full.
+  // Writes the queued entries directly, until the queue is empty or a
+  // descriptor is full.
   const pump = () => {
-    while (local.length && local[0].started) {
+    while (local.length) {
       const e = local[0];
       try {
         while (e.offset < e.bytes.length) {
@@ -113,7 +115,7 @@ export function createOutput(connection = null) {
   };
   const queue = (fd, text, wait) => {
     prepare();
-    const e = { fd, bytes: Buffer.from(text), offset: 0, wait, started: !wait };
+    const e = { fd, bytes: Buffer.from(text), offset: 0, wait };
     e.result = e.remote = null;
     local.push(e);
     pump();
@@ -129,48 +131,26 @@ export function createOutput(connection = null) {
     threaded: () => remote,
     out: (text) => send(1, text),
     err: (text) => send(2, text),
-    // A write that may wait, called at its operation's first poll. A direct
-    // write that writes every byte at once answers its result, not an
-    // operation. Any other write is pending: a short write handed to the
-    // thread, a write queued behind an entry that waits for its poll, or a
-    // write while the thread has the queue. A pending direct entry keeps
-    // its place and is ready at a poll once its direct write completes.
+    // A console write: its result once the stream has taken every byte.
+    // A direct write that writes every byte answers at once. Otherwise the
+    // writer thread has the rest, and this blocks until it has written it.
     write: (fd, text) => {
-      const e = direct()
-        ? queue(fd, text, true)
-        : { remote: call({ op: "wait_start", fd, text }).ok };
-      if (e.remote === null) {
-        e.started = true;
-        pump();
-        if (e.remote === null && e.result !== null) return e.result;
+      let operation;
+      if (direct()) {
+        const e = queue(fd, text, true);
+        if (e.remote === null) return e.result;
+        operation = e.remote;
+      } else {
+        operation = call({ op: "wait_start", fd, text }).ok;
       }
-      let result;
-      return pendingOperation(
-        () => {
-          if (e.remote === null) {
-            e.started = true;
-            pump();
-          }
-          if (e.remote === null) {
-            result = e.result;
-            return result !== null;
-          }
-          const r = call({ op: "wait_poll", operation: e.remote });
-          if (r.pending) return false;
-          result = r.result;
-          return true;
-        },
-        () => result,
-        () => {
-          if (e.remote !== null) return call({ op: "wait_abort", operation: e.remote });
-          const i = local.indexOf(e);
-          if (i >= 0) local.splice(i, 1);
-          pump();
-        },
-        () => {
-          if (e.remote !== null) call({ op: "wait_finish", operation: e.remote });
-        },
-      );
+      for (;;) {
+        const r = call({ op: "wait_poll", operation });
+        if (!r.pending) {
+          call({ op: "wait_finish", operation });
+          return r.result;
+        }
+        Atomics.wait(nap, 0, 0, 1);
+      }
     },
     connection: () => {
       if (!remote) handOff();

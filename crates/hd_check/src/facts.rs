@@ -302,7 +302,7 @@ fn fact_list_steps(
 /// evaluated; each expression is type-checked as the code of `owner`'s
 /// module, in the same bodies that a `Structure` builds its facts from, so
 /// that the same errors are reported here once and dropped there. This
-/// includes the block-on ban (`annot.fact.block-on.direct`) and a typed
+/// includes the block-on ban (`annot.fact.block-on.direct-call`) and a typed
 /// fact against its member's type (`annot.typed-fact.check`). The
 /// decorators of a module-level function are its facts body, which
 /// [`check_facts`] checks.

@@ -135,9 +135,8 @@ impl WasmtimeEngine {
     pub(crate) fn instantiate_host(
         &self,
         m: &Module,
-        mut host: Host,
+        host: Host,
     ) -> Result<WasmtimeInstance, StartError> {
-        host.pending_writes = self.profile == crate::profiles::RuntimeProfile::PendingWrite;
         let mut store = new_store(&self.engine, host)?;
         let mut linker = Linker::new(&self.engine);
         define(&mut linker, &m.0, self.profile).map_err(StartError::Engine)?;

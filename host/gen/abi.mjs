@@ -170,14 +170,14 @@ export const WireRequest = data({
 // exchange buffer.
 export const METHODS = {
   "hd:Console": {
-    write: {
-      wait: "may",
+    write_sync: {
+      wait: "never",
       resource: null,
       params: [str],
       result: result(unit, ConsoleError),
     },
-    write_error: {
-      wait: "may",
+    write_error_sync: {
+      wait: "never",
       resource: null,
       params: [str],
       result: result(unit, ConsoleError),

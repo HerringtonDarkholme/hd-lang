@@ -1,6 +1,6 @@
 //! Run-time forbidden contexts (spec 11 `req.drive.block-on.indirect`,
-//! `req.drive.block-on.println`, `req.drive.block-on.fact-contexts`, spec 6
-//! `flow.defer.block-on.indirect`): `block_on` or `println` reached through
+//! `req.drive.block-on.fact-contexts`, spec 6
+//! `flow.defer.block-on.indirect`): `block_on` reached through
 //! another call while a `defer` suite, a default expression, a facts body or
 //! non-entry module initialization runs panics with
 //! `suspension-forbidden-context`. Outside those contexts it runs. Programs
@@ -78,18 +78,6 @@ fn wait_now() -> i32:
     match block_on(pending):
         .Completed(value) => value
         _ => 0
-
-struct QuietConsole: pass
-
-impl Console for QuietConsole:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
-        .Ok(())
-
-fn print_now() -> i32:
-    let mut console = QuietConsole {}
-    $.with(Console=&mut console):
-        println(\"quiet\")
-    1
 ";
 
 fn with_helpers(rest: &str) -> String {

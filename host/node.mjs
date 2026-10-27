@@ -794,7 +794,7 @@ function fsProviders({ grant, flush, fsClient }) {
   // The methods `ops` of `module`, each `run` once the grant covers every
   // path it names, its `Path` arguments (its resource, gen/abi.mjs). A
   // special-file call is offloaded after these checks. Output is flushed
-  // first (std-console.host.visible-text). A method that
+  // first (std-console.host.visible-text-sync). A method that
   // creates its directories keeps the OS's own rule for a `..` after a
   // missing name, as the Rust host's `create` does.
   const fsOps = (module, ops) =>
@@ -1016,7 +1016,7 @@ export const nodeLayer = {
     const files = syncClient("fs.mjs", "close");
     const input = syncClient("input.mjs");
     // The program's output reaches its stream before it waits on the host
-    // (std-console.host.visible-text): a run stopped in a wait loses none. Each
+    // (std-console.host.visible-text-sync): a run stopped in a wait loses none. Each
     // client call and child process asks `waiting()` first.
     const waiting = () => {
       flush();

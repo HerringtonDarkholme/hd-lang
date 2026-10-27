@@ -28,10 +28,6 @@
 //! target the engine mode builds, or compares the run with those saved
 //! files and fails on any difference. It proves a refactor leaves the
 //! emitted code byte-identical; it needs the full runtime suite.
-//! `HD_CONFORMANCE_WRITES=pending` runs every entry under the
-//! `pending-write` profile unless its fixture names one, so each Console
-//! write yields as a pending host call; the default answers a write that
-//! completes at once as ready. Both modes must pass (#652).
 //! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
 //! timing, without applying the rule.
 //!
@@ -508,7 +504,10 @@ fn profile(fixture: &Fixture) -> Option<Vec<String>> {
         "pending-gate" => own(&["Gate"]),
         "misbehaving-host" => own(&["Gauge"]),
         "special-float-host" => own(&["Sensor"]),
-        "pending-write" => Some(vec!["std.console.Console".to_owned()]),
+        "tick" | "pending-tick" => Some(vec![
+            "std.console.Console".to_owned(),
+            format!("{module}.Tick"),
+        ]),
         _ => None,
     }
 }
@@ -1716,10 +1715,10 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
     let verdict = entry_verdict(case, fixture, modules, serial, profile);
     if verdict == Verdict::Pass && pending_first_poll(&fixture.text) {
         // README "Runtime Scenarios", `pending-first-poll`: after the
-        // ordinary run, the entry again under the `console` profile with
-        // every `write!` pending on its first poll, which is the
-        // `pending-write` profile; both runs must succeed.
-        return entry_verdict(case, fixture, modules, serial, Some("pending-write"));
+        // ordinary run under `tick`, the entry again with every `tick!`
+        // pending on its first poll, which is the `pending-tick` profile;
+        // both runs must succeed.
+        return entry_verdict(case, fixture, modules, serial, Some("pending-tick"));
     }
     verdict
 }
@@ -1733,7 +1732,6 @@ fn entry_verdict(
     serial: usize,
     profile: Option<&str>,
 ) -> Verdict {
-    let profile = profile.or_else(|| pending_writes().then_some("pending-write"));
     let run = match run_program(case, wasm, serial, profile) {
         Ok(run) => run,
         Err(error) => return Verdict::Crash(error.to_string()),
@@ -1878,16 +1876,6 @@ fn run_case(case: &Case, store: &MemoryStore, serial: usize) -> Verdict {
     }
 }
 
-/// Whether `HD_CONFORMANCE_WRITES=pending` runs every entry whose fixture
-/// names no runtime profile under `pending-write`, so each Console write
-/// is pending at its first poll and yields to the scheduler. By default a
-/// host answers a write that completes at once as ready, and the caller
-/// goes on without yielding (#652). Both runs must pass: no fixture may
-/// depend on whether a write yields.
-fn pending_writes() -> bool {
-    selection_env("HD_CONFORMANCE_WRITES").is_some_and(|value| value == "pending")
-}
-
 /// The backend every case builds with: the linear one, in checked mode
 /// when `HD_CONFORMANCE_CHECKED=1`.
 fn checked_runtime() -> bool {
@@ -1998,29 +1986,33 @@ fn unit_runtime(text: &str, expectation: &str, serial: usize) -> Verdict {
     runtime_case(&case, &unit_fixture(text), &store, (1 << 40) + serial)
 }
 
-const PENDING_WRITES: &str = "\
+const PENDING_TICKS: &str = "\
+# fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 use std.testing.assert_equal
 
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
 let calls = +0
 
-fn note!(text: string) -> void $ Console:
-    let mut console = $.use(Console)
-    _ := console.write!(\"${text} ${calls}\\n\")
+fn note!(text: string) -> void $ Console + Tick:
+    $.use(Tick).tick!(text)
+    println(\"${text} ${calls}\")
     calls = calls + 1
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     note!(\"first\")
     note!(\"second\")
-    assert_equal(calls, EXPECTED, reason=\"each call resumed after its pending write\")
+    assert_equal(calls, EXPECTED, reason=\"each call resumed after its pending tick\")
 ";
 
 #[test]
-fn pending_first_poll_runs_the_entry_again_with_pending_writes() {
-    let passing = PENDING_WRITES.replace("EXPECTED", "2");
+fn pending_first_poll_runs_the_entry_again_with_pending_ticks() {
+    let passing = PENDING_TICKS.replace("EXPECTED", "2");
     assert_eq!(unit_runtime(&passing, "accept", 0), Verdict::Pass);
-    // The scenario run is the entry under `pending-write`: each write is
-    // pending once, then written in call order, and the run succeeds.
+    // The scenario run is the entry under `pending-tick`: each tick is
+    // pending once, then the calls resume in order, and the run succeeds.
     let fixture = unit_fixture(&passing);
     let built = build_runnable(
         &fixture,
@@ -2036,13 +2028,13 @@ fn pending_first_poll_runs_the_entry_again_with_pending_writes() {
         &unit_case("accept", 1),
         built.modules(wasm),
         serial,
-        Some("pending-write"),
+        Some("pending-tick"),
     )
     .expect("runs");
     assert!(ran.success(), "{}", String::from_utf8_lossy(&ran.stderr));
     assert_eq!(String::from_utf8_lossy(&ran.stdout), "first 0\nsecond 1\n");
     // A program whose result differs fails the case.
-    let failing = PENDING_WRITES.replace("EXPECTED", "3");
+    let failing = PENDING_TICKS.replace("EXPECTED", "3");
     assert_eq!(
         unit_runtime(&failing, "accept", 2),
         Verdict::Fail("runtime-exit".to_owned())
@@ -2051,7 +2043,7 @@ fn pending_first_poll_runs_the_entry_again_with_pending_writes() {
 
 #[test]
 fn scenarios_that_replace_execution_drive_or_stay_unsupported() {
-    assert!(!replacing_scenario(PENDING_WRITES));
+    assert!(!replacing_scenario(PENDING_TICKS));
     assert!(!replacing_scenario("pub fn main!() -> void: pass\n"));
     // The cancellation program never pends, so its drive fails the
     // first step; the competing and reentrant drives trap, which the
@@ -2072,10 +2064,10 @@ fn scenarios_that_replace_execution_drive_or_stay_unsupported() {
         );
     }
     // The test hosts take no runtime profile, so the scenario's run of
-    // test cases cannot hold a write pending.
+    // test cases cannot hold a tick pending.
     let with_tests = format!(
         "{}\ntests:\n    it(\"runs\"):\n        pass\n",
-        PENDING_WRITES.replace("EXPECTED", "2")
+        PENDING_TICKS.replace("EXPECTED", "2")
     );
     assert_eq!(
         unit_runtime(&with_tests, "accept", 4),

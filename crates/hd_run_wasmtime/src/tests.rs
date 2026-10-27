@@ -94,15 +94,15 @@ fn malformed_reply_shapes_fail_before_output_or_filesystem_effects() {
     for (module, name, payload, results) in [
         (
             "hd:Console",
-            "write.start",
+            "write_sync",
             marker.as_slice(),
-            vec![ValType::I32],
+            vec![ValType::F64],
         ),
         (
             "hd:Console",
-            "write.start",
+            "write_sync",
             marker.as_slice(),
-            vec![ValType::I32, ValType::F64],
+            vec![ValType::I32, ValType::I32],
         ),
         ("hd:rt", "stderr", marker.as_slice(), vec![ValType::I32]),
         ("hd:rt", "stderr", marker.as_slice(), vec![ValType::F64]),

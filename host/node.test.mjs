@@ -215,13 +215,13 @@ function operationHost(ready, onDone, onAbort, onFinish = null) {
     {
       providers: () => ({
         traits: {
-          "hd:Console": {
-            write: () =>
+          "hd:ConsoleInput": {
+            read_line: () =>
               pendingOperation(
                 ready,
                 () => {
                   onDone();
-                  return Ok(undefined);
+                  return Ok(null);
                 },
                 onAbort,
                 onFinish,
@@ -233,7 +233,7 @@ function operationHost(ready, onDone, onAbort, onFinish = null) {
   );
   const memory = new WebAssembly.Memory({ initial: 1 });
   host.prime({ exports: { "hd.x": memory } });
-  const start = () => host.imports["hd:Console"]["write.start"](0);
+  const start = () => host.imports["hd:ConsoleInput"]["read_line.start"]();
   return { host, memory, start };
 }
 
@@ -276,7 +276,7 @@ test("an I/O retry delay cannot hide readiness when another operation wakes", ()
   ready = true;
   const [, clock] = host.imports["hd:Clock"]["sleep.start"](0n);
   assert.equal(host.imports["hd:rt"].block(), 2);
-  host.imports["hd:Console"]["write.finish"](pending);
+  host.imports["hd:ConsoleInput"]["read_line.finish"](pending);
   host.imports["hd:Clock"]["sleep.finish"](clock);
   host.close();
 });
@@ -313,7 +313,7 @@ test("finish transfers an external result without calling abort", () => {
   );
   const [, pending] = start();
   assert.equal(host.imports["hd:rt"].block(), 1);
-  host.imports["hd:Console"]["write.finish"](pending);
+  host.imports["hd:ConsoleInput"]["read_line.finish"](pending);
   host.close();
   assert.equal(aborted, 0);
 });
@@ -329,13 +329,13 @@ test("the external finish hook runs only at a validated guest finish", () => {
     },
   );
   const [, operation] = start();
-  assert.throws(() => host.imports["hd:Console"]["write.finish"](operation));
+  assert.throws(() => host.imports["hd:ConsoleInput"]["read_line.finish"](operation));
   assert.equal(delivered, 0, "an unfinished result cannot transfer ownership");
   host.imports["hd:rt"].block();
   assert.equal(delivered, 0, "completion is not guest delivery");
-  host.imports["hd:Console"]["write.finish"](operation);
+  host.imports["hd:ConsoleInput"]["read_line.finish"](operation);
   assert.equal(delivered, 1);
-  assert.throws(() => host.imports["hd:Console"]["write.finish"](operation));
+  assert.throws(() => host.imports["hd:ConsoleInput"]["read_line.finish"](operation));
   assert.equal(delivered, 1, "a stale finish cannot deliver twice");
   host.close();
 });
@@ -398,7 +398,7 @@ test("the async entry driver polls external readiness before waking the guest", 
           [, pending] = start();
           return -1;
         }
-        host.imports["hd:Console"]["write.finish"](pending);
+        host.imports["hd:ConsoleInput"]["read_line.finish"](pending);
         return 0;
       },
       "hd.wake": (count) => {
@@ -1777,11 +1777,10 @@ test("Console unreadable input reports Closed", async (t) => {
   call({ op: "wait_finish", operation });
 });
 
-// #652: a Console write whose direct write takes every byte completes in
-// its `.start`, which is the operation's first poll, so it answers ready
-// with its result and leaves nothing to abort.
-for (const method of ["write", "write_error"]) {
-  test(`Console ${method} that writes every byte at start answers ready`, async (t) => {
+// A Console write is one call: it returns its result once the stream has
+// taken every byte (module.console.write-sync.never-suspends).
+for (const method of ["write_sync", "write_error_sync"]) {
+  test(`Console ${method} returns once every byte is written`, async (t) => {
     const root = fixture(t, { output: "" });
     const fd = openSync(join(root, "output"), "w");
     t.after(() => closeSync(fd));
@@ -1791,32 +1790,17 @@ for (const method of ["write", "write_error"]) {
     t.after(() => host.close());
     const memory = new WebAssembly.Memory({ initial: 1 });
     host.prime({ exports: { "hd.x": memory } });
-    new Uint8Array(memory.buffer).set(new TextEncoder().encode("written-at-start"));
-    const [status] = host.imports["hd:Console"][`${method}.start`](16);
-    assert.equal(status, 0);
-    assert.equal(readFileSync(join(root, "output"), "utf8"), "written-at-start");
+    new Uint8Array(memory.buffer).set(new TextEncoder().encode("written-at-once"));
+    assert.equal(typeof host.imports["hd:Console"][method](15), "number");
+    assert.equal(readFileSync(join(root, "output"), "utf8"), "written-at-once");
     await output.close();
   });
 }
 
-test("Output connection close cancels its guest's unpolled write", async (t) => {
-  const root = fixture(t, { output: "" });
-  const fd = openSync(join(root, "output"), "w");
-  t.after(() => closeSync(fd));
-  const output = createOutput();
-  t.after(() => output.close());
-  const connection = output.connection();
-  const guest = createOutput(connection);
-  guest.write(fd, "must-not-be-written");
-  connection.port.close();
-  await output.drain();
-  assert.equal(readFileSync(join(root, "output"), "utf8"), "");
-});
-
-// The queue keeps preceding writes in order. Cancellation drops an active
-// chunk's unwritten suffix as well as a later chunk still waiting in the queue.
-for (const abort of [false, true]) {
-  test(`Output full socket keeps control live (${abort ? "abort" : "finish"})`, async (t) => {
+// The queue keeps preceding writes in order, and control requests stay
+// live while a chunk waits on a full socket.
+{
+  test("Output full socket keeps control live", async (t) => {
     const server = net.createServer();
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
@@ -1843,12 +1827,6 @@ for (const abort of [false, true]) {
       assert.deepEqual(call({ op: "wait_poll", operation }), { pending: true });
       assert.deepEqual(call({ op: "idle" }), { ok: false });
     }
-    if (abort) {
-      const queued = call({ op: "wait_start", fd, text: "must-not-be-written" }).ok;
-      assert.deepEqual(call({ op: "wait_poll", operation: queued }), { pending: true });
-      call({ op: "wait_abort", operation: queued });
-      call({ op: "wait_abort", operation });
-    }
     const suffix = '\nerr\t"panic after output"\nran\tcomplete\n';
     call({ op: "enqueue", fd, text: suffix });
     const chunks = [];
@@ -1862,22 +1840,18 @@ for (const abort of [false, true]) {
     assert(received.startsWith(before));
     assert(received.endsWith(suffix));
     const body = received.slice(before.length, -suffix.length);
-    assert.equal(body, text.slice(0, body.length));
-    if (abort) assert(body.length < text.length, "the unwritten suffix is discarded");
-    else {
-      assert.equal(body, text);
-      assert.deepEqual(call({ op: "wait_poll", operation }), { result: Ok(undefined) });
-      call({ op: "wait_finish", operation });
-    }
+    assert.equal(body, text);
+    assert.deepEqual(call({ op: "wait_poll", operation }), { result: Ok(undefined) });
+    call({ op: "wait_finish", operation });
   });
 }
 
 // A write larger than the pipe buffer while the reader is paused: direct
 // writes come first, the full pipe starts the writer thread with the rest,
-// the program keeps polling, later output stays behind it, and direct
-// writes resume once the thread's queue is empty.
+// the write blocks until the reader drains it, later output stays behind
+// it, and direct writes resume once the thread's queue is empty.
 test(
-  "Output to a held stdout pipe hands off to the thread in order",
+  "Output to a held stdout pipe blocks, hands off to the thread, and keeps order",
   { skip: process.platform === "win32", timeout: 15000 },
   async (t) => {
     const url = new URL("./output.mjs", import.meta.url).href;
@@ -1888,23 +1862,13 @@ test(
       const check = (ok, message) => { if (!ok) { log("FAIL " + message); process.exit(1); } };
       const output = createOutput();
       output.out("before\\n");
-      check(output.write(1, "small\\n").ok === true, "a direct write is ready at its start");
+      check(output.write(1, "small\\n").ok === true, "a direct write answers at once");
       check(!output.threaded(), "no thread before the pipe is full");
-      const big = output.write(1, "x".repeat(4 << 20));
-      let ticks = 0;
-      await new Promise((resolve) => {
-        const step = () => {
-          if (big.poll()) return resolve();
-          check(output.threaded(), "a full pipe hands the rest to the thread");
-          if (++ticks === 1) {
-            output.out("after-full\\n");
-            output.err("err-after-full\\n");
-          }
-          log("tick " + ticks);
-          setTimeout(step, 2);
-        };
-        step();
-      });
+      log("blocking");
+      check(output.write(1, "x".repeat(4 << 20)).ok === true, "the big write completes");
+      check(output.threaded(), "a full pipe handed the rest to the thread");
+      output.out("after-full\\n");
+      output.err("err-after-full\\n");
       await output.drain();
       output.out("end\\n");
       check(!output.threaded(), "direct writes resume after the thread drains");
@@ -1921,7 +1885,7 @@ test(
     await new Promise((resolve, reject) => {
       child.stderr.on("data", (bytes) => {
         errors += bytes;
-        if (errors.includes("tick 20\n")) resolve();
+        if (errors.includes("blocking\n")) setTimeout(resolve, 200);
       });
       closed.then(() => reject(new Error(`exited before the reader resumed: ${errors}`)));
     });

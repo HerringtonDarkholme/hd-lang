@@ -47,7 +47,7 @@ test("maintenance asset covers every source and returned-handle method", () => {
       .find((i) => i.identity.trait_path === "console.Console")
       .methods.map((m) => m.name)
       .sort(),
-    ["write", "write_error"],
+    ["write_error_sync", "write_sync"],
   );
   assert.deepEqual(
     reference.find((i) => i.identity.trait_path === "http.Http").methods.map((m) => m.name),

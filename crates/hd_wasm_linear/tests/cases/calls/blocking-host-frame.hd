@@ -1,23 +1,22 @@
 # @dump: wat
 # expected: synchronous block_on passes caller-local storage; stored and asynchronous calls keep their heap lifetime.
+use std.fs.{FsError, FsRead}
+use std.path.Path
 use std.task.block_on
 
 # subject
-pub fn synchronous(text: string) -> bool $ Console:
-    let console: &mut dyn Console = $.use(Console)
-    let call: mut Suspend[Result[void, ConsoleError]] = console.write(text)
+pub fn synchronous(path: Path) -> bool $ FsRead:
+    let call: mut Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
     match block_on(call):
-        .Completed(.Ok(())) => true
+        .Completed(.Ok(_)) => true
         _ => false
 
-pub fn stored(text: string) -> bool $ Console:
-    let console: &mut dyn Console = $.use(Console)
-    let call: mut Suspend[Result[void, ConsoleError]] = console.write(text)
+pub fn stored(path: Path) -> bool $ Console + FsRead:
+    let call: mut Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
     println("stored")
     match block_on(call):
-        .Completed(.Ok(())) => true
+        .Completed(.Ok(_)) => true
         _ => false
 
-pub fn asynchronous!(text: string) -> Result[void, ConsoleError] $ Console:
-    let console: &mut dyn Console = $.use(Console)
-    console.write!(text)
+pub fn asynchronous!(path: Path) -> Result[string, FsError] $ FsRead:
+    $.use(FsRead).read_text!(path)

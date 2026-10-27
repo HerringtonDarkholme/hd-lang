@@ -146,33 +146,9 @@ impl Program {
             expected: Vec::new(),
         };
         assert_eq!(p.import("hd:rt", "stderr", &[ValType::I32], &[]), 0);
-        let console = p.import(
-            "hd:Console",
-            "write.start",
-            &[ValType::I32],
-            &[ValType::I32, ValType::I32],
-        );
-        let block = p.import("hd:rt", "block", &[], &[ValType::I32]);
-        let finish = p.import(
-            "hd:Console",
-            "write.finish",
-            &[ValType::I32],
-            &[ValType::I32],
-        );
+        let console = p.import("hd:Console", "write_sync", &[ValType::I32], &[ValType::I32]);
         p.load_args(b"core-parity\n");
-        p.instructions(&[
-            I::I32Const(12),
-            I::Call(console),
-            I::LocalSet(1),
-            // A write that went straight to the stream is ready at its start.
-            I::If(wasm_encoder::BlockType::Empty),
-            I::Call(block),
-            I::Drop,
-            I::LocalGet(1),
-            I::Call(finish),
-            I::Drop,
-            I::End,
-        ]);
+        p.instructions(&[I::I32Const(12), I::Call(console), I::Drop]);
         p
     }
 

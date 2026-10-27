@@ -90,11 +90,11 @@ test("idle turns retain pollable I/O without creating a timer or background driv
     {
       providers: () => ({
         traits: {
-          "hd:Console": {
-            write: () =>
+          "hd:ConsoleInput": {
+            read_line: () =>
               pendingOperation(
                 () => ready,
-                () => Ok(undefined),
+                () => Ok(null),
                 () => {
                   cancelled++;
                 },
@@ -109,10 +109,10 @@ test("idle turns retain pollable I/O without creating a timer or background driv
       polls++;
       if (handle === undefined) {
         new Uint8Array(guest.exports["hd.x"].buffer)[0] = 65;
-        [, handle] = host.imports["hd:Console"]["write.start"](1);
+        [, handle] = host.imports["hd:ConsoleInput"]["read_line.start"]();
       }
       if (!woken) return -1;
-      host.imports["hd:Console"]["write.finish"](handle);
+      host.imports["hd:ConsoleInput"]["read_line.finish"](handle);
       return 0;
     },
     wake() {
@@ -171,11 +171,11 @@ test("close cancels pending work once and forbids subsequent turns", () => {
     {
       providers: () => ({
         traits: {
-          "hd:Console": {
-            write: () =>
+          "hd:ConsoleInput": {
+            read_line: () =>
               pendingOperation(
                 () => false,
-                () => Ok(undefined),
+                () => Ok(null),
                 () => {
                   cancelled++;
                 },
@@ -188,7 +188,7 @@ test("close cancels pending work once and forbids subsequent turns", () => {
   const guest = instance({
     poll() {
       new Uint8Array(guest.exports["hd.x"].buffer)[0] = 65;
-      host.imports["hd:Console"]["write.start"](1);
+      host.imports["hd:ConsoleInput"]["read_line.start"]();
       return -1;
     },
   });
@@ -295,8 +295,8 @@ test("a failed completion remains owned until close and cannot be retried", () =
     {
       providers: () => ({
         traits: {
-          "hd:Console": {
-            write: () =>
+          "hd:ConsoleInput": {
+            read_line: () =>
               pendingOperation(
                 () => true,
                 () => {
@@ -314,7 +314,7 @@ test("a failed completion remains owned until close and cannot be retried", () =
   const guest = instance({
     poll() {
       new Uint8Array(guest.exports["hd.x"].buffer)[0] = 65;
-      host.imports["hd:Console"]["write.start"](1);
+      host.imports["hd:ConsoleInput"]["read_line.start"]();
       return -1;
     },
   });
@@ -369,41 +369,5 @@ test(
     } finally {
       host.close();
     }
-  },
-);
-
-test(
-  "a compiled synchronous wait refuses genuinely pending output",
-  {
-    skip: !process.env.HD_DRIVER_GUEST,
-    timeout: 10000,
-  },
-  () => {
-    const module = new WebAssembly.Module(readFileSync(process.env.HD_DRIVER_GUEST));
-    let aborted = 0;
-    const host = createCoreHost(
-      {
-        out() {},
-        err() {},
-        write: () =>
-          pendingOperation(
-            () => false,
-            () => Ok(undefined),
-            () => {
-              aborted++;
-            },
-          ),
-      },
-      { module },
-    );
-    try {
-      const guest = new WebAssembly.Instance(module, host.imports);
-      const driver = host.createDriver(guest);
-      assert.throws(() => driver.step(), /synchronous host wait is pending/);
-      assert.throws(() => driver.step(), /driver has failed/);
-    } finally {
-      host.close();
-    }
-    assert.equal(aborted, 1);
   },
 );

@@ -177,7 +177,7 @@ pub fn needs(imports: &[(String, String)]) -> Vec<&'static str> {
 mod tests {
     use super::{module_exports, module_imports, needs, unknown_import};
 
-    /// A module that imports `hd:Console.write.start` (a function), a
+    /// A module that imports `hd:Console.write_sync` (a function), a
     /// memory and a global, by hand.
     #[test]
     fn reads_the_import_section() {
@@ -186,7 +186,7 @@ mod tests {
         m.extend([0, 3, 1, b'x', 9]);
         let mut body = vec![3];
         for (module, name, desc) in [
-            ("hd:Console", "write.start", &[0u8, 0][..]),
+            ("hd:Console", "write_sync", &[0u8, 0][..]),
             ("env", "mem", &[2, 1, 1, 2][..]),
             ("env", "g", &[3, 0x64, 0x6e, 0][..]),
         ] {

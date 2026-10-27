@@ -132,16 +132,16 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
     graph := build_graph()
     match plan(graph):
-        .Ok(order) => console.write!("order: ${order.join(", ")}\n")?
-        .Err(e) => console.write!("error: $e\n")?
+        .Ok(order) => console.write_sync("order: ${order.join(", ")}\n")?
+        .Err(e) => console.write_sync("error: $e\n")?
     cyclic := Graph { deps: { "a": ["b"], "b": ["c"], "c": ["a"], "d": [] } }
     match plan(cyclic):
-        .Ok(_) => console.write!("unexpected\n")?
-        .Err(e) => console.write!("error: $e\n")?
+        .Ok(_) => console.write_sync("unexpected\n")?
+        .Err(e) => console.write_sync("error: $e\n")?
     $.with(Runner=&mut LogRunner { log: [] }):
         match execute!(graph):
-            .Ok(done) => console.write!("waves: ${done.join(", ")}\n")?
-            .Err(e) => console.write!("error: $e\n")?
+            .Ok(done) => console.write_sync("waves: ${done.join(", ")}\n")?
+            .Err(e) => console.write_sync("error: $e\n")?
     .Ok(())
 
 tests:

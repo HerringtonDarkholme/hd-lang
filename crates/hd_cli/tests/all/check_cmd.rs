@@ -810,7 +810,7 @@ fn in_each_order(
 }
 
 /// `cli.file.check-test`, `module.init.script-body`,
-/// `module.console.println-script`: `hd check FILE` checks a script as
+/// `module.console.println`: `hd check FILE` checks a script as
 /// `hd FILE` runs it, so its top level may print, and neither command's
 /// cache entry changes the other's answer (#282).
 #[test]

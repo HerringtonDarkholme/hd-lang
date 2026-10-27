@@ -83,9 +83,6 @@ pub struct Host {
     /// Whether standard output and error are dropped: a replayed input's
     /// output was shown when it first ran.
     pub(crate) muted: bool,
-    /// Whether every Console write is pending at its start, written at the
-    /// next reactor poll: the `pending-write` fixture profile.
-    pub(crate) pending_writes: bool,
     /// The host calls made, not served from a replay's record, but for the
     /// `hd:prim` functions: what a session's tests count.
     pub(crate) calls: u64,
@@ -126,7 +123,6 @@ impl Host {
             journal: None,
             replay: None,
             muted: false,
-            pending_writes: false,
             calls: 0,
         }
     }
@@ -323,7 +319,7 @@ impl Host {
             self.out.clear();
         } else if !self.out.is_empty() {
             self.output
-                .write(Stream::Out, std::mem::take(&mut self.out), None);
+                .write(Stream::Out, std::mem::take(&mut self.out));
         }
     }
 
@@ -337,27 +333,17 @@ impl Host {
         if self.muted {
             return;
         }
-        self.output.write(Stream::Err, bytes.to_vec(), None);
+        self.output.write(Stream::Err, bytes.to_vec());
     }
 
-    /// A guest bang write, at its first poll: `None` when it completed,
-    /// because every byte went straight to the stream (or the output is
-    /// muted). Otherwise the handle of the pending write of what is left,
-    /// which completes once the writer has written it all. Aborting
-    /// discards bytes not yet written to the stream.
-    pub(crate) fn write_console(&mut self, to: Stream, line: Vec<u8>) -> Option<i32> {
+    /// A guest console write: after the held output, it goes straight to
+    /// the stream, or blocks until the writer thread has written it, so a
+    /// write never suspends (`module.console.write-sync.never-suspends`).
+    pub(crate) fn write_console(&mut self, to: Stream, line: Vec<u8>) {
         self.flush();
-        if self.muted {
-            return None;
+        if !self.muted {
+            self.output.write_blocking(to, line);
         }
-        let rest = if self.pending_writes {
-            line
-        } else {
-            self.output.write_now(to, line)?
-        };
-        let (handle, wait, done) = self.reactor.output();
-        self.output.write(to, rest, Some((wait, Box::new(done))));
-        Some(handle)
     }
 
     pub(crate) fn drain_output(&mut self) {
@@ -374,7 +360,7 @@ impl Host {
 
     /// Waits for the next completion; `false` when nothing is pending.
     ///
-    /// Held output reaches its stream first (`std-console.host.visible-text`),
+    /// Held output reaches its stream first (`std-console.host.visible-text-sync`),
     /// so every park of the host, here, shows what the program printed.
     pub fn wait(&mut self) -> wasmtime::Result<bool> {
         self.wait_bounded(None)
