@@ -270,11 +270,10 @@ impl<'s, 'p> Analysis<'s, 'p> {
             | S::BindingExpr
             | S::DefaultValue
             | S::TypeDefault
-            | S::AssociatedTypeBinding
-            | S::ContextEntry => {
+            | S::AssociatedTypeBinding => {
                 self.mark_assignment(node);
             }
-            S::NamedArgument => self.mark_named_argument(node),
+            S::NamedArgument | S::ContextEntry => self.mark_named_argument(node),
             S::BoundList | S::RequirementRow | S::ImplDecl => self.mark_type_spacing(node),
             S::VariantExpr | S::VariantPattern => self.mark_variant(node),
             S::Decorator => {
@@ -595,14 +594,22 @@ impl<'s, 'p> Analysis<'s, 'p> {
     fn mark_binary(&mut self, node: NodeRef<'_>) {
         let tokens = &self.parsed.tokens;
         let breakable = self.binary_breakable(node);
+        let first = node.first_token().idx();
         for operator in node
             .direct_tokens()
             .filter(|&token| binary_operator(tokens.kind(token)))
         {
             let range = matches!(tokens.kind(operator), T::DotDot | T::DotDotEq);
+            let prefix_range_needs_space = range
+                && operator.idx() == first
+                && operator.idx() > 0
+                && (assignment_operator(tokens.kind[operator.idx() - 1])
+                    || tokens.kind[operator.idx() - 1].is_keyword());
             self.set_gap(
                 operator.idx(),
-                if range {
+                if prefix_range_needs_space {
+                    Gap::Space
+                } else if range {
                     Gap::None
                 } else if breakable {
                     Gap::Soft(" ")
@@ -641,7 +648,9 @@ impl<'s, 'p> Analysis<'s, 'p> {
             outer = parent;
         }
         node.kind() == outer.kind()
-            && (outer.kind() == S::PipeExpr || self.needs_continuation_wrapper(outer))
+            && (outer.kind() == S::PipeExpr
+                || self.needs_continuation_wrapper(outer)
+                || self.in_bracket_or_brace(outer))
     }
 
     fn mark_assignment(&mut self, node: NodeRef<'_>) {
@@ -763,13 +772,29 @@ impl<'s, 'p> Analysis<'s, 'p> {
         let mut dots = Vec::new();
         self.collect_chain_dots(node, &mut dots);
         dots.sort_stable();
-        for &dot in dots.iter().skip(1) {
+        let first_call_end = Self::first_chain_call_end(node);
+        let first_break = dots.iter().copied().find(|&dot| {
+            first_call_end.map_or_else(|| dots.first() != Some(&dot), |end| dot > end)
+        });
+        for &dot in dots
+            .iter()
+            .filter(|&&dot| first_break.is_some_and(|first| dot >= first))
+        {
             self.set_gap(dot, Gap::Soft(""));
         }
-        if let Some(&first) = dots.get(1) {
+        if let Some(first) = first_break {
             self.indent_starts[first] += 1;
             self.chain_indents[node.index().idx()] = true;
         }
+    }
+
+    fn first_chain_call_end(node: NodeRef<'_>) -> Option<usize> {
+        for child in node.children().filter(|child| chain(child.kind())) {
+            if let Some(end) = Self::first_chain_call_end(child) {
+                return Some(end);
+            }
+        }
+        (node.kind() == S::CallExpr).then(|| node.last_token().idx())
     }
 
     fn collect_chain_dots(&self, node: NodeRef<'_>, dots: &mut Vec<usize>) {
@@ -901,6 +926,29 @@ impl<'s, 'p> Analysis<'s, 'p> {
         ) || self.is_suite_header(node)
     }
 
+    fn in_bracket_or_brace(&self, node: NodeRef<'_>) -> bool {
+        for ancestor in self.ancestors(node) {
+            if matches!(ancestor.kind(), S::Block | S::Root) {
+                return false;
+            }
+            if comma_group(ancestor.kind(), ancestor, &self.parsed.tokens)
+                && ancestor
+                    .direct_tokens()
+                    .any(|token| matches!(self.parsed.tokens.kind(token), T::LBracket | T::LBrace))
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn signature_parameters(&self, node: NodeRef<'_>) -> bool {
+        node.kind() == S::ParameterList
+            && self
+                .parent(node)
+                .is_some_and(|parent| parent.kind() == S::FnDecl)
+    }
+
     fn ancestors(&self, node: NodeRef<'_>) -> impl Iterator<Item = NodeRef<'_>> + '_ {
         let mut next = self.parent(node);
         std::iter::from_fn(move || {
@@ -966,13 +1014,14 @@ impl<'s, 'p> Builder<'s, 'p> {
             return;
         }
 
-        let regular_binary = binary(node.kind())
+        let outer_binary = binary(node.kind())
             && node.kind() != S::PipeExpr
             && !self
                 .analysis
                 .parent(node)
-                .is_some_and(|parent| binary(parent.kind()))
-            && self.analysis.needs_continuation_wrapper(node);
+                .is_some_and(|parent| binary(parent.kind()));
+        let regular_binary = outer_binary && self.analysis.needs_continuation_wrapper(node);
+        let delimited_binary = outer_binary && self.analysis.in_bracket_or_brace(node);
         let pipe = node.kind() == S::PipeExpr
             && !self
                 .analysis
@@ -982,7 +1031,9 @@ impl<'s, 'p> Builder<'s, 'p> {
         let wrapped_chain = chain_group && self.analysis.is_suite_header(node);
         let grouped = comma_group(node.kind(), node, &self.parsed.tokens)
             || matches!(node.kind(), S::IfExpr | S::ClosureExpr | S::MatchArm)
-            || chain_group;
+            || chain_group
+            || delimited_binary;
+        let signature_parameters = self.analysis.signature_parameters(node);
         let force_flat = self.analysis.node_flags[node.index().idx()] & FORCE_FLAT != 0;
 
         if force_flat {
@@ -1024,7 +1075,7 @@ impl<'s, 'p> Builder<'s, 'p> {
                 });
             }
             self.document.commands.push(C::EndGroup);
-        } else if pipe || grouped {
+        } else if (pipe || grouped) && !signature_parameters {
             self.document.commands.push(C::EndGroup);
         }
         if force_flat {
@@ -1041,7 +1092,22 @@ impl<'s, 'p> Builder<'s, 'p> {
             .peekable();
         let mut index = first;
         let mut emitted = false;
+        let signature_body = (node.kind() == S::FnDecl)
+            .then(|| {
+                node.children()
+                    .find(|child| child.kind() == S::Block)
+                    .map(|child| child.first_token().idx())
+            })
+            .flatten();
+        let mut signature_group_open = node.kind() == S::FnDecl
+            && node
+                .children()
+                .any(|child| self.analysis.signature_parameters(child));
         while index <= last {
+            if signature_group_open && signature_body == Some(index) {
+                self.document.commands.push(C::EndGroup);
+                signature_group_open = false;
+            }
             if emitted {
                 let added = index == last && self.analysis.added_group_commas[node.index().idx()];
                 let standalone = added && self.analysis.standalone_group_commas[node.index().idx()];
@@ -1053,10 +1119,12 @@ impl<'s, 'p> Builder<'s, 'p> {
                 }
                 if standalone {
                     self.emit_gap(index);
+                    self.document.commands.push(C::StartIndent);
                     self.document.commands.push(C::ModeText {
                         flat: "",
                         broken: ",",
                     });
+                    self.document.commands.push(C::EndIndent);
                     self.document.commands.push(C::SoftLine(""));
                 } else {
                     self.emit_gap(index);
@@ -1074,6 +1142,9 @@ impl<'s, 'p> Builder<'s, 'p> {
                 index += 1;
             }
             emitted = true;
+        }
+        if signature_group_open {
+            self.document.commands.push(C::EndGroup);
         }
     }
 
@@ -1213,7 +1284,8 @@ fn canonical_gap(tokens: &TokenBuf, boundary: usize) -> Gap {
         || space_around(next)
         || previous == T::Star && next == T::Star
         || previous.is_keyword()
-            && (next == T::LBracket || next == T::LParen && previous != T::KwFn)
+            && (next == T::LBracket && !matches!(previous, T::KwSelfValue | T::KwSelfType)
+                || next == T::LParen && previous != T::KwFn)
     {
         Gap::Space
     } else if no_space_after(previous, next) || no_space_before(next) {
@@ -1375,12 +1447,11 @@ fn no_space_after(previous: T, next: T) -> bool {
         previous,
         T::LParen | T::LBracket | T::LBrace | T::Dot | T::At | T::ColonColon | T::Ellipsis
     ) || previous == T::Dollar && next == T::Dot
-        || identifier(previous) && matches!(next, T::LParen | T::LBracket)
+        || matches!(
+            previous,
+            T::Ident | T::RawIdent | T::Placeholder | T::KwSelfValue | T::KwSelfType
+        ) && matches!(next, T::LParen | T::LBracket)
         || matches!(previous, T::Question | T::Bang) && next == T::LParen
-}
-
-fn identifier(kind: T) -> bool {
-    matches!(kind, T::Ident | T::RawIdent | T::Placeholder)
 }
 
 fn space_around(kind: T) -> bool {
@@ -1409,6 +1480,67 @@ mod tests {
         }
     }
 
+    fn oracle_removable_paren<'t>(
+        node: NodeRef<'t>,
+        analysis: &Analysis<'_, 't>,
+    ) -> Option<NodeRef<'t>> {
+        if node.kind() != S::ParenExpr {
+            return None;
+        }
+        let child = node.children().next()?;
+        if !matches!(
+            child.kind(),
+            S::RangeExpr
+                | S::LogicalOrExpr
+                | S::LogicalAndExpr
+                | S::ComparisonExpr
+                | S::PipeExpr
+                | S::BitwiseOrExpr
+                | S::BitwiseXorExpr
+                | S::BitwiseAndExpr
+                | S::ShiftExpr
+                | S::AdditiveExpr
+                | S::MultiplicativeExpr
+                | S::PowerExpr
+                | S::CallExpr
+                | S::IndexExpr
+                | S::FieldExpr
+                | S::TryExpr
+                | S::TypeArgsExpr
+        ) {
+            return None;
+        }
+        let parent = analysis.parent(node)?;
+        if !matches!(
+            parent.kind(),
+            S::BindingExpr
+                | S::LetStmt
+                | S::DiscardStmt
+                | S::AssignmentStmt
+                | S::ReturnStmt
+                | S::ExprStmt
+                | S::Argument
+                | S::NamedArgument
+                | S::IfExpr
+                | S::ElseIfClause
+                | S::ForExpr
+                | S::WhileExpr
+                | S::MatchExpr
+        ) {
+            return None;
+        }
+        let first = node.first_token().idx();
+        let last = node.last_token().idx();
+        let lo = analysis.parsed.tokens.end[first] as usize;
+        let hi = analysis.parsed.tokens.start[last] as usize;
+        let comments = &analysis.parsed.tokens.com_start;
+        let first_comment = comments.partition_point(|&start| (start as usize) < lo);
+        comments
+            .get(first_comment)
+            .is_none_or(|&start| start as usize >= hi)
+            .then_some(child)
+    }
+
     fn fingerprint_node(
         node: NodeRef<'_>,
         source: &str,
@@ -1416,7 +1548,7 @@ mod tests {
         analysis: &Analysis<'_, '_>,
         output: &mut String,
     ) {
-        if let Some(child) = analysis.removable_paren(node) {
+        if let Some(child) = oracle_removable_paren(node, analysis) {
             fingerprint_node(child, source, parsed, analysis, output);
             return;
         }
@@ -1453,7 +1585,7 @@ mod tests {
         analysis: &Analysis<'_, '_>,
         output: &mut Vec<String>,
     ) {
-        if let Some(child) = analysis.removable_paren(node) {
+        if let Some(child) = oracle_removable_paren(node, analysis) {
             normalized_snippets(child, source, parsed, analysis, output);
             return;
         }
@@ -1475,7 +1607,7 @@ mod tests {
         let mut index = node.index();
         loop {
             let node = analysis.parsed.tree.node(index);
-            if node.kind() != S::ParenExpr || analysis.removable_paren(node).is_none() {
+            if node.kind() != S::ParenExpr || oracle_removable_paren(node, analysis).is_none() {
                 path.push(node.kind());
             }
             let Some(parent) = analysis.parents[index.idx()].get() else {
@@ -1586,5 +1718,26 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         verify_corpus(&root.join("lib/std"));
         verify_corpus(&root.join("spec/conformance"));
+    }
+
+    #[test]
+    fn tree_oracle_keeps_call_target_parentheses() {
+        let source = "fn f(handler: Handler, event: Event):\n    (handler.callback)(event)\n";
+        let parsed = hd_syntax::parse(source.as_bytes());
+        assert!(parsed.is_ok(), "{:?}", parsed.diagnostics);
+        let analysis = Analysis::new(source, &parsed);
+        let call_target = parsed
+            .tree
+            .root()
+            .descendants()
+            .find(|node| node.kind() == S::ParenExpr)
+            .expect("call target parentheses");
+        assert!(oracle_removable_paren(call_target, &analysis).is_none());
+        let before = fingerprint(source, &parsed, &analysis);
+        let (formatted, _) = format(source, &parsed);
+        let reparsed = hd_syntax::parse(formatted.as_bytes());
+        let after = Analysis::new(&formatted, &reparsed);
+        assert_eq!(fingerprint(&formatted, &reparsed, &after), before);
+        assert!(formatted.contains("(handler.callback)(event)"));
     }
 }

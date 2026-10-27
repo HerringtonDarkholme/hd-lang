@@ -21,6 +21,18 @@ fn keyword_spacing_distinguishes_postfix_and_leading_variants() {
 }
 
 #[test]
+fn self_receivers_glue_to_index_brackets() {
+    let source = "impl Items:\n    fn first(self):\n        self[0]\n    fn first_type():\n        Self[0]\n";
+    assert_eq!(formatted(source), source);
+}
+
+#[test]
+fn prefix_ranges_keep_required_leading_space() {
+    let source = "fn f(value: i32):\n    value = ..5\n    for item in ..:\n        use(item)\n";
+    assert_eq!(formatted(source), source);
+}
+
+#[test]
 fn keyword_and_reference_operands_keep_lexical_space() {
     let source = "fn f(xs: List[i32], v: i32):\n    return [v]\nfn g():\n    for x in [1, 2]:\n        pass\n    match [1].cmp([2]):\n        _ => pass\n    edit := &mut [v]\n";
     assert_eq!(formatted(source), source);
@@ -140,6 +152,16 @@ fn binary_parentheses_are_added_only_in_whitelisted_slots() {
     let source = format!("fn f():\n    consume([{left} + {right}])\n");
     let output = formatted(&source);
     assert!(!output.contains("[\n        (\n"), "{output}");
+    assert!(
+        output.contains(&format!("{left}\n            + {right}")),
+        "{output}"
+    );
+    assert!(
+        output
+            .lines()
+            .all(|line| line.chars().count() <= MAX_COLUMNS),
+        "{output}"
+    );
 }
 
 #[test]
@@ -164,10 +186,30 @@ fn a_postfix_chain_keeps_the_first_complete_call_as_its_head() {
 }
 
 #[test]
+fn a_call_with_a_data_argument_keeps_the_complete_call_head() {
+    let field = "descriptive_field_name".repeat(5);
+    let source = format!(
+        "impl Builder:\n    fn f(&self):\n        self.frames.push(Frame {{ {field}: value, second: other }})\n"
+    );
+    let output = formatted(&source);
+    assert!(output.contains("self.frames.push(\n"), "{output}");
+    assert!(!output.contains("self.frames\n"), "{output}");
+    assert!(!output.contains("\n            .push("), "{output}");
+}
+
+#[test]
+fn long_signatures_break_parameters_before_result_types() {
+    let source = "fn transform(first_descriptive_parameter: First, second_descriptive_parameter: Second, third_descriptive_parameter: Third) -> Result[Output, Error]:\n    pass\n";
+    let output = formatted(source);
+    assert!(output.starts_with("fn transform(\n"), "{output}");
+    assert!(output.contains(") -> Result[Output, Error]:\n"), "{output}");
+}
+
+#[test]
 fn equal_and_brace_spacing_have_one_canonical_spelling() {
     let source = "fn f(c: &Clock, o: Item, store: Store[Item = string]):\n    assert(false, reason=\"x\")\n    $.with(Clock = c):\n        Point { x: 0 }\n    match o:\n        Point { x: value } => value\n";
     assert_eq!(
         formatted(source),
-        "fn f(c: &Clock, o: Item, store: Store[Item = string]):\n    assert(false, reason=\"x\")\n    $.with(Clock = c):\n        Point { x: 0 }\n    match o:\n        Point { x: value } => value\n"
+        "fn f(c: &Clock, o: Item, store: Store[Item = string]):\n    assert(false, reason=\"x\")\n    $.with(Clock=c):\n        Point { x: 0 }\n    match o:\n        Point { x: value } => value\n"
     );
 }

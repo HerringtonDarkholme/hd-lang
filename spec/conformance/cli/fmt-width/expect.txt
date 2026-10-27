@@ -63,6 +63,14 @@ run: hd fmt --check inputs/already-broken.input
 exit: 1
 run: hd fmt inputs/already-broken.input
 same-text: inputs/already-broken.input want/already-broken.hd
+run: hd fmt --check inputs/review.input
+exit: 1
+run: hd fmt inputs/review.input
+same-text: inputs/review.input want/review.hd
+run: hd fmt --check inputs/review.input
+stdout-json: []
+run: hd fmt inputs/review.input
+same-text: inputs/review.input want/review.hd
 run: hd fmt --check inputs/already-broken.input
 stdout-json: []
 run: hd fmt --check inputs/canonical.input

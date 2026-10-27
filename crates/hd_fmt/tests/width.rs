@@ -166,7 +166,7 @@ fn an_existing_multiline_closure_joins_and_its_separator_dedents() {
     );
     let formatted = narrow(&source);
     assert!(
-        formatted.contains("        fn(value): use_value(value)\n    ,\n    )"),
+        formatted.contains("        fn(value): use_value(value)\n        ,\n    )"),
         "{formatted}"
     );
 }
@@ -314,7 +314,7 @@ fn parenthesized_multiline_closures_keep_delimiter_lines() {
         "{formatted}"
     );
     assert!(
-        formatted.contains("halved - 5\n        )\n    ,\n    )"),
+        formatted.contains("halved - 5\n        )\n        ,\n    )"),
         "{formatted}"
     );
 }
@@ -326,7 +326,7 @@ fn broken_value_if_argument_dedents_before_its_comma() {
     let formatted = narrow(&source);
     assert!(
         formatted.contains(&format!(
-            "        if ready:\n            {FIRST} + {SECOND}\n        else:\n            {SECOND} + {THIRD}\n    ,\n    )"
+            "        if ready:\n            {FIRST} + {SECOND}\n        else:\n            {SECOND} + {THIRD}\n        ,\n    )"
         )),
         "{formatted}"
     );
