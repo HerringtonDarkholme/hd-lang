@@ -1,0 +1,11 @@
+# @dump: counts
+# @build: v8 release
+# A count on a constant address changes nothing at run time: a literal is
+# static data, which has no count (#910). The emitter drops such a count,
+# so only the parameter's second copy is retained.
+fn literal_twice() -> (string, string):
+    s := "left"
+    (s, s)
+
+fn name_twice(name: string) -> (string, string):
+    (name, name)

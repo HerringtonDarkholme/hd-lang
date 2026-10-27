@@ -1917,6 +1917,16 @@ physical or erased references without a block-start proof.
   Field projection cannot originate a view without a parent view. A
   module that can construct erased representation views keeps the full
   discriminator; the #619 erased-reference fixtures audit that path.
+- **Counts on constants** (issue #910, `opt::static_counts`). A count
+  whose every operand is a constant goes at link, in every pipeline. A
+  constant address is null or static data, which no runtime counts:
+  `retain` returns below `heap`, and the known path skips a count of 0.
+  An operand is constant when a constant push makes it, through tees, or
+  when it is read from a local that only such values are written to. A
+  local proven only from itself, such as a loop counter, does not
+  qualify. A string literal or a capture-free closure then takes no
+  count. On json this removes 17 calls and 334 bytes, among them
+  `Record.structure handle`'s retain of its static record.
 - **Inline fast paths** (issue #644, `opt::inline_counts`), for the
   wasmtime target only: its pipelines carry the link pass
   `inline_counts` (`crates/hd_opt/DESIGN.md` §3.1), which sets

@@ -1466,11 +1466,12 @@ impl Module {
         }
         for f in self.funcs.iter_mut().flatten() {
             crate::opt::locals(f, &arity);
-            if self
-                .runtime
-                .is_some_and(|r| crate::opt::count_pairs(f, r.retain))
-            {
-                crate::opt::locals(f, &arity);
+            if let Some(r) = self.runtime {
+                // Not short-circuited: both rules run.
+                let constant = crate::opt::static_counts(f, r.retain, &arity);
+                if crate::opt::count_pairs(f, r.retain) | constant {
+                    crate::opt::locals(f, &arity);
+                }
             }
         }
         // Checked mode keeps every count a call, so its runtime audits them.

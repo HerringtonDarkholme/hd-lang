@@ -14,6 +14,4 @@ app/main/main
   release string
   release string
   release string
-  retain string
-  retain string
   release string

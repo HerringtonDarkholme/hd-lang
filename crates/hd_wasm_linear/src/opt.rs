@@ -55,7 +55,10 @@
 //!     with it, a load or another operation that cannot trap becomes the
 //!     drop of its operands, and `local.tee t; drop` is `local.set t`. A
 //!     load cannot trap here: emitted code loads only from a place it
-//!     holds or an index it checked.
+//!     holds or an index it checked;
+//! 17. a count whose every operand is a constant, pushed directly or
+//!     held in a local that only constants are written to, goes
+//!     ([`static_counts`]): a constant address is null or static data.
 //!
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
@@ -2117,6 +2120,133 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
     true
 }
 
+/// Rule 17: removes a count whose every operand is a constant (#910). A
+/// constant address is null or static data, which has no count: neither
+/// the page-table path (`address < heap`) nor the known path (a count of
+/// 0) changes it, in any runtime. An operand is a constant when it comes
+/// from a constant push, possibly through tees, or from a local whose
+/// every write stores such a value: such a local holds only constants
+/// and its initial 0. A local proven from itself never qualifies, so a
+/// loop counter stays unproven. The call becomes a `drop` of each
+/// operand, which the local rules take back. Gives whether anything
+/// changed.
+pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity) -> bool {
+    // Bounds each backward search, so the rule stays linear in the body.
+    const REACH: usize = 128;
+    let width = |ins: &Ins| -> Option<usize> {
+        let Ins::Call(id) = ins else {
+            return None;
+        };
+        let counts = match &*f.symbols.get(*id) {
+            Sym::Inst(k) => *k == retain,
+            Sym::Helper(
+                Helper::ReleaseRef
+                | Helper::RetainKnown
+                | Helper::ReleaseKnown
+                | Helper::Retain { .. }
+                | Helper::Release { .. },
+            ) => true,
+            _ => false,
+        };
+        match (*arity.get(id.idx())?)? {
+            (n, 0) if counts => Some(n),
+            _ => None,
+        }
+    };
+    if !f.body.iter().any(|i| width(i).is_some()) {
+        return false;
+    }
+    let symbols = &f.symbols;
+    // The instruction that pushed the value `depth` places below the top
+    // of the stack before `at`, looking through tees, in the same
+    // straight-line run.
+    let producer = |b: &[Ins], at: usize, depth: usize| -> Option<usize> {
+        let mut above = depth;
+        for j in (at.saturating_sub(REACH)..at).rev() {
+            let (pops, pushes) = effect(&b[j], arity, symbols)?;
+            if above >= pushes {
+                above = above - pushes + pops;
+            } else if matches!(b[j], Ins::Op(I::LocalTee(_))) {
+                above = 0;
+            } else {
+                return (pushes == 1).then_some(j);
+            }
+        }
+        None
+    };
+    let np = f.params.len();
+    let mut fixed = vec![false; np + f.locals.len()];
+    let constant = |ins: &Ins, fixed: &[bool]| match ins {
+        Ins::Op(I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_))
+        | Ins::Static(_)
+        | Ins::TableSlot(_)
+        | Ins::VTable(_) => true,
+        Ins::Op(I::LocalGet(l)) => fixed[*l as usize],
+        _ => false,
+    };
+    // Each write's local and the instruction its value comes from.
+    let mut writes: Vec<(usize, Option<usize>)> = Vec::new();
+    let mut restored = false;
+    for (k, ins) in f.body.iter().enumerate() {
+        match ins {
+            Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => {
+                writes.push((*l as usize, producer(&f.body, k, 0)));
+            }
+            Ins::LoadAll => restored = true,
+            _ => {}
+        }
+    }
+    // The least fixed point: a local qualifies once every write stores a
+    // value already proven constant.
+    let mut grew = !restored;
+    while grew {
+        let mut open = vec![true; fixed.len()];
+        for &(l, from) in &writes {
+            if !from.is_some_and(|p| constant(&f.body[p], &fixed)) {
+                open[l] = false;
+            }
+        }
+        grew = false;
+        for l in np..fixed.len() {
+            if open[l] && !fixed[l] {
+                fixed[l] = true;
+                grew = true;
+            }
+        }
+    }
+    let gone: Vec<(usize, usize)> = f
+        .body
+        .iter()
+        .enumerate()
+        .filter_map(|(k, ins)| {
+            let n = width(ins)?;
+            (0..n)
+                .all(|d| producer(&f.body, k, d).is_some_and(|p| constant(&f.body[p], &fixed)))
+                .then_some((k, n))
+        })
+        .collect();
+    if gone.is_empty() {
+        return false;
+    }
+    let mut origins = Remap::new(f.origins.as_deref());
+    let body = std::mem::take(&mut f.body);
+    let mut next = gone.iter().peekable();
+    for (k, ins) in body.into_iter().enumerate() {
+        if let Some(&&(at, n)) = next.peek()
+            && at == k
+        {
+            next.next();
+            f.body.extend(std::iter::repeat_n(Ins::Op(I::Drop), n));
+            origins.merged(k..k + 1, n);
+        } else {
+            f.body.push(ins);
+            origins.copy(k..k + 1);
+        }
+    }
+    origins.finish(f);
+    true
+}
+
 /// Folds code that a constant decides (#655): an `if` whose condition is
 /// an `i32` constant becomes the arm that runs (or goes, with no `else`
 /// and no result), and an `i32` local whose every write stores 0 is read
@@ -2726,6 +2856,63 @@ mod origin_tests {
         );
         assert!(matches!(f.body[1], Ins::Op(I::LocalSet(1))));
         assert_eq!(spans(&f), [12, 13, 15]);
+    }
+
+    #[test]
+    fn static_counts_go_only_on_constant_operands() {
+        let symbols = Symbols::default();
+        let retain = Hash128(7);
+        let counts = [
+            call(&symbols, Sym::Inst(retain)),
+            call(&symbols, Sym::Helper(Helper::RetainKnown)),
+            call(&symbols, Sym::Helper(Helper::ReleaseRef)),
+        ];
+        let mut arity = vec![None; symbols.len()];
+        for c in &counts {
+            let Ins::Call(id) = c else { unreachable!() };
+            arity[id.idx()] = Some((1, 0));
+        }
+        let op = Ins::Op;
+        // Local 1 holds only constants, through a tee and a copy; local 2
+        // only ever adds to itself; local 0 is a parameter.
+        let f = run(
+            tracked(
+                &symbols,
+                1,
+                2,
+                vec![
+                    op(I::I32Const(56)),
+                    op(I::LocalTee(1)),
+                    counts[0],
+                    op(I::I32Const(72)),
+                    op(I::LocalSet(1)),
+                    op(I::LocalGet(1)),
+                    counts[1],
+                    op(I::LocalGet(2)),
+                    op(I::I32Const(8)),
+                    op(I::I32Add),
+                    op(I::LocalTee(2)),
+                    counts[2],
+                    op(I::LocalGet(0)),
+                    counts[0],
+                ],
+            ),
+            |f| {
+                assert!(static_counts(f, retain, &arity));
+            },
+        );
+        let left: Vec<String> = f
+            .body
+            .iter()
+            .filter(|i| matches!(i, Ins::Call(_)))
+            .map(|i| format!("{i:?}"))
+            .collect();
+        assert_eq!(
+            left,
+            [format!("{:?}", counts[2]), format!("{:?}", counts[0])]
+        );
+        assert!(matches!(f.body[2], Ins::Op(I::Drop)));
+        assert_eq!(spans(&f)[2], 12);
     }
 
     #[test]
