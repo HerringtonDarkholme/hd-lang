@@ -1725,7 +1725,12 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   only frees them (a sweep). A sweep walks the buffer once, so waiting
   for as many dead candidates as live ones makes each cost a bounded
   share, and the blocks waiting for it number no more than the live
-  candidates, or 64.
+  candidates, or 64. An allocation of a known size class asks `due` only
+  on its slow path, when its class's head page is full or missing: a
+  collection only becomes due as candidates keep blocks that nothing
+  frees, so their class's pages fill and the next page waits for it.
+  That delays a due collection by at most a page of each class, and the
+  heap never grows by a page while one is due.
 - **Memory.** The buffer grows with the live candidates and the dead
   ones a sweep waits for, at most as many again. The
   buffer, the work list and the lists of white and released objects are

@@ -113,8 +113,9 @@ pub fn pending() -> usize:
 ## Whether a collection is due: the live candidates passed the threshold, or enough candidates have no count left that freeing them is due.
 pub fn due() -> bool:
     # Fewer candidates than SWEEP make neither due, as the threshold is never
-    # below FIRST. Emitted code tests this before each allocation, so it
-    # stays one compare, and `collection_due` has the rest.
+    # below FIRST. Emitted code tests this before an allocation (one of a
+    # known class only on its slow path), so it stays one compare, and
+    # `collection_due` has the rest.
     candidates >= SWEEP && collection_due()
 
 # `due` with SWEEP candidates or more. `sweep_only` is false before it, as

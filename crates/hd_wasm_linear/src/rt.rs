@@ -2448,10 +2448,28 @@ fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
     f.get(slot);
     f.op(Instruction::Return);
     f.op(Instruction::End);
+    // The slow path: only here does a known class's allocation ask whether
+    // a collection is due. A collection becomes due only as candidates
+    // gain blocks that nothing frees, so their class's pages fill and reach
+    // this path within a page of allocations (§23.28).
+    collect_if_due(&mut f, m);
     f.u32(bytes);
     f.u32(class);
     f.call(Sym::Inst(r.small.alloc));
     f
+}
+
+/// Runs a collection when the collector says one is due.
+fn collect_if_due(f: &mut Func, m: &Module) {
+    let Some(r) = m.runtime.filter(|_| !m.acyclic) else {
+        return;
+    };
+    f.call(Sym::Inst(r.cycle.due));
+    f.op(Instruction::If(BlockType::Empty));
+    // A cold call (§23.17): through the table, V8 does not inline the
+    // collection into each allocation and spend its budget there.
+    f.cold_helper(Helper::Collect, vec![], vec![]);
+    f.op(Instruction::End);
 }
 
 /// A live block of a known class goes on its class's freed list, which
@@ -2521,8 +2539,8 @@ fn free_object(f: &mut Func, m: &Module, block: u32) {
 /// [`Helper::New`]: a block of the header and the payload from std's
 /// `alloc`, or from the bump pointer when the program counts nothing.
 ///
-/// With the runtime, a collection runs first when the collector's buffer
-/// is full, and an object whose descriptor has [`CYCLIC`] takes part in
+/// With the runtime, a collection runs first when one is due (at a known
+/// class, only on the class's slow path), and an object whose descriptor has [`CYCLIC`] takes part in
 /// collections: its block has room for the collector word at its end,
 /// which std's `track` zeroes, or this function at a known class (§23.28).
 fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
@@ -2544,13 +2562,9 @@ fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
     let mut f = m.func(name, vec![Val::I32, Val::I32], vec![Val::I32]);
     let block = f.local(Val::I32);
     let cycles = m.runtime.filter(|_| !m.acyclic);
-    if let Some(r) = cycles {
-        f.call(Sym::Inst(r.cycle.due));
-        f.op(Instruction::If(BlockType::Empty));
-        // A cold call (§23.17): through the table, V8 does not inline the
-        // collection into each allocation and spend its budget there.
-        f.cold_helper(Helper::Collect, vec![], vec![]);
-        f.op(Instruction::End);
+    // A known class asks on its slow path only ([`alloc_class`]).
+    if small.is_none() {
+        collect_if_due(&mut f, m);
     }
     match (m.runtime, small) {
         // The class's block holds the header, the payload and any
