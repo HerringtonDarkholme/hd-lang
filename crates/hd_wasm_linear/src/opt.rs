@@ -56,9 +56,11 @@
 //!     drop of its operands, and `local.tee t; drop` is `local.set t`. A
 //!     load cannot trap here: emitted code loads only from a place it
 //!     holds or an index it checked;
-//! 17. a count whose every operand is a constant, pushed directly or
-//!     held in a local that only constants are written to, goes
-//!     ([`static_counts`]): a constant address is null or static data;
+//! 17. a count whose every operand is a constant, pushed directly, held
+//!     in a local that only constants are written to, or received by a
+//!     closed-world function at only constant call sites, goes
+//!     ([`static_values`], [`static_counts`]): a constant address is null
+//!     or static data;
 //! 18. `local.set r_k; ...; local.set r_1; br L`, where `L` is a block
 //!     whose `end` only `local.get r_1; ...; local.get r_k` follows to the
 //!     function's end, is `return`: the values the exit would read back
@@ -152,6 +154,122 @@ type Edit = (Vec<usize>, Option<(usize, Ins)>);
 
 /// The parameter and result counts of each function a call can name.
 pub type Arity = Vec<Option<(usize, usize)>>;
+
+/// Closed-world parameters proved to receive only constants at every direct
+/// call, and results proved constant under those parameter facts. A function
+/// exported, put in the table or called nowhere has no parameter facts: an
+/// unknown caller may supply any value. The least fixed point deliberately
+/// leaves recursive-only evidence unproved.
+pub fn static_values(
+    funcs: &[Option<Func>],
+    exported: impl IntoIterator<Item = SymId>,
+    arity: &Arity,
+) -> Vec<Vec<bool>> {
+    let mut unknown = vec![false; funcs.len()];
+    for id in exported {
+        unknown[id.idx()] = true;
+    }
+    for f in funcs.iter().flatten() {
+        for ins in &f.body {
+            if let Ins::TableSlot(id) = ins {
+                unknown[id.idx()] = true;
+            }
+        }
+    }
+    let mut params: Vec<Vec<bool>> = funcs
+        .iter()
+        .map(|f| {
+            f.as_ref()
+                .map_or_else(Vec::new, |f| vec![false; f.params.len()])
+        })
+        .collect();
+    let mut results: Vec<Vec<bool>> = funcs
+        .iter()
+        .map(|f| {
+            f.as_ref()
+                .map_or_else(Vec::new, |f| vec![false; f.results.len()])
+        })
+        .collect();
+    loop {
+        let mut next_params = params.clone();
+        let mut called = vec![false; funcs.len()];
+        let mut possible: Vec<Vec<bool>> = funcs
+            .iter()
+            .map(|f| {
+                f.as_ref()
+                    .map_or_else(Vec::new, |f| vec![true; f.params.len()])
+            })
+            .collect();
+        for (caller_id, caller) in funcs
+            .iter()
+            .enumerate()
+            .filter_map(|(id, f)| Some((id, f.as_ref()?)))
+        {
+            let fixed = fixed_locals(caller, &params[caller_id], &results, arity);
+            for (at, ins) in caller.body.iter().enumerate() {
+                let Ins::Call(id) = ins else { continue };
+                let Some((n, _)) = arity.get(id.idx()).copied().flatten() else {
+                    continue;
+                };
+                called[id.idx()] = true;
+                for (k, possible) in possible[id.idx()].iter_mut().enumerate().take(n) {
+                    let depth = n - 1 - k;
+                    let is_static = producer(&caller.body, at, depth, arity, &caller.symbols)
+                        .is_some_and(|(p, result)| {
+                            constant_at(&caller.body[p], result, &fixed, &results)
+                        });
+                    *possible &= is_static;
+                }
+            }
+        }
+        for id in 0..funcs.len() {
+            if unknown[id] || !called[id] {
+                continue;
+            }
+            for k in 0..next_params[id].len() {
+                next_params[id][k] |= possible[id][k];
+            }
+        }
+        let mut next_results = results.clone();
+        for (id, f) in funcs.iter().enumerate() {
+            let Some(f) = f else { continue };
+            // The producer at the function body's end describes only its
+            // fallthrough path. A branch, loop, `if` or early return may
+            // answer a different value; leave those results unknown until
+            // this analysis carries facts over every control-flow edge.
+            if f.body.iter().any(|ins| {
+                matches!(
+                    ins,
+                    Ins::Op(
+                        I::Loop(_)
+                            | I::If(_)
+                            | I::Else
+                            | I::Br(_)
+                            | I::BrIf(_)
+                            | I::BrTable(..)
+                            | I::Return
+                            | I::Unreachable
+                    ) | Ins::SaveAll
+                        | Ins::LoadAll
+                )
+            }) {
+                continue;
+            }
+            let fixed = fixed_locals(f, &next_params[id], &results, arity);
+            for (k, result_static) in next_results[id].iter_mut().enumerate() {
+                let depth = f.results.len() - 1 - k;
+                let is_static = producer(&f.body, f.body.len(), depth, arity, &f.symbols)
+                    .is_some_and(|(p, result)| constant_at(&f.body[p], result, &fixed, &results));
+                *result_static |= is_static;
+            }
+        }
+        if next_params == params && next_results == results {
+            return params;
+        }
+        params = next_params;
+        results = next_results;
+    }
+}
 
 /// Cleans up `f`'s locals by the rules of the module documentation.
 pub fn locals(f: &mut Func, arity: &Arity) {
@@ -2317,9 +2435,7 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
 /// loop counter stays unproven. The call becomes a `drop` of each
 /// operand, which the local rules take back. Gives whether anything
 /// changed.
-pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity) -> bool {
-    // Bounds each backward search, so the rule stays linear in the body.
-    const REACH: usize = 128;
+pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params: &[bool]) -> bool {
     let width = |ins: &Ins| -> Option<usize> {
         let Ins::Call(id) = ins else {
             return None;
@@ -2343,64 +2459,7 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity) -> bool {
     if !f.body.iter().any(|i| width(i).is_some()) {
         return false;
     }
-    let symbols = &f.symbols;
-    // The instruction that pushed the value `depth` places below the top
-    // of the stack before `at`, looking through tees, in the same
-    // straight-line run.
-    let producer = |b: &[Ins], at: usize, depth: usize| -> Option<usize> {
-        let mut above = depth;
-        for j in (at.saturating_sub(REACH)..at).rev() {
-            let (pops, pushes) = effect(&b[j], arity, symbols)?;
-            if above >= pushes {
-                above = above - pushes + pops;
-            } else if matches!(b[j], Ins::Op(I::LocalTee(_))) {
-                above = 0;
-            } else {
-                return (pushes == 1).then_some(j);
-            }
-        }
-        None
-    };
-    let np = f.params.len();
-    let mut fixed = vec![false; np + f.locals.len()];
-    let constant = |ins: &Ins, fixed: &[bool]| match ins {
-        Ins::Op(I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_))
-        | Ins::Static(_)
-        | Ins::TableSlot(_)
-        | Ins::VTable(_) => true,
-        Ins::Op(I::LocalGet(l)) => fixed[*l as usize],
-        _ => false,
-    };
-    // Each write's local and the instruction its value comes from.
-    let mut writes: Vec<(usize, Option<usize>)> = Vec::new();
-    let mut restored = false;
-    for (k, ins) in f.body.iter().enumerate() {
-        match ins {
-            Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => {
-                writes.push((*l as usize, producer(&f.body, k, 0)));
-            }
-            Ins::LoadAll => restored = true,
-            _ => {}
-        }
-    }
-    // The least fixed point: a local qualifies once every write stores a
-    // value already proven constant.
-    let mut grew = !restored;
-    while grew {
-        let mut open = vec![true; fixed.len()];
-        for &(l, from) in &writes {
-            if !from.is_some_and(|p| constant(&f.body[p], &fixed)) {
-                open[l] = false;
-            }
-        }
-        grew = false;
-        for l in np..fixed.len() {
-            if open[l] && !fixed[l] {
-                fixed[l] = true;
-                grew = true;
-            }
-        }
-    }
+    let fixed = fixed_locals(f, static_params, &[], arity);
     let gone: Vec<(usize, usize)> = f
         .body
         .iter()
@@ -2408,7 +2467,10 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity) -> bool {
         .filter_map(|(k, ins)| {
             let n = width(ins)?;
             (0..n)
-                .all(|d| producer(&f.body, k, d).is_some_and(|p| constant(&f.body[p], &fixed)))
+                .all(|d| {
+                    producer(&f.body, k, d, arity, &f.symbols)
+                        .is_some_and(|(p, result)| constant_at(&f.body[p], result, &fixed, &[]))
+                })
                 .then_some((k, n))
         })
         .collect();
@@ -2432,6 +2494,91 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity) -> bool {
     }
     origins.finish(f);
     true
+}
+
+/// The instruction and its result index that produced the value `depth`
+/// places below the stack top before `at`, within one straight-line run.
+fn producer(
+    body: &[Ins],
+    at: usize,
+    depth: usize,
+    arity: &Arity,
+    symbols: &Symbols,
+) -> Option<(usize, usize)> {
+    const REACH: usize = 128;
+    let mut above = depth;
+    for j in (at.saturating_sub(REACH)..at).rev() {
+        let (pops, pushes) = effect(&body[j], arity, symbols)?;
+        if above >= pushes {
+            above = above - pushes + pops;
+        } else if matches!(body[j], Ins::Op(I::LocalTee(_))) {
+            if above != 0 {
+                return None;
+            }
+            above = 0;
+        } else {
+            return Some((j, pushes - 1 - above));
+        }
+    }
+    None
+}
+
+fn constant_at(ins: &Ins, result: usize, fixed: &[bool], results: &[Vec<bool>]) -> bool {
+    match ins {
+        Ins::Op(I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_))
+        | Ins::Static(_)
+        | Ins::TableSlot(_)
+        | Ins::VTable(_) => result == 0,
+        Ins::Op(I::LocalGet(l)) => result == 0 && fixed[*l as usize],
+        Ins::Call(id) => results
+            .get(id.idx())
+            .and_then(|r| r.get(result))
+            .copied()
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
+fn fixed_locals(f: &Func, params: &[bool], results: &[Vec<bool>], arity: &Arity) -> Vec<bool> {
+    let np = f.params.len();
+    let mut fixed = vec![false; np + f.locals.len()];
+    fixed[..np].copy_from_slice(&params[..np]);
+    let mut writes: Vec<(usize, Option<(usize, usize)>)> = Vec::new();
+    let mut restored = false;
+    for (k, ins) in f.body.iter().enumerate() {
+        match ins {
+            Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => {
+                writes.push((*l as usize, producer(&f.body, k, 0, arity, &f.symbols)));
+            }
+            Ins::LoadAll => restored = true,
+            _ => {}
+        }
+    }
+    if restored {
+        return vec![false; fixed.len()];
+    }
+    let mut grew = true;
+    while grew {
+        let mut open = vec![true; fixed.len()];
+        for &(l, from) in &writes {
+            if !from.is_some_and(|(p, result)| constant_at(&f.body[p], result, &fixed, results)) {
+                open[l] = false;
+            }
+        }
+        for l in 0..np {
+            if !open[l] {
+                fixed[l] = false;
+            }
+        }
+        grew = false;
+        for l in np..fixed.len() {
+            if open[l] && !fixed[l] {
+                fixed[l] = true;
+                grew = true;
+            }
+        }
+    }
+    fixed
 }
 
 /// Folds code that a constant decides (#655): an `if` whose condition is
@@ -3085,7 +3232,7 @@ mod origin_tests {
                 ],
             ),
             |f| {
-                assert!(static_counts(f, retain, &arity));
+                assert!(static_counts(f, retain, &arity, &[false]));
             },
         );
         let left: Vec<String> = f
@@ -3100,6 +3247,88 @@ mod origin_tests {
         );
         assert!(matches!(f.body[2], Ins::Op(I::Drop)));
         assert_eq!(spans(&f)[2], 12);
+    }
+
+    #[test]
+    fn static_values_require_every_closed_world_call_to_be_constant() {
+        let symbols = Symbols::default();
+        let callee = symbols.intern(Sym::Inst(Hash128(7)));
+        let source = symbols.intern(Sym::Inst(Hash128(8)));
+        let branched = symbols.intern(Sym::Inst(Hash128(9)));
+        let arity = vec![Some((1, 0)), Some((0, 1)), Some((0, 1))];
+        let target = tracked(&symbols, 1, 0, vec![]);
+        let constant_caller = tracked(
+            &symbols,
+            0,
+            0,
+            vec![Ins::Op(I::I32Const(1)), Ins::Call(callee)],
+        );
+        let facts = static_values(
+            &[Some(target.clone()), Some(constant_caller.clone())],
+            [],
+            &arity,
+        );
+        assert_eq!(facts[0], [true]);
+
+        let mut constant_source =
+            crate::module::Module::default().func("constant source", vec![], vec![Val::I32]);
+        constant_source.symbols = symbols.clone();
+        constant_source.body = vec![Ins::Op(I::I32Const(2))];
+        let result_caller = tracked(&symbols, 0, 0, vec![Ins::Call(source), Ins::Call(callee)]);
+        let facts = static_values(
+            &[
+                Some(target.clone()),
+                Some(constant_source),
+                Some(result_caller),
+            ],
+            [],
+            &arity,
+        );
+        assert_eq!(facts[0], [true]);
+
+        let mut branched_source =
+            crate::module::Module::default().func("branched source", vec![], vec![Val::I32]);
+        branched_source.symbols = symbols.clone();
+        branched_source.body = vec![
+            Ins::Op(I::I32Const(0)),
+            Ins::Op(I::If(BlockType::Empty)),
+            Ins::Op(I::I32Const(2)),
+            Ins::Op(I::Return),
+            Ins::Op(I::End),
+            Ins::Op(I::I32Const(1)),
+        ];
+        let branched_caller = tracked(&symbols, 0, 0, vec![Ins::Call(branched), Ins::Call(callee)]);
+        let facts = static_values(
+            &[
+                Some(target.clone()),
+                None,
+                Some(branched_source),
+                Some(branched_caller),
+            ],
+            [],
+            &arity,
+        );
+        assert_eq!(facts[0], [false]);
+
+        let unknown_caller = tracked(
+            &symbols,
+            1,
+            0,
+            vec![Ins::Op(I::LocalGet(0)), Ins::Call(callee)],
+        );
+        let facts = static_values(
+            &[
+                Some(target.clone()),
+                Some(constant_caller),
+                Some(unknown_caller),
+            ],
+            [],
+            &arity,
+        );
+        assert_eq!(facts[0], [false]);
+
+        let facts = static_values(&[Some(target)], [callee], &arity);
+        assert_eq!(facts[0], [false]);
     }
 
     #[test]

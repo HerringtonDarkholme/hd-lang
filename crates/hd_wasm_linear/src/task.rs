@@ -1299,15 +1299,17 @@ fn init_host_leaf(f: &mut Func, m: &Module, fr: u32, leaf: &HostLeaf<'_>, blocki
         f.get(u32::try_from(k + 1).expect("params"));
         f.op(l.store(LEAF_ARGS));
     }
-    // The frame's count of each counted argument; a collection becomes
-    // its copy.
-    if !area.colls.is_empty() {
+    // An owned leaf keeps its arguments past its caller. A blocking leaf
+    // lives in caller-local shadow storage only until the synchronous
+    // drive returns, while the caller still owns every argument, so its
+    // fields are borrowed and need neither counts nor drop glue.
+    if !blocking && !area.colls.is_empty() {
         f.get(fr);
         f.u32(LEAF_ARGS);
         f.op(Instruction::I32Add);
         f.i32(1);
         f.helper(Helper::CopyElems { elem: area.clone() });
-    } else if let Some(w) = &area.walk {
+    } else if !blocking && let Some(w) = &area.walk {
         crate::rt::walk_code(f, w, &|f, k| f.get(k + 1), &|f, _| {
             f.call(Sym::Helper(Helper::RetainAny));
         });
@@ -1452,9 +1454,9 @@ fn host_result(f: &mut Func, res: &HostRes, n: u32) {
 /// finished at once answers frame 0 and its results, with no frame made.
 /// An async Pending call gets the owned leaf that [`Helper::HostCold`] makes.
 /// A blocking slot receives caller-local storage as its final parameter;
-/// Pending initializes the same prefix and retained arguments there instead.
+/// Pending initializes the same prefix with borrowed arguments there instead.
 /// Both register the handle with the current waker. The blocking caller
-/// drops the retained fields explicitly when its drive ends.
+/// keeps those arguments live until its drive ends.
 fn host_drive(
     m: &Module,
     blocking: bool,
@@ -1513,11 +1515,7 @@ fn host_drive(
         );
         flags_or(&mut f, fr, HOST_BORROWED);
         f.get(fr);
-        if let Some(drop) = leaf_drop(area) {
-            f.table_slot(drop);
-        } else {
-            f.i32(-1);
-        }
+        f.i32(-1);
         f.op(Instruction::I32Store(mem(HEAP, BORROWED_DROP, 2)));
     } else {
         for k in 0..nparams {
@@ -3362,15 +3360,26 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
             });
             assert_eq!(heap, !blocking);
             assert_eq!(f.params.len(), if blocking { 4 } else { 3 });
-            assert_eq!(
-                f.body
-                    .iter()
-                    .filter(|ins| matches!(ins,
-                Ins::Op(super::Instruction::I32Store(arg))
-                    if arg.memory_index == HEAP && arg.offset == super::BORROWED_DROP))
-                    .count(),
-                usize::from(blocking)
-            );
+            let drop_stores: Vec<_> = f
+                .body
+                .windows(2)
+                .filter(|pair| {
+                    matches!(pair[1],
+                    Ins::Op(super::Instruction::I32Store(arg))
+                        if arg.memory_index == HEAP && arg.offset == super::BORROWED_DROP)
+                })
+                .collect();
+            assert_eq!(drop_stores.len(), usize::from(blocking));
+            if blocking {
+                assert!(matches!(
+                    drop_stores[0][0],
+                    Ins::Op(super::Instruction::I32Const(-1))
+                ));
+                assert!(!f.body.iter().any(|ins| matches!(ins,
+                    Ins::Call(id) if matches!(&*f.symbols.get(*id), crate::module::Sym::Helper(
+                        crate::rt::Helper::RetainAny | crate::rt::Helper::CopyElems { .. }))
+                )));
+            }
         }
         let cold = super::host_cold(
             &m,

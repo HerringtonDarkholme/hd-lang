@@ -1466,9 +1466,26 @@ impl Module {
         }
         for f in self.funcs.iter_mut().flatten() {
             crate::opt::locals(f, &arity);
+        }
+        let static_params = crate::opt::static_values(
+            &self.funcs,
+            self.exports.iter().map(|(_, id)| *id).chain(
+                self.vtables
+                    .iter()
+                    .flat_map(|(slots, _, drives)| slots.iter().chain(drives))
+                    .copied(),
+            ),
+            &arity,
+        );
+        for (id, f) in self
+            .funcs
+            .iter_mut()
+            .enumerate()
+            .filter_map(|(id, f)| Some((id, f.as_mut()?)))
+        {
             if let Some(r) = self.runtime {
                 // Not short-circuited: both rules run.
-                let constant = crate::opt::static_counts(f, r.retain, &arity);
+                let constant = crate::opt::static_counts(f, r.retain, &arity, &static_params[id]);
                 if crate::opt::count_pairs(f, r.retain) | constant {
                     crate::opt::locals(f, &arity);
                 }

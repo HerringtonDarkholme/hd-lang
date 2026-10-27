@@ -682,14 +682,20 @@ impl Em<'_, '_, '_> {
         if self.b.tags.get(c as usize) != Some(&Tag::Call) {
             return false;
         }
+        let mut args = self.rec(self.b.data[c as usize][1]);
+        args.truncate(args.len().saturating_sub(3));
+        if matches!(self.calls.get(&c), Some(hd_mono::Target::Dyn)) {
+            // A dynamic call lends every argument to its slot. The slot
+            // takes any count its concrete target owns, and a blocking
+            // drive keeps the caller live until it returns.
+            return args.iter().filter(|&&a| a == r).count() == 1;
+        }
         let Some(hd_mono::Target::Call(ct)) = self.calls.get(&c) else {
             return false;
         };
         if !matches!(ct.kind, hd_mono::TargetKind::Instance) {
             return false;
         }
-        let mut args = self.rec(self.b.data[c as usize][1]);
-        args.truncate(args.len().saturating_sub(3));
         let Some(params) = self.param_tys(ct.key, ct.item, ct.args) else {
             return false;
         };
