@@ -43,7 +43,10 @@
 //!    unknown header) is the **heap**: no write that reaches the heap, and
 //!    no call, may stand in the span; a call that may not write
 //!    (`OwnCx::may_write`) is allowed when the one dereference is of a
-//!    reference that a parameter the body never stores holds.
+//!    reference that a local holds over the span: a parameter the body
+//!    never stores, or another local, which rule 2 keeps from being
+//!    stored or dropped in the span (`frame := self.top()` and then
+//!    `member_name(m, frame.facts)`).
 //! 4. **No suspension point** stands in the span.
 //!
 //! A **binding local** is a local whose one `Store` is of a read that
@@ -159,8 +162,10 @@ struct Chain {
     /// What the place names may be reached by calls and by writes through
     /// references (rule 3's heap).
     heap: bool,
-    /// The one dereference is of a reference a never-stored parameter
-    /// holds, read whole: calls that may not write leave it alone.
+    /// The one dereference is of a reference that a local holds over the
+    /// span (a parameter the body never stores, or another local, which
+    /// rule 2 keeps from being stored or dropped there), read whole: calls
+    /// that may not write leave it alone.
     param: bool,
 }
 
@@ -319,8 +324,10 @@ impl Tables {
                     let param = b.local_flags[li] & local_flags::PARAM != 0;
                     chain.ok = !self.reached[li];
                     chain.heap = derefs > 0 || (elem && (param || !self.fresh[li]));
+                    // A parameter never stored, or another local, whose
+                    // stores and drops rule 2 keeps out of the span.
                     chain.param =
-                        derefs == 1 && first_deref && !above && param && self.stores[li] == 0;
+                        derefs == 1 && first_deref && !above && (!param || self.stores[li] == 0);
                     return chain;
                 }
                 Root::Value(v) => {
