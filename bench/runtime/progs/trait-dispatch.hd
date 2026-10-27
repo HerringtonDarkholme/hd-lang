@@ -28,4 +28,4 @@ fn drive(n: i32) -> i32:
     x
 
 pub fn main() -> void $ Console:
-    println(drive(80000000))
+    println(drive(35000000))

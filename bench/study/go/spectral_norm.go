@@ -1,4 +1,4 @@
-// spectral-norm, n = 2000 (benchmarks game). Prints trunc(norm * 1e9).
+// spectral-norm, n = 2800 (benchmarks game). Prints trunc(norm * 1e9).
 package main
 
 import (
@@ -6,7 +6,7 @@ import (
 	"math"
 )
 
-const n = 2000
+const n = 2800
 
 func a(i, j int) float64 { return 1 / float64((i+j)*(i+j+1)/2+i+1) }
 

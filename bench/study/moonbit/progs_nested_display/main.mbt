@@ -51,7 +51,7 @@ fn line(seed : Int32) -> Line {
 ///|
 fn main {
   let mut checksum : Int64 = 0
-  for id in 0..<200000 {
+  for id in 0..<330000 {
     let order = Order::{
       id,
       first: line(id * 3),

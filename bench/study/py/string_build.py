@@ -1,5 +1,5 @@
 """Join 1.5 million pieces into one string and print its length."""
-N = 1_500_000
+N = 7_000_000
 
 
 def main():

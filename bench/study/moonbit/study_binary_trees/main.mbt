@@ -1,7 +1,7 @@
 // binary-trees, depth 14 (benchmarks game). Prints one line per depth.
 
 ///|
-let max_depth : Int32 = 14
+let max_depth : Int32 = 17
 
 ///|
 let min_depth : Int32 = 4

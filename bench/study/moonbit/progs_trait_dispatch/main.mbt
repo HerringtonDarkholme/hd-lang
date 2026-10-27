@@ -42,5 +42,5 @@ fn drive(n : Int32) -> Int32 {
 
 ///|
 fn main {
-  println(drive(80000000))
+  println(drive(35000000))
 }

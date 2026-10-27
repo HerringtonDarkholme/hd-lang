@@ -1,5 +1,5 @@
 """3.3 million two-field records, ten rounds, each round a new list."""
-N = 3_300_000
+N = 7_500_000
 
 
 class Point:

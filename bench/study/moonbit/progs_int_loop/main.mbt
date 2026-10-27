@@ -10,5 +10,5 @@ fn checksum(n : Int32) -> Int32 {
 
 ///|
 fn main {
-  println(checksum(240000000))
+  println(checksum(80000000))
 }

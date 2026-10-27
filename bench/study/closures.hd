@@ -1,5 +1,5 @@
 # closures: 170k items, 50 rounds of map/filter/fold.
-N := +170_000
+N := +650_000
 
 pub fn main() -> void $ Console:
     items := [for i in 0..N => (i * 31 + 7) % 100_003]

@@ -1,7 +1,7 @@
 // string-build: append 1.5M pieces to one string. Prints its length.
 
 ///|
-let n : Int32 = 1_500_000
+let n : Int32 = 7_000_000
 
 ///|
 fn main {

@@ -13,5 +13,5 @@ fn total(n : Int32) -> Int32 {
 
 ///|
 fn main {
-  println(total(20000000))
+  println(total(24000000))
 }

@@ -11,4 +11,4 @@ fn tally(n: i32, buckets: i32) -> i32:
     total
 
 pub fn main() -> void $ Console:
-    println(tally(200000, 5000))
+    println(tally(17000000, 5000))

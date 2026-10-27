@@ -1,7 +1,7 @@
 // points: 3.3M two-field records, 10 rounds, each round a new list.
 
 ///|
-let n : Int32 = 3_300_000
+let n : Int32 = 7_500_000
 
 ///|
 struct Point {

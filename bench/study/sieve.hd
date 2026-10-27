@@ -1,5 +1,5 @@
 # sieve of Eratosthenes below 16M. Prints the prime count.
-N := 16_000_000
+N := 36_000_000
 
 pub fn main() -> void $ Console:
     n := N

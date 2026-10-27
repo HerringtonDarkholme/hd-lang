@@ -1,7 +1,7 @@
 // fannkuch-redux, n = 9. Prints checksum and max flips.
 
 ///|
-let n : Int32 = 9
+let n : Int32 = 10
 
 ///|
 fn main {

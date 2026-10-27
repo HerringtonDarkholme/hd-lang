@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	steps     = 1_150_000
+	steps     = 7_000_000
 	solarMass = 4 * math.Pi * math.Pi
 	days      = 365.24
 )

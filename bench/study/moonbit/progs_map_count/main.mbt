@@ -17,5 +17,5 @@ fn tally(n : Int32, buckets : Int32) -> Int32 {
 
 ///|
 fn main {
-  println(tally(200000, 5000))
+  println(tally(17000000, 5000))
 }

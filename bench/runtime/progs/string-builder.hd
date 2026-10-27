@@ -7,4 +7,4 @@ fn build(n: i32) -> string:
     out.build()
 
 pub fn main() -> void $ Console:
-    println(build(40000).len())
+    println(build(33500000).len())

@@ -1,7 +1,7 @@
 // map-count: build a text of 650k words, split it, count each word.
 
 ///|
-let n : Int32 = 650_000
+let n : Int32 = 2_500_000
 
 ///|
 fn main {

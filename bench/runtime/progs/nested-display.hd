@@ -1,6 +1,6 @@
-# 200,000 orders, with three nested Display levels: Order -> Line -> Money.
+# 330,000 orders, with three nested Display levels: Order -> Line -> Money.
 # Keep interpolation at every level: this measures intermediate text copies.
-N := 200_000
+N := 330_000
 
 struct Money:
     cents: i64

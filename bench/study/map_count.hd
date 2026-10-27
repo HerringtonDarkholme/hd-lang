@@ -1,7 +1,7 @@
 # map-count: build a text of 650k words, split it, count each word.
 use std.text.StringBuilder
 
-N := 650_000
+N := 2_500_000
 
 pub fn main() -> void $ Console:
     out := StringBuilder::new()

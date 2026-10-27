@@ -1,7 +1,7 @@
-// nbody, 1.15M steps (benchmarks game). Prints trunc(energy * 1e9) before and after.
+// nbody (benchmarks game). Prints trunc(energy * 1e9) before and after.
 
 ///|
-let steps : Int32 = 1_150_000
+let steps : Int32 = 7_000_000
 
 ///|
 let pi : Double = 3.141592653589793

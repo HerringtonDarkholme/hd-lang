@@ -1,7 +1,7 @@
 // sieve of Eratosthenes below 16M. Prints the prime count.
 
 ///|
-let n : Int32 = 16_000_000
+let n : Int32 = 36_000_000
 
 ///|
 fn main {

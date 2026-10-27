@@ -6,4 +6,4 @@ fn checksum(n: i32) -> i32:
     total
 
 pub fn main() -> void $ Console:
-    println(checksum(240000000))
+    println(checksum(80000000))

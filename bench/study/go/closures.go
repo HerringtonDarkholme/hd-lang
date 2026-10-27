@@ -3,7 +3,7 @@ package main
 
 import "fmt"
 
-const n = 170_000
+const n = 650_000
 
 func fold(items []int32, m func(int32) int32, keep func(int32) bool, step func(int32, int32) int32) int32 {
 	acc := int32(0)

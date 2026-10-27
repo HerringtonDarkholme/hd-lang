@@ -5,7 +5,7 @@ import sys
 sys.path.pop(0)
 import json
 
-N = 6_000
+N = 170_000
 
 
 def main():

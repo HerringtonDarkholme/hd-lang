@@ -6,4 +6,4 @@ function checksum(n) {
   }
   return total;
 }
-console.log(checksum(240000000));
+console.log(checksum(80000000));

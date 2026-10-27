@@ -1,5 +1,5 @@
 // map-count: build a text of 650k words, split it, count each word.
-const N = 650_000;
+const N = 2_500_000;
 const parts = [];
 for (let i = 0; i < N; i++) parts.push(`w${(i * 7919) % 50_021}`);
 const text = parts.join(" ");

@@ -1,7 +1,7 @@
-// spectral-norm, n = 2000 (benchmarks game). Prints trunc(norm * 1e9).
+// spectral-norm, n = 2800 (benchmarks game). Prints trunc(norm * 1e9).
 
 ///|
-let n : Int32 = 2000
+let n : Int32 = 2800
 
 ///|
 fn a(i : Int32, j : Int32) -> Double {

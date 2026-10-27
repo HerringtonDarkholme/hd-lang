@@ -9,5 +9,5 @@ fn build(n : Int32) -> String {
 
 ///|
 fn main {
-  println(build(40000).length())
+  println(build(33500000).length())
 }

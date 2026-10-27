@@ -1,5 +1,5 @@
 """Sieve of Eratosthenes below 30 million, using one byte per integer."""
-N = 16_000_000
+N = 36_000_000
 
 
 def main():

@@ -1,7 +1,7 @@
 // closures: 170k items, 50 rounds of map/filter/fold.
 
 ///|
-let n : Int32 = 170_000
+let n : Int32 = 650_000
 
 ///|
 fn main {

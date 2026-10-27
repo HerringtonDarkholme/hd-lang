@@ -38,7 +38,7 @@ function line(seed) {
 }
 
 let checksum = 0;
-for (let id = 0; id < 200_000; id++) {
+for (let id = 0; id < 330_000; id++) {
   const order = new Order(id, line(id * 3), line(id * 3 + 1), line(id * 3 + 2));
   const text = `${order}`;
   for (let i = 0; i < text.length; i++) {

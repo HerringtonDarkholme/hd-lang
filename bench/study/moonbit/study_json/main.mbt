@@ -1,7 +1,7 @@
-// json: encode 6k records to JSON text, decode it back, check the sums.
+// json: encode records to JSON text, decode them back, check the sums.
 
 ///|
-let n : Int32 = 6_000
+let n : Int32 = 170_000
 
 ///|
 struct Record {
