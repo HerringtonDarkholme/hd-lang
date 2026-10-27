@@ -6,7 +6,6 @@
 # (spec/lang/10-modules.md#r-module.boundary.out). The standard
 # implementations and the templates are spec/std/serde.md.
 use std.annotation.annotate
-use std.text.StringBuilder
 use std.collections.Set
 use std.function.Tuple
 use std.hash.Hash
@@ -93,6 +92,10 @@ fn case_name(name: string, style: RenameCase) -> string:
         .PascalCase => joined_name(name, false)
         .CamelCase => joined_name(name, true)
 
+# The case changes are ASCII byte changes (r-std-serde.rename-all.conversion):
+# they keep the bytes valid UTF-8, and they call no Display or builder, so a
+# call of `member_name` writes nothing its caller reaches and borrows its
+# arguments.
 fn uppercase_name(name: string) -> string:
     let mut bytes = name.to_utf8()
     let changed = false
@@ -103,23 +106,31 @@ fn uppercase_name(name: string) -> string:
             changed = true
     if !changed:
         return name
-    string::from_utf8(bytes).expect("ASCII case preserves UTF-8")
+    string_from_bytes(bytes)
 
 fn joined_name(name: string, camel: bool) -> string:
-    out := StringBuilder::new()
+    let mut out: List[u8] = []
     let word_start = true
     let first = true
-    for character in name.chars():
-        if character == '_':
+    for byte in name.to_utf8():
+        if byte == 95:
             word_start = true
             continue
-        let text = character.to_string()
-        if word_start && text.len() == 1:
-            text = if camel && first: text.lower() else: text.upper()
-        out.push(text)
+        let next = byte
+        if word_start && camel && first:
+            if byte >= 65 && byte <= 90:
+                next = byte + 32
+        else if word_start && byte >= 97 && byte <= 122:
+            next = byte - 32
+        out.push(next)
         word_start = false
         first = false
-    out.build()
+    string_from_bytes(out)
+
+# The string of `bytes`, which the caller has checked are UTF-8.
+@intrinsic("string_from_bytes")
+fn string_from_bytes(bytes: List[u8]) -> string:
+    panic("intrinsic")
 
 # A value that opts in to be written by every format
 # (r-annot.serde.definition).

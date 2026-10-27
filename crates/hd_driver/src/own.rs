@@ -111,10 +111,17 @@ thread_local! {
 const INLINE_LIMIT: usize = 16;
 
 /// The intrinsics that read only their arguments and write nothing
-/// (`OwnCx::may_write`): the scalar square root and the byte reads of a
-/// string, which return a scalar and never change memory.
+/// (`OwnCx::may_write`): the scalar square root, a trait value's downcasts
+/// and type identity, which compare its type and return it or nothing,
+/// the reads and conversions of a string, a character or a number, which
+/// return a scalar or a new value, and the panic, which never returns.
+/// One that writes through a `&mut` argument is not here: a caller's
+/// passes read that write from `may_write` alone.
 const PURE_INTRINSICS: &[&str] = &[
     "sqrt",
+    "downcast_ref",
+    "downcast_mut",
+    "type_id_of",
     "bytes_len",
     "bytes_at",
     "bytes_index",
@@ -122,6 +129,20 @@ const PURE_INTRINSICS: &[&str] = &[
     "bytes_index_pair",
     "bytes_mismatch",
     "utf8_valid_len",
+    "bytes_slice",
+    "bytes_concat",
+    "concat_all",
+    "string_to_bytes",
+    "string_from_bytes",
+    "string_lower",
+    "string_upper",
+    "char_from_scalar",
+    "char_scalar",
+    "format_int",
+    "format_f64",
+    "format_f32",
+    "format_f64_fixed",
+    "panic",
 ];
 
 /// The intrinsics that own their value arguments, as a function's value
