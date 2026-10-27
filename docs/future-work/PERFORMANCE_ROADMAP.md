@@ -398,14 +398,14 @@ steps for them.
 | 1 | Re-run pillar 3 on HEAD; profile JSON encode, decode and text build on V8; run the review's cases on wasmtime. A new metrics record, no code | #426 | the whole pillar 3 table; GC share per profile |
 | 4 | Find why `sum` is 4.77x | - | ns per iteration on V8 with and without Liftoff, on wasmtime, and for a hand-written loop; the WAT of the hot loop |
 | 8 | SipHash-1-3 on native adds for string bucket hashes | #353 follow-up | 1M short keys insert and lookup (63 / 52-57 ms), 200k 63-byte keys (19 / 17 ms), the colliding-key tests (stay near 0) |
-| 12 | `Display.write` into a builder | #426 sub-item, after #858, #861, #862 | `debug` of a record 100k (78 ms), `Display` of a three-level nested value, text build |
+| 12 | `Display.write` into a builder | #426 sub-item, after #858 | `debug` of a record 100k (78 ms), `Display` of a three-level nested value, text build |
 | 16 | Time types as newtypes | #426 | the `Duration` shape's bytes per iteration, `to_rfc3339` 10⁵ times |
 | 25 | Property runner: one import object per test, synchronous instantiation | #426 | cases per second (28k) |
 | 26 | One `realpath` per host file call, in both hosts | #426 | `list_dir!` (41 µs), `read_text!` (32 µs) |
 | 27 | The literal host fast path | #426 | tiny program release bytes (2399 B), hello.wasm, start to first output |
 | 28 | `format_int` in hd (the `StringBuilder` byte path landed in 6ad81d02e) | #426 sub-item, after #857, #858, #859 | text-build MB/s, integer-interpolation bytes per iteration, hello.wasm |
 | 29 | SIMD128 intrinsics for byte scans, called from std hd, after TIR v2 stage 3 | #428 | byte scan of 1 MiB, JSON string scan, Wasm bytes |
-| 30 | Map update probes once; `unwrap_or` inlines | #683 | map update loop ns per op |
+| 30 | Map update probes once; `unwrap_or` inlines | #426 (idea) | map update loop ns per op |
 
 Step 8 changes std hashing, so it reruns the #353 and #511 collision
 tests. It waits on question 1.

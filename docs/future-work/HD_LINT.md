@@ -1,8 +1,8 @@
 # hd lint
 
-Architecture proposal, 2026-10-27; not accepted; [#908](https://github.com/HerringtonDarkholme/hd-lang/issues/908).
+Architecture approved 2026-10-27; [#908](https://github.com/HerringtonDarkholme/hd-lang/issues/908). Slice 0 (#916) is done; the #855 migration follows the slices below.
 The accepted command/policy rules remain in [the CLI spec](../../spec/cli/command-line.md#linting).
-This replaces the implementation plan, not those decisions. No implementation ships here.
+This replaces the implementation plan, not those decisions.
 
 ## The proposal
 

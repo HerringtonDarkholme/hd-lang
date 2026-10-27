@@ -1,8 +1,7 @@
 # hd fmt
 
-Proposal, revised 2026-10-27; domain: formatter internals and CLI layout; not accepted.
+Approved 2026-10-27 and implemented (#899, with the one-shot canonical reformat); domain: formatter internals and CLI layout.
 For [#906](https://github.com/HerringtonDarkholme/hd-lang/issues/906).
-No formatter implementation or bulk reformat is part of this PR.
 
 ## The proposal
 
