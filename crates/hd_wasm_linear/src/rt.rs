@@ -1596,10 +1596,19 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             free_object(&mut f, m, 1);
             f
         }
+        // `panic_with(msg, "")`, whose report is `msg` alone, through the
+        // table: V8 inlines a small direct callee by size when it has no
+        // call counts (`--no-liftoff`), so every panic site would copy the
+        // code that writes the report, `rt:to_buf` with it. An inlined
+        // panic helper is a few nodes.
         Helper::Panic(msg) => {
             let mut f = m.func("rt:panic", vec![], vec![]);
-            f.call(rt_import("panic", &[], &[]));
-            write_lit(&mut f, m, &format!("{msg}\n"));
+            let at = m.static_bytes(msg.as_bytes(), 1);
+            f.static_addr(at);
+            f.u32(u32::try_from(msg.len()).expect("message"));
+            f.i32(0);
+            f.i32(0);
+            f.cold_helper(Helper::PanicWith, vec![Val::I32; 4], vec![]);
             f.op(Instruction::Unreachable);
             f
         }

@@ -3,7 +3,7 @@
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "table0" (table $table0 2 funcref))
+  (import "fixture" "table0" (table $table0 3 funcref))
   (func $recursive (result i32 i32)
     block
     ;; 6 |     sum := fn(n: i32) -> i32:
