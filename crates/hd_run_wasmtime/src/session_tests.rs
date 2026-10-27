@@ -683,7 +683,7 @@ fn journal_shape(session: &WasmtimeSession) -> Vec<String> {
 /// its text and newline writes, then its panic report.
 #[test]
 fn a_session_journal_records_each_input_s_host_calls_in_order() {
-    use hd_run::journal::{Event, Request, Value};
+    use hd_run::journal::{Event, Request, Value, request_digest};
     let inputs = [
         "use std.time.{now, sleep, Duration}\n",
         "a := now()\n",
@@ -727,6 +727,7 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
             "end Exit(0)",
             "input 5",
             "call hd:rt panic",
+            "call hd:rt stderr",
             "call hd:rt stderr",
             "end Trapped",
         ]);
@@ -780,18 +781,30 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
         };
         assert_eq!(request, &Request::Args(vec![1, b'\n']));
         // The panic stub follows both writes; each also blocks and
-        // finishes on Windows.
+        // finishes on Windows. It writes the panic message and newline
+        // through separate stderr calls.
         let panic_at = 14 + 2 * write.len();
         assert!(matches!(
             &events[panic_at],
             Event::Call { request: Request::Args(args), .. } if args.is_empty()
         ));
+        let message = b"index-out-of-bounds: list index out of bounds";
+        let mut message_request = vec![u8::try_from(message.len()).expect("short message")];
+        message_request.extend_from_slice(message);
         assert!(matches!(
             &events[panic_at + 1],
             Event::Call {
-                request: Request::Digest { .. },
+                request: Request::Digest { len, digest },
                 ..
-            }
+            } if *len == message_request.len() as u64
+                && *digest == request_digest(&message_request)
+        ));
+        assert!(matches!(
+            &events[panic_at + 2],
+            Event::Call {
+                request: Request::Args(args),
+                ..
+            } if args == &[1, b'\n']
         ));
     });
 }
