@@ -6,6 +6,8 @@ This replaces the earlier implementation plan, not those decisions.
 Implementation proceeds in reviewed slices under [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855).
 Slices 0–2 are done: checked callee identity, the registry/indexed policy, and
 the feature-gated source/declaration/module analysis walk.
+The per-module policy-free findings cache is also done; the remaining work adds
+the borrowed typed views, registered dispatch and the single policy finish path.
 
 ## Approved design
 

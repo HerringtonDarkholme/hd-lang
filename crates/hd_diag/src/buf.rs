@@ -134,6 +134,17 @@ impl DiagBuf {
         }
     }
 
+    /// Attaches a secondary span and message to the diagnostic pushed last.
+    pub fn add_label(&mut self, span: Span, message: &str) {
+        let Some(row) = self.labels.last_mut() else {
+            return;
+        };
+        row.len += 1;
+        let message = self.text(message);
+        self.label_span.push(span);
+        self.label_msg.push(message);
+    }
+
     /// Error-severity diagnostic with no root key.
     pub fn error(&mut self, code: Code, primary: Span, message: &str) {
         self.push(code, Severity::Error, primary, message, None);
@@ -162,8 +173,7 @@ impl DiagBuf {
         (!self.is_internal(i)).then_some(self.code[i])
     }
 
-    /// Appends another buffer's diagnostics, fix-its included (labels
-    /// stay behind: this run's stages attach no labels after parsing).
+    /// Appends another buffer's diagnostics, labels and fix-its included.
     pub fn append(&mut self, other: &DiagBuf) {
         self.append_if(other, &|_| true);
     }
@@ -175,13 +185,23 @@ impl DiagBuf {
             if !keep(other.code[i]) {
                 continue;
             }
-            self.push(
+            if !self.push(
                 other.code[i],
                 other.severity[i],
                 other.primary[i],
                 other.get_text(other.message[i]),
                 other.root[i],
-            );
+            ) {
+                continue;
+            }
+            let labels = other.labels[i];
+            for label in labels.start..labels.start + labels.len {
+                let label = label as usize;
+                self.add_label(
+                    other.label_span[label],
+                    other.get_text(other.label_msg[label]),
+                );
+            }
             let fixes = other.fixes[i];
             for f in fixes.start..fixes.start + fixes.len {
                 let f = f as usize;

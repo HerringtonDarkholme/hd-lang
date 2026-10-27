@@ -5579,8 +5579,9 @@ impl Run<'_> {
         Some(out.into_iter().collect())
     }
 
-    /// `ModulePrep(m)`: the `check` key lookup first; only on a miss does
-    /// it lower headers and create `Body(m)` and `ModuleFinish(m)`
+    /// `ModulePrep(m)`: look up the optional policy-free `lint` result and
+    /// the ordinary `check` entry. Only a missing required result lowers
+    /// headers and creates `Body(m)` and `ModuleFinish(m)`
     /// (`crates/hd_sched/DESIGN.md` §6.1).
     fn module_prep(&self, id: TaskId, m: u32, sp: &dyn Spawn) {
         let mi = m as usize;
@@ -5607,14 +5608,35 @@ impl Run<'_> {
         // Recheck selected root bodies, while dependencies keep ordinary cache hits.
         #[cfg(feature = "analysis")]
         let analyze = self.analysis.is_some() && self.table.modules[mi].package == 0;
+        #[cfg(feature = "analysis")]
+        let cached_analysis = if analyze {
+            let (sink, _) = self.analysis.expect("analysis sink");
+            self.lookup(EntryKind::Lint, key).and_then(|sections| {
+                (sections.len() == 1)
+                    .then(|| sections[0].as_ref())
+                    .and_then(|bytes| {
+                        analysis::decode_cache(
+                            bytes,
+                            &self.lines(mi),
+                            FileId::from_raw(u32_of(mi)),
+                            sink,
+                        )
+                    })
+            })
+        } else {
+            None
+        };
+        #[cfg(feature = "analysis")]
+        let analysis_missing = analyze && cached_analysis.is_none();
         #[cfg(not(feature = "analysis"))]
-        let analyze = false;
-        let cached =
-            if (self.collect_source_facts && self.table.modules[mi].package == 0) || analyze {
-                None
-            } else {
-                self.lookup(EntryKind::Check, key)
-            };
+        let analysis_missing = false;
+        let cached = if (self.collect_source_facts && self.table.modules[mi].package == 0)
+            || analysis_missing
+        {
+            None
+        } else {
+            self.lookup(EntryKind::Check, key)
+        };
         if let Some(sections) = cached {
             // The key ignores comments and blank lines, which can still
             // break the parse (a detached documentation comment).
@@ -5625,6 +5647,10 @@ impl Run<'_> {
                 let _ = self.prep[mi].set(None);
                 let _ = self.check[mi].set(None);
                 return None;
+            }
+            #[cfg(feature = "analysis")]
+            if let Some(findings) = cached_analysis {
+                let _ = self.analysis_diags[mi].set(findings);
             }
             lock(&self.report).ok(Stage::ModulePrep);
             self.read_check(mi, &sections, Arc::from(join_sections(&sections)));
@@ -7405,7 +7431,8 @@ impl Run<'_> {
         out
     }
 
-    /// `ModuleFinish(m)`: writes the `check` entry. Sections: diagnostics;
+    /// `ModuleFinish(m)`: writes the `check` entry and, for an analysis
+    /// run, the module's separate policy-free `lint` entry. Check sections: diagnostics;
     /// meta (the module's content hash, which `prog_key` reads); the
     /// module's items; TIR, one record per body; a test run's
     /// registrations; the init summary, which `InitOrder` reads; the `dbg`
@@ -7615,6 +7642,16 @@ impl Run<'_> {
             sections.push(&input_iface);
         }
         self.put(EntryKind::Check, key, &sections);
+        #[cfg(feature = "analysis")]
+        if self.analysis.is_some() && self.table.modules[m].package == 0 {
+            let empty = DiagBuf::default();
+            let findings = self.analysis_diags[m].get().unwrap_or(&empty);
+            if let Some(bytes) =
+                analysis::encode_cache(findings, &lines, FileId::from_raw(u32_of(m)))
+            {
+                self.put(EntryKind::Lint, key, &[&bytes]);
+            }
+        }
         lock(&self.counters)
             .modules_checked
             .push(self.table.modules[m].path.clone());
