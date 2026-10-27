@@ -327,7 +327,7 @@ impl Deserializer for CaptureReader:
             index += 1
         .Err(self.invalid("variant"))
 
-    fn member(&mut self, m: Member) -> Result[void, RegexError]:
+    fn member(&mut self, m: &Member) -> Result[void, RegexError]:
         name := member_name(m, self.facts)
         if self.variant:
             return .Err(self.invalid("payload-free variant"))

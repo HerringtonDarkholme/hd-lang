@@ -44,10 +44,12 @@ fn write_pair[W < Serializer](out: &mut W, name: string, count: i64) -> Result[v
 
 1. r[std-serde.model.one-value] A `serialize` call writes exactly one value of the table: one scalar call, or one begin call, its contents, and the matching end call.
 2. r[std-serde.model.len] The `len` of `begin_list` or `begin_map` is the number of items or entries that follow.
-3. r[std-serde.model.variant-args] `facts` is the type-level facts of the value's type, and `v` the `VariantInfo` of its variant. A struct value is its type's one variant, with `v.of_data` true.
-4. r[std-serde.model.member-args] `m` is the `Member` of the member whose value follows. Its facts are the ones its derivation sees, as [`annot.structure.per-derivation`](../lang/14-annotations.md#r-annot.structure.per-derivation) states.
-5. r[std-serde.model.errors] A writer's first `.Err` ends the write. Every standard implementation returns it unchanged, and calls nothing after it.
-6. r[std-serde.model.ref-receivers] Every method of `Serializer` and `Deserializer` takes `&mut self`, and `serialize` and `deserialize` take the writer or reader as `&mut W` or `&mut R`. So a format's writer or reader is a struct that changes in place, and its caller reads the struct's fields after the call.
+3. r[std-serde.model.variant-args.local-ref] `begin_variant(facts: Facts, v: &VariantInfo)` receives the type-level facts and a local reference to the variant's metadata.
+4. r[std-serde.model.data-variant] A struct value has one variant, whose `of_data` is true.
+5. r[std-serde.model.member-args.local-ref] `member(m: &Member)` receives a local reference to the metadata of the member whose value follows.
+6. r[std-serde.model.member-facts] The member's facts are those visible to its derivation, as [`annot.structure.per-derivation`](../lang/14-annotations.md#r-annot.structure.per-derivation) specifies.
+7. r[std-serde.model.errors] A writer's first `.Err` ends the write. Every standard implementation returns it unchanged, and calls nothing after it.
+8. r[std-serde.model.ref-receivers] Every method of `Serializer` and `Deserializer` takes `&mut self`, and `serialize` and `deserialize` take the writer or reader as `&mut W` or `&mut R`. So a format's writer or reader is a struct that changes in place, and its caller reads the struct's fields after the call.
 
 > **Why.** Fourteen calls cover JSON's kinds, and the variant calls keep
 > names and facts, which a format needs to choose a key or a tag. Fewer
@@ -71,7 +73,7 @@ A `Deserializer` reads the same tree, one call per value:
 
 1. r[std-serde.read.one-value] A `deserialize` call reads exactly one value.
 2. r[std-serde.read.expected] Each scalar call's `expected` names the type being read, as `"u8"`. A format's error for a value of another kind may report it.
-3. r[std-serde.read.member] `member(m)` makes the value of member `m` the next value. The format decides which value that is, and it may be absent.
+3. r[std-serde.read.member.local-ref] A `member(m: &Member)` call positions the next value of that member, which the format may report as absent.
 4. r[std-serde.read.choices] `choices` holds the `VariantInfo` of every variant of the type, in declaration order. A struct offers its one variant.
 
 ```text
@@ -139,7 +141,7 @@ For example, `@rename("total")` on `total_cents: i64` uses the key `total`.
 3. r[std-serde.member-name.precedence] A member's wire name uses its `Rename.name` first, its container's `RenameAll` style second, and its source name otherwise.
 4. r[std-serde.rename.metadata] `Member.name` retains the source member name, and document formats read `Rename` from `Member.facts`.
 
-5. r[std-serde.member-name.helper] `member_name(member: Member, container: Facts) -> string` returns that member's wire name.
+5. r[std-serde.member-name.helper.local-ref] `member_name(member: &Member, container: Facts) -> string` returns that member's wire name.
 6. r[std-serde.member-name.formats] Standard serializers and deserializers use `member_name` for document or capture-group names.
 7. r[std-serde.rename-all.styles] `RenameCase` is an `Eq` and `Debug` enum with the eight style variants in the table.
 8. r[std-serde.rename-all.fact] `RenameAll` is a data-type and enum fact with the public field `style: RenameCase`.

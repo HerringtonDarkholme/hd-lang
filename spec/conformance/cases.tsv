@@ -3791,10 +3791,13 @@ runtime/valid/serde-std-reads.hd	runtime	accept	std/serde.md#r-std-serde.read.sc
 runtime/valid/serde-set-tuple.hd	runtime	accept	std/serde.md#r-std-serde.std.tuple
 runtime/valid/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.unskipped-order
 runtime/valid/serde-derive-empty-record.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.template
-runtime/valid/serde-variant-member-facts.hd	runtime	accept	std/serde.md#r-std-serde.model.variant-args
+runtime/valid/serde-variant-member-facts.hd	runtime	accept	std/serde.md#r-std-serde.model.variant-args.local-ref
 runtime/valid/serde-writer-first-error.hd	runtime	accept	std/serde.md#r-std-serde.model.errors
 runtime/valid/serde-struct-ref-receivers.hd	runtime	accept	std/serde.md#r-std-serde.model.ref-receivers
+typing/invalid/deserializer-metadata-must-be-reference.hd	type	reject:trait-method-signature	std/serde.md#r-std-serde.read.member.local-ref
+typing/invalid/serializer-metadata-must-be-references.hd	type	reject:trait-method-signature	std/serde.md#r-std-serde.model.member-args.local-ref
 typing/invalid/serializer-mut-self-receiver.hd	type	reject:trait-method-signature	std/serde.md#r-std-serde.model.ref-receivers
+typing/invalid/serializer-variant-metadata-must-be-reference.hd	type	reject:trait-method-signature	std/serde.md#r-std-serde.model.variant-args.local-ref
 runtime/valid/json-typed-members.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.embedded-wire-name
 runtime/valid/json-typed-missing-key-uses-default.hd	runtime	accept	std/json.md#r-std-json.derive.from-json.default
 runtime/valid/json-pointer.hd	runtime	accept	std/json.md#r-std-json.pointer

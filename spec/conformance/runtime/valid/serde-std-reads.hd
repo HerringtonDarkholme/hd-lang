@@ -123,7 +123,7 @@ impl Deserializer for Feed:
             Tok.Pick(index) => .Ok(index)
             _ => .Err("no variant")
 
-    fn member(&mut self, m: Member) -> Result[void, string]:
+    fn member(&mut self, m: &Member) -> Result[void, string]:
         self.add("member:${m.name}")
         .Ok(())
 

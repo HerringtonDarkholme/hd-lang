@@ -71,10 +71,10 @@ impl Serializer for Tally:
     fn end_map(&mut self) -> Result[void, never]:
         self.add("end-map")
 
-    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.add("variant:${v.name}")
 
-    fn member(&mut self, m: Member) -> Result[void, never]:
+    fn member(&mut self, m: &Member) -> Result[void, never]:
         self.add("member:${m.name}")
 
     fn end_variant(&mut self) -> Result[void, never]:
@@ -128,7 +128,7 @@ impl Deserializer for Script:
     fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
         .Ok(0)
 
-    fn member(&mut self, m: Member) -> Result[void, string]:
+    fn member(&mut self, m: &Member) -> Result[void, string]:
         self.members.push(m.name)
         .Ok(())
 

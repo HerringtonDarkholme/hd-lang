@@ -1,0 +1,52 @@
+# test: Serializer.member borrows Member metadata instead of taking its value
+# Spec std/serde Data Model: std-serde.model.member-args.local-ref.
+use std.serde.Serializer
+use std.structure.{Facts, VariantInfo, Member}
+
+struct Count:
+    n: i32
+
+impl Serializer for Count:
+    type Error = never
+
+    fn null(&mut self) -> Result[void, never]:
+        .Ok(())
+
+    fn bool(&mut self, value: bool) -> Result[void, never]:
+        .Ok(())
+
+    fn int(&mut self, value: i64) -> Result[void, never]:
+        .Ok(())
+
+    fn uint(&mut self, value: u64) -> Result[void, never]:
+        .Ok(())
+
+    fn float(&mut self, value: f64) -> Result[void, never]:
+        .Ok(())
+
+    fn text(&mut self, value: string) -> Result[void, never]:
+        .Ok(())
+
+    fn begin_list(&mut self, len: usize) -> Result[void, never]:
+        .Ok(())
+
+    fn end_list(&mut self) -> Result[void, never]:
+        .Ok(())
+
+    fn begin_map(&mut self, len: usize) -> Result[void, never]:
+        .Ok(())
+
+    fn key(&mut self, key: string) -> Result[void, never]:
+        .Ok(())
+
+    fn end_map(&mut self) -> Result[void, never]:
+        .Ok(())
+
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        .Ok(())
+
+    fn member(&mut self, m: Member) -> Result[void, never]:  # diagnostic: trait-method-signature
+        .Ok(())
+
+    fn end_variant(&mut self) -> Result[void, never]:
+        .Ok(())

@@ -50,10 +50,10 @@ impl Serializer for Log:
     fn end_map(&mut self) -> Result[void, never]:
         self.add("}")
 
-    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.add("<${v.name}>")
 
-    fn member(&mut self, m: Member) -> Result[void, never]:
+    fn member(&mut self, m: &Member) -> Result[void, never]:
         self.add("${m.name}@${m.position}:")
 
     fn end_variant(&mut self) -> Result[void, never]:

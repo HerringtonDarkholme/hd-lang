@@ -529,7 +529,7 @@ struct MessageFormFrame:
 fn message_form_path(parent: &string, name: &string) -> string:
     if parent.is_empty(): *name else: "$parent[$name]"
 
-fn message_form_member_name(frame: &MessageFormFrame, member: Member) -> Result[string, FormError]:
+fn message_form_member_name(frame: &MessageFormFrame, member: &Member) -> Result[string, FormError]:
     name := member_name(member, frame.facts)
     path := message_form_path(&frame.path, &name)
     if name.contains("[") || name.contains("]"): return .Err(.Unsupported(path))
@@ -579,7 +579,7 @@ impl Serializer for MessageFormWriter:
     fn begin_map(&mut self, len: usize) -> Result[void, FormError]: .Err(self.unsupported())
     fn key(&mut self, key: string) -> Result[void, FormError]: .Err(self.unsupported())
     fn end_map(&mut self) -> Result[void, FormError]: .Err(self.unsupported())
-    fn begin_variant(&mut self, facts: Facts, variant: VariantInfo) -> Result[void, FormError]:
+    fn begin_variant(&mut self, facts: Facts, variant: &VariantInfo) -> Result[void, FormError]:
         if self.finished || self.tagged: return .Err(self.unsupported())
         if !variant.of_data:
             if self.frames.is_empty() || !self.keyed: return .Err(self.unsupported())
@@ -591,7 +591,7 @@ impl Serializer for MessageFormWriter:
         self.frames.push(MessageFormFrame { path: self.path, facts: facts })
         self.keyed = false
         .Ok(())
-    fn member(&mut self, member: Member) -> Result[void, FormError]:
+    fn member(&mut self, member: &Member) -> Result[void, FormError]:
         if self.frames.is_empty() || self.keyed || self.repeated || self.tagged: return .Err(self.unsupported())
         frame := self.frames[self.frames.len() - 1]
         self.path = message_form_member_name(&frame, member)?
@@ -689,7 +689,7 @@ impl Deserializer for MessageFormReader:
         if self.repeated || self.frames.len() >= 2 || choices.len() != 1: return .Err(self.unsupported())
         self.frames.push(MessageFormFrame { path: self.path, facts: facts })
         .Ok(0)
-    fn member(&mut self, member: Member) -> Result[void, FormError]:
+    fn member(&mut self, member: &Member) -> Result[void, FormError]:
         if self.tagged || self.frames.is_empty(): return .Err(self.unsupported())
         frame := self.frames[self.frames.len() - 1]
         self.path = message_form_member_name(&frame, member)?

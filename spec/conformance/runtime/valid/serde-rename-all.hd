@@ -1,5 +1,5 @@
 # test: rename_all applies the eight field case styles through one helper and composes with member rename in every std format
-# Spec std/serde Member Names: std-serde.rename-all.styles, std-serde.rename-all.fact, std-serde.rename-all.constructor, std-serde.member-name.helper, std-serde.member-name.precedence.
+# Spec std/serde Member Names: std-serde.rename-all.styles, std-serde.rename-all.fact, std-serde.rename-all.constructor, std-serde.member-name.helper.local-ref, std-serde.member-name.precedence.
 use std.serde.{Serialize, Deserialize, RenameCase, rename, rename_all, member_name}
 use std.structure.{Member, Facts, Structure}
 use std.json.{decode, encode, encode_pretty, from_json, parse, to_json}
@@ -70,16 +70,16 @@ tests:
     it("the shared helper converts every style from snake_case fields"):
         for (style, expected) in [(RenameCase.Lowercase, "order_id"), (RenameCase.Uppercase, "ORDER_ID"), (RenameCase.PascalCase, "OrderId"), (RenameCase.CamelCase, "orderId"), (RenameCase.SnakeCase, "order_id"), (RenameCase.ScreamingSnakeCase, "ORDER_ID"), (RenameCase.KebabCase, "order-id"), (RenameCase.ScreamingKebabCase, "ORDER-ID")]:
             info := member("order_id", Facts { items: [] })
-            assert_equal(member_name(info, naming(style)), expected, reason="field case style")
+            assert_equal(member_name(&info, naming(style)), expected, reason="field case style")
             assert_equal(info.name, "order_id", reason="source metadata unchanged")
-        assert_equal(member_name(member("café_id", Facts { items: [] }), naming(.Uppercase)), "CAFé_ID", reason="case conversion is ASCII and preserves UTF-8")
-        assert_equal(member_name(member("__order__id_", Facts { items: [] }), naming(.CamelCase)), "orderId", reason="joined styles remove underscores")
-        assert_equal(member_name(member("_", Facts { items: [] }), naming(.PascalCase)), "", reason="empty joined name is valid")
+        assert_equal(member_name(&member("café_id", Facts { items: [] }), naming(.Uppercase)), "CAFé_ID", reason="case conversion is ASCII and preserves UTF-8")
+        assert_equal(member_name(&member("__order__id_", Facts { items: [] }), naming(.CamelCase)), "orderId", reason="joined styles remove underscores")
+        assert_equal(member_name(&member("_", Facts { items: [] }), naming(.PascalCase)), "", reason="empty joined name is valid")
 
     it("member rename wins over the container including an empty explicit name"):
         info := member("order_id", Facts { items: [&rename("")] })
-        assert_equal(member_name(info, naming(.CamelCase)), "", reason="empty override is still an override")
-        assert_equal(member_name(member("source_name", Facts { items: [] }), Facts { items: [] }), "source_name", reason="no facts preserves source name")
+        assert_equal(member_name(&info, naming(.CamelCase)), "", reason="empty override is still an override")
+        assert_equal(member_name(&member("source_name", Facts { items: [] }), Facts { items: [] }), "source_name", reason="no facts preserves source name")
 
     it("all JSON paths read and write the camelCase record"):
         text := "{\"orderId\":\"o-7\",\"totalCents\":1299}"

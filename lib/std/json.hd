@@ -1328,10 +1328,10 @@ impl Serializer for JsonWriter:
         closed := self.close()
         self.put(Json.Object(object_of(closed._1, closed._2)))
 
-    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.open(2, v.name, v.of_data, facts)
 
-    fn member(&mut self, m: Member) -> Result[void, never]:
+    fn member(&mut self, m: &Member) -> Result[void, never]:
         facts := if self.frames.is_empty(): self.no_facts else: self.frames[self.frames.len() - 1].facts
         self.pending = member_name(m, facts)
         .Ok(())
@@ -1625,10 +1625,10 @@ impl Serializer for TextWriter:
     fn end_map(&mut self) -> Result[void, Irregular]:
         self.close(FrameKind.Entries)
 
-    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, Irregular]:
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Irregular]:
         self.open(if v.of_data: FrameKind.Record else: FrameKind.Tagged, v.name, facts)
 
-    fn member(&mut self, m: Member) -> Result[void, Irregular]:
+    fn member(&mut self, m: &Member) -> Result[void, Irregular]:
         if !self.regular || self.depth == 0:
             return self.give_up()
         self.name_next(member_name(m, self.facts[self.depth - 1]))
@@ -1986,7 +1986,7 @@ impl Deserializer for JsonReader:
 
     # A member reads the value of its key; a missing key is absent
     # (r-std-json.derive.from-json.member-wire-name). A list or a map has no members.
-    fn member(&mut self, m: Member) -> Result[void, JsonError]:
+    fn member(&mut self, m: &Member) -> Result[void, JsonError]:
         last := self.top()
         name := member_name(m, self.facts[last])
         base := self.bases[last]
@@ -2366,7 +2366,7 @@ impl Deserializer for TextReader:
             index = index + 1
         .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
 
-    fn member(&mut self, m: Member) -> Result[void, JsonError]:
+    fn member(&mut self, m: &Member) -> Result[void, JsonError]:
         frame := self.top()
         name := member_name(m, frame.facts)
         let found = false

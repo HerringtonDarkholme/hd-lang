@@ -495,7 +495,7 @@ impl Deserializer for OldReader:
 
     # A member reads the value of its key; a missing key is absent
     # (r-std-json.derive.from-json.member-wire-name).
-    fn member(&mut self, m: Member) -> Result[void, JsonError]:
+    fn member(&mut self, m: &Member) -> Result[void, JsonError]:
         frame := self.top()
         self.path = "${frame.base}.${m.name}"
         match frame.fields.get(m.name):
@@ -996,7 +996,7 @@ fn probe_list[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: i3
             .Err(error) => return state.failed("item", error)
         state.log.push("item $index")
         if index % 3 == 2:
-            match input.member(member_named("m")):
+            match input.member(&member_named("m")):
                 .Ok(_) => state.log.push("list member")
                 .Err(error) => state.failed("list member", error)?
             scalars(input, state)?
@@ -1028,7 +1028,7 @@ fn probe_map[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: i32
                         .None => break
                 .Err(error) => return state.failed("key", error)
         if count % 5 == 4:
-            match input.member(member_named("a")):
+            match input.member(&member_named("a")):
                 .Ok(_) => state.log.push("map member")
                 .Err(error) => state.failed("map member", error)?
             scalars(input, state)?
@@ -1043,7 +1043,7 @@ fn probe_record[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: 
         .Ok(index) => state.log.push("record $index")
         .Err(error) => return state.failed("record", error)
     for name in ["a", "x", "k0", "missing", "b", "a", "name", "f3"]:
-        match input.member(member_named(name)):
+        match input.member(&member_named(name)):
             .Ok(_) => state.log.push("member $name")
             .Err(error) => state.failed("member", error)?
         probe(input, state, depth + 1)?
@@ -1066,7 +1066,7 @@ fn probe_enum[R < Deserializer](input: &mut R, state: &mut ProbeState, depth: i3
     if depth % 2 == 0:
         probe_map(input, state, depth + 1, depth % 4 == 0)?
     for name in ["x", "y", "a", "since", "level"]:
-        match input.member(member_named(name)):
+        match input.member(&member_named(name)):
             .Ok(_) => state.log.push("member $name")
             .Err(error) => state.failed("member", error)?
         probe(input, state, depth + 1)?
