@@ -70,26 +70,9 @@ codegen step: facts are typed values, and templates are checked like any
 other code.
 
 ```hd
-@derive(Serialize, Deserialize, Table)
-struct User:
-    @column("user_id")
-    id: i64
-    email: string
-
-pub fn main() -> void $ Console:
-    println("SELECT ${User::columns()} FROM users")  # SELECT user_id, email FROM users
-    text := encode(User { id: 7, email: "ada@example.com" })
-    println(text)                                    # {"id":7,"email":"ada@example.com"}
-```
-
-`Serialize` and `Deserialize` come from `std.serde`; JSON reads them, and so
-does the host boundary. `Table` is a library trait. Its template describes
-the members and reads the `column` fact, which only `Table` cares about:
-
-```hd
 use std.json.encode
-use std.serde.{Serialize, Deserialize}
-use std.structure.{Structure, Describer, Field, Variant}
+use std.serde.{Deserialize, Serialize}
+use std.structure.{Describer, Field, Structure, Variant}
 
 struct Column:
     name: string
@@ -122,7 +105,26 @@ impl[S] Describer[S] for ColumnList:
         separator := if self.names == "": "" else: ", "
         self.names = "${self.names}$separator$name"
         .Ok(())
+
+@derive(Serialize, Deserialize, Table)
+struct User:
+    @column("user_id")
+    id: i64
+    email: string
+
+pub fn main() -> void $ Console:
+    println("SELECT ${User::columns()} FROM users")  # SELECT user_id, email FROM users
+    text := encode(User { id: 7, email: "ada@example.com" })
+    println(text)                                    # {"id":7,"email":"ada@example.com"}
 ```
+
+`Serialize` and `Deserialize` come from `std.serde`; JSON reads them, and so
+does the host boundary. `Table` is a library trait. Its template describes
+the members and reads the `column` fact, which only `Table` cares about.
+`Field`, `Variant`, `Members`, and `Key` are small read-only handles to
+per-type metadata that lives for the whole program; copying a handle does not
+copy the metadata. A walker reads a field's metadata through `h.info` and its
+value through `h.get(value)`.
 
 See [Annotations](spec/lang/14-annotations.md) for facts, derivation
 blocks, and `@error`.
@@ -134,7 +136,10 @@ blocks, and `@error`.
   codegen.
 - **Effects you can review.** A signature shows every capability a function
   can touch, and tests swap providers instead of patching globals.
-- **Sandboxed.** WebAssembly, with host access only through requirements.
+- **Sandboxed.** One linear-memory WebAssembly code generator, with host access
+  only through requirements. Counted objects use reference counting and cycle
+  collection; Node and wasmtime are interchangeable execution engines, not
+  different language backends.
 
 ## Built for agents: three pillars
 
@@ -209,6 +214,12 @@ and choose it with `hd --engine wasmtime ...` or `HD_ENGINE=wasmtime`.
 Read the [guide](website/guide/README.md), take the
 [tour](website/tour/01-hello.md), and run `hd help` for the
 commands ([The `hd` Command](website/guide/COMMANDS.md)). The
+[formatter](spec/cli/command-line.md#formatting) has one fixed,
+100-column/four-space layout and no style settings: run `hd fmt --check` in
+CI. Ordinary checking reports errors; run `hd lint` when you want optional
+advice.
+
+The
 [specification](spec/README.md) holds the exact rules, and the standard
 library is in [lib/std](lib/std/). To work on the compiler, see
 [crates/README.md](crates/README.md). [docs/](docs/README.md) indexes the
