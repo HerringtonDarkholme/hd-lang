@@ -1839,7 +1839,11 @@ is worth deciding only if they are hot.
      read that borrows, no parameter, unaddressed, uncaptured, whose reads
      lie in the span (which then ends at the local's last `Drop`), holds
      a borrowed value and owns nothing: its drops go and it leaves the
-     exit set. The loop's element binding is one, so with the element
+     exit set. One whose read keeps its drops (below) keeps its own
+     drops and its exit row too, and holds the count only where an
+     instance made the value fresh: so an inlined `is_empty` on a list
+     read through a reference borrows, as `len` does (#898). The loop's
+     element binding is one, so with the element
      read of the private snapshot it is §23.25's loop-element loan, and
      `count_tests.hd`'s "immutable loop elements add no per-element
      counts" holds its 2,000-retain bound on the new path.

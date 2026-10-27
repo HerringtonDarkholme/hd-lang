@@ -22,10 +22,12 @@
 //!   lives on it is ([`borrow_spans`]);
 //! - a local the body does not own holds no count: a binding local, which
 //!   a `borrow` value is stored into, takes only borrows and is never
-//!   dropped, moved out of or addressed; a counted parameter outside the
+//!   moved out of or addressed, nor dropped unless such a borrow keeps
+//!   its drops; a counted parameter outside the
 //!   exit set, which the body does not own, is also never stored into or
 //!   changed in place (an `IsUnique` or a `Pin` of its own storage, which
-//!   would give up a count of its caller's); neither is in the exit set
+//!   would give up a count of its caller's); neither is in the exit set,
+//!   except a binding local whose borrow keeps its drops
 //!   ([`binding_locals`]);
 //! - at each suspension point, whose cancellation leaves through the
 //!   exit, every owned value has a row in the unwind set and every owned
@@ -833,14 +835,17 @@ impl Forward for Empties<'_> {
 /// The locals the body does not own (`docs/compiler/tir-v2.md`,
 /// "Borrow"). A binding local: a `Store` of a `borrow` read goes into all
 /// of it, so it holds borrowed values only: every store into it stores
-/// one, nothing drops it, moves out of it or addresses it, and it is in no
-/// exit set. A lent parameter: a counted parameter outside the exit set,
+/// one, nothing moves out of it or addresses it, and nothing drops it nor
+/// is it in an exit set unless a borrow stored into it keeps its `Drop`s
+/// (one through a dereference, which a view's getter may make fresh: the
+/// local then holds that count, `crate::own::keeps_drops`). A lent parameter: a counted parameter outside the exit set,
 /// which nothing stores into, drops, moves out of or addresses either,
 /// and nothing changes in place: an `IsUnique` or a `Pin` of it would give
 /// up or keep a count that is its caller's.
 fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     let b = cx.b;
     let mut binding = vec![false; b.local_ty.len()];
+    let mut dropped = vec![false; b.local_ty.len()];
     let mut lent = vec![false; b.local_ty.len()];
     let mut any = false;
     if !b.sub_root.is_empty() {
@@ -867,6 +872,8 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
                 proj,
             }) if proj.is_empty() => {
                 binding[l.idx()] = true;
+                let w = b.data[i][1] as usize;
+                dropped[l.idx()] |= b.tags[w] == Tag::Read && crate::own::keeps_drops(b, own, w);
                 any = true;
             }
             _ => err(
@@ -895,7 +902,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         let what = match b.tags[i] {
             Tag::Store if lent[l.idx()] => "a store into",
             Tag::Store if !b.is_borrow(b.data[i][1]) => "an owned value stored into",
-            Tag::Drop => "a `Drop` of",
+            Tag::Drop if !dropped[l.idx()] => "a `Drop` of",
             Tag::Read if b.data[i][1] == ReadMode::Move as u32 => "a `move` out of",
             Tag::Ref => "a reference to",
             Tag::IsUnique | Tag::Pin => "a change in place of",
@@ -908,7 +915,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         );
     }
     for &(_, l) in &b.exit_drops {
-        if binding.get(l.idx()).copied().unwrap_or(false) {
+        if binding.get(l.idx()).copied().unwrap_or(false) && !dropped[l.idx()] {
             err(
                 errs,
                 NONE,
