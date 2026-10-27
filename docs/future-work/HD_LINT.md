@@ -6,52 +6,97 @@ This replaces the implementation plan, not those decisions. No implementation sh
 
 ## The proposal
 
-Register each lint once: name, code, default level, required views, event kinds
-and check. Union enabled requirements into **one driver request**. Reuse the
-compiler's completed syntax/resolution/type information through borrowed views;
-collect owned findings, then apply policy once after prerequisite checks succeed.
-Normal checking, building and the web compiler do not run lint.
+Register each lint once: stable code, default level, event kinds and check.
+Event kinds derive their compiler-view needs. On a lint-cache miss, run every
+registered rule over one verified, source-order walk, store policy-free owned
+findings, and then apply policy. Normal checking, building and the web compiler
+do not run lint.
 
 ```rust
+type Check = fn(&Event<'_>, &CheckedView<'_>, &mut Findings);
+
+fn unsigned_comparison(
+    event: &Event<'_>, view: &CheckedView<'_>, out: &mut Findings,
+) {
+    // Inspect Events::COMPARISON with view.adjusted_type(...), then emit.
+}
+
 static RULES: &[Rule] = &[
     Rule::new(Code::UnsignedComparisonAlways, Level::Warn,
-        Needs::TYPES, Events::COMPARISON, unsigned_comparison),
+        Events::COMPARISON, unsigned_comparison),
 ];
-let session = LintSession::new(RULES, selection, policy);
-let output = build_with_analysis(host, packages, goal, session.request());
-let report = session.finish(&output); // compiler errors bypass lint policy
+
+const fn needs(events: Events) -> Needs {
+    // COMPARISON => TYPES; BINDING => USES; STATEMENT => FLOW; ...
+}
 ```
 
-Adding a rule changes its check, registry entry and fixtures; no new `Policy`
-field, driver output channel, mutex or cache revision follows its name.
-Needs describe reusable compiler views, not one fact struct per lint. The
-name comes from the stable diagnostic code, without another name string table.
+Adding a rule changes one registry entry, its check, and one firing plus one
+quiet fixture. It does not add a `Policy` field, driver channel, cache kind or
+manual name arm. The name comes from the stable diagnostic code. Needs are a
+closed mapping from events, so a registry entry cannot under-declare them.
 
 ## Open questions
 
 1. Borrow completed compiler state during callbacks instead of exporting an owned type graph? Recommendation: yes; types never escape.
-2. Keep selected-body rechecking for typed lint initially, with optional persistent analysis caching deferred? Recommendation: yes; make this cost explicit.
+2. Should a correctly attached `# lint-allow: CODE` be an error when that valid code produces no finding? Recommendation: no; reject unknown codes and invalid attachment, but permit a now-quiet statement.
 
-## Purpose and current behavior
+## The problems in programs
 
-| Current problem | Proposed behavior |
-| --- | --- |
-| Ten optional fields and a hand-written name match in `Policy` | Indexed levels derived from one registry. |
-| Four CLI analysis calls and three driver fact results | One request/sink lifecycle with stage-specific views. |
-| Body-local type IDs cannot survive the compile run | Read them only inside a lifetime-bound query facade. |
-| A normal Check cache hit has no source observations | One central recheck rule; never silently skip typed findings. |
+This valid comparison needs the checked operand type, not spelling alone:
+
+```hd
+fn expired(remaining: usize) -> bool:
+    remaining < 0
+```
+
+Today four analysis calls collect three fact results and emit
+`unsigned-comparison-always`. The proposal emits the same code, span, message
+and fix from one `COMPARISON` event and `adjusted_type(remaining)`.
+
+This valid suppression is accepted policy but is still a known failure today:
+
+```hd
+fn expired(remaining: usize) -> bool:
+    # lint-allow: unsigned-comparison-always
+    remaining < 0
+```
+
+Today `cli/lint-site-allow` can still report the warning. The proposal attaches
+the full-line comment to the following statement and filters the owned finding
+after loading or computing it; the result is quiet.
+
+This program is invalid because the tail has type `i32`, not `void`:
+
+```hd
+struct Logger: pass
+
+impl Logger:
+    fn debug(&self, value: i32) -> i32: value
+
+fn user_call() -> void:
+    Logger {}.debug(+1)
+```
+
+Today `hd check` incorrectly accepts it and lint mistakes the method for prelude
+`debug`. [#916](https://github.com/HerringtonDarkholme/hd-lang/issues/916) is a
+checker soundness prerequisite: call checking records the selected declaration,
+the void-tail rule reports `type-mismatch`, and lint emits nothing for a failed
+prerequisite. The architecture must consume that identity, not reproduce the bug.
 
 ## Architecture
 
 `hd_lint` owns rule selection, predicates, messages, fixes and policy.
-The driver exposes a neutral optional analysis consumer and never imports
-`hd_lint`. The checker/resolver publish compiler observations, not warning decisions.
-The same request covers syntax, declaration/module metadata and checked bodies.
+The driver exposes a neutral optional analysis consumer under an `analysis`
+feature and never imports `hd_lint`. `hd_cli` enables that feature; `hd_web`
+does not, so the rows, callbacks and cache code are compiled out of the web build.
+The checker/resolver publish compiler observations, not warning decisions.
 
 ```rust
-pub struct AnalysisRequest<'s> { needs: Needs, sink: &'s dyn AnalysisSink }
-pub trait AnalysisSink: Sync {
-    fn visit(&self, event: AnalysisEvent<'_>);
+pub struct AnalysisRequest<'s> {
+    needs: Needs,
+    interests: Events,
+    sink: &'s dyn AnalysisSink,
 }
 pub struct Finding {
     lint: LintId, primary: Span, owner: FindingOwner,
@@ -59,74 +104,42 @@ pub struct Finding {
 }
 ```
 
-The request unions **enabled** registry entries before compilation and closes
-view dependencies: types, written names/calls, uses and flow require checked
-bodies/source; module/declaration metadata requires resolution; tokens need no
-body view. These are reusable families, not flags for individual rules. Driver selection remains authoritative
-for package/file/test roots and reachability; dependency interfaces are inputs,
-not separately linted sources. Skip unneeded stage/view families. Within a requested stage, dispatch one source-order
-traversal to interested rules, plus explicit body/module-finish hooks.
-Complexity is traversal plus actual rule/query work; one traversal does not
-make every possible lint linear. Derivation joins use indexed nominal keys.
+The request covers every registered event, because findings are independent of
+which rules policy currently allows. The driver walks each verified body's
+frozen source syntax once, in source order, and calls interested rules. It also
+delivers explicit declaration/module finish events. Rules query only the
+completed state needed by the first ten lints:
+`adjusted_type`, `binding`, `statement`, and the actual selected declaration of
+a call, plus source syntax/text. Future type, trait, row, adjustment and generic
+resolution APIs are not built until a lint demonstrates a need.
 
-For checked bodies, retain requested source-node rows before reference/place
-lowering erases them. Retain binding/use information before checker scopes
-are drained; finalize row types after inference/defaulting. Publish a borrowed
-view only after verification succeeds, while its type pool remains alive.
-Rejected trials roll back rows; nested closure ownership remains explicit.
-Some inferred requirement rows finish later at module level: expose Pending,
-then deliver final declaration rows with module/run-owned backing. That event
-never retains expired body-local handles. Do not invent a successful trait answer.
+A rule emits only owned stable codes, spans, text, notes and fixes. No body-local
+type, definition or symbol ID escapes. Findings have Statement, Declaration,
+Module or Package owners tied to the source snapshot. Worker-local chunks are
+globally sorted after collection. Compiler errors discard lint findings for the
+failed selected build; policy never suppresses compiler errors.
 
-The view reads expression/pattern types, written-name resolution, declaration
-identity, settled call choices, receiver adjustments, binding uses and reachability. A call
-choice distinguishes a concrete impl, generic trait bound, trait-value dispatch
-and builtin; a generic bound is not an unresolved concrete impl. The prelude
-guarantees bare `debug`/`dbg` identity in valid programs: they cannot
-be rebound. No scope-history graph is needed just to offer the existing fix.
-No rule repeats inference or guesses a call target from its spelling.
-The first ten need settled results and declaration metadata; arbitrary new
-trait-obligation solving is outside this proposal.
-
-A `TypeRef<'v>` borrows its query context, not just a copyable raw `Ty`.
-No usable run-local semantic IDs or type backing escape callbacks.
-A rule emits owned text, source spans and stable lint identity. A compact owned
-`SourcePlan` retains statement/sub-body ownership, suppression anchors and text
-identity for finish-time policy. Reuse the driver's existing finish-time movement
-of completed parses into shared position inputs; do not deep-clone or reparse them.
-`FindingOwner` is Statement, Declaration, Module or Package, keyed to that source
-snapshot; it never contains a checker local/definition ID. Each worker
-buffers findings locally and appends a chunk; global ordering is independent
-of completion order. Discard optional findings for a failed selected build;
-preserve today's per-member workspace error scope. Body-local callbacks may
-run before an unrelated module fails, but nothing
-is reported from that failed build. Verified-body and final-report gates differ.
-
-There is one cache boundary: a checked-view request bypasses selected root
-Check **reads**, as today's typed lint already does. Reuse parse/interface and
-dependency work; ordinary Check entries remain unchanged. Syntax/module-only
-requests keep true warm Check hits. No policy, severity, suppression, message or
-rule name enters a compiler key. Existing metadata is decoded only on demand.
-Persistent typed analysis is deferred; it needs owned/remapped type backing,
-source identity and an independent schema key before it can replay safely.
+Store findings in a separate `Lint` cache entry keyed by the selected `Check`
+key plus a registry hash. A miss performs all required stages, including module
+preparation and derivation joins, runs every registered rule, and serializes the
+owned findings. A hit loads them without retaining or rebuilding a type graph.
+The registry hash covers rule/event semantics and finding message/fix format;
+default levels, manifest/CLI policy and source suppressions are deliberately
+outside it. The ordinary `Check` key and entry remain unchanged. Thus the measured
+5.4x warm regression is not accepted as the steady-state design.
 
 Resolve default → selected manifest → explicit CLI levels once. Validate exact
-names/conflicts even when all checks are allowed. Selected-source suppression
-validation still runs in that case, without a typed recheck. Apply site allow
-last for calls directly owned by the target statement, including semantic
-operator calls; never equate every non-call finding with a suppressible call.
-A declaration's allow
-never flows into its nested function/closure. Policy cannot suppress compiler
-errors. Render existing diagnostics, messages, spans, fixes, ordering and statuses.
-No new lint command, fix mode, plugin mechanism or suppression syntax is added.
-The syntax facade hides run-interner token symbols; policy reads spans/text only.
+names/conflicts before cache lookup. Apply site allow last to calls directly
+owned by its following statement, including semantic operator calls. It does not
+flow into nested functions/closures or declaration/module findings. Render the
+existing codes, messages, spans, fixes, ordering and statuses. No new command,
+fix mode, plugin mechanism or suppression syntax is added.
 
 Share the existing parse/source/token view and optional neutral comment anchors
 with the [formatter proposal](https://github.com/HerringtonDarkholme/hd-lang/pull/911).
-Formatting keeps attachment private initially; extract common neutral anchors
-only when the second implemented consumer needs them, not in anticipation.
-Lint suppression ownership is statement-based, not formatter print order.
-Formatter never requests type facts; neither tool causes work when absent.
+The formatter must keep a full-line `# lint-allow:` immediately before its
+following statement; its round-trip suite gets a suppression fixture. Formatter
+never requests semantic facts, and neither tool causes analysis work when absent.
 
 ## Cost
 
@@ -157,8 +170,9 @@ allocation and cold/warm receipts against the same source hashes and profile.
 ## A. Stress test
 
 Real-code translations use local references and are checked with the current
-compiler, not an implementation of the proposed views. All six final inputs
-check successfully. Current lint outcomes are recorded below.
+compiler, not an implementation of the proposed views. The current compiler
+accepts all six inputs; the sixth acceptance is the #916 soundness bug. Current
+lint outcomes are recorded below.
 
 [Rust Vec::is_empty](https://github.com/rust-lang/rust/blob/8bab26f4f68e0e26f0bb7960be334d5b520ea452/library/alloc/src/vec/mod.rs)
 uses a zero equality. Its hd translation stays quiet: this is not an ordering
@@ -224,32 +238,32 @@ warning or a fix in this PR:
 struct Logger: pass
 
 impl Logger:
-    fn debug(&self, value: i32) -> void:
-        _ := value
-        pass
+    fn debug(&self, value: i32) -> i32: value
 
 fn user_call() -> void:
     Logger {}.debug(+1)
-    pass
 ```
 
-Current `hd lint` incorrectly emits `unused-debug-text` here although this method
-returns void; [#916](https://github.com/HerringtonDarkholme/hd-lang/issues/916)
-records the exact reproducer. The path-based classifier drops a constructor
-receiver, so a real selected-declaration view is essential. Preserve valid
+Current `hd check` incorrectly accepts this non-void tail and `hd lint` also
+emits `unused-debug-text`; [#916](https://github.com/HerringtonDarkholme/hd-lang/issues/916)
+records the soundness bug. The path-based classifier drops a constructor
+receiver. Fix #916 first by recording the checked call's selected declaration;
+both the void-tail exception and lint then consume that identity. Preserve valid
 prelude-call behavior without enshrining this false positive in the new API.
 
 | Adversary | Required result/invariant |
 | --- | --- |
 | A module/local declaration named debug or dbg | Existing `prelude-name-shadow`; no lint findings from an invalid prerequisite. |
-| Generic bound, trait value, builtin or indirect function call | Distinct settled Resolution variants; absence of a concrete impl is not Pending. |
+| Generic bound, trait value, builtin or indirect function call | No invented concrete declaration; only rules that need these forms may add a view. |
 | Overload trials and M1 result replay | No rejected/duplicate source events or stale type IDs. |
 | Captures/defer and nested closures | Final use/address facts; separate source ownership and suppression scope. |
 | Two packages/types with the same displayed name | Nominal declaration identity, not string comparison. |
 | All levels Allow plus an unknown suppression name | Configuration error, with no typed lint recheck. |
 | Workspace member failure, warm Check/interface hits, changed source | Preserve per-build prerequisite scope, collect missing required views, no stale findings. |
 
-Parse log: all six `text` blocks parse; all six final inputs also pass `hd check`.
+Parse log: all three main `hd` programs and all six `text` blocks parse; the
+current compiler accepts all nine fences, including the duplicated deliberately
+invalid #916 control.
 The three positive lint controls each report their expected code
 for each of the three examples; the method case's false positive is explicitly
 tracked. No idempotence, fix correctness or new-view performance is inferred
@@ -421,7 +435,8 @@ const rule = {
 An owned normalized `AnalysisSnapshot` would permit after-run queries and future
 warm replay, but needs a type/definition/symbol arena, remapping, serialization
 and explicit copy budgets. Existing `Output` owns none of that backing.
-Borrowed callbacks are smaller for ten rules; warm typed checks still recheck.
+Borrowed callbacks are smaller for ten rules; the separate Lint cache persists
+only owned findings, so a warm hit needs neither a type graph nor a body recheck.
 
 Keeping independent fact channels repeats today's coupling. Exporting raw TIR
 or a naked `Ty` makes ownership/source-loss problems the lint's responsibility.
@@ -430,53 +445,6 @@ unnecessary lifetime/cost. Copying a standalone JS/Python name model supplies
 no hd trait/type answers. None is the recommended first implementation.
 
 ## D. Today in hd
-
-<a id="contents"></a>
-<a id="warning-migration-inventory"></a>
-<a id="operational-exceptions-needing-approval"></a>
-<a id="what-users-see"></a>
-<a id="spec-placement-and-conformance"></a>
-<a id="other-tools"></a>
-<a id="rust-and-clippy"></a>
-<a id="go-analysis-and-vet"></a>
-<a id="eslint"></a>
-<a id="ruff"></a>
-<a id="dylint"></a>
-<a id="coverage-carried-into-this-proposal"></a>
-<a id="semantics"></a>
-<a id="types-permissions-and-requirements"></a>
-<a id="bindings-scopes-and-generated-code"></a>
-<a id="control-flow-and-observations"></a>
-<a id="first-lint"></a>
-<a id="later-lint-lost-write-to-a-mut-parameter"></a>
-<a id="porting-the-deleted-analysis"></a>
-<a id="later-lint-unused-capability-in-hdtoml"></a>
-<a id="implementation-choices"></a>
-<a id="placement-and-existing-facts"></a>
-<a id="data-structures-and-data-flow"></a>
-<a id="driver-pseudo-code"></a>
-<a id="first-lint-pseudo-code"></a>
-<a id="caching-and-testing"></a>
-<a id="command-and-configuration"></a>
-<a id="output-and-status"></a>
-<a id="custom-lints"></a>
-<a id="fixing-is-an-open-option"></a>
-<a id="stress-test"></a>
-<a id="surface-and-method"></a>
-<a id="receiver-places-and-shadowing-s1-s3"></a>
-<a id="writer-and-argument-escape-s4-s5"></a>
-<a id="generic-associated-and-dynamic-types-s6"></a>
-<a id="captured-and-global-escape-s7-s8"></a>
-<a id="repeated-text-and-intermediate-observers-s9"></a>
-<a id="exits-and-cleanup-s10"></a>
-<a id="suspension-and-implicit-cleanup-s11"></a>
-<a id="panic-and-declared-exclusions-s12-s15"></a>
-<a id="problems-found-ranked"></a>
-<a id="implementation-order-and-validation"></a>
-<a id="recommendation"></a>
-<a id="evidence-and-parse-log"></a>
-
-Legacy fragments above remain for existing links; their earlier text is in git history.
 
 The current registry is ten constants plus ten optional `Policy` fields
 (`hd_lint/src/lib.rs:22–80`). CLI invokes four analyzers after its error gate
@@ -492,18 +460,22 @@ path or semantic-symbol pools. Local type IDs have generations; copying their
 numbers cannot turn them into owned results. TIR types/source nodes help only
 before reference/place transformations erase distinctions.
 
-| Existing lint (all default Warn) | Shared view it reads |
-| --- | --- |
-| `unsigned-comparison-always` | Checked expression type, operator and unsuffixed-zero syntax. |
-| `unused-local-binding` | Local-binding kind/identity/name and final reads/captures. |
-| `redundant-let-mut` | Binding annotation/permission, written mut span and mutable-address uses. |
-| `variant-binding-name-mismatch` | Pattern resolution and nominal variant field order. |
-| `unreachable-code` | Source-statement reachability and sub-body owner. |
-| `unused-debug-text` | Implicit discard, actual selected declaration, call syntax and fixed prelude identities. |
-| `mixed-script-identifier` | Valid plain identifier tokens; no type view. |
-| `unselected-main` | Selected module role, public-main span and executable graph. |
-| `unused-derivation-fact` | Resolved block/decorator occurrence and consumed marker. |
-| `derivation-line-drift` | Nominal target/trait-package identity, member lines and sibling derives. |
+| Existing lint (all default Warn) | Shared view it reads | Finding owner | Site allow reaches it? |
+| --- | --- | --- | --- |
+| `unsigned-comparison-always` | Checked expression type, operator and unsuffixed-zero syntax. | Statement | Yes: the operator is its directly owned semantic call. |
+| `unused-local-binding` | Local-binding kind/identity/name and final reads/captures. | Statement | No: the binding is not a call. |
+| `redundant-let-mut` | Binding annotation/permission, written mut span and mutable-address uses. | Statement | No: the binding is not a call. |
+| `variant-binding-name-mismatch` | Pattern resolution and nominal variant field order. | Statement | No: the pattern is not a call. |
+| `unreachable-code` | Source-statement reachability and sub-body owner. | Statement | No: reachability is not a call. |
+| `unused-debug-text` | Implicit discard, actual selected declaration, call syntax and fixed prelude identities. | Statement | Yes: it is the directly owned call. |
+| `mixed-script-identifier` | Valid plain identifier tokens; no type view. | Declaration or statement | No: the identifier is not a call. |
+| `unselected-main` | Selected module role, public-main span and executable graph. | Declaration | No. |
+| `unused-derivation-fact` | Resolved block/decorator occurrence and consumed marker. | Declaration | No. |
+| `derivation-line-drift` | Nominal target/trait-package identity, member lines and sibling derives. | Declaration | No. |
+
+The table preserves `cli.lint.site-allow`: a site allow reaches only calls
+directly owned by its following statement. Whether a valid suppression that
+matches no finding should itself be diagnosed remains owner question 2.
 
 Per-file baseline below isolates checked-body + syntax analyses on prepared
 file facts; it excludes collection, module/derivation joins and fact filtering.
@@ -542,56 +514,46 @@ Operational decisions from #855 remain fixed: unknown manifest keys are load
 errors; run/build without a public entry report `missing-entry-point` and name
 the private `main`; failed `doc --open` is a command failure retaining its path.
 Their implementation status does not turn them into registry-controlled warnings.
+Manifest precedence and site allow do not work today; `cli/lint-manifest-precedence`
+and `cli/lint-site-allow` remain in root `KNOWN_FAILURES.tsv` under #855. The
+policy/suppression slice below is new implementation, not code moved from the
+current command.
 
 ## E. Signatures, invariants and delivery
 
 `AnalysisRequest`/`AnalysisSink` belong to `hd_driver`; neutral checked rows
 and `CheckedView` belong to `hd_check`. A driver-supplied checker hook forwards
-the completed view while its pool lives. Resolver/project views use existing
-lower-layer data. `hd_lint` may depend on the driver; the compiler never depends on `hd_lint`. No new crate or per-rule callback channel is required.
+the completed view while its pool lives. Resolver/project events use existing
+lower-layer data. `hd_lint` may depend on the driver; the compiler never depends
+on `hd_lint`. No new crate or per-rule callback channel is required.
 
 Illustrative Rust interfaces, not implemented APIs:
 
 ```rust
 struct CheckedView<'v> { /* frozen source rows, live borrowed query context */ }
 impl<'v> CheckedView<'v> {
-    fn expr_type(&self, expr: SourceExpr) -> Option<TypeRef<'v>>;
     fn adjusted_type(&self, expr: SourceExpr) -> Option<TypeRef<'v>>;
-    fn pattern_type(&self, pat: SourcePattern) -> Option<TypeRef<'v>>;
-    fn source_permission(&self, expr: SourceExpr) -> Permission;
     fn binding(&self, id: SourceBinding) -> BindingView<'v>;
     fn statement(&self, id: SourceStatement) -> StatementView<'v>;
-    fn resolution(&self, call: SourceExpr) -> Option<Resolution<'v>>;
-    fn adjustments(&self, expr: SourceExpr) -> &[ReceiverAdjustment<'v>];
-    fn written_name(&self, expr: SourceName) -> Option<NameResolution<'v>>;
-    fn declaration(&self, id: DeclRef<'v>) -> DeclarationView<'v>;
-    fn trait_facts(&self, id: DeclRef<'v>) -> TraitView<'v>;
-    fn inferred_row(&self, owner: SourceBody) -> RowState<'v>;
+    fn selected_declaration(&self, call: SourceCall) -> Option<DeclRef<'v>>;
+    fn source(&self) -> SourceView<'v>;
 }
-enum Resolution<'v> {
-    Concrete { method: DeclRef<'v>, impl_: Option<DeclRef<'v>>, args: TypeArgs<'v> },
-    Bound { method: DeclRef<'v>, bound: BoundRef<'v>, args: TypeArgs<'v> },
-    TraitValue { method: DeclRef<'v>, receiver: TypeRef<'v>, args: TypeArgs<'v> },
-    Builtin { operation: Builtin, result: TypeRef<'v> },
-    Indirect { signature: TypeRef<'v> }, // valid function-value call
-}
-enum RowState<'v> { Known(RowRef<'v>), Pending, Unavailable }
 ```
 
-`expr_type` describes the checked source type; `adjusted_type` describes the
-effective type after recorded coercions/reads. Unsigned comparisons use that
-effective operand type; source reference permissions remain separate.
-Private constructors bind source/body/type handles to one live view. Types expose
-primitive/nominal/argument/reference/permission information. Declaration and trait
-views expose signatures, layouts, bounds, associated items and already-settled
-evidence in the actual parameter/impl environment. Pending is neither No nor Yes.
-A later solver query needs its own environment, budget and side-effect contract.
+`adjusted_type` supplies the effective operand type for unsigned comparisons.
+`binding` supplies final use, capture, permission and mutable-address facts.
+`statement` supplies reachability and sub-body ownership. Pattern identity and
+field order travel in the pattern event; they do not justify a general
+`pattern_type` query. `selected_declaration` is the concrete identity already
+chosen by call checking and is the only call-resolution query needed now. The
+first ten do not need generic trait facts, inferred rows, receiver-adjustment
+lists, arbitrary name lookup or a public resolution enum. Those remain a future
+sketch, with no API, until a registered lint requires one.
 
-`written_name` exposes the checker's result for a source name, not a new name
-resolver. An arbitrary `lookup_at` query and retained scope-history graph are
-deferred until a real lint needs them. The first ten do not: `debug` and `dbg`
-are unshadowable prelude names (`module.prelude.no-shadow`). A method with the
-same name is different; consult its actual call target, never a shortened path.
+Private constructors bind `TypeRef` and `DeclRef` to one live view. The first
+implementation exposes only primitive/reference facts needed by the rules, not
+signatures, layouts, bounds or a solver. A method named `debug` is distinct from
+the fixed prelude declaration; #916 makes the checker record that distinction.
 
 The driver already moves completed `OnceLock<Parse>` values into shared position
 inputs at finish. Expose only the selected-source syntax/span/text facade needed
@@ -603,18 +565,27 @@ Retained run-interner token symbols remain opaque. Source keys include compilati
 member, source snapshot and body/sub-body identity; a raw FileId/NodeIdx alone is
 not a cross-run key. Type IDs and inference state never enter an owned Finding.
 
-Keep requests to syntax/module metadata on true warm Check paths. A checked-view
-request rechecks selected root bodies once; dependency interfaces remain reusable.
-An optional-data miss must collect/rebuild, never silently lose findings. No new
-normal Check key is needed solely for the registry. If an existing serialized
-neutral format changes, version that format centrally. Future persistent typed
-artifacts need owned backing/remapping before policy-free caching can be proposed.
+The separate `Lint` cache entry is `(CheckKey, RegistryHash) -> Vec<Finding>`.
+Compute `RegistryHash` from the compiler build ID, finding schema version and
+sorted `(code, events, message/fix revision)` entries. It therefore changes with
+event/view semantics, rule code, message text, notes or fixes. It does not include
+default/manifest/CLI levels or site allows. A miss requests all event families,
+checks the selected roots, runs every rule and writes findings only after success.
+A hit deserializes findings and applies current policy. Source changes already
+alter `CheckKey`; registry changes alter `RegistryHash`. The normal Check format
+and key remain untouched.
 
-Trial checkpoints include updates to earlier rows, not only vector truncation.
-Freeze before source lowering; publish only after verification while the pool
-lives. Dispatch once per (source snapshot, body/sub-body, node, event kind), not
-per TIR instruction. M1 result replay never re-emits callbacks. Final module
-events contain only their own valid declaration backing.
+Derivation rules follow the same boundary: a miss performs module preparation,
+checking and derivation joins before caching all findings; a hit loads them.
+There is no silent derivation-lint omission and no warm-cache body recheck. A
+focused `derivation-line-drift` test covers cold miss, warm hit and source change;
+other rules rely on the common cache contract.
+
+Freeze rows after verification and before source lowering erases distinctions.
+Then walk syntax once and dispatch once per (snapshot, body/sub-body, node,
+event kind), not per checker trial or TIR instruction. Rejected overload trials,
+rollback and M1 replay cannot emit because no rule callback runs during inference.
+Final module events contain only valid declaration backing.
 
 Policy validation is a source-level floor even with zero active checks: unknown
 suppression names still error without typed rechecking. Call/operator findings
@@ -628,29 +599,35 @@ comparison-suppression fixture remains valid without a CallExpr-only filter.
 | Registry/policy | Remove ten optional fields/name arms; add one entry/check plus indexed levels; assert unique codes. |
 | Driver/checker | Delete three result channels and per-rule integration; add one optional sink and requested neutral rows. |
 | Lint off | Zero optional rows, allocations, query/traversal work or cache payload; ordinary guest bytes unchanged. |
-| Lint on | Collect requested families once; measure collection, rules, peak memory and allocations separately. |
+| Lint on | Miss: collect and run all rules once; hit: load owned findings; measure both paths, peak memory and allocations. |
 | Compile/runtime | No guest runtime changes; same-profile normal compile controls must show no meaningful regression. |
-| Web compiler | No hd_lint dependency; frozen source-equivalent baseline 5,103,008 B raw / 1,707,892 B gzip level 9, below 2 MB gzip. |
+| Web compiler | Leave the driver/checker `analysis` feature off and keep no hd_lint dependency; frozen source-equivalent baseline 5,103,008 B raw / 1,707,892 B gzip level 9, below 2 MB gzip. |
 
 The web control was built at `3b0e4cb4b`; its protected compiler sources match
 `f4ddc82ee`. New registry, row-storage and web-size deltas remain unmeasured.
 
 Implementation slices, each about an hour and independently reviewed:
 
+0. Fix checker soundness prerequisite #916; both void-tail checking and lint read the checked call's selected declaration.
 1. Registry/indexed policy and owned Finding; keep a reference dispatcher and exact ten-rule snapshots.
-2. One request/sink + selected source/module/declaration views; cold/warm cache and scope tests.
-3. Borrowed type/binding/flow view; freeze/verify timing and type-lifetime controls.
-4. Written-name/call/declaration views; rollback, M1, closures and fixed-prelude controls.
+2. One request/sink, minimal source/module/declaration events and the `analysis` feature; off/web controls.
+3. Minimal borrowed type/binding/flow/callee view; post-verification walk and type-lifetime controls.
+4. Policy-free Lint cache keyed by Check key plus registry hash; cold miss, warm hit, invalidation and derivation controls.
 5. Move all ten checks to registered dispatch; delete old flags/results/analyzer entry points; exact diagnostic/fix parity.
-6. One policy/suppression finish path, all-Allow validation and workspace error scopes; resume remaining #855 producers on these view families.
+6. Implement the one policy/suppression finish path, all-Allow validation and workspace error scopes; resume remaining #855 producers on these view families.
 
 Adding a lint needs one metadata/check entry plus specification/fixture changes
 for a genuinely new rule; stable diagnostic codes continue to be generated from
-the spec. Test enabled/disabled behavior, exact names/messages/spans/fixes, type
-and name lookalikes, prerequisites and selected roots. Compare optimized buckets
-with an unfiltered reference; test cold/warm orderings, source/iface/Check hits,
-serial/pool equality and deterministic dedup. Fix tests compare exact output,
-reparse/recheck it and reject new syntax errors; no new applying command is proposed.
+the spec. Every registered code must have at least one firing fixture and one
+quiet fixture. Its `cases.tsv` firing row names the exact expected finding, for
+example `lint:unsigned-comparison-always`; an accept-only case is not coverage.
+The harness rejects a registry code without both cases and checks exact names,
+messages, spans and fixes. Test enabled/disabled policy, lookalikes, prerequisite
+failure and selected roots. Compare optimized buckets with an unfiltered reference;
+test cold miss/warm hit, source and registry invalidation, serial/pool equality
+and deterministic dedup. Fix tests compare exact output, reparse/recheck it and
+reject new syntax errors; no new applying command is proposed. The formatter's
+round-trip fixtures must include a site allow that remains immediately attached.
 
 A compile-fail API test ensures a TypeRef cannot escape its callback.
 No-request controls assert zero optional rows/events/findings/allocations and no
