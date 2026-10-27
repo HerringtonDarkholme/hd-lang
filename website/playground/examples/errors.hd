@@ -17,6 +17,7 @@ tests:
             _ => assert(false, reason="expected Missing")
 
 # ── plumbing ──────────
+use std.annotation.cold
 use std.error.{Error, report_of}
 use std.num.{ParseNumberError}
 @error
@@ -37,6 +38,10 @@ fn lookup(config: string, key: string) -> Result[string, ConfigError]:
                 if k.trim() == key:
                     return .Ok(v.trim())
             .None => pass
+    missing(key)
+
+@cold
+fn missing(key: string) -> Result[string, ConfigError]:
     .Err(ConfigError.Missing(key))
 
 fn port(config: string) -> Result[i32, ConfigError]:

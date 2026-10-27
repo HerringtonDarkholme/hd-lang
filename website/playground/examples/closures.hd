@@ -1,4 +1,8 @@
-# Closures see your locals. No context struct, no named function.
+# Closures see your locals. This small adapter is copied at direct calls; the
+# closure remains a normal function value.
+use std.annotation.inline
+
+@inline(.Always)
 fn apply_all(prices: List[i32], rule: fn(i32) -> i32) -> List[i32]:
     [for price in prices => rule(price)]
 

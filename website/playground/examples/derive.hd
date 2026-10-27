@@ -3,6 +3,9 @@
 struct Money:
     cents: i32
 
+# Generated traversals pass small static structure handles. A derive reads the
+# same per-type member metadata instead of rebuilding or copying it per value.
+
 tests:
     it_prop(
         "parse undoes print",
