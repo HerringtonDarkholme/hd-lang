@@ -91,11 +91,13 @@ derivation.
 
 ### WebAssembly execution
 
-hd-lang targets WebAssembly with reference counting and cycle collection and a WASI-compatible host boundary.
-Authority-bearing providers originate at that boundary, allowing runtimes to
-sandbox code and record meaningful operations. Durable execution and replay
-are runtime protocols over explicit suspensions rather than serialization of
-an active Wasm stack.
+hd-lang has one code generator: values live in WebAssembly linear memory, and
+counted objects use reference counting and cycle collection. Node and wasmtime
+are execution engines for the same module, not separate language backends. A
+WASI-compatible host boundary supplies authority-bearing providers, allowing
+runtimes to sandbox code and record meaningful operations. Durable execution
+and replay are runtime protocols over explicit suspensions rather than
+serialization of an active Wasm stack.
 
 ## Document Boundaries
 

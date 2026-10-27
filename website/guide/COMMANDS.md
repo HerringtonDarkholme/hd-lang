@@ -75,6 +75,11 @@ $ echo $?
 
 Read next: [Engines](../../spec/cli/command-line.md#engines).
 
+Engine selection is not backend selection. Every build uses hd's one code
+generator: values live in WebAssembly linear memory, and counted objects use
+reference counting plus cycle collection. Node and wasmtime execute the same
+module.
+
 ## Parse Your Program's Arguments
 
 `std.cli.ArgParser` declares your program's options and provides `-h` and
@@ -139,6 +144,48 @@ build/release/orders.wasm
 ```
 
 Read next: [Building And Checking](../../spec/cli/command-line.md#building-and-checking).
+
+## Lint Accepted Code
+
+You want optional advice after the program compiles. Ordinary checking,
+building, testing, REPL evaluation, and the playground report errors only;
+`hd lint` is the explicit read-only advice pass:
+
+```sh
+$ hd check count.hd
+check result: ok. errors: 0; warnings: 0
+$ hd lint count.hd
+warning: count.hd:2:9: redundant-let-mut: `let mut` on a primitive is needed only when `&mut` of it is taken; a plain `let` is already reassignable
+    fix: remove `mut`
+check result: ok. errors: 0; warnings: 1
+```
+
+Lint levels are exact names. `--allow CODE` suppresses one, `--warn CODE`
+reports it without failing, and `--deny CODE` reports it as an error. The
+package can put the same names in `[lint]`; a command-line level overrides the
+package for that run. Site-specific `# lint-allow: CODE` suppresses that code
+for calls directly owned by the next statement.
+
+Read next: [Linting](../../spec/cli/command-line.md#linting).
+
+## Format Source
+
+You want every review to see the same layout. `hd fmt` is deliberately
+opinionated, like `gofmt`: its one style uses four-space indentation and a
+100-column width, with no style settings.
+
+```sh
+$ hd fmt                  # rewrite every package source, test, and task
+$ hd fmt src/cart.hd      # rewrite one file
+$ hd fmt --check          # write nothing; list files that differ
+```
+
+Formatting depends on syntax, comments, and authored sibling blank lines, not
+on the spacing or wrapping it replaces. It keeps comments and meaning, and is
+idempotent. A syntax-error file is left untouched while the other selected
+files are formatted.
+
+Read next: [Formatting](../../spec/cli/command-line.md#formatting).
 
 ## Test
 
@@ -235,7 +282,7 @@ You want to see a value while it runs, or read what a function promises.
 
 ````sh
 $ hd doc std.text.split
-```hd
+```text
 pub fn split(self, separator: string) -> List[string]
 ```
 

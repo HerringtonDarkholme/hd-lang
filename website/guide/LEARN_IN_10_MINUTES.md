@@ -1,13 +1,15 @@
 # Learn hd-lang in 10 Minutes
 
 hd-lang is a statically typed, indentation-based language that compiles to
-WebAssembly GC. It is designed for code that AI agents write and humans
-review: types sit at the boundaries, dependencies are declared in signatures,
-and suspension points are marked at every call.
+WebAssembly with values in linear memory and reference counting plus cycle
+collection. It is designed for code that AI agents write and humans review:
+types sit at the boundaries, dependencies are declared in signatures, and
+suspension points are marked at every call.
 
-This page is the syntax on one page, by example. Every example parses with
-the compiler. Each topic links to its page of the [tour](../tour/01-hello.md),
-where you run and change the code; the
+This page is the syntax on one page, by example. Every `hd` block checks with
+the compiler; `text` blocks are fragments that need the declarations around
+them in a real program. Each topic links to its page of the
+[tour](../tour/01-hello.md), where you run and change the code; the
 [specification](../../spec/README.md) is the normative reference.
 
 ## Hello
@@ -67,7 +69,7 @@ as `+5`. Conversions are calls, and none is implicit. Strings interpolate
 `$name` and `${expression}`, are UTF-8 bytes, and slice by byte range
 ([tour: strings and numbers](../tour/03-strings-and-numbers.md)).
 
-```hd
+```text
 use std.text.r
 
 let big: i64 = 9000
@@ -120,6 +122,33 @@ fn show[T < Display](value: T) -> string:
 A pipe feeds a value into the next step, and `_` marks where it goes
 ([tour: pipes](../tour/08-pipes.md)): `cents |> discounted(_, 10) |> format`.
 
+### Inlining and cold paths
+
+A URL validator calls its tiny prefix test on every request, while malformed
+input is rare. Inlining changes that code layout, never program behavior.
+Import `inline` or `cold` from `std.annotation`. `@inline(.Always)` asks the
+compiler to copy a copyable function at each direct call even past its normal
+size and reference rules; an uncopyable function is an
+`inline-always-uncopyable` error.
+`@inline(.Never)` keeps a body out of its callers, and `@cold` additionally
+routes each direct call through the function table. Bare `@inline` is
+`@inline(.Auto)`.
+
+```hd
+use std.annotation.{cold, inline}
+
+@inline(.Always)
+fn has_scheme(text: string) -> bool:
+    text.starts_with("https://") || text.starts_with("http://")
+
+@cold
+fn malformed_url(text: string) -> string:
+    "invalid URL: $text"
+
+fn validate_url(text: string) -> Result[string, string]:
+    if has_scheme(text): .Ok(text) else: .Err(malformed_url(text))
+```
+
 ## Control Flow
 
 The whole list: `if`, `match`, `for`, `while`, `break`, `continue`, and
@@ -127,7 +156,7 @@ The whole list: `if`, `match`, `for`, `while`, `break`, `continue`, and
 loops with `else` are expressions, and a `match` must be exhaustive
 ([tour: control flow](../tour/07-expressions.md)).
 
-```hd
+```text
 label := if score >= 90: "excellent" else: "passing"
 
 found := for name in names:
@@ -214,7 +243,7 @@ dispatches dynamically and is always written with its `&`. `@derive` writes
 standard implementations ([tour: traits](../tour/11-traits.md),
 [derive](../tour/18-derive.md)).
 
-```hd
+```text
 trait Describe:
     fn describe(&self) -> string
 
@@ -228,6 +257,11 @@ struct Point:
     y: i32
 ```
 
+Typed derivation is ordinary library code over `std.structure`. Its `Field`,
+`Variant`, `Members`, and `Key` values are read-only handles to per-type
+metadata that lives for the whole program. Passing a handle copies the small
+reference, not the member or variant metadata it names.
+
 ## Requirements and Suspension
 
 A row after `$` lists the traits a function needs. `$.use` retrieves a
@@ -238,7 +272,7 @@ object (`&FixedClock { at: 42 }`), so a test installs a fake
 can suspend, and so does every call to it
 ([tour: suspension](../tour/16-suspension.md)).
 
-```hd
+```text
 trait Clock:
     fn now(&self) -> i64
 
@@ -256,7 +290,7 @@ private unless marked `pub`. `use` roots are `pkg`, `std`, `dep`, `self`, and
 `super` ([tour: modules](../tour/14-modules.md)). A file's tests live in a
 `tests:` block ([tour: tests](../tour/13-tests.md)).
 
-```hd
+```text
 use pkg.user.types.{User, UserId}
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
@@ -338,6 +372,17 @@ fn csv(cells: List[string]) -> string:
 ```
 
 `cells.join(";")` builds the same text without the trailing separator.
+
+## Format And Lint
+
+`hd fmt` has one canonical style, like `gofmt`: four-space indentation, a
+100-column width, and no style settings. It formats a package in place;
+`hd fmt --check` writes nothing and lists files that differ.
+
+`hd check`, `hd build`, `hd test`, the REPL, and the playground report errors
+only. Run `hd lint` when you want optional advice. Lints default to their
+registered level and can be selected explicitly, for example
+`hd lint --deny redundant-let-mut` or `hd lint --allow unused-local-binding`.
 
 ## Where Next
 
