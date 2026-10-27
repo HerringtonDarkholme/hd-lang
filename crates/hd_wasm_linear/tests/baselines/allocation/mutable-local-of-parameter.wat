@@ -13,9 +13,7 @@
     ;; 14 |             return .None
         i32.const 0
         i64.const 0
-        local.set $value
-        local.set $self
-        br 1
+        return
     ;; 13 |         if self.at >= self.end:
       end
     ;; 15 |         value := self.at
