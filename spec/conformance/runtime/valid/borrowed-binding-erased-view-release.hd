@@ -1,0 +1,28 @@
+# test: a borrowed method receiver releases a fresh value read through an erased view
+# Spec 13 Reference Lifetime: ref.place.lifetime; Spec std/collections: std-collections.access.is-empty.
+# expect: test
+
+struct Holder:
+    words: List[string]
+    tag: usize
+
+trait Factory:
+    fn make[T](self, value: T) -> *mut T:
+        let mut local = value
+        &mut local
+
+struct Maker: pass
+impl Factory for Maker
+
+# The local parameter makes is_empty borrow its inlined receiver binding.
+# A view getter may make that binding fresh, so its Drop must release it.
+fn empty(holder: &Holder) -> bool:
+    holder.words.is_empty()
+
+tests:
+    use std.testing.assert_equal
+
+    it("releases the borrowed receiver binding of a view read"):
+        let factory: &dyn Factory = &Maker {}
+        holder := factory.make(Holder { words: ["kept"], tag: 1 })
+        assert_equal(empty(holder), false, reason="the view reads the nonempty list")
