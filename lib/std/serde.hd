@@ -241,11 +241,13 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
         self.member(h, items)
 
     fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
-        # A member with no facts has neither `Skip` nor `SkipNone`.
-        if !h.info.facts.items.is_empty() && skipped(h, value):
-            return .Ok(())
-        self.out.member(&h.info)?
-        value.serialize(self.out)
+        serialize_member(self.out, &h.info, value)
+
+fn serialize_member[W < Serializer, F < Serialize](out: *mut W, info: &Member, value: F) -> Result[void, W::Error]:
+    if !info.facts.items.is_empty() && info.facts.find::[Skip]().is_some():
+        return .Ok(())
+    out.member(info)?
+    value.serialize(out)
 
 # Whether a member's facts omit it with `value`: a `Skip`, or a `SkipNone`
 # whose test holds. Out of line, since most members have no facts: each
@@ -306,19 +308,28 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
     # An absent member that declares a default takes it, and is not read
     # (r-std-serde.derive.deserialize.unskipped-default).
     fn member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
-        self.input.member(&h.info)?
-        if h.has_default() && self.input.is_absent():
-            match h.default():
-                .Some(value) => return .Ok(value)
-                .None => pass
-        F::deserialize(self.input)
+        deserialize_member(self.input, &h.info)
 
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, R::Error]:
-        if h.fact::[Skip]().is_none():
-            panic("std.serde: the source names every unskipped member")
-        match h.default():
-            .Some(value) => .Ok(value)
-            .None => .Err(self.input.invalid("skipped field `${h.info.name}` needs a declared default"))
+        missing_member(self.input, &h.info, h.default())
+
+fn deserialize_member[R < Deserializer, F < Deserialize](input: *mut R, info: &Member) -> Result[F, R::Error]:
+    input.member(info)?
+    F::deserialize(input)
+
+# Positions the reader at `info`'s member; whether the member is absent and
+# declares a default (r-std-serde.derive.deserialize.unskipped-default).
+fn absent_member[R < Deserializer](input: *mut R, info: &Member, has_default: bool) -> Result[bool, R::Error]:
+    input.member(info)?
+    .Ok(has_default && input.is_absent())
+
+@cold
+fn missing_member[R < Deserializer, F](input: *mut R, info: &Member, default: F?) -> Result[F, R::Error]:
+    if info.facts.find::[Skip]().is_none():
+        panic("std.serde: the source names every unskipped member")
+    match default:
+        .Some(value) => .Ok(value)
+        .None => .Err(input.invalid("skipped field `${info.name}` needs a declared default"))
 
 # ---------------------------------------------------------------------------
 # The standard implementations (spec/std/serde.md#standard-implementations).

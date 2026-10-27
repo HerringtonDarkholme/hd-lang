@@ -6,7 +6,7 @@
 
 use std.function.Tuple
 use std.num.Integer
-use std.structure.{Structure, Walker, Variant, Field}
+use std.structure.{Structure, Walker, Variant, Field, Member}
 
 # A value's text in string interpolation
 # (spec/lang/05-expressions.md#string-interpolation).
@@ -945,9 +945,7 @@ impl[S] Walker[S] for DebugShape[S]:
         self.member(h, items)
 
     fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        self.members = self.members + 1
-        if h.info.positional:
-            self.positional = self.positional + 1
+        count_member(&mut self.members, &mut self.positional, &h.info)
         .Ok(())
 
 # Writes each member as a named field.
@@ -966,7 +964,7 @@ impl[S] Walker[S] for DebugNamed[S]:
         self.member(h, items)
 
     fn member[F < Debug](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        _ := self.fields.field(h.info.name, value)
+        named_member(self.fields, &h.info, value)
         .Ok(())
 
 # Tuple `Debug` (spec/std/format.md#r-std-format.debug.tuple-template):
@@ -993,16 +991,27 @@ impl[S] Walker[S] for DebugFields[S]:
         .Ok(())
 
     fn member[F < Debug](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
-        if h.info.positional:
-            _ := self.tuple.field(value)
-        else:
-            _ := self.tuple.named_field(h.info.name, value)
+        tuple_member(self.tuple, &h.info, value)
         .Ok(())
 
     fn rest[I < Debug](&mut self, h: Field[S, List[I]], items: List[I]) -> Result[void, never]:
         for item in items:
             _ := self.tuple.field(item)
         .Ok(())
+
+fn count_member(members: &mut usize, positional: &mut usize, info: &Member) -> void:
+    *members = *members + 1
+    if info.positional:
+        *positional = *positional + 1
+
+fn named_member[F < Debug](fields: *mut DebugStruct, info: &Member, value: F) -> void:
+    _ := fields.field(info.name, value)
+
+fn tuple_member[F < Debug](tuple: *mut DebugTuple, info: &Member, value: F) -> void:
+    if info.positional:
+        _ := tuple.field(value)
+    else:
+        _ := tuple.named_field(info.name, value)
 
 # Tuple `Display` (spec/lang/05-expressions.md#r-expr.interp.std.tuple.template):
 # each element's text, separated by ", ", inside parentheses, at every

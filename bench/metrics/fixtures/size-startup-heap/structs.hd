@@ -1,0 +1,509 @@
+# Twenty structs that share field types, each derived and run through json.
+# Measures template code that should be shared across structs (#927).
+use std.json.{decode, encode}
+use std.serde.{Deserialize, Serialize}
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct User:
+    name_0: string
+    count_1: i32
+    items_2: List[string]
+    note_3: string?
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Team:
+    count_0: i32
+    items_1: List[string]
+    note_2: string?
+    limit_3: i32?
+    active_4: bool
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Project:
+    items_0: List[string]
+    note_1: string?
+    limit_2: i32?
+    active_3: bool
+    name_4: string
+    count_5: i32
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Task:
+    note_0: string?
+    limit_1: i32?
+    active_2: bool
+    name_3: string
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Comment:
+    limit_0: i32?
+    active_1: bool
+    name_2: string
+    count_3: i32
+    items_4: List[string]
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Tag:
+    active_0: bool
+    name_1: string
+    count_2: i32
+    items_3: List[string]
+    note_4: string?
+    limit_5: i32?
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Repo:
+    name_0: string
+    count_1: i32
+    items_2: List[string]
+    note_3: string?
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Issue:
+    count_0: i32
+    items_1: List[string]
+    note_2: string?
+    limit_3: i32?
+    active_4: bool
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Review:
+    items_0: List[string]
+    note_1: string?
+    limit_2: i32?
+    active_3: bool
+    name_4: string
+    count_5: i32
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Label:
+    note_0: string?
+    limit_1: i32?
+    active_2: bool
+    name_3: string
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Branch:
+    limit_0: i32?
+    active_1: bool
+    name_2: string
+    count_3: i32
+    items_4: List[string]
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Commit:
+    active_0: bool
+    name_1: string
+    count_2: i32
+    items_3: List[string]
+    note_4: string?
+    limit_5: i32?
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Release:
+    name_0: string
+    count_1: i32
+    items_2: List[string]
+    note_3: string?
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Asset:
+    count_0: i32
+    items_1: List[string]
+    note_2: string?
+    limit_3: i32?
+    active_4: bool
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Hook:
+    items_0: List[string]
+    note_1: string?
+    limit_2: i32?
+    active_3: bool
+    name_4: string
+    count_5: i32
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Org:
+    note_0: string?
+    limit_1: i32?
+    active_2: bool
+    name_3: string
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Member:
+    limit_0: i32?
+    active_1: bool
+    name_2: string
+    count_3: i32
+    items_4: List[string]
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Invite:
+    active_0: bool
+    name_1: string
+    count_2: i32
+    items_3: List[string]
+    note_4: string?
+    limit_5: i32?
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Token:
+    name_0: string
+    count_1: i32
+    items_2: List[string]
+    note_3: string?
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Event:
+    count_0: i32
+    items_1: List[string]
+    note_2: string?
+    limit_3: i32?
+    active_4: bool
+
+fn round_user(i: i64) -> usize:
+    value := User {
+        name_0: "s${i}",
+        count_1: i32(i) + +7,
+        items_2: ["a${i}", "b"],
+        note_3: (if i % 2 == 0: .Some("o${i}") else: .None),
+    }
+    text := encode(value)
+    back := match decode::[User](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_team(i: i64) -> usize:
+    value := Team {
+        count_0: i32(i) + +7,
+        items_1: ["a${i}", "b"],
+        note_2: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_3: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_4: i % 2 == 1,
+    }
+    text := encode(value)
+    back := match decode::[Team](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_project(i: i64) -> usize:
+    value := Project {
+        items_0: ["a${i}", "b"],
+        note_1: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_2: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_3: i % 2 == 1,
+        name_4: "s${i}",
+        count_5: i32(i) + +7,
+    }
+    text := encode(value)
+    back := match decode::[Project](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_task(i: i64) -> usize:
+    value := Task {
+        note_0: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_1: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_2: i % 2 == 1,
+        name_3: "s${i}",
+    }
+    text := encode(value)
+    back := match decode::[Task](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_comment(i: i64) -> usize:
+    value := Comment {
+        limit_0: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_1: i % 2 == 1,
+        name_2: "s${i}",
+        count_3: i32(i) + +7,
+        items_4: ["a${i}", "b"],
+    }
+    text := encode(value)
+    back := match decode::[Comment](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_tag(i: i64) -> usize:
+    value := Tag {
+        active_0: i % 2 == 1,
+        name_1: "s${i}",
+        count_2: i32(i) + +7,
+        items_3: ["a${i}", "b"],
+        note_4: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_5: (if i % 3 == 0: .Some(i32(i)) else: .None),
+    }
+    text := encode(value)
+    back := match decode::[Tag](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_repo(i: i64) -> usize:
+    value := Repo {
+        name_0: "s${i}",
+        count_1: i32(i) + +7,
+        items_2: ["a${i}", "b"],
+        note_3: (if i % 2 == 0: .Some("o${i}") else: .None),
+    }
+    text := encode(value)
+    back := match decode::[Repo](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_issue(i: i64) -> usize:
+    value := Issue {
+        count_0: i32(i) + +7,
+        items_1: ["a${i}", "b"],
+        note_2: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_3: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_4: i % 2 == 1,
+    }
+    text := encode(value)
+    back := match decode::[Issue](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_review(i: i64) -> usize:
+    value := Review {
+        items_0: ["a${i}", "b"],
+        note_1: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_2: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_3: i % 2 == 1,
+        name_4: "s${i}",
+        count_5: i32(i) + +7,
+    }
+    text := encode(value)
+    back := match decode::[Review](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_label(i: i64) -> usize:
+    value := Label {
+        note_0: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_1: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_2: i % 2 == 1,
+        name_3: "s${i}",
+    }
+    text := encode(value)
+    back := match decode::[Label](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_branch(i: i64) -> usize:
+    value := Branch {
+        limit_0: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_1: i % 2 == 1,
+        name_2: "s${i}",
+        count_3: i32(i) + +7,
+        items_4: ["a${i}", "b"],
+    }
+    text := encode(value)
+    back := match decode::[Branch](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_commit(i: i64) -> usize:
+    value := Commit {
+        active_0: i % 2 == 1,
+        name_1: "s${i}",
+        count_2: i32(i) + +7,
+        items_3: ["a${i}", "b"],
+        note_4: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_5: (if i % 3 == 0: .Some(i32(i)) else: .None),
+    }
+    text := encode(value)
+    back := match decode::[Commit](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_release(i: i64) -> usize:
+    value := Release {
+        name_0: "s${i}",
+        count_1: i32(i) + +7,
+        items_2: ["a${i}", "b"],
+        note_3: (if i % 2 == 0: .Some("o${i}") else: .None),
+    }
+    text := encode(value)
+    back := match decode::[Release](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_asset(i: i64) -> usize:
+    value := Asset {
+        count_0: i32(i) + +7,
+        items_1: ["a${i}", "b"],
+        note_2: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_3: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_4: i % 2 == 1,
+    }
+    text := encode(value)
+    back := match decode::[Asset](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_hook(i: i64) -> usize:
+    value := Hook {
+        items_0: ["a${i}", "b"],
+        note_1: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_2: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_3: i % 2 == 1,
+        name_4: "s${i}",
+        count_5: i32(i) + +7,
+    }
+    text := encode(value)
+    back := match decode::[Hook](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_org(i: i64) -> usize:
+    value := Org {
+        note_0: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_1: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_2: i % 2 == 1,
+        name_3: "s${i}",
+    }
+    text := encode(value)
+    back := match decode::[Org](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_member(i: i64) -> usize:
+    value := Member {
+        limit_0: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_1: i % 2 == 1,
+        name_2: "s${i}",
+        count_3: i32(i) + +7,
+        items_4: ["a${i}", "b"],
+    }
+    text := encode(value)
+    back := match decode::[Member](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_invite(i: i64) -> usize:
+    value := Invite {
+        active_0: i % 2 == 1,
+        name_1: "s${i}",
+        count_2: i32(i) + +7,
+        items_3: ["a${i}", "b"],
+        note_4: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_5: (if i % 3 == 0: .Some(i32(i)) else: .None),
+    }
+    text := encode(value)
+    back := match decode::[Invite](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_token(i: i64) -> usize:
+    value := Token {
+        name_0: "s${i}",
+        count_1: i32(i) + +7,
+        items_2: ["a${i}", "b"],
+        note_3: (if i % 2 == 0: .Some("o${i}") else: .None),
+    }
+    text := encode(value)
+    back := match decode::[Token](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+fn round_event(i: i64) -> usize:
+    value := Event {
+        count_0: i32(i) + +7,
+        items_1: ["a${i}", "b"],
+        note_2: (if i % 2 == 0: .Some("o${i}") else: .None),
+        limit_3: (if i % 3 == 0: .Some(i32(i)) else: .None),
+        active_4: i % 2 == 1,
+    }
+    text := encode(value)
+    back := match decode::[Event](text):
+        .Ok(v) => v
+        .Err(e) => panic("decode: $e")
+    if back != value:
+        panic("round trip")
+    text.len() + debug(back).len()
+
+pub fn main() -> void $ Console:
+    let total: usize = 0
+    let i: i64 = 0
+    while i < 3:
+        total += round_user(i)
+        total += round_team(i)
+        total += round_project(i)
+        total += round_task(i)
+        total += round_comment(i)
+        total += round_tag(i)
+        total += round_repo(i)
+        total += round_issue(i)
+        total += round_review(i)
+        total += round_label(i)
+        total += round_branch(i)
+        total += round_commit(i)
+        total += round_release(i)
+        total += round_asset(i)
+        total += round_hook(i)
+        total += round_org(i)
+        total += round_member(i)
+        total += round_invite(i)
+        total += round_token(i)
+        total += round_event(i)
+        i += 1
+    println("$total")

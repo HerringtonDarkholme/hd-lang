@@ -441,6 +441,27 @@ impl Env<'_> {
         let mut k = StableHasher::new("inline");
         k.hash(hash);
         let (mut sites, mut hashes) = (Vec::new(), Vec::new());
+        if std::env::var_os("HD_DBG927").is_some() {
+            let n = self.run.names().path(body.item);
+            if n.contains("walk") {
+                for c in 0..body.len() {
+                    if let Some(callee) = hd_tir::inline::plain_call(body, c) {
+                        let t = match callee {
+                            Callee::Item { def, .. } => {
+                                format!("item {}", self.run.names().path(def))
+                            }
+                            Callee::TraitMethod { method, .. } => format!(
+                                "trait {} -> {:?}",
+                                self.run.names().path(method),
+                                self.impl_target(&callee)
+                                    .map(|x| self.run.names().path(x.0))
+                            ),
+                        };
+                        eprintln!("927 {n}: {t}");
+                    }
+                }
+            }
+        }
         for c in (0..body.len()).rev() {
             let Some((def, targs)) =
                 hd_tir::inline::plain_call(body, c).and_then(|callee| match callee {
@@ -454,9 +475,17 @@ impl Env<'_> {
                 self.found_cycle(&stack[at..]);
                 continue;
             }
+            let dbg927 = std::env::var_os("HD_DBG927").is_some()
+                && self.run.names().display_name(def) == "member";
             let Some((mut copy, callee_hash)) = self.callee_copy(def, targs, stack) else {
+                if dbg927 {
+                    eprintln!("927 no copy {}", self.run.item_module_text(def));
+                }
                 continue;
             };
+            if dbg927 {
+                eprintln!("927 copy {}", self.run.item_module_text(def));
+            }
             // A copy made for another caller may call one on the way down.
             if let Some(at) = stack.iter().position(|&d| self.calls(&copy, d)) {
                 self.found_cycle(&stack[at..]);
@@ -668,6 +697,13 @@ impl Env<'_> {
     /// one stays a call (#856: copying `StringBuilder.push` into a loop
     /// made `string_build` 40% slower).
     fn takes_reference(&self, def: DefId, targs: TyList) -> bool {
+        if std::env::var_os("HD_CEIL927").is_some() {
+            let m = self.run.item_module_text(def);
+            let n = self.run.names().display_name(def).to_string();
+            if (m == "std.serde" || m == "std.format") && (n == "member" || n == "missing") {
+                return false;
+            }
+        }
         let Some(sig) = self.sig(def) else {
             return true;
         };
