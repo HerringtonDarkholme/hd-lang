@@ -398,6 +398,43 @@ type Memo<T> = std::cell::RefCell<Option<hd_base::HashMap<Ty, T>>>;
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
+    /// The link's whole-object fact (`whole.rs`): the reference targets
+    /// some counted reference may point inside an object of, or `None`
+    /// when the link has no fact and every reference may.
+    static INTERIOR: std::cell::RefCell<Option<hd_base::HashSet<Ty>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Sets the link's whole-object fact ([`whole_ref`]) until the guard
+/// drops, and forgets every walk computed before it.
+pub(crate) fn whole_refs(interior: Option<hd_base::HashSet<Ty>>) -> impl Drop {
+    struct Reset(Option<hd_base::HashSet<Ty>>);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            INTERIOR.set(self.0.take());
+            WALKS.with(|w| {
+                if let Some(w) = w.borrow_mut().as_mut() {
+                    w.clear();
+                }
+            });
+        }
+    }
+    let outer = INTERIOR.replace(interior);
+    WALKS.with(|w| {
+        if let Some(w) = w.borrow_mut().as_mut() {
+            w.clear();
+        }
+    });
+    Reset(outer)
+}
+
+/// Whether every counted reference to `target`, once stripped, is null or
+/// a payload start (§23.30): a concrete target the release link's
+/// whole-program scan found no interior reference to.
+fn whole_ref(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
+    let target = strip(pool, env, target);
+    !hd_mono::is_open(pool, target)
+        && INTERIOR.with(|s| s.borrow().as_ref().is_some_and(|s| !s.contains(&target)))
 }
 
 /// Runs `link` with the layout cache in place: within it, [`mem`] and
@@ -512,8 +549,9 @@ pub enum Walk {
     Ref(u32),
     /// Value `k` is null, a static object's, or the payload start of a
     /// counted object, eight bytes after its header: a data value, a boxed
-    /// enum's cell, a collection's buffer, a closure's environment
-    /// ([`block_start`]); counting reads the header at `k - 8` (§23.30).
+    /// enum's cell, a collection's buffer, a closure's environment, a
+    /// release link's whole-object reference ([`block_start`]); counting
+    /// reads the header at `k - 8` (§23.30).
     Known(u32),
     /// Each part in turn.
     Seq(Vec<Walk>),
@@ -606,7 +644,11 @@ fn walk_one(
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
                 Kind::Data(_) | Kind::Boxed => Some(Walk::Known(0)),
-                Kind::Ref { .. } => Some(Walk::Ref(0)),
+                Kind::Ref { target, fat } => Some(if !fat && whole_ref(pool, env, target) {
+                    Walk::Known(0)
+                } else {
+                    Walk::Ref(0)
+                }),
                 Kind::Value => {
                     if let Some(variants) = env.enum_variants(def, args) {
                         return switch_walk_by(pool, env, &variants, part);
@@ -621,7 +663,8 @@ fn walk_one(
 }
 
 /// Whether this representation's counted pointer is a payload start,
-/// never a string's interior bytes or an interior/erased reference.
+/// never a string's interior bytes or an interior/erased reference: a
+/// reference is one only where the link's whole-object fact holds.
 pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     let t = strip(pool, env, t);
     if hd_mono::is_open(pool, t) {
@@ -630,7 +673,11 @@ pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     match pool.get(t) {
         TyData::Fn { .. } | TyData::Context(_) => true,
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => true,
-        _ => matches!(kind(pool, env, t), Kind::Data(_) | Kind::Boxed),
+        _ => match kind(pool, env, t) {
+            Kind::Data(_) | Kind::Boxed => true,
+            Kind::Ref { target, fat } => !fat && whole_ref(pool, env, target),
+            Kind::Value => false,
+        },
     }
 }
 

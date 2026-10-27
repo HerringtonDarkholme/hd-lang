@@ -1885,6 +1885,19 @@ physical or erased references without a block-start proof.
   through the page table. On json at 6,000 records this moved 846,000 of
   3,450,000 page-table counts to the known path, with the count total
   unchanged.
+- **Whole-object references** (#704), release only. The optimized
+  pipeline's closed-world link scans every instance's TIR before
+  emission (`whole.rs`) for the reference targets that some `Ref` may
+  give an interior address: an element (`&xs[i]`, `&map[k]`), a field at
+  a nonzero offset, a top-level binding's static slot, or a coercion or
+  zero-offset dereference of such a target's reference. Every other
+  target's `*T` is null, a payload start, or a slot or static cell with
+  a zero count word, so its walk is `Walk::Known` and `block_start`
+  holds. An interior reference to an open target, which an erased body
+  may make for any type, turns the fact off. Dev builds, sessions and
+  open-world builds keep the page-table path for every reference.
+  binary_trees goes from 3,222,220 `block_of` calls to 30, json from
+  1,176,031 to 468,040, the rest mostly string slices.
 - **Checked proofs.** Checked mode verifies that every claimed payload
   start agrees with `block_of`, then performs the existing audited count
   update. An incorrect proof fails even when the ordinary count would

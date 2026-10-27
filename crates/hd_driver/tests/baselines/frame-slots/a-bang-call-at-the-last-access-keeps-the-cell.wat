@@ -2,9 +2,9 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "bump" (func $bump (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
@@ -41,8 +41,7 @@
           local.set $tally
         end
         local.get $tally
-        local.tee $t4
-        call $retain
+        local.set $t4
         ;; ...
       end
       block
@@ -298,7 +297,7 @@
           call $rt:release_ref'2
         end
         local.get $t4
-        call $rt:release_ref'2
+        call $rt:release_ref'1
         i32.const 1
         local.set $t8
         br 1

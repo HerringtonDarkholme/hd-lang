@@ -26,6 +26,7 @@ mod rt;
 mod scan;
 mod task;
 pub mod views;
+mod whole;
 mod wide;
 
 use hd_base::{DefId, Hash128, InstId, NotImplemented, Stage, StageResult};
@@ -583,6 +584,13 @@ fn link(
             m.cold_insts.insert(key);
         }
     }
+    // Release only (#704): the whole-program fact that a reference type's
+    // counted addresses are payload starts, for every walk from here on.
+    let _whole = layout::whole_refs(
+        (input.optimized && !m.open_world && input.runtime.is_some())
+            .then(|| whole::interior_targets(input))
+            .flatten(),
+    );
     address_globals(input, &mut m, session.is_some(), previous)?;
     drive::collect(input, &mut m);
     for id in input.order {

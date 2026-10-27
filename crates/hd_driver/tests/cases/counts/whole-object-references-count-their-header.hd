@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: v8 dev
+# No reference in the program points inside an object holding a `Node`,
+# but dev builds compute no whole-program fact: each `*Node` count
+# searches the page table, as `rt:retain` does (#704).
+struct Node:
+    left: (*Node)?
+    right: (*Node)?
+
+fn leaf() -> *Node:
+    &Node { left: .None, right: .None }
+
+fn both(n: *Node) -> (*Node, *Node):
+    # subject
+    (n, n)
