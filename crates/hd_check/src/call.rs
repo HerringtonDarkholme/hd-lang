@@ -2003,7 +2003,6 @@ impl Ck<'_, '_> {
                             },
                         ) = (pool.get(ret), pool.get(w))
                             && ret_def == want_def
-                            && ret_def == self.cx.names.known.result
                         {
                             let ret_args = pool.list_items(ret_args).to_vec();
                             let want_args = pool.list_items(want_args).to_vec();
