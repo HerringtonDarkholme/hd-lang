@@ -1,7 +1,10 @@
-# fixture-runtime-profile: pending-write
+# fixture-runtime-profile: pending-tick
 # test: unreachable cycles through cold suspension frames are reclaimed
 # Spec 08 Representation: data.repr.gc.
 use std.testing.assert_equal
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
 
 struct Ring:
     name: string
@@ -21,23 +24,25 @@ fn closure_ring(n: i32) -> string:
     ring.task = .Some(run())
     ring.name
 
-fn nested!(ring: &mut Ring) -> string $ Console:
+fn nested!(ring: &mut Ring) -> string $ Console + Tick:
     resumed!(ring)
 
-fn resumed!(ring: &mut Ring) -> string $ Console:
+fn resumed!(ring: &mut Ring) -> string $ Console + Tick:
     let text = "old ${ring.name}"
     console := $.use(Console)
-    _ := console.write!("pause $text\n")
+    $.use(Tick).tick!("pause $text\n")
+    _ := console.write_sync("pause $text\n")
     assert_equal(text, "old ${ring.name}", reason="the first resume kept the saved local")
     text = "new ${ring.name}"
     let n = +0
     while n < 20000:
         _ := cold_ring(n)
         n += 1
-    _ := console.write!("resume $text\n")
+    $.use(Tick).tick!("resume $text\n")
+    _ := console.write_sync("resume $text\n")
     text
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     let n = +0
     while n < 20000:
         assert_equal(cold_ring(n), "ring $n", reason="the frame keeps the argument")

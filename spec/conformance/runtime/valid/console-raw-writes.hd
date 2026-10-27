@@ -1,5 +1,5 @@
 # test: raw console writes preserve text; println separates text and newline while print and eprintln keep one chunk
-# Spec std/console: std-console.print.one-write, std-console.eprintln.one-write, std-console.buffer.output-text.
+# Spec std/console: std-console.print.one-write-sync, std-console.eprintln.one-write-sync, std-console.buffer.output-text-sync.
 use std.console.{MemoryConsole, eprintln, print}
 
 pub fn main() -> void $ Console:
@@ -11,12 +11,12 @@ tests:
 
     it("raw writes do not add or remove line endings"):
         console := MemoryConsole::new()
-        match console.write!("a"):
+        match console.write_sync("a"):
             .Ok(()) => pass
             .Err(_) => panic("memory write failed")
-        _ := console.write!("b\r\nc\n")
-        _ := console.write!("")
-        _ := console.write_error!("error")
+        _ := console.write_sync("b\r\nc\n")
+        _ := console.write_sync("")
+        _ := console.write_error_sync("error")
         assert_equal(console.output(), ["a", "b\r\nc\n", ""], reason="exact chunks")
         assert_equal(console.error_output(), ["error"], reason="raw stderr")
 

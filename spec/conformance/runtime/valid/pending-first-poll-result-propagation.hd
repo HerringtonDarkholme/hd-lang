@@ -1,16 +1,21 @@
+# fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 # test: suspending result propagation resumes after a pending host call and returns the failure
 use std.testing.assert_equal
 
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
 struct ParseError:
     code: i32
 
-fn parse!(ok: bool) -> Result[i32, ParseError] $ Console:
+fn parse!(ok: bool) -> Result[i32, ParseError] $ Console + Tick:
     let mut console = $.use(Console)
-    _ := console.write!("parse\n")
+    $.use(Tick).tick!("parse\n")
+    _ := console.write_sync("parse\n")
     if ok: .Ok(40) else: .Err(ParseError { code: 7 })
 
-fn lifted!(ok: bool) -> Result[i32, ParseError] $ Console:
+fn lifted!(ok: bool) -> Result[i32, ParseError] $ Console + Tick:
     value := parse!(ok)?
     .Ok(value + 2)
 
@@ -19,7 +24,7 @@ fn inspect(value: Result[i32, ParseError]) -> i32:
         .Ok(actual) => actual
         .Err(error) => -error.code
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     assert_equal(inspect(lifted!(true)), 42, reason="success continues after the child completes")
     assert_equal(
         inspect(lifted!(false)),

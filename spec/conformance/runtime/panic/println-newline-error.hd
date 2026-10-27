@@ -5,7 +5,7 @@ struct NewlineFails:
     calls: usize
 
 impl Console for NewlineFails:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.calls = self.calls + 1
         if self.calls == 1: .Ok(()) else: .Err(ConsoleError.Closed)
 

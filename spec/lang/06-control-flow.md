@@ -1054,7 +1054,7 @@ defer:   # error: defer-outside-cleanup-scope
 2. r[flow.defer.restricted] It cannot bang-call, otherwise suspend, propagate with `?`, or transfer control with `return`, `break`, or `continue`.
 3. r[flow.defer.suspend] A bang call or other suspending operation in the suite is an error. Error: `suspension-forbidden-context`.
 4. r[flow.defer.control] Propagation with `?`, or a `return`, `break`, or `continue` that would leave the suite, is an error. Error: `defer-control-flow`.
-5. r[flow.defer.block-on.direct] A call of `std.task.block_on` or `println` written directly in the suite is an error. Error: `suspension-forbidden-context`.
+5. r[flow.defer.block-on.direct-call] A call of `std.task.block_on` written directly in the suite is an error. Error: `suspension-forbidden-context`.
 6. r[flow.defer.block-on.indirect] Such a call reached through another call while the suite runs panics, as [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect) says. Panic: `suspension-forbidden-context`.
 
 ```text

@@ -16,4 +16,4 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     inner := helper()
     outer_value := outer!()
     let mut console = $.use(Console)
-    console.write!("inner ${inner}, outer ${outer_value}\n")
+    console.write_sync("inner ${inner}, outer ${outer_value}\n")

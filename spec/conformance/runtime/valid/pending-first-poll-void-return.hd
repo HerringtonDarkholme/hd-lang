@@ -1,3 +1,4 @@
+# fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 # test: a void return after a pending host call completes the frame and runs defer once
 # Spec 11 Entry Driver: req.entry.driver, req.entry.waker-driven,
@@ -6,15 +7,19 @@
 # req.poll-context.waker, req.waker.arrange.
 use std.testing.assert_equal
 
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
 struct State:
     count: i32
 
-fn child!() -> i32 $ Console:
+fn child!() -> i32 $ Console + Tick:
     let mut console = $.use(Console)
-    _ := console.write!("child\n")
+    $.use(Tick).tick!("child\n")
+    _ := console.write_sync("child\n")
     1
 
-fn run!(state: &mut State) -> void $ Console:
+fn run!(state: &mut State) -> void $ Console + Tick:
     defer:
         state.count = state.count + 1
     value := child!()
@@ -22,7 +27,7 @@ fn run!(state: &mut State) -> void $ Console:
         return
     state.count = 100
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     let mut state = State { count: 0 }
     run!(&mut state)
     assert_equal(

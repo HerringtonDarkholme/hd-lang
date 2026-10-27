@@ -1731,7 +1731,7 @@ Each kind of member is available or unavailable on a `dyn` value:
 | r[trait.dyn.member.opaque-result] Opaque results | a method whose return annotation contains `impl Trait` | unavailable |
 | r[trait.dyn.safe.assoc-type.reference-values] Associated types | a method whose signature names an associated type | available; the `dyn` type binds every associated type, as `&dyn Supplier[Item = i32]` does |
 | r[trait.dyn.safe.method-type-param] Method type parameters | a method-level type parameter, whatever its bounds, as in `T < Display` or `T < Error` | available; a call through the trait value may pass any type argument, a value type included |
-| r[trait.dyn.safe.suspending] Suspending methods | a suspending method, as the prelude `Console`'s `write!` is | available |
+| r[trait.dyn.safe.suspending] Suspending methods | a suspending method, such as `fn fetch!(&self) -> string` | available |
 | r[trait.dyn.safe.row-parameter] Row parameters | a method-level row parameter | available |
 
 4. r[trait.dyn.member.other-with-opaque] Every method outside the unavailable categories above is available.

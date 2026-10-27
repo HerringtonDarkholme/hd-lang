@@ -1,7 +1,10 @@
-# fixture-runtime-profile: pending-write
+# fixture-runtime-profile: pending-tick
 # test: count elision preserves field, loop, escape, mutation and saved-frame ownership
 # Spec 04 Value Types: types.value.copy; Spec 06 For Loops: flow.for.snapshot.
 use std.testing.assert_equal
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
 
 struct Pair:
     left: string
@@ -59,10 +62,11 @@ fn deferred_fields(n: i32, log: &mut List[string]) -> void:
         log.push(before)
     assert_equal(p.right, "right $n", reason="the source may end before deferred use")
 
-fn saved_fields!(p: Pair) -> void $ Console:
+fn saved_fields!(p: Pair) -> void $ Console + Tick:
     before := p.left
     console := $.use(Console)
-    _ := console.write!("pause\n")
+    $.use(Tick).tick!("pause\n")
+    _ := console.write_sync("pause\n")
     assert_equal(
         before,
         "left 9",
@@ -70,7 +74,7 @@ fn saved_fields!(p: Pair) -> void $ Console:
     )
     assert_equal(p.right, "right 9", reason="the source survives the suspension")
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     let n = +0
     while n < 1000:
         field_reads(n)

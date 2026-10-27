@@ -33,11 +33,9 @@ pub fn main() -> void $ Console:
 ```
 
 1. r[std-console.print.decl] `std.console` declares `pub fn print[T < Display](value: T) -> void $ Console`.
-2. r[std-console.print.one-write] `print(value)` calls the covering provider's `write!` once with `value.to_string()`, adding nothing.
-3. r[std-console.print.drive] `print` drives its write with `block_on`, following its forbidden contexts and active-driver behavior.
-4. r[std-console.print.error] If the write returns `.Err`, `print` panics. Panic: `explicit-panic`.
-5. r[std-console.print.cancelled] If `block_on` returns `.Cancelled` or `.Abandoned`, `print` returns without a panic.
-6. r[std-console.print.row] Each call requires a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
+2. r[std-console.print.one-write-sync] `print(value)` calls the covering provider's `write_sync` once with `value.to_string()`, adding nothing.
+3. r[std-console.print.error] If the write returns `.Err`, `print` panics. Panic: `explicit-panic`.
+4. r[std-console.print.row] Each call requires a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
 
 ## Standard Error
 
@@ -52,8 +50,8 @@ fn warn(message: string) -> void $ Console:
 ```
 
 1. r[std-console.eprintln.decl] `std.console` declares `pub fn eprintln[T < Display](value: T) -> void $ Console`. Code imports it, as in `use std.console.eprintln`.
-2. r[std-console.eprintln.one-write] `eprintln(value)` calls the covering provider's `write_error!` once with `value.to_string()` followed by `"\n"`.
-3. r[std-console.eprintln.drive-write] `eprintln` drives that call as `println` drives `write!`, with the same rules: [`block_on`](../lang/11-requirements-and-suspension.md#r-req.drive.block-on.signature) driving, its forbidden contexts, and an `explicit-panic` on `.Err`.
+2. r[std-console.eprintln.one-write-sync] `eprintln(value)` calls the covering provider's `write_error_sync` once with `value.to_string()` followed by `"\n"`.
+3. r[std-console.eprintln.error] If the write returns `.Err`, `eprintln` panics. Panic: `explicit-panic`.
 4. r[std-console.eprintln.row] Each `eprintln` call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
 
 ```text
@@ -69,8 +67,8 @@ pub fn main() -> void:
 
 ## Host Output
 
-The host's `Console` provider writes each line out before the program
-waits on the host:
+The host's `Console` provider writes each line out before the write
+returns, so before the program next waits on the host:
 
 ```hd
 use std.console.eprintln
@@ -82,11 +80,12 @@ fn main!() -> void $ Console + Clock:
     eprintln("done")     # after "working", on standard error
 ```
 
-1. r[std-console.host.visible-text] Each completed `write!` or `write_error!` of the host's `Console` provider reaches its host stream before the program next waits on the host or ends.
+1. r[std-console.host.visible-text-sync] Each `write_sync` or `write_error_sync` of the host's `Console` provider reaches its host stream before it returns.
 2. r[std-console.host.chunk-order] The host's `Console` provider keeps standard output and standard error in their relative order: their chunks reach the host in call order.
 
 > **Note.** So a `println` or `eprintln` line is visible before the next
-> host wait, such as a `sleep!` or a `send!`.
+> host wait, such as a `sleep!` or a `send!`. A full stream blocks the
+> write until the reader takes the text, as in Go and Rust.
 
 > **Why.** A program that prints progress and then waits on a slow
 > request shows the progress first.
@@ -171,8 +170,8 @@ tests:
 
 1. r[std-console.buffer.decl] `std.console` declares `MemoryConsole`, which implements `Console` and `Debug`, with private fields. Code imports it, as in `use std.console.MemoryConsole`.
 2. r[std-console.buffer.install-ref] `MemoryConsole::new() -> *mut MemoryConsole` returns a new object holding a console that has recorded nothing. `MemoryConsole` is a struct used behind that reference, and it implements `Console`'s `&mut self` methods. So installing it as `Console=console` shares the object, by [`req.ref.install-ref`](../lang/11-requirements-and-suspension.md#r-req.ref.install-ref), and the code that installed it reads what was written.
-3. r[std-console.buffer.output-text] `c.output() -> List[string]` returns each `write!` text unchanged, in call order, including any newline supplied by the caller.
-4. r[std-console.buffer.error-text] `c.error_output() -> List[string]` returns each `write_error!` text unchanged, in call order, including any newline supplied by the caller. `MemoryConsole` overrides `write_error!`, so error lines are not in `output()`.
+3. r[std-console.buffer.output-text-sync] `c.output() -> List[string]` returns each `write_sync` text unchanged, in call order, including any newline supplied by the caller.
+4. r[std-console.buffer.error-text-sync] `c.error_output() -> List[string]` returns each `write_error_sync` text unchanged, in call order, including any newline supplied by the caller. `MemoryConsole` overrides `write_error_sync`, so error lines are not in `output()`.
 5. r[std-console.buffer.never-fails] Every write returns `.Ok(())`.
 
 > **Why.** A test checks what a program printed and what it reported

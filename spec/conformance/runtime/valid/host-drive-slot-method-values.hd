@@ -1,4 +1,4 @@
-# fixture-runtime-profile: pending-write
+# fixture-runtime-profile: pending-tick
 # expect-stdout: blocking
 # expect-stdout: between
 # expect-stdout: stored
@@ -6,19 +6,20 @@
 # test: recursive function values returning a cold suspension and indirect bang calls preserve normal host slots.
 use std.task.block_on
 
-fn invoke(
-    write: fn(string) -> mut Suspend[Result[void, ConsoleError]],
-    text: string,
-    count: i32,
-) -> mut Suspend[Result[void, ConsoleError]]:
-    if count == 0: write(text) else: invoke(write, text, count - 1)
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
 
-pub fn main!() -> void $ Console:
+fn invoke(tick: fn(string) -> mut Suspend[void], text: string, count: i32) -> mut Suspend[void]:
+    if count == 0: tick(text) else: invoke(tick, text, count - 1)
+
+pub fn main!() -> void $ Console + Tick:
     println("blocking")
-    let console: *mut dyn Console = $.use(Console)
-    let write: fn(string) -> mut Suspend[Result[void, ConsoleError]] = console::write
-    let saved: mut Suspend[Result[void, ConsoleError]] = invoke(write, "stored\n", +1)
+    let ticker: *mut dyn Tick = $.use(Tick)
+    let tick: fn(string) -> mut Suspend[void] = ticker::tick
+    let saved: mut Suspend[void] = invoke(tick, "stored\n", +1)
     println("between")
     _ := block_on(saved)
-    let bang: fn!(string) -> Result[void, ConsoleError] = console::write
-    _ := bang!("awaited\n")
+    println("stored")
+    let bang: fn!(string) -> void = ticker::tick
+    bang!("awaited\n")
+    println("awaited")

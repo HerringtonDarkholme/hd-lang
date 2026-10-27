@@ -1,0 +1,7 @@
+# test: println drives no suspension, so a defer suite may call it
+# Spec 10 Console: module.console.println-no-drive.
+
+fn report() -> void $ Console:
+    defer:
+        println("done")
+    pass

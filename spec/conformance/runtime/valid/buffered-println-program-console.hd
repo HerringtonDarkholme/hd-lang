@@ -2,17 +2,17 @@
 # expect-stdout:  2
 # expect-stdout:
 # test: println writes through a program-defined Console provider
-# Spec 10 Modules: println calls write! on the Console covering the call.
+# Spec 10 Modules: println calls write_sync on the Console covering the call.
 struct Buffer:
     lines: List[string]
 
 impl Console for Buffer:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
 
-    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
-        self.write!(text)
+    fn write_error_sync(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_sync(text)
 
 pub fn main() -> void $ Console:
     let mut buffer: Buffer = Buffer { lines: [] }

@@ -1,15 +1,15 @@
 # test: a test body runs under a driver, and println called from it writes through the covering provider
-# Spec 10 Console: module.console.println-block-on.under-driver (batch 44).
+# Spec 10 Console: module.console.println-non-suspending (batch 44).
 struct MemoryConsole:
     lines: List[string]
 
 impl Console for MemoryConsole:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
 
-    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
-        self.write!(text)
+    fn write_error_sync(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_sync(text)
 
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")

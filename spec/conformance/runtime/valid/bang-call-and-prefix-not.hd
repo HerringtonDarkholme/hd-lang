@@ -16,4 +16,4 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     left := is_ready!(+1)
     right := is_ready!(+0)
     differs := left != right
-    console.write!("$negated $typed $differs ${!left}\n")
+    console.write_sync("$negated $typed $differs ${!left}\n")

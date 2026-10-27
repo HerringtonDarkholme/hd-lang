@@ -1,17 +1,22 @@
+# fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 # test: a nested return after a pending host call keeps the function's i64 result type
 use std.testing.assert_equal
 
-fn child!() -> i32 $ Console:
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn child!() -> i32 $ Console + Tick:
     let mut console = $.use(Console)
-    _ := console.write!("child\n")
+    $.use(Tick).tick!("child\n")
+    _ := console.write_sync("child\n")
     1
 
-fn wide!() -> i64 $ Console:
+fn wide!() -> i64 $ Console + Tick:
     value := child!()
     if value == 1:
         return 42
     0
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     assert_equal(wide!(), 42, reason="the nested return keeps the i64 result")

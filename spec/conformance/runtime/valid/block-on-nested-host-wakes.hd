@@ -1,4 +1,4 @@
-# fixture-runtime-profile: pending-write
+# fixture-runtime-profile: pending-tick
 # expect-stdout: inner 0
 # expect-stdout: sum 1
 # expect-stdout: inner 1
@@ -9,20 +9,24 @@
 # Spec lang/11 Driving A Stored Suspension: req.drive.block-on.inner-only, req.drive.block-on.completed.
 use std.task.{all, block_on}
 
-fn older!(n: usize) -> usize $ Console:
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn older!(n: usize) -> usize $ Console + Tick:
     let console: &mut dyn Console = $.use(Console)
-    _ := console.write!("")
+    $.use(Tick).tick!("")
+    _ := console.write_sync("")
     n + 1
 
-fn inner!(n: usize) -> usize $ Console:
+fn inner!(n: usize) -> usize $ Console + Tick:
     println("inner $n")
     n
 
-fn pair!(n: usize) -> usize $ Console:
+fn pair!(n: usize) -> usize $ Console + Tick:
     values := all!(older(n), inner(n))
     values._0 + values._1
 
-pub fn main() -> void $ Console:
+pub fn main() -> void $ Console + Tick:
     for n in 0..3:
         sum := match block_on(pair(n)):
             .Completed(value) => value

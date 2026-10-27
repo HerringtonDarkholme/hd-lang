@@ -1,5 +1,5 @@
-# test: MemoryConsole keeps write_error! text apart from write! text
-# Spec std/console Buffer Console: std-console.buffer.error-text (spec pass 89, audit item 8).
+# test: MemoryConsole keeps write_error_sync text apart from write_sync text
+# Spec std/console Buffer Console: std-console.buffer.error-text-sync (spec pass 89, audit item 8).
 use std.console.{MemoryConsole, eprintln}
 tests:
     use std.testing.assert_equal

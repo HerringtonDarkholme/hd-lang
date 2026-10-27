@@ -1,10 +1,13 @@
 # test: a profile-only package-tree fixture runs its ordinary entry under that profile
 # Spec 10 Entry Points: module.entry.definition, module.entry.row.
 # fixture-package-tree: entry-only-program/src/main.hd
-# fixture-runtime-profile: pending-write
+# fixture-runtime-profile: tick
 # expect-stdout: 45
 
 use pkg.helper.answer
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
 
 pub fn main() -> void $ Console:
     println(answer())

@@ -1,9 +1,12 @@
 # test: a moved payload stays alive across a pending arm body
 # Spec 06 Match Expressions: flow.match.guard.result, flow.match.body.
 # Spec 11 Suspension: req.suspend.bang.point.
-# fixture-runtime-profile: pending-write
+# fixture-runtime-profile: pending-tick
 # expect-stdout: pending 42!
 # expect-stdout: kept pending 42!
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
 
 enum Message:
     Word(text: string)
@@ -12,11 +15,12 @@ enum Message:
 fn message(seed: string) -> Message:
     .Word(seed + "!")
 
-fn keep!(text: string) -> string $ Console:
-    _ := $.use(Console).write!("${text}\n")
+fn keep!(text: string) -> string $ Console + Tick:
+    $.use(Tick).tick!("${text}\n")
+    _ := $.use(Console).write_sync("${text}\n")
     text
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     kept := match message("pending 42"):
         .Word(text) => keep!(text)
         .Empty => "empty"

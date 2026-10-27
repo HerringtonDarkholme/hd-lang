@@ -301,7 +301,7 @@ profile**, which binds these traits:
 
 | Trait | Module | What `hd` binds |
 | --- | --- | --- |
-| `Console` | `std.console` | `write!` writes to standard output, and `write_error!` to standard error |
+| `Console` | `std.console` | `write_sync` writes to standard output, and `write_error_sync` to standard error |
 | `ConsoleInput` | `std.console` | reads standard input |
 | `Args` | `std.host` | the FILE or NAME the command ran, and the [program arguments](#program-arguments) |
 | `Env` | `std.host` | the environment of the `hd` process |
@@ -317,7 +317,7 @@ profile**, which binds these traits:
 3. r[cli.host.script-binding] When `hd` runs a script, it binds every trait of the default profile, as the [REPL](#repl) does, so the script's top level may use each of them. The script's [capability grant](#capability-grants) still limits the resources they touch.
 4. r[cli.host.default-profile.main-row] The row of `main` or `main!` still limits what the program gets: `hd` binds only the traits of the default profile that the row names, by [`cli.host.entry-binding`](#r-cli.host.entry-binding).
 5. r[cli.host.default-profile.other.with-package-host] A row key outside the built-in profile and package-declared host traits is an error. Error: `nonhost-entry-requirement`.
-6. r[cli.host.default-profile.console-write-closed] Under the default profile, `write!` and `write_error!` return `.Err(ConsoleError.Closed)` when the host cannot write the text. One such case is a pipe whose reader has closed it.
+6. r[cli.host.default-profile.console-write-closed] Under the default profile, `write_sync` and `write_error_sync` return `.Err(ConsoleError.Closed)` when the host cannot write the text. One such case is a pipe whose reader has closed it.
 7. r[cli.host.default-profile.input-closed] `read_line!` returns `.Err(ConsoleError.Closed)` when standard input is not attached or a read fails. The end of input is `.Ok(.None)`, and every later call returns `.Ok(.None)` again.
 8. r[cli.host.default-profile.granted] Each provider of the default profile touches only the resources that its program's [capability grant](#capability-grants) covers.
 9. r[cli.host.process.env] A program that the default profile's `Process` provider starts inherits the whole environment of the `hd` process, whatever the `Env` grant covers.

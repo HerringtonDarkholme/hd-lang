@@ -1,6 +1,10 @@
+# fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 # test: non-suspending comprehensions propagate through a frame resumed after a pending host call
 use std.testing.assert_equal
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
 
 struct State:
     count: i32
@@ -8,27 +12,28 @@ struct State:
 struct Failure:
     code: i32
 
-fn child!() -> i32 $ Console:
+fn child!() -> i32 $ Console + Tick:
     let mut console = $.use(Console)
-    _ := console.write!("child\n")
+    $.use(Tick).tick!("child\n")
+    _ := console.write_sync("child\n")
     40
 
 fn parse(ok: bool) -> Result[i32, Failure]:
     if ok: .Ok(40) else: .Err(Failure { code: 7 })
 
-fn list_run!(state: &mut State, ok: bool) -> Result[List[i32], Failure] $ Console:
+fn list_run!(state: &mut State, ok: bool) -> Result[List[i32], Failure] $ Console + Tick:
     defer:
         state.count = state.count + 1
     _ := child!()
     .Ok([for item in [ok] => parse(item)?])
 
-fn map_value_run!(state: &mut State, ok: bool) -> Result[Map[i32, i32], Failure] $ Console:
+fn map_value_run!(state: &mut State, ok: bool) -> Result[Map[i32, i32], Failure] $ Console + Tick:
     defer:
         state.count = state.count + 1
     _ := child!()
     .Ok({for item in [ok] => 0: parse(item)?})
 
-fn map_key_run!(state: &mut State, ok: bool) -> Result[Map[i32, i32], Failure] $ Console:
+fn map_key_run!(state: &mut State, ok: bool) -> Result[Map[i32, i32], Failure] $ Console + Tick:
     defer:
         state.count = state.count + 1
     _ := child!()
@@ -44,7 +49,7 @@ fn inspect_map(value: Result[Map[i32, i32], Failure]) -> i32:
         .Ok(actual) => i32(actual.len()) + 39
         .Err(error) => -error.code
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     let mut state = State { count: 0 }
     assert_equal(
         inspect_list(list_run!(&mut state, true)),

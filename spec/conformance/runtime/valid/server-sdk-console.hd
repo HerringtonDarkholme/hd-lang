@@ -19,7 +19,7 @@ impl Disposable for Closing:
         work!()
 
 fn cleanup!(label: string) -> void $ Console:
-    _ := $.use(Console).write_error!("cleanup $label\n")
+    _ := $.use(Console).write_error_sync("cleanup $label\n")
 
 fn handler!(request: Request, _state: &mut State) -> Response $ Console:
     using closing = Closing { work: cleanup(request.url.to_string()) }

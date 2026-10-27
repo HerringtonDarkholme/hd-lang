@@ -328,7 +328,7 @@ written only with `@value` on the parameter.
 2. r[annot.metadata.params-at-only] Parameter metadata, including a payload parameter's, is written only with `@value` lines on the parameter.
 3. r[annot.metadata.reference-storage] Member metadata and parameter metadata are stored as shared references in `List[*dyn Inspectable]`.
 4. r[annot.metadata.value] Any value that a global may hold may be attached to any item or member; no marker trait is required. Only a fact type's [target kinds](#target-kinds) limit where it goes.
-5. r[annot.metadata.eval-as-fact] Each metadata expression is evaluated as a [fact expression](#r-annot.fact.eval.lazy) is, and under the same [`block_on` ban](#r-annot.fact.block-on.direct).
+5. r[annot.metadata.eval-as-fact] Each metadata expression is evaluated as a [fact expression](#r-annot.fact.eval.lazy) is, and under the same [`block_on` ban](#r-annot.fact.block-on.direct-call).
 6. r[annot.metadata.duplicate] Two metadata values of one concrete type on one member, variant, or parameter are an error, reported on the later value. Error: `duplicate-fact`.
 
 One member or parameter must not contain two metadata values with the same
@@ -1333,7 +1333,7 @@ struct Twice:
     id: i64
 ```
 
-17. r[annot.fact.block-on.direct] A call of `std.task.block_on` or `println` written directly in a fact or metadata expression is an error. Error: `suspension-forbidden-context`.
+17. r[annot.fact.block-on.direct-call] A call of `std.task.block_on` written directly in a fact or metadata expression is an error. Error: `suspension-forbidden-context`.
 18. r[annot.fact.block-on.indirect] Such a call reached through another call while the expression is evaluated panics, as [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect) says. Panic: `suspension-forbidden-context`.
 
 ```text
@@ -1363,7 +1363,7 @@ struct User:
 > computes the value on its first read. So checking a dependent never
 > waits for the bodies a fact expression calls.
 
-> **Note.** The panic of an indirect `block_on` or `println` call happens
+> **Note.** The panic of an indirect `block_on` call happens
 > while the program evaluates the fact. So it is reported as
 > `fact-evaluation-failed`, by
 > [`annot.fact.eval.panic-runtime`](#r-annot.fact.eval.panic-runtime),

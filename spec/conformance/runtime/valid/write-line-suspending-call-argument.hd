@@ -6,5 +6,5 @@ fn two!() -> i32:
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
-    console.write!("${two!()}\n")?
-    console.write!("done\n")
+    console.write_sync("${two!()}\n")?
+    console.write_sync("done\n")

@@ -1,6 +1,10 @@
+# fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 # test: result propagation after a pending host call completes the frame and runs defer
 use std.testing.assert_equal
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
 
 struct State:
     count: i32
@@ -8,12 +12,13 @@ struct State:
 struct Failure:
     code: i32
 
-fn child!(ok: bool) -> Result[i32, Failure] $ Console:
+fn child!(ok: bool) -> Result[i32, Failure] $ Console + Tick:
     let mut console = $.use(Console)
-    _ := console.write!("child\n")
+    $.use(Tick).tick!("child\n")
+    _ := console.write_sync("child\n")
     if ok: .Ok(40) else: .Err(Failure { code: 7 })
 
-fn run!(state: &mut State, ok: bool) -> Result[i32, Failure] $ Console:
+fn run!(state: &mut State, ok: bool) -> Result[i32, Failure] $ Console + Tick:
     defer:
         state.count = state.count + 1
     answer := child!(ok)
@@ -25,7 +30,7 @@ fn inspect(value: Result[i32, Failure]) -> i32:
         .Ok(actual) => actual
         .Err(error) => -error.code
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     let mut state = State { count: 0 }
     assert_equal(inspect(run!(&mut state, true)), 42, reason="success returns the sum")
     assert_equal(inspect(run!(&mut state, false)), -7, reason="failure returns the error")

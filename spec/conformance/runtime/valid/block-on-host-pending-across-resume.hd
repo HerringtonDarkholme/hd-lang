@@ -1,4 +1,4 @@
-# fixture-runtime-profile: pending-write
+# fixture-runtime-profile: pending-tick
 # expect-stdout: first 1
 # expect-stdout: middle
 # expect-stdout: last 2
@@ -8,38 +8,45 @@
 use std.task.block_on
 use std.testing.assert
 
-# This counted provider and its argument escape the helper's local scope.
-fn cold_write(text: string) -> mut Suspend[Result[void, ConsoleError]] $ Console:
-    let console: *mut dyn Console = $.use(Console)
-    console.write(text)
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
 
-pub fn main!() -> void $ Console:
+# This counted provider and its argument escape the helper's local scope.
+fn cold_tick(text: string) -> mut Suspend[void] $ Tick:
+    let ticker: *mut dyn Tick = $.use(Tick)
+    ticker.tick(text)
+
+pub fn main!() -> void $ Console + Tick:
     let console: &mut dyn Console = $.use(Console)
-    let first: mut Suspend[Result[void, ConsoleError]] = console.write("first ${+1}\n")
+    let ticker: &mut dyn Tick = $.use(Tick)
+    let first: mut Suspend[void] = ticker.tick("first ${+1}\n")
     first_completed := match block_on(first):
-        .Completed(.Ok(())) => true
+        .Completed(_) => true
         _ => false
-    assert(first_completed, reason="the first owned write completed")
-    _ := console.write!("middle\n")
-    let last: mut Suspend[Result[void, ConsoleError]] = console.write("last ${+2}\n")
+    assert(first_completed, reason="the first owned call completed")
+    _ := console.write_sync("first ${+1}\n")
+    _ := console.write_sync("middle\n")
+    let last: mut Suspend[void] = ticker.tick("last ${+2}\n")
     last_completed := match block_on(last):
-        .Completed(.Ok(())) => true
+        .Completed(_) => true
         _ => false
     assert(last_completed, reason="the resumed body used fresh caller-local storage")
+    _ := console.write_sync("last ${+2}\n")
 
-    let escaped: mut Suspend[Result[void, ConsoleError]] = cold_write("escaped ${+3}\n")
-    _ := console.write!("between\n")
+    let escaped: mut Suspend[void] = cold_tick("escaped ${+3}\n")
+    _ := console.write_sync("between\n")
     escaped_completed := match block_on(escaped):
-        .Completed(.Ok(())) => true
+        .Completed(_) => true
         _ => false
     assert(escaped_completed, reason="the cold frame and owned argument survived return and yield")
+    _ := console.write_sync("escaped ${+3}\n")
 
-    let cancelled: mut Suspend[Result[void, ConsoleError]] = cold_write("cancelled ${+4}\n")
+    let cancelled: mut Suspend[void] = cold_tick("cancelled ${+4}\n")
     _ := cancelled.cancel!()
     was_cancelled := match block_on(cancelled):
         .Cancelled => true
         _ => false
-    assert(was_cancelled, reason="cancelling the cold write released its argument once")
+    assert(was_cancelled, reason="cancelling the cold call released its argument once")
 
-    let abandoned: mut Suspend[Result[void, ConsoleError]] = cold_write("abandoned ${+5}\n")
+    let abandoned: mut Suspend[void] = cold_tick("abandoned ${+5}\n")
     abandoned.abandon()

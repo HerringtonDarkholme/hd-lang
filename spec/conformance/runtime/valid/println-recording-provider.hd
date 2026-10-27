@@ -2,7 +2,7 @@
 # expect-stdout:
 # test: prelude / Console / println writes its line through a program-defined provider
 # Spec 10 Console: module.console.println-non-suspending.
-# Spec 10 Console: println calls write! with the value's text on the Console
+# Spec 10 Console: println calls write_sync with the value's text on the Console
 # provider that covers the call, and drives the call to completion. The entry
 # is a non-suspending main.
 
@@ -10,12 +10,12 @@ struct MemoryConsole:
     lines: List[string]
 
 impl Console for MemoryConsole:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
 
-    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
-        self.write!(text)
+    fn write_error_sync(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_sync(text)
 
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
