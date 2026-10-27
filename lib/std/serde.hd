@@ -5,7 +5,7 @@
 # (spec/std/json.md#typed-json) and the host boundary
 # (spec/lang/10-modules.md#r-module.boundary.out). The standard
 # implementations and the templates are spec/std/serde.md.
-use std.annotation.annotate
+use std.annotation.{annotate, cold}
 use std.collections.Set
 use std.function.Tuple
 use std.hash.Hash
@@ -242,16 +242,21 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
 
     fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
         # A member with no facts has neither `Skip` nor `SkipNone`.
-        if !h.info.facts.items.is_empty():
-            if h.fact::[Skip]().is_some():
-                return .Ok(())
-            match h.fact::[SkipNone[F]]():
-                .Some(fact) =>
-                    if (fact.absent)(value):
-                        return .Ok(())
-                .None => pass
+        if !h.info.facts.items.is_empty() && skipped(h, value):
+            return .Ok(())
         self.out.member(&h.info)?
         value.serialize(self.out)
+
+# Whether a member's facts omit it with `value`: a `Skip`, or a `SkipNone`
+# whose test holds. Out of line, since most members have no facts: each
+# `member` instance then keeps only the test for an empty list.
+@cold
+fn skipped[S, F](h: Field[S, F], value: F) -> bool:
+    if h.fact::[Skip]().is_some():
+        return true
+    match h.fact::[SkipNone[F]]():
+        .Some(fact) => (fact.absent)(value)
+        .None => false
 
 # Derived `Deserialize`: `begin_variant` picks the variant, then each member
 # in declaration order is positioned with `member` and read with its own
