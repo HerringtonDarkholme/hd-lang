@@ -64,7 +64,9 @@
 //! A binding local holds a borrowed value, so it owns nothing: its `Drop`s
 //! go, it leaves the exit set, and its reads resolve through it to the
 //! read it holds. The backend stores into it with no count
-//! (`Moves::loan_locals`).
+//! (`Moves::loan_locals`). One whose read keeps its `Drop`s (below) keeps
+//! its own `Drop`s and its row in the exit set: they release the value
+//! only where an instance made it fresh.
 //!
 //! A **lent parameter** ([`OwnCx::received`]) that the body never stores,
 //! addresses, captures or changes in place (an `IsUnique` gives up a count
@@ -793,8 +795,7 @@ fn decide(
     // only that part, less than a copy of all of it, unless the read into
     // the binding could move: no read of its local follows the span.
     if bind != NONE
-        && (keep
-            || t.kept_whole[bind as usize] > 0
+        && (t.kept_whole[bind as usize] > 0
             || (t.kept_read[bind as usize] > 0 && !read_after(b, t, r, end)))
     {
         return;
@@ -856,6 +857,12 @@ fn decide(
             t.kept_whole[l as usize] -= u32::from(p.whole());
         }
         t.holds[bind as usize] = x;
+        // A read whose value an instance may make fresh keeps the
+        // binding's `Drop`s and its row in the exit set: there the binding
+        // holds that value's count, which they release.
+        if keep {
+            return;
+        }
         t.unowned[bind as usize] = true;
         for k in t.start[bind as usize]..t.start[bind as usize + 1] {
             let d = t.rows[k as usize].at;
@@ -1065,7 +1072,7 @@ fn statement(b: &Body, topo: &Topology, mut x: u32, h: u32) -> Option<u32> {
 /// Whether read `r` keeps its `Drop`s when it borrows: an instance may
 /// make its value fresh (see the module). A read of a bare local never
 /// does.
-fn keeps_drops(b: &Body, cx: &dyn OwnCx, r: usize) -> bool {
+pub(crate) fn keeps_drops(b: &Body, cx: &dyn OwnCx, r: usize) -> bool {
     let word = b.data[r][0];
     if word & place::BARE_LOCAL != 0 {
         return false;

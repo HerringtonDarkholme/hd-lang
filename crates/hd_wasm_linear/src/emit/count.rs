@@ -46,8 +46,10 @@ impl Em<'_, '_, '_> {
     /// takes no count on a physical place; a view's getter makes a fresh
     /// value there, which a flag ([`Em::view_loans`]) marks for the read's
     /// `Drop`. A local the passes store a borrow into holds no count
-    /// ([`Em::loan_locals`]): its stores count
-    /// nothing and release nothing.
+    /// ([`Em::loan_locals`]): its stores count nothing, and its `Drop`s,
+    /// which the passes keep for a borrow an instance may make fresh,
+    /// release only a view's value. One that a thunk's value is stored
+    /// into owns it.
     pub(super) fn prepare_own_loans(&mut self) {
         use hd_tir::ir::place;
         for i in 0..self.b.len() {
@@ -139,7 +141,11 @@ impl Em<'_, '_, '_> {
                             _ => None,
                         }
                     };
-                    if let Some(l) = l {
+                    // A thunk's fresh value is the local's own, with its
+                    // count, which the local's kept `Drop`s release.
+                    if let Some(l) = l
+                        && self.loans.contains(&w)
+                    {
                         self.loan_locals.insert(l as usize, w);
                     }
                 }
@@ -467,13 +473,23 @@ impl Em<'_, '_, '_> {
         if !self.is_cell(l) && self.counted(self.sub(self.b.local_ty[l])).is_none() {
             return Ok(());
         }
-        if !self.loan_locals.contains_key(&l) {
-            self.count_local(l, &ls, false)?;
-        }
+        self.release_owned_local(l, &ls)?;
         for x in ls {
             self.f.zero(x);
         }
         Ok(())
+    }
+
+    /// Releases the count local `l` (Wasm locals `ls`) holds. A binding
+    /// local ([`Em::loan_locals`]) holds a borrow, with no count, except
+    /// where a view's getter made the value fresh: the borrow's flag
+    /// ([`Em::view_loans`]) says so, and is cleared.
+    fn release_owned_local(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
+        match self.loan_locals.get(&l) {
+            None => self.count_local(l, ls, false),
+            Some(w) if self.view_loans.contains_key(w) => self.release_view_loan(*w, ls),
+            Some(_) => Ok(()),
+        }
     }
 
     /// Whether the function holds a counted reference anywhere: a
@@ -538,7 +554,7 @@ impl Em<'_, '_, '_> {
                     continue;
                 }
                 if let Some(ls) = self.locals.get(&l.idx()).cloned() {
-                    self.count_local(l.idx(), &ls, false)?;
+                    self.release_owned_local(l.idx(), &ls)?;
                 }
             }
             for l in self.unowned_params.clone() {

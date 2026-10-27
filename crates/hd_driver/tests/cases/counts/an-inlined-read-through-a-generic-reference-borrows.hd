@@ -1,0 +1,27 @@
+# @dump: own counts
+# @build: v8 release
+# The same read in a generic method, where an erased instance's thunk may
+# make the list: the binding keeps its `Drop`, which releases only such a
+# fresh value (json: `DeserializeSource.next`, #898).
+struct Facts:
+    items: List[string]
+
+struct Info:
+    facts: Facts
+    position: usize
+
+struct Rec[S]:
+    infos: List[Info]
+
+type Members[S] = *Rec[S]
+
+struct Source[S]:
+    at: usize
+
+impl[S] Source[S]:
+    fn empty_at(&self, members: Members[S]) -> bool:
+        # subject
+        members.infos[self.at].facts.items.is_empty()
+
+fn empty_first(s: &Source[i64], members: Members[i64]) -> bool:
+    s.empty_at(members)

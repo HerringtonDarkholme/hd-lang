@@ -1,0 +1,20 @@
+# @dump: own counts
+# @build: v8 release
+# An inlined method that only reads a list reached through a reference
+# borrows it, as `len()` does (json: `DeserializeSource.next`, #898).
+struct Facts:
+    items: List[string]
+
+struct Info:
+    facts: Facts
+    position: usize
+
+struct Members:
+    infos: List[Info]
+
+fn empty_at(members: &Members, at: usize) -> bool:
+    # subject
+    members.infos[at].facts.items.is_empty()
+
+fn len_at(members: &Members, at: usize) -> usize:
+    members.infos[at].facts.items.len()
