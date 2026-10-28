@@ -219,8 +219,8 @@ pub fn main() -> void $ Console:
 ```
 
 `defer:` takes a suite (`defer: save()` on one line, or an indented body).
-It runs when the block exits, and it cannot print, make bang calls, or
-use `?`. `dbg(x)` prints `x` with its location to stderr and returns `void`,
+It runs when the block exits, and it cannot make bang calls or use `?`;
+`println` is fine there. `dbg(x)` prints `x` with its location to stderr and returns `void`,
 so it is a statement, not a wrapper.
 
 ## Structs, Enums, Match, Errors
@@ -516,7 +516,6 @@ the code `hd check` reports today.
 | `xs.append(x)` | `unknown-method` | `xs.push(x)` |
 | `pair.0` | `syntax-error` | `pair._0` |
 | `defer save()` | `syntax-error` | `defer: save()` |
-| `println` inside `defer:` | `suspension-forbidden-context` | record into a list; print after |
 | `List[Shape]` for a trait | `trait-used-as-type` | `List[*dyn Shape]`, filled with `&Circle { ... }` |
 | `impl Add for Money` with no import | `unknown-trait` | `use std.ops.Add` |
 | `type Output = Money` | `extra-trait-member` | `type Out = Money` |

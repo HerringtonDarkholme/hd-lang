@@ -8,12 +8,10 @@ run: hd tested.hd
 stdout: hello, Ada
 run: hd check tested.hd
 # A test run runs no entry behavior, so the top level must be
-# requirement-free there (`module.init.tests.initialization-empty-row`), and it is
-# a non-entry module, so a direct `println` is also forbidden
-# (`module.console.println-no-drive`).
+# requirement-free there (`module.init.tests.initialization-empty-row`).
 run: hd check --tests --format json tested.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"missing-requirement","file":"tested.hd","line":2},{"kind":"diagnostic","code":"suspension-forbidden-context","file":"tested.hd","line":2},{"kind":"summary","errors":2,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"missing-requirement","file":"tested.hd","line":2},{"kind":"summary","errors":1,"status":101}]
 run: hd test tested.hd
 exit: 101
 run: hd greet.hd
