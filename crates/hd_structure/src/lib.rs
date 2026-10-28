@@ -282,6 +282,78 @@ pub fn hidden_method(names: &Names<'_>, owner: DefId, name: &str) -> DefId {
     names.member(owner, PathKind::Hidden, &format!("structure {name}"))
 }
 
+/// Whether `def` is the hidden `walk` body emitted for a declaration's
+/// compiler-generated `Structure` implementation. User declarations cannot
+/// create hidden path segments, so this also excludes custom implementations.
+#[must_use]
+pub fn is_generated_walk(names: &Names<'_>, def: DefId) -> bool {
+    generated_body(names, def) == Some(GeneratedBody::Walk)
+}
+
+/// Generator-owned metadata encoded in a hidden method's final path segment.
+/// The optimizer uses this instead of recognizing user-visible names or TIR
+/// shapes, which keeps custom `Structure` implementations on the generic path.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GeneratedBody {
+    Walk,
+    Handle(GeneratedHandle),
+}
+
+/// Which immutable handle factory a generated traversal calls.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GeneratedHandle {
+    Variant {
+        variant: u32,
+    },
+    Field {
+        variant: u32,
+        field: u32,
+        declared: bool,
+    },
+    Members {
+        variant: u32,
+    },
+    Choices,
+}
+
+/// The metadata for a compiler-generated traversal or handle body.
+#[must_use]
+pub fn generated_body(names: &Names<'_>, def: DefId) -> Option<GeneratedBody> {
+    let segment = names.paths.segment(hd_base::PathId::from_raw(def.raw()));
+    if segment == "structure walk" {
+        return Some(GeneratedBody::Walk);
+    }
+    if segment == "structure choices" {
+        return Some(GeneratedBody::Handle(GeneratedHandle::Choices));
+    }
+    if let Some(index) = segment.strip_prefix("structure members ") {
+        return index
+            .parse()
+            .ok()
+            .map(|variant| GeneratedBody::Handle(GeneratedHandle::Members { variant }));
+    }
+    let fields = segment.strip_prefix("structure handle ")?;
+    let mut fields = fields.split_whitespace();
+    let variant = fields.next()?.parse().ok()?;
+    let Some(field) = fields.next() else {
+        return Some(GeneratedBody::Handle(GeneratedHandle::Variant { variant }));
+    };
+    let field = field.parse().ok()?;
+    let declared = match fields.next() {
+        None => false,
+        Some("declared") => true,
+        Some(_) => return None,
+    };
+    if fields.next().is_some() {
+        return None;
+    }
+    Some(GeneratedBody::Handle(GeneratedHandle::Field {
+        variant,
+        field,
+        declared,
+    }))
+}
+
 /// The `Structure` bodies of a derivation over `target` (`crates/hd_mono/DESIGN.md`
 /// §12.3): hidden methods of `owner`, one per `Structure` method and one
 /// per handle the traversals pass. `owner` is the data type or enum

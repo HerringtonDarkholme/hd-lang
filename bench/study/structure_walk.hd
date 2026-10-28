@@ -1,0 +1,168 @@
+use std.annotation.annotate
+use std.structure.{Facts, Field, Structure, Variant, Walker}
+
+trait Rule[F]:
+    fn apply(&self, value: &F, context: *mut ValidationContext) -> void
+
+struct ValidationContext:
+    errors: usize
+
+impl ValidationContext:
+    fn reject(&mut self) -> void:
+        self.errors += 1
+
+@annotate::[string](.Field)
+struct Length:
+    minimum: usize
+    maximum: usize
+
+impl Rule[string] for Length:
+    fn apply(&self, value: &string, context: *mut ValidationContext) -> void:
+        size := value.len()
+        if size < self.minimum || size > self.maximum:
+            context.reject()
+
+@annotate::[string](.Field)
+struct Prefix:
+    text: string
+
+impl Rule[string] for Prefix:
+    fn apply(&self, value: &string, context: *mut ValidationContext) -> void:
+        if !value.starts_with(self.text):
+            context.reject()
+
+@annotate::[string](.Field)
+struct Contains:
+    text: string
+
+impl Rule[string] for Contains:
+    fn apply(&self, value: &string, context: *mut ValidationContext) -> void:
+        if !value.contains(self.text):
+            context.reject()
+
+@annotate::[string](.Field)
+struct Excludes:
+    text: string
+
+impl Rule[string] for Excludes:
+    fn apply(&self, value: &string, context: *mut ValidationContext) -> void:
+        if value.contains(self.text):
+            context.reject()
+
+@annotate::[u8](.Field)
+struct MinU8:
+    value: u8
+
+impl Rule[u8] for MinU8:
+    fn apply(&self, value: &u8, context: *mut ValidationContext) -> void:
+        if *value < self.value:
+            context.reject()
+
+@annotate::[u8](.Field)
+struct MaxU8:
+    value: u8
+
+impl Rule[u8] for MaxU8:
+    fn apply(&self, value: &u8, context: *mut ValidationContext) -> void:
+        if *value > self.value:
+            context.reject()
+
+trait ApplyFacts:
+    fn apply_facts(&self, facts: Facts, context: *mut ValidationContext) -> void
+
+impl ApplyFacts for string:
+    fn apply_facts(&self, facts: Facts, context: *mut ValidationContext) -> void:
+        match facts.find::[Length]():
+            .Some(rule) => rule.apply(self, context)
+            .None => pass
+        match facts.find::[Prefix]():
+            .Some(rule) => rule.apply(self, context)
+            .None => pass
+        match facts.find::[Contains]():
+            .Some(rule) => rule.apply(self, context)
+            .None => pass
+        match facts.find::[Excludes]():
+            .Some(rule) => rule.apply(self, context)
+            .None => pass
+
+impl ApplyFacts for u8:
+    fn apply_facts(&self, facts: Facts, context: *mut ValidationContext) -> void:
+        match facts.find::[MinU8]():
+            .Some(rule) => rule.apply(self, context)
+            .None => pass
+        match facts.find::[MaxU8]():
+            .Some(rule) => rule.apply(self, context)
+            .None => pass
+
+struct ValidationWalker[S]:
+    context: *mut ValidationContext
+
+impl[S] Walker[S] for ValidationWalker[S]:
+    type Error = never
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
+        .Ok(())
+    fn member[F < ApplyFacts](&mut self, handle: Field[S, F], value: F) -> Result[void, never]:
+        value.apply_facts(handle.info.facts, self.context)
+        .Ok(())
+
+trait Validate:
+    fn validate(self) -> usize
+
+impl[T] Validate for T by Structure:
+    fn validate(self) -> usize:
+        context := &mut ValidationContext { errors: 0 }
+        let mut walker = ValidationWalker::[T] { context: context }
+        _ := Structure::walk(self, &mut walker)
+        context.errors
+
+struct Signup:
+    username: string
+    email: string
+    password: string
+    age: u8
+
+impl Validate for Signup by Structure:
+    username = [
+        Length { minimum: 3, maximum: 40 },
+        Prefix { text: "user_" },
+        Excludes { text: "admin" },
+    ]
+    email = [Length { minimum: 5, maximum: 120 }, Contains { text: "@" }]
+    password = [Length { minimum: 12, maximum: 256 }]
+    age = [MinU8 { value: 18u8 }, MaxU8 { value: 130u8 }]
+
+fn validate(value: Signup) -> usize:
+    value.validate()
+
+pub fn main() -> void $ Console:
+    values := [
+        Signup {
+            username: "user_alice",
+            email: "alice@example.com",
+            password: "correct-horse-battery",
+            age: 42u8,
+        },
+        Signup { username: "x", email: "missing-at", password: "short", age: 12u8 },
+        Signup {
+            username: "user_admin",
+            email: "@x",
+            password: "long-enough-password",
+            age: 200u8,
+        },
+        Signup {
+            username: "guest_user",
+            email: "guest@example.com",
+            password: "another-long-password",
+            age: 18u8,
+        },
+    ]
+    controls := [validate(values[0]), validate(values[1]), validate(values[2]), validate(values[3])]
+    if controls != [0, 5, 3, 1]:
+        panic("validation controls disagree")
+    let checksum = 0
+    for _ in 0..87_500:
+        checksum += validate(values[0])
+        checksum += validate(values[1])
+        checksum += validate(values[2])
+        checksum += validate(values[3])
+    println(checksum)

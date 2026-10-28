@@ -53,6 +53,7 @@ const STUDY = [
   "map_count",
   "string_build",
   "json",
+  "structure_walk",
 ];
 // Fixed stdout for the study inputs, also allowing hd-only or Python-only
 // measurements without launching another reference to obtain expected output.
@@ -69,6 +70,7 @@ const EXPECTED = {
   map_count: "50021 124948550\n",
   string_build: "89888890\n",
   json: "13302414 85311667\n",
+  structure_walk: "787500\n",
   dyn_iter:
     "dyn 66666653333334\nin-place 66666653333334\nloop 66666653333334\nrange 66666653333334\ndyn-short 653400000\nin-place-short 653400000\n",
 };

@@ -112,6 +112,7 @@ mod std_interfaces;
 mod std_stages;
 mod stored_fn_call;
 mod structure_run;
+mod structure_specialize;
 mod suspending_closures_run;
 mod template_shape;
 mod test_placement;
