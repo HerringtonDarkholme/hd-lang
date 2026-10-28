@@ -6,8 +6,9 @@ title: Typed errors
 
 An `@error` type keeps failures structured and gives each case a display
 message. `@from` generates the conversion used by `?` and records the converted
-error as the cause. `.context` adds what the caller was doing. `report_of`
-turns the resulting chain into a boundary-safe value for display or logging.
+error as the cause. `.context` adds what the caller was doing. `*dyn Error` is
+a shared reference to any error type, and `report_of` turns its cause chain into
+text for display or logging.
 
 ```hd
 use std.error.{Error, report_of}
@@ -16,10 +17,7 @@ use std.num.ParseNumberError
 @error
 enum ConfigError:
     @error("port is not a number")
-    InvalidPort(
-        @from
-        error: ParseNumberError,
-    )
+    InvalidPort(@from error: ParseNumberError)
 
 fn parse_port(text: string) -> Result[i32, ConfigError]:
     port := text.parse::[i32]()?
@@ -37,8 +35,8 @@ match load("eighty"):
 ```
 
 ```edit
-replace:         @from
-with:
+replace:     InvalidPort(@from error: ParseNumberError)
+with:     InvalidPort(error: ParseNumberError)
 error: invalid-result-propagation: ConfigError does not implement From[ParseNumberError]
 ```
 

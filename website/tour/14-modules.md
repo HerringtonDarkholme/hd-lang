@@ -5,10 +5,8 @@ title: Modules
 # Files expose only `pub` names, and `use` makes dependencies visible
 
 Each file is a module. A declaration is private unless it says `pub`, and
-another file asks for public names with `use`. A folder's `mod.hd` is the
-folder interface: its `pub use` declarations decide what the folder offers.
-Installed packages use the same rule under the `dep` root. Open the other tabs
-to see both sides of this boundary.
+another file asks for public names with `use`. Open the other tab to see both
+sides of this boundary.
 
 ```hd
 use pkg.pricing.{Line, total}

@@ -6,9 +6,9 @@ title: Derivation
 
 `@derive` asks standard implementations to follow a type's fields. `Eq` and
 `Debug` compare and describe this `Order`; `Serialize` and `Deserialize` make
-the same structure available to JSON. Derivation libraries receive typed
-facts about fields and variants, but ordinary code only names the behavior it
-wants at the declaration.
+the same structure available to JSON. The compiler describes each field and
+variant to derivation code; ordinary code only names the behavior it wants at
+the declaration.
 
 ```hd
 use std.json.decode

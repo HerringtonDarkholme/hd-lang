@@ -8,8 +8,6 @@ title: Lists, maps, and loops
 the collection's type. A `for` loop visits each value. A comprehension puts
 its loop and filter before `=>`, then produces one result element. Map lookup
 uses `get`, whose optional result needs a fallback when a key may be absent.
-Loops may also produce a value with `break value` and a loop `else`; an endless
-loop is `while true:`, because hd has no separate `loop` keyword.
 
 ```hd
 fn count_of(counts: Map[string, i32], name: string) -> i32:
@@ -22,14 +20,14 @@ for item in items:
 singletons := [for (name, count) in counts if count == 1 => name]
 println("lamps: ${count_of(counts, "lamp")}; single items: ${singletons.len()}")
 
-# Change `count_of` to return `counts.get(name)` and Run:
-#     type-mismatch: in result: expected i32, found i32?
+# Put `+1` between `"lamp"` and `"bulb"` and Run:
+#     no-common-type: in list element: string and an integer literal have no common type
 ```
 
 ```edit
-replace:     counts.get(name).unwrap_or(0)
-with:     counts.get(name)
-error: type-mismatch: in result: expected i32, found i32?
+replace: items := ["lamp", "bulb", "lamp"]
+with: items := ["lamp", +1, "bulb", "lamp"]
+error: no-common-type: in list element: string and an integer literal have no common type
 ```
 
 ```output

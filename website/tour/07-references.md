@@ -4,22 +4,19 @@ title: References
 
 # `&` reads in place, `&mut` writes in place, and `*` keeps sharing
 
-A value passed normally is copied. `&T` lends one place to a call for reading,
-and `&mut T` lends a writable place. These local references cannot escape the
-call. A stored `*T` or `*mut T` is counted and may live in a field. Here the
-viewer reads shared stock while the lane may update the same object.
-`for item in &mut items` and `&mut items[index]` borrow element places; while
-such a reference lives, the collection stays pinned and cannot grow or shrink.
+A value passed normally is copied. `&T` reads the caller's value without a
+copy, and `&mut T` may change that value. These local references cannot escape
+the call. A stored `*T` or `*mut T` may live in a field. `*T` reads; `*mut T`
+also writes. Writing `&mut` on a new value creates a shared object that stays
+alive while a stored reference points to it.
 
 ```hd
 struct Stock:
     units: i32
 
-struct Viewer:
-    stock: *Stock
-
-struct Lane:
-    stock: *mut Stock
+struct SharedStock:
+    view: *Stock
+    editable: *mut Stock
 
 fn units(stock: &Stock) -> i32:
     stock.units
@@ -31,12 +28,15 @@ let mut local = Stock { units: 2 }
 println("local: ${units(&local)}")
 restock(&mut local, 3)
 let shared: *mut Stock = &mut Stock { units: local.units }
-viewer := Viewer { stock: shared }
-lane := Lane { stock: shared }
-lane.stock.units -= 1
-println("shared: ${viewer.stock.units}")
+holder := SharedStock { view: shared, editable: shared }
+holder.editable.units -= 1
+println("shared: ${holder.view.units}")
 
-# Replace the counted reference with a plain Stock value and Run:
+# Add `stock.units = 0` inside `units` and Run:
+#     not-writable: this writes through a read-only reference &Stock
+# Change `restock(&mut local, 3)` to `restock(local, 3)` and Run:
+#     type-mismatch: in argument: expected &mut Stock, found Stock
+# Replace the stored reference with a plain Stock value and Run:
 #     type-mismatch: in field: expected *Stock, found Stock
 ```
 

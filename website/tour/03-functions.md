@@ -2,14 +2,13 @@
 title: Functions
 ---
 
-# Functions are typed contracts, `if` chooses a value, and pipes show the steps
+# Functions say what they take and return, `if` chooses a value, and pipes show steps
 
 A function writes each parameter type and its result type. The last expression
 is its result. `if` may choose a value when both branches produce the same
 type. A pipe feeds one result into the next step, and `_` marks the argument
 slot that receives it. The pure functions return values; only the script's
-top-level line prints. Parameters may also have defaults, and a caller may
-name an argument such as `express=true` when that makes the call clearer.
+top-level line prints.
 
 ```hd
 fn shipping_cents(weight_grams: i32, express: bool) -> i32:
