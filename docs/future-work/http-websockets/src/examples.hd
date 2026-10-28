@@ -1,0 +1,50 @@
+use pkg.websockets.{
+    WebSocket,
+    WebSocketClient,
+    WebSocketCloseCode,
+    WebSocketError,
+    WebSocketMessage,
+    WebSocketUpgrade,
+    connect_websocket,
+}
+use std.error.Error
+use std.http.{HeaderName, Headers, Request, Response, Url}
+use std.ops.Disposable
+
+## A client that sends and reads one text message, verifies liveness, and closes cleanly.
+fn echo_client!(url: Url) -> Result[(string, string?), *dyn Error] $ WebSocketClient:
+    request := Request::get(url).set_header(.Authorization, "Bearer example-token")
+    using socket = connect_websocket!(request, protocols=["echo.v1"])?
+    if socket.protocol != .Some("echo.v1"):
+        return .Err(&WebSocketError.Handshake("server did not select echo.v1"))
+    socket.set_read_limit(1_048_576)
+    socket.write!(WebSocketMessage.Text("hello"))?
+    reply := match socket.read!()?:
+        .Text(value) => value
+        .Binary(_) => return .Err(&WebSocketError.Protocol("expected text"))
+    socket.ping!()?
+    socket.finish!(WebSocketCloseCode.NormalClosure, "done")?
+    .Ok((reply, socket.headers.get(.Server)))
+
+## A binary message uses the same writer and retains its message boundary.
+fn send_thumbnail!(socket: &mut WebSocket, png: List[u8]) -> Result[void, WebSocketError]:
+    socket.write!(WebSocketMessage.Binary(png))
+
+## A server handler supplied to the server SDK's WebSocket upgrade loop.
+fn echo_server!(upgrade: WebSocketUpgrade) -> Result[void, *dyn Error]:
+    if upgrade.request.header(.Authorization).is_none() || !upgrade.protocols.contains("echo.v1"):
+        upgrade.reject!(Response::status(.Unauthorized).set_text("upgrade rejected"))?
+        return .Ok(())
+    let mut headers = Headers::new()
+    headers.set(HeaderName.Server, "hd echo")
+    using socket = upgrade.accept!(
+        headers=headers,
+        protocol= .Some("echo.v1"),
+        allowed_origins=["https://app.example"],
+    )?
+    socket.set_read_limit(1_048_576)
+    while true:
+        match socket.read!():
+            .Ok(message) => socket.write!(message)?
+            .Err(.Closed(_, _)) => return .Ok(())
+            .Err(error) => return .Err(&error)

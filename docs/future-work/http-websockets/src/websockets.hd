@@ -1,0 +1,125 @@
+use std.http.{Headers, HttpError, Request, Response}
+use std.ops.Disposable
+
+## One complete WebSocket data message.
+@derive(Debug, Eq)
+pub enum WebSocketMessage:
+    Text(value: string)
+    Binary(value: List[u8])
+
+## A WebSocket close status that may be sent or received.
+@derive(Debug, Eq)
+pub enum WebSocketCloseCode:
+    NormalClosure
+    GoingAway
+    ProtocolError
+    UnsupportedData
+    InvalidPayload
+    PolicyViolation
+    MessageTooBig
+    MandatoryExtension
+    InternalError
+    ServiceRestart
+    TryAgainLater
+    BadGateway
+    Application(code: u16)
+    Other(code: u16)
+
+## Why a WebSocket handshake or established connection failed.
+@error
+@derive(Debug, Eq)
+pub enum WebSocketError:
+    @error("HTTP request failed: $error")
+    Http(error: HttpError)
+    @error("WebSocket upgrade was rejected")
+    Rejected(response: Response)
+    @error("WebSocket handshake failed: $reason")
+    Handshake(reason: string)
+    @error("WebSocket protocol error: $reason")
+    Protocol(reason: string)
+    @error("WebSocket message exceeds $limit bytes")
+    MessageTooLarge(limit: usize)
+    @error("invalid WebSocket close")
+    InvalidClose(code: WebSocketCloseCode, reason: string)
+    @error("WebSocket closed")
+    Closed(code: WebSocketCloseCode?, reason: string)
+    @error("WebSocket handle is closed")
+    ClosedHandle
+
+struct WebSocketState:
+    closed: bool
+
+## A scoped, bidirectional WebSocket message handle.
+pub struct WebSocket:
+    pub headers: Headers
+    pub protocol: string?
+    state: *mut WebSocketState
+
+impl WebSocket:
+    ## Reads one reassembled text or binary message.
+    pub fn read!(&mut self) -> Result[WebSocketMessage, WebSocketError]:
+        panic("todo")
+
+    ## Writes and flushes one complete text or binary message.
+    pub fn write!(&mut self, message: WebSocketMessage) -> Result[void, WebSocketError]:
+        panic("todo")
+
+    ## Sends a ping and waits for its matching pong.
+    pub fn ping!(&mut self) -> Result[void, WebSocketError]:
+        panic("todo")
+
+    ## Changes the maximum reassembled message size for later reads.
+    pub fn set_read_limit(&mut self, max: usize) -> void:
+        panic("todo")
+
+    ## Performs the closing handshake and reports failure.
+    pub fn finish!(
+        &mut self,
+        code: WebSocketCloseCode = .NormalClosure,
+        reason: string = "",
+    ) -> Result[void, WebSocketError]:
+        panic("todo")
+
+impl Disposable for WebSocket:
+    fn dispose!(&mut self) -> void:
+        self.state.closed = true
+
+## The client-side host operation. Its manifest authority is the existing Http grant.
+pub trait WebSocketClient:
+    fn connect!(
+        &mut self,
+        request: Request,
+        protocols: List[string],
+        redirects: usize,
+    ) -> Result[*mut WebSocket, WebSocketError]
+
+## Opens a client socket from an existing request and its headers.
+pub fn connect_websocket!(
+    request: Request,
+    protocols: List[string] = [],
+    redirects: usize = 10,
+) -> Result[*mut WebSocket, WebSocketError] $ WebSocketClient:
+    $.use(WebSocketClient).connect!(request, protocols, redirects)
+
+struct WebSocketUpgradeState:
+    completed: bool
+
+## A pending server upgrade delivered by a server SDK WebSocket handler.
+pub struct WebSocketUpgrade:
+    pub request: Request
+    pub protocols: List[string]
+    state: *mut WebSocketUpgradeState
+
+impl WebSocketUpgrade:
+    ## Accepts the upgrade with response headers, one offered protocol, and exact extra origins.
+    pub fn accept!(
+        self,
+        headers: Headers = Headers::new(),
+        protocol: string? = .None,
+        allowed_origins: List[string] = [],
+    ) -> Result[*mut WebSocket, WebSocketError]:
+        panic("todo")
+
+    ## Rejects the pending upgrade with an ordinary HTTP response.
+    pub fn reject!(self, response: Response) -> Result[void, WebSocketError]:
+        panic("todo")
