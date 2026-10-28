@@ -1,0 +1,39 @@
+# test: Result writes and reads the same named-variant form as a derived enum, and rejects an unknown variant name
+# Spec std/serde Standard Implementations: std-serde.std.result.
+# Spec std/json Derived Serialize: std-json.derive.to-json.enum-included-members.
+use std.json.{encode, decode, JsonError}
+use std.serde.{Serialize, Deserialize}
+use std.testing.assert_equal
+
+@derive(Serialize, Deserialize)
+struct Job:
+    outcome: Result[i32, string]
+
+fn round_trip(job: Job, expected: string) -> void:
+    text := encode(job)
+    assert_equal(text, expected, reason="wire form")
+    match decode::[Job](text):
+        .Ok(back) => assert_equal(encode(back), expected, reason="round trip")
+        .Err(error) => panic("decode failed: $error")
+
+fn failure(text: string) -> JsonError:
+    match decode::[Job](text):
+        .Ok(_) => panic("expected an error for $text")
+        .Err(error) => error
+
+tests:
+    it("round trips Ok through a derived member"):
+        round_trip(Job { outcome: .Ok(7) }, "{\"outcome\":{\"Ok\":{\"value\":7}}}")
+
+    it("round trips Err through a derived member"):
+        round_trip(
+            Job { outcome: .Err("offline") },
+            "{\"outcome\":{\"Err\":{\"error\":\"offline\"}}}",
+        )
+
+    it("rejects an unknown Result variant name"):
+        assert_equal(
+            failure("{\"outcome\":{\"Pending\":{\"value\":1}}}"),
+            JsonError.UnknownVariant("$.outcome", "Pending"),
+            reason="unknown variant",
+        )

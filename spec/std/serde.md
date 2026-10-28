@@ -215,6 +215,7 @@ For example, `@skip()` on `cached: usize = 0` leaves the cache out of documents.
 | r[std-serde.std.unsigned] Unsigned integers | `u8`, `u16`, `u32`, `u64`, and `usize` | `uint` | `uint` within the type's range, the type's name |
 | r[std-serde.std.float] Floats | `f32` and `f64` | `float` of the value as an `f64` | `float`, the type's name |
 | r[std-serde.std.optional] Optional | `T?`, where `T` implements the trait | `null` for `.None`, and the payload for `.Some` | `.None` when `is_null` is `true`, and `.Some` of what `T` reads otherwise |
+| r[std-serde.std.result] Result | `Result[T, E]`, where `T` and `E` implement the trait | an `Ok` variant with member `value`, or an `Err` variant with member `error` | the corresponding variant and member form |
 | r[std-serde.std.list] List | `List[T]`, where `T` implements the trait | a list of the items, in order | a list, item by item |
 | r[std-serde.std.map-entries] Map | `Map[string, V]`, where `V` implements the trait | a map of the entries, in the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic) | a map, entry by entry, in its order |
 | r[std-serde.std.set] Set | `Set[T]`, where `T` implements the trait | a list of the elements, in insertion order | a list, element by element; a repeated element keeps one entry |

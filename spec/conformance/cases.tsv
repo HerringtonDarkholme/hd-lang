@@ -3797,6 +3797,7 @@ runtime/valid/serde-derive-keeps-declared-parameter-bounds.hd	runtime	accept	std
 runtime/valid/serde-std-writes.hd	runtime	accept	std/serde.md#r-std-serde.model.one-value
 runtime/valid/serde-std-reads.hd	runtime	accept	std/serde.md#r-std-serde.read.scalar
 runtime/valid/serde-set-tuple.hd	runtime	accept	std/serde.md#r-std-serde.std.tuple
+runtime/valid/serde-result-json.hd	runtime	accept	std/serde.md#r-std-serde.std.result
 runtime/valid/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.unskipped-order
 runtime/valid/serde-derive-empty-record.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.template
 runtime/valid/serde-variant-member-facts.hd	runtime	accept	std/serde.md#r-std-serde.model.variant-args.local-ref
