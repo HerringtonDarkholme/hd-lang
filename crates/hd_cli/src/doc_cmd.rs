@@ -9,8 +9,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use hd_diag::{Code, Severity};
-use hd_driver::{BuildProfile, Goal};
+use hd_driver::{BuildProfile, Goal, Output};
 use hd_project::{Role, SourceSet as _, module_below, role_of};
 
 use crate::report::{self, Diag, Reporter};
@@ -114,33 +113,14 @@ fn document(
     let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
     program.only_program("");
     let out = build_goal_with(&program, &Goal::Analyze, BuildProfile::Checked, true, rep)?;
-    let texts =
-        module_texts(&program.sources, &program.entries, o.private).map_err(|e| rep.fail(&e))?;
-    let modules = modules_of(&texts);
-    let root_ident = hd_project::package_ident(&program.package);
-    let deps = dependency_roots(&program);
-    let std_names = std_names();
-    let std: Vec<hd_doc::Module<'_>> = std_names
-        .iter()
-        .map(|(path, text)| hd_doc::Module { path, text })
-        .collect();
-    let package = hd_doc::Package {
-        name: &program.package,
-        root: &root_ident,
-        modules: &modules,
-        ifaces: &out.ifaces,
-        private: o.private,
-        scopes: &out.scopes,
-        deps: &deps,
-        std: &std,
-    };
     if let Some(name) = &o.name {
-        return print_name(&program, &package, &out, name, rep);
+        return with_package(&program, &out, o.private, |package| {
+            print_name(&program, package, &out, name, rep)
+        })
+        .map_err(|e| rep.fail(&e))?;
     }
-    let rendered = hd_doc::render(&package);
-    for b in &rendered.broken {
-        rep.diag(&broken_link(&program, b));
-    }
+    let rendered =
+        with_package(&program, &out, o.private, hd_doc::render).map_err(|e| rep.fail(&e))?;
     let files = rendered.files;
     // `cli.doc.dir`: `build/doc`, or `--out DIR` below the working directory.
     let dir = o
@@ -164,6 +144,66 @@ fn document(
     Ok(())
 }
 
+/// Builds the documentation package view around one checked output. The
+/// closure consumes every borrow before this function's owned text buffers
+/// are dropped.
+fn with_package<R>(
+    program: &disk::Program,
+    out: &Output,
+    private: bool,
+    f: impl FnOnce(&hd_doc::Package<'_>) -> R,
+) -> Result<R, String> {
+    let texts = module_texts(&program.sources, &program.entries, private)?;
+    let modules = modules_of(&texts);
+    let root_ident = hd_project::package_ident(&program.package);
+    let deps = dependency_roots(program);
+    let std_names = std_names();
+    let std: Vec<hd_doc::Module<'_>> = std_names
+        .iter()
+        .map(|(path, text)| hd_doc::Module { path, text })
+        .collect();
+    Ok(f(&hd_doc::Package {
+        name: &program.package,
+        root: &root_ident,
+        modules: &modules,
+        ifaces: &out.ifaces,
+        private,
+        scopes: &out.scopes,
+        deps: &deps,
+        std: &std,
+    }))
+}
+
+/// Documentation-link findings for `hd lint`. `hd_doc` owns link
+/// resolution and returns neutral broken-link facts; `hd_lint` owns their
+/// diagnostic message and selected level.
+pub(crate) fn lint_broken_links(
+    program: &disk::Program,
+    out: &Output,
+    policy: hd_lint::Policy,
+    reached: Option<&[bool]>,
+) -> Result<Vec<Diag>, String> {
+    let rendered = with_package(program, out, false, hd_doc::render)?;
+    let mut findings = Vec::new();
+    for broken in &rendered.broken {
+        let Some(source) = broken_link_source(program, broken) else {
+            continue;
+        };
+        if reached.is_some_and(|selected| {
+            out.files
+                .iter()
+                .position(|file| file == &source)
+                .is_none_or(|file| !selected.get(file).copied().unwrap_or(false))
+        }) {
+            continue;
+        }
+        if let Some(diag) = hd_lint::broken_doc_link(policy, &broken.name, broken.private) {
+            findings.push(diag.at(&program.sources.display(&source), None));
+        }
+    }
+    Ok(findings)
+}
+
 /// The dependencies' keys with the root module of each package.
 fn dependency_roots(program: &disk::Program) -> Vec<(String, String)> {
     program
@@ -176,33 +216,18 @@ fn dependency_roots(program: &disk::Program) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The warning for a link that names no documented item
-/// (`cli.doc.link.broken`), at the source file of its module.
-fn broken_link(program: &disk::Program, b: &hd_doc::BrokenLink) -> Diag {
-    let why = if b.private {
-        "is private and not documented"
-    } else {
-        "names no item"
-    };
-    let mut diag = Diag::new(
-        Some(Code::BrokenDocLink),
-        Severity::Warning,
-        &format!("the link `[`{}`]` {why}", b.name),
-    );
+/// The root-package source whose documentation owns a broken link.
+fn broken_link_source(program: &disk::Program, b: &hd_doc::BrokenLink) -> Option<String> {
     let root = hd_project::package_ident(&program.package);
     let module = b
         .module
         .strip_prefix(&root)
         .map(|m| m.trim_start_matches('.'));
-    let file = program.sources.list().into_iter().find_map(|e| {
+    program.sources.list().into_iter().find_map(|e| {
         let path = &e.path;
         (path.starts_with("src/") && Some(module_below(path).as_str()) == module)
-            .then(|| program.sources.display(path))
-    });
-    if let Some(file) = file {
-        diag = diag.at(&file, None);
-    }
-    diag
+            .then(|| path.clone())
+    })
 }
 
 /// The (module path, text) of each module `hd doc` documents in `sources`

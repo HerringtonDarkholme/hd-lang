@@ -1,8 +1,8 @@
 //! `` [`NAME`] `` links in `hd doc` pages (`cli.doc.link.*`): resolved in
 //! the module scope of the documented item, relative to the page that holds
 //! them. A name that resolves to no item, or to a private item the run does
-//! not document, is a `broken-doc-link` warning, and the pages are still
-//! written.
+//! not document, is a `broken-doc-link` finding from `hd lint`. `hd doc`
+//! still writes the pages but reports compiler errors only.
 
 use std::path::Path;
 use std::process::{Command, Output};
@@ -133,8 +133,10 @@ fn a_dependency_name_is_checked_and_shown_as_code() {
         cart.contains("costs `cents`, `Sum.double`, `Sum.n` and `sluggify`, not `Sum.nope`."),
         "{cart}"
     );
-    // Only the name that resolves to nothing is reported.
-    let err = text(&out.stderr) + &text(&out.stdout);
+    // Only the names that resolve to nothing are reported by lint.
+    let lint = hd(&root, &cache, &["lint"]);
+    assert_eq!(lint.status.code(), Some(0), "{}", text(&lint.stderr));
+    let err = text(&lint.stderr) + &text(&lint.stdout);
     assert!(err.contains("broken-doc-link"), "{err}");
     assert!(
         err.contains("sluggify") && err.contains("Sum.nope"),
@@ -150,7 +152,11 @@ fn a_broken_link_warns_and_the_pages_are_written() {
     let (root, cache) = project("hd-doc-links-broken");
     let out = hd(&root, &cache, &["doc", "--out", "site"]);
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
-    let all = text(&out.stderr) + &text(&out.stdout);
+    let doc_output = text(&out.stderr) + &text(&out.stdout);
+    assert!(!doc_output.contains("broken-doc-link"), "{doc_output}");
+    let lint = hd(&root, &cache, &["lint"]);
+    assert_eq!(lint.status.code(), Some(0), "{}", text(&lint.stderr));
+    let all = text(&lint.stderr) + &text(&lint.stdout);
     assert!(
         all.contains("warning") && all.contains("broken-doc-link") && all.contains("src/cart.hd"),
         "{all}"
@@ -167,7 +173,9 @@ fn a_private_target_warns_unless_private_items_are_documented() {
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
     let pkg = read(&root, "site/pkg.md");
     assert!(pkg.contains("Sums a `helper` result"), "{pkg}");
-    let all = text(&out.stderr) + &text(&out.stdout);
+    let lint = hd(&root, &cache, &["lint"]);
+    assert_eq!(lint.status.code(), Some(0), "{}", text(&lint.stderr));
+    let all = text(&lint.stderr) + &text(&lint.stdout);
     assert!(all.contains("helper") && all.contains("private"), "{all}");
 
     let out = hd(&root, &cache, &["doc", "--private", "--out", "site"]);
@@ -176,4 +184,34 @@ fn a_private_target_warns_unless_private_items_are_documented() {
     assert!(pkg.contains("Sums a [`helper`](#helper) result"), "{pkg}");
     let all = text(&out.stderr) + &text(&out.stdout);
     assert!(!all.contains("helper"), "{all}");
+}
+
+#[test]
+fn broken_link_policy_is_applied_by_lint() {
+    let (root, cache) = project("hd-doc-links-policy");
+    let allowed = hd(&root, &cache, &["lint", "--allow", "broken-doc-link"]);
+    assert_eq!(allowed.status.code(), Some(0), "{}", text(&allowed.stderr));
+    let all = text(&allowed.stderr) + &text(&allowed.stdout);
+    assert!(!all.contains("broken-doc-link"), "{all}");
+
+    let denied = hd(&root, &cache, &["lint", "--deny", "broken-doc-link"]);
+    assert_eq!(denied.status.code(), Some(101), "{}", text(&denied.stderr));
+    let all = text(&denied.stderr) + &text(&denied.stdout);
+    assert!(
+        all.contains("error") && all.contains("broken-doc-link"),
+        "{all}"
+    );
+}
+
+#[test]
+fn linting_one_file_limits_broken_links_to_its_reachable_modules() {
+    let (root, cache) = project("hd-doc-links-file");
+    let lint = hd(&root, &cache, &["lint", "src/lib.hd"]);
+    assert_eq!(lint.status.code(), Some(0), "{}", text(&lint.stderr));
+    let all = text(&lint.stderr) + &text(&lint.stdout);
+    assert!(all.contains("helper"), "{all}");
+    assert!(
+        !all.contains("sluggify") && !all.contains("Sum.nope"),
+        "{all}"
+    );
 }

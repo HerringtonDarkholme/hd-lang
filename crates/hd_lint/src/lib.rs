@@ -9,11 +9,13 @@ use hd_check::analysis::CheckedView;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_driver::Output;
 use hd_driver::analysis::{AnalysisSink, Event, Events};
+use hd_driver::diagnostics::Diag;
 use hd_project::LintTable;
 use hd_syntax::{CommentKind, SyntaxKind, TokenKind};
 use hd_types::Prim;
 
 pub const DERIVATION_DRIFT: &str = Code::DerivationLineDrift.as_str();
+pub const BROKEN_DOC_LINK: &str = Code::BrokenDocLink.as_str();
 pub const DBG_IN_DEPENDENCY: &str = Code::DbgInDependency.as_str();
 pub const LOST_WRITE: &str = Code::LostWrite.as_str();
 pub const UNUSED_DERIVATION: &str = Code::UnusedDerivationFact.as_str();
@@ -32,7 +34,7 @@ pub const UNSIGNED_COMPARISON: &str = Code::UnsignedComparisonAlways.as_str();
 pub struct Rule {
     code: Code,
     default: Level,
-    events: Events,
+    events: Option<Events>,
     check: Check,
 }
 
@@ -43,7 +45,16 @@ impl Rule {
         Self {
             code,
             default,
-            events,
+            events: Some(events),
+            check,
+        }
+    }
+
+    const fn command(code: Code, default: Level, check: Check) -> Self {
+        Self {
+            code,
+            default,
+            events: None,
             check,
         }
     }
@@ -64,13 +75,14 @@ impl Rule {
     }
 
     #[must_use]
-    pub const fn events(self) -> Events {
+    pub const fn events(self) -> Option<Events> {
         self.events
     }
 }
 
 /// The complete migrated lint surface, in stable registry order.
 pub const RULES: &[Rule] = &[
+    Rule::command(Code::BrokenDocLink, Level::Warn, no_event),
     Rule::new(
         Code::DbgInDependency,
         Level::Warn,
@@ -151,6 +163,32 @@ pub const RULES: &[Rule] = &[
     ),
 ];
 
+fn no_event(_: &Event<'_>, _: &CheckedView<'_>, _: &mut DiagBuf) {}
+
+/// The policy-selected diagnostic for a documentation link which resolved
+/// to no documented item. Link resolution stays in `hd_doc`; this crate owns
+/// the lint's stable code, message and level.
+#[must_use]
+pub fn broken_doc_link(policy: Policy, name: &str, private: bool) -> Option<Diag> {
+    let level = policy.level(Code::BrokenDocLink);
+    if level == Level::Allow {
+        return None;
+    }
+    let why = if private {
+        "is private and not documented"
+    } else {
+        "names no item"
+    };
+    Some(Diag::new(
+        Some(Code::BrokenDocLink),
+        match level {
+            Level::Deny => Severity::Error,
+            Level::Warn | Level::Allow => Severity::Warning,
+        },
+        &format!("the link `[`{name}`]` {why}"),
+    ))
+}
+
 fn dbg_in_dependency(event: &Event<'_>, _view: &CheckedView<'_>, out: &mut DiagBuf) {
     let Event::FetchedDebug(event) = event else {
         return;
@@ -201,9 +239,9 @@ pub static ANALYZER: Analyzer = Analyzer;
 
 impl AnalysisSink for Analyzer {
     fn interests(&self) -> Events {
-        RULES
-            .iter()
-            .fold(Events::default(), |events, rule| events.union(rule.events))
+        RULES.iter().fold(Events::default(), |events, rule| {
+            rule.events.map_or(events, |more| events.union(more))
+        })
     }
 
     fn diagnostic_code(&self, name: &str) -> Option<Code> {
@@ -215,7 +253,10 @@ impl AnalysisSink for Analyzer {
 
     fn event(&self, event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
         let family = event.family();
-        for rule in RULES.iter().filter(|rule| rule.events.contains(family)) {
+        for rule in RULES
+            .iter()
+            .filter(|rule| rule.events.is_some_and(|events| events.contains(family)))
+        {
             (rule.check)(event, view, out);
         }
     }
@@ -303,6 +344,12 @@ impl Policy {
         RULES
             .iter()
             .all(|rule| self.level(rule.code) == Level::Allow)
+    }
+
+    /// Whether command policy suppresses one registered lint completely.
+    #[must_use]
+    pub fn allows(self, code: Code) -> bool {
+        self.level(code) == Level::Allow
     }
 
     fn level(self, code: Code) -> Level {

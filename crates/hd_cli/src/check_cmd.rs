@@ -277,6 +277,8 @@ fn check_role(
     // they use, deeply (crates/hd_cli/DESIGN.md §7.2), the modules `shown`
     // keeps.
     let mut packages = t.program.packages();
+    packages.doc_scopes = matches!(goal, Goal::Analyze)
+        && lint.is_some_and(|policy| !policy.allows(Code::BrokenDocLink));
     packages.check_roots = t.only.as_ref().map(|only| {
         std::iter::once(only.clone())
             .chain(docs.iter().map(|d| d.path.clone()))
@@ -319,6 +321,7 @@ fn check_role(
                 return (shown, out.counters.modules_checked);
             }
         };
+    let mut command_findings = Vec::new();
     if !policy.all_allow() {
         out = hd_driver::build_packages_with_analysis(
             &host,
@@ -330,9 +333,21 @@ fn check_role(
         if !shown(&out, t, docs).iter().any(Diag::is_error) {
             let findings = policy.apply_with_source(&out.analysis_diags, &source_policy);
             out.diags.append(&findings);
+            if matches!(goal, Goal::Analyze) && !policy.allows(Code::BrokenDocLink) {
+                match crate::doc_cmd::lint_broken_links(
+                    &t.program,
+                    &out,
+                    policy,
+                    reached.as_deref(),
+                ) {
+                    Ok(findings) => command_findings = findings,
+                    Err(message) => command_findings.push(Diag::error(None, &message)),
+                }
+            }
         }
     }
     let mut shown = shown(&out, t, docs);
+    shown.extend(command_findings);
     relocate_docs(&mut shown, docs);
     (shown, out.counters.modules_checked)
 }

@@ -4,47 +4,64 @@ use hd_driver::analysis::Events;
 use hd_lint::{Level, Policy, RULES};
 use hd_project::parse_manifest;
 
-const EXPECTED: [(&str, Code, Events); 13] = [
+const EXPECTED: [(&str, Code, Option<Events>); 14] = [
+    ("broken-doc-link", Code::BrokenDocLink, None),
     (
         "dbg-in-dependency",
         Code::DbgInDependency,
-        Events::FETCHED_DEBUG,
+        Some(Events::FETCHED_DEBUG),
     ),
     (
         "derivation-line-drift",
         Code::DerivationLineDrift,
-        Events::DERIVATIONS,
+        Some(Events::DERIVATIONS),
     ),
-    ("lost-write", Code::LostWrite, Events::PARAMETER_WRITE),
+    ("lost-write", Code::LostWrite, Some(Events::PARAMETER_WRITE)),
     (
         "mixed-script-identifier",
         Code::MixedScriptIdentifier,
-        Events::IDENT,
+        Some(Events::IDENT),
     ),
-    ("private-main", Code::PrivateMain, Events::MAIN_SITE),
-    ("redundant-let-mut", Code::RedundantLetMut, Events::BINDING),
-    ("unreachable-code", Code::UnreachableCode, Events::STATEMENT),
-    ("unselected-main", Code::UnselectedMain, Events::MAIN_SITE),
+    ("private-main", Code::PrivateMain, Some(Events::MAIN_SITE)),
+    (
+        "redundant-let-mut",
+        Code::RedundantLetMut,
+        Some(Events::BINDING),
+    ),
+    (
+        "unreachable-code",
+        Code::UnreachableCode,
+        Some(Events::STATEMENT),
+    ),
+    (
+        "unselected-main",
+        Code::UnselectedMain,
+        Some(Events::MAIN_SITE),
+    ),
     (
         "unsigned-comparison-always",
         Code::UnsignedComparisonAlways,
-        Events::COMPARISON,
+        Some(Events::COMPARISON),
     ),
-    ("unused-debug-text", Code::UnusedDebugText, Events::DISCARD),
+    (
+        "unused-debug-text",
+        Code::UnusedDebugText,
+        Some(Events::DISCARD),
+    ),
     (
         "unused-derivation-fact",
         Code::UnusedDerivationFact,
-        Events::DERIVATIONS,
+        Some(Events::DERIVATIONS),
     ),
     (
         "unused-local-binding",
         Code::UnusedLocalBinding,
-        Events::BINDING,
+        Some(Events::BINDING),
     ),
     (
         "variant-binding-name-mismatch",
         Code::VariantBindingNameMismatch,
-        Events::PATTERN,
+        Some(Events::PATTERN),
     ),
 ];
 
